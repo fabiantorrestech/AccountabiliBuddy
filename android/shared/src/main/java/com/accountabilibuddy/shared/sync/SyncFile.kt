@@ -194,6 +194,8 @@ data class SyncSession(
     val added: Boolean,
     /** Its guided-session checklist (ADR 24); empty for none. Optional in the JSON. */
     val tasks: List<SessionTaskItem> = emptyList(),
+    /** ADR 60: how long the PC was off just before this piece (non-work session time); null for none. Optional in the JSON. */
+    val offMinutesBefore: Int? = null,
 )
 
 /**
@@ -380,6 +382,8 @@ data class SyncRunning(
      */
     val planningStartedAt: java.time.Instant? = null,
     val planningEndsAt: java.time.Instant? = null,
+    /** ADR 60: the PC signalled it was going off with this session running. Optional (older builds leave it out). */
+    val offSince: java.time.Instant? = null,
 ) {
     /**
      * Still worth showing at [now] (a PC that went off mid-session stops counting down): before the end of its phase and

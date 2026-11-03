@@ -19,31 +19,51 @@ import java.io.File
 import java.time.Instant
 
 /**
- * The phone's settings as one JSON file (Settings → Backup: export, import, auto-backup): the app's own preferences and
- * the phone's settings files. Secrets never go in it (the device group's link code, the Drive
- * sign-in, which Google Play services keeps), nor what comes back by itself (the PC's data, received sync files,
- * today's state such as a lunch, pending actions or snoozes). Folder permissions (the noise and sync folders) need
- * choosing again on another phone.
+ * The phone's settings as one JSON file (Settings → Backup: export, import, auto-backup): the app's own preferences,
+ * the phone's settings files and its guard history ([GuardHistoryBackup]: times and kinds only). Secrets never go in it (the device group's link
+ * code, the Drive sign-in, which Google Play services keeps, sealed tokens), nor reasons and notes, which never leave the phone, nor what comes
+ * back by itself (the PC's data, received sync files, today's state such as a lunch or pending actions). Folder permissions (the noise and sync
+ * folders) need choosing again on another phone. Choosing what to restore: [BackupGroup]. New parts are additive, so [FORMAT] stays 1: older files
+ * still import, and older apps ignore what they don't know.
  */
 object PhoneBackup {
     const val FORMAT = 1
     const val MIME = "application/json"
 
     /** Preference files backed up: the user's settings. */
-    val PREFS = listOf("ui", "emergency", "essentials", "bedtimeEssentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime", "lunchSettings")
+    val PREFS = listOf(
+        "ui", "emergency", "essentials", "bedtimeEssentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime", "lunchSettings",
+        "timers", "curbox", "blockGuard", "lunchLockLift", "phoneDown",
+    )
+
+    /** The preference files whose changes start an auto-backup. Not the ones the app writes on its own while running. */
+    val WATCHED_PREFS = PREFS - setOf("phoneDown", "curbox", "blockGuard", "lunchLockLift") + setOf("workUse", "over_limit")
 
     // Keys left out of those files: today's state, not settings.
     private val SKIPPED_KEYS = mapOf(
         // The After sunset place is private (ADR 49): sealed to this phone's Keystore, never in a backup file.
         "ui" to setOf("place"),
-        "takeover" to setOf("lastShown", "snoozedUntil", "startingUntil", "snoozeDay", "snoozes", "dayOffAskedAt", "dayOff"),
+        "takeover" to setOf("lastShown", "snoozedUntil", "startingUntil", "snoozeDay", "snoozes", "dayOffAskedAt", "dayOff", "unanswered"),
         "nudges" to setOf("lastNudge"),
         "emergency" to setOf("uses"),
     )
 
+    // Files where only these keys are settings; the rest is the app's running state or sealed.
+    private val ONLY_KEYS = mapOf(
+        "curbox" to setOf("hardMode", "focusGroup"),
+        "blockGuard" to setOf("on", "known"),
+        "lunchLockLift" to setOf("on"),
+        "phoneDown" to com.accountabilibuddy.companion.placement.PocketPenalty.entries.map { it.keyOn }.toSet(),
+    )
+
+    private fun backedUp(name: String, key: String): Boolean =
+        key !in SKIPPED_KEYS[name].orEmpty() && ONLY_KEYS[name]?.let { key in it } != false
+
     /** Settings files under files/companion backed up (the phone's own; the PC's data and secrets aren't). */
     val FILES = listOf("phone.json", "sleep.json", "sync-settings.json", "watch.json")
     private const val SYNC_SETTINGS = "sync-settings.json"
+    private const val HISTORY = "history"
+    private const val NOT_A_BACKUP = "That isn't an AccountabiliBuddy phone settings file."
 
     fun export(context: Context, appVersion: String): String {
         val json = buildJsonObject {
@@ -53,8 +73,7 @@ object PhoneBackup {
             put("createdAt", Instant.now().toString())
             put("prefs", buildJsonObject {
                 PREFS.forEach { name ->
-                    val skipped = SKIPPED_KEYS[name].orEmpty()
-                    val values = context.getSharedPreferences(name, Context.MODE_PRIVATE).all.filterKeys { it !in skipped }
+                    val values = context.getSharedPreferences(name, Context.MODE_PRIVATE).all.filterKeys { backedUp(name, it) }
                     if (values.isNotEmpty()) {
                         put(name, buildJsonObject { values.forEach { (key, value) -> encode(value)?.let { put(key, it) } } })
                     }
@@ -68,37 +87,81 @@ object PhoneBackup {
                     }
                 }
             })
+            put(HISTORY, GuardHistoryBackup.export(context))
         }
         return json.toString()
     }
 
-    /**
-     * Writes a backup's settings over this phone's. Null when done; otherwise why not. The app restarts after. Locked during a focus session
-     * the user started, like every other restore: a file could carry a paused guard or switched-off sharing. Read here, first, so no screen
-     * can get around it; exporting and auto-backup are not affected.
-     */
-    fun import(context: Context, text: String): String? {
+    /** Why [text] can't be restored now (a focus session, not a backup, or a newer format); null when it can. */
+    fun importProblem(context: Context, text: String): String? {
         (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.removalLockedReason()?.let { return it }
-        val keepSync = keepsSyncSettings(context, text)
-        val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return "That isn't an AccountabiliBuddy phone settings file."
-        val format = runCatching { json.getValue("format").jsonPrimitive.int }.getOrNull() ?: return "That isn't an AccountabiliBuddy phone settings file."
-        if (format > FORMAT) {
-            return "That file is from a newer version of the app. Update the app first."
+        val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return NOT_A_BACKUP
+        val format = runCatching { json.getValue("format").jsonPrimitive.int }.getOrNull() ?: return NOT_A_BACKUP
+        return if (format > FORMAT) "That file is from a newer version of the app. Update the app first." else null
+    }
+
+    /** The groups [text] holds something for, in the order they are shown: a file from an older version shows only what it has. */
+    fun groupsIn(text: String): List<BackupGroup> {
+        val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return emptyList()
+        val prefs = (json["prefs"] as? JsonObject)?.keys.orEmpty()
+        val files = (json["files"] as? JsonObject)?.keys.orEmpty()
+        return BackupGroup.entries.filter { group ->
+            group.prefs.any { it in prefs } || group.files.any { it in files } || (group == BackupGroup.GuardHistory && json[HISTORY] is JsonObject)
         }
+    }
+
+    /** The groups that can't be left out: guard history holding today's uses, which leaving out would reset today's allowance. */
+    fun requiredGroups(text: String, today: java.time.LocalDate = java.time.LocalDate.now()): Set<BackupGroup> {
+        val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return emptySet()
+        return if (GuardHistoryBackup.holdsToday(json[HISTORY] as? JsonObject, today)) setOf(BackupGroup.GuardHistory) else emptySet()
+    }
+
+    /** "From app 0.1.70, Nov 3, 1:05 PM" for the restore screen. */
+    fun describe(text: String): String {
+        val json = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return ""
+        val version = json["appVersion"]?.jsonPrimitive?.content
+        val created = json["createdAt"]?.jsonPrimitive?.content?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            ?.atZone(java.time.ZoneId.systemDefault())?.format(java.time.format.DateTimeFormatter.ofPattern("MMM d, h:mm a", java.util.Locale.US))
+        return listOfNotNull(created, version?.let { "app $it" }).joinToString(" · ").let { if (it.isEmpty()) it else "Backup from $it" }
+    }
+
+    /**
+     * Writes a backup's chosen parts over this phone's ([groups]; what belongs to no group always comes back). Null when done; otherwise why not.
+     * The app restarts after. Locked during a focus session the user started, like every other restore: a file could carry a paused guard or
+     * switched-off sharing. Read here, first, so no screen can get around it; exporting and auto-backup are not affected.
+     */
+    fun import(context: Context, text: String, groups: Set<BackupGroup> = BackupGroup.entries.toSet()): String? {
+        importProblem(context, text)?.let { return it }
+        val keepSync = keepsSyncSettings(context, text)
+        val json = Json.parseToJsonElement(text).jsonObject
+        // Enforced here too: no screen can leave out what holds today's uses.
+        val chosen = groups + requiredGroups(text)
 
         json["prefs"]?.jsonObject?.forEach { (name, values) ->
             if (name !in PREFS) return@forEach
-            val skipped = SKIPPED_KEYS[name].orEmpty()
+            val group = BackupGroup.ofPrefs(name)
+            if (group != null && group !in chosen) return@forEach
             val editor = context.getSharedPreferences(name, Context.MODE_PRIVATE).edit()
-            values.jsonObject.forEach { (key, value) -> if (key !in skipped) decode(editor, key, value) }
+            values.jsonObject.forEach { (key, value) ->
+                // A Phone down penalty only ever comes back on: turning one off waits (PhoneDownStore), and a restore is no way round that.
+                val turnsPenaltyOff = name == "phoneDown" && (value as? JsonObject)?.get("bool")?.jsonPrimitive?.booleanOrNull == false
+                // Whether first setup was finished belongs to this phone, not to the file.
+                val isSetupState = name == "ui" && key == "setupShown"
+                if (backedUp(name, key) && !turnsPenaltyOff && !isSetupState) decode(editor, key, value)
+            }
             editor.commit()
         }
         json["files"]?.jsonObject?.forEach { (name, value) ->
+            val group = BackupGroup.ofFile(name)
+            if (group != null && group !in chosen) return@forEach
             // A file that would leave this phone without its way of syncing does not replace the phone's sharing settings (see keepsSyncSettings).
             if (name in FILES && !(keepSync && name == SYNC_SETTINGS)) {
                 File(context.filesDir, "companion").mkdirs()
                 File(context.filesDir, "companion/$name").writeText(value.toString())
             }
+        }
+        if (BackupGroup.GuardHistory in chosen) {
+            (json[HISTORY] as? JsonObject)?.let { GuardHistoryBackup.merge(context, it) }
         }
         return null
     }

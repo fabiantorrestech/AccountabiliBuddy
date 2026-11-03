@@ -271,6 +271,7 @@ fun MainScreen(
                             // The shown PC's own checklist (from its file), not the newest file's, so two running PCs each keep theirs.
                             tasks = device?.let { d -> PcFileControl.stateOf(d.file, now).takeIf { it.isActive && it.tasks.isNotEmpty() } }
                                 ?.let { RunningTasks(device.file.device.name, it.tasks, it.currentTask) },
+                            offMinutesToday = device?.let { PcFileControl.offMinutesToday(it.file, now) } ?: 0,
                         )
                     }
                     val todayLunch = TodayLunch(

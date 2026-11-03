@@ -22,6 +22,9 @@ public sealed class VelopackUpdater : IAppUpdater
     private readonly UpdateManager _manager = new(new SimpleWebSource(LatestReleaseDownloadAddress), new UpdateOptions { MaximumDeltasBeforeFallback = -1 });
     private UpdateInfo? _found;
 
+    /// <summary>Runs just before the update closes the app: the quit watchdog (ADR 59) stands down, so it can't hold the files open or bring the app back.</summary>
+    public Action? BeforeRestart { get; set; }
+
     public bool IsInstalled => AppPaths.IsInstalled && _manager.IsInstalled;
 
     public async Task<string?> CheckAsync()
@@ -42,6 +45,7 @@ public sealed class VelopackUpdater : IAppUpdater
             return;
         }
 
+        BeforeRestart?.Invoke();
         _manager.ApplyUpdatesAndRestart(_found.TargetFullRelease, minimized ? new[] { StartupOptions.MinimizedArgument } : Array.Empty<string>());
     }
 }

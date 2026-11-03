@@ -4,10 +4,10 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.ListPickerView"
              x:DataType="vm:ListPickerViewModel">
-    <!-- "From your lists": the open items of Later and Come back to, newest first, with a search box. Choosing one adds it to today's
+    <!-- "From your lists": the open items of Later, Come back to, Unfinished and Auto-saved, newest first, with a search box. Choosing one adds it to today's
          list the way "Add to Today" does on the Tasks page (the checklist's three-task prompt applies). -->
     <StackPanel Spacing="6" Width="340">
-        <TextBox x:Name="SearchBox" Classes="taskEntry" Text="{Binding Search}" PlaceholderText="Search Later and Come back to"
+        <TextBox x:Name="SearchBox" Classes="taskEntry" Text="{Binding Search}" PlaceholderText="Search your lists"
                  AutomationProperties.Name="Search your lists">
             <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
         </TextBox>

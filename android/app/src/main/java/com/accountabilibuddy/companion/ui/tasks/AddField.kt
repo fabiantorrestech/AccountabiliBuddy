@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.ui.tasks
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -46,6 +48,11 @@ fun AddField(
     accentPlus: Boolean = false,
     enabled: Boolean = true,
     typed: MutableState<String> = remember { mutableStateOf("") },
+    /** Tasks that match the text, shown above the field while typing; the keyboard's Done still adds what was typed. */
+    suggest: ((String) -> List<TaskRowModel>)? = null,
+    onPick: (TaskRowModel) -> Unit = {},
+    /** Opens the "From your lists" sheet; no button when null. */
+    onBrowse: (() -> Unit)? = null,
 ) {
     val colors = Ab.colors
     var text by typed
@@ -57,7 +64,15 @@ fun AddField(
         }
     }
 
-    Surface(modifier.fillMaxWidth().heightIn(min = 56.dp), shape = Ab.shapes.pill, color = colors.surface2, contentColor = colors.muted) {
+    val suggestions = if (enabled && text.trim().length >= MIN_TYPED_FOR_SUGGESTIONS) suggest?.invoke(text.trim()).orEmpty().take(MAX_SUGGESTIONS) else emptyList()
+    Column(modifier.fillMaxWidth()) {
+    suggestions.forEach { row ->
+        TaskPickRow(row, onClick = {
+            text = ""
+            onPick(row)
+        })
+    }
+    Surface(Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = Ab.shapes.pill, color = colors.surface2, contentColor = colors.muted) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Outlined.Add, contentDescription = null, tint = if (accentPlus && enabled) colors.accent else colors.muted, modifier = Modifier.size(24.dp))
             Box(Modifier.weight(1f).padding(vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
@@ -71,9 +86,15 @@ fun AddField(
             }
             if (text.isNotBlank()) {
                 AbQuietIconButton(Icons.AutoMirrored.Outlined.KeyboardReturn, "Add", onClick = { submit() })
+            } else if (onBrowse != null && enabled) {
+                TextButton(onClick = onBrowse) { Text("From your lists", style = Ab.type.small, color = colors.muted, maxLines = 1) }
             } else {
                 Box(Modifier.size(width = 4.dp, height = 44.dp))
             }
         }
     }
+    }
 }
+
+private const val MIN_TYPED_FOR_SUGGESTIONS = 2
+private const val MAX_SUGGESTIONS = 5

@@ -32,13 +32,16 @@ object NudgeRules {
     val SNOOZE: Duration = Duration.ofMinutes(5)
     val STARTING: Duration = Duration.ofMinutes(10)
     val DAY_OFF_WAIT: Duration = Duration.ofMinutes(10)
+
+    /** How soon a card left without an answer (the app switcher, Home) comes back. */
+    val UNANSWERED_RETURN: Duration = Duration.ofSeconds(3)
     const val FREE_SNOOZES = 2
     const val REASON_LENGTH = 15
 
     /**
      * The card may take over now: it's on, [inWork] (a work stretch, no session, not paused), not a day off, not
      * snoozed or "starting", and at least [repeatMinutes] since it last showed (5 by default; 0: once a stretch, from
-     * [stretchStart]; a card left [NudgeState.unanswered] still returns after 5).
+     * [stretchStart]; a card left [NudgeState.unanswered] returns after [UNANSWERED_RETURN], whatever the repeat).
      */
     fun due(state: NudgeState, inWork: Boolean, stretchStart: Instant?, now: Instant, today: LocalDate, repeatMinutes: Int): Boolean {
         if (!state.takeoverOn || !inWork || state.dayOff == today) return false
@@ -46,8 +49,8 @@ object NudgeRules {
         if (state.startingUntil != null && now < state.startingUntil) return false
         val last = state.lastShown ?: return true
         if (stretchStart != null && last < stretchStart) return true
-        // A card left without an answer comes back at the next repeat, or after 5 minutes when it only shows once.
-        if (state.unanswered && repeatMinutes <= 0) return Duration.between(last, now) >= SNOOZE
+        // A card left without an answer comes back almost at once: leaving it is not an answer.
+        if (state.unanswered) return Duration.between(last, now) >= UNANSWERED_RETURN
         return repeatMinutes > 0 && Duration.between(last, now) >= Duration.ofMinutes(repeatMinutes.toLong())
     }
 

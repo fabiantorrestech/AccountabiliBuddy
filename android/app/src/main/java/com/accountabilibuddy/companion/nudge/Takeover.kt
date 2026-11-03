@@ -14,10 +14,19 @@ import android.view.View
 import android.view.WindowManager
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.engine.ClockFormat
+import com.accountabilibuddy.companion.notify.HeaderSource
 import com.accountabilibuddy.companion.notify.WorkStartNudge
+import com.accountabilibuddy.companion.placement.PhoneDownLaunch
 import com.accountabilibuddy.companion.sync.OpenComebacks
 import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WorkStart
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -29,7 +38,40 @@ import java.time.ZoneId
  * "Display over other apps", which the user turns on in Settings → AccountabiliBuddy on this phone.
  */
 object Takeover {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var returnWatch: Job? = null
+
     fun canShow(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    /** The devices' combined focus as the card reads it; null while nothing may nudge (paused, a day off, lunch, emergency time). */
+    fun nudgeFocus(app: CompanionApp, now: LocalDateTime = LocalDateTime.now()): WatchSnapshot? {
+        if (app.pause.isQuiet || isDayOff(app) || app.lunch.isOnLunch() || app.emergency.isActive()) return null
+        return HeaderSource.focus(app, now)
+    }
+
+    /**
+     * The card was hidden without an answer: checks every 3 s, through [maybeShow] and all its conditions, and brings it back.
+     * Stops once it's answered or back, when the screen goes off or locks, or while nothing may nudge; an unlock or the next
+     * refresh shows it again then. An allowed app or a call in front keeps it waiting here.
+     */
+    fun watchUnanswered(context: Context) {
+        val app = context.applicationContext as CompanionApp
+        val store = NudgeStore(app)
+        stopWatchingUnanswered()
+        returnWatch = scope.launch {
+            while (isActive) {
+                delay(RETURN_CHECK_MS)
+                if (app.nudgeOnScreen || !store.load().unanswered || !inUse(app)) return@launch
+                val focus = nudgeFocus(app) ?: return@launch
+                maybeShow(app, focus, ClockFormat(is24Hour = false))
+            }
+        }
+    }
+
+    fun stopWatchingUnanswered() {
+        returnWatch?.cancel()
+        returnWatch = null
+    }
 
     /** @param focus the devices' combined focus; null while the phone is paused (then nothing shows). */
     fun maybeShow(context: Context, focus: WatchSnapshot?, clock: ClockFormat, now: Instant = Instant.now()) {
@@ -45,6 +87,13 @@ object Takeover {
         // No work stretch without a session (one started or the stretch ended): a card left behind is not owed any more.
         if (stretch == null && state.unanswered) store.save(state.copy(unanswered = false))
         val app = context.applicationContext as CompanionApp
+        // Already up, or a ringing timer or alarm in front: never over those.
+        if (app.nudgeOnScreen || app.ringOnScreen) return
+        // Never over a call, ringing too.
+        if (PhoneDownLaunch.inCall(context)) {
+            Log.d(TAG, "not shown: in a call")
+            return
+        }
         // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
         val inFront = com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now)
         // Lunch (from any device) is a break: no card, as on the PC.
@@ -118,6 +167,7 @@ object Takeover {
     }
 
     private const val TAG = "Takeover"
+    private const val RETURN_CHECK_MS = 3_000L
     private const val WINDOW_SETTLE_MS = 150L
     private const val WINDOW_KEPT_MS = 1_500L
 

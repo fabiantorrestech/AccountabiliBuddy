@@ -203,6 +203,14 @@ class CompanionApp : Application() {
     @Volatile
     var appOnScreen: Boolean = false
 
+    /** True while the full-screen work card is showing. */
+    @Volatile
+    var nudgeOnScreen: Boolean = false
+
+    /** True while a ringing timer's or bedtime alarm's screen is up (no work card over it). */
+    @Volatile
+    var ringOnScreen: Boolean = false
+
     /** True while the essentials screen is showing (no work card over it). */
     @Volatile
     var essentialsOnScreen: Boolean = false
@@ -392,6 +400,10 @@ class CompanionApp : Application() {
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
         relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
+        // ADR 60: when any sync method last read successfully, for telling a PC that went quiet from a phone that can't read.
+        com.accountabilibuddy.companion.sync.PcFileControl.lastReadAt = {
+            listOfNotNull(folderSource.status.value.lastSyncAt, driveSource.status.value.lastSyncAt, relaySource.status.value.lastSyncAt).maxOrNull()
+        }
         // ADR 54: removing a device writes the rekey file by these, and a new key clears the old group's files from them.
         sync.rekeyMethods = listOf(folderSource, driveSource, relaySource)
         sync.backgroundScope = appScope

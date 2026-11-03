@@ -174,7 +174,8 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         PauseText = state.IsAway ? "Resume" : "Pause";
         TasksHeader = state.IsActive ? "This session" : "Start focus on";
         SwitchHint = state.IsActive ? "1–3 to switch" : "1–3 to start";
-        ShowsLunch = !state.IsActive && Model.Actions.CanStartLunch();
+        // During a break too: lunch cuts the break short.
+        ShowsLunch = (!state.IsActive || state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak) && Model.Actions.CanStartLunch();
         ShowsReady = Model.PlanFirst is { InStage: true };
         GoalText = Model.GoalText;
         OnPropertyChanged(nameof(HasQr));

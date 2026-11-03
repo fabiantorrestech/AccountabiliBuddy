@@ -182,7 +182,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     /// <summary>The prompt's title line: the held task.</summary>
     public string OverLimitText => _heldPull is { Kind: var kind }
-        ? $"Keep it to {SessionTasksService.MaxTasks}: add \"{_heldTitle}\" anyway? It stays in {(kind == PulledListKind.Later ? "Later" : "Come back to")} until you do."
+        ? $"Keep it to {SessionTasksService.MaxTasks}: add \"{_heldTitle}\" anyway? It stays in {ListName(kind)} until you do."
         : $"Keep it to {SessionTasksService.MaxTasks}: park \"{_heldTitle}\" for later?";
 
     /// <summary>The reason box's placeholder.</summary>
@@ -350,7 +350,28 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     private Task<(AddToTodayResult Result, Guid? TaskId)> TakeFromListAsync(PulledListKind kind, Guid id, string? reason)
     {
-        return kind == PulledListKind.Later ? _tasks.MoveFromLaterAsync(id, reason) : _tasks.AddComebackToTodayAsync(id, reason);
+        return kind switch
+        {
+            PulledListKind.Later => _tasks.MoveFromLaterAsync(id, reason),
+            PulledListKind.ComeBack => _tasks.AddComebackToTodayAsync(id, reason),
+            PulledListKind.Unfinished or PulledListKind.DoneToday or PulledListKind.Archive => _tasks.AddHistoryTaskToTodayAsync(id, reason),
+            PulledListKind.AutoSaved => _tasks.AddAutoSavedToTodayAsync(id, reason),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        };
+    }
+
+    private static string ListName(PulledListKind kind)
+    {
+        return kind switch
+        {
+            PulledListKind.Later => "Later",
+            PulledListKind.ComeBack => "Come back to",
+            PulledListKind.Unfinished => "Unfinished",
+            PulledListKind.AutoSaved => "Auto-saved",
+            PulledListKind.DoneToday => "Done today",
+            PulledListKind.Archive => "the Archive",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        };
     }
 
     /// <summary>Drops the held task without adding or parking it.</summary>

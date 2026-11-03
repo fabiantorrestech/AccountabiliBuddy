@@ -22,6 +22,8 @@ class TodayPc(
     val updateNeeded: String?,
     val waiting: SyncAction?,
     val tasks: RunningTasks?,
+    /** ADR 60: minutes this PC was off during sessions today (non-work session time). */
+    val offMinutesToday: Int = 0,
 ) {
     val hasPc: Boolean get() = name != null
 }

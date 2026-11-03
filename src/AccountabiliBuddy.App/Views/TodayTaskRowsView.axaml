@@ -3,6 +3,7 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:local="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.TodayTaskRowsView"
              x:DataType="vm:ChecklistViewModel">
     <!-- The session's tasks as Today shows them (planning, idle and the running "All tasks" fold): numbered Surface2 rows, then the
@@ -128,9 +129,10 @@
                                                     PointerCaptureLost="OnHandleCaptureLost">
                                                 <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             </Border>
-                                            <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" />
+                                            <!-- The number stays level with the title's first line when the title wraps; the same top margin keeps a one-line row centred. -->
+                                            <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Top" Margin="0,15,0,0" />
                                             <TextBlock Grid.Column="2" Classes="rowTitle" Classes.stepDone="{Binding IsDone}" Text="{Binding Title}" FontSize="16" FontWeight="Normal"
-                                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                       TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,15" />
                                             <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StepsText}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />
                                             <!-- Live mode only (planning, running): ticking the first task during planning begins the focus, like "I'm ready". -->
                                             <CheckBox Grid.Column="4" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="12,0,0,0" VerticalAlignment="Center"
@@ -271,7 +273,7 @@
                 <Panel Width="18" />
                 <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding AddRowNumber}" FontSize="16" VerticalAlignment="Center" />
                 <TextBox Grid.Column="2" x:Name="NewTaskBox" Classes="rowEntry" Text="{Binding NewTaskTitle}" PlaceholderText="{Binding AddPlaceholderText}"
-                         AutomationProperties.Name="Add a task">
+                         AutomationProperties.Name="Add a task" controls:TaskSuggestions.Picker="{Binding ListPicker}">
                     <TextBox.KeyBindings>
                         <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                     </TextBox.KeyBindings>
@@ -282,8 +284,11 @@
                     <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
                 </Button>
                 <Button Grid.Column="4" x:Name="ListPullButton" Classes="small" IsEnabled="{Binding !IsOverLimitPrompt}"
-                        ToolTip.Tip="From your lists: take a task from Later or Come back to" AutomationProperties.Name="From your lists">
-                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                        ToolTip.Tip="Take a task from your lists: Later, Come back to, Unfinished, Auto-saved, Done today (search for the Archive)" AutomationProperties.Name="From your lists">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                        <TextBlock Text="From your lists" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
                     <Button.Flyout>
                         <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
                             <local:ListPickerView DataContext="{Binding ListPicker}" />
@@ -296,6 +301,8 @@
                 </Button>
             </Grid>
         </Border>
+
+        <local:TaskSuggestionsView DataContext="{Binding ListPicker}" />
 
         <TextBlock Text="{Binding PullNotice}" Classes="faint" FontSize="12" Margin="16,0,0,0" TextWrapping="Wrap"
                    IsVisible="{Binding PullNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

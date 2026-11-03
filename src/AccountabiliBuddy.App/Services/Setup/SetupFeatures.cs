@@ -10,8 +10,15 @@ public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
-        SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay) => new[]
+        SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard) => new[]
     {
+        new SetupFeature(
+            "quit.safeguard", "0.1.124",
+            "Quit safeguard: stop AccountabiliBuddy being closed when it matters",
+            "Refuses the tray's Quit during the parts of your day you pick, during a session or all the time, and brings the app back if it's ended from Task Manager then.",
+            IsRelevant: () => true,
+            IsSetUp: () => quitGuard.Current.On,
+            Step: ViewModels.AssistantStep.QuitSafeguard),
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
             "Cold Turkey: let AccountabiliBuddy hold the keys",

@@ -96,6 +96,10 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
             PeekDelayMs = PeekDelayIndex >= 0 ? PeekDelayValues[PeekDelayIndex] : current.PeekDelayMs,
             PanelSticky = PanelSticky,
             PeekKeysLocked = !PeekUsesKeys,
+            Opacity = SessionOpacityPercent / 100,
+            HeldOpacity = SessionHeldOpacityPercent / 100,
+            TimelineOpacity = TimelineOpacityPercent / 100,
+            TimelineHeldOpacity = TimelineHeldOpacityPercent / 100,
             ContentOrder = _usesDefaultOrder ? null : Items.Select(row => row.ToItem()).ToList(),
         });
     }
@@ -143,6 +147,22 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool ShowSeconds { get; set; }
+
+    /// <summary>The tile at rest during a session, 20 to 100% (<see cref="OverlaySettings.Opacity"/>).</summary>
+    [ObservableProperty]
+    public partial double SessionOpacityPercent { get; set; }
+
+    /// <summary>The same while Ctrl+Alt is held (<see cref="OverlaySettings.HeldOpacity"/>).</summary>
+    [ObservableProperty]
+    public partial double SessionHeldOpacityPercent { get; set; }
+
+    /// <summary>The tile at rest with no session running (<see cref="OverlaySettings.TimelineOpacity"/>).</summary>
+    [ObservableProperty]
+    public partial double TimelineOpacityPercent { get; set; }
+
+    /// <summary>The same while Ctrl+Alt is held (<see cref="OverlaySettings.TimelineHeldOpacity"/>).</summary>
+    [ObservableProperty]
+    public partial double TimelineHeldOpacityPercent { get; set; }
 
     [ObservableProperty]
     public partial int PanelSizeIndex { get; set; }
@@ -230,6 +250,10 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         SizeIndex = (int)settings.Size;
         ProgressIndex = (int)settings.Progress;
         ShowSeconds = settings.ShowSeconds;
+        SessionOpacityPercent = Math.Round(settings.Opacity * 100);
+        SessionHeldOpacityPercent = Math.Round(settings.HeldOpacity * 100);
+        TimelineOpacityPercent = Math.Round(settings.TimelineOpacity * 100);
+        TimelineHeldOpacityPercent = Math.Round(settings.TimelineHeldOpacity * 100);
         PanelSizeIndex = (int)settings.PanelSize;
         HoldToPeek = settings.HoldToPeek;
         PeekDelayIndex = Array.IndexOf(PeekDelayValues, settings.PeekDelayMs);
@@ -399,6 +423,28 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     {
         Touch(OverlayPreviewScene.Taskbar);
         Save(s => s with { ShowSeconds = value });
+    }
+
+    partial void OnSessionOpacityPercentChanged(double value)
+    {
+        Touch(OverlayPreviewScene.Taskbar);
+        Save(s => s with { Opacity = value / 100 });
+    }
+
+    partial void OnSessionHeldOpacityPercentChanged(double value)
+    {
+        Save(s => s with { HeldOpacity = value / 100 });
+    }
+
+    partial void OnTimelineOpacityPercentChanged(double value)
+    {
+        Touch(OverlayPreviewScene.Taskbar);
+        Save(s => s with { TimelineOpacity = value / 100 });
+    }
+
+    partial void OnTimelineHeldOpacityPercentChanged(double value)
+    {
+        Save(s => s with { TimelineHeldOpacity = value / 100 });
     }
 
     partial void OnPanelSizeIndexChanged(int value)

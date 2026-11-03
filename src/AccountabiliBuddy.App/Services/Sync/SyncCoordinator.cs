@@ -336,8 +336,11 @@ public sealed class SyncCoordinator
         DateTimeOffset? planningEndsAt = state.IsPlanning ? state.PhaseEndsAt : null;
         return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), state.FocusStartsAt(_sessions.Now) ?? started, state.FocusEndsAt(_sessions.Now),
             state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
-            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt);
+            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt, GoingOffAt);
     }
+
+    /// <summary>ADR 60: Windows said it is shutting down, with a session running; goes in this PC's last file. Null otherwise.</summary>
+    public DateTimeOffset? GoingOffAt { get; set; }
 
     /// <summary>ADR 42: the task or subtask picked to show on the bar while a session runs (null: none); set by the app.</summary>
     public Func<Guid?>? CurrentTask { get; set; }

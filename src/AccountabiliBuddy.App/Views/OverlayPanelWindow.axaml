@@ -57,6 +57,12 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Opacity" Value="0.45" />
         </Style>
+        <!-- A group of the panel: a quiet fill and no outline, so it reads at a glance without adding lines to look at.
+             Not Ab.Surface2: the rows use that on hover and the action buttons as their fill. -->
+        <Style Selector="Border.section">
+            <Setter Property="Background" Value="#0DFFFFFF" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
         <Style Selector="TextBlock.key">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
             <Setter Property="FontSize" Value="12" />
@@ -101,9 +107,10 @@
     </Window.Resources>
     <Border x:Name="Frame" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="12" ClipToBounds="True">
         <Grid ColumnDefinitions="*,Auto">
-            <StackPanel>
+            <StackPanel Margin="8,8,8,0" Spacing="6">
                 <!-- Now -->
-                <StackPanel Margin="16,14,16,12" Spacing="8">
+                <Border Classes="section">
+                <StackPanel Margin="10,10,10,10" Spacing="8">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                         <controls:ProgressRing Width="40" Height="40" Value="{Binding Model.RingValue}" TrackBrush="{DynamicResource Ab.Surface2}" ArcBrush="{Binding Model.RingBrush}" Thickness="4.5"
                                                VerticalAlignment="Center" />
@@ -162,14 +169,16 @@
                         </Button>
                     </StackPanel>
                 </StackPanel>
-                <Border Height="1" Background="{DynamicResource Ab.Line}" />
+                </Border>
+                <Border Classes="section">
+                <StackPanel>
                 <!-- The goal line, and "I'm ready" while the planning minutes run -->
-                <TextBlock Text="{Binding GoalText}" IsVisible="{Binding GoalText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Classes="head" Margin="16,8,16,0" TextWrapping="Wrap" />
-                <Button Classes="act" Command="{Binding ReadyCommand}" IsVisible="{Binding ShowsReady}" Margin="16,8,16,0" HorizontalAlignment="Left" ToolTip.Tip="End the planning minutes now">
+                <TextBlock Text="{Binding GoalText}" IsVisible="{Binding GoalText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Classes="head" Margin="10,8,10,0" TextWrapping="Wrap" />
+                <Button Classes="act" Command="{Binding ReadyCommand}" IsVisible="{Binding ShowsReady}" Margin="10,8,10,0" HorizontalAlignment="Left" ToolTip.Tip="End the planning minutes now">
                     <TextBlock Text="I'm ready" />
                 </Button>
                 <!-- This session -->
-                <StackPanel Margin="6,8,6,6">
+                <StackPanel Margin="0,8,0,4">
                     <Grid ColumnDefinitions="*,Auto" Margin="10,0,10,4">
                         <TextBlock Text="{Binding TasksHeader}" Classes="head" />
                         <TextBlock Grid.Column="1" Text="{Binding SwitchHint}" Classes="key" IsVisible="{Binding ShowsAllHints}" />
@@ -183,8 +192,11 @@
                         </Grid>
                     </Button>
                 </StackPanel>
+                </StackPanel>
+                </Border>
                 <!-- This PC's timers and alarms: pause, a minute more, stop (or dismiss once it is up) -->
-                <ItemsControl ItemsSource="{Binding Model.Timers.Lines}" IsVisible="{Binding Model.Timers.HasLines, FallbackValue=False}" Margin="16,6,16,6">
+                <Border Classes="section" IsVisible="{Binding Model.Timers.HasLines, FallbackValue=False}">
+                <ItemsControl ItemsSource="{Binding Model.Timers.Lines}" Margin="10,6,10,6">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:OverlayTimerLine">
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="6" MinHeight="30">
@@ -198,8 +210,10 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                </Border>
                 <!-- Sleep mode: tonight's wake time, which - and + change for this one night -->
-                <StackPanel Margin="16,2,16,8" Spacing="4" IsVisible="{Binding Model.Wake.IsShown, FallbackValue=False}">
+                <Border Classes="section" IsVisible="{Binding Model.Wake.IsShown, FallbackValue=False}">
+                <StackPanel Margin="10,8,10,8" Spacing="4">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                         <TextBlock Text="{Binding Model.Wake.WakeText}" FontSize="13" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Ink}" />
                         <Button Grid.Column="1" Classes="act" Content="−" Command="{Binding Model.Wake.EarlierCommand}" ToolTip.Tip="15 minutes earlier, tonight only" Padding="10,0" />
@@ -207,9 +221,10 @@
                     </Grid>
                     <Button Classes="foot" Content="{Binding Model.Wake.PlanWakeText}" Command="{Binding Model.Wake.BackToPlanCommand}" IsVisible="{Binding Model.Wake.IsChanged}" HorizontalAlignment="Left" />
                 </StackPanel>
-                <Border Height="1" Background="{DynamicResource Ab.Line}" IsVisible="{Binding Model.Noise, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </Border>
                 <!-- Sound -->
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="16,10,16,10" IsVisible="{Binding Model.Noise, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Border Classes="section" IsVisible="{Binding Model.Noise, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="10,10,10,10">
                     <mi:MaterialIcon Kind="Waveform" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Model.TrackText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextTrimming="CharacterEllipsis" />
@@ -232,10 +247,10 @@
                         <TextBlock Text="M" Classes="key" Margin="4,0,0,0" IsVisible="{Binding ShowsAllHints}" />
                     </StackPanel>
                 </Grid>
-                <Border Height="1" Background="{DynamicResource Ab.Line}" />
-                <TextBlock IsVisible="{Binding IsCompact}" Text="{Binding CompactHintText}" Classes="key" Margin="16,6,16,0" />
-                <!-- Footer -->
-                <Grid ColumnDefinitions="*,Auto" Margin="8,4,8,6">
+                </Border>
+                <TextBlock IsVisible="{Binding IsCompact}" Text="{Binding CompactHintText}" Classes="key" Margin="10,0,10,0" />
+                <!-- Footer: plain, not a group of its own -->
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                         <Button Classes="foot" Command="{Binding SideTaskCommand}" IsVisible="{Binding ShowsSideTaskButton}">
                             <StackPanel Orientation="Horizontal" Spacing="6"><mi:MaterialIcon Kind="CoffeeOutline" Width="14" Height="14" /><TextBlock Text="Side task" /><TextBlock Text="B" Classes="key" IsVisible="{Binding ShowsAllHints}" /></StackPanel>
@@ -266,21 +281,25 @@
                         </Button>
                     </StackPanel>
                 </Grid>
-                <TextBlock Text="Can't turn the overlay off during a focus session" Classes="key" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" Margin="16,0,16,8" IsVisible="{Binding DisableLocked}" />
+                <TextBlock Text="Can't turn the overlay off during a focus session" Classes="key" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" Margin="10,0,10,8" IsVisible="{Binding DisableLocked}" />
             </StackPanel>
             <!-- Large: Come back to, Next up, Devices (timers stay in the main column, with their controls) -->
-            <StackPanel Grid.Column="1" Width="300" IsVisible="{Binding IsLarge}" Margin="0">
-                <Border Width="1" Background="{DynamicResource Ab.Line}" HorizontalAlignment="Left" />
-                <StackPanel Margin="16,14,16,12" Spacing="14">
-                    <StackPanel Spacing="4">
+            <StackPanel Grid.Column="1" Width="300" IsVisible="{Binding IsLarge}" Margin="0,8,8,8">
+                <StackPanel Spacing="6">
+                    <Border Classes="section">
+                    <StackPanel Spacing="4" Margin="10,8,10,8">
                         <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Come back to" Classes="head" /><TextBlock Grid.Column="1" Text="{Binding Comebacks.Count}" Classes="key" /></Grid>
                         <ItemsControl ItemsSource="{Binding Comebacks}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" FontSize="13" Margin="0,3" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                     </StackPanel>
-                    <StackPanel Spacing="4">
+                    </Border>
+                    <Border Classes="section">
+                    <StackPanel Spacing="4" Margin="10,8,10,8">
                         <TextBlock Text="Next up" Classes="head" />
                         <ItemsControl ItemsSource="{Binding NextUpLines}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" FontSize="13" Margin="0,3" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                     </StackPanel>
-                    <StackPanel Spacing="4" IsVisible="{Binding Devices.Count}">
+                    </Border>
+                    <Border Classes="section" IsVisible="{Binding Devices.Count}">
+                    <StackPanel Spacing="4" Margin="10,8,10,8">
                         <TextBlock Text="Devices" Classes="head" />
                         <ItemsControl ItemsSource="{Binding Devices}">
                             <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="14" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -294,6 +313,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
+                    </Border>
                 </StackPanel>
             </StackPanel>
         </Grid>

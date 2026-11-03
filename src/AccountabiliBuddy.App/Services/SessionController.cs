@@ -61,6 +61,9 @@ public sealed class SessionController : IDisposable
     /// <summary>Reason given the last time a focus session was ended early (also logged via <see cref="SessionEnded"/>).</summary>
     public string? LastEarlyEndReason { get; private set; }
 
+    // When the timer last ticked, to notice the PC sleeping through a session (ADR 60).
+    private DateTimeOffset _lastTickAt;
+
     public event EventHandler<SessionState>? StateChanged;
 
     /// <summary>Raised every second, for countdown displays.</summary>
@@ -83,6 +86,15 @@ public sealed class SessionController : IDisposable
 
     /// <summary>True while a saved session is being put back: its StateChanged continues a session rather than starting one.</summary>
     public bool IsResuming { get; private set; }
+
+    /// <summary>True during the catch-up after a gap: a phase that runs out here ran out while the PC was off, so it isn't "done".</summary>
+    public bool IsCatchingUp { get; private set; }
+
+    /// <summary>ADR 60: what to do when the PC went off during a session. Set by the app.</summary>
+    public Func<PcOffSettings> OffSettings { get; set; } = () => PcOffSettings.Default;
+
+    /// <summary>ADR 60: a stretch with the PC off, asleep or the app closed was handled.</summary>
+    public event EventHandler<SessionGapReport>? SessionGapHandled;
 
     public SessionCheckpoint CreateCheckpoint() => _engine.CreateCheckpoint();
 
@@ -113,7 +125,8 @@ public sealed class SessionController : IDisposable
         SessionResume? resume = saved is null ? null : TryResume(saved);
 
         // Tick immediately so a resumed session catches up on phases that ran out while the app was closed.
-        _engine.Tick();
+        CatchUp();
+        _lastTickAt = Now;
         _timer.Start();
         return resume;
     }
@@ -213,6 +226,13 @@ public sealed class SessionController : IDisposable
         return true;
     }
 
+    /// <summary>Lunch starts during a break: see <see cref="SessionEngine.EndBreakForLunch"/>.</summary>
+    /// <returns>False when no break phase is running.</returns>
+    public bool EndBreakForLunch()
+    {
+        return _engine.EndBreakForLunch();
+    }
+
     /// <summary>Input was seen while stepped away (or lunch holds the away again): see <see cref="SessionEngine.SetAwayAtDesk"/>.</summary>
     public bool SetAwayAtDesk(bool atDesk)
     {
@@ -270,14 +290,72 @@ public sealed class SessionController : IDisposable
             return null;
         }
 
-        var resume = new SessionResume(saved.Checkpoint.State, saved.LastAliveAt, Now);
+        return HandleGap(saved.LastAliveAt, saved);
+    }
+
+    // ADR 60: time off is never focus, and what it does to the timer is the user's setting; a long gap or a new day closes the session
+    // at the moment the PC went off, and so does a kept end that passed meanwhile.
+    private SessionResume? HandleGap(DateTimeOffset lastAliveAt, SavedSession? saved)
+    {
+        DateTimeOffset now = Now;
+        SessionState session = State;
+        TimeSpan gap = now > lastAliveAt ? now - lastAliveAt : TimeSpan.Zero;
+        SessionGapOutcome outcome = SessionGapPolicy.Decide(session, lastAliveAt, now, TimeProvider.LocalTimeZone, OffSettings());
+        if (outcome is SessionGapOutcome.ClosedLongGap or SessionGapOutcome.EndPassed)
+        {
+            _engine.EndSession();
+            SessionEnded?.Invoke(this, new SessionEnd(session, null, lastAliveAt));
+            SessionGapHandled?.Invoke(this, new SessionGapReport(gap, outcome, lastAliveAt, session.PhaseEndsAt, saved));
+            return null;
+        }
+
+        if (!OffSettings().KeepOriginalEnd)
+        {
+            IsResuming = true;
+            try
+            {
+                _engine.MoveOnBy(gap);
+            }
+            finally
+            {
+                IsResuming = false;
+            }
+        }
+
+        var resume = new SessionResume(session, lastAliveAt, now);
         SessionResumed?.Invoke(this, resume);
+        SessionGapHandled?.Invoke(this, new SessionGapReport(gap, outcome, lastAliveAt, session.PhaseEndsAt, saved));
         return resume;
+    }
+
+    private void CatchUp()
+    {
+        IsCatchingUp = true;
+        try
+        {
+            _engine.Tick();
+        }
+        finally
+        {
+            IsCatchingUp = false;
+        }
     }
 
     private void OnTick(object? sender, EventArgs e)
     {
-        _engine.Tick();
+        // The clock counts sleep, so a jump between ticks means the PC slept with a session running: the same rule as a shutdown.
+        DateTimeOffset now = Now;
+        if (State.IsRealSession && now - _lastTickAt >= SessionGapPolicy.ShortGap)
+        {
+            HandleGap(_lastTickAt, null);
+            CatchUp();
+        }
+        else
+        {
+            _engine.Tick();
+        }
+
+        _lastTickAt = now;
         Ticked?.Invoke(this, EventArgs.Empty);
     }
 }

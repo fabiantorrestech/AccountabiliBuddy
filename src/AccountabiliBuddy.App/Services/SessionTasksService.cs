@@ -79,6 +79,9 @@ public sealed partial class SessionTasksService : IDisposable
     /// <summary>Checklists of ended sessions, oldest first (90 days).</summary>
     public IReadOnlyList<SessionChecklist> History => _history;
 
+    /// <summary>The clock the tasks are stamped by.</summary>
+    public TimeProvider Clock => _time;
+
     /// <summary>The task categories in the order the checklist groups them.</summary>
     public IReadOnlyList<TaskCategory> Categories => _categories;
 

@@ -38,7 +38,8 @@ import java.time.ZoneId
 /**
  * The full-screen work nudge: during work time with no session, unlocking the phone shows this card over whatever was
  * open. "I'm starting on my PC" gives 10 minutes to start; "Snooze 5 min" is free twice a day, then needs a reason;
- * "Not working today" waits 10 minutes, then no more nudges today on the phone. Back does nothing: one of them it is.
+ * "Not working today" waits 10 minutes, then no more nudges today on the phone. Back does nothing, and the app switcher
+ * or Home only hide it for about 3 seconds ([Takeover.watchUnanswered]): one of them it is.
  */
 class NudgeActivity : ComponentActivity() {
     // Lunch (from any device) is a break: an open card closes, as the PC's does.
@@ -56,6 +57,8 @@ class NudgeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        (application as CompanionApp).nudgeOnScreen = true
+        Takeover.stopWatchingUnanswered()
         lunchCheck.run()
     }
 
@@ -89,11 +92,13 @@ class NudgeActivity : ComponentActivity() {
         }
     }
 
-    // Home (or anything else that hides the card) leaves it without an answer: it stays flagged in the store, and a
-    // refresh in 5 minutes shows it again (the refresh also runs on its normal schedule).
+    // The app switcher, Home or anything else that hides the card leaves it without an answer: it stays flagged in the
+    // store and comes back in about 3 s. The alarm is the backstop for a process killed meanwhile.
     override fun onStop() {
         super.onStop()
+        (application as CompanionApp).nudgeOnScreen = false
         if (isFinishing) return
+        Takeover.watchUnanswered(this)
         val alarms = getSystemService(android.app.AlarmManager::class.java)
         val refresh = android.app.PendingIntent.getBroadcast(
             this, REFRESH_REQUEST, Intent(this, com.accountabilibuddy.companion.notify.RefreshReceiver::class.java),

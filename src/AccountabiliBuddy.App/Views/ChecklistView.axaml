@@ -3,6 +3,7 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:local="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.ChecklistView"
              x:DataType="vm:ChecklistViewModel">
     <!-- A guided session's checklist (ADR 24, 25): before Start (add/edit), while it runs (tick/add/edit) or in the
@@ -140,14 +141,14 @@
                                                     AutomationProperties.Name="{Binding Title}"
                                                     ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
                                                 <Grid ColumnDefinitions="Auto,*">
-                                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="0,0,6,0">
-                                                        <Panel Width="14" Height="14" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Top" Margin="0,0,6,0">
+                                                        <Panel Width="14" Height="14" VerticalAlignment="Top" Margin="0,2,0,0">
                                                             <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" />
                                                         </Panel>
-                                                        <TextBlock Text="{Binding NumberText}" IsVisible="{Binding HasNumber}" Opacity="0.7" VerticalAlignment="Center"
+                                                        <TextBlock Text="{Binding NumberText}" IsVisible="{Binding HasNumber}" Opacity="0.7" VerticalAlignment="Top"
                                                                    Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                     </StackPanel>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" Classes.done="{Binding IsDone}"
+                                                    <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Top" Classes.done="{Binding IsDone}"
                                                                Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                 </Grid>
                                             </Button>
@@ -173,7 +174,7 @@
                                             <Button Grid.Column="9" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
                                         </Grid>
-                                        <ItemsControl ItemsSource="{Binding Subtasks}" Margin="24,0,0,0" IsVisible="{Binding HasSubtasks}">
+                                        <ItemsControl ItemsSource="{Binding Subtasks}" Margin="44,0,0,0" IsVisible="{Binding HasSubtasks}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:SubtaskRowViewModel">
                                                     <Panel Classes="subtaskItem">
@@ -191,9 +192,9 @@
                                                     AutomationProperties.Name="{Binding Title}"
                                                                 ToolTip.Tip="Show this on the on-screen bar (click it again: back to the first open task)">
                                                             <Grid ColumnDefinitions="Auto,Auto,*">
-                                                                <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                                <TextBlock Grid.Column="1" Text="{Binding LetterText}" IsVisible="{Binding HasLetter}" Opacity="0.7" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                                <TextBlock Grid.Column="2" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Center" Opacity="0.85"
+                                                                <mi:MaterialIcon Kind="Pin" Width="14" Height="14" IsVisible="{Binding IsCurrent}" VerticalAlignment="Top" Margin="0,2,6,0" />
+                                                                <TextBlock Grid.Column="1" Text="{Binding LetterText}" IsVisible="{Binding HasLetter}" Opacity="0.7" VerticalAlignment="Top" Margin="0,0,6,0" />
+                                                                <TextBlock Grid.Column="2" Text="{Binding Title}" TextWrapping="Wrap" VerticalAlignment="Top" Opacity="0.85"
                                                                            Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
                                                             </Grid>
                                                         </Button>
@@ -219,7 +220,7 @@
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <TextBox Classes="taskEntry" Margin="40,0,0,0" Text="{Binding NewSubtaskTitle}" PlaceholderText="Subtask (Enter)"
+                                        <TextBox Classes="taskEntry" Margin="60,0,0,0" Text="{Binding NewSubtaskTitle}" PlaceholderText="Subtask (Enter)"
                                                  IsVisible="{Binding IsAddingSubtask}">
                                             <TextBox.KeyBindings>
                                                 <KeyBinding Gesture="Enter" Command="{Binding AddSubtaskCommand}" />
@@ -244,14 +245,18 @@
                     Click="OnNewTaskCategoryClick">
                 <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
             </Button>
-            <TextBox Grid.Column="1" x:Name="NewTaskBox" Classes="taskEntry" Text="{Binding NewTaskTitle}" PlaceholderText="Add a task (Enter)">
+            <TextBox Grid.Column="1" x:Name="NewTaskBox" Classes="taskEntry" Text="{Binding NewTaskTitle}" PlaceholderText="Add a task (Enter)"
+                     controls:TaskSuggestions.Picker="{Binding ListPicker}">
                 <TextBox.KeyBindings>
                     <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                 </TextBox.KeyBindings>
             </TextBox>
             <Button Grid.Column="2" x:Name="ListPullButton" Classes="small" Margin="4,0,0,0" IsEnabled="{Binding !IsOverLimitPrompt}"
-                    ToolTip.Tip="From your lists: take a task from Later or Come back to" AutomationProperties.Name="From your lists">
-                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                    ToolTip.Tip="Take a task from your lists: Later, Come back to, Unfinished, Auto-saved, Done today (search for the Archive)" AutomationProperties.Name="From your lists">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                    <TextBlock Text="From your lists" FontSize="12" VerticalAlignment="Center" />
+                </StackPanel>
                 <Button.Flyout>
                     <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
                         <local:ListPickerView DataContext="{Binding ListPicker}" />
@@ -263,6 +268,8 @@
                 <mi:MaterialIcon Kind="TagMultipleOutline" Width="16" Height="16" />
             </Button>
         </Grid>
+
+        <local:TaskSuggestionsView DataContext="{Binding ListPicker}" />
 
         <TextBlock Text="{Binding PullNotice}" FontSize="11" Opacity="0.7" TextWrapping="Wrap"
                    IsVisible="{Binding PullNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

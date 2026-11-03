@@ -207,7 +207,26 @@
                                         </ItemsControl>
                                     </StackPanel>
                                 </Border>
-                                <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)" />
+                                <StackPanel Spacing="0">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)"
+                                                 AutomationProperties.Name="Tomorrow's first task"
+                                                 controls:TaskSuggestions.Picker="{Binding TomorrowPicker}" controls:TaskSuggestions.KeepsText="True" />
+                                        <Button Grid.Column="1" x:Name="TomorrowListButton" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
+                                                ToolTip.Tip="Choose one of your tasks: it moves to the top of tomorrow's list" AutomationProperties.Name="From your lists">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                                <TextBlock Text="From your lists" FontSize="13" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button.Flyout>
+                                                <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
+                                                    <views:ListPickerView DataContext="{Binding TomorrowPicker}" />
+                                                </Flyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </Grid>
+                                    <views:TaskSuggestionsView DataContext="{Binding TomorrowPicker}" />
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Classes="primary pill" Content="Done for today" Command="{Binding DoneCommand}" />
                                     <Button Classes="pill" Content="Skip" Command="{Binding SkipCommand}" />

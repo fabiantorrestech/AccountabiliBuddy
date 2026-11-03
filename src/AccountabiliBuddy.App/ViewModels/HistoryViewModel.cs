@@ -555,7 +555,7 @@ public sealed partial class HistoryViewModel : ObservableObject
         };
         if (record.AppClosedFor > TimeSpan.Zero)
         {
-            outcome += $" · app closed {FormatDuration(record.AppClosedFor)}, resumed";
+            outcome += $" · PC off or app closed {FormatDuration(record.AppClosedFor)} (not counted), resumed";
         }
 
         // Step away: breaks and interruptions apart (design J).

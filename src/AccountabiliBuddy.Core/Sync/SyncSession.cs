@@ -8,10 +8,13 @@ namespace AccountabiliBuddy.Core.Sync;
 /// Its guided-session checklist (ADR 24); null for none. Optional in the JSON (written only when set), so older apps
 /// ignore it and the format stays 1.
 /// </param>
+/// <param name="OffMinutesBefore">ADR 60: how long the PC was off just before this piece of the session (non-work session time); null for none. Optional, like <paramref name="Tasks"/>.</param>
 public sealed record SyncSession(
     DateTimeOffset Start,
     DateTimeOffset? End,
     string? Profile,
     bool Added,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<AccountabiliBuddy.Core.Domain.SessionTask>? Tasks = null);
+    IReadOnlyList<AccountabiliBuddy.Core.Domain.SessionTask>? Tasks = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? OffMinutesBefore = null);

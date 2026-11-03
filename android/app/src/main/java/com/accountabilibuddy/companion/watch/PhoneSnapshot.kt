@@ -79,11 +79,12 @@ object PhoneSnapshot {
             .filter { PcFileControl.liveRunning(it, now) != null }
             .maxByOrNull { it.device.writtenAt }
             ?.let { file ->
-                val running = file.running!!
+                val running = PcFileControl.liveRunning(file, now)!!
                 val tasks = file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty()
                 RunningSession(
                     running.profile, running.phaseStartedAt, running.phaseEndAt(now), running.isBreak,
                     planningStartedAt = running.planningStartedAt, planningEndsAt = running.planningEndsAt,
+                    pcOff = PcFileControl.offSince(file) != null,
                 ).withTasks(tasks, running.currentTask) to file.device.writtenAt
             }
 }

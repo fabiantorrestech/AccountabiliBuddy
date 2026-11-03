@@ -133,6 +133,13 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
             }
         },
         onAddLater = { text -> controller.addLater(text, chip) },
+        // Not narrowed by the chip or the search; what is already on its way to a PC or belongs to an older PC can't be taken.
+        pickRows = {
+            TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, null, "", now)
+                .let { all -> all.comeBacks + all.later }
+                .filter { row -> !row.sending && !row.readOnly }
+        },
+        onPick = { row -> if (controller.needsReason(pc)) addingToday = row else controller.addToToday(row.ref, pc) },
     )
 
     // The details of the task that was tapped, read fresh from the lists each time, so a sync that changes it shows here.

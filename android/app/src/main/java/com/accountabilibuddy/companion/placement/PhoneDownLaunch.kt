@@ -97,7 +97,7 @@ object PhoneDownLaunch {
     private const val RETRY_MS = 3_000L
 
     // A call, ringing too.
-    private fun inCall(context: Context): Boolean = context.getSystemService(AudioManager::class.java).mode.let {
+    fun inCall(context: Context): Boolean = context.getSystemService(AudioManager::class.java).mode.let {
         it == AudioManager.MODE_IN_CALL || it == AudioManager.MODE_IN_COMMUNICATION || it == AudioManager.MODE_RINGTONE
     }
 }

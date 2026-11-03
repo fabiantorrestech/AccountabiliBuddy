@@ -505,6 +505,8 @@
                     </Border>
                 </StackPanel>
 
+                <views:PcOffSettingsCard DataContext="{Binding PcOffPage}" />
+
                 <StackPanel Spacing="6" search:SearchArea.Name="Hyperfocus reminder" IsVisible="{Binding HasHyperfocus}">
                     <TextBlock Classes="sGroup" Text="Hyperfocus reminder" />
                     <Border Classes="sPanel" DataContext="{Binding Hyperfocus}" x:DataType="vm:HyperfocusViewModel">

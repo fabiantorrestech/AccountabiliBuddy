@@ -21,11 +21,17 @@ public sealed class SessionCheckpointService : IDisposable
     // Saves run one after another so an older state never overwrites a newer one.
     private Task _pendingSave = Task.CompletedTask;
     private DateTimeOffset _lastSavedAt = DateTimeOffset.MinValue;
+    private readonly string? _bootId;
 
-    public SessionCheckpointService(SessionController sessions, SqliteJsonDocumentStore store)
+    // When Windows said it was shutting down; a shutdown that was called off stops counting after a while.
+    private DateTimeOffset? _windowsEndingAt;
+    private static readonly TimeSpan WindowsEndingCounts = TimeSpan.FromMinutes(2);
+
+    public SessionCheckpointService(SessionController sessions, SqliteJsonDocumentStore store, string? bootId)
     {
         _sessions = sessions;
         _store = store;
+        _bootId = bootId;
         _sessions.StateChanged += OnStateChanged;
         _sessions.Ticked += OnTicked;
     }
@@ -41,6 +47,14 @@ public sealed class SessionCheckpointService : IDisposable
         {
             return null;
         }
+    }
+
+    /// <summary>Windows is shutting down (ADR 60): saved now, and waited for, since nothing later is sure to run.</summary>
+    public void MarkWindowsEnding()
+    {
+        _windowsEndingAt = _sessions.Now;
+        Save();
+        _pendingSave.Wait(FlushTimeout);
     }
 
     public void Dispose()
@@ -67,7 +81,8 @@ public sealed class SessionCheckpointService : IDisposable
     {
         DateTimeOffset now = _sessions.Now;
         _lastSavedAt = now;
-        var saved = new SavedSession(_sessions.CreateCheckpoint(), now);
+        bool windowsEnding = _windowsEndingAt is DateTimeOffset at && now - at < WindowsEndingCounts;
+        var saved = new SavedSession(_sessions.CreateCheckpoint(), now, _bootId, windowsEnding);
         _pendingSave = _pendingSave.ContinueWith(
             async _ =>
             {

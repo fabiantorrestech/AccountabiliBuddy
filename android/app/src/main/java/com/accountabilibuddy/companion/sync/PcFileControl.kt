@@ -33,6 +33,38 @@ object PcFileControl {
     private val FRESH: Duration = Duration.ofHours(12)
     private val OVER_FOR: Duration = Duration.ofMinutes(10)
 
+    /** ADR 60: a PC's file this old, read while the phone's sync was working, means the PC went off without saying so. */
+    private val QUIET_AFTER: Duration = Duration.ofMinutes(15)
+
+    /** ADR 60: how long the guards hold after the PC said it was going off, so shutting it down doesn't free the phone at once. */
+    private val GUARDS_HOLD: Duration = Duration.ofMinutes(10)
+
+    /** When a sync method last read successfully; set by the app. Without one the phone can't call a PC quiet. */
+    @Volatile
+    var lastReadAt: () -> Instant? = { null }
+
+    /**
+     * ADR 60: when the PC went off with a session running; null when it hasn't. It said so, or its file went quiet while the phone kept
+     * reading, so turning off the phone's data doesn't make a PC look off.
+     */
+    fun offSince(file: SyncFile): Instant? {
+        val running = file.running ?: return null
+        running.offSince?.let { return it }
+        val written = file.device.writtenAt
+        return written.takeIf { lastReadAt()?.let { read -> Duration.between(written, read) > QUIET_AFTER } == true }
+    }
+
+    /** ADR 60: this PC's session may hold the phone's guards at [now]: until 10 minutes after it went off. */
+    fun guardsHold(file: SyncFile, now: Instant): Boolean =
+        offSince(file)?.let { now.isBefore(it.plus(GUARDS_HOLD)) } ?: true
+
+    /** ADR 60: minutes the PC was off during sessions today (non-work session time). */
+    fun offMinutesToday(file: SyncFile, now: Instant): Int {
+        val zone = ZoneId.systemDefault()
+        val today = now.atZone(zone).toLocalDate()
+        return file.sessions.filter { it.start.atZone(zone).toLocalDate() == today }.sumOf { it.offMinutesBefore ?: 0 }
+    }
+
     /** The PC files on this phone, newest first. */
     fun pcs(received: List<ReceivedDevice>): List<ReceivedDevice> =
         received.filter { it.file.device.kind == SyncDeviceCard.KIND_PC }.sortedByDescending { it.file.device.writtenAt }
@@ -64,7 +96,9 @@ object PcFileControl {
      * minutes; a session with no set end, or one stepped away (paused: its end moves on return, [SyncRunning.phaseEndAt]), only while the file is under [SnapshotBuilder.NO_END_LIMIT] old.
      */
     fun liveRunning(file: SyncFile, now: Instant): com.accountabilibuddy.shared.sync.SyncRunning? {
-        val running = file.running ?: return null
+        val reported = file.running ?: return null
+        // ADR 60: with the PC off the timer is paused, the same as a step away: its end moves on and it holds at that moment.
+        val running = offSince(file)?.takeIf { reported.awaySince == null }?.let { reported.copy(awaySince = it) } ?: reported
         if (Duration.between(file.device.writtenAt, now) > FRESH) {
             return null
         }
@@ -105,6 +139,7 @@ object PcFileControl {
             comebacks = file.comebacks,
             planningStartedAt = running?.planningStartedAt?.let { OffsetDateTime.ofInstant(it, zone) },
             planningEndsAt = running?.planningEndsAt?.let { OffsetDateTime.ofInstant(it, zone) },
+            pcOff = running != null && offSince(file) != null,
         )
     }
 

@@ -26,8 +26,16 @@ public static class OtherPcSessions
             .Any(device => IsLive(device.File.Running!, device.File.Device.WrittenAt, now));
     }
 
+    // ADR 60: a PC that said it was going off, or whose file went quiet, isn't running a session another PC should wait for.
+    private static readonly TimeSpan QuietAfter = TimeSpan.FromMinutes(15);
+
     private static bool IsLive(SyncRunning running, DateTimeOffset writtenAt, DateTimeOffset now)
     {
+        if (running.OffSince is not null || now - writtenAt > QuietAfter)
+        {
+            return false;
+        }
+
         if (running.PlanningEndsAt is DateTimeOffset planningEnd)
         {
             TimeSpan focusLength = running.PhaseEndsAt is DateTimeOffset end ? end - running.PhaseStartedAt : PlanningWithoutLengthBound;

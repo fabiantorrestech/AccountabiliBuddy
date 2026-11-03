@@ -105,6 +105,7 @@ BITMAP
 FindWindow
 // Window watcher: process names keyed by id and start time (ids get reused)
 OpenProcess
+GetSystemMetrics
 GetProcessTimes
 QueryFullProcessImageName
 

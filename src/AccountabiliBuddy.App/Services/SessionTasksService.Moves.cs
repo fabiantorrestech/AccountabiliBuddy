@@ -49,6 +49,46 @@ public sealed partial class SessionTasksService
         return (AddToTodayResult.Added, task.Id);
     }
 
+    /// <summary>
+    /// A task chosen from a list for tomorrow's first task: at the top of the checklist, with what its list held, and gone from that list
+    /// (a finished task stays in its record). Never over the three-task rule: as with a typed one, this is planning the next day.
+    /// </summary>
+    public async Task TakeFirstFromListAsync(ViewModels.PulledListKind kind, Guid id, string title)
+    {
+        TodaySource source = new(title, []);
+        switch (kind)
+        {
+            case ViewModels.PulledListKind.Later when Later?.Items.FirstOrDefault(candidate => candidate.Id == id) is SyncLaterItem item:
+                source = new TodaySource(item.Title, OpenStepsOf(item.Subtasks), item.Category, item.CategoryColor, item.EstimateMinutes, item.Note);
+                await Later.DeleteAsync(id);
+                break;
+            case ViewModels.PulledListKind.ComeBack when Comebacks?.Open.FirstOrDefault(candidate => candidate.Id == id) is Comeback comeback:
+                source = new TodaySource(comeback.Text, [], comeback.Category, comeback.CategoryColor);
+                await Comebacks.TickAsync(id);
+                break;
+            case ViewModels.PulledListKind.AutoSaved when AutoSaved is not null:
+                await AutoSaved.RemoveAsync(id);
+                break;
+            case ViewModels.PulledListKind.Unfinished or ViewModels.PulledListKind.DoneToday or ViewModels.PulledListKind.Archive when HistoryTaskOf(id) is SessionTask task:
+                source = SourceOfTask(task);
+                if (!task.IsDone)
+                {
+                    await RememberMovedAsync(id);
+                }
+
+                break;
+        }
+
+        Guid? categoryId = source.Category is { } name && name.Trim().Length > 0
+            ? await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: source.CategoryColor))
+            : null;
+        List<SessionSubtask> steps = source.Steps.Select(step => new SessionSubtask(Guid.NewGuid(), step.Title, null)).ToList();
+        var first = new SessionTask(
+            Guid.NewGuid(), title.Trim(), null, steps, categoryId,
+            EstimateMinutes: SessionChecklist.CleanEstimate(source.EstimateMinutes), Note: SessionChecklist.CleanNote(source.Note));
+        await SetAsync(Current with { Tasks = [first, .. Current.Tasks] });
+    }
+
     /// <summary>"Add to Today" for a Later item: it joins today's list and leaves the Later list (its plan and due date go).</summary>
     public async Task<(AddToTodayResult Result, Guid? TaskId)> MoveFromLaterAsync(Guid laterId, string? overLimitReason = null)
     {
