@@ -119,7 +119,7 @@ class CompanionApp : Application() {
             rulesStore = calendarRules,
             firstKnown = com.accountabilibuddy.companion.calendar.FirstKnownStore(File(filesDir, "companion/calendar-first-known.json")),
             reader = com.accountabilibuddy.companion.calendar.PhoneCalendarReader(this),
-            sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now) != null },
+            sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null },
             pcFiles = { pcFiles.filesOf(sync.received.value) },
             countedFocus = { now, zone -> countedFocusWindows(now, zone) },
             onOwnEventsChanged = { appScope.launch { Refresher.refresh(this@CompanionApp) } },
