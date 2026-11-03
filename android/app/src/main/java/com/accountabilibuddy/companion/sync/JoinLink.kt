@@ -50,7 +50,7 @@ data class JoinLink(
 
             val query = (uri.rawQuery ?: return null).split('&')
                 .mapNotNull { pair -> pair.split('=', limit = 2).takeIf { it.size == 2 } }
-                .associate { (name, value) -> name to java.net.URLDecoder.decode(value, Charsets.UTF_8) }
+                .associate { (name, value) -> name to java.net.URLDecoder.decode(value, "UTF-8") }
             val code = query["c"]?.takeIf { SyncKeyCode.parse(it) != null } ?: return null
             val name = cleanName(query["n"]) ?: "your other device"
             val address = query["r"]

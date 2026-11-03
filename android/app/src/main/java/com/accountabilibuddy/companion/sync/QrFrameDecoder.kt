@@ -29,6 +29,9 @@ class QrFrameDecoder {
             null
         } catch (_: FormatException) {
             null
+        } catch (_: RuntimeException) {
+            // Anything unexpected in a frame is only a frame without a code; it must not take the analysis thread down.
+            null
         } finally {
             reader.reset()
         }

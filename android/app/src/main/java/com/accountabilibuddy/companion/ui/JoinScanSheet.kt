@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,20 +61,30 @@ internal fun JoinScanSheet(onText: (String) -> Boolean, onPaste: () -> Unit, onC
     val lifecycleOwner = LocalLifecycleOwner.current
     var access by remember { mutableStateOf(cameraAccess(context)) }
     var askedThisOpening by rememberSaveable { mutableStateOf(false) }
+    var waitingForAnswer by remember { mutableStateOf(false) }
     var notACode by remember { mutableStateOf(false) }
 
     val askForCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        waitingForAnswer = false
         access = if (granted) CameraAccess.Granted else CameraAccess.Denied
     }
-    if (access == CameraAccess.NotAsked && !askedThisOpening) {
-        askedThisOpening = true
-        askForCamera.launch(Manifest.permission.CAMERA)
+
+    // Asked once per opening, after the launcher above is registered (launching during composition would crash).
+    LaunchedEffect(Unit) {
+        if (access == CameraAccess.NotAsked && !askedThisOpening) {
+            askedThisOpening = true
+            waitingForAnswer = true
+            askForCamera.launch(Manifest.permission.CAMERA)
+        }
     }
+
+    // Already asked and not granted, with no question on screen (after a rotation, or the permission taken away in settings): denied.
+    val shown = if (access == CameraAccess.NotAsked && askedThisOpening && !waitingForAnswer) CameraAccess.Denied else access
 
     // Back from the app's settings page: whatever the user chose there counts.
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && access == CameraAccess.Denied && cameraAccess(context) == CameraAccess.Granted) {
+            if (event == Lifecycle.Event.ON_RESUME && access != CameraAccess.Granted && cameraAccess(context) == CameraAccess.Granted) {
                 access = CameraAccess.Granted
             }
         }
@@ -90,10 +101,11 @@ internal fun JoinScanSheet(onText: (String) -> Boolean, onPaste: () -> Unit, onC
             AbTextButton("Close", onClick = onClose, modifier = Modifier.align(Alignment.CenterHorizontally))
         },
     ) {
-        when (access) {
+        when (shown) {
             CameraAccess.Granted -> {
                 Text(
-                    "On the other device: Settings › Devices & sync › Link a new device. Hold this phone so its QR code fills the square.",
+                    "On the other device, open Devices & sync and show its link code: \"Link a new device\" on a PC, \"Link a device\" on a phone. " +
+                        "Hold this phone so the QR code fills the square.",
                     style = Ab.type.bodyMedium, color = Ab.colors.ink,
                 )
                 CameraPreview(
@@ -148,7 +160,11 @@ private fun openAppSettings(context: Context) {
 private fun CameraPreview(onText: (String) -> Boolean, onUnavailable: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
+    val previewView = remember { PreviewView(context).apply {
+            // COMPATIBLE draws in a TextureView, so the rounded clip below applies to the picture.
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+        } }
 
     DisposableEffect(lifecycleOwner) {
         val analysisThread: ExecutorService = Executors.newSingleThreadExecutor()
