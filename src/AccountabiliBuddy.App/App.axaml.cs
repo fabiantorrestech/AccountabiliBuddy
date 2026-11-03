@@ -264,6 +264,13 @@ public partial class App : Application
         _configuration.LoadBlocking();
 
         _sessions = new SessionController(new SessionEngine(time), _configuration, time);
+        var calendars = new CalendarService(documents);
+        calendars.LoadBlocking();
+        // ADR 58: calendar events laid over the day plan, in memory, for every guard; the plan editors and sync keep the stored plan.
+        var calendarOverlay = new CalendarOverlayStore(documents);
+        calendarOverlay.LoadBlocking();
+        var effectivePlan = new EffectiveDayPlanProvider(_configuration, calendars, calendarOverlay, _sessions, time);
+        effectivePlan.Start();
         // Guided sessions (ADR 24, 25): the next or running session's checklist.
         var sessionTasks = new SessionTasksService(documents, new DpapiDataProtector(), _sessions, time);
         sessionTasks.LoadBlocking();
@@ -340,11 +347,12 @@ public partial class App : Application
             privacy,
             _recorder,
             _watchedBrowsers,
-            _privateAccess);
+            _privateAccess)
+        {
+            GuardedPlan = () => effectivePlan.Current,
+        };
 
         var pendingChanges = new PendingChangesViewModel(_configuration, _sessions);
-        var calendars = new CalendarService(documents);
-        calendars.LoadBlocking();
         var dayBarSettings = new DayBarSettingsService(documents);
         dayBarSettings.LoadBlocking();
         var overlaySettings = new OverlaySettingsService(documents);
@@ -415,7 +423,7 @@ public partial class App : Application
             () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey(), headphoneWatcher);
         _noise.Start();
         _headphones = new HeadphoneAutoPlayService(documents, headphoneWatcher, _noise, time);
-        _headphones.PlanProvider = () => _configuration!.Current.DayPlan;
+        _headphones.PlanProvider = () => effectivePlan.Current;
         _headphones.LoadBlocking();
         var noisePlayer = new NoisePlayerViewModel(_noise);
         _sessionOverlay.SetNoisePlayer(noisePlayer);
@@ -769,7 +777,7 @@ public partial class App : Application
             {
                 DateTime now = time.GetLocalNow().DateTime;
                 return DayWorkWindows.WorkWindows(
-                        _configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, _workHours?.FocusedOn, _workHours?.NightFallback)
+                        effectivePlan.Current, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, _workHours?.FocusedOn, _workHours?.NightFallback)
                     .Any(focus => focus.Window.Start <= now && now < focus.Window.End);
             },
         };
@@ -966,7 +974,7 @@ public partial class App : Application
         {
             DateTime now = time.GetLocalNow().DateTime;
             DateOnly today = DateOnly.FromDateTime(now);
-            return DayWorkWindows.Pace(_configuration.Current.DayPlan, today, _deepWork?.FocusedOn(today) ?? TimeSpan.Zero, now, _workHours?.NightFallback);
+            return DayWorkWindows.Pace(effectivePlan.Current, today, _deepWork?.FocusedOn(today) ?? TimeSpan.Zero, now, _workHours?.NightFallback);
         };
         Func<string> goalOverlayText = () => budgetPace() is BudgetPace pace
             ? $"Goal · {_deepWork.Progress.Text} · {BudgetPaceText.Describe(pace)}"
@@ -1049,6 +1057,15 @@ public partial class App : Application
             return date => derived.FallbackNightBefore(date);
         };
         _startNudge.NightFallback = nightFallback;
+        effectivePlan.NightFallback = nightFallback;
+        // The guards read the plan with the day's classified calendar events laid over it (ADR 58).
+        Func<DayPlan> guardedPlan = () => effectivePlan.Current;
+        _workHours.GuardedPlan = guardedPlan;
+        _startNudge.GuardedPlan = guardedPlan;
+        _shutdown.GuardedPlan = guardedPlan;
+        _preWork.GuardedPlan = guardedPlan;
+        _dayBar.GuardedPlan = guardedPlan;
+        timelineDay.GuardedPlan = guardedPlan;
         _headphones!.NightFallback = nightFallback;
         _shutdown.NightFallback = nightFallback;
         _dayBar.NightFallback = nightFallback;
@@ -1102,7 +1119,7 @@ public partial class App : Application
         planHelperDismissals.LoadBlocking();
         var planViewModel = new PlanViewModel(
             _configuration, _sessions, calendars, dayPlanViewModel, exceptionsViewModel, planHelperDismissals,
-            () => TimeSpan.FromMinutes(goal.Current.DailyMinutes), countedFocus, nightFallback);
+            () => TimeSpan.FromMinutes(goal.Current.DailyMinutes), countedFocus, nightFallback, effectivePlan.Of);
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(planViewModel.NotifyFocusChanged);
         var historyViewModel = new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
             _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
@@ -1246,7 +1263,7 @@ public partial class App : Application
         string? coldTurkeyFolder = new ColdTurkeyDetector().Detect().InstallFolder;
         var coldTurkeyKeys = new ColdTurkeyKeysService(
             _coldTurkey!, new ColdTurkeyCommandLine(() => coldTurkeyFolder), _sessions!,
-            () => _preWork!.IsGuarding, () => _workHours!.IsGuarding, () => _configuration!.Current.DayPlan,
+            () => _preWork!.IsGuarding, () => _workHours!.IsGuarding, () => effectivePlan.Current,
             () => syncIdentity.DeviceId == Guid.Empty ? null : syncIdentity.DeviceId,
             documents, new DpapiDataProtector(), time);
         coldTurkeyKeys.LoadBlocking();
@@ -1271,7 +1288,7 @@ public partial class App : Application
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
-        sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks);
+        sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks) { GuardedPlan = guardedPlan };
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);
         sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;

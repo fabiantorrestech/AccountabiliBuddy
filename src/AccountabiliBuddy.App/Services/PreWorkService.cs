@@ -40,6 +40,11 @@ public sealed class PreWorkService
     private DateTimeOffset _lastNotice = DateTimeOffset.MinValue;
     private bool _wasGuarding;
 
+    /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
+    public Func<DayPlan>? GuardedPlan { get; set; }
+
+    private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
+
     public PreWorkService(
         SessionController sessions, ConfigurationService configuration, SqliteJsonDocumentStore store, IDataProtector protector,
         IUserIdleDetector idle, IEnforcer enforcer, Func<IReadOnlyList<ActivitySnapshot>> current, Func<FocusProfile?> defaultProfile,
@@ -257,7 +262,7 @@ public sealed class PreWorkService
     private LocalWindow? CurrentPart()
     {
         DateTime now = Local(_sessions.Now);
-        DayPlan plan = _configuration.Current.DayPlan;
+        DayPlan plan = PlanInForce;
         // Through the work-window engine: a Free day has no Pre-Work, a Budget day only its first one (before its first window).
         return DayWorkWindows.PartsIn(plan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now)
             .Where(part => part.Category.Behavior == CategoryBehavior.PreWork && part.Window.Start <= now && now < part.Window.End)

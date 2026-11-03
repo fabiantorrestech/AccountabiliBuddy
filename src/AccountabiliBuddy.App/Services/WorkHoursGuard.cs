@@ -73,6 +73,11 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>The night fallback once a given plan is saved (saving re-derives the sleep settings' nights from the plan); for the hold's "after" side. Set by the app.</summary>
     public Func<DayPlan, Func<DateOnly, SleepTimes?>>? NightFallbackFor { get; set; }
 
+    /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
+    public Func<DayPlan>? GuardedPlan { get; set; }
+
+    private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
+
     /// <summary>Today's goal is met (earned time): the guard has lifted, and stopping for today costs nothing.</summary>
     public bool IsGoalMet => Goal?.Invoke() is { Met: true };
 
@@ -92,7 +97,7 @@ public sealed class WorkHoursGuard : IDisposable
 
         DateTime now = LocalNow();
         DateTime endOfDay = now.Date.AddDays(1);
-        return DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, FocusedOn, NightFallback)
+        return DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, FocusedOn, NightFallback)
             .Any(focus => focus.Window.End > now && focus.Window.Start < endOfDay);
     }
 
@@ -271,7 +276,7 @@ public sealed class WorkHoursGuard : IDisposable
         DateTime now = LocalNow();
         var around = new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2));
         // Work parts that touch (Work, then Comms, then Work) are one stretch of work hours.
-        LocalWindow? stretch = DayTimeline.Union(DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, around, now, FocusedOn, NightFallback).Select(focus => focus.Window))
+        LocalWindow? stretch = DayTimeline.Union(DayWorkWindows.WorkWindows(PlanInForce, around, now, FocusedOn, NightFallback).Select(focus => focus.Window))
             .Where(window => window.Start <= now && now < window.End)
             .Select(window => (LocalWindow?)window)
             .FirstOrDefault();

@@ -14,6 +14,11 @@ namespace AccountabiliBuddy.Core.Engine;
 /// budget. From that moment no window is left: the guard eases off exactly when the budget is met, never before.</item>
 /// <item>Free: none, and no Comms or Pre-Work parts either.</item>
 /// </list>
+/// The guards read the effective plan (ADR 58), not the stored one: the stored plan with the dates that classified calendar
+/// events touch replaced by one-off days that include the events' parts (<see cref="CalendarDayOverlay"/>). A part an event
+/// made is flagged <see cref="PlanPart.FromEvent"/> and is kept when a Free or Budget day's work parts are stripped, so a Work
+/// event adds a window to a Free day and Comms and Rest events stay parts on a Budget day (a Budget day's Work event instead
+/// lowers its budget in the overlay).
 /// "Counted focus" for a Budget is the sessions the user ran, never ones added by hand in History, test
 /// sessions, side tasks, breaks or planning, passed in as <c>focusedOn</c>; without it nothing is counted and a Budget day shows
 /// all its available time. A Budget day whose plan has no Sleep part takes its night from <c>nightFallback</c> (the sleep
@@ -181,8 +186,9 @@ public static class DayWorkWindows
     }
 
     // A Free day loses its work, Comms and Pre-Work parts; a Budget day its work and Comms parts and every Pre-Work part
-    // but the first (the warm-up before the day's first window).
-    private static DayTemplate Guarded(DayPlan plan, DayTemplate template)
+    // but the first (the warm-up before the day's first window). A part a calendar event made (ADR 58) stays: the event
+    // overlay decides what an event does on those days.
+    internal static DayTemplate Guarded(DayPlan plan, DayTemplate template)
     {
         if (template.Mode == DayMode.Schedule)
         {
@@ -191,7 +197,7 @@ public static class DayWorkWindows
 
         CategoryBehavior? BehaviorOf(PlanPart part) => plan.Category(part.CategoryId)?.Behavior;
         List<PlanPart> parts = template.Parts
-            .Where(part => BehaviorOf(part) is CategoryBehavior behavior && !behavior.IsWork() && behavior != CategoryBehavior.PreWork)
+            .Where(part => part.FromEvent || (BehaviorOf(part) is CategoryBehavior behavior && !behavior.IsWork() && behavior != CategoryBehavior.PreWork))
             .ToList();
         PlanPart? warmUp = template.Mode == DayMode.Budget
             ? template.Parts.Where(part => BehaviorOf(part) == CategoryBehavior.PreWork && !part.CrossesMidnight).OrderBy(part => part.Start).FirstOrDefault()

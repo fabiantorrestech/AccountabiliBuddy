@@ -60,6 +60,11 @@ public sealed class EnforcementCoordinator : IDisposable
     private readonly List<Rule> _sessionRules = new();
     private Guid? _sessionRulesProfileId;
 
+    /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
+    public Func<DayPlan>? GuardedPlan { get; set; }
+
+    private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
+
     public EnforcementCoordinator(
         IActivityWatcher watcher,
         IBrowserActivitySource browsers,
@@ -239,7 +244,7 @@ public sealed class EnforcementCoordinator : IDisposable
         _engine.HoldUnknownsUntil = _planFirst?.HoldUntil;
         // Comms windows (schema v6): on a day with Comms parts, mail and chat only inside them.
         _engine.InCommsWindow = CommsWindows.At(
-            _configuration.Current.DayPlan, TimeZoneInfo.ConvertTime(now, _sessions.TimeProvider.LocalTimeZone).DateTime);
+            PlanInForce, TimeZoneInfo.ConvertTime(now, _sessions.TimeProvider.LocalTimeZone).DateTime);
         IReadOnlyList<MonitorEnforcement> decisions = _engine.Evaluate(
             state,
             profile,

@@ -113,6 +113,24 @@ public sealed class CalendarService
             : Array.Empty<CalendarEvent>();
     }
 
+    /// <summary>Every kept event of the visible calendars (what <see cref="EventsOn"/> draws from), for the day plan overlay (ADR 58).</summary>
+    public IReadOnlyList<CalendarEvent> VisibleEvents()
+    {
+        return VisibleEventLists().SelectMany(events => events).ToList();
+    }
+
+    /// <summary>
+    /// The event list of each visible calendar. A fetch or an edit replaces a calendar's list, so the same list instance as
+    /// before means the same events: a cheap way to tell that the events changed.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<CalendarEvent>> VisibleEventLists()
+    {
+        return Sources
+            .SelectMany(source => source.Calendars.Where(calendar => calendar.IsVisible))
+            .Select(calendar => EventsOf(calendar.Id))
+            .ToList();
+    }
+
     public CalendarSourceStatus StatusOf(string sourceId)
     {
         return Cache.StatusBySource.TryGetValue(sourceId, out CalendarSourceStatus? status) ? status : new CalendarSourceStatus();

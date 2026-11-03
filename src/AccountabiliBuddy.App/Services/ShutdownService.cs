@@ -54,6 +54,11 @@ public sealed class ShutdownService : IDisposable
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
+    public Func<DayPlan>? GuardedPlan { get; set; }
+
+    private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
+
     /// <summary>The card showing on Today, or null.</summary>
     public ShutdownCardViewModel? Current { get; private set; }
 
@@ -128,7 +133,7 @@ public sealed class ShutdownService : IDisposable
     {
         DateTime start = date.ToDateTime(TimeOnly.MinValue);
         DateTime now = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        return DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(start, start.AddDays(2)), now, FocusedOn, NightFallback)
+        return DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(start, start.AddDays(2)), now, FocusedOn, NightFallback)
             .Where(part => DateOnly.FromDateTime(part.Window.Start) == date)
             .ToList();
     }
