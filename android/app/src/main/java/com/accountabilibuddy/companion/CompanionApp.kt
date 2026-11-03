@@ -115,6 +115,7 @@ class CompanionApp : Application() {
             pcFiles = { pcFiles.filesOf(sync.received.value) },
             countedFocus = { now, zone -> countedFocusWindows(now, zone) },
             onOwnEventsChanged = { appScope.launch { Refresher.refresh(this@CompanionApp) } },
+            watch = { watchCalendar() },
         )
     }
 
@@ -146,7 +147,6 @@ class CompanionApp : Application() {
         }
         contentResolver.registerContentObserver(android.provider.CalendarContract.CONTENT_URI, true, observer)
         calendarObserver = observer
-        appScope.launch { calendarOverlay.refreshOwn() }
     }
 
     // The stretches the devices' sessions counted as focus, for leaving them out of a Work event's Budget credit (an open session runs to now).

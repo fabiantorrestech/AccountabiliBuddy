@@ -41,6 +41,8 @@ class CalendarOverlay(
     private val pcFiles: () -> List<PcCalendarFile>,
     private val countedFocus: (Instant, ZoneId) -> List<LocalWindow>,
     private val onOwnEventsChanged: () -> Unit = {},
+    /** Called before each read of the phone's calendar while the switch is on, so the app can start watching it for changes (idempotent). */
+    private val watch: () -> Unit = {},
     private val clock: () -> Instant = Instant::now,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
 ) {
@@ -103,10 +105,16 @@ class CalendarOverlay(
         }
     }
 
-    /** Reads the phone's own calendar now when it is on, allowed and the last read is older than [OWN_FRESH_FOR]; runs on the caller's thread. */
+    /** Reads the phone's own calendar now if the switch is on and the permission is granted; runs on the caller's thread (not the main one). */
     fun refreshOwn() {
         refreshNow(clock())
     }
+
+    /** True when the app may read the phone's calendar (the permission is granted). */
+    fun hasPermission(): Boolean = reader.hasPermission()
+
+    /** The phone's calendars for the rule page; empty without the permission. Call off the main thread. */
+    fun calendars(): List<PhoneCalendar> = reader.calendars()
 
     /** True when the phone has been asked to read its own calendar (the switch is on). */
     fun wantsOwnCalendar(): Boolean = rulesStore.rules.value.active.enabled
@@ -139,6 +147,7 @@ class CalendarOverlay(
             return
         }
 
+        watch()
         val ids = rules.rules.filter { it.mode != com.accountabilibuddy.companion.model.CalendarRuleMode.Off }.map { it.calendarId }.toSet()
         val read = reader.events(ids, now.minus(Duration.ofDays(8)), now.plus(Duration.ofDays(15)), zone())
         if (read == null) {
