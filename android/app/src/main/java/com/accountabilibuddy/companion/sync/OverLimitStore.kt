@@ -38,6 +38,19 @@ class OverLimitStore(context: Context, private val now: () -> Instant = { Instan
         return true
     }
 
+    /** When a 4th task was added, for a backup: the times only, the reasons never leave this phone. */
+    fun times(): List<Instant> = read().map { it.first }
+
+    /** The times from a backup, beside what the phone holds, under [reason] (the real ones aren't in a backup). */
+    fun mergeRestored(times: List<Instant>, reason: String) {
+        val time = now()
+        val held = read()
+        val known = held.map { it.first }.toSet()
+        val entries = held + times.filter { it !in known && it.isAfter(time.minus(KEPT)) }.map { it to reason }
+        val json = JsonArray(entries.map { (at, text) -> buildJsonObject { put("at", at.toString()); put("reason", text) } })
+        prefs.edit().putString(KEY, TokenVault.seal(json.toString(), ALIAS)).apply()
+    }
+
     // Empty when nothing is stored or it can't be opened (the key goes with the app's data).
     private fun read(): List<Pair<Instant, String>> = runCatching {
         val text = prefs.getString(KEY, null)?.let { TokenVault.open(it, ALIAS) } ?: return emptyList()

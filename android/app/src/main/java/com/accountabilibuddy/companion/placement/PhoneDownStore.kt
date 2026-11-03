@@ -69,6 +69,18 @@ class PhoneDownStore(context: Context) {
         prefs.edit().putString(KEY_SHOWN, kept.joinToString(",")).apply()
     }
 
+    /** When the screen was shown (epoch milliseconds), for a backup. */
+    @Synchronized
+    fun shownLog(): List<Long> = shownTimes()
+
+    /** The log from a backup, beside what the phone holds. */
+    @Synchronized
+    fun mergeRestoredShown(times: List<Long>, now: Instant = Instant.now()) {
+        val cutoff = now.minus(KEEP_LOG).toEpochMilli()
+        val kept = (shownTimes() + times).filter { it >= cutoff }.distinct().sorted().takeLast(MAX_LOG)
+        prefs.edit().putString(KEY_SHOWN, kept.joinToString(",")).apply()
+    }
+
     /** True when the screen was shown for the unlock at [unlock] (the screen opens a moment after it). */
     @Synchronized
     fun shownFor(unlock: Instant): Boolean {

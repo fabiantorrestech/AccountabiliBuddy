@@ -62,6 +62,13 @@ class EmergencyStore(context: Context) {
         runCatching { EmergencyUse(parts[2], Instant.parse(parts[0]), parts[1].toInt()) }.getOrNull()
     }.sortedBy { it.start }
 
+    /** Uses from a backup: added beside what the phone holds, so a restore can only add to today's count. */
+    fun mergeRestored(uses: List<EmergencyUse>, now: Instant = Instant.now()) {
+        val held = all()
+        val starts = held.map { it.start }.toSet()
+        save(held + uses.filter { it.start !in starts && it.start.isAfter(now.minus(Duration.ofDays(15))) })
+    }
+
     private fun save(uses: List<EmergencyUse>) {
         prefs.edit().putStringSet(KEY_USES, uses.map { "${it.start}$SEPARATOR${it.minutes}$SEPARATOR${it.reason}" }.toSet()).apply()
     }

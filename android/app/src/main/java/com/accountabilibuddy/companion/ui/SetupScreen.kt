@@ -67,6 +67,11 @@ fun SetupScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         PermissionsList(health, onConnectHealth, onAllowUsage)
+        // Moved to a new install? A backup brings back the settings; setup goes on with what's left afterwards.
+        var restoreMessage by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+        val restore = rememberBackupRestore(onMessage = { restoreMessage = it })
+        androidx.compose.material3.OutlinedButton(onClick = restore, modifier = Modifier.fillMaxWidth()) { Text("Restore from a backup") }
+        restoreMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
         Button(onClick = { page = 1 }, modifier = Modifier.fillMaxWidth()) { Text("Next: Curbox") }
         TextButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Skip for now") }
     }

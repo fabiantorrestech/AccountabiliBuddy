@@ -35,7 +35,7 @@ class AutoBackup(private val context: Context, private val appVersion: String) {
 
     /** Watches the backed-up preferences for changes. */
     fun start() {
-        PhoneBackup.PREFS.forEach { context.getSharedPreferences(it, Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener) }
+        PhoneBackup.WATCHED_PREFS.forEach { context.getSharedPreferences(it, Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener) }
     }
 
     /** A backed-up setting changed (or a settings file was saved): back up in a minute. */
