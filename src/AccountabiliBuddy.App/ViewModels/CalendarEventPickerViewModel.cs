@@ -121,11 +121,7 @@ public sealed partial class CalendarEventPickerViewModel : ObservableObject
         PendingClassification? waiting = store.PendingClassifications.FirstOrDefault(pending => SameTarget(pending.Change, target));
 
         DayCategory? now = EventCategoryResolver.CategoryOf(_event, plan, store.Classifications, store.Rules.Active);
-        NowText = now is null
-            ? "Now: the day plan decides."
-            : !CanClassify || _provider.IsInForce(_event, now)
-                ? $"Now: {now.Name}."
-                : $"Chosen: {now.Name}, but not in force yet.";
+        NowText = now is null ? "Now: the day plan decides." : !CanClassify ? $"Now: {now.Name}." : NowTextOf(now);
 
         Choices.Clear();
         foreach (DayCategory category in plan.Categories.Where(category => category.Behavior is not (CategoryBehavior.Sleep or CategoryBehavior.PreWork)))
@@ -187,16 +183,41 @@ public sealed partial class CalendarEventPickerViewModel : ObservableObject
 
         // The gate calls a change to Comms or Rest over nothing stricter, but over Work the overlay still wants notice: ask what it did.
         DayCategory? chosen = choice.CategoryId is Guid id ? _configuration.Current.DayPlan.Category(id) : null;
-        Message = chosen is null || _provider.IsInForce(_event, chosen)
-            ? "Saved. It applies at once."
-            : NotInForceText(chosen);
+        if (chosen is null)
+        {
+            Message = "Saved. It applies at once.";
+            return;
+        }
+
+        EventForceResult force = _provider.ForceOf(_event, chosen);
+        Message = force.Level switch
+        {
+            ForceLevel.Yes when force.CountsTowardBudget => "Saved. It counts toward today's budget as it happens.",
+            ForceLevel.Yes => "Saved. It applies at once.",
+            ForceLevel.Partly => $"Saved. Part of it applies. {NotInForceText(chosen, force, partly: true)}",
+            _ => $"Saved, but it doesn't change the day. {NotInForceText(chosen, force, partly: false)}",
+        };
     }
 
-    // Saved, but the overlay left the day as it was: says what it needs and whether that was met.
-    private string NotInForceText(DayCategory chosen)
+    // The "Now" line: what is in force of the choice the event carries.
+    private string NowTextOf(DayCategory category)
+    {
+        EventForceResult force = _provider.ForceOf(_event, category);
+        return force.Level switch
+        {
+            ForceLevel.Yes when force.CountsTowardBudget => $"Now: {category.Name}; it counts toward today's budget as it happens.",
+            ForceLevel.Yes => $"Now: {category.Name}.",
+            ForceLevel.Partly => $"Chosen: {category.Name}, in force for part of it.",
+            _ => $"Chosen: {category.Name}, but not in force.",
+        };
+    }
+
+    // What the part that is not in force needs, and whether that was met. Over a Budget stretch it is said in budget terms.
+    private string NotInForceText(DayCategory chosen, EventForceResult force, bool partly)
     {
         int minutes = (int)_provider.LooseningDelay.TotalMinutes;
-        string start = $"Saved, but it doesn't change the day yet. It counts only if the app knew it {minutes} min before the event starts";
+        string what = partly ? "The rest counts" : force.OverBudgetStretch ? "It earns budget credit" : "It counts";
+        string start = $"{what} only if the app knew it {minutes} min before the event starts";
         if (_provider.KnownSince(_event, chosen) is not DateTimeOffset knownAt)
         {
             return $"{start}.";
@@ -206,7 +227,7 @@ public sealed partial class CalendarEventPickerViewModel : ObservableObject
         var startsAt = new DateTimeOffset(startLocal, _time.LocalTimeZone.GetUtcOffset(startLocal));
         string known = PlanTimelineBuilder.Clock(TimeZoneInfo.ConvertTime(knownAt, _time.LocalTimeZone).DateTime);
         return knownAt + _provider.LooseningDelay <= startsAt
-            ? $"{start}; that notice is met, so something else holds the time (a stricter event, a Sleep or Pre-Work part, or a running session)."
+            ? $"{start}; that notice is met, so something else holds the time (a stricter event, a Sleep or Pre-Work part, a Budget day's non-productive window, time already counted as focus, or a running session)."
             : $"{start}; the app first knew it at {known}, which is too late, so it won't count this time.";
     }
 

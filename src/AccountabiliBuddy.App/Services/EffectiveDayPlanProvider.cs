@@ -94,17 +94,58 @@ public sealed class EffectiveDayPlanProvider
     }
 
     /// <summary>
-    /// True when the plan the guards read holds <paramref name="category"/>'s behaviour over the event's whole time: the overlay
-    /// let it in. False when it didn't, for instance a looser category without the notice a looser change needs. Read-only.
+    /// How much of the event the overlay let in for <paramref name="category"/>. Not strictly read-only: reading
+    /// <see cref="Current"/> runs <see cref="Of"/>, which can promote a change that is due and stamp first-known times.
+    /// Time over a Budget day's productive stretch is never a part, so for a Work choice there it counts only when the overlay
+    /// would credit it: it asks the overlay itself, on this event alone, as if the event were over (so a meeting that hasn't
+    /// started has earned nothing yet, but will count).
     /// </summary>
-    public bool IsInForce(CalendarEvent calendarEvent, DayCategory category)
+    public EventForceResult ForceOf(CalendarEvent calendarEvent, DayCategory category)
     {
-        DateTime now = _time.GetLocalNow().DateTime;
+        DateTime nowLocal = _time.GetLocalNow().DateTime;
+        DayPlan stored = _configuration.Current.DayPlan;
         var window = new LocalWindow(calendarEvent.LocalStart, calendarEvent.LocalEnd);
-        IEnumerable<LocalWindow> held = DayWorkWindows.PartsIn(Current, window, now, null, NightFallback)
-            .Where(part => part.Category.Behavior == category.Behavior)
-            .Select(part => part.Window);
-        return !DayTimeline.Subtract([window], held).Any();
+
+        // The overlay looks at the stored plan this way to tell the Budget stretch (DayWorkWindows.PartsIn on the stored plan).
+        IReadOnlyList<LocalWindow> stretch = category.Behavior == CategoryBehavior.Watch
+            ? DayWorkWindows.PartsIn(stored, window, nowLocal, null, NightFallback)
+                .Where(part => part.Part.Id == DayWorkWindows.BudgetWindowPartId)
+                .Select(part => part.Window)
+                .ToList()
+            : [];
+        IReadOnlyList<LocalWindow> rest = DayTimeline.Subtract([window], stretch);
+        IReadOnlyList<LocalWindow> held = DayWorkWindows.PartsIn(Current, window, nowLocal, null, NightFallback)
+            .Where(part => part.Category.Behavior == category.Behavior && part.Part.Id != DayWorkWindows.BudgetWindowPartId)
+            .Select(part => part.Window)
+            .ToList();
+
+        bool credited = stretch.Count > 0 && WouldCredit(calendarEvent, stored);
+        TimeSpan inForce = Length(rest) - Length(DayTimeline.Subtract(rest, held)) + (credited ? Length(stretch) : TimeSpan.Zero);
+        ForceLevel level = inForce <= TimeSpan.Zero ? ForceLevel.No : inForce >= Length([window]) ? ForceLevel.Yes : ForceLevel.Partly;
+        return new EventForceResult(level, credited, stretch.Count > 0);
+    }
+
+    // Runs the overlay on this event alone with the clock at its end, so what it would credit over a Budget stretch shows.
+    private bool WouldCredit(CalendarEvent calendarEvent, DayPlan stored)
+    {
+        DateTime end = DateTime.SpecifyKind(calendarEvent.LocalEnd, DateTimeKind.Unspecified);
+        var at = new DateTimeOffset(end, _time.LocalTimeZone.GetUtcOffset(end));
+        DayPlan effective = CalendarDayOverlay.Apply(stored, new CalendarOverlayInput(
+            [calendarEvent], Store.Classifications, Store.Rules.Active, Store.FirstKnown, at, _time.LocalTimeZone, SessionRuns, LooseningDelay, NightFallback, CountedFocus?.Invoke()));
+        for (DateOnly date = DateOnly.FromDateTime(calendarEvent.LocalStart); date <= DateOnly.FromDateTime(calendarEvent.LocalEnd.AddTicks(-1)); date = date.AddDays(1))
+        {
+            if (effective.TemplateFor(date).BudgetCredit > TimeSpan.Zero)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static TimeSpan Length(IEnumerable<LocalWindow> windows)
+    {
+        return windows.Aggregate(TimeSpan.Zero, (sum, window) => sum + (window.End - window.Start));
     }
 
     /// <summary>The effective plan of <paramref name="stored"/> (the plan the app holds, or one being edited or proposed).</summary>
