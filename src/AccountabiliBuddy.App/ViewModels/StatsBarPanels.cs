@@ -14,14 +14,14 @@ internal static class StatsBarPanels
 {
     private const double GoalHeadroom = 1.25;
 
-    public static StatsBarPanel? Overview(StatsData data, StatsLookups lookups, StatsRange range, DateOnly selected)
+    public static StatsBarPanel? Overview(StatsData data, StatsLookups lookups, StatsPeriod period, DateOnly selected)
     {
-        return range == StatsRange.Day ? OverviewDay(data, selected) : OverviewDays(data, lookups, range);
+        return period.Kind == StatsRange.Day ? OverviewDay(data, selected) : OverviewDays(data, lookups, period);
     }
 
-    private static StatsBarPanel? OverviewDays(StatsData data, StatsLookups lookups, StatsRange range)
+    private static StatsBarPanel? OverviewDays(StatsData data, StatsLookups lookups, StatsPeriod period)
     {
-        (DateOnly from, DateOnly to) = StatsFormat.Bounds(range, data.Today);
+        (DateOnly from, DateOnly to) = (period.From, period.To);
         IReadOnlyList<DeepWorkDay> past = data.DaysBetween(from, to);
         bool hasFocus = past.Any(day => day.Focused > TimeSpan.Zero);
         TimeSpan total = past.Aggregate(TimeSpan.Zero, (sum, day) => sum + day.Focused);
@@ -36,7 +36,7 @@ internal static class StatsBarPanels
             StatsBarKind kind = met ? StatsBarKind.Met : date == data.Today ? StatsBarKind.Accent : StatsBarKind.Plan;
             string tip = $"{date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)} · {StatsFormat.Duration(focused)}{(met ? " · goal met" : string.Empty)}";
             bars.Add(new StatsBar(
-                range == StatsRange.Week ? StatsFormat.WeekdayLetter(date) : date.Day.ToString(CultureInfo.CurrentCulture),
+                period.Days <= 7 ? StatsFormat.WeekdayLetter(date) : date.Day.ToString(CultureInfo.CurrentCulture),
                 focused.TotalMinutes / scale, kind, date == data.Today, noBar, tip, noBar ? null : date));
         }
 
@@ -128,14 +128,14 @@ internal static class StatsBarPanels
             : new StatsCard("Drift", visits.Count.ToString(CultureInfo.CurrentCulture), $"stretches off track · {StatsFormat.Duration(Time(visits))}", StatsViewKind.Drift);
     }
 
-    public static StatsBarPanel? Drift(StatsData data, StatsLookups lookups, StatsRange range)
+    public static StatsBarPanel? Drift(StatsData data, StatsLookups lookups, StatsPeriod period)
     {
         if (!data.LoggingOn)
         {
             return null;
         }
 
-        (DateOnly from, DateOnly to) = StatsFormat.Bounds(range, data.Today);
+        (DateOnly from, DateOnly to) = (period.From, period.To);
         IReadOnlyList<DeepWorkDay> past = data.DaysBetween(from, to);
         IReadOnlyList<DriftStretch> visits = data.DriftBetween(from, to);
         if (past.All(day => day.Focused <= TimeSpan.Zero) && visits.Count == 0)
@@ -153,7 +153,7 @@ internal static class StatsBarPanels
             bool noBar = date > data.Today || data.DayOf(date) is null;
             TimeSpan drift = perDay.GetValueOrDefault(date);
             bars.Add(new StatsBar(
-                range == StatsRange.Week ? StatsFormat.WeekdayLetter(date) : date.Day.ToString(CultureInfo.CurrentCulture),
+                period.Days <= 7 ? StatsFormat.WeekdayLetter(date) : date.Day.ToString(CultureInfo.CurrentCulture),
                 drift.TotalMinutes / scale, StatsBarKind.Drift, date == data.Today, noBar,
                 $"{date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)} · {StatsFormat.Duration(drift)} off track", noBar ? null : date));
         }
@@ -176,9 +176,9 @@ internal static class StatsBarPanels
         return new StatsBarPanel(visits.Count.ToString(CultureInfo.CurrentCulture), note, bars, double.NaN, null, cards);
     }
 
-    public static StatsBarPanel? Phone(StatsData data, StatsRange range)
+    public static StatsBarPanel? Phone(StatsData data, StatsPeriod period)
     {
-        (DateOnly from, DateOnly to) = StatsFormat.Bounds(range, data.Today);
+        (DateOnly from, DateOnly to) = (period.From, period.To);
         IReadOnlyList<SyncPickup> pickups = data.PhoneCounts ? data.PickupsBetween(from, to) : [];
         if (pickups.Count == 0)
         {
@@ -194,7 +194,7 @@ internal static class StatsBarPanels
             bool noBar = date > data.Today || data.DayOf(date) is null;
             int count = perDay.GetValueOrDefault(date);
             bars.Add(new StatsBar(
-                range == StatsRange.Week ? StatsFormat.WeekdayLetter(date) : date.Day.ToString(CultureInfo.CurrentCulture),
+                period.Days <= 7 ? StatsFormat.WeekdayLetter(date) : date.Day.ToString(CultureInfo.CurrentCulture),
                 count / scale, StatsBarKind.Plan, date == data.Today, noBar,
                 $"{date.ToString("ddd, MMM d", CultureInfo.CurrentCulture)} · {count} {Plural(count, "pickup")}", noBar ? null : date));
         }

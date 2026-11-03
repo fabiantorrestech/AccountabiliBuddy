@@ -48,6 +48,9 @@ public sealed partial class StatsViewModel : ObservableObject
     private readonly Func<bool> _isSessionRunning;
     private readonly DispatcherTimer _refreshSoon;
     private StatsData? _data;
+    private StatsPeriod _period;
+    private bool _syncingPickers;
+    private bool _beforeHistory;
     private int _refreshNumber;
     private bool _isShown;
     private bool _tabSelected;
@@ -88,6 +91,7 @@ public sealed partial class StatsViewModel : ObservableObject
         _time = time;
         _isSessionRunning = isSessionRunning;
         SelectedDay = Today;
+        _period = StatsPeriod.For(Range, Today);
         // The fold starts on the same day as the column.
         details.SelectedDay = SelectedDay.ToDateTime(TimeOnly.MinValue);
 
@@ -103,6 +107,14 @@ public sealed partial class StatsViewModel : ObservableObject
         foreach ((StatsRange range, string text) in new[] { (StatsRange.Day, "Day"), (StatsRange.Week, "Week"), (StatsRange.Month, "Month"), (StatsRange.Year, "Year") })
         {
             RangeOptions.Add(new StatsRangeOptionViewModel(range, text));
+        }
+
+        foreach ((StatsRange range, string text) in new[]
+                 {
+                     (StatsRange.Last7, "Last 7"), (StatsRange.Last30, "Last 30"), (StatsRange.Last90, "Last 90"), (StatsRange.Custom, "Custom"),
+                 })
+        {
+            RollingOptions.Add(new StatsRangeOptionViewModel(range, text));
         }
 
         LoadPreferences();
@@ -155,6 +167,9 @@ public sealed partial class StatsViewModel : ObservableObject
 
     public ObservableCollection<StatsRangeOptionViewModel> RangeOptions { get; } = new();
 
+    /// <summary>The Last 7 / 30 / 90 days chips and Custom, in the period bar under the title.</summary>
+    public ObservableCollection<StatsRangeOptionViewModel> RollingOptions { get; } = new();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsOverview), nameof(ShowsConsistency), nameof(ShowsIntensity), nameof(ShowsFocusGraph),
         nameof(ShowsDrift), nameof(ShowsSleep), nameof(ShowsPhone), nameof(ShowsEmpty), nameof(EmptyText), nameof(Subtitle), nameof(ShowsDayColumn), nameof(ShowsRange))]
@@ -163,6 +178,14 @@ public sealed partial class StatsViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Subtitle))]
     public partial StatsRange Range { get; set; } = StatsRange.Week;
+
+    /// <summary>Custom range: the first date, picked by the user.</summary>
+    [ObservableProperty]
+    public partial DateTime? CustomFrom { get; set; }
+
+    /// <summary>Custom range: the last date, picked by the user.</summary>
+    [ObservableProperty]
+    public partial DateTime? CustomTo { get; set; }
 
     /// <summary>The day shown in the right column.</summary>
     [ObservableProperty]
@@ -235,7 +258,9 @@ public sealed partial class StatsViewModel : ObservableObject
     /// <summary>The shown view has nothing in this range: the page says so instead of drawing it.</summary>
     public bool ShowsEmpty => IsLoaded && !(ShowsOverview || ShowsConsistency || ShowsIntensity || ShowsFocusGraph || ShowsDrift || ShowsSleep || ShowsPhone);
 
-    public string EmptyText => View switch
+    public string EmptyText => _beforeHistory && _data is not null
+        ? $"History starts {_data.FirstData.ToString("MMM d", CultureInfo.CurrentCulture)}. Nothing was recorded before that."
+        : View switch
     {
         StatsViewKind.Sleep => "Your phone hasn't sent sleep numbers yet.",
         StatsViewKind.Phone => "No sessions with a phone count in this range.",
@@ -246,7 +271,7 @@ public sealed partial class StatsViewModel : ObservableObject
     /// <summary>The Muted line under "Stats".</summary>
     public string Subtitle => View switch
     {
-        StatsViewKind.Consistency => "Days you hit your deep work goal",
+        StatsViewKind.Consistency => $"Days you hit your deep work goal · {RangeText}",
         StatsViewKind.Intensity => $"When your best focus happens · last {IntensityWeeks()} weeks",
         StatsViewKind.FocusGraph => Range == StatsRange.Week
             ? "Deep work and drift, day by day · last 14 days"
@@ -256,6 +281,25 @@ public sealed partial class StatsViewModel : ObservableObject
         StatsViewKind.Phone => $"Pickups during sessions · {RangeText}",
         _ => RangeText,
     };
+
+    /// <summary>The period bar (‹ dates ›, the rolling chips) shows with the views that read a period.</summary>
+    public bool ShowsPeriodBar => UsesPeriod(View);
+
+    public bool ShowsCustomPickers => Range == StatsRange.Custom && UsesPeriod(View);
+
+    /// <summary>The dates of the shown period, between the arrows: "Oct 26 – Nov 1".</summary>
+    public string PeriodLabel => Range == StatsRange.Day
+        ? SelectedDay.ToString("ddd, MMM d", CultureInfo.CurrentCulture)
+        : StatsFormat.DatesText(_period.From, _period.To);
+
+    public bool CanStepBack => Range == StatsRange.Day ? CanGoPrevious : _data is not null && _period.HasPrevious(_data.FirstData);
+
+    public bool CanStepForward => Range == StatsRange.Day ? CanGoNext : _data is not null && _period.HasNext(_data.Today);
+
+    /// <summary>The earliest date a custom range can start on: the first of the kept days.</summary>
+    public DateTime CustomMin => (_data?.FirstDay ?? Today.AddDays(1 - KeptDays)).ToDateTime(TimeOnly.MinValue);
+
+    public DateTime CustomMax => Today.ToDateTime(TimeOnly.MinValue);
 
     public string DayTitle => SelectedDay.ToString("dddd, MMM d", CultureInfo.CurrentCulture);
 
@@ -356,8 +400,15 @@ public sealed partial class StatsViewModel : ObservableObject
     [RelayCommand]
     private void SelectRange(StatsRange range)
     {
-        if (range == Range || !AllowedRanges(View).Contains(range))
+        if (!AllowedRanges(View).Contains(range))
         {
+            return;
+        }
+
+        // The chip already chosen jumps back to the current period.
+        if (range == Range)
+        {
+            ResetPeriod();
             return;
         }
 
@@ -366,6 +417,105 @@ public sealed partial class StatsViewModel : ObservableObject
         RebuildView();
         SavePreferences();
     }
+
+    /// <summary>The ‹ arrow: the period before, never past the first day with history.</summary>
+    [RelayCommand]
+    private void PreviousPeriod()
+    {
+        if (!CanStepBack)
+        {
+            return;
+        }
+
+        if (Range == StatsRange.Day)
+        {
+            PreviousDay();
+            return;
+        }
+
+        _period = _period.Previous();
+        SyncPickers();
+        RebuildView();
+    }
+
+    /// <summary>The › arrow: the period after, never past today.</summary>
+    [RelayCommand]
+    private void NextPeriod()
+    {
+        if (!CanStepForward)
+        {
+            return;
+        }
+
+        if (Range == StatsRange.Day)
+        {
+            NextDay();
+            return;
+        }
+
+        _period = _period.Next(Today);
+        SyncPickers();
+        RebuildView();
+    }
+
+    /// <summary>The dates between the arrows: back to the current period.</summary>
+    [RelayCommand]
+    private void ResetPeriod()
+    {
+        if (Range == StatsRange.Day)
+        {
+            SelectDay(Today);
+            return;
+        }
+
+        _period = DefaultPeriod(Range);
+        SyncPickers();
+        RebuildView();
+    }
+
+    partial void OnRangeChanged(StatsRange value)
+    {
+        _period = DefaultPeriod(value);
+        SyncPickers();
+        OnPropertyChanged(nameof(ShowsCustomPickers));
+    }
+
+    partial void OnCustomFromChanged(DateTime? value) => ApplyCustom();
+
+    partial void OnCustomToChanged(DateTime? value) => ApplyCustom();
+
+    // The period a kind opens on: the current one (Custom opens on the last 7 days).
+    private StatsPeriod DefaultPeriod(StatsRange range)
+    {
+        return range == StatsRange.Custom ? StatsPeriod.Custom(Today.AddDays(-6), Today) : StatsPeriod.For(range, Today);
+    }
+
+    // The pickers show the period's dates (also after the arrows moved a custom window).
+    private void SyncPickers()
+    {
+        _syncingPickers = true;
+        CustomFrom = _period.From.ToDateTime(TimeOnly.MinValue);
+        CustomTo = _period.To.ToDateTime(TimeOnly.MinValue);
+        _syncingPickers = false;
+    }
+
+    // A date picked by the user: kept inside the kept days, and swapped if the two come out the wrong way round.
+    private void ApplyCustom()
+    {
+        if (_syncingPickers || Range != StatsRange.Custom || CustomFrom is not { } from || CustomTo is not { } to)
+        {
+            return;
+        }
+
+        DateOnly first = _data?.FirstDay ?? Today.AddDays(1 - KeptDays);
+        DateOnly a = Clamp(DateOnly.FromDateTime(from), first, Today);
+        DateOnly b = Clamp(DateOnly.FromDateTime(to), first, Today);
+        _period = StatsPeriod.Custom(a, b);
+        SyncPickers();
+        RebuildView();
+    }
+
+    private static DateOnly Clamp(DateOnly date, DateOnly first, DateOnly last) => date < first ? first : date > last ? last : date;
 
     /// <summary>Shows a day in the right column and in the Day details (a click on a bar or a cell does this).</summary>
     [RelayCommand]
@@ -496,6 +646,14 @@ public sealed partial class StatsViewModel : ObservableObject
             Details.SelectedDay = today.ToDateTime(TimeOnly.MinValue);
         }
 
+        // The period that was the current one moves on with the date (this week into the next, Last 30 ending yesterday into today).
+        if (previousToday is { } yesterday && today > yesterday && Range != StatsRange.Day && _period.Kind != StatsRange.Custom
+            && _period.From <= yesterday && _period.To >= yesterday)
+        {
+            _period = DefaultPeriod(Range);
+            SyncPickers();
+        }
+
         if (SelectedDay > today)
         {
             SelectedDay = today;
@@ -568,15 +726,25 @@ public sealed partial class StatsViewModel : ObservableObject
         // The empty text depends on the data (e.g. activity history turned off), not only on the view.
         OnPropertyChanged(nameof(EmptyText));
         StatsLookups lookups = Lookups();
-        (DateOnly from, DateOnly to) = StatsFormat.Bounds(Range, _data.Today);
-        RangeText = Range == StatsRange.Day ? SelectedDay.ToString("ddd, MMM d", CultureInfo.CurrentCulture) : StatsFormat.DatesText(from, to);
+        StatsPeriod period = Range == StatsRange.Day ? StatsPeriod.For(StatsRange.Day, SelectedDay) : _period;
+        // A period that ended before the first day with history has no data at all: the page says where history starts, no zeros.
+        _beforeHistory = UsesPeriod(View) && period.To < _data.FirstData;
+        string text = Range == StatsRange.Day ? SelectedDay.ToString("ddd, MMM d", CultureInfo.CurrentCulture) : StatsFormat.DatesText(period.From, period.To);
+        bool startsBefore = UsesPeriod(View) && period.From < _data.FirstData && !_beforeHistory;
+        RangeText = startsBefore ? $"{text} · history starts {_data.FirstData.ToString("MMM d", CultureInfo.CurrentCulture)}" : text;
+        OnPropertyChanged(nameof(EmptyText));
+        OnPropertyChanged(nameof(PeriodLabel));
+        OnPropertyChanged(nameof(CanStepBack));
+        OnPropertyChanged(nameof(CanStepForward));
+        OnPropertyChanged(nameof(CustomMin));
+        OnPropertyChanged(nameof(CustomMax));
         switch (View)
         {
             case StatsViewKind.Overview:
-                Overview = StatsBarPanels.Overview(_data, lookups, Range, SelectedDay);
+                Overview = _beforeHistory ? null : StatsBarPanels.Overview(_data, lookups, period, SelectedDay);
                 break;
             case StatsViewKind.Consistency:
-                Consistency = StatsHeatPanels.Consistency(_data, lookups, Range);
+                Consistency = _beforeHistory ? null : StatsHeatPanels.Consistency(_data, lookups, period);
                 break;
             case StatsViewKind.Intensity:
                 Intensity = StatsHeatPanels.Intensity(_data, Range);
@@ -585,13 +753,13 @@ public sealed partial class StatsViewModel : ObservableObject
                 Trend = StatsTrendPanels.Trend(_data, lookups, Range);
                 break;
             case StatsViewKind.Drift:
-                DriftPanel = StatsBarPanels.Drift(_data, lookups, Range);
+                DriftPanel = _beforeHistory ? null : StatsBarPanels.Drift(_data, lookups, period);
                 break;
             case StatsViewKind.Sleep:
                 SleepPanel = StatsBarPanels.SleepView(_data);
                 break;
             case StatsViewKind.Phone:
-                PhonePanel = StatsBarPanels.Phone(_data, Range);
+                PhonePanel = _beforeHistory ? null : StatsBarPanels.Phone(_data, period);
                 break;
         }
 
@@ -614,11 +782,20 @@ public sealed partial class StatsViewModel : ObservableObject
 
     private static IReadOnlyList<StatsRange> AllowedRanges(StatsViewKind view) => view switch
     {
-        StatsViewKind.Overview => [StatsRange.Day, StatsRange.Week, StatsRange.Month],
-        StatsViewKind.Consistency or StatsViewKind.Intensity => [StatsRange.Week, StatsRange.Month, StatsRange.Year],
-        StatsViewKind.FocusGraph or StatsViewKind.Drift or StatsViewKind.Phone => [StatsRange.Week, StatsRange.Month],
+        StatsViewKind.Overview =>
+            [StatsRange.Day, StatsRange.Week, StatsRange.Month, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90, StatsRange.Custom],
+        StatsViewKind.Drift or StatsViewKind.Phone =>
+            [StatsRange.Week, StatsRange.Month, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90, StatsRange.Custom],
+        StatsViewKind.Consistency => [StatsRange.Week, StatsRange.Month, StatsRange.Year, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90],
+        StatsViewKind.Intensity => [StatsRange.Week, StatsRange.Month, StatsRange.Year],
+        StatsViewKind.FocusGraph => [StatsRange.Week, StatsRange.Month],
         _ => [],
     };
+
+    // Overview, Consistency, Drift and Phone read the chosen period (and step through it); Intensity and Focus graph keep their
+    // fixed windows ending today.
+    private static bool UsesPeriod(StatsViewKind view) =>
+        view is StatsViewKind.Overview or StatsViewKind.Consistency or StatsViewKind.Drift or StatsViewKind.Phone;
 
     // A range the new view doesn't have becomes the nearest one it does.
     private void CoerceRange()
@@ -641,11 +818,14 @@ public sealed partial class StatsViewModel : ObservableObject
         }
 
         IReadOnlyList<StatsRange> allowed = AllowedRanges(View);
-        foreach (StatsRangeOptionViewModel option in RangeOptions)
+        foreach (StatsRangeOptionViewModel option in RangeOptions.Concat(RollingOptions))
         {
             option.IsShown = allowed.Contains(option.Range);
             option.IsSelected = option.Range == Range;
         }
+
+        OnPropertyChanged(nameof(ShowsPeriodBar));
+        OnPropertyChanged(nameof(ShowsCustomPickers));
     }
 
     private void LoadPreferences()

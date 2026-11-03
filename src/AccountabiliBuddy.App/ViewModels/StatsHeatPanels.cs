@@ -13,9 +13,10 @@ internal static class StatsHeatPanels
 {
     private const int IntensityHourStep = 3;
 
-    public static StatsHeatPanel? Consistency(StatsData data, StatsLookups lookups, StatsRange range)
+    public static StatsHeatPanel? Consistency(StatsData data, StatsLookups lookups, StatsPeriod period)
     {
-        (DateOnly from, DateOnly to) = StatsFormat.Bounds(range, data.Today);
+        (DateOnly from, DateOnly to) = (period.From, period.To);
+
         IReadOnlyList<DeepWorkDay> days = data.DaysBetween(from, to);
         if (days.All(day => day.Focused <= TimeSpan.Zero))
         {
@@ -61,13 +62,13 @@ internal static class StatsHeatPanels
         }
 
         string note = "Rows are Mon–Sun. Brighter = more deep work that day.";
-        if (range == StatsRange.Year)
+        if (period.Kind == StatsRange.Year)
         {
             note += $" History keeps {data.Today.DayNumber - data.FirstDay.DayNumber + 1} days.";
         }
 
         return new StatsHeatPanel(
-            cells, 7, columns, range == StatsRange.Year ? null : WeekdayNames(), range == StatsRange.Year ? MonthLabels(gridStart, columns) : null, cards, note);
+            cells, 7, columns, period.Kind == StatsRange.Year ? null : WeekdayNames(), period.Kind == StatsRange.Year ? MonthLabels(gridStart, columns) : null, cards, note);
     }
 
     public static StatsHeatPanel? Intensity(StatsData data, StatsRange range)
