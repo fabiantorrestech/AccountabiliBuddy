@@ -58,7 +58,9 @@ internal fun CalendarRulesSection() {
     val rules by app.calendarRules.rules.collectAsState()
     val state by app.store.state.collectAsState()
     val zone = ZoneId.systemDefault()
-    val lock = remember(rules) { GuardsLock.at(app, Instant.now()) }
+    // A session can arrive by sync while the page is open, so the lock follows the received files, not just the rules.
+    val received by app.sync.received.collectAsState()
+    val lock = remember(rules, received) { GuardsLock.at(app, Instant.now()) }
     val categories = state.document.dayPlan.categories.filter { it.behavior != CategoryBehavior.Sleep && it.behavior != CategoryBehavior.PreWork }
     var draft by remember(rules.active, rules.pending) { mutableStateOf(rules.pending ?: rules.active) }
     var refused by remember { mutableStateOf(false) }
@@ -96,7 +98,11 @@ internal fun CalendarRulesSection() {
         rules.pending?.let { Note("A change is waiting; it takes over at ${rules.pendingTakesOverAt?.atZone(zone)?.let(TIME::format) ?: "its time"}.") }
         if (refused) Note("Not saved: rules can't change during a session.", color = Ab.colors.waiting)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            AbPrimaryButton("Save (takes over in 10 min)", { refused = !app.calendarRules.trySave(draft, Instant.now(), lock != null) }, enabled = changed && !resting)
+            AbPrimaryButton("Save (takes over in 10 min)", {
+                // The session is checked at the click, not taken from what was drawn earlier.
+                val now = Instant.now()
+                refused = !app.calendarRules.trySave(draft, now, GuardsLock.at(app, now) != null)
+            }, enabled = changed && !resting)
             if (rules.pending != null) AbTextButton("Cancel waiting change", { app.calendarRules.cancelPending() })
         }
     }

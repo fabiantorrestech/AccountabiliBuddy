@@ -29,9 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * up to date whenever a result is worked out and written off the calling thread. The phone's own events are read in the background by
  * [refreshOwn] (the caller's thread must not be the main one), never inside [effective].
  *
- * Clock: every wait on the phone uses its wall clock ([Instant.now] via [clock]); there is no trusted clock here. A clock set back makes
- * a stamp read as future (the engine ignores it); a clock set forward can make a held event look older than it is and so shorten the
- * notice. That is the same weakness as the phone's other waits (PlanWait, SyncOffWait, CalendarRulesStore).
+ * Clock: every wait on the phone uses its wall clock ([Instant.now] via [clock]); there is no trusted clock here. The hold compares the
+ * stamp with the event's start, so setting the clock forward does not help. The weakness is setting it back 10 minutes or more, letting
+ * a new event be stamped, and setting it right again: the stamp is then old enough. A stamp that ends up in the future is ignored, but
+ * setting the clock back even 2 minutes makes [CalendarEventSources] drop fresh PC files (their `writtenAt` reads as the future), which
+ * lifts stricter carried events until the clock is right. Same weakness as the phone's other waits (PlanWait, SyncOffWait, CalendarRulesStore).
  */
 class CalendarOverlay(
     private val rulesStore: CalendarRulesStore,
@@ -52,11 +54,7 @@ class CalendarOverlay(
     private val saver = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "calendar-overlay-save").apply { isDaemon = true } }
     private val refreshing = AtomicBoolean(false)
 
-    @Volatile
-    private var owned: List<CalendarEvent> = emptyList()
-
-    @Volatile
-    private var ownedVersion = 0
+    private val own = OwnEventsView()
 
     @Volatile
     private var ownedAt: Instant = Instant.MIN
@@ -84,13 +82,16 @@ class CalendarOverlay(
         refreshOwnSoon(now)
         val files = pcFiles()
         val minute = now.epochSecond / 60
-        val key = listOf(ownedVersion, current.active, files.map { it.writtenAt to it.events.size }, running, minute, nightFallback != null)
+        val key = listOf(own.version, own.loaded, current.active, files.map { it.writtenAt to it.events.size }, running, minute, nightFallback != null)
         synchronized(gate) {
             cached?.let { if (it.stored === stored && it.key == key) return it.plan }
 
             val local = LocalDateTime.ofInstant(now, zone())
-            val classified: List<ClassifiedEvent> = CalendarEventSources.merge(stored, current.active, owned, files, now)
-            val next = FirstKnownTimes.update(firstKnown.entries, classified, now, local)
+            val loaded = own.loaded
+            val classified: List<ClassifiedEvent> = CalendarEventSources.merge(stored, current.active, own.events, files, now)
+            val updated = FirstKnownTimes.update(firstKnown.entries, classified, now, local)
+            // Until the first read of the phone's calendar has landed (a fresh start), its events are not known to be gone: keep their stamps.
+            val next = if (loaded) updated else FirstKnownTimes.keeping(firstKnown.entries, updated) { it.calendarId.startsWith(PhoneCalendarReader.ID_PREFIX) }
             if (firstKnown.replace(next)) saver.execute { firstKnown.save() }
             val hasBudgetDay = stored.templates.any { it.template.mode == DayMode.Budget } || stored.oneOffDays.any { it.template.mode == DayMode.Budget }
             val plan = CalendarDayOverlay.apply(
@@ -119,14 +120,6 @@ class CalendarOverlay(
     /** True when the phone has been asked to read its own calendar (the switch is on). */
     fun wantsOwnCalendar(): Boolean = rulesStore.rules.value.active.enabled
 
-    /** Forgets the phone's own events (the switch went off, or the permission was taken back). */
-    fun clearOwn() {
-        if (owned.isNotEmpty()) {
-            owned = emptyList()
-            ownedVersion++
-        }
-    }
-
     private fun refreshOwnSoon(now: Instant) {
         // A read stamped in the future (the clock was set back) is stale, not fresh: it must not freeze the phone's view of its calendar.
         val age = Duration.between(ownedAt, now)
@@ -135,6 +128,8 @@ class CalendarOverlay(
         saver.execute {
             try {
                 refreshNow(clock())
+            } catch (failure: Exception) {
+                // A calendar provider that misbehaves is a failed read: the last view stays, and the process does not die.
             } finally {
                 refreshing.set(false)
             }
@@ -145,26 +140,15 @@ class CalendarOverlay(
         val rules = rulesStore.rules.value.active
         ownedAt = now
         if (!rules.enabled || rules.rules.all { it.mode == com.accountabilibuddy.companion.model.CalendarRuleMode.Off }) {
-            clearOwn()
+            if (own.clear()) onOwnEventsChanged()
             return
         }
 
         watch()
         val ids = rules.rules.filter { it.mode != com.accountabilibuddy.companion.model.CalendarRuleMode.Off }.map { it.calendarId }.toSet()
         val read = reader.events(ids, now.minus(Duration.ofDays(8)), now.plus(Duration.ofDays(15)), zone())
-        if (read == null) {
-            // No permission (or the read failed): own events count for nothing, so the phone follows the plan.
-            val had = owned.isNotEmpty()
-            clearOwn()
-            if (had) onOwnEventsChanged()
-            return
-        }
-
-        if (read != owned) {
-            owned = read
-            ownedVersion++
-            onOwnEventsChanged()
-        }
+        // A failed read while the permission is still granted keeps the last view; a permission that is gone empties it (see OwnEventsView).
+        if (own.applyRead(read, reader.hasPermission())) onOwnEventsChanged()
     }
 
     companion object {

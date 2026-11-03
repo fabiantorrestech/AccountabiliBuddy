@@ -80,6 +80,11 @@ class PhoneCalendarReader(private val context: Context) {
                     val end = cursor.getLong(4)
                     if (end <= begin) continue
 
+                    val localStart = LocalDateTime.ofInstant(Instant.ofEpochMilli(begin), zone)
+                    var localEnd = LocalDateTime.ofInstant(Instant.ofEpochMilli(end), zone)
+                    // The hour the clocks go back is ambiguous on a wall clock: an event across it can end "before" it starts. Keep its real length.
+                    if (!localEnd.isAfter(localStart)) localEnd = localStart.plus(java.time.Duration.ofMillis(end - begin))
+
                     val eventId = cursor.getLong(0)
                     // A repeating event (or one occurrence changed from its series) is one row per occurrence, so its begin joins the id.
                     val repeats = !cursor.getString(7).isNullOrEmpty() || !cursor.getString(8).isNullOrEmpty() || !cursor.isNull(9)
@@ -87,8 +92,8 @@ class PhoneCalendarReader(private val context: Context) {
                         id = if (repeats) "$eventId@$begin" else eventId.toString(),
                         calendarId = idOf(cursor.getLong(1)),
                         title = cursor.getString(2).orEmpty(),
-                        localStart = LocalDateTime.ofInstant(Instant.ofEpochMilli(begin), zone),
-                        localEnd = LocalDateTime.ofInstant(Instant.ofEpochMilli(end), zone),
+                        localStart = localStart,
+                        localEnd = localEnd,
                         isAllDay = false,
                         seriesId = if (repeats) eventId.toString() else null,
                         occurrenceKey = if (repeats) begin.toString() else null,
@@ -100,7 +105,8 @@ class PhoneCalendarReader(private val context: Context) {
     }
 
     companion object {
-        private const val ID_PREFIX = "phone:"
+        /** What every key of a phone calendar starts with (and so every first-seen stamp of the phone's own events). */
+        const val ID_PREFIX = "phone:"
 
         /** The key a phone calendar's rule is stored under. */
         fun idOf(calendarRowId: Long): String = "$ID_PREFIX$calendarRowId"

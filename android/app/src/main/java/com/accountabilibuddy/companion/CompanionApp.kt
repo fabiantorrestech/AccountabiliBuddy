@@ -145,8 +145,9 @@ class CompanionApp : Application() {
                 appScope.launch { calendarOverlay.refreshOwn() }
             }
         }
-        contentResolver.registerContentObserver(android.provider.CalendarContract.CONTENT_URI, true, observer)
-        calendarObserver = observer
+        // A phone without a calendar provider throws SecurityException here; the switch persists, so this must never take the process down.
+        val registered = runCatching { contentResolver.registerContentObserver(android.provider.CalendarContract.CONTENT_URI, true, observer) }.isSuccess
+        if (registered) calendarObserver = observer
     }
 
     // The stretches the devices' sessions counted as focus, for leaving them out of a Work event's Budget credit (an open session runs to now).

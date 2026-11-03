@@ -50,6 +50,16 @@ object FirstKnownTimes {
         return if (changed) result else existing
     }
 
+    /**
+     * [updated] with back the entries of [existing] that [keep] selects and [updated] dropped, for events that are not known to be gone
+     * (the phone's own calendar before its first read has landed). Returns [updated] itself when nothing is added back.
+     */
+    fun keeping(existing: List<FirstKnownEntry>, updated: List<FirstKnownEntry>, keep: (FirstKnownEntry) -> Boolean): List<FirstKnownEntry> {
+        val have = byEvent(updated)
+        val missing = existing.filter { keep(it) && (it.calendarId to it.eventId) !in have }
+        return if (missing.isEmpty()) updated else updated + missing
+    }
+
     /** When the event was first seen at its current start, end, [category] and behaviour; null when it wasn't (or has changed since, so the notice starts over). */
     fun knownAt(known: Map<Pair<String, String>, FirstKnownEntry>, event: CalendarEvent, category: DayCategory): Instant? {
         val entry = known[event.calendarId to event.id] ?: return null
