@@ -17,7 +17,9 @@ public sealed class VelopackUpdater : IAppUpdater
     /// <summary>Where the latest release's files (releases.win.json and the packages it lists) are served from.</summary>
     private const string LatestReleaseDownloadAddress = ReleasesRepository + "/releases/latest/download/";
 
-    private readonly UpdateManager _manager = new(new SimpleWebSource(LatestReleaseDownloadAddress));
+    // Deltas stay off: this address holds only the latest release, and Velopack would apply its one delta on top of an
+    // install two or more versions behind without checking the base. A full package is larger but has its checksum verified.
+    private readonly UpdateManager _manager = new(new SimpleWebSource(LatestReleaseDownloadAddress), new UpdateOptions { MaximumDeltasBeforeFallback = -1 });
     private UpdateInfo? _found;
 
     public bool IsInstalled => AppPaths.IsInstalled && _manager.IsInstalled;
