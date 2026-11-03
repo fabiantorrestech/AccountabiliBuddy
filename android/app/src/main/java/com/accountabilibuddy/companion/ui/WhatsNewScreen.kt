@@ -56,6 +56,7 @@ fun WhatsNewScreen(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.t
                 SetupFeatures.DAY_PLAN_MODES -> DayPlanModesSetupPage()
                 SetupFeatures.APPEARANCE -> AppearanceSetupPage()
                 SetupFeatures.CALENDAR_EVENTS -> CalendarEventsSetupPage()
+                SetupFeatures.DAILY_STEPS -> DailyStepsSetupPage()
             }
         }
         Button(onClick = {

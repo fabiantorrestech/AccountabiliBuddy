@@ -27,6 +27,7 @@ object SetupFeatures {
     const val DAY_PLAN_MODES = "dayplan.modes"
     const val APPEARANCE = "appearance.themes"
     const val CALENDAR_EVENTS = "calendar.events"
+    const val DAILY_STEPS = "steps.daily"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -82,6 +83,12 @@ object SetupFeatures {
             relevant = { true },
             // Set up once seen in the assistant, or the switch is already on (Settings › Your day). Reading the prefs file is a tiny disk read.
             setUp = { done(it, CALENDAR_EVENTS) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).calendarRules.rules.value.active.enabled },
+        ),
+        SetupFeature(
+            DAILY_STEPS, "0.1.73", "Daily steps: a ring on Today to your step goal from Health Connect; asks for the steps permission when turned on",
+            relevant = { true },
+            // Set up once seen in the assistant, or the switch is already on (Settings › Your day).
+            setUp = { done(it, DAILY_STEPS) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).steps.state.value.enabled },
         ),
     )
 
