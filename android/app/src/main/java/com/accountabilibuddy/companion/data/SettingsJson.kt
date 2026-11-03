@@ -147,6 +147,11 @@ object SettingsJson {
                 localEnd = JsonValues.dateTime(e.string("localEnd")!!),
                 isAllDay = e.bool("isAllDay", false),
                 color = e.string("color")?.let(::argb),
+                // ADR 58: present only on an event the PC resolved to a day plan category; a bad value reads as absent, never fails the event.
+                seriesId = e.string("seriesId"),
+                occurrenceKey = e.string("occurrenceKey"),
+                categoryId = e.string("categoryId")?.let { runCatching { java.util.UUID.fromString(it) }.getOrNull() },
+                knownSince = e.string("knownSince")?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant() }.getOrNull() },
             )
         }.getOrNull()
     }
