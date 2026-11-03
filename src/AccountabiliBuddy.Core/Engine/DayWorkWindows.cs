@@ -104,7 +104,7 @@ public static class DayWorkWindows
             return null;
         }
 
-        TimeSpan left = TimeSpan.FromMinutes(minutes) - focusedSoFar;
+        TimeSpan left = TimeSpan.FromMinutes(minutes) - focusedSoFar - template.BudgetCredit;
         if (left < TimeSpan.Zero)
         {
             left = TimeSpan.Zero;
@@ -147,7 +147,7 @@ public static class DayWorkWindows
 
         var stretch = new LocalWindow(start, end);
         IReadOnlyList<LocalWindow> windows = DayTimeline.Subtract([stretch], view.PartsIn(stretch).Select(part => part.Window));
-        if (focusedOn is not null && focusedOn(date) >= TimeSpan.FromMinutes(template.BudgetMinutes.Value))
+        if (focusedOn is not null && focusedOn(date) + template.BudgetCredit >= TimeSpan.FromMinutes(template.BudgetMinutes.Value))
         {
             windows = windows.Select(window => DayTimeline.Clip(window, new LocalWindow(DateTime.MinValue, now))).OfType<LocalWindow>().ToList();
         }
@@ -167,6 +167,26 @@ public static class DayWorkWindows
 
         bool evening = next.Wake <= next.Bedtime;
         return (evening ? nextMidnight.AddDays(-1) : nextMidnight) + next.Bedtime.ToTimeSpan();
+    }
+
+    /// <summary>
+    /// The Budget day whose stretch holds <paramref name="time"/> (a stretch can run past midnight, so not always the time's own
+    /// date), or null when no Budget day's stretch does. Used by the calendar overlay to credit a Work event to the right day.
+    /// </summary>
+    internal static DateOnly? BudgetDayHolding(DayPlan plan, DateTime time, Func<DateOnly, SleepTimes?>? nightFallback)
+    {
+        DayPlan view = ViewOf(plan);
+        DateOnly day = DateOnly.FromDateTime(time);
+        for (int offset = 0; offset >= -1; offset--)
+        {
+            DateOnly date = day.AddDays(offset);
+            if (BudgetWindows(plan, view, date, null, time, nightFallback).Any(window => window.Contains(time)))
+            {
+                return date;
+            }
+        }
+
+        return null;
     }
 
     private static DayPlan ViewOf(DayPlan plan)

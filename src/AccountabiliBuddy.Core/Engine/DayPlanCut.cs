@@ -59,7 +59,7 @@ public static class DayPlanCut
             return available;
         }
 
-        TimeSpan left = TimeSpan.FromMinutes(minutes) - (focusedOn?.Invoke(today) ?? TimeSpan.Zero);
+        TimeSpan left = TimeSpan.FromMinutes(minutes) - (focusedOn?.Invoke(today) ?? TimeSpan.Zero) - template.BudgetCredit;
         left = left < TimeSpan.Zero ? TimeSpan.Zero : left;
         return left < available ? left : available;
     }

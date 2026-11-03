@@ -12,6 +12,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <param name="SessionRunning">A focus session the user started is running: nothing loosens then.</param>
 /// <param name="LooseningDelay">How long an event must be known before it starts to loosen the day.</param>
 /// <param name="NightFallback">The night before a date from the sleep settings, as <see cref="DayWorkWindows"/> takes it.</param>
+/// <param name="CountedFocus">The stretches of counted focus (a Budget counts them), the running session's span included; a Work event's Budget credit leaves them out so no time counts twice. Null = none.</param>
 public sealed record CalendarOverlayInput(
     IReadOnlyList<CalendarEvent> Events,
     IReadOnlyList<EventClassification> Classifications,
@@ -21,4 +22,5 @@ public sealed record CalendarOverlayInput(
     TimeZoneInfo Zone,
     bool SessionRunning,
     TimeSpan LooseningDelay,
-    Func<DateOnly, SleepTimes?>? NightFallback = null);
+    Func<DateOnly, SleepTimes?>? NightFallback = null,
+    IReadOnlyList<LocalWindow>? CountedFocus = null);

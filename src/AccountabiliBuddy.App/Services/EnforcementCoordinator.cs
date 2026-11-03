@@ -244,7 +244,7 @@ public sealed class EnforcementCoordinator : IDisposable
         _engine.HoldUnknownsUntil = _planFirst?.HoldUntil;
         // Comms windows (schema v6): on a day with Comms parts, mail and chat only inside them.
         _engine.InCommsWindow = CommsWindows.At(
-            PlanInForce, TimeZoneInfo.ConvertTime(now, _sessions.TimeProvider.LocalTimeZone).DateTime);
+            _configuration.Current.DayPlan, PlanInForce, TimeZoneInfo.ConvertTime(now, _sessions.TimeProvider.LocalTimeZone).DateTime);
         IReadOnlyList<MonitorEnforcement> decisions = _engine.Evaluate(
             state,
             profile,

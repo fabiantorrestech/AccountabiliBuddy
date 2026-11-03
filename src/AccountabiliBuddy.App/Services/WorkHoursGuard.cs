@@ -76,6 +76,9 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
     public Func<DayPlan>? GuardedPlan { get; set; }
 
+    /// <summary>Lays the calendar events over a plan (ADR 58); a plan edit's freed work hours (<see cref="DescribeCut"/>) are measured on both plans this way. Set by the app; null = as stored.</summary>
+    public Func<DayPlan, DayPlan>? WithCalendarEvents { get; set; }
+
     private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
 
     /// <summary>Today's goal is met (earned time): the guard has lifted, and stopping for today costs nothing.</summary>
@@ -246,7 +249,10 @@ public sealed class WorkHoursGuard : IDisposable
             return null;
         }
 
-        TimeSpan freed = DayPlanCut.FreedToday(before, after, LocalNow(), FocusedOn, NightFallback, NightFallbackFor?.Invoke(after));
+        // With the events laid over both plans, a category change or deletion that frees event-made work counts as freed.
+        DayPlan beforeInForce = WithCalendarEvents?.Invoke(before) ?? before;
+        DayPlan afterInForce = WithCalendarEvents?.Invoke(after) ?? after;
+        TimeSpan freed = DayPlanCut.FreedToday(beforeInForce, afterInForce, LocalNow(), FocusedOn, NightFallback, NightFallbackFor?.Invoke(after));
         if (freed <= TimeSpan.Zero)
         {
             return null;

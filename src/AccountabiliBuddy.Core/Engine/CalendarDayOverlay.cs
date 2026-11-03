@@ -13,14 +13,17 @@ namespace AccountabiliBuddy.Core.Engine;
 /// <list type="bullet">
 /// <item>Strictness: Watch 3, Comms 2, Rest 1, nothing 0. An event is laid over the stored plan piece by piece along what
 /// the guards see there (<see cref="DayWorkWindows.PartsIn"/>, so a Budget day's stretch counts as Watch and a Free day as
-/// nothing). A piece that is the same or stricter applies at once. A looser one applies only when the app first saw the
-/// event at its current start, end and category at least the looser-change delay before it starts, and no session the user
-/// started is running; otherwise the plan stands there. Where events overlap, the stricter wins.</item>
+/// nothing). Where parts overlap, the strictest is the base. A piece that is the same or stricter applies at once. A looser
+/// one applies only when the app first saw the event at its current start, end, category and behaviour at least the
+/// looser-change delay before it starts, and no session the user started is running; otherwise the plan stands there. A
+/// Comms piece outside the stored Comms parts of a day that has some is looser, because it opens mail and chat. Where events
+/// overlap, the stricter wins.</item>
 /// <item>A Sleep or Pre-Work part is never cut: the piece of an event over one is dropped.</item>
 /// <item>An event that crosses midnight splits per date. An existing one-off day is the base for its date.</item>
-/// <item>Budget day: a Work event never becomes a part. Under the looser rule it lowers that date's budget by its time
-/// that has already passed inside the day's stretch, so a meeting frees nothing before it happens. The stored budget, the
-/// focus totals and Stats are untouched (ADR 20).</item>
+/// <item>Budget day: a Work event inside a Budget day's stretch never becomes a part. Under the looser rule it gives that
+/// day (the one whose stretch holds the time) a <see cref="DayTemplate.BudgetCredit"/> for its time that has already passed,
+/// less any time also counted as focus, so a meeting frees nothing before it happens and nothing counts twice. Without notice
+/// it gives no credit but still wins overlaps. The stored budget, the focus totals and Stats are untouched (ADR 20).</item>
 /// <item>Free day: a Work event adds a window; <see cref="DayWorkWindows"/> keeps the parts flagged <see cref="PlanPart.FromEvent"/>
 /// when it strips a Free or Budget day's work parts.</item>
 /// </list>
@@ -48,7 +51,13 @@ public static class CalendarDayOverlay
         BudgetCredit,
     }
 
-    private sealed record Region(LocalWindow Window, RegionKind Kind, DayCategory Category, CalendarEvent Event, int Strictness);
+    // BudgetDate and Credited are for BudgetCredit regions: the Budget day whose stretch holds the time, and whether the notice was served.
+    private sealed record Region(LocalWindow Window, RegionKind Kind, DayCategory Category, CalendarEvent Event, int Strictness)
+    {
+        public DateOnly? BudgetDate { get; init; }
+
+        public bool Credited { get; init; }
+    }
 
     private sealed class Overlay
     {
@@ -57,6 +66,7 @@ public static class CalendarDayOverlay
         private readonly Dictionary<(string, string), FirstKnownEntry> _known;
         private readonly DateTime _localNow;
         private readonly Dictionary<DateOnly, DayMode> _modes = new();
+        private readonly Dictionary<DateOnly, bool> _storedComms = new();
         private readonly Dictionary<DateOnly, List<PlanPart>> _parts = new();
         private readonly HashSet<DateOnly> _changed = new();
 
@@ -82,7 +92,7 @@ public static class CalendarDayOverlay
                 PlaceEventPart(region);
             }
 
-            Dictionary<DateOnly, int> credits = CreditMinutes(placed);
+            Dictionary<DateOnly, TimeSpan> credits = CreditByDay(placed);
             if (_changed.Count == 0 && credits.Count == 0)
             {
                 return _stored;
@@ -93,12 +103,11 @@ public static class CalendarDayOverlay
             foreach (DateOnly date in touched)
             {
                 DayTemplate template = _stored.TemplateFor(date);
-                int? budget = template.BudgetMinutes is int minutes && credits.TryGetValue(date, out int credit) ? Math.Max(0, minutes - credit) : template.BudgetMinutes;
                 OneOffDay? existing = _stored.OneOffDays.FirstOrDefault(day => day.Date == date);
                 oneOffDays.Add(new OneOffDay(
                     existing?.Id ?? StableGuid($"one-off|{date:yyyyMMdd}"),
                     date,
-                    template with { Parts = PartsOf(date), WorkWindow = null, BudgetMinutes = budget },
+                    template with { Parts = PartsOf(date), WorkWindow = null, BudgetCredit = credits.GetValueOrDefault(date) },
                     existing?.Note));
             }
 
@@ -108,7 +117,7 @@ public static class CalendarDayOverlay
         // The regions one event takes, piece by piece along what the guards see under it.
         private void Collect(CalendarEvent calendarEvent, DayCategory category, List<Region> regions)
         {
-            int strictness = Strictness(category.Behavior);
+            int strictness = CategoryStrictness.Of(category.Behavior);
             bool? looserAllowed = null;
             bool LooserAllowed() => looserAllowed ??= IsLooserAllowed(calendarEvent, category);
 
@@ -121,7 +130,7 @@ public static class CalendarDayOverlay
                     continue;
                 }
 
-                int baseStrictness = basePart is null ? 0 : Strictness(basePart.Category.Behavior);
+                int baseStrictness = basePart is null ? 0 : CategoryStrictness.Of(basePart.Category.Behavior);
                 bool inBudgetStretch = basePart?.Part.Id == DayWorkWindows.BudgetWindowPartId;
                 foreach (LocalWindow piece in ByDate(segment))
                 {
@@ -138,10 +147,26 @@ public static class CalendarDayOverlay
             LocalWindow piece, DayCategory category, CalendarEvent calendarEvent, int strictness, int baseStrictness,
             PlannedPart? basePart, bool inBudgetStretch, Func<bool> looserAllowed)
         {
-            if (category.Behavior == CategoryBehavior.Watch && ModeOf(DateOnly.FromDateTime(piece.Start)) == DayMode.Budget)
+            DateOnly date = DateOnly.FromDateTime(piece.Start);
+            if (category.Behavior == CategoryBehavior.Watch)
             {
-                // A Budget day's Work event is never a part; inside the stretch it counts toward the budget, which is a looser change.
-                return inBudgetStretch && looserAllowed() ? new Region(piece, RegionKind.BudgetCredit, category, calendarEvent, strictness) : null;
+                // A Work event inside a Budget day's stretch is never a part; it counts toward that day's budget, which is a
+                // looser change. Without the notice it gives no credit but still takes part in overlaps.
+                if (inBudgetStretch && DayWorkWindows.BudgetDayHolding(_stored, piece.Start, _input.NightFallback) is DateOnly holder)
+                {
+                    return new Region(piece, RegionKind.BudgetCredit, category, calendarEvent, strictness) { BudgetDate = holder, Credited = looserAllowed() };
+                }
+
+                if (ModeOf(date) == DayMode.Budget)
+                {
+                    return null;
+                }
+            }
+
+            // On a day with Comms parts of its own, mail and chat are closed outside them: a Comms piece there opens them, whatever it covers.
+            if (category.Behavior == CategoryBehavior.Comms && basePart?.Category.Behavior != CategoryBehavior.Comms && HasStoredComms(date))
+            {
+                return looserAllowed() ? new Region(piece, RegionKind.Part, category, calendarEvent, strictness) : null;
             }
 
             if (strictness > baseStrictness)
@@ -176,25 +201,39 @@ public static class CalendarDayOverlay
             return placed;
         }
 
-        // The Budget minutes each date's Work events have used up so far (whole minutes, only time before now).
-        private Dictionary<DateOnly, int> CreditMinutes(List<Region> placed)
+        // The Budget credit of each Budget day: the time its credited Work events have already used, less time counted as focus.
+        private Dictionary<DateOnly, TimeSpan> CreditByDay(List<Region> placed)
         {
-            var credits = new Dictionary<DateOnly, int>();
+            var credits = new Dictionary<DateOnly, TimeSpan>();
             var untilNow = new LocalWindow(DateTime.MinValue, _localNow);
-            foreach (IGrouping<DateOnly, Region> day in placed.Where(region => region.Kind == RegionKind.BudgetCredit).GroupBy(region => DateOnly.FromDateTime(region.Window.Start)))
+            IReadOnlyList<LocalWindow> focus = _input.CountedFocus ?? [];
+            foreach (IGrouping<DateOnly, Region> day in placed
+                         .Where(region => region.Kind == RegionKind.BudgetCredit && region.Credited && region.BudgetDate is not null)
+                         .GroupBy(region => region.BudgetDate!.Value))
             {
-                TimeSpan passed = day
-                    .Select(region => DayTimeline.Clip(region.Window, untilNow))
-                    .OfType<LocalWindow>()
-                    .Aggregate(TimeSpan.Zero, (sum, window) => sum + (window.End - window.Start));
-                int minutes = (int)Math.Floor(passed.TotalMinutes);
+                List<LocalWindow> passed = day.Select(region => DayTimeline.Clip(region.Window, untilNow)).OfType<LocalWindow>().ToList();
+                TimeSpan counted = DayTimeline.Subtract(passed, focus).Aggregate(TimeSpan.Zero, (sum, window) => sum + (window.End - window.Start));
+                int minutes = (int)Math.Floor(counted.TotalMinutes);
                 if (minutes > 0)
                 {
-                    credits[day.Key] = minutes;
+                    credits[day.Key] = TimeSpan.FromMinutes(minutes);
                 }
             }
 
             return credits;
+        }
+
+        private bool HasStoredComms(DateOnly date)
+        {
+            if (!_storedComms.TryGetValue(date, out bool has))
+            {
+                DateTime start = date.ToDateTime(TimeOnly.MinValue);
+                has = DayWorkWindows.PartsIn(_stored, new LocalWindow(start, start.AddDays(1)), _localNow, null, _input.NightFallback)
+                    .Any(part => part.Category.Behavior == CategoryBehavior.Comms);
+                _storedComms[date] = has;
+            }
+
+            return has;
         }
 
         private void PlaceEventPart(Region region)
@@ -296,7 +335,7 @@ public static class CalendarDayOverlay
         // session the user started is running.
         private bool IsLooserAllowed(CalendarEvent calendarEvent, DayCategory category)
         {
-            if (_input.SessionRunning || FirstKnownTimes.KnownAt(_known, calendarEvent, category.Id) is not DateTimeOffset knownAt)
+            if (_input.SessionRunning || FirstKnownTimes.KnownAt(_known, calendarEvent, category) is not DateTimeOffset knownAt)
             {
                 return false;
             }
@@ -307,42 +346,45 @@ public static class CalendarDayOverlay
         }
     }
 
-    private static int Strictness(CategoryBehavior behavior)
-    {
-        return behavior switch
-        {
-            CategoryBehavior.Watch => 3,
-            CategoryBehavior.Comms => 2,
-            CategoryBehavior.Rest => 1,
-            _ => 0,
-        };
-    }
-
-    // The window cut into stretches by what the guards see under it, in order; a stretch with no part has none.
+    // The window cut into stretches by what the guards see under it, in order. Where parts overlap (a flexible lunch inside the
+    // work), the strictest is the base, a Sleep or Pre-Work part above all; a stretch with no part has none.
     private static IEnumerable<(LocalWindow Window, PlannedPart? Part)> Segments(LocalWindow whole, IReadOnlyList<PlannedPart> parts)
     {
-        DateTime cursor = whole.Start;
-        foreach (PlannedPart part in parts.OrderBy(part => part.Window.Start))
+        var edges = new SortedSet<DateTime> { whole.Start, whole.End };
+        foreach (PlannedPart part in parts)
         {
-            if (part.Window.End <= cursor)
-            {
-                continue;
-            }
-
-            DateTime start = part.Window.Start > cursor ? part.Window.Start : cursor;
-            if (start > cursor)
-            {
-                yield return (new LocalWindow(cursor, start), null);
-            }
-
-            yield return (new LocalWindow(start, part.Window.End), part);
-            cursor = part.Window.End;
+            edges.Add(part.Window.Start > whole.Start ? part.Window.Start : whole.Start);
+            edges.Add(part.Window.End < whole.End ? part.Window.End : whole.End);
         }
 
-        if (cursor < whole.End)
+        DateTime[] cuts = edges.ToArray();
+        PlannedPart? current = null;
+        DateTime from = cuts[0];
+        for (int index = 0; index < cuts.Length - 1; index++)
         {
-            yield return (new LocalWindow(cursor, whole.End), null);
+            DateTime start = cuts[index];
+            DateTime end = cuts[index + 1];
+            PlannedPart? chosen = parts
+                .Where(part => part.Window.Start <= start && part.Window.End >= end)
+                .OrderByDescending(Rank)
+                .ThenBy(part => part.Window.Start)
+                .ThenBy(part => part.Part.Id)
+                .FirstOrDefault();
+            if (index > 0 && !ReferenceEquals(chosen, current))
+            {
+                yield return (new LocalWindow(from, start), current);
+                from = start;
+            }
+
+            current = chosen;
         }
+
+        yield return (new LocalWindow(from, whole.End), current);
+    }
+
+    private static int Rank(PlannedPart part)
+    {
+        return part.Category.Behavior is CategoryBehavior.Sleep or CategoryBehavior.PreWork ? 4 : CategoryStrictness.Of(part.Category.Behavior);
     }
 
     private static IEnumerable<LocalWindow> ByDate(LocalWindow window)

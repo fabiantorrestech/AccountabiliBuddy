@@ -1058,6 +1058,9 @@ public partial class App : Application
         };
         _startNudge.NightFallback = nightFallback;
         effectivePlan.NightFallback = nightFallback;
+        effectivePlan.CountedFocus = () => _deepWork?.CountedWindows ?? Array.Empty<LocalWindow>();
+        // A plan edit's freed work hours are measured with the events laid over both plans (ADR 28, 58).
+        _workHours.WithCalendarEvents = effectivePlan.Of;
         // The guards read the plan with the day's classified calendar events laid over it (ADR 58).
         Func<DayPlan> guardedPlan = () => effectivePlan.Current;
         _workHours.GuardedPlan = guardedPlan;
@@ -1421,6 +1424,8 @@ public partial class App : Application
 
         _recorder.Start();
         SessionResume? resumed = _sessions.Start(savedSession);
+        // Until now the saved session wasn't put back, so the calendar overlay treated a session as running (nothing loosens).
+        effectivePlan.MarkSessionStateKnown();
         // An erase the last run could not finish (a focus session was running) is done now, after a crashed session is resumed so
         // that it still waits for that one.
         _ = _syncRemoval!.ApplyPendingErasesQuietlyAsync();
