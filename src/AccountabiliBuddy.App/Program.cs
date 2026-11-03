@@ -16,7 +16,9 @@ public static class Program
     {
         // Installer hooks first (ADR 10): during install, update or uninstall Velopack runs the app with special
         // arguments, and this handles them and exits.
+        // The quit safeguard's watchdog runs this too (ADR 59); it must never apply a downloaded update and end the app mid-session.
         VelopackApp.Build()
+            .SetAutoApplyOnStartup(!args.Contains(StartupOptions.WatchdogArgument))
             .OnBeforeUninstallFastCallback(_ => UninstallCleanup.Run())
             .Run();
 
