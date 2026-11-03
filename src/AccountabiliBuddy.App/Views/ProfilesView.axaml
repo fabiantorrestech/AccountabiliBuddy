@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.ProfilesView"
              x:DataType="vm:ProfilesViewModel">
@@ -244,7 +245,9 @@
                             <WrapPanel ItemSpacing="8" LineSpacing="6">
                                 <CheckBox IsChecked="{Binding AllRulesSelected}" Content="Select all shown" VerticalAlignment="Center"
                                           ToolTip.Tip="Select all shown (to copy or move them to another profile)" AutomationProperties.Name="Select all rules" />
-                                <TextBox Text="{Binding RuleSearch}" Width="220" PlaceholderText="Search rules (pattern or note)" AutomationProperties.Name="Search rules" />
+                                <TextBox Text="{Binding RuleSearch}" Width="220" PlaceholderText="Search rules (pattern or note)" AutomationProperties.Name="Search rules">
+                                    <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
+                                </TextBox>
                                 <TextBlock Text="Match on" VerticalAlignment="Center" Classes="muted" />
                                 <ComboBox ItemsSource="{x:Static vm:ProfileEditorViewModel.TargetFilters}" SelectedItem="{Binding TargetFilter}" MinWidth="130" />
                                 <TextBlock Text="Verdict" VerticalAlignment="Center" Classes="muted" />

@@ -55,6 +55,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.accountabilibuddy.companion.ui.kit.AbClearButton
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -390,6 +391,7 @@ private fun BoxScope.SearchBand(
             }
             foundApps.forEach { found -> AppRow(found, onOpen, null) }
         }
+        Box(Modifier.fillMaxWidth()) {
         BasicTextField(
             value = query,
             onValueChange = { query = it; searched = null },
@@ -406,6 +408,10 @@ private fun BoxScope.SearchBand(
             },
             modifier = Modifier.fillMaxWidth().focusRequester(focus),
         )
+        if (query.isNotEmpty()) {
+            AbClearButton(onClick = { query = ""; searched = null }, modifier = Modifier.align(Alignment.CenterEnd), tint = Color(0x99FFFFFF))
+        }
+        }
     }
 }
 

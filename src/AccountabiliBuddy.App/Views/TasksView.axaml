@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.TasksView"
@@ -469,7 +470,9 @@
                         <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                         <TextBox x:Name="SearchBox" Grid.Column="1" Classes="rowEntry" Text="{Binding SearchText}" FontSize="15"
                                  PlaceholderText="Search tasks, steps, notes, come-backs and the Archive" AutomationProperties.Name="Search tasks"
-                                 KeyDown="OnSearchKeyDown" />
+                                 KeyDown="OnSearchKeyDown">
+                            <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
+                        </TextBox>
                     </Grid>
                 </Border>
 
