@@ -61,6 +61,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
+        <!-- The phone's clock app (a ringing alarm of another app is not covered by the work card; only asked who answers). -->
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
         <!-- The phone's own voice input for "Park a thought" (only asked whether one exists; the app has no microphone permission). -->
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />

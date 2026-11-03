@@ -25,7 +25,7 @@ data class GuardsLock(val until: Instant?, val test: Boolean = false) {
     companion object {
         private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
-        /** The lock at [now]: set while the session the phone tracks runs ([PlacementSession.current], the check the removal lock uses). */
-        fun at(app: CompanionApp, now: Instant): GuardsLock? = PlacementSession.current(app, now)?.let { GuardsLock(it.endsAt, test = it.test) }
+        /** The lock at [now]: set while the session the phone tracks runs ([PlacementSession.current], the check the removal lock uses); it does not follow ADR 60's 10-minute release. */
+        fun at(app: CompanionApp, now: Instant): GuardsLock? = PlacementSession.current(app, now, ignoreOff = true)?.let { GuardsLock(it.endsAt, test = it.test) }
     }
 }

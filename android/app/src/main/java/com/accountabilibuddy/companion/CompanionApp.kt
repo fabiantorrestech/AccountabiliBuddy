@@ -119,7 +119,7 @@ class CompanionApp : Application() {
             rulesStore = calendarRules,
             firstKnown = com.accountabilibuddy.companion.calendar.FirstKnownStore(File(filesDir, "companion/calendar-first-known.json")),
             reader = com.accountabilibuddy.companion.calendar.PhoneCalendarReader(this),
-            sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now) != null },
+            sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null },
             pcFiles = { pcFiles.filesOf(sync.received.value) },
             countedFocus = { now, zone -> countedFocusWindows(now, zone) },
             onOwnEventsChanged = { appScope.launch { Refresher.refresh(this@CompanionApp) } },
@@ -491,9 +491,11 @@ class CompanionApp : Application() {
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
         relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
-        // ADR 60: when any sync method last read successfully, for telling a PC that went quiet from a phone that can't read.
+        // ADR 60: when a sync method last read successfully, for telling a PC that went quiet from a phone that can't read. The shared folder
+        // is left out: it is local, so a pass "succeeds" with Wi-Fi off or Autosync paused and would make a quiet PC look off. A folder-only
+        // phone therefore never calls a PC quiet: a signalled shutdown still frees the guards after 10 minutes, an unsignalled one holds.
         com.accountabilibuddy.companion.sync.PcFileControl.lastReadAt = {
-            listOfNotNull(folderSource.status.value.lastSyncAt, driveSource.status.value.lastSyncAt, relaySource.status.value.lastSyncAt).maxOrNull()
+            listOfNotNull(driveSource.status.value.lastSyncAt, relaySource.status.value.lastSyncAt).maxOrNull()
         }
         // ADR 54: removing a device writes the rekey file by these, and a new key clears the old group's files from them.
         sync.rekeyMethods = listOf(folderSource, driveSource, relaySource)
@@ -516,14 +518,15 @@ class CompanionApp : Application() {
         watchSyncOff()
         // No escape hatches (ADR 54): removing devices, leaving and erasing a removed device's data wait for a PC focus session to end.
         sync.removalLockedReason = {
-            if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now()) != null) {
+            // ignoreOff: a PC off for 10 minutes mid-session frees the guards (ADR 60) but not these locks, since the session resumes.
+            if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now(), ignoreOff = true) != null) {
                 "This is locked while a focus session is running."
             } else {
                 null
             }
         }
         // The guard settings rest during a focus session: a "turn off" whose wait runs out then waits for the session to end.
-        pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now) != null }
+        pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null }
         // An erase that could not be finished last run (a PC session was running) is retried now, and every minute while one still runs.
         // Posted, so it runs after onCreate: the session check reads services that are made further down.
         android.os.Handler(mainLooper).post { sync.applyPendingErases() }

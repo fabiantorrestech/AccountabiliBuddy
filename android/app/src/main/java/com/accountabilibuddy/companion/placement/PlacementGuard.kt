@@ -36,7 +36,7 @@ class PlacementGuard(context: Context) {
     val offWait: Duration get() = OFF_WAIT
 
     /** True while a focus session runs: the switch can't be turned off then. */
-    fun locked(now: Instant): Boolean = PlacementSession.current(app, now) != null
+    fun locked(now: Instant): Boolean = PlacementSession.current(app, now, ignoreOff = true) != null
 
     /** Turning on applies at once and cancels a pending off. */
     @Synchronized

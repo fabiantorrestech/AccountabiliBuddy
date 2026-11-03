@@ -7,7 +7,9 @@ import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.provider.AlarmClock
 import android.provider.Settings
+import android.telecom.TelecomManager
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -27,6 +29,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -68,6 +71,38 @@ object Takeover {
         }
     }
 
+    // The app that came to the front last. The usage log only holds the moment an app came forward, so an app open for a long time
+    // is found by looking back an hour the first time; after that only the time since the last read is queried (every 3 s while the
+    // card waits) and the last answer stands until something else comes forward.
+    private var frontCheckedAt: Instant? = null
+    private var front: Pair<String, String?>? = null
+
+    private fun appInFront(context: Context, now: Instant): Pair<String, String?>? {
+        // Usage access taken away after a read: the cached answer is stale and nothing can refresh it.
+        if (!com.accountabilibuddy.companion.usage.PhoneUsageReader(context).hasAccess()) {
+            front = null
+            frontCheckedAt = null
+            return null
+        }
+
+        val sinceLast = frontCheckedAt?.let { Duration.between(it, now).seconds + 1 }
+        val fresh = sinceLast == null || sinceLast < 0 || sinceLast > FRONT_LOOKBACK_SECONDS
+        if (fresh) front = null
+        val lookback = if (fresh) FRONT_LOOKBACK_SECONDS else sinceLast!!
+        com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now, lookback)?.let { front = it }
+        frontCheckedAt = now
+        return front
+    }
+
+    // The phone's own dialer (a call that is not connected yet, so not "in call") and its clock (a ringing alarm or timer of
+    // another app) in front: never covered, even when they are not on the Essentials list. Both lookups need no permission;
+    // the clock's is found through the manifest's <queries> entry for SHOW_ALARMS, plus the known clock apps.
+    private fun isDialerOrClock(context: Context, packageName: String): Boolean {
+        if (packageName == context.getSystemService(TelecomManager::class.java)?.defaultDialerPackage) return true
+        if (packageName in CLOCK_PACKAGES) return true
+        return context.packageManager.resolveActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS), 0)?.activityInfo?.packageName == packageName
+    }
+
     fun stopWatchingUnanswered() {
         returnWatch?.cancel()
         returnWatch = null
@@ -95,10 +130,10 @@ object Takeover {
             return
         }
         // Emergency time, or unlocked into an always-allowed app (a call, a text, directions): no card.
-        val inFront = com.accountabilibuddy.companion.usage.PhoneUsageReader(context).foregroundApp(now)
+        val inFront = appInFront(context, now)
         // Lunch (from any device) is a break: no card, as on the PC.
-        if (app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now) || (inFront != null && app.essentials.isAllowed(inFront.first, inFront.second))) {
-            Log.d(TAG, "not shown: emergency, lunch or allowed app ($inFront)")
+        if (app.emergency.isActive(now) || app.essentialsOnScreen || app.lunch.isOnLunch(now) || (inFront != null && (app.essentials.isAllowed(inFront.first, inFront.second) || isDialerOrClock(context, inFront.first)))) {
+            Log.d(TAG, "not shown: emergency, lunch, allowed app, dialer or clock ($inFront)")
             return
         }
 
@@ -168,6 +203,8 @@ object Takeover {
 
     private const val TAG = "Takeover"
     private const val RETURN_CHECK_MS = 3_000L
+    private val CLOCK_PACKAGES = setOf("com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage")
+    private const val FRONT_LOOKBACK_SECONDS = 3_600L
     private const val WINDOW_SETTLE_MS = 150L
     private const val WINDOW_KEPT_MS = 1_500L
 

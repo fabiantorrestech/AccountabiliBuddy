@@ -26,17 +26,21 @@ object PlacementSession {
 
     fun same(a: Instant, b: Instant): Boolean = Duration.between(a, b).abs() <= SAME_WITHIN
 
-    fun current(app: CompanionApp, now: Instant): Info? = fromPc(app, now) ?: fromTest(app, now)
+    /**
+     * @param ignoreOff true for the locks that must hold while the PC is off mid-session (device removal, restore, turning a guard off):
+     * the session resumes when the PC is back, so they stay locked. The guards themselves leave it false and let go (ADR 60).
+     */
+    fun current(app: CompanionApp, now: Instant, ignoreOff: Boolean = false): Info? = fromPc(app, now, ignoreOff) ?: fromTest(app, now)
 
     private fun fromTest(app: CompanionApp, now: Instant): Info? =
         app.testSession.running(now)?.let { (start, end) -> Info(start, authoritative = true, onBreak = false, endsAt = end, test = true) }
 
-    private fun fromPc(app: CompanionApp, now: Instant): Info? {
+    private fun fromPc(app: CompanionApp, now: Instant, ignoreOff: Boolean): Info? {
         val file = app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC && Duration.between(it.file.device.writtenAt, now) <= FILE_FRESH_FOR }
             .filter { it.file.running?.isLiveAt(now, Duration.ZERO) == true }
             // ADR 60: a PC that went off holds the phone for 10 minutes, then lets go until it's back.
-            .filter { com.accountabilibuddy.companion.sync.PcFileControl.guardsHold(it.file, now) }
+            .filter { ignoreOff || com.accountabilibuddy.companion.sync.PcFileControl.guardsHold(it.file, now) }
             // A stepped-away session holds the guards (its end moves on return) only while its file is fresh: a PC that went away
             // for real stops holding the phone after the no-set-end limit (ADR 45).
             .filter { it.file.running?.isAwayOverdue(it.file.device.writtenAt, now) != true }

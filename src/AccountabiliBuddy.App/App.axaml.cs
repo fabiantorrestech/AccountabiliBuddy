@@ -95,9 +95,20 @@ public partial class App : Application
     private QuitGuardService? _quitGuard;
     private static readonly TimeSpan SessionHeartbeat = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan GoingOffWriteBudget = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan GoingOffStale = TimeSpan.FromSeconds(30);
     private PcOffSettingsService? _pcOff;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
+
+    // Avalonia 12 keeps ShutdownRequestedEventArgs.IsOSShutdown internal, so it is read by reflection; false if it ever goes away.
+    private static bool IsOsShutdown(ShutdownRequestedEventArgs e)
+    {
+        System.Reflection.PropertyInfo? property = typeof(ShutdownRequestedEventArgs).GetProperty("IsOSShutdown", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        return property?.GetValue(e) is true;
+    }
+
+    /// <summary>True once Windows asked the app to shut down; Program.Main then checks whether the shutdown really happened.</summary>
+    public static bool WindowsShutdownRequested { get; private set; }
     private DateTimeOffset _lastSessionWrite = DateTimeOffset.MinValue;
     private QuitGuardViewModel? _quitGuardViewModel;
     private AccountabiliBuddy.App.Services.Setup.SetupFeaturesService? _setupFeatures;
@@ -194,7 +205,11 @@ public partial class App : Application
             // The app lives in the tray; only Quit ends it.
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             desktop.Exit += (_, _) => DisposeServices();
-            desktop.ShutdownRequested += (_, _) => OnWindowsEnding();
+            desktop.ShutdownRequested += (_, e) =>
+            {
+                WindowsShutdownRequested |= IsOsShutdown(e);
+                OnWindowsEnding();
+            };
 
             string? problem = BuildServicesAndWindow();
             if (problem is not null)
@@ -1515,6 +1530,7 @@ public partial class App : Application
         _sessions.Ticked += (_, _) =>
         {
             _ = pcOff.ApplyPendingIfDueAsync();
+            ClearStaleGoingOff();
             WriteSessionHeartbeat();
         };
         _sessions.StateChanged += (_, _) => _ = pcOff.ApplyPendingIfDueAsync();
@@ -2628,6 +2644,17 @@ public partial class App : Application
             _syncFolder?.WriteNowAsync() ?? Task.CompletedTask,
             _syncDrive?.WriteNowAsync() ?? Task.CompletedTask,
             _syncRelay?.WriteNowAsync() ?? Task.CompletedTask);
+    }
+
+    // ADR 60: a shutdown that was cancelled leaves GoingOffAt set; the app is still running well after the 2-second write, so Windows
+    // did not go through with it. Cleared so later files stop saying "off" (the phone would drop its guards after 10 minutes).
+    private void ClearStaleGoingOff()
+    {
+        if (_syncCoordinator?.GoingOffAt is DateTimeOffset goingOffAt && _sessions is not null && _sessions.Now - goingOffAt > GoingOffStale)
+        {
+            _syncCoordinator.GoingOffAt = null;
+            _windowsEndingHandled = false;
+        }
     }
 
     // ADR 60: Windows is shutting down with a session running. Noted for the next boot, and one last file tells the other devices;

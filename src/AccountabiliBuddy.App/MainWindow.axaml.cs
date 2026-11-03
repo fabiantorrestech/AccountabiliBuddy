@@ -542,7 +542,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (!AllowClose)
+        // Windows shutting down is not a click on the X: cancelling it (or asking about unsaved changes) would hold the shutdown up.
+        if (!AllowClose && e.CloseReason != WindowCloseReason.OSShutdown)
         {
             e.Cancel = true;
             if (DataContext is MainWindowViewModel viewModel && !viewModel.MayLeaveTab(_shownTab, null))
