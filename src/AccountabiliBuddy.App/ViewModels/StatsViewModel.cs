@@ -258,8 +258,10 @@ public sealed partial class StatsViewModel : ObservableObject
     /// <summary>The shown view has nothing in this range: the page says so instead of drawing it.</summary>
     public bool ShowsEmpty => IsLoaded && !(ShowsOverview || ShowsConsistency || ShowsIntensity || ShowsFocusGraph || ShowsDrift || ShowsSleep || ShowsPhone);
 
-    public string EmptyText => _beforeHistory && _data is not null
+    public string EmptyText => _beforeHistory && _data is not null && !HasNoHistory(_data)
         ? $"History starts {_data.FirstData.ToString("MMM d", CultureInfo.CurrentCulture)}. Nothing was recorded before that."
+        : _beforeHistory
+        ? "No history yet. Start a focus session on Today and this fills in."
         : View switch
     {
         StatsViewKind.Sleep => "Your phone hasn't sent sleep numbers yet.",
@@ -292,7 +294,7 @@ public sealed partial class StatsViewModel : ObservableObject
         ? SelectedDay.ToString("ddd, MMM d", CultureInfo.CurrentCulture)
         : StatsFormat.DatesText(_period.From, _period.To);
 
-    public bool CanStepBack => Range == StatsRange.Day ? CanGoPrevious : _data is not null && _period.HasPrevious(_data.FirstData);
+    public bool CanStepBack => Range == StatsRange.Day ? _data is not null && SelectedDay > _data.FirstData : _data is not null && _period.HasPrevious(_data.FirstData);
 
     public bool CanStepForward => Range == StatsRange.Day ? CanGoNext : _data is not null && _period.HasNext(_data.Today);
 
@@ -306,6 +308,12 @@ public sealed partial class StatsViewModel : ObservableObject
     public bool CanGoPrevious => _data is null || SelectedDay > _data.FirstDay;
 
     public bool CanGoNext => SelectedDay < Today;
+
+    // No session at all so far: "history starts today" would promise a start that hasn't happened.
+    private static bool HasNoHistory(StatsData data)
+    {
+        return data.FirstData >= data.Today && data.Days.All(day => day.Focused <= TimeSpan.Zero);
+    }
 
     private DateOnly Today => DateOnly.FromDateTime(_time.GetLocalNow().DateTime);
 
@@ -405,10 +413,14 @@ public sealed partial class StatsViewModel : ObservableObject
             return;
         }
 
-        // The chip already chosen jumps back to the current period.
+        // The chip already chosen jumps back to the current period; Custom keeps the dates that were picked.
         if (range == Range)
         {
-            ResetPeriod();
+            if (range != StatsRange.Custom)
+            {
+                ResetPeriod();
+            }
+
             return;
         }
 
@@ -646,6 +658,13 @@ public sealed partial class StatsViewModel : ObservableObject
         {
             SelectedDay = today;
             Details.SelectedDay = today.ToDateTime(TimeOnly.MinValue);
+        }
+
+        // A custom range's dates stay inside the kept days, which move forward at midnight (the pickers' minimum moves with them).
+        if (Range == StatsRange.Custom)
+        {
+            _period = StatsPeriod.Custom(Clamp(_period.From, first, today), Clamp(_period.To, first, today));
+            SyncPickers();
         }
 
         // The period that was the current one moves on with the date (this week into the next, Last 30 ending yesterday into today).

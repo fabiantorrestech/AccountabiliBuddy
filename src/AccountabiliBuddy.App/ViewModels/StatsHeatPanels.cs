@@ -46,8 +46,9 @@ internal static class StatsHeatPanels
         ConsistencySummary summary = ConsistencyStats.Summarize(days, data.Goal, lookups.IsWorkday, data.Today);
         var cards = new List<StatsCard>
         {
-            new("Current streak", summary.CurrentStreak.ToString(CultureInfo.CurrentCulture),
-                $"{(summary.CurrentStreak == 1 ? "workday" : "workdays")} in a row · best: {summary.BestStreak}"),
+            // On a past period the run is the one that ended with it, not the streak you have now.
+            new(to >= data.Today ? "Current streak" : "Run at period end", summary.CurrentStreak.ToString(CultureInfo.CurrentCulture),
+                $"{(summary.CurrentStreak == 1 ? "workday" : "workdays")} in a row{(to >= data.Today ? string.Empty : $" up to {to.ToString("MMM d", CultureInfo.CurrentCulture)}")} · best: {summary.BestStreak}"),
             new("Goal met", $"{summary.MetPercent}%", $"{summary.WorkdaysMet} of {summary.WorkdaysCounted} workdays"),
         };
         if (summary.MostReliableDay is { } reliable)
