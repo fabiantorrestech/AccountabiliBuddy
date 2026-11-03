@@ -469,6 +469,16 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ADR 58: what calendar events changed in today's guarded windows, with the day's other status lines. Quiet; gone when nothing changed. -->
+                <ItemsControl DataContext="{Binding CalendarToday}" x:DataType="vm:CalendarTodayViewModel" Margin="8,-6,8,0"
+                              ItemsSource="{Binding Lines}" IsVisible="{Binding HasLines, FallbackValue=False}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <TextBlock Classes="muted" Text="{Binding}" FontSize="12" TextWrapping="Wrap" Margin="0,1" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
                 <!-- Next up: the next two parts of today's plan. -->
                 <Border Classes="card" DataContext="{Binding NextUp}" x:DataType="vm:NextUpViewModel"
                         IsVisible="{Binding HasRows, FallbackValue=False}">

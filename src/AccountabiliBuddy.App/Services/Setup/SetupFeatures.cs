@@ -10,7 +10,7 @@ public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
-        SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay) => new[]
+        SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay) => new[]
     {
         new SetupFeature(
             "coldturkey.keys", "0.1.106",
@@ -90,5 +90,13 @@ public static class SetupFeatures
             IsRelevant: () => true,
             IsSetUp: () => overlay.Current.HideShortcutSeen,
             Step: ViewModels.AssistantStep.PanelCtrlAlt),
+        new SetupFeature(
+            "calendar.rules", "0.1.122",
+            "Calendar events: let them shape your guarded windows",
+            "Give a calendar event, or a whole calendar by keywords or for every event, a day plan category, so the guards follow the real day. A looser change waits first; Today shows what came from the calendar.",
+            IsRelevant: () => true,
+            IsSetUp: () => calendarOverlay.Classifications.Count > 0 || calendarOverlay.PendingClassifications.Count > 0
+                || !calendarOverlay.Rules.Active.IsEmpty || calendarOverlay.Rules.Pending is not null,
+            Step: ViewModels.AssistantStep.CalendarRules),
     };
 }

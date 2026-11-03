@@ -11,10 +11,11 @@ public sealed partial class CalendarRowViewModel : ObservableObject
     private readonly CalendarService _calendars;
     private readonly string _calendarId;
 
-    public CalendarRowViewModel(CalendarService calendars, CalendarSource source, CalendarInfo calendar)
+    public CalendarRowViewModel(CalendarService calendars, CalendarSource source, CalendarInfo calendar, CalendarRuleViewModel rule)
     {
         _calendars = calendars;
         _calendarId = calendar.Id;
+        Rule = rule;
         Name = calendar.Name;
         SourceName = source.Name;
         Brush = new SolidColorBrush(Color.Parse(calendar.Color));
@@ -22,6 +23,11 @@ public sealed partial class CalendarRowViewModel : ObservableObject
     }
 
     public string Name { get; }
+
+    public string CalendarId => _calendarId;
+
+    /// <summary>The rule choice under the row (ADR 58): Off, Keywords or Every event → category.</summary>
+    public CalendarRuleViewModel Rule { get; }
 
     public string SourceName { get; }
 

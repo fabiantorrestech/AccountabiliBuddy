@@ -4,6 +4,7 @@ using System.Windows.Input;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -30,9 +31,9 @@ public sealed partial class PlanViewModel : ObservableObject
     private readonly Func<TimeSpan> _goal;
     private readonly Func<DateOnly, TimeSpan> _focusedOn;
     private readonly Func<DateOnly, SleepTimes?> _nightFallback;
-    private readonly Func<DayPlan, DayPlan> _withCalendarEvents;
+    private readonly EffectiveDayPlanProvider _overlay;
 
-    /// <param name="withCalendarEvents">Lays the classified calendar events over a plan (ADR 58), for the timeline only.</param>
+    /// <param name="overlay">Lays the classified calendar events over a plan for the timeline (ADR 58), and takes the choices made on an event.</param>
     public PlanViewModel(
         ConfigurationService configuration,
         SessionController sessions,
@@ -43,7 +44,7 @@ public sealed partial class PlanViewModel : ObservableObject
         Func<TimeSpan> goal,
         Func<DateOnly, TimeSpan> focusedOn,
         Func<DateOnly, SleepTimes?> nightFallback,
-        Func<DayPlan, DayPlan> withCalendarEvents)
+        EffectiveDayPlanProvider overlay)
     {
         _configuration = configuration;
         _sessions = sessions;
@@ -54,7 +55,7 @@ public sealed partial class PlanViewModel : ObservableObject
         _goal = goal;
         _focusedOn = focusedOn;
         _nightFallback = nightFallback;
-        _withCalendarEvents = withCalendarEvents;
+        _overlay = overlay;
 
         SelectedDate = Today;
         WeekStart = WeekSwitch.MondayOf(SelectedDate);
@@ -63,6 +64,8 @@ public sealed partial class PlanViewModel : ObservableObject
         _calendars.Changed += (_, _) => Refresh();
         _dismissals.Changed += (_, _) => Refresh();
         _sessions.StateChanged += (_, _) => Refresh();
+        // The store can raise this on any thread and while it holds a lock: only post to the UI thread, never call the provider here.
+        _overlay.Store.Changed += (_, _) => Dispatcher.UIThread.Post(OnOverlayChanged);
         dayPlan.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(DayPlanViewModel.IsLocked) or nameof(DayPlanViewModel.HasUnsavedChanges))
@@ -203,7 +206,40 @@ public sealed partial class PlanViewModel : ObservableObject
     private IReadOnlyList<PlanTimelineRowViewModel> BuildRows()
     {
         return PlanTimelineBuilder.Build(
-            _withCalendarEvents(_configuration.Editing.DayPlan), SelectedDate, LocalNow, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart);
+            _overlay.Of(_configuration.Editing.DayPlan), SelectedDate, LocalNow, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart, OpenEventPicker);
+    }
+
+    private void OnOverlayChanged()
+    {
+        EventPicker?.Refresh();
+        Refresh();
+    }
+
+    /// <summary>The picker on one calendar event (ADR 58); null while closed.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEventPickerOpen))]
+    public partial CalendarEventPickerViewModel? EventPicker { get; set; }
+
+    public bool IsEventPickerOpen => EventPicker is not null;
+
+    /// <summary>Opens the picker for a category on <paramref name="calendarEvent"/> (a timeline row, or "Set category" in the month view).</summary>
+    public void OpenEventPicker(CalendarEvent calendarEvent)
+    {
+        Sheet = PlanSheet.None;
+        string name = _calendars.Sources.SelectMany(source => source.Calendars).FirstOrDefault(calendar => calendar.Id == calendarEvent.CalendarId)?.Name ?? string.Empty;
+        EventPicker = new CalendarEventPickerViewModel(
+            _overlay, _configuration, _sessions.TimeProvider, calendarEvent, name, CloseEventPicker,
+            () =>
+            {
+                CloseEventPicker();
+                OpenChangeADay(DateOnly.FromDateTime(calendarEvent.LocalStart));
+            });
+    }
+
+    [RelayCommand]
+    public void CloseEventPicker()
+    {
+        EventPicker = null;
     }
 
     [RelayCommand]
@@ -289,6 +325,30 @@ public sealed partial class PlanViewModel : ObservableObject
         }
 
         DayPlan plan = _configuration.Editing.DayPlan;
+
+        // A part the overlay made from an event has no place in any editor: its click picks that event's category.
+        if (row.FromEvent)
+        {
+            if (EventBehind(plan, row) is CalendarEvent behind)
+            {
+                OpenEventPicker(behind);
+            }
+            else
+            {
+                OpenChangeADay(SelectedDate);
+            }
+
+            return;
+        }
+
+        // A piece of a part an event cut is not in the editor under its own id: it opens the part it came from.
+        Guid? partId = row.PartId;
+        if (row.CategoryId is Guid category && row.PartWindow is LocalWindow window
+            && !plan.TemplateFor(SelectedDate).Parts.Any(part => part.Id == partId))
+        {
+            partId = PlanPartOrigin.StoredPartFor(plan, SelectedDate, category, row.PartLabel, window) ?? partId;
+        }
+
         if (plan.OneOffDays.Any(day => day.Date == SelectedDate))
         {
             OpenChangeADay(SelectedDate);
@@ -297,7 +357,7 @@ public sealed partial class PlanViewModel : ObservableObject
                 Exceptions.PlanSelectedDayCommand.Execute(null);
             }
 
-            SelectPart(Exceptions.OneOffEditor, row.PartId);
+            SelectPart(Exceptions.OneOffEditor, partId);
             EditorRequested?.Invoke(this, EventArgs.Empty);
             return;
         }
@@ -305,8 +365,20 @@ public sealed partial class PlanViewModel : ObservableObject
         Guid? templateId = plan.Cycle.TemplateIdFor(SelectedDate);
         int index = templateId is Guid id ? DayPlan.Templates.ToList().FindIndex(template => template.Id == id) : -1;
         OpenDayTypes(index >= 0 ? index : null);
-        SelectPart(DayPlan.SelectedTemplate?.Editor, row.PartId);
+        SelectPart(DayPlan.SelectedTemplate?.Editor, partId);
         EditorRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    // The classified event that made the part a row stands for.
+    private CalendarEvent? EventBehind(DayPlan plan, PlanTimelineRowViewModel row)
+    {
+        if (row.CategoryId is not Guid category || row.PartWindow is not LocalWindow window)
+        {
+            return null;
+        }
+
+        var classified = EventCategoryResolver.Classified(_calendars.AllEvents(), plan, _overlay.Store.Classifications, _overlay.Store.Rules.Active);
+        return PlanPartOrigin.EventBehind(classified, category, window);
     }
 
     private static void SelectPart(DayPlanEditorViewModel? editor, Guid? partId)

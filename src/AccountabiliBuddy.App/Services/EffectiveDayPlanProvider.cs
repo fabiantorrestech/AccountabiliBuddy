@@ -63,6 +63,7 @@ public sealed class EffectiveDayPlanProvider
     public void Start()
     {
         Restamp();
+        PruneStaleChoices();
     }
 
     /// <summary>Says that the saved session (if any) has been put back, so <see cref="SessionRuns"/> follows the real state from now on.</summary>
@@ -148,6 +149,25 @@ public sealed class EffectiveDayPlanProvider
         return TryChangeClassification(CalendarOverlayStore.TargetFor(calendarEvent, scope, null), calendarEvent, removes: true);
     }
 
+    /// <summary>
+    /// Forgets the rules and choices of calendars that were removed with their source (ADR 58). Refused, and nothing is
+    /// changed, while a session is running, like removing the source itself.
+    /// </summary>
+    /// <returns>False while a session is running.</returns>
+    public bool TryForgetCalendars(IReadOnlyCollection<string> calendarIds)
+    {
+        lock (_gate)
+        {
+            if (SessionRuns)
+            {
+                return false;
+            }
+
+            Store.ForgetCalendars(calendarIds);
+            return true;
+        }
+    }
+
     private bool TryChangeClassification(EventClassification target, CalendarEvent calendarEvent, bool removes)
     {
         lock (_gate)
@@ -193,7 +213,22 @@ public sealed class EffectiveDayPlanProvider
             _seenEventLists = lists;
             Interlocked.Increment(ref _calendarVersion);
             Stamp(_time.GetUtcNow());
+            PruneStaleChoices();
         }
+    }
+
+    // Forgets "this one" choices whose event ended long ago (ClassificationPruning); none of them can be read by a guard any more.
+    private void PruneStaleChoices()
+    {
+        if (Store.Classifications.Count == 0 && Store.PendingClassifications.Count == 0)
+        {
+            return;
+        }
+
+        DateTime localNow = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
+        IReadOnlyList<EventClassification> stale = ClassificationPruning.Stale(
+            Store.Classifications.Concat(Store.PendingClassifications.Select(pending => pending.Change)), _calendars.EventsOf, localNow);
+        Store.RemoveStale(stale);
     }
 
     private static bool HasBudgetDay(DayPlan plan)

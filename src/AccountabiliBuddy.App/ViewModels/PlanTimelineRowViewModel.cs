@@ -1,3 +1,4 @@
+using AccountabiliBuddy.Core.Domain;
 using CommunityToolkit.Mvvm.Input;
 
 namespace AccountabiliBuddy.App.ViewModels;
@@ -30,6 +31,16 @@ public sealed partial class PlanTimelineRowViewModel
 
     /// <summary>An all-day calendar event listed at the top of the day; it opens the month view.</summary>
     public bool IsEvent { get; init; }
+
+    /// <summary>The part was made by a classified calendar event (ADR 58): it exists only in the effective plan, so its click opens the event's picker.</summary>
+    public bool FromEvent { get; init; }
+
+    /// <summary>The category and hours of the part that stands for this row, to find the event or the stored part it came from; null when it has none.</summary>
+    public Guid? CategoryId { get; init; }
+
+    public string? PartLabel { get; init; }
+
+    public LocalWindow? PartWindow { get; init; }
 
     [RelayCommand]
     private void Open() => _open(this);

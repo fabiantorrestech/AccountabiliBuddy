@@ -196,6 +196,59 @@ public sealed class CalendarOverlayStore
         return true;
     }
 
+    /// <summary>
+    /// Forgets stored and waiting choices for <paramref name="targets"/> (choices no guard can read any more, see
+    /// <see cref="Core.Engine.ClassificationPruning"/>). Not gated: nothing here can change a guard.
+    /// </summary>
+    internal void RemoveStale(IReadOnlyCollection<EventClassification> targets)
+    {
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            Classifications = Classifications.Where(existing => !targets.Any(target => SameTarget(existing, target))).ToList();
+            PendingClassifications = PendingClassifications.Where(pending => !targets.Any(target => SameTarget(pending.Change, target))).ToList();
+            SaveClassifications();
+            SavePendingClassifications();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Forgets everything kept for calendars that are gone: their rules (active and waiting), classifications (stored and
+    /// waiting) and first-known stamps. The caller decides whether a session forbids it (<see cref="EffectiveDayPlanProvider.TryForgetCalendars"/>).
+    /// </summary>
+    internal void ForgetCalendars(IReadOnlyCollection<string> calendarIds)
+    {
+        if (calendarIds.Count == 0)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            Classifications = Classifications.Where(existing => !calendarIds.Contains(existing.CalendarId)).ToList();
+            PendingClassifications = PendingClassifications.Where(pending => !calendarIds.Contains(pending.Change.CalendarId)).ToList();
+            Rules = new CalendarRules(WithoutCalendars(Rules.Active, calendarIds), Rules.Pending is null ? null : WithoutCalendars(Rules.Pending, calendarIds), Rules.PendingTakesOverAt);
+            FirstKnown = FirstKnown.Where(entry => !calendarIds.Contains(entry.CalendarId)).ToList();
+            SaveClassifications();
+            SavePendingClassifications();
+            SaveRules();
+            Save(FirstKnownKey, FirstKnown);
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static CalendarRuleSet WithoutCalendars(CalendarRuleSet set, IReadOnlyCollection<string> calendarIds)
+    {
+        return set with { Rules = set.Rules.Where(rule => !calendarIds.Contains(rule.CalendarId)).ToList() };
+    }
+
     /// <summary>Replaces the first-known stamps when <paramref name="updated"/> is a different list than the one kept.</summary>
     public void SetFirstKnown(IReadOnlyList<FirstKnownEntry> updated)
     {

@@ -21,6 +21,7 @@ public static class PlanTimelineBuilder
     /// <param name="entries">The date's events from the visible calendars.</param>
     /// <param name="focused">Counted focus today, shared out over the deep-work stretches that have started.</param>
     /// <param name="goal">The deep-work goal, shown under the first work row; zero hides it.</param>
+    /// <param name="openEvent">What a click on a timed calendar event row does (ADR 58: pick its category).</param>
     public static IReadOnlyList<PlanTimelineRowViewModel> Build(
         DayPlan plan,
         DateOnly date,
@@ -29,7 +30,8 @@ public static class PlanTimelineBuilder
         TimeSpan focused,
         TimeSpan goal,
         Func<DateOnly, SleepTimes?>? nightFallback,
-        Action<PlanTimelineRowViewModel> open)
+        Action<PlanTimelineRowViewModel> open,
+        Action<CalendarEvent> openEvent)
     {
         DateTime dayStart = date.ToDateTime(TimeOnly.MinValue);
         var day = new LocalWindow(dayStart, dayStart.AddDays(1));
@@ -66,7 +68,7 @@ public static class PlanTimelineBuilder
         {
             if (group is not null)
             {
-                rows.Add(WorkRow(group, goalShown ? TimeSpan.Zero : goal, timed, isToday, now, focused, open));
+                rows.Add(WorkRow(group, goalShown ? TimeSpan.Zero : goal, timed, isToday, now, focused, open, openEvent));
                 goalShown = true;
                 group = null;
             }
@@ -140,7 +142,8 @@ public static class PlanTimelineBuilder
         bool isToday,
         DateTime now,
         TimeSpan focused,
-        Action<PlanTimelineRowViewModel> open)
+        Action<PlanTimelineRowViewModel> open,
+        Action<CalendarEvent> openEvent)
     {
         PlannedPart first = group.FirstOrDefault(part => part.Category.Behavior == CategoryBehavior.Watch) ?? group[0];
         var span = new LocalWindow(group[0].Window.Start, group[^1].Window.End);
@@ -184,12 +187,13 @@ public static class PlanTimelineBuilder
         foreach ((CalendarEvent calendarEvent, LocalWindow window) in events)
         {
             DateTime at = window.Start < span.Start ? span.Start : window.Start;
-            subRows.Add((at, new PlanSubRowViewModel
+            subRows.Add((at, new PlanSubRowViewModel(openEvent)
             {
                 TimeText = Clock(at),
                 Title = calendarEvent.Title,
                 RightText = "Calendar",
                 IsEvent = true,
+                Event = calendarEvent,
             }));
         }
 
@@ -208,6 +212,10 @@ public static class PlanTimelineBuilder
             SubText = goal > TimeSpan.Zero ? $"{until} · deep work goal {Span(goal)}" : until,
             SubRows = ordered,
             PartId = first.Part.Id,
+            FromEvent = first.Part.FromEvent,
+            CategoryId = first.Category.Id,
+            PartLabel = first.Part.Label,
+            PartWindow = first.Window,
         };
     }
 
@@ -224,6 +232,10 @@ public static class PlanTimelineBuilder
             Title = part.Name,
             SubText = kind,
             PartId = part.Part.Id,
+            FromEvent = part.Part.FromEvent,
+            CategoryId = part.Category.Id,
+            PartLabel = part.Part.Label,
+            PartWindow = part.Window,
         };
     }
 

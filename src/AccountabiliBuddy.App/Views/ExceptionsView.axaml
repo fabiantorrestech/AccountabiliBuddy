@@ -170,6 +170,11 @@
                                             <Button Content="Plan this day around it" FontSize="12" Padding="6,2"
                                                     Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).PlanDayForEventCommand}"
                                                     CommandParameter="{Binding}" />
+                                            <Button Content="Set category…" FontSize="12" Padding="6,2" IsVisible="{Binding CanSetCategory}"
+                                                    AutomationProperties.Name="Set category for this event"
+                                                    ToolTip.Tip="Let this event shape the day's guarded windows"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).SetEventCategoryCommand}"
+                                                    CommandParameter="{Binding}" />
                                             <Button Content="Edit" FontSize="12" Padding="6,2" IsVisible="{Binding IsEditable}"
                                                     AutomationProperties.Name="Edit event"
                                                     Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).EditEventCommand}"

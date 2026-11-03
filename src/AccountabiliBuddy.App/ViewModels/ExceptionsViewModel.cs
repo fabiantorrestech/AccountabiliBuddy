@@ -73,6 +73,12 @@ public sealed partial class ExceptionsViewModel : ObservableObject
     [RelayCommand]
     private void OpenCalendarSettings() => OpenConnections?.Invoke();
 
+    /// <summary>Opens the category picker on a calendar event (ADR 58, the Plan page's); set by the app.</summary>
+    public Action<CalendarEvent>? PickEventCategory { get; set; }
+
+    [RelayCommand]
+    private void SetEventCategory(EventRowViewModel row) => PickEventCategory?.Invoke(row.Entry.Event);
+
     /// <summary>Every one-off day, by date; days that have passed are greyed out.</summary>
     public ObservableCollection<OneOffDayRowViewModel> OneOffDays { get; } = new();
 
