@@ -422,7 +422,11 @@ class CompanionApp : Application() {
         }
         appScope.launch {
             sync.received.collect { devices ->
-                devices.mapNotNull { it.file.lunch }.forEach { lunch.receive(it) }
+                // A lunch taken from another device's file: the notification and widget now, not at the 2-second redraw below.
+                val lunchTaken = devices.mapNotNull { it.file.lunch }.map { lunch.receive(it) }.any { it }
+                if (lunchTaken) {
+                    launch { runCatching { Refresher.refresh(this@CompanionApp) } }
+                }
                 runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(this@CompanionApp) }
                 actions.prune(devices)
                 pcRemote.expire()

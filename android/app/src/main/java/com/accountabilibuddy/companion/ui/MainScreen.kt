@@ -64,6 +64,10 @@ fun MainScreen(
     val pauseState by viewModel.pauseState.collectAsStateWithLifecycle()
     val lunchTaken by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lunch.collectAsStateWithLifecycle()
     val lunchLength by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).lunch.lengthMinutes.collectAsStateWithLifecycle()
+    // The card's "On all your devices" line: the other PCs' and phones' latest files (a watch writes none; removed devices are not in `received`).
+    val lunchReceived by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.received.collectAsStateWithLifecycle()
+    val lunchPeers = lunchReceived.filter { it.file.device.kind != com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_WATCH }
+        .map { com.accountabilibuddy.shared.sync.LunchPeer(it.file.device.name, it.file.device.writtenAt, it.file.lunch) }
     val runningTasks by viewModel.runningTasks.collectAsStateWithLifecycle()
     val comebacks by viewModel.comebacks.collectAsStateWithLifecycle()
     val beeminder by viewModel.beeminder.collectAsStateWithLifecycle()
@@ -284,6 +288,7 @@ fun MainScreen(
                         onStart = { app.lunch.start() },
                         onBack = { app.lunch.endNow() },
                         onAdjust = { longer -> app.lunch.adjust(longer) },
+                        peers = lunchPeers,
                     )
                     TodayPane(
                         state = state, model = model, clock = viewModel.clock,

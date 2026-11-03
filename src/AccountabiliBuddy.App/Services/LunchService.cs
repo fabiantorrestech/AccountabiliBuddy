@@ -213,12 +213,12 @@ public sealed class LunchService
         }
     }
 
-    /// <summary>A lunch another device started or changed (its sync file): taken here when it's today's and its edit is newer than ours.</summary>
-    public void Receive(SyncLunch lunch)
+    /// <summary>A lunch another device started or changed (its sync file): taken here when it's today's and its edit is newer than ours. True when it was taken (the card and the sync file follow at once; the caller redraws the day bar).</summary>
+    public bool Receive(SyncLunch lunch)
     {
         if (!IsToday(lunch.Start))
         {
-            return;
+            return false;
         }
 
         if (lunch.End > lunch.Start + MaxLength)
@@ -229,7 +229,7 @@ public sealed class LunchService
 
         if (Taken is SyncLunch ours && (ours.LastEdit >= lunch.LastEdit || (ours.Start == lunch.Start && ours.End == lunch.End)))
         {
-            return;
+            return false;
         }
 
         _ = SaveAsync(_state with { Start = lunch.Start, End = lunch.End, EditedAt = lunch.EditedAt, OverTold = _sessions.Now >= lunch.End });
@@ -239,6 +239,8 @@ public sealed class LunchService
         {
             _sessions.EndBreakForLunch();
         }
+
+        return true;
     }
 
     /// <summary>The hint, and "Lunch over!" once. Runs every second.</summary>
