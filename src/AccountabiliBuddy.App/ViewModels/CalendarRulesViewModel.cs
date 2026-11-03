@@ -34,6 +34,8 @@ public sealed partial class CalendarRulesViewModel : ObservableObject
         _provider.Store.Changed += (_, _) => Dispatcher.UIThread.Post(OnStoreChanged);
         _configuration.Changed += (_, _) => Dispatcher.UIThread.Post(OnPlanChanged);
         _sessions.StateChanged += (_, _) => Dispatcher.UIThread.Post(RefreshState);
+        // Until the saved session is put back everything counts as locked; the unlock is announced here.
+        _provider.SessionStateKnown += (_, _) => Dispatcher.UIThread.Post(RefreshState);
     }
 
     /// <summary>The categories a rule can give: every one of the plan except Sleep and Pre-Work.</summary>
@@ -112,7 +114,13 @@ public sealed partial class CalendarRulesViewModel : ObservableObject
 
         Message = null;
         IsEdited = Json(DraftSet()) != Json(Baseline());
+        DiscardCommand.NotifyCanExecuteChanged();
     }
+
+    // A line just added is blank, so it adds nothing to the saved set yet; it still is a draft that a reload must not wipe.
+    private bool HoldsDraft => IsEdited || SharedKeywords.Any(IsBlank) || _rules.Values.Any(rule => rule.OwnKeywords.Any(IsBlank));
+
+    private static bool IsBlank(KeywordRowViewModel row) => row.Keyword.Trim().Length == 0;
 
     private bool CanSave => IsEdited && !IsLocked;
 
@@ -146,7 +154,7 @@ public sealed partial class CalendarRulesViewModel : ObservableObject
         Message = $"{PendingText}";
     }
 
-    [RelayCommand(CanExecute = nameof(IsEdited))]
+    [RelayCommand(CanExecute = nameof(HoldsDraft))]
     private void Discard()
     {
         LoadAll();
@@ -157,7 +165,7 @@ public sealed partial class CalendarRulesViewModel : ObservableObject
     private void OnStoreChanged()
     {
         // A waiting set took over or was replaced: the draft follows unless it is being edited.
-        if (!IsEdited)
+        if (!HoldsDraft)
         {
             LoadAll();
         }

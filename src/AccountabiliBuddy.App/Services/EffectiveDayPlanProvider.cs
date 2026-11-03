@@ -74,6 +74,37 @@ public sealed class EffectiveDayPlanProvider
             _sessionStateKnown = true;
             Interlocked.Increment(ref _calendarVersion);
         }
+
+        SessionStateKnown?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Raised once the saved session has been put back (<see cref="SessionRuns"/> now follows the real state), possibly on
+    /// another thread: subscribers post to the UI thread and read the provider from there.
+    /// </summary>
+    public event EventHandler? SessionStateKnown;
+
+    /// <summary>The looser-change delay in force: how long before it starts an event must be known to loosen the day.</summary>
+    public TimeSpan LooseningDelay => _configuration.Current.Locks.LooseningDelay;
+
+    /// <summary>When the app first saw the event as it is now with this category; null if it has not (yet). Read-only.</summary>
+    public DateTimeOffset? KnownSince(CalendarEvent calendarEvent, DayCategory category)
+    {
+        return FirstKnownTimes.KnownAt(FirstKnownTimes.ByEvent(Store.FirstKnown), calendarEvent, category);
+    }
+
+    /// <summary>
+    /// True when the plan the guards read holds <paramref name="category"/>'s behaviour over the event's whole time: the overlay
+    /// let it in. False when it didn't, for instance a looser category without the notice a looser change needs. Read-only.
+    /// </summary>
+    public bool IsInForce(CalendarEvent calendarEvent, DayCategory category)
+    {
+        DateTime now = _time.GetLocalNow().DateTime;
+        var window = new LocalWindow(calendarEvent.LocalStart, calendarEvent.LocalEnd);
+        IEnumerable<LocalWindow> held = DayWorkWindows.PartsIn(Current, window, now, null, NightFallback)
+            .Where(part => part.Category.Behavior == category.Behavior)
+            .Select(part => part.Window);
+        return !DayTimeline.Subtract([window], held).Any();
     }
 
     /// <summary>The effective plan of <paramref name="stored"/> (the plan the app holds, or one being edited or proposed).</summary>

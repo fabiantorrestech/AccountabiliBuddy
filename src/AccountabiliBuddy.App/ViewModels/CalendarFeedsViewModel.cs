@@ -127,8 +127,27 @@ public sealed partial class CalendarFeedsViewModel : ObservableObject
         CalendarMessage = $"{row.Name} removed.";
     }
 
+    // What the rows are built from: the sources and their calendars. When only a status, a colour or a visibility changed (the
+    // calendar reports a status check about every 30 seconds) the rows are updated in place, so focus, open boxes and a rule
+    // being edited stay.
+    private string _shape = string.Empty;
+
     private void Refresh()
     {
+        string shape = string.Join(
+            ";", _calendars.Sources.Select(source => $"{source.Id}|{source.Kind}|{source.Name}|{string.Join(",", source.Calendars.Select(calendar => calendar.Id + "=" + calendar.Name))}"));
+        if (shape == _shape && CalendarSources.Count == _calendars.Sources.Count)
+        {
+            for (int index = 0; index < CalendarSources.Count; index++)
+            {
+                CalendarSource source = _calendars.Sources[index];
+                CalendarSources[index].Update(source, _calendars.StatusOf(source.Id), IsFetchingFirstTime(source), _sessions.TimeProvider.LocalTimeZone);
+            }
+
+            return;
+        }
+
+        _shape = shape;
         CalendarSources.Clear();
         Rules.KeepOnly(_calendars.Sources.SelectMany(source => source.Calendars).Select(calendar => calendar.Id).ToList());
         foreach (CalendarSource source in _calendars.Sources)
@@ -136,9 +155,14 @@ public sealed partial class CalendarFeedsViewModel : ObservableObject
             CalendarSources.Add(new CalendarSourceRowViewModel(
                 source,
                 _calendars.StatusOf(source.Id),
-                _sync.IsFetching && source.Kind != CalendarSourceKind.Local && _calendars.StatusOf(source.Id).LastAttemptAt is null,
+                IsFetchingFirstTime(source),
                 source.Calendars.Select(calendar => new CalendarRowViewModel(_calendars, source, calendar, Rules.For(calendar.Id, calendar.Name))).ToList(),
                 _sessions.TimeProvider.LocalTimeZone));
         }
+    }
+
+    private bool IsFetchingFirstTime(CalendarSource source)
+    {
+        return _sync.IsFetching && source.Kind != CalendarSourceKind.Local && _calendars.StatusOf(source.Id).LastAttemptAt is null;
     }
 }

@@ -52,8 +52,11 @@ public sealed partial class CalendarTodayViewModel : ObservableObject
     private void Refresh()
     {
         DateTime now = _time.GetLocalNow().DateTime;
-        IReadOnlyList<string> lines = CalendarTodayText.Lines(
-            _overlay.Current, _configuration.Current.DayPlan, DateOnly.FromDateTime(now), now, _day?.FocusedOn, _day?.NightFallback);
+        CalendarOverlayStore store = _overlay.Store;
+        bool nothingSet = store.Classifications.Count == 0 && store.PendingClassifications.Count == 0 && store.Rules.Active.IsEmpty && store.Rules.Pending is null;
+        IReadOnlyList<string> lines = nothingSet
+            ? []
+            : CalendarTodayText.Lines(_overlay.Current, _configuration.Current.DayPlan, DateOnly.FromDateTime(now), now, _day?.FocusedOn, _day?.NightFallback);
 
         // Assigned only when the text differs, so the list isn't rebuilt for nothing.
         if (!lines.SequenceEqual(Lines))

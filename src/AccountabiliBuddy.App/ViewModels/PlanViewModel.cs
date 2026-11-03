@@ -63,7 +63,13 @@ public sealed partial class PlanViewModel : ObservableObject
         _configuration.PendingChanged += (_, _) => Refresh();
         _calendars.Changed += (_, _) => Refresh();
         _dismissals.Changed += (_, _) => Refresh();
-        _sessions.StateChanged += (_, _) => Refresh();
+        _sessions.StateChanged += (_, _) =>
+        {
+            Refresh();
+            RefreshPicker();
+        };
+        // Until the saved session is put back the picker is locked; the provider announces the unlock.
+        _overlay.SessionStateKnown += (_, _) => RefreshPicker();
         // The store can raise this on any thread and while it holds a lock: only post to the UI thread, never call the provider here.
         _overlay.Store.Changed += (_, _) => Dispatcher.UIThread.Post(OnOverlayChanged);
         dayPlan.PropertyChanged += (_, e) =>
@@ -214,6 +220,9 @@ public sealed partial class PlanViewModel : ObservableObject
         EventPicker?.Refresh();
         Refresh();
     }
+
+    // The picker's lock and marks follow the session and the choices; posted, as these can be raised on another thread.
+    private void RefreshPicker() => Dispatcher.UIThread.Post(() => EventPicker?.Refresh());
 
     /// <summary>The picker on one calendar event (ADR 58); null while closed.</summary>
     [ObservableProperty]

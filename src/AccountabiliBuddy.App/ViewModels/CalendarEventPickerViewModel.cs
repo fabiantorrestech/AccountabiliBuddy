@@ -121,7 +121,11 @@ public sealed partial class CalendarEventPickerViewModel : ObservableObject
         PendingClassification? waiting = store.PendingClassifications.FirstOrDefault(pending => SameTarget(pending.Change, target));
 
         DayCategory? now = EventCategoryResolver.CategoryOf(_event, plan, store.Classifications, store.Rules.Active);
-        NowText = now is null ? "Now: the day plan decides." : $"Now: {now.Name}.";
+        NowText = now is null
+            ? "Now: the day plan decides."
+            : !CanClassify || _provider.IsInForce(_event, now)
+                ? $"Now: {now.Name}."
+                : $"Chosen: {now.Name}, but not in force yet.";
 
         Choices.Clear();
         foreach (DayCategory category in plan.Categories.Where(category => category.Behavior is not (CategoryBehavior.Sleep or CategoryBehavior.PreWork)))
@@ -175,9 +179,35 @@ public sealed partial class CalendarEventPickerViewModel : ObservableObject
 
         EventClassification target = CalendarOverlayStore.TargetFor(_event, Scope, null);
         PendingClassification? waiting = _provider.Store.PendingClassifications.FirstOrDefault(pending => SameTarget(pending.Change, target));
-        Message = waiting is null
+        if (waiting is not null)
+        {
+            Message = $"{CalendarWaitText.TakesEffect(waiting.TakesOverAt, _time)}. Until then the earlier choice stays.";
+            return;
+        }
+
+        // The gate calls a change to Comms or Rest over nothing stricter, but over Work the overlay still wants notice: ask what it did.
+        DayCategory? chosen = choice.CategoryId is Guid id ? _configuration.Current.DayPlan.Category(id) : null;
+        Message = chosen is null || _provider.IsInForce(_event, chosen)
             ? "Saved. It applies at once."
-            : $"{CalendarWaitText.TakesEffect(waiting.TakesOverAt, _time)}. Until then the earlier choice stays.";
+            : NotInForceText(chosen);
+    }
+
+    // Saved, but the overlay left the day as it was: says what it needs and whether that was met.
+    private string NotInForceText(DayCategory chosen)
+    {
+        int minutes = (int)_provider.LooseningDelay.TotalMinutes;
+        string start = $"Saved, but it doesn't change the day yet. It counts only if the app knew it {minutes} min before the event starts";
+        if (_provider.KnownSince(_event, chosen) is not DateTimeOffset knownAt)
+        {
+            return $"{start}.";
+        }
+
+        DateTime startLocal = DateTime.SpecifyKind(_event.LocalStart, DateTimeKind.Unspecified);
+        var startsAt = new DateTimeOffset(startLocal, _time.LocalTimeZone.GetUtcOffset(startLocal));
+        string known = PlanTimelineBuilder.Clock(TimeZoneInfo.ConvertTime(knownAt, _time.LocalTimeZone).DateTime);
+        return knownAt + _provider.LooseningDelay <= startsAt
+            ? $"{start}; that notice is met, so something else holds the time (a stricter event, a Sleep or Pre-Work part, or a running session)."
+            : $"{start}; the app first knew it at {known}, which is too late, so it won't count this time.";
     }
 
     private static bool SameTarget(EventClassification first, EventClassification second)

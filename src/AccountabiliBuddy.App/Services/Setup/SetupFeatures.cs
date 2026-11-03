@@ -91,7 +91,7 @@ public static class SetupFeatures
             IsSetUp: () => overlay.Current.HideShortcutSeen,
             Step: ViewModels.AssistantStep.PanelCtrlAlt),
         new SetupFeature(
-            "calendar.rules", "0.1.122",
+            "calendar.rules", "0.1.123",
             "Calendar events: let them shape your guarded windows",
             "Give a calendar event, or a whole calendar by keywords or for every event, a day plan category, so the guards follow the real day. A looser change waits first; Today shows what came from the calendar.",
             IsRelevant: () => true,

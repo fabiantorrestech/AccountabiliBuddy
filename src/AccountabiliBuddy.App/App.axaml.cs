@@ -1293,6 +1293,8 @@ public partial class App : Application
         sessionTasks.Changed += (_, _) => setupFeatures.Refresh();
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
+        // The store raises this on any thread, inside a lock: only post.
+        calendarOverlay.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
         sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks) { GuardedPlan = guardedPlan };
         sessionViewModel.CalendarToday = new CalendarTodayViewModel(_configuration, effectivePlan, calendars, time, sessionViewModel.Day);

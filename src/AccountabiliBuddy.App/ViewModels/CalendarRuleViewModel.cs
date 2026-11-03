@@ -33,9 +33,25 @@ public sealed partial class CalendarRuleViewModel : ObservableObject
     /// <summary>This calendar's own keyword list, used when <see cref="UsesOwnList"/> is on.</summary>
     public ObservableCollection<KeywordRowViewModel> OwnKeywords { get; } = new();
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsRule), nameof(IsKeywords), nameof(IsEveryEvent))]
-    public partial RuleModeChoice SelectedMode { get; set; } = RuleModeChoice.Off;
+    private RuleModeChoice _selectedMode = RuleModeChoice.Off;
+
+    /// <summary>
+    /// The rule choice. A null written back by the box (its list was rebuilt under it) is ignored, so the mode is never lost.
+    /// </summary>
+    public RuleModeChoice SelectedMode
+    {
+        get => _selectedMode;
+        set
+        {
+            if (value is not null && SetProperty(ref _selectedMode, value))
+            {
+                OnPropertyChanged(nameof(ShowsRule));
+                OnPropertyChanged(nameof(IsKeywords));
+                OnPropertyChanged(nameof(IsEveryEvent));
+                _owner.NotifyEdited();
+            }
+        }
+    }
 
     /// <summary>The keyword list is this calendar's own instead of the shared one.</summary>
     [ObservableProperty]
@@ -132,8 +148,6 @@ public sealed partial class CalendarRuleViewModel : ObservableObject
             row.CategoriesChanged();
         }
     }
-
-    partial void OnSelectedModeChanged(RuleModeChoice value) => _owner.NotifyEdited();
 
     partial void OnUsesOwnListChanged(bool value) => _owner.NotifyEdited();
 
