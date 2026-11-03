@@ -193,6 +193,8 @@ object SyncFileJson {
         file.pastKeys?.let { put("pastKeys", writePastKeys(it)) }
         // Optional: this device's task categories, name and colour; older apps ignore them.
         file.categories?.let { put("categories", writeCategories(it)) }
+        // Optional: a phone's daily step counts; older apps ignore them.
+        file.steps?.let { put("steps", writeSteps(it)) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -356,7 +358,40 @@ object SyncFileJson {
             readLater(json["later"]),
             readPastKeys(json["pastKeys"]),
             readCategories(json["categories"]),
+            readSteps(json["steps"]),
         )
+    }
+
+    /** A phone's step counts in the PC's shape: {goal, readAt, days: [{date: "yyyy-MM-dd", count}]}. */
+    fun writeSteps(steps: SyncSteps): JsonObject = buildJsonObject {
+        put("goal", steps.goal)
+        put("readAt", writeTime(steps.readAt))
+        put("days", JsonArray(steps.days.map { day ->
+            buildJsonObject {
+                put("date", day.date.toString())
+                put("count", day.count)
+            }
+        }))
+    }
+
+    /**
+     * Step counts leniently: anything that can't be read (not an object, no goal or time, a day with a bad date or count) is left
+     * out rather than failing the file; at most [SyncSteps.MAX_DAYS] days, the newest, oldest first.
+     */
+    fun readSteps(value: JsonElement?): SyncSteps? {
+        val steps = value as? JsonObject ?: return null
+        return runCatching {
+            val goal = steps.requiredInt("goal")
+            val readAt = steps.requiredTime("readAt")
+            val days = (steps["days"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val day = element as? JsonObject ?: return@mapNotNull null
+                runCatching {
+                    val count = day.requiredInt("count")
+                    if (count < 0) null else SyncStepDay(java.time.LocalDate.parse(day.requiredString("date")), count)
+                }.getOrNull()
+            }.distinctBy { it.date }.sortedBy { it.date }.takeLast(SyncSteps.MAX_DAYS)
+            if (goal in 1..SyncSteps.MAX_GOAL) SyncSteps(goal, readAt, days) else null
+        }.getOrNull()
     }
 
     /** The next session's tasks as the sync file carries them (ADR 48), in the PC's shape (camelCase, nulls left out, tombstones with no text). */

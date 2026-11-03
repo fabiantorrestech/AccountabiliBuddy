@@ -7,6 +7,7 @@ package com.accountabilibuddy.companion.ui.settings
 object SettingsAnchors {
     // Your day
     const val LUNCH = "lunch"
+    const val DAILY_STEPS = "daily-steps"
     const val WORK_HOURS = "work-hours"
     const val CALENDAR_EVENTS = "calendar-events"
 

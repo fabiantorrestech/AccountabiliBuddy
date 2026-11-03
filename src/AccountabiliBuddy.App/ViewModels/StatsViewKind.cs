@@ -10,4 +10,5 @@ public enum StatsViewKind
     Drift,
     Sleep,
     Phone,
+    Steps,
 }

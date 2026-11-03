@@ -12,7 +12,8 @@ enum class StatsView(val key: String, val title: String, val about: String, val 
     FocusGraph("focus-graph", "Focus graph", "Deep work and drift over weeks", listOf(StatsRange.Week, StatsRange.Month)),
     Drift("drift", "Drift", "What pulls you away, and when", listOf(StatsRange.Week, StatsRange.Month)),
     Sleep("sleep", "Sleep", "Bedtime kept, hours slept", emptyList()),
-    Phone("phone", "Phone", "Pickups and screen time in sessions", emptyList());
+    Phone("phone", "Phone", "Pickups and screen time in sessions", emptyList()),
+    Steps("steps", "Steps", "Daily steps against your goal", emptyList());
 
     /** The range a person who never chose one gets (the one the board shows); null for a view with no ranges. */
     val defaultRange: StatsRange?
@@ -20,7 +21,7 @@ enum class StatsView(val key: String, val title: String, val about: String, val 
             Overview -> StatsRange.Week
             Consistency -> StatsRange.Year
             Intensity, FocusGraph, Drift -> StatsRange.Month
-            Sleep, Phone -> null
+            Sleep, Phone, Steps -> null
         }
 
     /** [range] when this view has it, else the nearest one it has (the PC's rule); null for a view with no ranges. */

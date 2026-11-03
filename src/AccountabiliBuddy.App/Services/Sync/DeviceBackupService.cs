@@ -170,6 +170,7 @@ public sealed class DeviceBackupService
             Comebacks = null,
             PastKeys = null,
             Categories = null,
+            Steps = null,
         };
     }
 }

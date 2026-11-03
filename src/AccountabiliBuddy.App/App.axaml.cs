@@ -624,9 +624,13 @@ public partial class App : Application
         syncSettings.LoadBlocking();
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
         receivedDevices.LoadBlocking();
+        // The daily steps a paired phone read from Health Connect, from its sync file: this PC never reads Health Connect.
+        var dailySteps = new AccountabiliBuddy.App.Services.DailyStepsService(documents, time);
+        dailySteps.LoadBlocking();
         // A paired phone's next alarm (ADR 23): the newest phone file's, while it's still ahead.
         void FollowPhoneAlarm()
         {
+            dailySteps.Follow(receivedDevices.Active);
             sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Active, time));
             // ADR 34: the phone's smart bedtime, from the same files.
             sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(receivedDevices.Active));
@@ -844,6 +848,8 @@ public partial class App : Application
         syncCoordinator.PastKeys = pastKeys;
         var backupRestore = new AccountabiliBuddy.App.Services.Sync.BackupRestoreService(deviceBackups, syncIdentity, receivedDevices, _syncRemoval, pastKeys);
         receivedDevices.IsRemoved = _syncRemoval.IsRemoved;
+        // The first FollowPhoneAlarm ran before IsRemoved was set, so a removed phone's alarm, bedtime, wake and steps showed after a restart.
+        FollowPhoneAlarm();
         // Start over / Start from scratch (ADR 54, 10): the next start clears the data (see StartOverService).
         var startOver = new AccountabiliBuddy.App.Services.Setup.StartOverService(database, _sessions, dataDirectory);
         Action openStartOver = () => ShowOwnedDialog(new StartOverDialog { DataContext = new StartOverViewModel(startOver, _sessions, TryRestartApp) });
@@ -988,6 +994,7 @@ public partial class App : Application
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!, sessionTasks);
         sessionViewModel.Timers = new TimersViewModel(_timers!, _sessions);
+        sessionViewModel.Steps = new StepsCardViewModel(dailySteps, time);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions)
         {
             // The lunch card's "On all your devices" line: the other PCs' and phones' latest files (a watch writes none; removed devices are not in Active).
@@ -1184,7 +1191,7 @@ public partial class App : Application
         var statsViewModel = new StatsViewModel(
             historyViewModel, activityLog, _recorder,
             async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
-            receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, privacy, documents, time,
+            receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, dailySteps, privacy, documents, time,
             () => _sessions!.State.IsRealSession);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,

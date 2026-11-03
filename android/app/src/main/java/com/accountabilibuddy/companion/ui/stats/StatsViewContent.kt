@@ -3,9 +3,15 @@ package com.accountabilibuddy.companion.ui.stats
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.stats.StepsPanels
+import com.accountabilibuddy.companion.steps.StepsProblem
 import com.accountabilibuddy.companion.stats.ConsistencyPanels
 import com.accountabilibuddy.companion.stats.DayPanels
 import com.accountabilibuddy.companion.stats.DriftPanels
@@ -91,6 +97,27 @@ fun StatsViewContent(
                 val panel = remember(model) { PhonePanels.build(model.phoneDays, data.today) }
                 if (panel != null) BarPanelCard(panel)
                 StatsPhoneCard(model.phoneToday, actions.onAllowUsage)
+            }
+
+            StatsView.Steps -> {
+                val app = LocalContext.current.applicationContext as CompanionApp
+                val steps by app.steps.state.collectAsState()
+                val panel = remember(steps) { StepsPanels.build(steps, data.today) }
+                if (steps.enabled && steps.problem == StepsProblem.NeedsPermission) {
+                    StatsEmptyCard("Steps need Health Connect's permission", "Allow it in Settings › Your day › Daily steps, or tap the steps card on Today.")
+                }
+                if (steps.enabled && steps.problem == StepsProblem.NotAvailable) {
+                    StatsEmptyCard("Health Connect isn't available", "Install or update Health Connect to count steps.")
+                }
+                if (panel != null) {
+                    BarPanelCard(panel)
+                } else if (steps.problem != StepsProblem.None) {
+                    // The card above says why.
+                } else if (!steps.enabled) {
+                    StatsEmptyCard("Daily steps are off", "Turn on \"Track daily steps\" in Settings › Your day. Steps come from Health Connect, read about every 3 minutes while the app is on screen, and in the background while a sync switch is on and Health Connect lets you allow that.")
+                } else {
+                    StatsEmptyCard("No steps yet", "Steps show up here after the next read from Health Connect. Days it has no steps for stay empty.")
+                }
             }
         }
     }
