@@ -62,6 +62,7 @@ import java.time.LocalDateTime
 class CompanionViewModel(application: Application) : AndroidViewModel(application) {
     private val store = (application as CompanionApp).store
     private val sleepReader = SleepReader(application)
+    private val steps = (application as CompanionApp).steps
     private val usageReader = PhoneUsageReader(application)
     val curboxClient = CurboxClient(application)
     private val watchBridge = (application as CompanionApp).watchBridge
@@ -175,6 +176,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         now.value = LocalDateTime.now()
         checkHealth()
         refreshPhoneUsage()
+        refreshSteps()
         ticker?.cancel()
         ticker = viewModelScope.launch {
             var ticks = 0
@@ -184,6 +186,10 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
                 pcRemote.expire()
                 if (++ticks % 10 == 0) {
                     refreshPhoneUsage()
+                }
+                // Steps: only while on screen (Health Connect's rule), and at most every few minutes (StepsStore.MIN_GAP).
+                if (ticks % 6 == 0) {
+                    refreshSteps()
                 }
             }
         }
@@ -865,6 +871,21 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onHealthPermissionResult() {
         checkHealth(readAfter = true)
+    }
+
+
+    /**
+     * The steps permission dialog closed: read at once if it was granted. If not, nothing turns off (the switch stays on and the card
+     * says what is missing, with a tap to ask again), so a check can never race the dialog.
+     */
+    fun onStepsPermissionResult() = refreshSteps(force = true)
+
+    /** Reads today's steps (the store decides whether one is due; the sync worker does the same in the background). */
+    fun refreshSteps(force: Boolean = false) {
+        viewModelScope.launch {
+            val failure = steps.readIfDue(force = force)
+            if (failure != null) message.value = failure
+        }
     }
 
     /** Reads last night's sleep again (when connected). */

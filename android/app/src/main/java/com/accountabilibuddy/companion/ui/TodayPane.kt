@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +69,7 @@ fun TodayPane(
     var expanded by rememberSaveable { mutableStateOf(!state.hasImport) }
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
+    val stepsState by app.steps.state.collectAsState()
     val showWorkUse = remember(model, pc) { PlacementSession.current(app, Instant.now())?.takeUnless { it.onBreak } != null }
     val showDayOff = remember(model) { NudgeStore(context).load().dayOff == LocalDate.now() }
     var starting by remember { mutableStateOf(false) }
@@ -87,6 +89,8 @@ fun TodayPane(
             } else {
                 sessionItems(model, clock, pc, session, stepAway?.text, chip, lunch, guardsLock, guardOn, noiseCard, actions, syncLight, banner)
             }
+            // The step ring sits below the safety cards and above the fold when the switch is on.
+            if (stepsState.enabled) item(key = "daily-steps") { DailyStepsCard(stepsState, clock) }
             item(key = "more-toggle") { MoreTodayToggle(expanded, onToggle = { expanded = !expanded }) }
             if (expanded) moreTodayItems(MoreTodayContent(state, model, clock, lunch, beeminder, actions.onImport, inSession = session != null, showWorkUse = showWorkUse, showDayOff = showDayOff))
         }

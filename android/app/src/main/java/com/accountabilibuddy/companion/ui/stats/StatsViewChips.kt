@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.CalendarViewMonth
 import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.GridOn
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Smartphone
@@ -37,4 +38,5 @@ fun StatsView.icon(): ImageVector = when (this) {
     StatsView.Drift -> Icons.Outlined.Timeline
     StatsView.Sleep -> Icons.Outlined.Bedtime
     StatsView.Phone -> Icons.Outlined.Smartphone
+    StatsView.Steps -> Icons.Outlined.DirectionsWalk
 }

@@ -15,7 +15,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import android.os.SystemClock
+import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
+import com.accountabilibuddy.companion.health.StepsReader
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import com.accountabilibuddy.companion.notify.TimelineNotifier
 import com.accountabilibuddy.companion.sync.JoinLink
 import com.accountabilibuddy.companion.sync.SyncShare
@@ -39,6 +46,25 @@ class MainActivity : ComponentActivity() {
         viewModel.onHealthPermissionResult()
     }
 
+    // Daily steps: the switch in Settings > Your day asks for the steps permission only when it is turned on.
+    private val stepsPermission = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        viewModel.onStepsPermissionResult()
+        // After more than two declines Health Connect no longer shows the request: it returns at once, unchanged. Then its own
+        // settings are where the user can allow steps.
+        val quick = SystemClock.elapsedRealtime() - stepsAskedAt < QUICK_ANSWER_MS
+        if (quick && !granted.containsAll(StepsReader(this).permissions)) openHealthConnectSettings()
+    }
+
+    private var stepsAskedAt = 0L
+
+    private fun openHealthConnectSettings() {
+        try {
+            startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))
+        } catch (e: ActivityNotFoundException) {
+            viewModel.message.value = "Open Health Connect from your phone's settings and allow steps for this app."
+        }
+    }
+
     private val curboxPermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         viewModel.refreshCurbox()
     }
@@ -53,6 +79,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val steps = (application as CompanionApp).steps
+                steps.permissionRequests.collect {
+                    if (steps.isAvailable()) {
+                        stepsAskedAt = SystemClock.elapsedRealtime()
+                        stepsPermission.launch(steps.permissionsToRequest())
+                    } else {
+                        // The switch stays on; the card says Health Connect isn't available.
+                        viewModel.refreshSteps(force = true)
+                    }
+                }
+            }
+        }
         setContent {
             CompanionTheme {
                 MainScreen(
@@ -156,5 +196,8 @@ class MainActivity : ComponentActivity() {
         /** The host of the PC's sync QR codes ([com.accountabilibuddy.shared.sync.SyncQr.LINK_START]). */
         const val SCHEME = "accountabilibuddy"
         const val SYNC_HOST = "sync"
+
+        /** A permission request answered this fast (ms) was not shown: Health Connect stopped asking after repeated declines. */
+        const val QUICK_ANSWER_MS = 700L
     }
 }

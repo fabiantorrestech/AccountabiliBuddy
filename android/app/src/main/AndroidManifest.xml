@@ -30,6 +30,11 @@
     <!-- The noise player keeps playing in the background like any music app. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <!-- Daily steps (Settings > Your day > Track daily steps); asked for only when that switch is turned on. -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <!-- Lets the sync worker read steps with the app closed, so the PC's ring moves through the day. Asked for together with the steps
+         permission only when this Health Connect offers it; declined or not offered, steps are read only while the app is in front. -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
     <!-- Keeps LockMyPhone-Extended's "Accountabilibuddy" profile in sync with the essentials (ProfileSync). Granted only when
          LockMyPhone-Extended, signed with the same key, was installed first. -->
     <uses-permission android:name="com.fabiantorrestech.lockmyphone_extended.permission.MANAGE_PROFILES" />
@@ -94,7 +99,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Health Connect (Android 13 and older): why the app reads sleep. -->
+            <!-- Health Connect (Android 13 and older): why the app reads sleep and, when turned on, steps. -->
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
@@ -131,7 +136,7 @@
                 android:resource="@xml/sync_paths" />
         </provider>
 
-        <!-- Health Connect (Android 14+): why the app reads sleep. -->
+        <!-- Health Connect (Android 14+): why the app reads sleep and, when turned on, steps. -->
         <activity
             android:name=".nudge.NudgeActivity"
             android:exported="false"

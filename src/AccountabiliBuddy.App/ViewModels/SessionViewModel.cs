@@ -108,6 +108,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The "This is week N of M" switch (ADR 47); shows only while the weeks repeat in a cycle of more than one.</summary>
     public WeekCardViewModel? Week { get; set; }
 
+    /// <summary>The daily steps a paired phone shares (the ring card in the side column); null hides it.</summary>
+    public StepsCardViewModel? Steps { get; set; }
+
     /// <summary>The user's Beeminder goals (ADR 43, read only); null hides the card, as does having no token.</summary>
     public BeeminderViewModel? Beeminder { get; set; }
 

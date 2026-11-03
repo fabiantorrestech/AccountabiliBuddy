@@ -47,6 +47,11 @@ namespace AccountabiliBuddy.Core.Sync;
 /// file and from an app that predates it, which ignore it; a device that knows it always writes it, empty when it has none. A
 /// receiver keeps it in its copy of this device's file, and keeps the stored list when a file carries none.
 /// </param>
+/// <param name="Steps">
+/// A phone's daily step counts (goal, read time, last 14 days), only while "Track daily steps" is on there. Null from a PC, a QR file
+/// and an app that predates it, which ignore it. A value that can't be read is dropped by <see cref="SyncStepsConverter"/>, never
+/// failing the file. Never leaves the user's own devices.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -79,7 +84,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncParked>? Parked = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncLaterItem>? Later = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastKey>? PastKeys = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncCategoriesConverter))] IReadOnlyList<SyncCategory>? Categories = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncCategoriesConverter))] IReadOnlyList<SyncCategory>? Categories = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncSteps? Steps = null)
 {
     public const int CurrentFormatVersion = 1;
 }

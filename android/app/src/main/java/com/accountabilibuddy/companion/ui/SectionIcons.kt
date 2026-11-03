@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Share
@@ -84,6 +85,7 @@ object SectionIcons {
      *   Setup             Wrench                    Build
      *   About             InformationOutline        Info
      *   Resting (locked)  LockOutline               Lock
+     *   Daily steps       Walk                      DirectionsWalk
      */
     val Today: ImageVector = Icons.Outlined.CalendarToday
     val Tasks: ImageVector = Icons.Outlined.Checklist
@@ -138,6 +140,7 @@ object SectionIcons {
         "Beeminder" to Icons.Outlined.EmojiNature,
         "Tasks" to Icons.Outlined.TaskAlt,
         "Lunch" to Icons.Outlined.Restaurant,
+        "Daily steps" to Icons.Outlined.DirectionsWalk,
         "Timers" to Icons.Outlined.Timer,
         "Alarms" to Icons.Outlined.Alarm,
         "Not working today" to Icons.Outlined.BeachAccess,

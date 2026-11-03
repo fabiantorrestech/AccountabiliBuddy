@@ -45,7 +45,8 @@ class OwnFileWriteGate {
     }
 
     private fun contentHash(file: SyncFile): String {
-        val stable = file.copy(device = file.device.copy(writtenAt = Instant.EPOCH))
+        // The steps' read time is left out: a read with the same counts must not write the file (the heartbeat carries the new time).
+        val stable = file.copy(device = file.device.copy(writtenAt = Instant.EPOCH), steps = file.steps?.copy(readAt = Instant.EPOCH))
         val digest = MessageDigest.getInstance("SHA-256").digest(SyncFileJson.write(stable).toString().toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }
     }
