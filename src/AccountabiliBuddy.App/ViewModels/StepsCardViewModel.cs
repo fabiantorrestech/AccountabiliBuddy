@@ -42,7 +42,7 @@ public sealed partial class StepsCardViewModel : ObservableObject
     [ObservableProperty]
     public partial double Fraction { get; set; }
 
-    /// <summary>"6,240 of 8,000 steps", or "No steps counted yet today".</summary>
+    /// <summary>"6,240 of 8,000 steps", or "No reading yet today".</summary>
     [ObservableProperty]
     public partial string CountText { get; set; }
 
@@ -68,7 +68,7 @@ public sealed partial class StepsCardViewModel : ObservableObject
         CultureInfo culture = CultureInfo.CurrentCulture;
         CountText = count is int counted
             ? string.Create(culture, $"{counted:N0} of {steps.Goal:N0} steps")
-            : "No steps counted yet today";
+            : "No reading yet today";
         Fraction = count is int value ? Math.Clamp((double)value / steps.Goal, 0, 1) : 0;
         IsMet = count is int met && met >= steps.Goal;
 

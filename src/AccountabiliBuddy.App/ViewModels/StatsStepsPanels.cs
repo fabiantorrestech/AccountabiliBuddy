@@ -41,7 +41,9 @@ internal static class StatsStepsPanels
                 has ? count / scale : 0, kind, date == today, noBar, description, null));
         }
 
-        int average = (int)Math.Round(perDay.Values.Average(), MidpointRounding.ToEven);
+        // Today is a partial day, so it is left out of the average (it still has its bar and counts toward "goal met").
+        List<int> whole = perDay.Where(pair => pair.Key != today).Select(pair => pair.Value).ToList();
+        string? average = whole.Count == 0 ? null : ((int)Math.Round(whole.Average(), MidpointRounding.ToEven)).ToString("N0", CultureInfo.CurrentCulture);
         int met = perDay.Values.Count(count => count >= steps.Goal);
         var cards = new List<StatsCard>
         {
@@ -49,8 +51,10 @@ internal static class StatsStepsPanels
             new("Best day", perDay.Values.Max().ToString("N0", CultureInfo.CurrentCulture), "steps"),
         };
         return new StatsBarPanel(
-            average.ToString("N0", CultureInfo.CurrentCulture),
-            $"steps a day on average · {perDay.Count} {(perDay.Count == 1 ? "day" : "days")} from your phone's Health Connect",
+            average ?? "–",
+            average is null
+                ? "no whole day counted yet · today so far is on the chart"
+                : $"steps a day on average · {whole.Count} whole {(whole.Count == 1 ? "day" : "days")}, today left out",
             bars, steps.Goal / scale, $"goal {steps.Goal:N0}", cards);
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.stats.StepsPanels
+import com.accountabilibuddy.companion.steps.StepsProblem
 import com.accountabilibuddy.companion.stats.ConsistencyPanels
 import com.accountabilibuddy.companion.stats.DayPanels
 import com.accountabilibuddy.companion.stats.DriftPanels
@@ -102,8 +103,16 @@ fun StatsViewContent(
                 val app = LocalContext.current.applicationContext as CompanionApp
                 val steps by app.steps.state.collectAsState()
                 val panel = remember(steps) { StepsPanels.build(steps, data.today) }
+                if (steps.enabled && steps.problem == StepsProblem.NeedsPermission) {
+                    StatsEmptyCard("Steps need Health Connect's permission", "Allow it in Settings › Your day › Daily steps, or tap the steps card on Today.")
+                }
+                if (steps.enabled && steps.problem == StepsProblem.NotAvailable) {
+                    StatsEmptyCard("Health Connect isn't available", "Install or update Health Connect to count steps.")
+                }
                 if (panel != null) {
                     BarPanelCard(panel)
+                } else if (steps.problem != StepsProblem.None) {
+                    // The card above says why.
                 } else if (!steps.enabled) {
                     StatsEmptyCard("Daily steps are off", "Turn on \"Track daily steps\" in Settings › Your day. Steps come from Health Connect and are read while the app is open.")
                 } else {

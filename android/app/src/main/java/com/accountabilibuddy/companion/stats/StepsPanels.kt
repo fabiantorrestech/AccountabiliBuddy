@@ -38,14 +38,18 @@ object StepsPanels {
             StatsBar(if (back % 5 == 0) StatsFormat.weekdayLetter(date) else "", ((day?.count ?: 0) / scale).toFloat(), kind, date == today, day == null, text, null)
         }
 
-        val average = Math.rint(byDay.values.sumOf { it.count }.toDouble() / byDay.size).toInt()
+        // Today is a partial day, so it is left out of the average (it still has its bar and counts toward "goal met").
+        val whole = byDay.filterKeys { it != today }.values
+        val average = if (whole.isEmpty()) null else Math.rint(whole.sumOf { it.count }.toDouble() / whole.size).toInt()
         val met = byDay.values.count { it.count >= goal }
         val cards = listOf(
             StatCard("Goal met", "$met of ${byDay.size}", "${StatsFormat.plural(byDay.size, "day")} with steps counted"),
             StatCard("Best day", numbers.format(byDay.values.maxOf { it.count }), "steps"),
         )
         return BarPanel(
-            numbers.format(average), "steps a day on average · ${byDay.size} ${StatsFormat.plural(byDay.size, "day")} counted by Health Connect",
+            average?.let { numbers.format(it) } ?: "–",
+            if (average == null) "no whole day counted yet · today so far is on the chart"
+            else "steps a day on average · ${whole.size} whole ${StatsFormat.plural(whole.size, "day")}, today left out",
             bars, (goal / scale).toFloat(), "goal ${numbers.format(goal)}", cards, emptyList(),
             if (byDay.size < DAYS) "Steps are read from Health Connect for up to the last $DAYS days: ${byDay.size} of them have a count." else null,
         )

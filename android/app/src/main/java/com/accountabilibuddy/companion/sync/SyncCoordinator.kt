@@ -740,7 +740,9 @@ class SyncCoordinator(
         // An empty "parked" stays as the mark that the device keeps the shared lists (a QR file carries none: the mark is kept).
         // The past keys (ADR 56) go into their own sealed store and stay out of the copy too.
         val mark = if (file.parked != null || held?.file?.parked != null) emptyList<com.accountabilibuddy.shared.sync.SyncParked>() else null
-        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark, later = null, pastKeys = null), bytes, method, identity.deviceId, now())
+        // A QR file never carries steps, which reads the same as "switched off": it keeps the stored counts rather than wiping them.
+        val steps = if (method == SyncDeviceCard.METHOD_QR) file.steps ?: held?.file?.steps else file.steps
+        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark, later = null, pastKeys = null, steps = steps), bytes, method, identity.deviceId, now())
         if (outcome.error != null) {
             return outcome.error
         }

@@ -86,8 +86,6 @@ class MoreTodayContent(
     val inSession: Boolean,
     val showWorkUse: Boolean,
     val showDayOff: Boolean,
-    /** Daily steps; the card shows only while "Track daily steps" is on. */
-    val steps: com.accountabilibuddy.companion.steps.StepsState = com.accountabilibuddy.companion.steps.StepsState(),
 )
 
 /**
@@ -101,7 +99,6 @@ fun LazyListScope.moreTodayItems(content: MoreTodayContent) {
     if (content.showWorkUse) item(key = "more-workuse") { WorkUseCard() }
     val lunch = content.lunch
     if (lunch.workday || lunch.flex != null || lunch.taken != null) item(key = "more-lunch") { LunchCard(lunch, content.clock) }
-    if (content.steps.enabled) item(key = "more-steps") { DailyStepsCard(content.steps, content.clock) }
     content.beeminder?.let { goals -> item(key = "more-beeminder") { BeeminderCard(goals, content.clock) } }
     item(key = "more-timers") {
         val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as CompanionApp

@@ -64,12 +64,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                (application as CompanionApp).steps.permissionRequests.collect {
-                    if (viewModel.stepsAvailable()) {
-                        stepsPermission.launch(viewModel.stepsPermissions)
+                val steps = (application as CompanionApp).steps
+                steps.permissionRequests.collect {
+                    if (steps.isAvailable()) {
+                        stepsPermission.launch(steps.permissionsToRequest())
                     } else {
-                        (application as CompanionApp).steps.permissionDenied()
-                        viewModel.message.value = "Health Connect isn't available on this phone."
+                        // The switch stays on; the card says Health Connect isn't available.
+                        viewModel.refreshSteps(force = true)
                     }
                 }
             }

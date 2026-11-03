@@ -848,6 +848,8 @@ public partial class App : Application
         syncCoordinator.PastKeys = pastKeys;
         var backupRestore = new AccountabiliBuddy.App.Services.Sync.BackupRestoreService(deviceBackups, syncIdentity, receivedDevices, _syncRemoval, pastKeys);
         receivedDevices.IsRemoved = _syncRemoval.IsRemoved;
+        // The first FollowPhoneAlarm ran before IsRemoved was set, so a removed phone's alarm, bedtime, wake and steps showed after a restart.
+        FollowPhoneAlarm();
         // Start over / Start from scratch (ADR 54, 10): the next start clears the data (see StartOverService).
         var startOver = new AccountabiliBuddy.App.Services.Setup.StartOverService(database, _sessions, dataDirectory);
         Action openStartOver = () => ShowOwnedDialog(new StartOverDialog { DataContext = new StartOverViewModel(startOver, _sessions, TryRestartApp) });

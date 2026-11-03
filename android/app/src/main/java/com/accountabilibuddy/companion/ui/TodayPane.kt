@@ -89,8 +89,10 @@ fun TodayPane(
             } else {
                 sessionItems(model, clock, pc, session, stepAway?.text, chip, lunch, guardsLock, guardOn, noiseCard, actions, syncLight, banner)
             }
+            // The step ring sits below the safety cards and above the fold when the switch is on.
+            if (stepsState.enabled) item(key = "daily-steps") { DailyStepsCard(stepsState, clock) }
             item(key = "more-toggle") { MoreTodayToggle(expanded, onToggle = { expanded = !expanded }) }
-            if (expanded) moreTodayItems(MoreTodayContent(state, model, clock, lunch, beeminder, actions.onImport, inSession = session != null, showWorkUse = showWorkUse, showDayOff = showDayOff, steps = stepsState))
+            if (expanded) moreTodayItems(MoreTodayContent(state, model, clock, lunch, beeminder, actions.onImport, inSession = session != null, showWorkUse = showWorkUse, showDayOff = showDayOff))
         }
         if (session != null) {
             SessionActions(

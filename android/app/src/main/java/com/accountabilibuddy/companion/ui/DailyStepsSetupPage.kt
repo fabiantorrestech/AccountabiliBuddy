@@ -16,8 +16,9 @@ internal fun DailyStepsSetupPage() {
         Text("Settings → Your day → Daily steps:", style = MaterialTheme.typography.titleSmall)
         Text("• Turn on \"Track daily steps\"; Health Connect then asks to share your steps with this app, and not before.")
         Text("• Set the goal (8,000 by default).")
-        Text("• The count is read only while the app is open, so \"updated\" shows the real time of the last read, not a live count.")
-        Text("• Your paired PCs show the same ring from this phone's sealed sync file. The steps go to your own devices and nowhere else, and not to the watch.")
+        Text("• The count is read at most every few minutes: while the app is open, and also in the background if Health Connect offers it and you allow it (it is asked together with the steps permission). \"Updated\" shows the real time of the last read, not a live count.")
+        Text("• If you decline the background part, steps are read only while the app is open.")
+        Text("• A paired PC shows the same ring only when this phone syncs with it by a way that runs by itself (the shared folder, Google Drive or the relay), or when you share a sync file; the steps go in the sealed sync file to your own devices and nowhere else, and not to the watch.")
         Text(
             "Turning it off forgets the counts on this phone.",
             style = MaterialTheme.typography.bodySmall,

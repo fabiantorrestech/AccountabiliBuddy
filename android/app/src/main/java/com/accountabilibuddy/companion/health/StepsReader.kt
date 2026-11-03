@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.health
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
@@ -14,16 +15,24 @@ import java.time.Period
 /**
  * Reads daily step counts from Health Connect (the phone's own health store). Read only, on the phone, and only while "Track daily steps"
  * is on. Uses the aggregate call, which Health Connect de-duplicates across apps and devices, so two sources are not counted twice.
- * Health Connect allows reads only while the app is in front (no READ_HEALTH_DATA_IN_BACKGROUND here), as with sleep.
+ * Health Connect allows reads from the background only with the background-read permission ([backgroundPermissions]), which not every
+ * Health Connect offers ([backgroundReadOffered]); without it reads happen only while the app is in front. Sleep does not use it.
  */
 class StepsReader(private val context: Context) {
     val permissions: Set<String> = setOf(HealthPermission.getReadPermission(StepsRecord::class))
 
+    /** The permission to read while the app is in the background. */
+    val backgroundPermissions: Set<String> = setOf(HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND)
+
     /** True when Health Connect is on the phone and ready. */
     fun isAvailable(): Boolean = HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE
 
-    suspend fun hasPermission(): Boolean =
-        isAvailable() && client().permissionController.getGrantedPermissions().containsAll(permissions)
+    /** Whether this Health Connect can read in the background at all (so the permission is worth asking for). */
+    fun backgroundReadOffered(): Boolean =
+        isAvailable() && client().features.getFeatureStatus(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND) ==
+            HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+
+    suspend fun grantedPermissions(): Set<String> = client().permissionController.getGrantedPermissions()
 
     /**
      * The step count of each of the last [days] days up to now, oldest first. A day Health Connect has no steps for is left out, not
