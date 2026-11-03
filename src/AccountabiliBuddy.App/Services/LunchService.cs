@@ -138,7 +138,8 @@ public sealed class LunchService
     {
         DateTimeOffset now = _sessions.Now;
         await SaveAsync(_state with { Start = now, End = now + length, OverTold = false, EditedAt = now });
-        if (_sessions.State.IsActive && !_sessions.State.IsAway)
+        // Lunch takes the place of a break; during focus it pauses the session as a step away.
+        if (!_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
         {
             _sessions.StepAway(AwayKind.Break);
         }
@@ -232,6 +233,12 @@ public sealed class LunchService
         }
 
         _ = SaveAsync(_state with { Start = lunch.Start, End = lunch.End, EditedAt = lunch.EditedAt, OverTold = _sessions.Now >= lunch.End });
+
+        // Started on another device during this PC's break: the same as pressing Start lunch here.
+        if (IsOnLunch)
+        {
+            _sessions.EndBreakForLunch();
+        }
     }
 
     /// <summary>The hint, and "Lunch over!" once. Runs every second.</summary>

@@ -7,4 +7,6 @@ public enum PulledListKind
     ComeBack,
     Unfinished,
     AutoSaved,
+    DoneToday,
+    Archive,
 }

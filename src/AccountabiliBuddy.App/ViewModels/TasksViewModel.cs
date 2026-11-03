@@ -45,6 +45,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _later = later;
         _comebacks = comebacks;
         _autoSaved = autoSaved;
+        ListPicker = new ListPickerViewModel(tasks, time, PullFromListAsync);
         Archive = archive;
         _session = session;
         _configuration = configuration;
@@ -582,6 +583,23 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         return result;
+    }
+
+    /// <summary>"From your lists" by the add box.</summary>
+    public ListPickerViewModel ListPicker { get; }
+
+    // An item chosen by the add box: "Add to Today" for its row, with the same three-task card.
+    private Task PullFromListAsync(PulledListKind kind, Guid id, string title)
+    {
+        return kind switch
+        {
+            PulledListKind.Later => AddToTodayAsync(new TaskRowKey(TaskRowKind.Later, id)),
+            PulledListKind.ComeBack => AddToTodayAsync(new TaskRowKey(TaskRowKind.ComeBack, id)),
+            PulledListKind.Unfinished => AddToTodayAsync(new TaskRowKey(TaskRowKind.Past, id)),
+            PulledListKind.DoneToday or PulledListKind.Archive => AddToTodayAsync(new TaskRowKey(TaskRowKind.Done, id)),
+            PulledListKind.AutoSaved => AddAutoSavedToTodayAsync(id, title),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+        };
     }
 
     /// <summary>"Add to Today" for an Auto-saved row: same path and three-task rule as Later's.</summary>

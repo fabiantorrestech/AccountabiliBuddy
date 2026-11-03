@@ -226,6 +226,13 @@ public sealed class SessionController : IDisposable
         return true;
     }
 
+    /// <summary>Lunch starts during a break: see <see cref="SessionEngine.EndBreakForLunch"/>.</summary>
+    /// <returns>False when no break phase is running.</returns>
+    public bool EndBreakForLunch()
+    {
+        return _engine.EndBreakForLunch();
+    }
+
     /// <summary>Input was seen while stepped away (or lunch holds the away again): see <see cref="SessionEngine.SetAwayAtDesk"/>.</summary>
     public bool SetAwayAtDesk(bool atDesk)
     {

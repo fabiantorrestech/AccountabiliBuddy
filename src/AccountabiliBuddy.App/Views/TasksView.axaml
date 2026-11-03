@@ -479,17 +479,30 @@
                 <!-- The add row. -->
                 <Border DockPanel.Dock="Top" Classes="addPill" Margin="36,16,28,10" Padding="20,0,18,0" MinHeight="52" CornerRadius="26"
                         Background="{DynamicResource Ab.Surface2}" BorderBrush="Transparent" BorderThickness="1.5">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                         <mi:MaterialIcon Kind="Plus" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                         <TextBox Grid.Column="1" Classes="rowEntry" Text="{Binding NewTaskText}" PlaceholderText="{Binding AddPlaceholder}"
-                                 AutomationProperties.Name="Add a task">
+                                 AutomationProperties.Name="Add a task" controls:TaskSuggestions.Picker="{Binding ListPicker}">
                             <TextBox.KeyBindings>
                                 <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                             </TextBox.KeyBindings>
                         </TextBox>
                         <TextBlock Grid.Column="2" Classes="faint" Text="Enter" FontSize="13" VerticalAlignment="Center" />
+                        <Button Grid.Column="3" x:Name="ListPullButton" Classes="quiet" Margin="10,0,0,0" Padding="8,4" VerticalAlignment="Center"
+                                ToolTip.Tip="Take a task from your lists to Today: Later, Come back to, Unfinished, Auto-saved, Done today (search for the Archive)" AutomationProperties.Name="From your lists">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                <TextBlock Text="From your lists" FontSize="13" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
+                                    <views:ListPickerView DataContext="{Binding ListPicker}" />
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
                     </Grid>
                 </Border>
+                <views:TaskSuggestionsView DockPanel.Dock="Top" Margin="36,0,28,10" DataContext="{Binding ListPicker}" />
 
                 <!-- The Undo bar after a delete (10 seconds); the item stays in Archive > Recently deleted. -->
                 <views:UndoBarView DockPanel.Dock="Bottom" DataContext="{Binding Undo}" Margin="36,6,28,16" />

@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.TaskSuggestionsView"
+             x:DataType="vm:ListPickerViewModel"
+             IsVisible="{Binding HasSuggestions}">
+    <!-- Tasks matching what is typed in the box above (controls:TaskSuggestions). In the page's own layout, not a popup, so the keyboard stays
+         in the box and a window that closes when it loses focus (the quick session) stays open. The buttons act on press, before focus can move. -->
+    <UserControl.Styles>
+        <Style Selector="Button.suggestion">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ClickMode" Value="Press" />
+        </Style>
+        <Style Selector="Button.suggestion.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+    </UserControl.Styles>
+    <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="8" Margin="0,4,0,0" Padding="2">
+        <ItemsControl ItemsSource="{Binding Suggestions}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ListPickRowViewModel">
+                    <Button Classes="suggestion" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Title}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                            <Panel Width="10" VerticalAlignment="Top" Margin="0,5,0,0">
+                                <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" IsVisible="{Binding HasCategory}" />
+                            </Panel>
+                            <StackPanel Grid.Column="1" Spacing="1">
+                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SuggestionDetail}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Border>
+</UserControl>

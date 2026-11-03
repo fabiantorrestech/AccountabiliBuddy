@@ -3,6 +3,7 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:local="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.TodayTaskRowsView"
              x:DataType="vm:ChecklistViewModel">
     <!-- The session's tasks as Today shows them (planning, idle and the running "All tasks" fold): numbered Surface2 rows, then the
@@ -272,7 +273,7 @@
                 <Panel Width="18" />
                 <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding AddRowNumber}" FontSize="16" VerticalAlignment="Center" />
                 <TextBox Grid.Column="2" x:Name="NewTaskBox" Classes="rowEntry" Text="{Binding NewTaskTitle}" PlaceholderText="{Binding AddPlaceholderText}"
-                         AutomationProperties.Name="Add a task">
+                         AutomationProperties.Name="Add a task" controls:TaskSuggestions.Picker="{Binding ListPicker}">
                     <TextBox.KeyBindings>
                         <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                     </TextBox.KeyBindings>
@@ -283,8 +284,11 @@
                     <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
                 </Button>
                 <Button Grid.Column="4" x:Name="ListPullButton" Classes="small" IsEnabled="{Binding !IsOverLimitPrompt}"
-                        ToolTip.Tip="From your lists: take a task from Later, Come back to, Unfinished or Auto-saved" AutomationProperties.Name="From your lists">
-                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                        ToolTip.Tip="Take a task from your lists: Later, Come back to, Unfinished, Auto-saved, Done today (search for the Archive)" AutomationProperties.Name="From your lists">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                        <TextBlock Text="From your lists" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
                     <Button.Flyout>
                         <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
                             <local:ListPickerView DataContext="{Binding ListPicker}" />
@@ -297,6 +301,8 @@
                 </Button>
             </Grid>
         </Border>
+
+        <local:TaskSuggestionsView DataContext="{Binding ListPicker}" />
 
         <TextBlock Text="{Binding PullNotice}" Classes="faint" FontSize="12" Margin="16,0,0,0" TextWrapping="Wrap"
                    IsVisible="{Binding PullNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

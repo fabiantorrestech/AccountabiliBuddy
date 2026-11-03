@@ -32,7 +32,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.kit.AbClearButton
 import com.accountabilibuddy.companion.ui.kit.AbChip
@@ -76,8 +79,16 @@ fun TasksPane(
     onAdd: (String) -> Unit,
     onAddLater: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Every task "From your lists" can take, whatever the chip or the search shows; read when it is needed. */
+    pickRows: () -> List<TaskRowModel> = { emptyList() },
+    onPick: (TaskRowModel) -> Unit = {},
 ) {
     val filtering = category != null || search.isNotBlank()
+    var picking by remember { mutableStateOf(false) }
+    if (picking) {
+        TaskPickerSheet(pickRows(), onPick = onPick, onDismiss = { picking = false })
+    }
+
     Column(modifier.fillMaxSize().imePadding()) {
         LazyColumn(
             Modifier.weight(1f),
@@ -131,6 +142,7 @@ fun TasksPane(
         }
         AddField(
             placeholder = addPlaceholder, onSubmit = onAdd, accentPlus = true, enabled = addEnabled,
+            suggest = { typed -> matchingTasks(pickRows(), typed) }, onPick = onPick, onBrowse = { picking = true },
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp),
         )
     }

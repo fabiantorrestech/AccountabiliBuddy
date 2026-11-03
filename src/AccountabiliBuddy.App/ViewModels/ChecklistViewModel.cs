@@ -354,7 +354,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         {
             PulledListKind.Later => _tasks.MoveFromLaterAsync(id, reason),
             PulledListKind.ComeBack => _tasks.AddComebackToTodayAsync(id, reason),
-            PulledListKind.Unfinished => _tasks.AddHistoryTaskToTodayAsync(id, reason),
+            PulledListKind.Unfinished or PulledListKind.DoneToday or PulledListKind.Archive => _tasks.AddHistoryTaskToTodayAsync(id, reason),
             PulledListKind.AutoSaved => _tasks.AddAutoSavedToTodayAsync(id, reason),
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
@@ -368,6 +368,8 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
             PulledListKind.ComeBack => "Come back to",
             PulledListKind.Unfinished => "Unfinished",
             PulledListKind.AutoSaved => "Auto-saved",
+            PulledListKind.DoneToday => "Done today",
+            PulledListKind.Archive => "the Archive",
             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
         };
     }

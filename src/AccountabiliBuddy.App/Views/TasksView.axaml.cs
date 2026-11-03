@@ -26,6 +26,24 @@ public partial class TasksView : UserControl
     private TaskListRowViewModel? _dropTarget;
     private bool _dropAfter;
 
+    // "From your lists": read the lists as the picker opens; an item chosen closes it.
+    private void OnListPickerOpening(object? sender, EventArgs e)
+    {
+        if (DataContext is not TasksViewModel { ListPicker: var picker })
+        {
+            return;
+        }
+
+        picker.Open();
+        picker.Closed -= OnListPickerClosed;
+        picker.Closed += OnListPickerClosed;
+    }
+
+    private void OnListPickerClosed(object? sender, EventArgs e)
+    {
+        ListPullButton.Flyout?.Hide();
+    }
+
     public TasksView()
     {
         InitializeComponent();
