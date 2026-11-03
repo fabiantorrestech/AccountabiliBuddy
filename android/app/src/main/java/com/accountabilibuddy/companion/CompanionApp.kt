@@ -480,9 +480,11 @@ class CompanionApp : Application() {
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
         relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
-        // ADR 60: when any sync method last read successfully, for telling a PC that went quiet from a phone that can't read.
+        // ADR 60: when a sync method last read successfully, for telling a PC that went quiet from a phone that can't read. The shared folder
+        // is left out: it is local, so a pass "succeeds" with Wi-Fi off or Autosync paused and would make a quiet PC look off. A folder-only
+        // phone therefore never calls a PC quiet: a signalled shutdown still frees the guards after 10 minutes, an unsignalled one holds.
         com.accountabilibuddy.companion.sync.PcFileControl.lastReadAt = {
-            listOfNotNull(folderSource.status.value.lastSyncAt, driveSource.status.value.lastSyncAt, relaySource.status.value.lastSyncAt).maxOrNull()
+            listOfNotNull(driveSource.status.value.lastSyncAt, relaySource.status.value.lastSyncAt).maxOrNull()
         }
         // ADR 54: removing a device writes the rekey file by these, and a new key clears the old group's files from them.
         sync.rekeyMethods = listOf(folderSource, driveSource, relaySource)
