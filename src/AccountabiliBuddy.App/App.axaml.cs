@@ -735,7 +735,19 @@ public partial class App : Application
         calendarOverlay.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(syncCoordinator.NotifyHistoryChanged);
         syncActions.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = syncActions.ApplyAsync());
-        _lunch!.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        // A lunch change (started, +5/−5, ended here, or taken from another device's file) also writes the sync folder soon, whatever the
+        // interval. Only when the lunch itself changed, and a received lunch that is already ours changes nothing, so two devices can't ping-pong.
+        AccountabiliBuddy.Core.Sync.SyncLunch? lastLunch = _lunch!.Taken;
+        _lunch.Changed += (_, _) =>
+        {
+            syncCoordinator.NotifyHistoryChanged();
+            AccountabiliBuddy.Core.Sync.SyncLunch? taken = _lunch.Taken;
+            if (taken != lastLunch)
+            {
+                lastLunch = taken;
+                _syncFolder?.WriteSoon();
+            }
+        };
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             bool taken = false;

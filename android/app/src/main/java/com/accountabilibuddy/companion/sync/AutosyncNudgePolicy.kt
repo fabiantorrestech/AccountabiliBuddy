@@ -15,17 +15,22 @@ class AutosyncNudgePolicy {
     private var lastNudge: Instant? = null
     private var lastOwnChangeNudge: Instant? = null
 
-    /** A lunch started, changed or ended here and our file is written: true when Autosync should be told now. */
+    /**
+     * A lunch started, changed or ended here and our file is written. Returns how long to wait before telling Autosync: [Duration.ZERO] is
+     * now; a press inside [OWN_CHANGE_GAP] of the last nudge waits out the gap and then nudges once (so "+5" then "I'm back" a few seconds
+     * apart is not lost); null means a nudge is already waiting, which will cover this change too.
+     */
     @Synchronized
-    fun afterOwnChange(now: Instant): Boolean {
+    fun afterOwnChange(now: Instant): Duration? {
         val last = lastOwnChangeNudge
-        if (last != null && Duration.between(last, now) < OWN_CHANGE_GAP) {
-            return false
+        if (last != null && now < last) {
+            return null
         }
 
-        lastOwnChangeNudge = now
-        lastNudge = now
-        return true
+        val due = if (last == null) now else maxOf(now, last.plus(OWN_CHANGE_GAP))
+        lastOwnChangeNudge = due
+        lastNudge = due
+        return Duration.between(now, due)
     }
 
     /** About to read the sync folder: true when Autosync should be told first. */

@@ -33,7 +33,7 @@ class AutosyncNudger(private val context: Context) {
         val editor = prefs.edit().putBoolean(KEY_ENABLED, enabled)
         if (code != null) {
             val clean = code.trim()
-            if (clean.isEmpty()) editor.remove(KEY_CODE) else editor.putString(KEY_CODE, TokenVault.seal(clean))
+            if (clean.isEmpty()) editor.remove(KEY_CODE) else editor.putString(KEY_CODE, TokenVault.seal(clean, TokenVault.AUTOSYNC_CODE_ALIAS))
             _hasCode.value = clean.isNotEmpty()
         }
 
@@ -49,7 +49,7 @@ class AutosyncNudger(private val context: Context) {
 
     /** Sends the broadcast (also for the "Test" button, which works with the switch still off). */
     fun send(): Result {
-        val code = prefs.getString(KEY_CODE, null)?.let(TokenVault::open)?.takeIf { it.isNotEmpty() } ?: return Result.NoCode
+        val code = prefs.getString(KEY_CODE, null)?.let { TokenVault.open(it, TokenVault.AUTOSYNC_CODE_ALIAS) }?.takeIf { it.isNotEmpty() } ?: return Result.NoCode
         if (!isAutosyncInstalled()) {
             return Result.NotInstalled
         }
@@ -59,7 +59,6 @@ class AutosyncNudger(private val context: Context) {
                 .setClassName(AUTOSYNC_PACKAGE, RECEIVER_CLASS)
                 .addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
                 .putExtra("secret", code)
-                .putExtra("folderPairs", "*")
             context.sendBroadcast(intent)
             Result.Sent
         } catch (e: Exception) {

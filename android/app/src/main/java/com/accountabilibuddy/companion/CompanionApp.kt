@@ -414,6 +414,7 @@ class CompanionApp : Application() {
         }
         // While lunch runs, or while a lunch started on another device is expected: the folder is read every minute (lunch running)
         // by this loop when the pinned timeline's own loop isn't doing it; it asks nothing of a lunch-less day beyond a clock check.
+        // Best effort: without the timeline's foreground service Android may freeze this process, and the tick with it.
         appScope.launch {
             while (true) {
                 delay(LUNCH_FOLDER_TICK_MS)
@@ -571,12 +572,18 @@ class CompanionApp : Application() {
 
     // After a lunch change here: Autosync is told once (when set up), and the folder is read again about 20 s and 60 s later.
     private fun nudgeAfterOwnLunchChange() {
-        if (!autosyncNudger.isReady() || !folderSource.active || !autosyncNudger.policy.afterOwnChange(java.time.Instant.now())) {
+        if (!autosyncNudger.isReady() || !folderSource.active) {
             return
         }
 
-        autosyncNudger.send()
+        // Null: a nudge is already waiting out the 10 s gap and covers this change; else wait (maybe zero) and tell Autosync.
+        val wait = autosyncNudger.policy.afterOwnChange(java.time.Instant.now()) ?: return
         appScope.launch {
+            if (!wait.isZero) {
+                delay(wait.toMillis())
+            }
+
+            autosyncNudger.send()
             var waited = java.time.Duration.ZERO
             for (at in com.accountabilibuddy.companion.sync.AutosyncNudgePolicy.FOLLOW_UPS) {
                 delay((at - waited).toMillis())

@@ -49,6 +49,11 @@ internal fun AutosyncNudgeSection() {
                     code = ""
                     result = null
                 }, enabled = code.isNotBlank())
+                AbTonalButton("Remove code", onClick = {
+                    nudger.save(false, "")
+                    code = ""
+                    result = null
+                }, enabled = hasCode)
                 AbTonalButton("Test", onClick = {
                     result = when (nudger.send()) {
                         AutosyncNudger.Result.Sent -> "Message sent to Autosync. This can't tell if Autosync got it: look for a sync starting there."
