@@ -118,7 +118,8 @@ internal fun PlanScreenBody(
     fun pick(date: LocalDate) {
         pickedDay = if (date == today) FOLLOW_TODAY else date.toEpochDay()
     }
-    val plan = state.document.dayPlan
+    // ADR 58: the timeline shows the plan the guards read (calendar events over the stored plan); editing stays on the stored one.
+    val plan = (LocalContext.current.applicationContext as CompanionApp).effectivePlan(state)
 
     val minute = now.truncatedTo(ChronoUnit.MINUTES)
     val timeline = remember(plan, selected, minute, state.events, focusedToday, model.today) {

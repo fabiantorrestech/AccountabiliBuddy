@@ -101,6 +101,61 @@ class CompanionApp : Application() {
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
+    /** ADR 58: the phone's own calendar rules; they stay on this phone (never synced, backed up or sent to the watch). */
+    val calendarRules by lazy { com.accountabilibuddy.companion.calendar.CalendarRulesStore(this) }
+
+    /** ADR 58: lays classified calendar events over the stored day plan for the guards and displays; the stored plan itself when the feature is off. */
+    val calendarOverlay by lazy {
+        val pcFiles = com.accountabilibuddy.companion.calendar.PcFileEventsCache()
+        com.accountabilibuddy.companion.calendar.CalendarOverlay(
+            rulesStore = calendarRules,
+            firstKnown = com.accountabilibuddy.companion.calendar.FirstKnownStore(File(filesDir, "companion/calendar-first-known.json")),
+            reader = com.accountabilibuddy.companion.calendar.PhoneCalendarReader(this),
+            sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now) != null },
+            pcFiles = { pcFiles.filesOf(sync.received.value) },
+            countedFocus = { now, zone -> countedFocusWindows(now, zone) },
+            onOwnEventsChanged = { appScope.launch { Refresher.refresh(this@CompanionApp) } },
+        )
+    }
+
+    /**
+     * The day plan the guards and displays read (ADR 58): the stored plan with classified calendar events over it. Plan editors, sync and
+     * backup keep using `document.dayPlan`. The same instance comes back while the feature is off.
+     */
+    fun effectivePlan(state: com.accountabilibuddy.companion.data.CompanionState = store.state.value): com.accountabilibuddy.companion.model.DayPlan =
+        calendarOverlay.effective(state.document.dayPlan, state.sleep::fallbackNightBefore)
+
+    private var calendarObserver: android.database.ContentObserver? = null
+
+    /**
+     * Watches Android's calendar for changes so a moved or cancelled event reaches the guards soon. Does nothing (and asks nothing) unless
+     * the switch is on and the permission is already granted; safe to call again.
+     */
+    @Synchronized
+    fun watchCalendar() {
+        if (calendarObserver != null || !calendarOverlay.wantsOwnCalendar() ||
+            checkSelfPermission(android.Manifest.permission.READ_CALENDAR) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val observer = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                appScope.launch { calendarOverlay.refreshOwn() }
+            }
+        }
+        contentResolver.registerContentObserver(android.provider.CalendarContract.CONTENT_URI, true, observer)
+        calendarObserver = observer
+        appScope.launch { calendarOverlay.refreshOwn() }
+    }
+
+    // The stretches the devices' sessions counted as focus, for leaving them out of a Work event's Budget credit (an open session runs to now).
+    private fun countedFocusWindows(now: java.time.Instant, zone: java.time.ZoneId): List<com.accountabilibuddy.companion.model.LocalWindow> =
+        sync.allReceived.value.flatMap { it.file.sessions }
+            .filter { !it.added }
+            .map { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, zone), java.time.LocalDateTime.ofInstant(it.end ?: now, zone)) }
+            .filter { it.end.isAfter(it.start) }
+
     /** The phone's own timers and alarms (V1, never leave the phone). */
     val timers by lazy { com.accountabilibuddy.companion.timers.TimersStore(this) }
 
@@ -237,6 +292,8 @@ class CompanionApp : Application() {
         // A setting saved here or in a backed-up preference file: auto-backup a minute later.
         store.onSettingsSaved = { autoBackup.soon() }
         autoBackup.start()
+        // ADR 58: opens the calendar rules off the main thread and, only when the feature is on and allowed, starts watching the phone calendar.
+        appScope.launch { watchCalendar() }
         deviceName = readDeviceName()
         // ADR 45: the Wi-Fi link's stored pairing and focus day are deleted once.
         com.accountabilibuddy.companion.sync.LinkLeftovers.deleteOnce(this)
@@ -284,6 +341,7 @@ class CompanionApp : Application() {
             pickedPc = { pcRemote.chosenPcId.value },
             // The watch's Lunch page: today's lunch and the length setting.
             lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
+            effectivePlan = { effectivePlan(it) },
             lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
             // ADR 42: the watch's "/hello" reads the PCs' files from Drive before it answers.
             syncNow = {
@@ -523,7 +581,7 @@ class CompanionApp : Application() {
         val now = java.time.LocalDateTime.now()
         val focus = com.accountabilibuddy.companion.notify.HeaderSource.focus(this, now)
         return com.accountabilibuddy.companion.noise.HeadphoneSchedule.allowsNow(
-            headphones.settings.value, state.document.dayPlan, now,
+            headphones.settings.value, effectivePlan(state), now,
             com.accountabilibuddy.companion.engine.DayWorkWindows.focusedToday(focus, now, java.time.ZoneId.systemDefault()),
             state.sleep::fallbackNightBefore,
         )
@@ -557,7 +615,7 @@ class CompanionApp : Application() {
 
         // The guards' own view of the day (a Budget day's windows included), not the plan's raw parts.
         return com.accountabilibuddy.companion.engine.DayWorkWindows
-            .partAt(plan, local, nightFallback = state.sleep::fallbackNightBefore)?.category?.behavior?.isWork == true
+            .partAt(effectivePlan(state), local, nightFallback = state.sleep::fallbackNightBefore)?.category?.behavior?.isWork == true
     }
 
     private var lastUnlockSyncAt = java.time.Instant.EPOCH
