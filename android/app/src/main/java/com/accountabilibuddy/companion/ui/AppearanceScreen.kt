@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.ui.kit.AbClearButton
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbDialog
 import com.accountabilibuddy.companion.ui.kit.AbInsetRow
@@ -324,6 +325,7 @@ private fun PlaceSheet(onDismiss: () -> Unit, onPick: (AppearancePlace) -> Unit)
             AbSectionLabel("Pick a city")
             OutlinedTextField(
                 value = query, onValueChange = { query = it }, singleLine = true, placeholder = { Text("Start typing a city") },
+                trailingIcon = { if (query.isNotEmpty()) AbClearButton(onClick = { query = "" }) },
                 modifier = Modifier.fillMaxWidth(), colors = fieldColors(),
             )
             results.forEachIndexed { position, city ->

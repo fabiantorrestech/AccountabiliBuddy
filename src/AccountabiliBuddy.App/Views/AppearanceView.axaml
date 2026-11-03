@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:theming="using:AccountabiliBuddy.App.Services.Theming"
              x:Name="Root"
@@ -52,7 +53,9 @@
                                 </StackPanel>
 
                                 <StackPanel Spacing="6" IsVisible="{Binding IsCitySource}">
-                                    <TextBox Text="{Binding CityQuery}" PlaceholderText="Search for a city" MaxWidth="360" HorizontalAlignment="Left" />
+                                    <TextBox Text="{Binding CityQuery}" PlaceholderText="Search for a city" MaxWidth="360" HorizontalAlignment="Left" AutomationProperties.Name="Search for a city">
+                                        <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
+                                    </TextBox>
                                     <ListBox ItemsSource="{Binding CityResults}" SelectedItem="{Binding SelectedCity}" MaxHeight="220" MaxWidth="360" HorizontalAlignment="Left"
                                              IsVisible="{Binding HasCityResults}">
                                         <ListBox.ItemTemplate>

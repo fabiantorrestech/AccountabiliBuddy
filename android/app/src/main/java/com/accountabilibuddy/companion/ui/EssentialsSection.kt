@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import com.accountabilibuddy.companion.ui.GuardRadioButton as RadioButton
 import androidx.compose.material3.Text
+import com.accountabilibuddy.companion.ui.kit.AbClearButton
 import com.accountabilibuddy.companion.ui.GuardTextButton as TextButton
 import androidx.compose.runtime.Composable
 import kotlinx.coroutines.launch
@@ -199,7 +200,8 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean) {
 
         // Apps: your essentials, then (only while searching) other apps to add. Listing every app at once was slow.
         Text("Apps", style = MaterialTheme.typography.labelLarge)
-        OutlinedTextField(value = search, onValueChange = { search = it }, singleLine = true, label = { Text("Find an app to add") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = search, onValueChange = { search = it }, singleLine = true, label = { Text("Find an app to add") },
+            trailingIcon = { if (search.isNotEmpty()) AbClearButton(onClick = { search = "" }) }, modifier = Modifier.fillMaxWidth())
         val selected = essentials.apps.map { it.packageName }.toSet() + firstOrder
         val first = all.filter { it.packageName in selected && (search.isBlank() || it.name.contains(search, ignoreCase = true)) }
         val rest = if (search.isBlank()) emptyList()

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +34,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.kit.AbClearButton
 import com.accountabilibuddy.companion.ui.kit.AbChip
 import com.accountabilibuddy.companion.ui.kit.AbChipRow
 import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
@@ -152,6 +154,7 @@ private fun SearchField(text: String, onChange: (String) -> Unit) {
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
                 )
             }
+            if (text.isNotEmpty()) AbClearButton(onClick = { onChange("") }, modifier = Modifier.offset(x = 8.dp))
         }
     }
 }
