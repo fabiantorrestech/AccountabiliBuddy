@@ -493,9 +493,11 @@ public sealed partial class StatsViewModel : ObservableObject
     // The pickers show the period's dates (also after the arrows moved a custom window).
     private void SyncPickers()
     {
+        // Shown dates stay inside the pickers' range (a stepped window can start before the kept days).
+        DateOnly first = _data?.FirstDay ?? Today.AddDays(1 - KeptDays);
         _syncingPickers = true;
-        CustomFrom = _period.From.ToDateTime(TimeOnly.MinValue);
-        CustomTo = _period.To.ToDateTime(TimeOnly.MinValue);
+        CustomFrom = Clamp(_period.From, first, Today).ToDateTime(TimeOnly.MinValue);
+        CustomTo = Clamp(_period.To, first, Today).ToDateTime(TimeOnly.MinValue);
         _syncingPickers = false;
     }
 
