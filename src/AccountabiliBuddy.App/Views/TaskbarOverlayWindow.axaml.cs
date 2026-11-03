@@ -68,8 +68,8 @@ public partial class TaskbarOverlayWindow : Window
     public OverlayTarget Target => _target;
 
     /// <summary>
-    /// A Windows flyout (hidden icons, Quick Settings, notifications, calendar) is in front: the tile stays where it is in the stack, under
-    /// the flyout, and climbs back when this is cleared (the service clears it when the flyout closes).
+    /// A Windows flyout (hidden icons, Quick Settings, notifications, calendar) or a tray app's menu is in front: the tile stays where it is in
+    /// the stack, under it, and climbs back when this is cleared (the service clears it when the flyout or menu closes).
     /// </summary>
     public bool YieldsToShellFlyout { get; set; }
 

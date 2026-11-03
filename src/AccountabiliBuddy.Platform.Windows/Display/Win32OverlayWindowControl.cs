@@ -20,6 +20,8 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
     private const ushort KeyDownBit = 0x8000;
 
     // The desktop and the taskbar cover the screen too but aren't fullscreen apps.
+    private const string ClassicMenuClass = "#32768";
+
     private static readonly HashSet<string> ShellClasses = new(StringComparer.Ordinal) { "Progman", "WorkerW", "Shell_TrayWnd" };
 
     // Windows' own screens that cover everything for a moment while switching apps (Alt+Tab, Task view, Start,
@@ -56,6 +58,42 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
         PInvoke.SetWindowPos(new HWND(windowHandle), new HWND(-1), 0, 0, 0, 0,
             SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE
             | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER);
+    }
+
+    public bool IsPopupMenuInFront()
+    {
+        // Classic menus use the system class #32768 whichever app owns them. Windows keeps hidden ones around, so only a visible one counts.
+        HWND menu = HWND.Null;
+        while ((menu = PInvoke.FindWindowEx(HWND.Null, menu, ClassicMenuClass, null)) != HWND.Null)
+        {
+            if (PInvoke.IsWindowVisible(menu))
+            {
+                return true;
+            }
+        }
+
+        return IsOtherAppsTopmostPopupInFront();
+    }
+
+    // Tray apps built on other toolkits draw their own menus: a borderless always-on-top window of that app, with the keyboard focus.
+    private static unsafe bool IsOtherAppsTopmostPopupInFront()
+    {
+        HWND foreground = PInvoke.GetForegroundWindow();
+        if (foreground == HWND.Null)
+        {
+            return false;
+        }
+
+        uint processId;
+        PInvoke.GetWindowThreadProcessId(foreground, &processId);
+        if (processId == (uint)Environment.ProcessId)
+        {
+            return false;
+        }
+
+        var style = (WINDOW_STYLE)PInvoke.GetWindowLong(foreground, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
+        var extended = (WINDOW_EX_STYLE)PInvoke.GetWindowLong(foreground, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
+        return style.HasFlag(WINDOW_STYLE.WS_POPUP) && extended.HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST);
     }
 
     public bool AreDragKeysHeld()

@@ -544,7 +544,7 @@ public partial class OverlayPreview : UserControl
         switch (model.Scene)
         {
             case OverlayPreviewScene.Taskbar:
-                string placement = OverlaySettingsViewModel.PlacementNames[(int)settings.EffectivePlacement];
+                string placement = OverlaySettingsViewModel.PlacementName(settings.EffectivePlacement);
                 string shape = settings.EffectivePlacement is OverlayPlacement.FloatBottomRight or OverlayPlacement.FloatBottomLeft
                     ? ", " + OverlaySettingsViewModel.ShapeNames[(int)settings.Shape].ToLowerInvariant()
                     : string.Empty;
