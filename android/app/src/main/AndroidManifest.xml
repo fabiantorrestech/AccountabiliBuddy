@@ -90,7 +90,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Health Connect (Android 13 and older): why the app reads sleep. -->
+            <!-- Health Connect (Android 13 and older): why the app reads sleep and, when turned on, steps. -->
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
@@ -127,7 +127,7 @@
                 android:resource="@xml/sync_paths" />
         </provider>
 
-        <!-- Health Connect (Android 14+): why the app reads sleep. -->
+        <!-- Health Connect (Android 14+): why the app reads sleep and, when turned on, steps. -->
         <activity
             android:name=".nudge.NudgeActivity"
             android:exported="false"
