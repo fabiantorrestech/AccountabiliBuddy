@@ -19,6 +19,7 @@ namespace AccountabiliBuddy.App.Services;
 public sealed class SessionOverlayService : IDisposable
 {
     private static readonly TimeSpan DoneHold = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan WakeMargin = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan GlowFor = TimeSpan.FromMilliseconds(1400);
     private static readonly TimeSpan NudgeDotFor = TimeSpan.FromMinutes(10);
 
@@ -36,6 +37,8 @@ public sealed class SessionOverlayService : IDisposable
     // The panel opens when Ctrl+Alt has been held for the "Peek opens after" delay (a tap of the two keys for something else doesn't flash it).
     private readonly DispatcherTimer _peekTimer = new();
     private readonly DispatcherTimer _wakeTimer = new();
+    // Every moment a wake was asked for and has not come yet; the one timer always runs to the nearest, so a nearer wake never drops a later one.
+    private readonly List<DateTimeOffset> _pendingWakes = [];
     private readonly DispatcherTimer _clockTimer = new();
 
     // While a peek is open, a missed key-up (Ctrl+Alt+Del, a lock screen, an elevated window) would leave it open: once a second the real key
@@ -122,6 +125,7 @@ public sealed class SessionOverlayService : IDisposable
         {
             _wakeTimer.Stop();
             Update();
+            ArmWakeTimer();
         };
         _clockTimer.Tick += (_, _) => Update();
         _peekGuard.Tick += (_, _) =>
@@ -405,6 +409,7 @@ public sealed class SessionOverlayService : IDisposable
         _disposed = true;
         _peekTimer.Stop();
         _wakeTimer.Stop();
+        _pendingWakes.Clear();
         _clockTimer.Stop();
         _hookOn = false;
         _ctrlAlt.SetListening(false);
@@ -434,12 +439,31 @@ public sealed class SessionOverlayService : IDisposable
     // One timer wakes the overlay at the next moment something it shows runs out (a quick hide, a glow, the done notice, the nudge dot).
     private void ScheduleWake(DateTimeOffset at)
     {
-        TimeSpan wait = at - _sessions.Now + TimeSpan.FromMilliseconds(50);
-        if (wait <= TimeSpan.Zero)
+        if (at - _sessions.Now + WakeMargin <= TimeSpan.Zero)
         {
             return;
         }
 
+        if (!_pendingWakes.Contains(at))
+        {
+            _pendingWakes.Add(at);
+        }
+
+        ArmWakeTimer();
+    }
+
+    // Runs the timer to the nearest wake still ahead. Wakes already past are dropped (so nothing fires twice), and with none left the timer stays off.
+    private void ArmWakeTimer()
+    {
+        DateTimeOffset now = _sessions.Now;
+        _pendingWakes.RemoveAll(at => at + WakeMargin <= now);
+        if (_pendingWakes.Count == 0)
+        {
+            _wakeTimer.Stop();
+            return;
+        }
+
+        TimeSpan wait = _pendingWakes.Min() - now + WakeMargin;
         if (!_wakeTimer.IsEnabled || wait < _wakeTimer.Interval)
         {
             _wakeTimer.Stop();
@@ -530,9 +554,20 @@ public sealed class SessionOverlayService : IDisposable
             return;
         }
 
-        if (_panel is { IsSticky: true } && sticky)
+        if (sticky)
         {
-            ClosePanel();
+            // A peek timer still running must not fire later and turn this panel into a peek.
+            _peekTimer.Stop();
+        }
+
+        if (_panel is { IsSticky: true })
+        {
+            if (sticky)
+            {
+                ClosePanel();
+            }
+
+            // A peek never demotes a sticky panel.
             return;
         }
 
@@ -545,8 +580,15 @@ public sealed class SessionOverlayService : IDisposable
         if (_panel is null)
         {
             _panel = new OverlayPanelWindow(_control, _panelModel);
+            OverlayPanelWindow opened = _panel;
             _panel.Closed += (_, _) =>
             {
+                if (!ReferenceEquals(_panel, opened))
+                {
+                    // A newer panel is current; this old one closing late must not clear it.
+                    return;
+                }
+
                 _panelKeys.Unregister();
                 _panelKeyMode = null;
                 _panel = null;
@@ -840,10 +882,18 @@ public sealed class SessionOverlayService : IDisposable
     {
         if (_tile is null)
         {
-            _tile = new TaskbarOverlayWindow(_control, _model);
+            TaskbarOverlayWindow created = new(_control, _model);
+            _tile = created;
             _tile.Clicked += (_, _) => OpenStickyPanel();
             _tile.SideTileMoved += (_, top) => _ = _settings.SaveLookAsync(current => current with { SideTileY = top });
-            _tile.Closed += (_, _) => _tile = null;
+            _tile.Closed += (_, _) =>
+            {
+                // Only this tile clears the field; a newer one assigned before this Closed fired stays.
+                if (ReferenceEquals(_tile, created))
+                {
+                    _tile = null;
+                }
+            };
         }
 
         // Set before Apply, which puts the tile back in front: not over a Windows flyout that is open (it climbs back once the flyout closes).
