@@ -21,8 +21,15 @@ object SyncFolder {
         return hash.take(6).joinToString("") { "%02x".format(it) } + EXTENSION
     }
 
-    /** How often the phone reads and writes the folder: the chosen 1, 5 or 15 minutes while the pinned timeline runs, else 15. */
-    fun interval(chosenMinutes: Int, timelineRunning: Boolean): Duration {
+    /**
+     * How often the phone reads and writes the folder: the chosen 1, 5 or 15 minutes while the pinned timeline runs, else 15;
+     * every minute while a lunch runs, whatever was chosen (a lunch is edited from three devices).
+     */
+    fun interval(chosenMinutes: Int, timelineRunning: Boolean, lunchRunning: Boolean = false): Duration {
+        if (lunchRunning) {
+            return Duration.ofMinutes(1)
+        }
+
         val chosen = chosenMinutes.toLong().coerceIn(1, BACKGROUND_MINUTES)
         return Duration.ofMinutes(if (timelineRunning) chosen else BACKGROUND_MINUTES)
     }

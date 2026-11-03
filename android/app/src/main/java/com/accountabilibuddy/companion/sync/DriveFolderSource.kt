@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -70,17 +71,28 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
         }
     }
 
-    /** While the pinned timeline runs: syncs at the chosen 1 or 5 minutes (15 is left to the background work). */
-    suspend fun syncWhilePinned() {
+    /**
+     * While the pinned timeline runs: syncs at the chosen 1 or 5 minutes (15 is left to the background work), and every minute while a
+     * lunch runs ([lunchRunning]). [beforeRead] runs before each read (the Autosync nudge). Checked every [STEP] so a lunch starting
+     * shortens a long wait.
+     */
+    suspend fun syncWhilePinned(lunchRunning: () -> Boolean = { false }, beforeRead: () -> Unit = {}) {
+        var lastRead = Instant.MIN
         while (true) {
             val settings = sync.settings.value
-            if (isOn() && settings.folderMinutes < 15) {
+            val interval = SyncFolder.interval(settings.folderMinutes, timelineRunning = true, lunchRunning = lunchRunning())
+            if (isOn() && interval < Duration.ofMinutes(15) && Duration.between(lastRead, Instant.now()) >= interval) {
+                lastRead = Instant.now()
+                runCatching { beforeRead() }
                 syncNow()
             }
 
-            delay(SyncFolder.interval(settings.folderMinutes, timelineRunning = true).toMillis())
+            delay(STEP.toMillis())
         }
     }
+
+    /** True while the folder method is on with a folder chosen and this phone is in a group. */
+    val active: Boolean get() = isOn()
 
     /** Reads the folder, then writes to it; does nothing while the switch is off or no folder is chosen. */
     suspend fun syncNow() {
@@ -245,6 +257,8 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
 
     companion object {
         private const val WORK_NAME = "sync-folder"
+
+        private val STEP: Duration = Duration.ofSeconds(15)
 
         // No extension is added for this type, so the name stays "<id>.absync".
         private const val MIME = "application/octet-stream"

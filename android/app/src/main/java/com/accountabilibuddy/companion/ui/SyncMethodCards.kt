@@ -105,6 +105,9 @@ internal fun FolderMethodCard(devices: DevicesState, actions: DevicesActions, no
             AbTonalButton("Sync now", onClick = actions.onSyncFolderNow, enabled = settings.folderOn && settings.folderUri != null)
         }
         change.note?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted) }
+        if (settings.folderOn) {
+            AutosyncNudgeSection()
+        }
     }
 }
 

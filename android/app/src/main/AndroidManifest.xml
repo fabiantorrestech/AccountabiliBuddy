@@ -40,6 +40,8 @@
         tools:ignore="ProtectedPermissions" />
 
     <queries>
+        <!-- Autosync: "Tell Autosync to sync" checks it is installed (its Automation receiver is only sent a broadcast). -->
+        <package android:name="com.ttxapps.autosync" />
         <package android:name="com.google.android.apps.healthdata" />
         <!-- The hardcore profile: LockMyPhone-Extended's public intent API (only asked to start a lock). -->
         <package android:name="com.fabiantorrestech.lockmyphone_extended" />
