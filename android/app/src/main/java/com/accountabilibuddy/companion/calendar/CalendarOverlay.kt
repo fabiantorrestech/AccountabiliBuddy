@@ -128,7 +128,9 @@ class CalendarOverlay(
     }
 
     private fun refreshOwnSoon(now: Instant) {
-        if (Duration.between(ownedAt, now) < OWN_FRESH_FOR || !refreshing.compareAndSet(false, true)) return
+        // A read stamped in the future (the clock was set back) is stale, not fresh: it must not freeze the phone's view of its calendar.
+        val age = Duration.between(ownedAt, now)
+        if ((!age.isNegative && age < OWN_FRESH_FOR) || !refreshing.compareAndSet(false, true)) return
 
         saver.execute {
             try {
