@@ -9,9 +9,9 @@ import java.time.LocalDate
  * the user. Null when the range has no focus or no PC has sent its daily goal (the cells are levels of that goal).
  */
 object ConsistencyPanels {
-    fun build(data: StatsData, range: StatsRange): HeatPanel? {
+    fun build(data: StatsData, period: StatsPeriod): HeatPanel? {
         val goal = data.goal ?: return null
-        val (rangeFrom, to) = StatsFormat.bounds(range, data.today)
+        val (rangeFrom, to) = period.from to period.to
         val days = data.daysBetween(rangeFrom, to)
         if (days.all { it.focused <= Duration.ZERO }) return null
 
@@ -29,10 +29,12 @@ object ConsistencyPanels {
         }
 
         val summary = ConsistencyStats.summarize(days, goal, data.isWorkday, data.today)
+        // On a past period the run is the one that ended with it, not the streak the user has now.
+        val current = !to.isBefore(data.today)
         val cards = mutableListOf(
             StatCard(
-                "Streak", "${summary.currentStreak} ${StatsFormat.plural(summary.currentStreak, "day")}",
-                "workdays in a row · best ${summary.bestStreak}",
+                if (current) "Streak" else "Run at period end", "${summary.currentStreak} ${StatsFormat.plural(summary.currentStreak, "day")}",
+                "workdays in a row${if (current) "" else " up to ${StatsFormat.shortDate(to)}"} · best ${summary.bestStreak}",
             ),
             StatCard("Goal met", "${summary.metPercent}%", "${summary.workdaysMet} of ${summary.workdaysCounted} workdays"),
         )
@@ -42,26 +44,19 @@ object ConsistencyPanels {
         }
 
         if (summary.hasOffDays) cards += StatCard("Off days", "skipped", "not counted against you")
-        val subtitle = when (range) {
-            StatsRange.Week -> "Goal met · this week"
-            StatsRange.Month -> "Goal met · this month"
-            else -> "Goal met · last $columns ${StatsFormat.plural(columns, "week")}"
+        val subtitle = when {
+            period.kind == StatsRange.Year && current -> "Goal met · last $columns ${StatsFormat.plural(columns, "week")}"
+            else -> "Goal met · ${StatsFormat.periodWords(period, data.today)}"
         }
         return HeatPanel(
-            "Consistency", subtitle, cells, 7, columns, null, monthLabels(gridStart, columns, range), cards,
-            "Rows are Monday to Sunday. Brighter means more deep work that day.", null, StatsDepth.caption(data, wantedDays(range)),
+            "Consistency", subtitle, cells, 7, columns, null, monthLabels(gridStart, columns, period.kind), cards,
+            "Rows are Monday to Sunday. Brighter means more deep work that day.", null, StatsDepth.caption(data, period),
         )
     }
 
-    private fun wantedDays(range: StatsRange): Int = when (range) {
-        StatsRange.Week -> 7
-        StatsRange.Month -> 28
-        else -> 84
-    }
-
     // A month's name over the column its first day falls in (and over the first column); only for the long range.
-    private fun monthLabels(gridStart: LocalDate, columns: Int, range: StatsRange): List<String?>? {
-        if (range != StatsRange.Year) return null
+    private fun monthLabels(gridStart: LocalDate, columns: Int, kind: StatsRange): List<String?>? {
+        if (kind != StatsRange.Year) return null
         val month = java.time.format.DateTimeFormatter.ofPattern("MMM", java.util.Locale.getDefault())
         return (0 until columns).map { column ->
             val monday = gridStart.plusDays(column * 7L)

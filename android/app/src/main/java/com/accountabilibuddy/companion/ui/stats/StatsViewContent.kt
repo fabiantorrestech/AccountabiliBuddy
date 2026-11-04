@@ -19,6 +19,8 @@ import com.accountabilibuddy.companion.stats.IntensityPanels
 import com.accountabilibuddy.companion.stats.OverviewPanels
 import com.accountabilibuddy.companion.stats.PhonePanels
 import com.accountabilibuddy.companion.stats.SleepPanels
+import com.accountabilibuddy.companion.stats.StatsFormat
+import com.accountabilibuddy.companion.stats.StatsPeriod
 import com.accountabilibuddy.companion.stats.StatsRange
 import com.accountabilibuddy.companion.stats.StatsView
 import com.accountabilibuddy.companion.stats.TrendPanels
@@ -26,30 +28,40 @@ import java.time.LocalDate
 
 /**
  * The body of one Stats view (list and detail are separate composables, so the tablet can put the views in a left column and this
- * beside it). [range] is the one this view shows, already settled by the pane. [day] is the day the Overview's Day range shows.
- * Every view says plainly what is missing instead of drawing zeros that were never measured.
+ * beside it). [range] is the one this view shows and [period] the dates it covers (null for a view with no range), both already
+ * settled by the pane. [day] is the day the Overview's Day range shows. Every view says plainly what is missing instead of drawing
+ * zeros that were never measured, and a period before the first day with history says where history starts.
  */
 @Composable
 fun StatsViewContent(
     model: StatsPaneModel,
     view: StatsView,
     range: StatsRange?,
+    period: StatsPeriod?,
     day: LocalDate,
     actions: StatsPaneActions,
     onPickDay: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val data = model.data
+    val emptyTitle = if (data.hasHistory) "Nothing to show yet" else "No history yet"
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // The Steps view has its own days (the phone's last 30), so the focus history's start does not apply to it.
+        if (period != null && view.usesPeriod && view != StatsView.Steps && data.hasHistory && period.to.isBefore(data.firstData)) {
+            StatsEmptyCard("History starts ${StatsFormat.shortDate(data.firstData)}", "Nothing was recorded before that.")
+            return@Column
+        }
+
         when (view) {
             StatsView.Overview -> {
                 val extra = remember(model) { listOfNotNull(PhonePanels.card(model.phoneDays, data.today), SleepPanels.card(model.nights, data.today)) }
-                val panel = remember(model, range, day) { OverviewPanels.build(data, range ?: StatsRange.Week, day, extra) }
+                val overviewPeriod = period ?: StatsPeriod.current(StatsRange.Week, data.today)
+                val panel = remember(model, overviewPeriod) { OverviewPanels.build(data, overviewPeriod, extra) }
                 if (panel == null) {
-                    StatsEmptyCard("Nothing to show yet", emptyBody(model, needsGoal = false))
+                    StatsEmptyCard(emptyTitle, emptyBody(model, needsGoal = false))
                 } else {
                     BarPanelCard(panel, onBarClick = onPickDay, onOpenView = actions.onSelectView)
-                    if (range == StatsRange.Day) {
+                    if (overviewPeriod.kind == StatsRange.Day) {
                         val detail = remember(model, day) { DayPanels.build(data, day, model.sleepOn) }
                         StatsDayDetail(
                             detail,
@@ -63,23 +75,25 @@ fun StatsViewContent(
             }
 
             StatsView.Consistency -> {
-                val panel = remember(model, range) { ConsistencyPanels.build(data, range ?: StatsRange.Year) }
-                if (panel == null) StatsEmptyCard("Nothing to show yet", emptyBody(model, needsGoal = true)) else HeatPanelCard(panel, onDayClick = onPickDay)
+                val consistencyPeriod = period ?: StatsPeriod.current(StatsRange.Year, data.today)
+                val panel = remember(model, consistencyPeriod) { ConsistencyPanels.build(data, consistencyPeriod) }
+                if (panel == null) StatsEmptyCard(emptyTitle, emptyBody(model, needsGoal = true)) else HeatPanelCard(panel, onDayClick = onPickDay)
             }
 
             StatsView.Intensity -> {
                 val panel = remember(model, range) { IntensityPanels.build(data, range ?: StatsRange.Month) }
-                if (panel == null) StatsEmptyCard("Nothing to show yet", emptyBody(model, needsGoal = false)) else HeatPanelCard(panel)
+                if (panel == null) StatsEmptyCard(emptyTitle, emptyBody(model, needsGoal = false)) else HeatPanelCard(panel)
             }
 
             StatsView.FocusGraph -> {
                 val panel = remember(model, range) { TrendPanels.build(data, range ?: StatsRange.Month) }
-                if (panel == null) StatsEmptyCard("Nothing to show yet", emptyBody(model, needsGoal = true)) else TrendPanelCard(panel)
+                if (panel == null) StatsEmptyCard(emptyTitle, emptyBody(model, needsGoal = true)) else TrendPanelCard(panel)
             }
 
             StatsView.Drift -> {
-                val panel = remember(model, range) { DriftPanels.build(data, range ?: StatsRange.Month) }
-                if (panel == null) StatsEmptyCard("Nothing to show yet", emptyBody(model, needsGoal = false)) else BarPanelCard(panel, onBarClick = onPickDay)
+                val driftPeriod = period ?: StatsPeriod.current(StatsRange.Month, data.today)
+                val panel = remember(model, driftPeriod) { DriftPanels.build(data, driftPeriod) }
+                if (panel == null) StatsEmptyCard(emptyTitle, emptyBody(model, needsGoal = false)) else BarPanelCard(panel, onBarClick = onPickDay)
             }
 
             StatsView.Sleep -> {
@@ -102,7 +116,8 @@ fun StatsViewContent(
             StatsView.Steps -> {
                 val app = LocalContext.current.applicationContext as CompanionApp
                 val steps by app.steps.state.collectAsState()
-                val panel = remember(steps) { StepsPanels.build(steps, data.today) }
+                val stepsPeriod = period ?: StatsPeriod.current(StatsRange.Last30, data.today)
+                val panel = remember(steps, stepsPeriod, data.today) { StepsPanels.build(steps, stepsPeriod, data.today) }
                 if (steps.enabled && steps.problem == StepsProblem.NeedsPermission) {
                     StatsEmptyCard("Steps need Health Connect's permission", "Allow it in Settings › Your day › Daily steps, or tap the steps card on Today.")
                 }
@@ -113,6 +128,8 @@ fun StatsViewContent(
                     BarPanelCard(panel)
                 } else if (steps.problem != StepsProblem.None) {
                     // The card above says why.
+                } else if (steps.enabled && steps.days.isNotEmpty()) {
+                    StatsEmptyCard("No steps in this period", "Steps are kept for the last 30 days. Step to a later period or pick days inside them.")
                 } else if (!steps.enabled) {
                     StatsEmptyCard("Daily steps are off", "Turn on \"Track daily steps\" in Settings › Your day. Steps come from Health Connect, read about every 3 minutes while the app is on screen, and in the background while a sync switch is on and Health Connect lets you allow that.")
                 } else {
