@@ -161,16 +161,21 @@
                 <Border Grid.Row="1" Classes="card mainCard">
                     <Panel>
 
-                        <!-- The shutdown card (redesign phase 5): once after the day's last work part. It takes the card's place. -->
+                        <!-- The shutdown routine (step 13): a stepped flow, one screen per step, each skippable. It takes the card's place. -->
                         <Panel IsVisible="{Binding ShowsShutdown}">
                             <StackPanel Spacing="16" DataContext="{Binding Shutdown}" x:DataType="vm:ShutdownCardViewModel">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                                     <mi:MaterialIcon Kind="WeatherSunset" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Grid.Column="1" Classes="display" Text="Wrap up the day" FontSize="32" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Classes="display" Text="{Binding Title}" FontSize="32" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </Grid>
-                                <TextBlock Classes="muted" Text="Tick what's done. The rest carries over." />
-                                <Border Classes="inner" IsVisible="{Binding HasComebacks}">
-                                    <StackPanel Spacing="4">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="faint" FontSize="12" Text="{Binding StepText}" />
+                                    <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap" />
+                                </StackPanel>
+
+                                <!-- 1. Empty your capture: each parked thought gets a home. -->
+                                <Border Classes="inner" IsVisible="{Binding IsCapture}">
+                                    <StackPanel Spacing="6">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <mi:MaterialIcon Kind="FlagOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                                             <TextBlock Classes="section" Text="Come back to" VerticalAlignment="Center" />
@@ -179,13 +184,21 @@
                                         <ItemsControl ItemsSource="{Binding Comebacks}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:ShutdownComebackRow">
-                                                    <CheckBox IsChecked="{Binding IsDone}" Content="{Binding Text}" />
+                                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,3">
+                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                        <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding DueDate}" IsVisible="{Binding AsksForDate}"
+                                                                            PlaceholderText="Due (optional)" AutomationProperties.Name="Due date" />
+                                                        <ComboBox Grid.Column="2" ItemsSource="{x:Static vm:ShutdownComebackRow.ChoiceNames}" SelectedIndex="{Binding ChoiceIndex}"
+                                                                  MinWidth="150" AutomationProperties.Name="What to do with it" />
+                                                    </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </StackPanel>
                                 </Border>
-                                <Border Classes="inner" IsVisible="{Binding HasUnfinished}">
+
+                                <!-- 2. Unfinished tasks: tick what's done, the rest carries over. -->
+                                <Border Classes="inner" IsVisible="{Binding IsUnfinished}">
                                     <StackPanel Spacing="4">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
@@ -213,30 +226,197 @@
                                         </ItemsControl>
                                     </StackPanel>
                                 </Border>
-                                <StackPanel Spacing="0">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                        <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)"
-                                                 AutomationProperties.Name="Tomorrow's first task"
-                                                 controls:TaskSuggestions.Picker="{Binding TomorrowPicker}" controls:TaskSuggestions.KeepsText="True" />
-                                        <Button Grid.Column="1" x:Name="TomorrowListButton" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
-                                                ToolTip.Tip="Choose one of your tasks: it moves to the top of tomorrow's list" AutomationProperties.Name="From your lists">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
-                                                <TextBlock Text="From your lists" FontSize="13" VerticalAlignment="Center" />
+
+                                <!-- 3. Look ahead: Later items due soon and the calendar's next two weeks (read-only). -->
+                                <StackPanel Spacing="10" IsVisible="{Binding IsLookAhead}">
+                                    <Border Classes="inner" IsVisible="{Binding HasLaterDueSoon}">
+                                        <StackPanel Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="ClockOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Classes="section" Text="Later, due soon" VerticalAlignment="Center" />
                                             </StackPanel>
-                                            <Button.Flyout>
-                                                <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
-                                                    <views:ListPickerView DataContext="{Binding TomorrowPicker}" />
-                                                </Flyout>
-                                            </Button.Flyout>
-                                        </Button>
-                                    </Grid>
-                                    <views:TaskSuggestionsView DataContext="{Binding TomorrowPicker}" />
+                                            <ItemsControl ItemsSource="{Binding LaterDueSoon}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ShutdownLaterRow">
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,2">
+                                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                                            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding DueText}" FontSize="12" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Classes="inner" IsVisible="{Binding HasCalendarAhead}">
+                                        <StackPanel Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="CalendarMonthOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Classes="section" Text="On your calendar" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <ItemsControl ItemsSource="{Binding CalendarAhead}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ShutdownAheadDay">
+                                                        <StackPanel Spacing="1" Margin="0,6,0,0">
+                                                            <TextBlock Classes="muted" Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" />
+                                                            <ItemsControl ItemsSource="{Binding Lines}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="x:String">
+                                                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Classes="muted" Text="Nothing is due soon and nothing is on your calendar for the next two weeks." TextWrapping="Wrap"
+                                               IsVisible="{Binding NothingAhead}" />
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Classes="primary pill" Content="Done for today" Command="{Binding DoneCommand}" />
-                                    <Button Classes="pill" Content="Skip" Command="{Binding SkipCommand}" />
+
+                                <!-- 4. Plan tomorrow: up to three tasks in tomorrow's day parts, and the quick path (tomorrow's first task). -->
+                                <StackPanel Spacing="10" IsVisible="{Binding IsPlanTomorrow}">
+                                    <Border Classes="inner" IsVisible="{Binding HasPlanRows}">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Classes="section" Text="Tomorrow's top tasks" />
+                                            <ItemsControl ItemsSource="{Binding PlanRows}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ShutdownPlanRowViewModel">
+                                                        <StackPanel Spacing="0" Margin="0,0,0,6">
+                                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                                <TextBox Text="{Binding Text}" PlaceholderText="A task for tomorrow" AutomationProperties.Name="A task for tomorrow"
+                                                                         controls:TaskSuggestions.Picker="{Binding Picker}" controls:TaskSuggestions.KeepsText="True" />
+                                                                <Button Grid.Column="1" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
+                                                                        ToolTip.Tip="Choose one of your tasks" AutomationProperties.Name="From your lists">
+                                                                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                                                    <Button.Flyout>
+                                                                        <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
+                                                                            <views:ListPickerView DataContext="{Binding Picker}" />
+                                                                        </Flyout>
+                                                                    </Button.Flyout>
+                                                                </Button>
+                                                                <ComboBox Grid.Column="2" ItemsSource="{Binding Parts}" SelectedIndex="{Binding PartIndex}" MinWidth="190"
+                                                                          AutomationProperties.Name="Day part">
+                                                                    <ComboBox.ItemTemplate>
+                                                                        <DataTemplate x:DataType="vm:ShutdownPartChoice">
+                                                                            <TextBlock Text="{Binding Label}" />
+                                                                        </DataTemplate>
+                                                                    </ComboBox.ItemTemplate>
+                                                                </ComboBox>
+                                                            </Grid>
+                                                            <views:TaskSuggestionsView DataContext="{Binding Picker}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
+                                                       Text="A task waits on your Later list until its part starts, then joins that session's list." />
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Classes="muted" IsVisible="{Binding HasNoPlanParts}" TextWrapping="Wrap"
+                                               Text="Tomorrow's plan has no parts to put a task in. You can still set tomorrow's first task below." />
+                                    <StackPanel Spacing="0">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)"
+                                                     AutomationProperties.Name="Tomorrow's first task"
+                                                     controls:TaskSuggestions.Picker="{Binding TomorrowPicker}" controls:TaskSuggestions.KeepsText="True" />
+                                            <Button Grid.Column="1" x:Name="TomorrowListButton" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
+                                                    ToolTip.Tip="Choose one of your tasks: it moves to the top of tomorrow's list" AutomationProperties.Name="From your lists">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                                    <TextBlock Text="From your lists" FontSize="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <Button.Flyout>
+                                                    <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
+                                                        <views:ListPickerView DataContext="{Binding TomorrowPicker}" />
+                                                    </Flyout>
+                                                </Button.Flyout>
+                                            </Button>
+                                        </Grid>
+                                        <views:TaskSuggestionsView DataContext="{Binding TomorrowPicker}" />
+                                    </StackPanel>
+                                    <Button Classes="quiet" HorizontalAlignment="Left" Command="{Binding OpenPlanCommand}" Padding="8,4" AutomationProperties.Name="Open the Plan page">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <mi:MaterialIcon Kind="ViewAgendaOutline" Width="16" Height="16" />
+                                            <TextBlock Text="Edit tomorrow's plan" FontSize="13" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
                                 </StackPanel>
+
+                                <!-- 5. Today in review: focus against the goal, drift, what got done, how did today go. -->
+                                <Border Classes="inner" IsVisible="{Binding IsReview}">
+                                    <StackPanel Spacing="10" DataContext="{Binding Review}" x:DataType="vm:ShutdownReviewViewModel">
+                                        <StackPanel Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="TargetVariant" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Classes="section" Text="Focus" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding FocusText}" TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding DriftText}" IsVisible="{Binding HasDrift}" Classes="muted" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasDone}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="CheckCircleOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Classes="section" Text="Done" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <ItemsControl ItemsSource="{Binding DoneLines}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                        <StackPanel Spacing="6">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="EmoticonNeutralOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Classes="section" Text="How did today go? (optional)" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button Classes="quiet" HorizontalAlignment="Left" Content="No feeling" Command="{Binding ClearFeelingCommand}"
+                                                    FontSize="12" Padding="8,2" MinHeight="0" AutomationProperties.Name="Take the feeling back" />
+                                            <ItemsControl ItemsSource="{Binding FeelingOptions}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ShutdownFeelingOption">
+                                                        <RadioButton IsChecked="{Binding IsSelected}" Content="{Binding Label}" Margin="0,0,12,0" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBox Text="{Binding Note}" MaxLength="{x:Static vm:ShutdownReviewViewModel.MaxNoteLength}" PlaceholderText="One line about the day (stays sealed on this PC)"
+                                                     AutomationProperties.Name="A line about the day" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 6. Work over for today: what was checked. -->
+                                <Border Classes="inner" IsVisible="{Binding IsClosing}">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="section" Text="You checked" />
+                                        <ItemsControl ItemsSource="{Binding CheckedLines}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                                                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                        <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Classes="muted" Text="Nothing was checked: you skipped every step." TextWrapping="Wrap" IsVisible="{Binding CheckedNothing}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                    <Button Classes="primary pill" Content="Next" Command="{Binding NextCommand}" IsVisible="{Binding CanSkip}" />
+                                    <Button Classes="primary pill" Content="Finish" Command="{Binding FinishCommand}" IsVisible="{Binding IsClosing}" />
+                                    <Button Classes="pill" Content="Skip this step" Command="{Binding SkipStepCommand}" IsVisible="{Binding CanSkip}" />
+                                    <Button Classes="pill" Content="Not now" Command="{Binding NotNowCommand}" />
+                                </WrapPanel>
                             </StackPanel>
                         </Panel>
 
@@ -619,12 +799,12 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBox Text="{Binding NewText}" PlaceholderText="Park an idea (Enter)">
+                        <TextBox Text="{Binding NewText}" PlaceholderText="{Binding PlaceholderText}" AutomationProperties.Name="Park an idea">
                             <TextBox.KeyBindings>
                                 <KeyBinding Gesture="Enter" Command="{Binding AddCommand}" />
                             </TextBox.KeyBindings>
                         </TextBox>
-                        <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap" Text="Ctrl+Alt+N parks a thought without leaving this" />
+                        <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap" Text="{Binding HintText}" />
                     </StackPanel>
                 </Border>
 

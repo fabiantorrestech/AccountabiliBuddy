@@ -11,7 +11,7 @@
         <StackPanel Spacing="8">
             <TextBlock Text="Park it for later: what is it?" FontWeight="SemiBold" />
             <TextBox x:Name="Line" PlaceholderText="e.g. try the new sync idea on the laptop" />
-            <TextBlock Text="Enter saves it under Come back to on Today · Esc drops it" FontSize="11" Opacity="0.7" />
+            <TextBlock x:Name="HintLine" Text="Enter saves it under Come back to on Today · Esc drops it" FontSize="11" Opacity="0.7" />
         </StackPanel>
     </Border>
 </Window>

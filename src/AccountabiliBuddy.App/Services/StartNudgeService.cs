@@ -68,6 +68,9 @@ public sealed class StartNudgeService
     /// <summary>True on a day off on this computer (ADR 31); then nothing steers. Set by the app.</summary>
     public Func<bool> IsDayOff { get; set; } = () => false;
 
+    /// <summary>The shutdown routine was finished after work and the next work part has not started ("Work over for today"). Set by the app.</summary>
+    public Func<bool> IsWorkOver { get; set; } = () => false;
+
     /// <summary>True during a calendar event (as lights out reads it); then nothing steers. Set by the app.</summary>
     public Func<bool> InCalendarEvent { get; set; } = () => false;
 
@@ -180,9 +183,11 @@ public sealed class StartNudgeService
 
         // A calendar event, lunch (a day off counts it) or the goal holding the nudge back: when it lifts, work didn't
         // just start, so the nudge after it is quiet.
-        bool suppressed = IsDayOff() || InCalendarEvent() || IsGoalMet();
+        // "Work over for today" holds the nudge back too, but when it ends work does start: the normal nudge, not the quiet "Resumed" one.
+        bool holding = IsDayOff() || InCalendarEvent() || IsGoalMet();
+        bool suppressed = holding || IsWorkOver();
         bool suppressionJustLifted = _suppressedLastTick && !suppressed;
-        _suppressedLastTick = suppressed;
+        _suppressedLastTick = holding;
         if (sessionRunning && _sessions.State.IsRealSession)
         {
             Assistant?.MarkDone(Today()); // A session the user started is the day's start; a test session is not.

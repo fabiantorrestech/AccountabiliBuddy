@@ -437,6 +437,14 @@
                     <views:QuitGuardCard DataContext="{Binding QuitGuard}" />
                 </StackPanel>
 
+                <!-- The shutdown routine (step 13) -->
+                <StackPanel IsVisible="{Binding IsShutdownRoutine}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="When your day's work is over, Today now offers a short end-of-day routine: empty your capture, sort unfinished tasks, look ahead at your calendar, plan tomorrow's top tasks and review the day, then finish with &quot;Work over for today.&quot; Every step can be skipped, it never opens during a session, and it locks nothing." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="It is on by default. Turn it off, switch single steps off, change the closing line or the reminder before work ends (15 minutes) in Settings › Your day › Shutdown routine. Start shutdown on Today and in the tray starts it any time." />
+                </StackPanel>
+
                 <!-- The Ctrl+Alt panel -->
                 <StackPanel IsVisible="{Binding IsPanelCtrlAlt}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <TextBlock Classes="body" TextWrapping="Wrap"
