@@ -1921,7 +1921,7 @@ public partial class App : Application
         var emergencyItem = new NativeMenuItem("Emergency release (Cold Turkey)…");
         emergencyItem.Click += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);
 
-        // Allowed during focus (it opens nothing then): the card waits for the session to end.
+        // Allowed during focus, but it opens nothing then: it says so.
         var shutdownItem = new NativeMenuItem("Start shutdown");
         shutdownItem.Click += (_, _) => StartShutdownFromUi();
 
