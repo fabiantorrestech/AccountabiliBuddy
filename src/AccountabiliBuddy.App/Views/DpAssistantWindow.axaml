@@ -10,11 +10,8 @@
         Width="880" Height="720" MinWidth="720" MinHeight="560"
         WindowStartupLocation="CenterScreen">
     <Window.Styles>
+        <!-- The colours, border and radius come from the shared Border.card (Themes/AbStyles.axaml); only the tighter padding is local. -->
         <Style Selector="Border.card">
-            <Setter Property="Background" Value="#1A808080" />
-            <Setter Property="BorderBrush" Value="#33808080" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="16,12" />
         </Style>
         <Style Selector="Border.locked">
