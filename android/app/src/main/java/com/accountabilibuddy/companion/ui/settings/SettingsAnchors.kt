@@ -64,6 +64,7 @@ object SettingsAnchors {
     const val COLOUR = "colour"
     const val ANIMATIONS = "animations"
     const val TIMELINE_LOOK = "timeline-look"
+    const val TODAY_LAYOUT = "today-layout"
 
     // App & data
     const val STARTUP = "startup"

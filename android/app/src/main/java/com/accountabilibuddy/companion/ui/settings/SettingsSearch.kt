@@ -81,6 +81,7 @@ object SettingsSearch {
         SearchEntry("Colour", Appearance, A.COLOUR, listOf("colour", "color", "quiet", "standard")),
         SearchEntry("Animations", Appearance, A.ANIMATIONS, listOf("animation", "motion", "speed", "fast", "slow")),
         SearchEntry("Timeline look", Appearance, A.TIMELINE_LOOK, listOf("timeline", "grayscale", "e-ink", "eink", "outlined", "widget")),
+        SearchEntry("Today layout", Appearance, A.TODAY_LAYOUT, listOf("today", "arrange", "reorder", "order", "hide", "cards", "more today", "fold", "home", "steps card", "customize")),
 
         // App & data
         SearchEntry("Startup", AppAndData, A.STARTUP, listOf("start with the phone", "boot", "launch", "starts when opened")),

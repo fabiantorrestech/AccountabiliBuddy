@@ -1,0 +1,40 @@
+package com.accountabilibuddy.companion.ui
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.DirectionsWalk
+import androidx.compose.material.icons.outlined.DonutLarge
+import androidx.compose.material.icons.outlined.DownloadForOffline
+import androidx.compose.material.icons.outlined.EventBusy
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Timeline
+import androidx.compose.material.icons.outlined.Work
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.accountabilibuddy.companion.today.TodayItem
+
+/** The icon of an arrangeable part of Today, in the Today layout sheet (Material icons, ADR 32). */
+fun TodayItem.icon(): ImageVector = when (this) {
+    TodayItem.Guard -> Icons.Outlined.Shield
+    TodayItem.LunchChip -> Icons.Outlined.Restaurant
+    TodayItem.PcMissing -> Icons.Outlined.Computer
+    TodayItem.Ring -> Icons.Outlined.DonutLarge
+    TodayItem.Comebacks -> Icons.Outlined.Lightbulb
+    TodayItem.SmallCards -> Icons.Outlined.PhoneAndroid
+    TodayItem.Noise -> Icons.Outlined.MusicNote
+    TodayItem.DailySteps -> Icons.Outlined.DirectionsWalk
+    TodayItem.DayBar -> Icons.Outlined.Timeline
+    TodayItem.WorkUse -> Icons.Outlined.Work
+    TodayItem.LunchCard -> Icons.Outlined.Restaurant
+    TodayItem.Beeminder -> Icons.Outlined.AccountBalanceWallet
+    TodayItem.Timers -> Icons.Outlined.Alarm
+    TodayItem.DayOff -> Icons.Outlined.EventBusy
+    TodayItem.Import -> Icons.Outlined.DownloadForOffline
+    TodayItem.TestSession -> Icons.Outlined.Science
+}

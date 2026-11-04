@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.nudge.NudgeStore
 import com.accountabilibuddy.companion.placement.PlacementSession
+import com.accountabilibuddy.companion.today.TodayPlacement
 import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.Instant
 import androidx.compose.ui.unit.dp
@@ -39,7 +40,8 @@ import java.util.Locale
 
 /**
  * Today (boards 5a, 5b, 6a): the pane for the first tab, split into the header ([TodayHeader]), the hero ([IdleHero], [SessionHero],
- * [PlanningHero]), the cards ([RingCard], [ComebackCard], [StepsCard], the small cards, [GuardBanner]) and the fold ([moreTodayItems]).
+ * [PlanningHero]), the cards ([RingCard], [ComebackCard], [StepsCard], the small cards, [GuardBanner]) and the fold. Which cards show, where
+ * and in what order is the person's layout ([todayItem], [com.accountabilibuddy.companion.today.TodayLayout]); with none chosen it is the order Today always had.
  * No Scaffold and no fixed width: it fills the pane it is given (the phone's column now, the tablet's pinned 400 dp column later).
  * The buttons of a running session stay at the bottom of the pane; everything else scrolls. Only the timer redraws each second.
  */
@@ -77,6 +79,9 @@ fun TodayPane(
     val stepAway = if (session != null) rememberStepAway(pc, clock) else null
     val hasTimer = rememberHasTimerOrAlarm()
     val chip = lunchChipKind(lunch)
+    val layout by UiPrefs.todayLayout.collectAsState()
+    // A phone with no plan from the PC yet cannot say what is next (its default plan would read as a day off).
+    val info = model.today?.let { if (session == null && !state.hasImport) it.copy(dateSuffix = null, next = "No plan on this phone yet.") else it }
 
     Column(Modifier.fillMaxSize()) {
         LazyColumn(
@@ -85,14 +90,24 @@ fun TodayPane(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (session == null) {
-                idleItems(state.hasImport, model, clock, pc, comebacks, phoneUsage, hasTimer, chip, lunch, guardsLock, guardOn, noiseCard, actions, syncLight, banner, onStart = { starting = true })
+                idleHead(info, model, pc, clock, guardsLock, syncLight, banner, actions, onStart = { starting = true })
             } else {
-                sessionItems(model, clock, pc, session, stepAway?.text, chip, lunch, guardsLock, guardOn, noiseCard, actions, syncLight, banner)
+                sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, banner)
             }
-            // The step ring sits below the safety cards and above the fold when the switch is on.
-            if (stepsState.enabled) item(key = "daily-steps") { DailyStepsCard(stepsState, clock) }
-            item(key = "more-toggle") { MoreTodayToggle(expanded, onToggle = { expanded = !expanded }) }
-            if (expanded) moreTodayItems(MoreTodayContent(state, model, clock, lunch, beeminder, actions.onImport, inSession = session != null, showWorkUse = showWorkUse, showDayOff = showDayOff))
+            // The arrangeable parts (Settings › Appearance › Today layout): the person's order and places. With nothing chosen
+            // this is how Today was always drawn. The head above, and the safety parts the layout can't hide, always show.
+            val tasks = pc.tasks
+            val parts = TodayItemContext(
+                inSession = session != null, state = state, model = model, info = info, clock = clock, pc = pc, comebacks = comebacks,
+                phoneUsage = phoneUsage, hasTimer = hasTimer, lunchChip = chip, lunch = lunch, guardsLock = guardsLock, guardOn = guardOn,
+                beeminder = beeminder, noiseCard = noiseCard, stepsState = stepsState, actions = actions,
+                allTasksTicked = session != null && !session.isPlanning && tasks != null && tasks.tasks.isNotEmpty() && tasks.tasks.all { it.isDone },
+                showWorkUse = showWorkUse, showDayOff = showDayOff,
+            )
+            layout.itemsAt(TodayPlacement.Above, parts.inSession).forEach { part -> todayItem(part, parts) }
+            val folded = layout.itemsAt(TodayPlacement.Fold, parts.inSession)
+            if (folded.isNotEmpty()) item(key = "more-toggle") { MoreTodayToggle(expanded, onToggle = { expanded = !expanded }) }
+            if (expanded) folded.forEach { part -> todayItem(part, parts) }
         }
         if (session != null) {
             SessionActions(
@@ -117,27 +132,18 @@ fun TodayPane(
 
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.getDefault())
 
-// Nothing running (board 5a): date line, the two-line headline and the way to start, the cards, then the fold.
-private fun androidx.compose.foundation.lazy.LazyListScope.idleItems(
-    hasPlan: Boolean,
+// Nothing running (board 5a): date line, the two-line headline and the way to start. The cards follow as arranged ([todayItem]).
+private fun androidx.compose.foundation.lazy.LazyListScope.idleHead(
+    info: com.accountabilibuddy.companion.engine.TodayInfo?,
     model: DayBarModel,
-    clock: ClockFormat,
     pc: TodayPc,
-    comebacks: OpenComebacks?,
-    phoneUsage: PhoneUsage?,
-    hasTimer: Boolean,
-    chip: LunchChipKind?,
-    lunch: TodayLunch,
+    clock: ClockFormat,
     guardsLock: GuardsLock?,
-    guardOn: Boolean,
-    noiseCard: (@Composable () -> Unit)?,
-    actions: TodayActions,
     syncLight: @Composable () -> Unit,
     banner: @Composable () -> Unit,
+    actions: TodayActions,
     onStart: () -> Unit,
 ) {
-    // A phone with no plan from the PC yet cannot say what is next (its default plan would read as a day off).
-    val info = model.today?.let { if (hasPlan) it else it.copy(dateSuffix = null, next = "No plan on this phone yet.") }
     item(key = "header") {
         Column {
             TodayHeader(listOfNotNull(LocalDate.now().format(DATE_FORMAT), info?.dateSuffix).joinToString(" · "), syncLight)
@@ -149,34 +155,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.idleItems(
             IdleHero(info, model.statusText, pc, clock, locked = guardsLock != null && !guardsLock.test, onStart, actions.onCancelWaiting)
         }
     }
-    if (guardsLock != null) item(key = "guard") { GuardBanner(guardsLock, guardOn) }
-    // ADR 58: what calendar events changed in the guards today, by category and time, never a title.
-    info?.calendar?.forEach { line -> item(key = "calendar-$line") { MutedLine(line) } }
-    if (chip != null) item(key = "lunch-chip") { LunchChip(lunch, clock, chip) }
-    if (!pc.hasPc) item(key = "pc-missing") { PcMissingCard(actions.onOpenDevices) }
-    if (info != null && (info.goalMinutes != null || info.focusedMinutes > 0)) item(key = "ring") { RingCard(info.focusedMinutes, info.goalMinutes) }
-    if (comebacks != null && comebacks.items.isNotEmpty()) item(key = "comebacks") { ComebackCard(comebacks, actions.onOpenTasks) }
-    item(key = "small") { SmallCardsRow(hasTimer, phoneUsage, clock, actions.onAllowUsage) }
-    noiseCard?.let { card -> item(key = "noise") { card() } }
 }
 
-// A running session (boards 5b, 6a), planning stage, or break: the timer first, then the steps, the ring and the guard banner.
-private fun androidx.compose.foundation.lazy.LazyListScope.sessionItems(
+// A running session (boards 5b, 6a), planning stage, or break: the header, the timer, what the PC says and the task list. The cards follow as arranged.
+private fun androidx.compose.foundation.lazy.LazyListScope.sessionHead(
     model: DayBarModel,
     clock: ClockFormat,
     pc: TodayPc,
     session: com.accountabilibuddy.companion.sync.PcState,
     awayText: String?,
-    chip: LunchChipKind?,
-    lunch: TodayLunch,
-    guardsLock: GuardsLock?,
-    guardOn: Boolean,
-    noiseCard: (@Composable () -> Unit)?,
     actions: TodayActions,
     syncLight: @Composable () -> Unit,
     banner: @Composable () -> Unit,
 ) {
-    val info = model.today
     val tasks = pc.tasks
     val shown = tasks?.let { SessionTaskItem.shown(it.tasks, it.currentId)?.first }
     val planning = session.isPlanning
@@ -215,14 +206,4 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sessionItems(
     }
     if (pc.waiting != null) item(key = "waiting") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { WaitingLine(pc, clock, actions.onCancelWaiting) } }
     if (!planning && !session.isBreak && tasks != null && tasks.tasks.isNotEmpty()) item(key = "steps") { StepsCard(tasks) }
-    if (info != null && (info.goalMinutes != null || info.focusedMinutes > 0)) item(key = "ring") { RingCard(info.focusedMinutes, info.goalMinutes) }
-    // The Budget pace the PC's own card showed (ADR 47); amber-ish (the waiting colour) when the day can't hold the rest.
-    info?.pace?.let { pace -> item(key = "pace") { Text(BudgetPaceLine.text(pace), style = Ab.type.bodyMedium, color = if (pace.behind) Ab.meaning(Ab.colors.waiting) else Ab.colors.muted) } }
-    // Every task ticked: the phone's way out is still the PC's wait; the PC can end it at once.
-    if (!planning && tasks != null && tasks.tasks.isNotEmpty() && tasks.tasks.all { it.isDone }) {
-        item(key = "all-done") { MutedLine("All tasks are ticked. On the PC, a finished session can usually end at once.") }
-    }
-    if (chip != null) item(key = "lunch-chip") { LunchChip(lunch, clock, chip) }
-    if (guardsLock != null) item(key = "guard") { GuardBanner(guardsLock, guardOn) }
-    noiseCard?.let { card -> item(key = "noise") { card() } }
 }

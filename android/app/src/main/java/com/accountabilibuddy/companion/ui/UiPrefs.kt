@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.accountabilibuddy.companion.today.TodayLayout
 import com.accountabilibuddy.companion.ui.theme.AppearancePlace
 import com.accountabilibuddy.companion.ui.theme.ColourMode
 import com.accountabilibuddy.companion.ui.theme.LightDarkMode
@@ -45,8 +46,12 @@ object UiPrefs {
     private val _place = MutableStateFlow<AppearancePlace?>(null)
     private val _barLook = MutableStateFlow(BarLook.Color)
     private val _syncLight = MutableStateFlow(SyncLightSetting.On)
+    private val _todayLayout = MutableStateFlow(TodayLayout())
 
     val barLook: StateFlow<BarLook> = _barLook.asStateFlow()
+
+    /** The order of Today's parts and where each sits (Settings › Appearance › Today layout); this phone only, never synced. */
+    val todayLayout: StateFlow<TodayLayout> = _todayLayout.asStateFlow()
 
     /** Whether Today shows the sync light (Settings › Devices & sync). It only hides the light: syncing itself is never touched. */
     val syncLight: StateFlow<SyncLightSetting> = _syncLight.asStateFlow()
@@ -66,6 +71,7 @@ object UiPrefs {
         val prefs = prefs(context)
         _motion.value = runCatching { MotionSpeed.valueOf(prefs.getString("motion", null) ?: "") }.getOrDefault(MotionSpeed.Normal)
         _barLook.value = runCatching { BarLook.valueOf(prefs.getString("barLook", null) ?: "") }.getOrDefault(BarLook.Color)
+        _todayLayout.value = TodayLayout.parse(prefs.getString("todayOrder", null), prefs.getString("todayPlacements", null))
         _syncLight.value = runCatching { SyncLightSetting.valueOf(prefs.getString("syncLight", null) ?: "") }.getOrDefault(SyncLightSetting.On)
         _themeName.value = runCatching { ThemeName.valueOf(prefs.getString("themeName", null) ?: "") }.getOrDefault(ThemeName.Instrument)
         _colour.value = ColourMode.fromCode(prefs.getInt("colour", ColourMode.Quiet.code))
@@ -89,6 +95,14 @@ object UiPrefs {
     fun setSyncLight(context: Context, setting: SyncLightSetting) {
         _syncLight.value = setting
         prefs(context).edit().putString("syncLight", setting.name).apply()
+    }
+
+    fun setTodayLayout(context: Context, layout: TodayLayout) {
+        _todayLayout.value = layout
+        val edit = prefs(context).edit()
+        layout.orderText()?.let { edit.putString("todayOrder", it) } ?: edit.remove("todayOrder")
+        layout.placementsText()?.let { edit.putString("todayPlacements", it) } ?: edit.remove("todayPlacements")
+        edit.apply()
     }
 
     fun setBarLook(context: Context, look: BarLook) {
