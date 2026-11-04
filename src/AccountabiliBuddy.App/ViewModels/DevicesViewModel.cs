@@ -112,8 +112,11 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     /// <summary>Opens today's sync QR codes; set by the app.</summary>
     public Action? ShowSyncQr { get; set; }
 
-    /// <summary>Writes this PC's sync file now and hands it to connected devices; set by the app.</summary>
-    public Func<Task>? SyncNow { get; set; }
+    /// <summary>
+    /// Writes this PC's sync file through every method that is on, then reads the other devices' files; set by the app.
+    /// Returns the methods (<see cref="SyncDeviceCard"/> names) that are on but whose write failed.
+    /// </summary>
+    public Func<Task<IReadOnlyList<string>>>? SyncNow { get; set; }
 
     /// <summary>Takes in sync files and pictures of the phone's codes; set by the app.</summary>
     public SyncImportService? Import { get; set; }
@@ -288,6 +291,13 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool InGroup { get; set; }
 
+    /// <summary>
+    /// While this PC is in a group and no other device has been heard from: what is missing (no sync method on, or a method on and
+    /// nothing there yet); null otherwise. Shown with a button to the sync methods.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? NobodyHeardText { get; set; }
+
     /// <summary>The group's link code in groups of 5, shown after "Link a device"; null until then.</summary>
     [ObservableProperty]
     public partial string? LinkCodeText { get; set; }
@@ -428,7 +438,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             : _relay?.Problem ?? (_relay?.IsConnected == true ? "Connected: changes arrive in about a second." : "Connecting…");
         DriveSignedIn = _driveAccount?.IsSignedIn == true;
         DriveStatusText = _driveAccount is null || !_driveAccount.HasClient && !DriveSignedIn
-            ? "Set up your Google client first: Settings › Your day › Calendars › Google setup guide (turn on the Drive API there too)."
+            ? "Set up your Google client first: Settings › Your day › Calendars › Set up Google step by step (turn on the Drive API there too)."
             : DriveSignedIn
                 ? $"Signed in to Google Drive. The app sees only the files it made, in the folder \"{GoogleDriveFiles.FolderName}\"."
                 : "Not signed in to Google Drive.";
@@ -438,6 +448,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         SnoozeIndex = Math.Max(0, Array.IndexOf(SnoozeChoices, settings.SnoozeMinutes));
         _loading = false;
         SyncProblem = DescribeSyncProblem(settings);
+        NobodyHeardText = InGroup && !IsUnlinkedNow() && _received.Active.Count == 0 ? SyncReachText.WhileNobodyHeard(settings) : null;
         FolderNewerLinkText = settings.FolderOn && _received.NewerLinkOn(SyncDeviceCard.MethodFolder) ? ReceivedDevicesService.NewerLinkText : null;
         DriveNewerLinkText = settings.DriveOn && _received.NewerLinkOn(SyncDeviceCard.MethodDrive) ? ReceivedDevicesService.NewerLinkText : null;
 
@@ -545,13 +556,15 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
 
     private static string CompanionKey(SyncCompanion companion) => "companion:" + companion.Name;
 
+    private bool IsUnlinkedNow() => _removal?.Unlinked is not null;
+
     [RelayCommand]
     private async Task SyncNowAsync()
     {
         if (SyncNow is not null)
         {
-            await SyncNow();
-            Message = "Sent this PC's sync file.";
+            IReadOnlyList<string> failed = await SyncNow();
+            Message = SyncReachText.SyncNowLine(_settings.Current, _received.Active, failed, _time.GetUtcNow(), _time.LocalTimeZone);
         }
     }
 
@@ -627,8 +640,9 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         }
 
         _joinConfirmedFor = null;
+        // A code gives the group's key and no way to reach anyone: say what is missing instead of "Linked to your other devices."
         Message = await _identity.JoinAsync(typed)
-            ? "Linked to your other devices."
+            ? (_received.Active.Count == 0 ? SyncReachText.WhileNobodyHeard(_settings.Current) : "Linked to your other devices.")
             : "That isn't a link code (40 characters, from Devices on your other device).";
         JoinCode = string.Empty;
     }

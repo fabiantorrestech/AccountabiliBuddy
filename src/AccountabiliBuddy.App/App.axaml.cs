@@ -1341,14 +1341,45 @@ public partial class App : Application
                 }
             }
 
-            await Step("sync folder", _syncFolder is null ? null : async () => { await _syncFolder.WriteNowAsync(); await _syncFolder.ReadNowAsync(); });
-            await Step("Google Drive", _syncDrive is null ? null : async () => { await _syncDrive.WriteNowAsync(); await _syncDrive.ReadNowAsync(); });
-            await Step("own relay", _syncRelay is null ? null : async () => { await _syncRelay.WriteNowAsync(); await _syncRelay.ReadNowAsync(); });
+            // A method that is on but whose write failed, so the tip doesn't claim a send that didn't happen.
+            var failedSends = new List<string>();
+            Func<Task>? Exchange(string method, Func<Task<bool>>? write, Func<Task>? read)
+            {
+                if (write is null || read is null)
+                {
+                    return null;
+                }
+
+                return async () =>
+                {
+                    bool wrote = await write();
+                    if (!wrote && AccountabiliBuddy.App.Services.Sync.SyncReachText.MethodsOn(syncSettings.Current).Contains(method))
+                    {
+                        failedSends.Add(method);
+                    }
+
+                    await read();
+                };
+            }
+
+            await Step("sync folder", Exchange(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodFolder, _syncFolder is null ? null : _syncFolder.WriteNowAsync, _syncFolder is null ? null : _syncFolder.ReadNowAsync));
+            await Step("Google Drive", Exchange(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodDrive, _syncDrive is null ? null : _syncDrive.WriteNowAsync, _syncDrive is null ? null : _syncDrive.ReadNowAsync));
+            await Step("own relay", Exchange(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodRelay, _syncRelay is null ? null : _syncRelay.WriteNowAsync, _syncRelay is null ? null : _syncRelay.ReadNowAsync));
             await Step("calendars", _calendarSync is null ? null : _calendarSync.RefreshAllAsync);
             _dayBar?.ReloadHistory();
             await mainViewModel.History.RefreshCommand.ExecuteAsync(null);
-            string at = time.GetLocalNow().ToString("t");
-            return problems.Count == 0 ? $"Up to date · refreshed {at}" : $"Refreshed {at}, but: " + string.Join("; ", problems);
+            DateTimeOffset localNow = time.GetLocalNow();
+            string at = AccountabiliBuddy.App.Services.Sync.SyncReachText.Clock(localNow);
+            if (problems.Count > 0)
+            {
+                return $"Refreshed {at}, but: " + string.Join("; ", problems);
+            }
+
+            // In a group: say who was reached (or that nobody was and why) instead of "Up to date".
+            return syncIdentity.Key is null
+                ? $"Up to date · refreshed {at}"
+                : $"Refreshed {at}. " + AccountabiliBuddy.App.Services.Sync.SyncReachText.SyncNowLine(
+                    syncSettings.Current, receivedDevices.Active, failedSends, time.GetUtcNow(), time.LocalTimeZone);
         };
 
         // A session added, edited or deleted by hand (ADR 20): both day bars read the history again, and other devices get it.
@@ -1519,11 +1550,38 @@ public partial class App : Application
         devices.OpenBrowser = OpenInBrowser;
         devices.SyncNow = async () =>
         {
-            await _syncFolder!.WriteNowAsync();
-            await _syncDrive!.WriteNowAsync();
-            await _syncRelay!.WriteNowAsync();
+            // Writes, then reads the other devices' files through the same accept path as a normal read; says which writes failed.
+            IReadOnlyList<string> on = AccountabiliBuddy.App.Services.Sync.SyncReachText.MethodsOn(syncSettings.Current);
+            var failed = new List<string>();
+            if (!await _syncFolder!.WriteNowAsync() && on.Contains(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodFolder))
+            {
+                failed.Add(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodFolder);
+            }
+
+            if (!await _syncDrive!.WriteNowAsync() && on.Contains(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodDrive))
+            {
+                failed.Add(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodDrive);
+            }
+
+            if (!await _syncRelay!.WriteNowAsync() && on.Contains(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodRelay))
+            {
+                failed.Add(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodRelay);
+            }
+
+            try
+            {
+                await _syncFolder.ReadNowAsync();
+                await _syncDrive.ReadNowAsync();
+                await _syncRelay.ReadNowAsync();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or InvalidOperationException)
+            {
+                // The method's own problem line says what went wrong; the report below says only who answered.
+            }
+
             // Seals this PC's file again.
             syncCoordinator.NotifyHistoryChanged();
+            return failed;
         };
         ShowQrButtons(syncSettings.Current);
         syncSettings.Changed += (_, settings) => ShowQrButtons(settings);

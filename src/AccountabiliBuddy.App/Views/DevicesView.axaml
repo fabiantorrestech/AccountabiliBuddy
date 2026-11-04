@@ -77,6 +77,16 @@
                 </ItemsControl>
             </Border>
 
+            <!-- Linked, but nobody has been heard from: what is missing, and the way to the switches. -->
+            <Border Classes="sInfo" IsVisible="{Binding NobodyHeardText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <mi:MaterialIcon Kind="SyncAlert" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.InfoInk}" />
+                    <TextBlock Grid.Column="1" Text="{Binding NobodyHeardText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="Show sync methods" Click="OnShowSyncMethods" VerticalAlignment="Center"
+                            AutomationProperties.Name="Show sync methods" />
+                </Grid>
+            </Border>
+
             <!-- A device that has fallen behind. -->
             <Border Classes="sInfo" IsVisible="{Binding StaleText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
@@ -86,7 +96,7 @@
             </Border>
 
             <!-- The ways this PC shares: each is its own switch, so several can be on at once (the sync files are the same for all of them). -->
-            <TextBlock Classes="sGroup" Text="How they sync" />
+            <TextBlock x:Name="SyncMethodsHeader" Classes="sGroup" Text="How they sync" />
             <Border Classes="sPanel">
                 <StackPanel Margin="0,0,0,-1">
                     <Border Classes="sRow" Padding="18,15">

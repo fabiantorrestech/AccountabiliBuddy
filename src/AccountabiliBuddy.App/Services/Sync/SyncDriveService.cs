@@ -96,12 +96,12 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
         Restart();
     }
 
-    /// <summary>Writes this PC's file to Drive now.</summary>
-    public async Task WriteNowAsync()
+    /// <summary>Writes this PC's file to Drive now. True when the file was uploaded.</summary>
+    public async Task<bool> WriteNowAsync()
     {
         if (!TryGetName(out string ownName, out SyncKey? key))
         {
-            return;
+            return false;
         }
 
         await _busy.WaitAsync();
@@ -114,7 +114,7 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
             }
             catch (SqliteException)
             {
-                return; // The history can't be read right now; the next write tries again.
+                return false; // The history can't be read right now; the next write tries again.
             }
 
             byte[] sealedBytes = SyncFileCodec.Seal(file, key);
@@ -123,10 +123,12 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
                 _ownId ??= (await _drive.ListAsync(CancellationToken.None)).FirstOrDefault(info => info.Name == ownName)?.Id;
                 _ownId = await _drive.UploadAsync(ownName, sealedBytes, _ownId, CancellationToken.None);
                 SetProblem(null);
+                return true;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException)
             {
                 SetProblem("Can't write to Google Drive right now");
+                return false;
             }
         }
         finally

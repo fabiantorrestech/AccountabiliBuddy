@@ -176,7 +176,7 @@
                             <mi:MaterialIcon Kind="QrcodeScan" Width="22" Height="22" />
                         </Button>
                         <Button Classes="sSoft" Content="Sync now" Command="{Binding Devices.SyncNowCommand}" IsEnabled="{Binding Devices.InGroup, FallbackValue=False}"
-                                ToolTip.Tip="Write this PC's sync file now and hand it to connected devices" />
+                                ToolTip.Tip="Write this PC's sync file through the methods that are on, read the other devices' files, and say who answered" />
                     </StackPanel>
                 </Grid>
 

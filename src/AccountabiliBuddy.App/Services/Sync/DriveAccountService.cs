@@ -61,7 +61,7 @@ public sealed class DriveAccountService
     {
         if (!TryGetClient(out string clientId, out string clientSecret))
         {
-            throw new GoogleSignInException("Set up your Google client first (Settings › Your day › Calendars › Google setup guide).");
+            throw new GoogleSignInException("Set up your Google client first (Settings › Your day › Calendars › Set up Google step by step).");
         }
 
         GoogleTokens tokens = await _google.SignInAsync(clientId, clientSecret, openBrowser, cancellationToken, Scope);

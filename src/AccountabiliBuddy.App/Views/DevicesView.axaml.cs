@@ -15,6 +15,12 @@ public partial class DevicesView : UserControl
         InitializeComponent();
     }
 
+    // The "nobody heard from" banner's button: scrolls to the sync method switches.
+    private void OnShowSyncMethods(object? sender, RoutedEventArgs e)
+    {
+        SyncMethodsHeader.BringIntoView();
+    }
+
     // Sync files (.absync) or pictures of the phone's QR codes.
     private async void OnImport(object? sender, RoutedEventArgs e)
     {
