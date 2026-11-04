@@ -15,7 +15,8 @@ import java.time.ZoneId
  * What the header knows at [now]: today's plan parts (every category), calendar events, the night around now (null with
  * sleep mode off) and the sleep goal, where the wake time comes from ([wakeSource], e.g. "alarm"; null: the plan), the
  * combined focus of the user's devices (null: none yet), the phone's screen time today (null: no Usage access) and
- * when the phone's test session ends ([testEndsAt], null: none runs; never part of [focus]).
+ * when the phone's test session ends ([testEndsAt], null: none runs; never part of [focus]) and when today's lunch ends
+ * ([lunchEndsAt], null: no lunch runs now).
  */
 data class HeaderInput(
     val now: LocalDateTime,
@@ -28,6 +29,7 @@ data class HeaderInput(
     val focus: WatchSnapshot?,
     val phoneMinutes: Int?,
     val testEndsAt: Instant? = null,
+    val lunchEndsAt: Instant? = null,
 )
 
 /**
@@ -71,6 +73,13 @@ object DayHeader {
         val nowInstant = now.atZone(input.zone).toInstant()
         val today = now.toLocalDate()
         val focus = input.focus?.takeIf { it.date == today }
+
+        // Lunch first, even over a running session: lunch pauses a session as a step away (or cuts its break short), so while it
+        // runs the session's own countdown is paused and would count down wrongly. Lunch is the one clock that is right; the
+        // session's countdown is back as soon as lunch ends. +5 / -5 and a lunch from another device move this with them.
+        input.lunchEndsAt?.takeIf { it.isAfter(nowInstant) }?.let { endsAt ->
+            return HeaderText("Lunch · ${minutesText(Duration.between(nowInstant, endsAt))} left", "", endsAt, "Lunch · %s left")
+        }
 
         val runningNow = focus?.running
         val running = runningNow?.takeIf { it.isLiveAt(nowInstant) }

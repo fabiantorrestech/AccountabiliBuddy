@@ -38,6 +38,8 @@ object HeaderSource {
             wakeSource = if (byAlarm) "alarm" else null, focus = focus, phoneMinutes = phoneMinutes,
             // The clock now, not [now]: Today's [now] may be up to 30 s old when a test starts.
             testEndsAt = app.testSession.running()?.second,
+            // Today's lunch while it runs (the clock now, like the test session above); it follows +5 / -5 and a lunch from another device.
+            lunchEndsAt = app.lunch.today()?.end?.takeIf { it.isAfter(java.time.Instant.now()) },
         )
         return DayHeader.build(input, clock)
     }
