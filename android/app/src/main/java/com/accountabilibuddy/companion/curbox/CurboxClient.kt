@@ -179,7 +179,8 @@ class CurboxClient(callerContext: Context) {
                 if (!bound && continuation.isActive) continuation.resume(null)
             }
 
-            // Interruptible, so the 5-second timeout stops waiting for a binder call that hangs instead of holding the caller.
+            // Interruptible, so a timeout interrupts the thread. A call already blocked inside Binder likely ignores the
+            // interrupt, so this can still wait for Curbox to answer before returning; the interrupt helps only between calls.
             api?.let { runInterruptible(Dispatchers.IO) { block(it) } }
         } catch (e: android.os.RemoteException) {
             null

@@ -58,9 +58,6 @@ public sealed class ShutdownService : IDisposable
     // What was typed on a card put off with "Not now", kept for the card that comes back (also kept under Auto-saved until then).
     private ParkedDraft? _parked;
 
-    // "Work over" is recomputed every second; its end only changes with the finish or the work end, so it is kept for the tick that asks again.
-    private (DateTime Anchor, DateTime Until)? _workOverEnd;
-
     // One end-of-work reminder per plan date, but the QR reminder waits for the card only this long after it opened.
     private static readonly TimeSpan QrWaitsFor = TimeSpan.FromMinutes(30);
 
@@ -185,12 +182,13 @@ public sealed class ShutdownService : IDisposable
     }
 
     /// <summary>
-    /// True while a shutdown card is due to open (it waits for a session to end), or is open and was opened less than 30 minutes ago. The QR
+    /// True while a shutdown card is due to open (it waits for a session to end), or is open and was opened less than 30 minutes ago (and on the same day). The QR
     /// scan reminder holds back meanwhile; a card nobody answers does not hold it for hours.
     /// </summary>
     public bool IsCardOpenOrDue()
     {
-        if (Current is not null && _sessions.Now - _openedAt < QrWaitsFor)
+        // The hold ends at midnight too: a card opened late and ignored doesn't carry the QR reminder into the next day.
+        if (Current is not null && _sessions.Now - _openedAt < QrWaitsFor && ToLocal(_sessions.Now).Date == ToLocal(_openedAt).Date)
         {
             return true;
         }
@@ -256,19 +254,20 @@ public sealed class ShutdownService : IDisposable
         return DateOnly.FromDateTime(now.Add(-NewDayAt));
     }
 
-    // When the last work part that starts on [date] ends; null on a day without work parts.
-    private DateTime? WorkEnd(DateOnly date)
+    // When the last work part that starts on [date] ends, as of [now]; null on a day without work parts. The caller's [now] is passed through:
+    // a met Budget ends at the moment it is met (the window is clipped to that now), so a later clock read would always leave the end ahead.
+    private DateTime? WorkEnd(DateOnly date, DateTime now)
     {
-        List<PlannedFocus> work = WorkStartingOn(date);
+        List<PlannedFocus> work = WorkStartingOn(date, now);
         return work.Count == 0 ? null : work.Max(part => part.Window.End);
     }
 
     // When the first work part that starts after [moment] starts; null when none starts that day or the next.
-    private DateTime? NextWorkStartAfter(DateTime moment)
+    private DateTime? NextWorkStartAfter(DateTime moment, DateTime now)
     {
         DateOnly day = DateOnly.FromDateTime(moment);
         return new[] { day, day.AddDays(1) }
-            .SelectMany(WorkStartingOn)
+            .SelectMany(date => WorkStartingOn(date, now))
             .Select(part => part.Window.Start)
             .Where(start => start > moment)
             .Select(start => (DateTime?)start)
@@ -276,10 +275,9 @@ public sealed class ShutdownService : IDisposable
     }
 
     // The work parts that start on [date] (one may run past midnight).
-    private List<PlannedFocus> WorkStartingOn(DateOnly date)
+    private List<PlannedFocus> WorkStartingOn(DateOnly date, DateTime now)
     {
         DateTime start = date.ToDateTime(TimeOnly.MinValue);
-        DateTime now = LocalNow();
         return DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(start, start.AddDays(2)), now, FocusedOn, NightFallback)
             .Where(part => DateOnly.FromDateTime(part.Window.Start) == date)
             .ToList();
@@ -292,7 +290,7 @@ public sealed class ShutdownService : IDisposable
         DateOnly today = DateOnly.FromDateTime(now);
         foreach (DateOnly date in new[] { today.AddDays(-1), today })
         {
-            if (AlreadyHandled(date) || WorkEnd(date) is not DateTime end || now < end || now - end > LateLimit)
+            if (AlreadyHandled(date) || WorkEnd(date, now) is not DateTime end || now < end || now - end > LateLimit)
             {
                 continue;
             }
@@ -315,10 +313,10 @@ public sealed class ShutdownService : IDisposable
     }
 
     // When a card opened at [anchor] closes by itself: 6 hours later, or when the next work part starts if that is sooner.
-    private DateTime ClosesAtFor(DateTime anchor)
+    private DateTime ClosesAtFor(DateTime anchor, DateTime now)
     {
         DateTime lateEnd = anchor + LateLimit;
-        return NextWorkStartAfter(anchor) is DateTime nextWork && nextWork < lateEnd ? nextWork : lateEnd;
+        return NextWorkStartAfter(anchor, now) is DateTime nextWork && nextWork < lateEnd ? nextWork : lateEnd;
     }
 
     // ---- Opening, restoring and putting off ----
@@ -327,7 +325,8 @@ public sealed class ShutdownService : IDisposable
     {
         _openFor = date;
         _openedAt = _sessions.Now;
-        _closesAt = ClosesAtFor(LocalNow());
+        DateTime now = LocalNow();
+        _closesAt = ClosesAtFor(now, now);
         DateOnly shown = _state.LastShownOn is DateOnly last && last > date ? last : date;
         _state = _state with
         {
@@ -400,16 +399,16 @@ public sealed class ShutdownService : IDisposable
             return false;
         }
 
-        if ((!_state.OpenedByHand && !Settings.Enabled) || now >= ClosesAtFor(ToLocal(openedAt)))
+        if ((!_state.OpenedByHand && !Settings.Enabled) || now >= ClosesAtFor(ToLocal(openedAt), now))
         {
-            _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false };
+            _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false, LastShownOn = LastShownAfterClose(date, _state.OpenedByHand, ClosesAtFor(ToLocal(openedAt), now), now) };
             _ = SaveAsync();
             return false;
         }
 
         _openFor = date;
         _openedAt = openedAt;
-        _closesAt = ClosesAtFor(ToLocal(openedAt));
+        _closesAt = ClosesAtFor(ToLocal(openedAt), now);
         CardWasRestored = true;
         ShowCard(BuildCard(date, _state.OpenedByHand), date);
         return true;
@@ -428,7 +427,7 @@ public sealed class ShutdownService : IDisposable
             return false;
         }
 
-        if (WorkEnd(date) is not DateTime end || now - end > LateLimit)
+        if (WorkEnd(date, now) is not DateTime end || now - end > LateLimit)
         {
             _state = _state with { ReturnAt = null };
             _ = SaveAsync();
@@ -518,6 +517,19 @@ public sealed class ShutdownService : IDisposable
         return card.Review.HasAnswer || _reviews.Of(date) is not null;
     }
 
+    // A card started by hand doesn't come back by itself (hard rules). An automatic card is marked shown when it opens; a hand card is
+    // marked when it closes after the work end (Not now, auto-close, a finish, a restart that finds it expired), or the next tick would
+    // open it again as an automatic one. Closed before the work end, the evening card still comes.
+    // [closedAt] is when it closed, or when it was due to close if that came first (a restart or a wake long after): a card that expired
+    // before the work end hasn't used up the evening card, whatever the clock says by the time the app notices.
+    private DateOnly? LastShownAfterClose(DateOnly date, bool byHand, DateTime closedAt, DateTime now)
+    {
+        DateOnly? shown = _state.LastShownOn;
+        DateTime at = closedAt < now ? closedAt : now;
+        bool workOver = byHand && WorkEnd(date, at) is DateTime end && end <= at;
+        return workOver && (shown is null || shown < date) ? date : shown;
+    }
+
     private void CloseCard()
     {
         _ = CloseCardAsync();
@@ -525,7 +537,9 @@ public sealed class ShutdownService : IDisposable
 
     private Task CloseCardAsync()
     {
-        _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false };
+        DateTime now = LocalNow();
+        DateOnly? shownOn = LastShownAfterClose(_openFor, _state.OpenedByHand, _closesAt, now);
+        _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false, LastShownOn = shownOn };
         Current = null;
         Changed?.Invoke(this, EventArgs.Empty);
         return SaveAsync();
@@ -549,7 +563,7 @@ public sealed class ShutdownService : IDisposable
                 continue;
             }
 
-            if (WorkEnd(date) is not DateTime end || now >= end || now < end.AddMinutes(-minutes))
+            if (WorkEnd(date, now) is not DateTime end || now >= end || now < end.AddMinutes(-minutes))
             {
                 continue;
             }
@@ -574,10 +588,10 @@ public sealed class ShutdownService : IDisposable
             DateTime finished = ToLocal(last.CompletedAt);
             if (finished <= now && now - finished < TimeSpan.FromHours(30))
             {
-                DateTime? workEnd = WorkEnd(last.Date);
+                DateTime? workEnd = WorkEnd(last.Date, now);
                 if (workEnd is null || workEnd <= now)
                 {
-                    DateTime until = WorkOverEnd(workEnd is DateTime over && over > finished ? over : finished);
+                    DateTime until = WorkOverEnd(workEnd is DateTime over && over > finished ? over : finished, now);
                     if (now < until)
                     {
                         computed = new ShutdownWorkOver(last.Line, last.Checked, until);
@@ -599,17 +613,10 @@ public sealed class ShutdownService : IDisposable
     }
 
     // The next work part after [anchor] (the finish, or the work end when that came later), or 4:00 AM when that comes first.
-    private DateTime WorkOverEnd(DateTime anchor)
+    private DateTime WorkOverEnd(DateTime anchor, DateTime now)
     {
-        if (_workOverEnd is { } known && known.Anchor == anchor && known.Until > LocalNow())
-        {
-            return known.Until;
-        }
-
         DateTime morning = (anchor.TimeOfDay < NewDayAt ? anchor.Date : anchor.Date.AddDays(1)) + NewDayAt;
-        DateTime until = NextWorkStartAfter(anchor) is DateTime nextWork && nextWork < morning ? nextWork : morning;
-        _workOverEnd = (anchor, until);
-        return until;
+        return NextWorkStartAfter(anchor, now) is DateTime nextWork && nextWork < morning ? nextWork : morning;
     }
 
     // ---- Building the card ----
@@ -917,7 +924,8 @@ public sealed class ShutdownService : IDisposable
         DateTimeOffset now = _sessions.Now;
         DateTimeOffset keptFrom = now.AddDays(-KeptDays);
         // Only a finish once work is over (or within the reminder minutes before it ends) settles the day; a morning finish doesn't.
-        bool afterWork = WorkEnd(date) is not DateTime workEnd || LocalNow() >= workEnd.AddMinutes(-Settings.ReminderMinutes);
+        DateTime localNow = LocalNow();
+        bool afterWork = WorkEnd(date, localNow) is not DateTime workEnd || localNow >= workEnd.AddMinutes(-Settings.ReminderMinutes);
         List<ShutdownDay> days = (_state.Days ?? [])
             .Where(day => day.Date != date && day.CompletedAt >= keptFrom)
             .Append(new ShutdownDay(date, now, card.Checked.ToList(), card.ClosingLine, afterWork))

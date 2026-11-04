@@ -41,6 +41,9 @@ object BlockGuard {
     private const val NOTICE_ID = 50
     private const val HISTORY_MAX = 40
     private const val RETRY_MINUTES = 2L
+
+    /** How far back a retry looks, so a read that keeps failing (access revoked) stops re-arming. */
+    private const val RETRY_LOOKBACK_MINUTES = 30L
     private val mutex = Mutex()
 
     fun enabled(context: Context): Boolean = prefs(context).getBoolean("on", true)
@@ -104,13 +107,17 @@ object BlockGuard {
 
     /**
      * Curbox didn't answer (busy, restarting): with the guard on, Curbox installed and an event waiting since the last run (a re-enable
-     * that was due), the guard looks again in about 2 minutes, so a block isn't left off until the next refresh. Nothing is waiting, or
-     * Curbox isn't there: no alarm (the next refresh asks again as before).
+     * that was due in the last 30 minutes), the guard looks again in about 2 minutes, so a block isn't left off until the next refresh.
+     * Older events don't count, so a read that keeps failing (access revoked) stops re-arming. Nothing is waiting, or Curbox isn't there:
+     * no alarm (the next refresh asks again as before). This only schedules; the warnings are posted by [run] from the real last run.
      */
     private fun retrySoon(context: Context, curbox: CurboxClient, lastRunMillis: Long, now: LocalDateTime) {
         if (!enabled(context) || lastRunMillis <= 0 || curbox.findPackage() == null) return
         val app = context.applicationContext as CompanionApp
-        val lastRun = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(lastRunMillis), ZoneId.systemDefault()).coerceAtLeast(now.minusDays(1))
+        val lastRun = maxOf(
+            LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(lastRunMillis), ZoneId.systemDefault()),
+            now.minusMinutes(RETRY_LOOKBACK_MINUTES),
+        )
         val plan = app.store.state.value.document.dayPlan
         if (BlockRearm.between(plan, BlockRef.PHONE, lastRun, now).any { it.turnOn }) schedule(context, now.plusMinutes(RETRY_MINUTES))
     }

@@ -6,5 +6,6 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="Checked">What was checked, as the closing screen listed it (plain step names, no private text).</param>
 /// <param name="Line">The closing line as it was then.</param>
 /// <param name="AfterWork">It was finished when the day's work was over (or within the reminder minutes before it ends). A finish in the middle of the
-/// workday doesn't count, so the card still comes when work ends; only a finish after work makes "Work over for today" hold.</param>
+/// workday doesn't settle the day, so the card still comes when work ends. Either way "Work over for today" shows only from the work end
+/// (<c>ShutdownService.RefreshWorkOver</c>), never earlier; AfterWork only decides whether the automatic card follows.</param>
 public sealed record ShutdownDay(DateOnly Date, DateTimeOffset CompletedAt, IReadOnlyList<string> Checked, string Line, bool AfterWork = true);
