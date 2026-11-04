@@ -34,10 +34,6 @@ public sealed class QrSyncService : IDisposable
     // When this PC's own data last changed; not kept across restarts, so a new run starts as "changed".
     private DateTimeOffset _lastOwnChange;
 
-    // The day whose reminder was due but held back by Deferred at the last check; if the hold lasts past midnight the reminder is still
-    // shown (for that day), not lost to the new day's own due time. Not kept across restarts.
-    private DateOnly? _heldOn;
-
     public QrSyncService(
         SyncCoordinator coordinator,
         SyncIdentityService identity,
@@ -149,13 +145,12 @@ public sealed class QrSyncService : IDisposable
     /// <summary>Raises <see cref="ReminderDue"/> when the reminder is due at <paramref name="now"/>, and notes it.</summary>
     public async Task ShowReminderIfDueAsync(DateTimeOffset now)
     {
-        if (!_settings.Current.QrOn || _identity.Key is null)
+        if (!_settings.Current.QrOn || _identity.Key is null || (Deferred?.Invoke() ?? false))
         {
             return;
         }
 
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, _time.LocalTimeZone).Date);
-        DateOnly day = today;
         if (_state.SnoozedUntil is DateTimeOffset until)
         {
             if (now < until)
@@ -163,30 +158,17 @@ public sealed class QrSyncService : IDisposable
                 return;
             }
         }
-        else if (_heldOn is DateOnly held && held == today.AddDays(-1) && (_state.LastShownDay is null || _state.LastShownDay < held))
-        {
-            // Due for the day just ended and held back over midnight by an open shutdown card: still shown, for that day.
-            day = held;
-        }
         else if (_state.LastShownDay == today || DueAt(now) is not DateTimeOffset due || now < due)
         {
-            _heldOn = null;
             return;
         }
 
-        if (Deferred?.Invoke() ?? false)
-        {
-            _heldOn = day;
-            return;
-        }
-
-        _heldOn = null;
         if (EveryPhoneHasLatest())
         {
             return;
         }
 
-        await SaveAsync(new ReminderState(day, null));
+        await SaveAsync(new ReminderState(today, null));
         ReminderDue?.Invoke(this, EventArgs.Empty);
     }
 
