@@ -85,14 +85,11 @@ object BlockGuard {
         val lastRun = prefs.getLong("lastRun", 0L).takeIf { it > 0 }
             ?.let { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it), ZoneId.systemDefault()) }
             ?.coerceAtLeast(now.minusDays(1))
-        var failedFrom: LocalDateTime? = null
         if (lastRun != null && enabled(context)) {
             val events = BlockRearm.between(plan, BlockRef.PHONE, lastRun, now)
             for ((block, on) in BlockRearm.toApply(events, current, known)) {
                 if (curbox.set(block.ref.kind, block.ref.id, on)) {
                     addHistory(context, "${if (on) "Turned ${block.ref.name} back on" else "Turned ${block.ref.name} off"} · ${ClockFormat(is24Hour = false).time(now)}")
-                } else {
-                    failedFrom = events.first().at
                 }
             }
             if (events.any { it.turnOn }) NotificationManagerCompat.from(context).cancel(NOTICE_ID)
@@ -101,21 +98,18 @@ object BlockGuard {
                 if (off.isNotEmpty() && warning.at > now) notify(context, warning.at, off.map { it.ref.name })
             }
         }
-        // A failed set keeps its event in the next look (just before it), but never further back than the retry limit.
-        val ranUpTo = failedFrom?.let { maxOf(it.minusNanos(1_000_000), now.minusMinutes(RETRY_LOOKBACK_MINUTES)) } ?: now
         prefs.edit()
-            .putLong("lastRun", ranUpTo.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
+            .putLong("lastRun", now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli())
             .putStringSet("known", known)
             .apply()
-        val next = if (enabled(context)) BlockRearm.next(plan, BlockRef.PHONE, now) else null
-        val retry = if (failedFrom != null && enabled(context)) now.plusMinutes(RETRY_MINUTES) else null
-        schedule(context, listOfNotNull(next, retry).minOrNull())
+        schedule(context, if (enabled(context)) BlockRearm.next(plan, BlockRef.PHONE, now) else null)
     }
 
     /**
      * Curbox didn't answer (busy, restarting): with the guard on, Curbox installed and an event waiting since the last run (a re-enable
-     * that was due), the guard looks again in about 2 minutes (only at events from the last 30 minutes, so a read that keeps failing, such as revoked access, stops re-arming), so a block isn't left off until the next refresh. Nothing is waiting, or
-     * Curbox isn't there: no alarm (the next refresh asks again as before).
+     * that was due in the last 30 minutes), the guard looks again in about 2 minutes, so a block isn't left off until the next refresh.
+     * Older events don't count, so a read that keeps failing (access revoked) stops re-arming. Nothing is waiting, or Curbox isn't there:
+     * no alarm (the next refresh asks again as before). This only schedules; the warnings are posted by [run] from the real last run.
      */
     private fun retrySoon(context: Context, curbox: CurboxClient, lastRunMillis: Long, now: LocalDateTime) {
         if (!enabled(context) || lastRunMillis <= 0 || curbox.findPackage() == null) return
