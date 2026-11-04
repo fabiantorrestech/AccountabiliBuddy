@@ -23,6 +23,7 @@ import com.accountabilibuddy.companion.engine.DayBarBuilder
 import com.accountabilibuddy.companion.engine.SleepSchedule
 import com.accountabilibuddy.companion.model.SleepSettings
 import com.accountabilibuddy.companion.model.SleepTimes
+import com.accountabilibuddy.companion.ui.PollWhileVisible
 import com.accountabilibuddy.companion.ui.Hint
 import com.accountabilibuddy.companion.ui.Section
 import com.accountabilibuddy.companion.ui.ToggleRow
@@ -49,13 +50,11 @@ internal fun SleepSection(saved: SleepSettings, clock: ClockFormat, onSave: (Sle
     var offText by remember { mutableStateOf(sleepSync.pendingOffText()) }
     var locked by remember { mutableStateOf(sleepSync.locked()) }
     // A pending off comes due, or a session starts, while the page is open.
-    LaunchedEffect(Unit) {
-        while (true) {
-            if (sleepSync.applyPendingOffIfDue()) app.refreshSoon()
-            offText = sleepSync.pendingOffText()
-            locked = sleepSync.locked()
-            kotlinx.coroutines.delay(2_000L)
-        }
+    // Looked at every 2 s while a wait is pending, else every 10 s (the app applies a due off by itself; this is display only).
+    PollWhileVisible(periodMs = { if (offText != null) 2_000L else 10_000L }) {
+        if (sleepSync.applyPendingOffIfDue()) app.refreshSoon()
+        offText = sleepSync.pendingOffText()
+        locked = sleepSync.locked()
     }
 
     val summary = if (!saved.enabled) "Off" else "Bed ${clock.time(LocalDate.now().atTime(saved.weeknights.bedtime))} · up ${clock.time(LocalDate.now().atTime(saved.weeknights.wake))}"

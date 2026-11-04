@@ -38,13 +38,8 @@ import java.time.ZoneId
 fun WorkUseCard() {
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
-    var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = Instant.now()
-            kotlinx.coroutines.delay(5_000)
-        }
-    }
+    // Every 5 s while the card shows; every 15 s while there is no session to show it for.
+    var now by rememberTickingNow(Unit) { read -> if (PlacementSession.current(app, read)?.takeUnless { it.onBreak } != null) 5_000L else 15_000L }
     val session = PlacementSession.current(app, now)?.takeUnless { it.onBreak } ?: return
     val active = app.workUse.active(now)
     val uses = app.workUse.usesIn(session.start)

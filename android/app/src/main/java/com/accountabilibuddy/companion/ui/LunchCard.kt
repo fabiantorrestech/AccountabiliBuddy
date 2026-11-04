@@ -5,10 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,13 +32,8 @@ fun LunchCard(lunch: TodayLunch, clock: ClockFormat) {
     val fixed = lunch.fixed
     val taken = lunch.taken
     if (!workday && flex == null && taken == null) return
-    var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(taken) {
-        while (true) {
-            now = Instant.now()
-            kotlinx.coroutines.delay(1_000)
-        }
-    }
+    // 1 s only while lunch runs (the countdown); otherwise every 30 s, for the fixed lunch window's end.
+    val now by rememberTickingNow(taken) { read -> if (taken != null && read < taken.end) 1_000L else 30_000L }
     val zone = ZoneId.systemDefault()
     fun time(at: Instant) = clock.time(LocalDateTime.ofInstant(at, zone))
     val onLunch = taken != null && now < taken.end
