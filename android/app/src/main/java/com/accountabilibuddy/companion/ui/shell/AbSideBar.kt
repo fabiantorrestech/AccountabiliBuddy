@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.ui.shell
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -39,29 +40,35 @@ val SideBarWidth = 232.dp
 fun AbSideBar(selected: AppDestination, onSelect: (AppDestination) -> Unit, modifier: Modifier = Modifier, footer: (@Composable () -> Unit)? = null) {
     val colors = Ab.colors
     Row(modifier.fillMaxHeight().width(SideBarWidth + 1.dp).background(colors.bg)) {
-        Column(Modifier.weight(1f).fillMaxHeight().statusBarsPadding().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp)) {
-            Text("AccountabiliBuddy", style = Ab.type.section, color = colors.ink, maxLines = 1, modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 16.dp))
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                AppDestination.entries.forEach { destination ->
-                    val active = destination == selected
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp))
-                            .let { if (active) it.background(colors.surface2) else it }
-                            .selectable(selected = active, role = Role.Tab, onClick = { onSelect(destination) })
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Icon(destination.icon, contentDescription = null, tint = if (active) colors.ink else colors.muted, modifier = Modifier.size(24.dp))
-                        Text(
-                            destination.label, style = Ab.type.bodyMedium, color = if (active) colors.ink else colors.muted,
-                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                        )
+        // The sidebar scrolls as a whole, so a short window keeps every row and the footer at their size; with room the footer sits at the foot.
+        BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().statusBarsPadding().navigationBarsPadding()) {
+            Column(
+                Modifier.heightIn(min = maxHeight).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("AccountabiliBuddy", style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = colors.ink, maxLines = 1, modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 12.dp))
+                    AppDestination.entries.forEach { destination ->
+                        val active = destination == selected
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp))
+                                .let { if (active) it.background(colors.surface2) else it }
+                                .selectable(selected = active, role = Role.Tab, onClick = { onSelect(destination) })
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            Icon(destination.icon, contentDescription = null, tint = if (active) colors.ink else colors.muted, modifier = Modifier.size(24.dp))
+                            Text(
+                                destination.label, style = Ab.type.bodyMedium, color = if (active) colors.ink else colors.muted,
+                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                        }
                     }
                 }
-            }
-            if (footer != null) {
-                Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { footer() }
+                if (footer != null) {
+                    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { footer() }
+                }
             }
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(colors.line))

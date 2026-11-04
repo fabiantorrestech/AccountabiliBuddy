@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -61,8 +62,9 @@ class BedtimeAlarmActivity : ComponentActivity() {
         val text = intent.getStringExtra(EXTRA_TEXT).orEmpty()
         setContent {
             CompanionTheme(systemBarIconsFollowTheme = false) {
+                GuardFrame(Modifier.fillMaxSize().background(Color(0xFF0B1020))) {
                 Column(
-                    Modifier.fillMaxSize().background(Color(0xFF0B1020)).padding(32.dp),
+                    Modifier.fillMaxSize().padding(32.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -72,6 +74,7 @@ class BedtimeAlarmActivity : ComponentActivity() {
                         OutlinedButton(onClick = { BedtimeReminders.snooze(this@BedtimeAlarmActivity, number); finish() }) { Text("Snooze 5 min") }
                         Button(onClick = { BedtimeReminders.dismiss(this@BedtimeAlarmActivity, number); finish() }) { Text("Dismiss") }
                     }
+                }
                 }
             }
         }

@@ -67,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -272,7 +273,7 @@ private fun EssentialsScreen(app: CompanionApp, kind: EssentialsKind, arranging:
     val essentialPackages = essentials.apps.map { it.packageName }.toSet()
 
     androidx.compose.runtime.CompositionLocalProvider(LocalShowIcons provides showIcons) {
-    Box(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
+    GuardFrame(Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
             if (arranging) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {

@@ -172,6 +172,8 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
             )
         }
     }
+    // On a tablet the details are a pane, not a sheet (a sheet closes on Back by itself): Back closes the pane first.
+    androidx.activity.compose.BackHandler(enabled = LocalExpanded.current && shown != null && detail != null) { open = null }
     if (LocalExpanded.current) {
         // A tablet: the list on the left, the chosen task's details on the right (the same details a phone shows in a sheet).
         Row(Modifier.fillMaxSize()) {

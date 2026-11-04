@@ -157,6 +157,8 @@ fun MainScreen(
     // (Back leaves the app from them).
     val modalOpen = unlinked != null || showSetup || planDayOpen || whatsNewOpen || planDraft != null
     // Beside the list a Settings page is not "one level down", so on a tablet Back leaves Settings for Today in one step.
+    // A task's details beside the Tasks list (tablet) close first; the page that answers is TasksScreen's own BackHandler, which sits deeper in the
+    // composition and so takes Back before this one.
     BackHandler(enabled = nav.canGoBack && !modalOpen) {
         if (wide && nav.destination == AppDestination.Settings) nav.select(AppDestination.Today) else nav.back()
     }
@@ -204,8 +206,10 @@ fun MainScreen(
             onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
         )
     }
-    val todayLayoutPref by UiPrefs.todayLayout.collectAsStateWithLifecycle()
-    val noiseInSidebar = noiseState.hasFolder && todayLayoutPref.placementOf(com.accountabilibuddy.companion.today.TodayItem.Noise) != com.accountabilibuddy.companion.today.TodayPlacement.Hidden
+    // Only the tablet needs the Today layout here (a phone does not collect it); the noise player in the sidebar follows its "hidden".
+    val todayLayoutPref = if (wide) UiPrefs.todayLayout.collectAsStateWithLifecycle().value else null
+    val noiseInSidebar = noiseState.hasFolder && todayLayoutPref != null &&
+        todayLayoutPref.placementOf(com.accountabilibuddy.companion.today.TodayItem.Noise) != com.accountabilibuddy.companion.today.TodayPlacement.Hidden
 
     androidx.compose.runtime.CompositionLocalProvider(LocalGuardsLock provides guardsLock, LocalExpanded provides wide) {
     AppScaffold(
@@ -216,7 +220,8 @@ fun MainScreen(
             if (noiseInSidebar) NoiseCard(noiseState, noiseSettings, noise, compact = true)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Sync", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                syncLightSlot()
+                // 48 dp to touch here (the sidebar is used with a finger or a stylus).
+                androidx.compose.runtime.CompositionLocalProvider(LocalSyncTouch provides 48.dp) { syncLightSlot() }
             }
         },
         // Hidden while the day plan editor is open (its own Save and Cancel lead out) and while the phone is unlinked (ADR 54):

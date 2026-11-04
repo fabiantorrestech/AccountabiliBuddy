@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -22,7 +23,7 @@ class WorkUseActivity : ComponentActivity() {
         val app = application as CompanionApp
         setContent {
             CompanionTheme {
-                Box(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)).padding(28.dp), contentAlignment = Alignment.Center) {
+                GuardFrame(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)).padding(28.dp), contentAlignment = Alignment.Center) {
                     WorkUseChooser(app, onStarted = {
                         // As after "I need my phone for a bit": on to the essentials screen.
                         startActivity(EssentialsActivity.intent(this@WorkUseActivity))
