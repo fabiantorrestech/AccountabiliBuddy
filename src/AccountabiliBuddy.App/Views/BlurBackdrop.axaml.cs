@@ -13,6 +13,7 @@ public partial class BlurBackdrop : Window
     public BlurBackdrop()
     {
         InitializeComponent();
+        Services.Motion.Gate(Root); // Motion "Off": the dim appears at once.
         Opened += (_, _) => Root.Opacity = 1;
     }
 

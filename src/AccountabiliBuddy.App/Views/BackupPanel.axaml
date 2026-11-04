@@ -33,7 +33,10 @@
         <StackPanel Spacing="6">
             <TextBlock Text="Import" Classes="sTitle" IsVisible="{Binding ShowExport}" />
             <Border IsVisible="{Binding IsLocked}" Classes="sInfo" Padding="14,8">
-                <TextBlock Text="Importing is locked while a focus session is running." TextWrapping="Wrap" />
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Importing is locked while a focus session is running." TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Static vm:LockWording.WaysOut}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Muted}" />
+                </StackPanel>
             </Border>
             <Button Content="Choose a backup file…" Command="{Binding ChooseBackupCommand}" AutomationProperties.Name="Choose backup file" />
             <StackPanel IsVisible="{Binding NeedsPassword}" Orientation="Horizontal" Spacing="8">

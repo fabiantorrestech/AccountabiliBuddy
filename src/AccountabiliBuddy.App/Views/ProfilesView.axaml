@@ -269,7 +269,7 @@
                                                         <ComboBox Width="140" ItemsSource="{x:Static vm:RuleEditorViewModel.Targets}" SelectedItem="{Binding Target}" />
                                                         <ComboBox Width="110" ItemsSource="{x:Static vm:RuleEditorViewModel.Kinds}" SelectedItem="{Binding Kind}" />
                                                         <ComboBox Width="96" ItemsSource="{x:Static vm:RuleEditorViewModel.Verdicts}" SelectedItem="{Binding Verdict}" />
-                                                        <Button Content="✕" Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove rule" />
+                                                        <Button Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove rule" AutomationProperties.Name="Remove rule"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                                     </WrapPanel>
                                                     <Grid ColumnDefinitions="2*,*" ColumnSpacing="6">
                                                         <TextBox Text="{Binding Pattern}" PlaceholderText="e.g. youtube.com/shorts" />
@@ -297,7 +297,7 @@
                                                     <TextBlock Text="wait" VerticalAlignment="Center" Classes="muted" />
                                                     <TextBox Text="{Binding WaitMinutes}" Width="72" />
                                                     <TextBlock Text="minutes" VerticalAlignment="Center" Classes="muted" />
-                                                    <Button Content="✕" Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove unlock option" />
+                                                    <Button Classes="quiet" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove unlock option" AutomationProperties.Name="Remove unlock option"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                                 </WrapPanel>
                                             </Border>
                                         </DataTemplate>

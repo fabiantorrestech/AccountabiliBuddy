@@ -52,7 +52,7 @@ public sealed partial class CalendarRulesViewModel : ObservableObject
 
     public bool IsUnlocked => !IsLocked;
 
-    public string LockText => "Calendar rules can't be changed while a focus session you started runs.";
+    public string LockText => $"Calendar rules can't be changed while a focus session you started runs. {LockWording.WaysOut}";
 
     /// <summary>The draft differs from the saved set.</summary>
     [ObservableProperty]

@@ -41,6 +41,7 @@ GetWindowText
 GetClassName
 GetWindowThreadProcessId
 GetWindowLong
+GetWindow
 WINDOW_EX_STYLE
 WINDOW_STYLE
 GetWindowRect

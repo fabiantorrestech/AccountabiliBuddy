@@ -11,11 +11,13 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// It moves the Monday week 1 starts on by whole weeks, so it is a plan change like any other: stricter applies at once,
 /// looser (it frees today's work) waits, and it is locked during a focus session the user started.
 /// </summary>
-public sealed partial class WeekCardViewModel : ObservableObject
+public sealed partial class WeekCardViewModel : ObservableObject, IDisposable
 {
     private readonly ConfigurationService _configuration;
     private readonly SessionController _sessions;
     private readonly Func<DateOnly> _today;
+    private readonly Avalonia.Threading.DispatcherTimer _timer;
+    private DateOnly _shownOn;
 
     public WeekCardViewModel(ConfigurationService configuration, SessionController sessions, Func<DateOnly> today)
     {
@@ -23,12 +25,30 @@ public sealed partial class WeekCardViewModel : ObservableObject
         _sessions = sessions;
         _today = today;
         Refresh();
-        _configuration.Changed += (_, _) => Refresh();
-        _sessions.StateChanged += (_, _) => Refresh();
-        // The week turns over on a Monday, whatever else happens.
-        var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        timer.Tick += (_, _) => Refresh();
-        timer.Start();
+        _configuration.Changed += OnChanged;
+        _sessions.StateChanged += OnChanged;
+        // The week turns over on a Monday, whatever else happens: a check once a minute that does nothing until the date has changed.
+        _timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _timer.Tick += OnMinute;
+        _timer.Start();
+    }
+
+    public void Dispose()
+    {
+        _timer.Stop();
+        _timer.Tick -= OnMinute;
+        _configuration.Changed -= OnChanged;
+        _sessions.StateChanged -= OnChanged;
+    }
+
+    private void OnChanged(object? sender, object e) => Refresh();
+
+    private void OnMinute(object? sender, EventArgs e)
+    {
+        if (_today() != _shownOn)
+        {
+            Refresh();
+        }
     }
 
     /// <summary>The weeks repeat in a cycle of more than one week.</summary>
@@ -78,6 +98,7 @@ public sealed partial class WeekCardViewModel : ObservableObject
 
     private void Refresh()
     {
+        _shownOn = _today();
         DayPlan plan = _configuration.Current.DayPlan;
         IsVisible = WeekSwitch.IsRepeating(plan);
         WeekCount = plan.Cycle.Weeks.Count;

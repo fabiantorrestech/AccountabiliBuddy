@@ -778,7 +778,7 @@
                                                 </TextBox.KeyBindings>
                                             </TextBox>
                                             <TextBlock Grid.Column="2" Classes="faint" Text="{Binding When}" FontSize="11" VerticalAlignment="Center" />
-                                            <Button Grid.Column="3" Classes="comebackAction" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Edit" />
+                                            <Button Grid.Column="3" Classes="comebackAction" Command="{Binding BeginEditCommand}" ToolTip.Tip="Edit" AutomationProperties.Name="Edit"><mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" /></Button>
                                             <Button Grid.Column="4" Classes="comebackAction" Command="{Binding AddToTasksCommand}" IsVisible="{Binding CanAddToTasks}"
                                                     ToolTip.Tip="Add to tasks: it goes at the end of the checklist and leaves this list" AutomationProperties.Name="Add to tasks">
                                                 <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />

@@ -9,10 +9,11 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// Today's deep work against the daily goal (redesign phase 4): the bar and text on Today, and the goal itself, changed
 /// with the pencil (30 minutes to 8 hours). A goal is a target, not a block, so a change applies at once.
 /// </summary>
-public sealed partial class GoalCardViewModel : ObservableObject
+public sealed partial class GoalCardViewModel : ObservableObject, IDisposable
 {
     private readonly DeepWorkService _deepWork;
     private readonly GoalService _goal;
+    private readonly Avalonia.Threading.DispatcherTimer _paceTimer;
 
     public GoalCardViewModel(DeepWorkService deepWork, GoalService goal)
     {
@@ -20,11 +21,32 @@ public sealed partial class GoalCardViewModel : ObservableObject
         _goal = goal;
         Text = string.Empty;
         Refresh();
-        _deepWork.Changed += (_, _) => Refresh();
-        // The Budget pace moves with the clock even when no session runs: once a minute.
-        var paceTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        paceTimer.Tick += (_, _) => RefreshPace();
-        paceTimer.Start();
+        _deepWork.Changed += OnDeepWorkChanged;
+        // The Budget pace moves with the clock even when no session runs: once a minute. The overlay's goal line follows this card (not just
+        // Today), so the timer runs for as long as the card lives; Dispose stops it.
+        _paceTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _paceTimer.Tick += OnPaceTick;
+        _paceTimer.Start();
+    }
+
+    public void Dispose()
+    {
+        _paceTimer.Stop();
+        _paceTimer.Tick -= OnPaceTick;
+        _deepWork.Changed -= OnDeepWorkChanged;
+    }
+
+    private void OnDeepWorkChanged(object? sender, EventArgs e) => Refresh();
+
+    // Nothing to read on a day that is not a Budget day and had no pace line a minute ago (the plan's own changes call RefreshPace).
+    private void OnPaceTick(object? sender, EventArgs e)
+    {
+        if (PaceText.Length == 0 && PaceNow?.Invoke() is null)
+        {
+            return;
+        }
+
+        RefreshPace();
     }
 
     /// <summary>

@@ -153,7 +153,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial double NowFraction { get; set; }
 
-    /// <summary>Moves the now line to this second. Runs every second while the bar shows.</summary>
+    // A second moves the line by a fraction of a pixel (a 16-hour bar 600 px wide: 0.01 px), which is not worth a repaint: it moves
+    // once it has gone about an eighth of a pixel on a 600 px bar (several seconds to a minute, by how long the range is).
+    private const double GlideStep = 0.0002;
+
+    /// <summary>Moves the now line toward this second. Runs every second while the bar shows, but only repaints when the line has moved visibly.</summary>
     public void Glide()
     {
         if (_paused || Layout.RangeStart is not DateTime start || Layout.RangeEnd is not DateTime end)
@@ -161,7 +165,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             return;
         }
 
-        NowFraction = Fraction(LocalNow(), new LocalWindow(start, end));
+        double next = Fraction(LocalNow(), new LocalWindow(start, end));
+        if (double.IsNaN(NowFraction) || Math.Abs(next - NowFraction) >= GlideStep)
+        {
+            NowFraction = next;
+        }
     }
 
     /// <summary>E.g. "Mon (10/19)".</summary>

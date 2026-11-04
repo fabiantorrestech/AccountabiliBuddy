@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
@@ -35,7 +36,7 @@
                             <TimePicker ClockIdentifier="12HourClock" SelectedTime="{Binding End}" MinuteIncrement="15" MinWidth="0" Width="196"
                                         IsEnabled="{Binding EndEditable}" />
                         </StackPanel>
-                        <Button Content="✕" ToolTip.Tip="Delete this part" Command="{Binding DeleteCommand}" Margin="0,0,0,4" />
+                        <Button ToolTip.Tip="Delete this part" Command="{Binding DeleteCommand}" Margin="0,0,0,4" AutomationProperties.Name="Delete this part"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                     </WrapPanel>
                     <!-- A Sleep part woken by the alarm (ADR 33): only the bedtime is set. -->
                     <CheckBox Margin="24,0,0,0" IsVisible="{Binding IsSleep}" IsChecked="{Binding WakeByAlarm}"
