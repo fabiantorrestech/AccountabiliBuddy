@@ -34,7 +34,7 @@ object NudgeRules {
     val DAY_OFF_WAIT: Duration = Duration.ofMinutes(10)
 
     /** How soon a card left without an answer (the app switcher, Home) comes back. */
-    val UNANSWERED_RETURN: Duration = Duration.ofSeconds(3)
+    val UNANSWERED_RETURN: Duration = Duration.ofMillis(300)
     const val FREE_SNOOZES = 2
     const val REASON_LENGTH = 15
 
