@@ -154,8 +154,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     public partial double NowFraction { get; set; }
 
     // A second moves the line by a fraction of a pixel (a 16-hour bar 600 px wide: 0.01 px), which is not worth a repaint: it moves
-    // once it has gone about a third of a pixel on a 600 px bar (a few seconds to a minute, by how long the range is).
-    private const double GlideStep = 0.0005;
+    // once it has gone about an eighth of a pixel on a 600 px bar (several seconds to a minute, by how long the range is).
+    private const double GlideStep = 0.0002;
 
     /// <summary>Moves the now line toward this second. Runs every second while the bar shows, but only repaints when the line has moved visibly.</summary>
     public void Glide()

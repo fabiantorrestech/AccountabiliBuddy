@@ -87,7 +87,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="2" IsVisible="{Binding HasEditButtons}">
                                         <Button Classes="quiet" Command="{Binding EditCommand}" IsVisible="{Binding IsNotEditing}" ToolTip.Tip="Edit" Padding="6,0" AutomationProperties.Name="Edit"><mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" /></Button>
                                         <Button Classes="quiet" Command="{Binding SaveCommand}" IsVisible="{Binding IsEditing}" ToolTip.Tip="Keep the change" Padding="6,0" AutomationProperties.Name="Keep the change"><mi:MaterialIcon Kind="Check" Width="14" Height="14" /></Button>
-                                        <Button Classes="quiet" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteTip}" Padding="6,0"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
+                                        <Button Classes="quiet" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteTip}" AutomationProperties.Name="Delete" Padding="6,0"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
