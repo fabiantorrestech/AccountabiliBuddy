@@ -68,7 +68,7 @@ fun DayTemplateEditor(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         DayPlanBarEditor(template, categories, selected, onSelect = { selected = it }, onChange = onChange, onRefused = onMessage)
         Text(
-            "Tap empty space to add a part, tap a part to pick it, drag its edges or middle. A Sleep part that starts before midnight is the night before this day.",
+            "Tap empty space to add a part, or the strip under the bar to lay one over what is there (the weaker rules win). Tap a part to pick it, drag its edges or middle. A Sleep part that starts before midnight is the night before this day.",
             style = Ab.type.small,
             color = Ab.colors.muted,
         )

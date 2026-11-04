@@ -404,7 +404,8 @@ public sealed partial class SessionTasksService
 
         if (!await Later.ReopenAsync(taskId))
         {
-            await Later.AddAsync(task.Title, SourceOfTask(task).Steps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, null);
+            TodaySource source = SourceOfTask(task);
+            await Later.AddAsync(task.Title, source.Steps, source.Category, source.CategoryColor, task.EstimateMinutes, task.Note, null);
         }
 
         await RemoveOutsideTaskAsync(taskId);
@@ -524,10 +525,10 @@ public sealed partial class SessionTasksService
 
     private TodaySource SourceOfTask(SessionTask task)
     {
-        TaskCategory? category = _categories.FirstOrDefault(candidate => candidate.Id == task.CategoryId);
+        (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_categories, task.CategoryId, task.Category, task.CategoryColor);
         // A done task comes back open: all its steps reopen; an open one brings its open steps.
         IReadOnlyList<SessionSubtask> steps = task.IsDone ? task.Subtasks : OpenStepsOf(task.Subtasks);
-        return new TodaySource(task.Title, steps, task.Category ?? category?.Name, task.CategoryColor ?? category?.Color, task.EstimateMinutes, task.Note);
+        return new TodaySource(task.Title, steps, categoryName, categoryColor, task.EstimateMinutes, task.Note);
     }
 
     private static IReadOnlyList<SessionSubtask> OpenStepsOf(IReadOnlyList<SessionSubtask>? steps)

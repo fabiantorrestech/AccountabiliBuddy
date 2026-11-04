@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AccountabiliBuddy.App.Views.EventRuleDialog"
+        Title="Always classify like this"
+        Width="400" SizeToContent="Height" CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource Ab.Surface}">
+    <!-- "Always classify like this" on a calendar event (ADR 64): a keyword rule, which waits like any rule change. -->
+    <StackPanel Margin="24,22" Spacing="12">
+        <TextBlock Text="Always classify like this" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                   Text="Events in this calendar with these words in the title count as the category you choose." />
+        <TextBox x:Name="KeywordBox" PlaceholderText="Words in the title" AutomationProperties.Name="Words in the title" />
+        <ComboBox x:Name="CategoryBox" HorizontalAlignment="Stretch" AutomationProperties.Name="Category" />
+        <TextBlock x:Name="WaitLine" Classes="muted" FontSize="12" TextWrapping="Wrap"
+                   Text="A rule change waits before it applies, and never applies during a session." />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Classes="quiet" Content="Cancel" Click="OnCancel" />
+            <Button Classes="primary" Content="Save" Click="OnSave" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -5,6 +5,9 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0064](0064-classify-events-from-the-timeline-and-let-a-hand-choice-lift-pre-work.md) | Classify events from the timeline, and let a hand choice lift Pre-Work | Accepted | — |
+| [0063](0063-let-day-plan-parts-overlap-with-the-weaker-rules-winning.md) | Let day plan parts overlap, with the weaker rules winning | Accepted | — |
+| [0062](0062-let-the-newest-task-category-colour-win-on-every-device.md) | Let the newest task category colour win on every device | Accepted | — |
 | [0061](0061-choose-what-syncs-row-by-row-on-each-device.md) | Choose what syncs, row by row, on each device | Proposed | — |
 | [0060](0060-treat-time-with-the-pc-off-as-non-work-session-time.md) | Treat time with the PC off as non-work session time | Accepted | — |
 | [0059](0059-a-quit-safeguard-with-a-relaunch-watchdog.md) | A quit safeguard with a relaunch watchdog | Accepted | — |

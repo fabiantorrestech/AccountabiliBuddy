@@ -26,6 +26,19 @@ public static class EventCategoryResolver
         return CategoryOf(calendarEvent, plan, Index(classifications), rules);
     }
 
+    /// <summary>
+    /// The event's category was chosen by hand, on it or its series, rather than by a rule; "Don't classify" isn't a category. Only such an event may lift Pre-Work
+    /// for its time (ADR 64): a rule made once shouldn't quietly open a guard on every later day.
+    /// </summary>
+    public static bool IsChosenByHand(CalendarEvent calendarEvent, IReadOnlyList<EventClassification> classifications)
+    {
+        Dictionary<(string, ClassificationScope, string), Guid?> index = Index(classifications);
+        return index.TryGetValue((calendarEvent.CalendarId, ClassificationScope.ThisEvent, calendarEvent.ClassificationKey), out Guid? chosen)
+            || (calendarEvent.SeriesId is not null && index.TryGetValue((calendarEvent.CalendarId, ClassificationScope.WholeSeries, calendarEvent.SeriesId), out chosen))
+            ? chosen is not null
+            : false;
+    }
+
     /// <summary>The events that carry a category, with it, in the order given.</summary>
     public static IReadOnlyList<(CalendarEvent Event, DayCategory Category)> Classified(
         IEnumerable<CalendarEvent> events, DayPlan plan, IReadOnlyList<EventClassification> classifications, CalendarRuleSet rules)

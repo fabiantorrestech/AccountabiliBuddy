@@ -233,10 +233,10 @@ public sealed partial class ListPickerViewModel : ObservableObject
         return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time, _time.LocalTimeZone).DateTime);
     }
 
-    // A record's category name: the one it kept, else this PC's category of that id.
+    // A record's category name: this PC's category of that id as it is now, else the name it kept.
     private string? CategoryNameOf(SessionTask task)
     {
-        return task.Category ?? _tasks.Categories.FirstOrDefault(category => category.Id == task.CategoryId)?.Name;
+        return TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Name;
     }
 
     private bool MatchesTask(string search, SessionTask task)

@@ -4,9 +4,11 @@ import com.accountabilibuddy.companion.sync.OpenComebacks
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices.Choice
+import com.accountabilibuddy.companion.sync.TaskCategoryColors
 import com.accountabilibuddy.companion.sync.deviceIdOf
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 import com.accountabilibuddy.shared.sync.SyncAction
+import com.accountabilibuddy.shared.sync.SyncCategory
 import com.accountabilibuddy.shared.sync.SyncLaterItem
 import com.accountabilibuddy.shared.sync.SyncNextTask
 import com.accountabilibuddy.shared.sync.SyncParked
@@ -20,7 +22,8 @@ import java.time.ZoneId
  *
  * @property laterTotal How many Later items there are, whatever the chip and the search.
  * @property nextDue The Later header's "Next due: Expense report, Fri"; null when no item has a due date.
- * @property categories Every category seen on a task, come-back or Later item, for the filter chips and the category menu.
+ * @property categories Every category this phone or another device lists, or seen on a task, come-back or Later item, in its current
+ *   colour, for the filter chips and the category menu.
  * @property sessionTotal How many tasks This session holds before the chip and the search (for its empty text).
  * @property doneAllToday Every row of [doneToday] was ticked today (the group is then "Done today"; older ones make it "Done").
  */
@@ -44,6 +47,7 @@ class TasksModel(
          * @param waiting Ids of Later items and come-backs whose "Add to Today" waits for the PC's answer.
          * @param category The chip picked (a category's name); null shows everything.
          * @param search What the user typed in the search; it matches titles, steps and notes.
+         * @param ownCategories This phone's own list of categories.
          */
         fun build(
             nextTasks: List<SyncNextTask>,
@@ -58,7 +62,9 @@ class TasksModel(
             search: String,
             now: Instant,
             zone: ZoneId = ZoneId.systemDefault(),
+            ownCategories: List<SyncCategory> = emptyList(),
         ): TasksModel {
+            val colors = TaskCategoryColors(ownCategories, received, now)
             val today = now.atZone(zone).toLocalDate()
             val filter = TaskFilter(category, search)
             fun stepTitles(steps: List<SessionTaskItem>?) = steps.orEmpty().map { it.title }.toTypedArray()
@@ -79,7 +85,7 @@ class TasksModel(
                     if (!filter.allows(task.category, task.title, *stepTitles(task.subtasks))) return@forEachIndexed
                     val sending = id.isNotEmpty() && pending.any { it.target == pc.pcId && it.item == id && it.kind == SyncAction.TICK_TASK }
                     session += TaskRowModel(
-                        TaskRef(TaskKind.Running, id), task.title, TaskText.line(TaskText.stepsLeft(task.subtasks)), task.category, task.categoryColor,
+                        TaskRef(TaskKind.Running, id), task.title, TaskText.line(TaskText.stepsLeft(task.subtasks)), task.category, colors.of(task.category, task.categoryColor),
                         number = index + 1, done = sending, isNow = id.isNotEmpty() && id == nowId, sending = sending, readOnly = id.isEmpty(),
                     )
                 }
@@ -87,7 +93,7 @@ class TasksModel(
                     if (!filter.allows(task.category, task.title, *stepTitles(task.subtasks))) return@forEach
                     val at = task.doneAt!!
                     done += at to TaskRowModel(
-                        TaskRef(TaskKind.DoneRunning, task.id!!), task.title, finished(at), task.category, task.categoryColor, done = true,
+                        TaskRef(TaskKind.DoneRunning, task.id!!), task.title, finished(at), task.category, colors.of(task.category, task.categoryColor), done = true,
                     )
                 }
             } else {
@@ -98,7 +104,7 @@ class TasksModel(
                     session += TaskRowModel(
                         TaskRef(TaskKind.Next, task.id), task.title,
                         TaskText.line(TaskText.stepsLeft(task.subtasks), task.estimateMinutes?.let(TaskText::estimate), TaskText.planned(task.plannedFor, today)),
-                        task.category, task.categoryColor, number = index + 1,
+                        task.category, colors.of(task.category, task.categoryColor), number = index + 1,
                     )
                 }
                 // Every ticked task of the list shows, whatever its day: it still counts toward the 3 until a session takes the list.
@@ -106,7 +112,7 @@ class TasksModel(
                     if (!filter.allows(task.category, task.title, task.note, *stepTitles(task.subtasks))) return@forEach
                     val at = task.doneAt!!
                     done += at to TaskRowModel(
-                        TaskRef(TaskKind.DoneNext, task.id), task.title, finished(at), task.category, task.categoryColor, done = true,
+                        TaskRef(TaskKind.DoneNext, task.id), task.title, finished(at), task.category, colors.of(task.category, task.categoryColor), done = true,
                     )
                 }
             }
@@ -119,25 +125,28 @@ class TasksModel(
                 val sending = item.id in waiting
                 TaskRowModel(
                     TaskRef(TaskKind.Later, item.id), item.title, TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, laterLine(item, today)),
-                    item.category, item.categoryColor, sending = sending,
+                    item.category, colors.of(item.category, item.categoryColor), sending = sending,
                 )
             }
             later.filter { it.doneAt != null }.forEach { item ->
                 if (!filter.allows(item.category, item.title, item.note, *stepTitles(item.subtasks))) return@forEach
                 val at = item.doneAt!!
-                done += at to TaskRowModel(TaskRef(TaskKind.DoneLater, item.id), item.title, finished(at), item.category, item.categoryColor, done = true)
+                done += at to TaskRowModel(TaskRef(TaskKind.DoneLater, item.id), item.title, finished(at), item.category, colors.of(item.category, item.categoryColor), done = true)
             }
 
             val categories = (
                 TaskCategoryChoices.forNextTasks(nextTasks, received) +
                     later.mapNotNull { item -> item.category?.let { Choice(it, item.categoryColor) } } +
                     parked.mapNotNull { item -> item.category?.let { Choice(it, item.categoryColor) } } +
-                    pc?.checklist?.tasks?.let(TaskCategoryChoices::forChecklist).orEmpty()
+                    pc?.checklist?.tasks?.let(TaskCategoryChoices::forChecklist).orEmpty() +
+                    // Last, so a choice that knows the PC's id for it is the one kept.
+                    colors.listed.map { Choice(it.name, it.color) }
                 ).distinctBy { it.name.lowercase() }.sortedBy { it.name.lowercase() }
+                .map { it.copy(color = colors.of(it.name, it.color)) }
 
             return TasksModel(
                 session = session,
-                comeBacks = comebackRows(comebacks, parked, pending, received, waiting, today, zone, filter),
+                comeBacks = comebackRows(comebacks, parked, pending, received, waiting, today, zone, filter, colors),
                 later = laterRows,
                 laterTotal = openLater.size,
                 nextDue = nextDue(openLater, today),
@@ -163,6 +172,7 @@ class TasksModel(
             today: LocalDate,
             zone: ZoneId,
             filter: TaskFilter,
+            colors: TaskCategoryColors,
         ): List<TaskRowModel> {
             val oldPc = comebacks.legacySource
             if (oldPc != null) {
@@ -184,7 +194,7 @@ class TasksModel(
                 TaskRowModel(
                     TaskRef(TaskKind.ComeBack, item.id), item.text,
                     TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, "Parked ${TaskText.whenText(item.createdAt, today, zone)}"),
-                    item.category, item.categoryColor, sending = sending,
+                    item.category, colors.of(item.category, item.categoryColor), sending = sending,
                 )
             }
         }

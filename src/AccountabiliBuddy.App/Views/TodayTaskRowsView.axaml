@@ -331,14 +331,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:TaskCategoryRowViewModel">
                             <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" Margin="0,2">
-                                <ComboBox ItemsSource="{Binding Colors}" SelectedItem="{Binding SelectedColor}" MinWidth="0"
-                                          AutomationProperties.Name="Colour">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:ColorChoice">
-                                            <Ellipse Width="14" Height="14" Fill="{Binding Brush}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
+                                <controls:CategoryColorButton />
                                 <TextBox Grid.Column="1" Classes="taskEntry" Text="{Binding Name}" LostFocus="OnCategoryNameLostFocus"
                                          AutomationProperties.Name="Category name">
                                     <TextBox.KeyBindings>

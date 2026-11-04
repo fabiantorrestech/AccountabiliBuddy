@@ -474,7 +474,7 @@
                                         <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
                                         <TextBlock Classes="muted" Text="{Binding SleepText}" />
                                     </StackPanel>
-                                    <controls:DayBarControl Layout="{Binding Layout}" OpenProfileCommand="{Binding OpenProfileCommand}"
+                                    <controls:DayBarControl Layout="{Binding Layout}" EventRequested="OnDayBarEvent" OpenProfileCommand="{Binding OpenProfileCommand}"
                                                             OpenDayPlanCommand="{Binding OpenDayPlanCommand}" AddSessionCommand="{Binding AddSessionCommand}" />
                                     <TextBlock Classes="muted" Text="{Binding SummaryText}" FontSize="12" TextWrapping="Wrap" />
                                 </StackPanel>

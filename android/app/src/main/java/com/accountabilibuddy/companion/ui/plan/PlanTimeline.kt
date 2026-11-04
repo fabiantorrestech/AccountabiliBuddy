@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.theme.Ab
 
@@ -32,23 +34,23 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * width of its own: the time column grows with the text size.
  */
 @Composable
-fun PlanTimeline(rows: List<PlanTimelineRow>, modifier: Modifier = Modifier) {
+fun PlanTimeline(rows: List<PlanTimelineRow>, modifier: Modifier = Modifier, onEvent: (com.accountabilibuddy.companion.model.CalendarEvent) -> Unit = {}) {
     val colors = Ab.colors
     // The time column follows the text size, so "10:15 PM" stays on one line at a large font.
     val timeWidth = (64 * LocalDensity.current.fontScale.coerceIn(1f, 1.6f)).dp
     Column(modifier.fillMaxWidth()) {
         rows.forEachIndexed { index, row ->
             if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
-            TimelineRow(row, timeWidth)
+            TimelineRow(row, timeWidth, onEvent)
         }
     }
 }
 
 @Composable
-private fun TimelineRow(row: PlanTimelineRow, timeWidth: androidx.compose.ui.unit.Dp) {
+private fun TimelineRow(row: PlanTimelineRow, timeWidth: androidx.compose.ui.unit.Dp, onEvent: (com.accountabilibuddy.companion.model.CalendarEvent) -> Unit) {
     val colors = Ab.colors
     Row(
-        Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().then(row.event?.let { event -> Modifier.clickable { onEvent(event) } } ?: Modifier).height(IntrinsicSize.Min).padding(vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(row.time, style = Ab.type.small, color = colors.muted, maxLines = 1, modifier = Modifier.width(timeWidth).padding(top = 2.dp))
@@ -60,7 +62,7 @@ private fun TimelineRow(row: PlanTimelineRow, timeWidth: androidx.compose.ui.uni
                 Spacer(Modifier.height(8.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (line in row.subRows) {
-                        if (line.isNowLine) NowLine(line.title) else SubRow(line)
+                        if (line.isNowLine) NowLine(line.title) else SubRow(line, onEvent)
                     }
                 }
             }
@@ -81,9 +83,10 @@ private fun barColor(row: PlanTimelineRow): Color {
 }
 
 @Composable
-private fun SubRow(line: PlanSubRow) {
+private fun SubRow(line: PlanSubRow, onEvent: (com.accountabilibuddy.companion.model.CalendarEvent) -> Unit) {
     val colors = Ab.colors
-    Surface(Modifier.fillMaxWidth(), shape = Ab.shapes.mediumShape, color = colors.surface2, contentColor = colors.ink) {
+    val tap = line.event?.let { event -> Modifier.clip(Ab.shapes.mediumShape).clickable { onEvent(event) } } ?: Modifier
+    Surface(Modifier.fillMaxWidth().then(tap), shape = Ab.shapes.mediumShape, color = colors.surface2, contentColor = colors.ink) {
         // The note at the end ("1h 10m done", "Calendar") sits at the right edge when there is room and drops to its own
         // line under the title when there isn't (a narrow phone or a large font), so the title never wraps letter by letter.
         FlowRow(

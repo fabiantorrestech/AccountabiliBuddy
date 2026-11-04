@@ -64,6 +64,15 @@ public partial class TodayView : UserControl
 
     // The main card changed state (idle, planning, running, shutdown): the page goes back to its top, so the new state isn't cut off
     // by the old scroll offset. After layout, once the new extent is known.
+    // A calendar event right-clicked on the day bar: its menu, at the pointer (ADR 64).
+    private void OnDayBarEvent(object? sender, AccountabiliBuddy.Core.Domain.CalendarEvent calendarEvent)
+    {
+        if (sender is Control { DataContext: DayBarViewModel { EventMenu: { } menu } } bar)
+        {
+            CalendarEventMenuPresenter.Show(bar, menu, calendarEvent, PlacementMode.Pointer);
+        }
+    }
+
     private void OnSessionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         // Only a real change of state (the property is also raised when something else changed under the same state).

@@ -13,7 +13,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// shorter cooling-off for looser changes.</item>
 /// </list>
 /// Rules are compared by what they match (target, kind, pattern), not by id, so editing a note is neutral.
-/// The day plan is never looser: it only says when the buddy watches (ADR 18).
+/// The day plan isn't compared here: a change that weakens what is left of today is held by <c>ConfigurationService.DayPlanHold</c> (ADR 28, 63).
 /// </summary>
 public static class LooseningDetector
 {

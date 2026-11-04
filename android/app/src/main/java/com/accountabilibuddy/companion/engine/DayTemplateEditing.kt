@@ -31,42 +31,57 @@ object DayTemplateEditing {
     fun timeOf(minutes: Int): LocalTime = LocalTime.of((minutes % MINUTES_PER_DAY) / 60, minutes % 60)
 
     /**
-     * A new hour-long part from [startMinute] (rounded down to 15 minutes), shortened to end where the next part starts.
-     * Null when that time already has a part or less than 15 minutes are free.
+     * True when the editor may lay these two categories' parts over each other: any two (ADR 63), given the plan's categories; none: no
+     * overlaps. As on the PC.
      */
-    /** A Pre-Work part may sit over Sleep (ADR 31), as on the PC; nothing else overlaps. */
-    fun mayOverlap(a: UUID, b: UUID, categories: List<DayCategory>): Boolean {
-        val first = categories.firstOrNull { it.id == a }?.behavior
-        val second = categories.firstOrNull { it.id == b }?.behavior
-        return (first == CategoryBehavior.PreWork && second == CategoryBehavior.Sleep) || (first == CategoryBehavior.Sleep && second == CategoryBehavior.PreWork)
-    }
+    fun mayOverlap(a: UUID, b: UUID, categories: List<DayCategory>): Boolean = categories.isNotEmpty()
 
+    /**
+     * A new hour-long part from [startMinute] (rounded down to 15 minutes), shortened to end where the next part starts. In a part's time
+     * it is laid over that part at its full hour (ADR 63). Null when, with no categories given, that time already has a part or less than 15 minutes are free.
+     */
     fun addAt(template: DayTemplate, startMinute: Int, categoryId: UUID, categories: List<DayCategory> = emptyList()): DayTemplate? {
         val start = (startMinute / SNAP_MINUTES * SNAP_MINUTES).coerceIn(0, MINUTES_PER_DAY - SNAP_MINUTES)
-        val taken = template.parts.filterNot { it.isFlexible || mayOverlap(categoryId, it.categoryId, categories) }.flatMap(::ranges)
-        if (taken.any { it.first <= start && start < it.second }) {
+        val taken = template.parts.filterNot { it.isFlexible }.flatMap(::ranges)
+        val fullEnd = min(start + NEW_PART_MINUTES, MINUTES_PER_DAY)
+        val overTaken = taken.any { it.first <= start && start < it.second }
+        if (overTaken && !mayOverlap(categoryId, categoryId, categories)) {
             return null
         }
 
-        val end = (taken.filter { it.first > start }.map { it.first } + min(start + NEW_PART_MINUTES, MINUTES_PER_DAY)).min()
+        var end = if (overTaken) fullEnd else (taken.filter { it.first > start }.map { it.first } + fullEnd).min()
         if (end - start < SNAP_MINUTES) {
-            return null
+            if (!mayOverlap(categoryId, categoryId, categories)) {
+                return null
+            }
+
+            end = fullEnd
         }
 
         return template.copy(parts = template.parts + PlanPart(UUID.randomUUID(), categoryId, timeOf(start), timeOf(end)))
     }
 
     /**
-     * Moves or resizes a part to [startMinute]–[endMinute] (snapped), cut back where it would run into another part.
-     * [crossesMidnight] is decided when the drag starts: a night part stays a night part, a day part a day part.
-     * Null when the change is refused or less than 15 minutes would be left.
+     * Moves or resizes a part to [startMinute]–[endMinute] (snapped); with no categories given, cut back where it would run into another part.
+     * [crossesMidnight] is decided when the drag starts: a night part stays a night part, a day part a day part. With [stickToNeighbours], an
+     * edge being dragged stops at a neighbour's edge for the first 15 minutes past it, so lining parts up doesn't overlap them by accident
+     * (ADR 63); dragging further overlaps. Null when the change is refused or less than 15 minutes would be left.
      */
     fun move(
-        template: DayTemplate, partId: UUID, startMinute: Int, endMinute: Int, crossesMidnight: Boolean, categories: List<DayCategory> = emptyList(),
+        template: DayTemplate, partId: UUID, startMinute: Int, endMinute: Int, crossesMidnight: Boolean, categories: List<DayCategory> = emptyList(), stickToNeighbours: Boolean = false,
     ): DayTemplate? {
         val part = template.parts.firstOrNull { it.id == partId } ?: return null
         var start = min(snap(startMinute.toDouble()), MINUTES_PER_DAY - SNAP_MINUTES)
         var end = snap(endMinute.toDouble())
+        if (stickToNeighbours && !crossesMidnight && !part.isFlexible) {
+            val startMoved = start != minutesOf(part.start)
+            val endMoved = end != endMinutes(part)
+            for ((otherStart, otherEnd) in template.parts.filter { it.id != partId && !it.isFlexible }.flatMap(::ranges)) {
+                if (endMoved && start < otherStart && otherStart < end && end <= otherStart + SNAP_MINUTES) end = otherStart
+                if (startMoved && otherEnd < end && otherEnd > start && start >= otherEnd - SNAP_MINUTES) start = otherEnd
+            }
+        }
+
         // A flexible break's window lies over the work around it (schema v8): neither pushes the other.
         val others = template.parts.filter { it.id != partId && !part.isFlexible && !it.isFlexible && !mayOverlap(part.categoryId, it.categoryId, categories) }
             .flatMap(::ranges).sortedBy { it.first }

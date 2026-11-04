@@ -460,6 +460,7 @@ object SyncFileJson {
         buildJsonObject {
             put("name", category.name)
             put("color", category.color)
+            category.colorEditedAt?.let { put("colorEditedAt", writeTime(it)) }
         }
     })
 
@@ -473,7 +474,8 @@ object SyncFileJson {
             val item = element as? JsonObject ?: return@mapNotNull null
             val name = item.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_CATEGORY_NAME_LENGTH } ?: return@mapNotNull null
             val color = item.optionalString("color")?.takeIf { it.matches(CATEGORY_COLOR) } ?: FALLBACK_CATEGORY_COLOR
-            SyncCategory(name, color)
+            // A stamp that isn't a time counts as none.
+            SyncCategory(name, color, runCatching { item.optionalTime("colorEditedAt") }.getOrNull())
         }.take(MAX_CATEGORIES)
     }
 

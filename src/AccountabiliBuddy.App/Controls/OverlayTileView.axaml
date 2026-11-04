@@ -6,6 +6,19 @@
              x:Class="AccountabiliBuddy.App.Controls.OverlayTileView"
              x:DataType="vm:TaskbarOverlayViewModel">
     <UserControl.Styles>
+        <!-- The clock: with its time or date kept solid it has a solid backing and a date in Ink, readable over any window. -->
+        <Style Selector="Border.clockBack">
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Border.clockBack.solid">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        </Style>
+        <Style Selector="TextBlock.clockDate">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="TextBlock.clockDate.solid">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
         <!-- Icon buttons: flat, 28 px, Muted until hovered (Surface2). -->
         <Style Selector="Button.tilebtn">
             <Setter Property="Width" Value="28" />
@@ -117,12 +130,14 @@
             </StackPanel>
         </DataTemplate>
         <DataTemplate x:Key="clock" x:DataType="vm:TaskbarOverlayViewModel">
-            <Button Classes="quiet" Command="{Binding OpenCalendarCommand}" Padding="6,2" MinHeight="0" VerticalAlignment="Center" AutomationProperties.Name="Open the calendar">
-                <StackPanel Spacing="0" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding ClockText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextAlignment="Right" />
-                    <TextBlock Text="{Binding DateText}" FontSize="11" Foreground="{DynamicResource Ab.Muted}" TextAlignment="Right" />
-                </StackPanel>
-            </Button>
+            <Border Classes="clockBack" Classes.solid="{Binding ClockBacked}" VerticalAlignment="Center">
+                <Button Classes="quiet" Command="{Binding OpenCalendarCommand}" Padding="6,2" MinHeight="0" VerticalAlignment="Center" AutomationProperties.Name="Open the calendar">
+                    <StackPanel Spacing="0" HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding ClockText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextAlignment="Right" Opacity="{Binding ClockTimeOpacity}" />
+                        <TextBlock Classes="clockDate" Classes.solid="{Binding ClockDateSolid}" Text="{Binding DateText}" FontSize="11" TextAlignment="Right" Opacity="{Binding ClockDateOpacity}" />
+                    </StackPanel>
+                </Button>
+            </Border>
         </DataTemplate>
         <DataTemplate x:Key="batteries" x:DataType="vm:TaskbarOverlayViewModel">
             <ItemsControl ItemsSource="{Binding Batteries}" VerticalAlignment="Center">
@@ -161,14 +176,16 @@
         </DataTemplate>
     </UserControl.Resources>
     <Panel>
-        <Border x:Name="Tile" Background="{DynamicResource Ab.Surface}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10,0" ClipToBounds="True">
+        <!-- The tile's fill and line, dimmed on their own, so a part can stay more solid than the tile around it. -->
+        <Border x:Name="TileBack" Background="{DynamicResource Ab.Surface}" BorderBrush="{Binding BorderBrush}" BorderThickness="1" CornerRadius="10" IsHitTestVisible="False" />
+        <Border x:Name="Tile" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="10" Padding="10,0" ClipToBounds="True">
             <StackPanel x:Name="Rows" VerticalAlignment="Center" Spacing="2">
                 <controls:PriorityRowPanel x:Name="MainRow" Spacing="12" VerticalAlignment="Center" />
                 <controls:PriorityRowPanel x:Name="ExtraRow" Spacing="12" VerticalAlignment="Center" IsVisible="False" />
             </StackPanel>
         </Border>
         <!-- 18d: a nudge went unread; the dot stays until the user looks. -->
-        <Ellipse Width="7" Height="7" Fill="{DynamicResource Ab.Waiting}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0"
+        <Ellipse x:Name="NudgeDot" Width="7" Height="7" Fill="{DynamicResource Ab.Waiting}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0"
                  IsVisible="{Binding HasNudgeDot}" IsHitTestVisible="False" />
     </Panel>
 </UserControl>

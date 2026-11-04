@@ -10,4 +10,6 @@ data class PlanSubRow(
     val right: String? = null,
     val isEvent: Boolean = false,
     val isNowLine: Boolean = false,
+    /** The calendar event this line stands for; a tap opens its sheet (ADR 64). */
+    val event: com.accountabilibuddy.companion.model.CalendarEvent? = null,
 )

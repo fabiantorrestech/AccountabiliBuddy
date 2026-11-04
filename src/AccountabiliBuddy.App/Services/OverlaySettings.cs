@@ -53,6 +53,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="PlacementChosen">The user picked a placement on the overlay page (the migration assistant's "set up?" check); saving anything else does not set it.</param>
 /// <param name="PeekKeysLocked">While the panel only peeks (Ctrl+Alt held), it registers no keyboard shortcuts at all; true by default and for saved settings without the field. Unlocked, a peek registers only the safe ones (hide, +10 min, up, down). The sticky panel takes its keys by focus either way.</param>
 /// <param name="PeekDelayMs">How long Ctrl+Alt is held before the peek opens (0 = at once, up to 600); 150 by default and for saved settings without the field. At 0 the panel flashes on every Ctrl+Alt+key shortcut of another app.</param>
+/// <param name="SolidClockTime">The tile's time stays fully solid whatever the opacity, so it can be read at a glance.</param>
+/// <param name="SolidClockDate">The same for the tile's date.</param>
 /// <param name="SideTileY">Where the vertical tile was dragged to along the screen edge (physical pixels from the top); null = the middle.</param>
 /// <param name="HideShortcutOn">Ctrl+Alt+H is registered system-wide and toggles <paramref name="HiddenByShortcut"/>. On by default and for saved settings without the field.</param>
 /// <param name="HiddenByShortcut">The overlay is hidden until Ctrl+Alt+H is pressed again; a held Ctrl+Alt still peeks. Kept across sessions and restarts, this PC only.</param>
@@ -109,7 +111,9 @@ public sealed record OverlaySettings(
     bool HiddenByShortcut = false,
     bool HideShortcutSeen = false,
     bool OverlayOn = true,
-    bool OffFromPanel = false)
+    bool OffFromPanel = false,
+    bool SolidClockTime = true,
+    bool SolidClockDate = true)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;

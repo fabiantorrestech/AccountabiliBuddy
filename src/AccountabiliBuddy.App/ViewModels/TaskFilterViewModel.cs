@@ -115,6 +115,25 @@ public sealed partial class TaskFilterViewModel : ObservableObject
     /// <summary>True when the chosen categories are exactly this one (the top chip reads as selected).</summary>
     public bool IsOnlyCategory(Guid id) => SingleCategoryId == id;
 
+    /// <summary>The choices as they are now, in the shape they are saved in.</summary>
+    public TaskViewPreferences Snapshot()
+    {
+        // Every status on is saved as the empty list, the same as "never chosen".
+        var statuses = _statuses.Count == AllStatuses.Length ? [] : _statuses.Select(status => status.ToString()).ToList();
+        return new TaskViewPreferences(statuses, _categoryIds.ToList(), _includesNoCategory, Due.ToString(), Sort.ToString());
+    }
+
+    /// <summary>
+    /// Takes the choices of a saved filter, replacing the ones in force. A category it names that no longer exists is dropped when the
+    /// list is built again (<see cref="SetCategories"/>).
+    /// </summary>
+    public void Restore(TaskViewPreferences saved)
+    {
+        ResetChoices();
+        Load(saved);
+        Apply();
+    }
+
     private void ToggleStatus(TaskStatusKind status)
     {
         if (_statuses.Contains(status))
@@ -151,13 +170,18 @@ public sealed partial class TaskFilterViewModel : ObservableObject
 
     private void Clear()
     {
+        ResetChoices();
+        Apply();
+    }
+
+    private void ResetChoices()
+    {
         _statuses.Clear();
         _statuses.UnionWith(AllStatuses);
         _categoryIds.Clear();
         _includesNoCategory = false;
         Due = TaskDueFilter.Any;
         Sort = TaskSortMode.Default;
-        Apply();
     }
 
     private void Apply()
@@ -269,9 +293,7 @@ public sealed partial class TaskFilterViewModel : ObservableObject
 
     private void Save()
     {
-        // Every status on is saved as the empty list, the same as "never chosen".
-        var statuses = _statuses.Count == AllStatuses.Length ? [] : _statuses.Select(status => status.ToString()).ToList();
-        _ = _store.SaveAsync(new TaskViewPreferences(statuses, _categoryIds.ToList(), _includesNoCategory, Due.ToString(), Sort.ToString()));
+        _ = _store.SaveAsync(Snapshot());
     }
 
     private static string StatusLabel(TaskStatusKind status) => status switch

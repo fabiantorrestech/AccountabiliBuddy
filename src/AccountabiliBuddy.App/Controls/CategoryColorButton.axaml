@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Controls.CategoryColorButton"
+             x:DataType="vm:TaskCategoryRowViewModel">
+    <!-- A task category's colour: the swatch opens the editor. Its data context is the category's row. -->
+    <UserControl.Styles>
+        <Style Selector="Button.preset">
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.preset /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.preset:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.preset.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
+    <Button Classes="quiet" Padding="8" MinHeight="0" MinWidth="0" VerticalAlignment="Center" AutomationProperties.Name="Colour" ToolTip.Tip="Change the colour">
+        <Ellipse Width="14" Height="14" Fill="{Binding ColorBrush}" Stroke="#80808080" StrokeThickness="1" />
+        <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft" Opening="OnEditorOpening" Closed="OnEditorClosed">
+                <StackPanel Width="290" Spacing="12" DataContext="{Binding ColorEditor}" Loaded="OnEditorLoaded">
+                    <ItemsControl ItemsSource="{Binding Presets}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ColorPresetViewModel">
+                                <Button Classes="preset" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Hex}"
+                                        ToolTip.Tip="{Binding Hex}">
+                                    <Ellipse Width="20" Height="20" Fill="{Binding Brush}" />
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <ItemsControl ItemsSource="{Binding Channels}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ColorChannelViewModel">
+                                <Grid ColumnDefinitions="48,*,64" ColumnSpacing="8" Margin="0,2">
+                                    <TextBlock Classes="muted" Text="{Binding Label}" FontSize="13" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="255" Value="{Binding Value}" VerticalAlignment="Center"
+                                            AutomationProperties.Name="{Binding Label}" />
+                                    <NumericUpDown Grid.Column="2" Minimum="0" Maximum="255" Increment="1" FormatString="0" Value="{Binding BoxValue}" ShowButtonSpinner="False"
+                                                   VerticalAlignment="Center" AutomationProperties.Name="{Binding Label}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <Ellipse Width="24" Height="24" Fill="{Binding PreviewBrush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding HexText}" MaxLength="7" PlaceholderText="#RRGGBB" AutomationProperties.Name="Colour as hex" />
+                    </Grid>
+                    <TextBlock Text="A colour is six hex digits, like #2563EB." Foreground="{DynamicResource Ab.Drift}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding IsHexBad}" />
+                    <TextBlock Classes="faint" Text="Kept when this closes; Esc leaves it as it was." FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

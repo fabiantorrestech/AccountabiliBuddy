@@ -53,6 +53,8 @@ fun AddField(
     onPick: (TaskRowModel) -> Unit = {},
     /** Opens the "From your lists" sheet; no button when null. */
     onBrowse: (() -> Unit)? = null,
+    /** Drawn after the plus: the category new tasks go in, on the Tasks tab. */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val colors = Ab.colors
     var text by typed
@@ -75,6 +77,7 @@ fun AddField(
     Surface(Modifier.fillMaxWidth().heightIn(min = 56.dp), shape = Ab.shapes.pill, color = colors.surface2, contentColor = colors.muted) {
         Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Outlined.Add, contentDescription = null, tint = if (accentPlus && enabled) colors.accent else colors.muted, modifier = Modifier.size(24.dp))
+            leading?.invoke()
             Box(Modifier.weight(1f).padding(vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
                 if (text.isEmpty()) Text(placeholder, style = Ab.type.body, color = if (enabled) colors.muted else colors.faint, maxLines = 2)
                 BasicTextField(

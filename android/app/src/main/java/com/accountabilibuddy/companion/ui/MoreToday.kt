@@ -83,7 +83,7 @@ internal fun DayBarCard(model: DayBarModel) {
                 Text(line.text, style = Ab.type.bodyMedium, color = colour)
             }
         }
-        DayBar(model)
+        com.accountabilibuddy.companion.ui.plan.EventActionsHost { onEvent -> DayBar(model, onEvent = onEvent) }
         FocusLegend(model.focusLegend)
         if (model.summaryText.isNotEmpty()) Text(model.summaryText, style = Ab.type.small, color = Ab.colors.muted)
     }

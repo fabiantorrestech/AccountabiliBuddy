@@ -188,7 +188,7 @@ public static class TimelineRowsBuilder
         {
             if (DayTimeline.Clip(item.Window, range) is LocalWindow shown)
             {
-                spans.Add(ToSpan(shown, range, item.Tip) with { Color = item.Color, IsSliver = item.AllDay });
+                spans.Add(ToSpan(shown, range, item.Tip) with { Color = item.Color, IsSliver = item.AllDay, Event = item.Event });
             }
             else if (allowEmpty && item.Window.Start >= range.Start && item.Window.Start <= range.End)
             {

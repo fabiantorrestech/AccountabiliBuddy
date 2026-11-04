@@ -119,12 +119,16 @@ internal fun PlanScreenBody(
         pickedDay = if (date == today) FOLLOW_TODAY else date.toEpochDay()
     }
     // ADR 58: the timeline shows the plan the guards read (calendar events over the stored plan); editing stays on the stored one.
-    val plan = (LocalContext.current.applicationContext as CompanionApp).effectivePlan(state)
+    val app = LocalContext.current.applicationContext as CompanionApp
+    val plan = app.effectivePlan(state)
 
     val minute = now.truncatedTo(ChronoUnit.MINUTES)
     val timeline = remember(plan, selected, minute, state.events, focusedToday, model.today) {
+        // The PC's events, and any only in this phone's own calendar (the same event in both shows once: the PC's copy, which the PC can answer for).
+        val pcLooks = state.events.map { Triple(it.title.trim().lowercase(Locale.ROOT), it.localStart, it.localEnd) }.toSet()
+        val ownOnly = app.calendarOverlay.ownEvents.filter { Triple(it.title.trim().lowercase(Locale.ROOT), it.localStart, it.localEnd) !in pcLooks }
         PlanTimelineBuilder.build(
-            plan = plan, date = selected, now = now, events = state.events,
+            plan = plan, date = selected, now = now, events = state.events + ownOnly,
             focused = if (selected == today) focusedToday else Duration.ZERO,
             goal = Duration.ofMinutes((model.today?.goalMinutes ?: 0).toLong()),
             nightFallback = state.sleep::fallbackNightBefore, clock = clock,
@@ -164,6 +168,7 @@ internal fun PlanScreenBody(
         locked = guardsLock != null,
     )
 
+    com.accountabilibuddy.companion.ui.plan.EventActionsHost { onEvent ->
     PlanPane(
         model = paneModel,
         actions = PlanPaneActions(
@@ -175,8 +180,10 @@ internal fun PlanScreenBody(
             onCategories = onCategories,
             onSetWeek = onSetWeek,
             onDiscardEdit = onDiscardPlanEdit,
+            onEvent = onEvent,
         ),
     )
+    }
 }
 
 private const val FOLLOW_TODAY = Long.MIN_VALUE

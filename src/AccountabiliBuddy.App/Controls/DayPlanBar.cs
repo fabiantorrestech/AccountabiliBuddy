@@ -11,9 +11,10 @@ using Avalonia.Styling;
 namespace AccountabiliBuddy.App.Controls;
 
 /// <summary>
-/// The day plan editor's 24-hour bar: each part in its category's colour with its name. Click empty space to add a
-/// part, click a part to select it, drag an edge to resize it or its middle to move it (snaps to 15 minutes, never
-/// into another part). A part that crosses midnight shows at both ends; its edges resize it, it can't be moved whole.
+/// The day plan editor's 24-hour bar: each part in its category's colour with its name, and parts that overlap on rows of their own
+/// (ADR 63), so a covered one can still be picked; the weaker rules win in the time they share. Click empty space to add a part, the
+/// strip under the rows to lay a new part over what's there, a part to select it; drag an edge to resize it or its middle to move it
+/// (snaps to 15 minutes). A part that crosses midnight shows at both ends; its edges resize it, it can't be moved whole.
 /// </summary>
 public sealed class DayPlanBar : Control
 {
@@ -21,9 +22,12 @@ public sealed class DayPlanBar : Control
         AvaloniaProperty.Register<DayPlanBar, DayPlanEditorViewModel?>(nameof(Editor));
 
     private const double BarTop = 2;
-    private const double BarHeight = 30;
-    private const double AxisTop = 36;
-    private const double TotalHeight = 52;
+    private const double SingleRowHeight = 30;
+    private const double RowHeight = 22;
+    private const double RowGap = 2;
+    private const double AddStripHeight = 12;
+    private const double AxisGap = 4;
+    private const double AxisHeight = 16;
     private const double EdgeGrab = 6;
     private const int MinutesPerDay = 24 * 60;
 
@@ -67,8 +71,20 @@ public sealed class DayPlanBar : Control
     protected override Size MeasureOverride(Size availableSize)
     {
         double width = double.IsInfinity(availableSize.Width) ? 600 : availableSize.Width;
-        return new Size(width, TotalHeight);
+        return new Size(width, AxisTop + AxisHeight);
     }
+
+    private int RowCount => Math.Max(1, Pieces().Where(piece => !piece.Row.IsFlexible).Select(piece => piece.Lane + 1).DefaultIfEmpty(1).Max());
+
+    private double LaneHeight => RowCount == 1 ? SingleRowHeight : RowHeight;
+
+    private double BarHeight => RowCount * LaneHeight + (RowCount - 1) * RowGap;
+
+    private double StripTop => BarTop + BarHeight + RowGap;
+
+    private double AxisTop => StripTop + AddStripHeight + AxisGap;
+
+    private double LaneTop(int lane) => BarTop + lane * (LaneHeight + RowGap);
 
     public override void Render(DrawingContext context)
     {
@@ -78,11 +94,15 @@ public sealed class DayPlanBar : Control
         double width = Bounds.Width;
 
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
-        context.DrawRectangle(trackBrush, null, new Rect(0, BarTop, width, BarHeight), 5, 5);
+        double barHeight = BarHeight;
+        double laneHeight = LaneHeight;
+        double axisTop = AxisTop;
+        context.DrawRectangle(trackBrush, null, new Rect(0, BarTop, width, barHeight), 5, 5);
+        context.DrawRectangle(trackBrush, null, new Rect(0, StripTop, width, AddStripHeight), 3, 3);
 
         foreach (Piece piece in Pieces())
         {
-            Rect box = new(X(piece.Start), BarTop, Math.Max(1, X(piece.End) - X(piece.Start)), BarHeight);
+            Rect box = new(X(piece.Start), LaneTop(piece.Lane), Math.Max(1, X(piece.End) - X(piece.Start)), laneHeight);
             // A flexible break's window lies over the work around it: see-through with a dashed edge.
             var fill = new SolidColorBrush(Color.Parse(piece.Row.Color), piece.Row.IsFlexible ? 0.35 : 0.85);
             IPen? edge = piece.Row.IsSelected ? SelectedOutline
@@ -97,7 +117,7 @@ public sealed class DayPlanBar : Control
             };
             if (box.Width > 24)
             {
-                context.DrawText(name, new Point(box.X + 4, BarTop + (BarHeight - name.Height) / 2));
+                context.DrawText(name, new Point(box.X + 4, box.Y + (box.Height - name.Height) / 2));
             }
         }
 
@@ -106,10 +126,10 @@ public sealed class DayPlanBar : Control
         for (int hour = 0; hour <= 24; hour += 3)
         {
             double x = X(hour * 60);
-            context.DrawLine(tickPen, new Point(x, BarTop + BarHeight), new Point(x, AxisTop));
+            context.DrawLine(tickPen, new Point(x, StripTop + AddStripHeight), new Point(x, axisTop));
             string label = twelveHour ? $"{(hour % 12 == 0 ? 12 : hour % 12)}{(hour % 24 < 12 ? "a" : "p")}" : $"{hour % 24:00}";
             var text = new FormattedText(label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, TextTypeface, 10, textBrush);
-            context.DrawText(text, new Point(Math.Clamp(x - text.Width / 2, 0, Math.Max(0, width - text.Width)), AxisTop + 1));
+            context.DrawText(text, new Point(Math.Clamp(x - text.Width / 2, 0, Math.Max(0, width - text.Width)), axisTop + 1));
         }
     }
 
@@ -122,7 +142,7 @@ public sealed class DayPlanBar : Control
         }
 
         Point at = e.GetPosition(this);
-        Piece? piece = PieceAt(at.X);
+        Piece? piece = PieceAt(at);
         if (piece is null)
         {
             editor.AddAt(MinuteAt(at.X));
@@ -151,11 +171,13 @@ public sealed class DayPlanBar : Control
         Point at = e.GetPosition(this);
         if (_drag is not { } drag || Editor is not { } editor)
         {
-            Piece? piece = PieceAt(at.X);
+            Piece? piece = PieceAt(at);
             Cursor = piece is null ? CrossCursor
                 : EdgeAt(piece, at.X) is not null ? ResizeCursor
                 : HandCursor;
-            ToolTip.SetTip(this, piece is null ? "Click to add a part here" : TipFor(piece));
+            ToolTip.SetTip(this, piece is not null ? TipFor(piece)
+                : at.Y >= StripTop ? "Click to lay a new part over what's here. Where parts overlap, the weaker rules win."
+                : "Click to add a part here");
             return;
         }
 
@@ -207,10 +229,14 @@ public sealed class DayPlanBar : Control
 
     private void OnEditorChanged(object? sender, EventArgs e)
     {
+        InvalidateMeasure();
         InvalidateVisual();
     }
 
-    /// <summary>What each part looks like on the bar; a midnight-crossing part is two pieces (evening and morning).</summary>
+    /// <summary>
+    /// What each part looks like on the bar; a midnight-crossing part is two pieces (evening and morning). Each part takes the first row
+    /// with room; a flexible break's window stays on the first row, over the work around it, and takes no room.
+    /// </summary>
     private IEnumerable<Piece> Pieces()
     {
         if (Editor is null)
@@ -218,6 +244,7 @@ public sealed class DayPlanBar : Control
             yield break;
         }
 
+        var lanes = new List<List<(int Start, int End)>>();
         foreach (PlanPartRowViewModel row in Editor.Parts)
         {
             if (row.ToPart() is not PlanPart part)
@@ -225,19 +252,42 @@ public sealed class DayPlanBar : Control
                 continue;
             }
 
-            foreach ((int start, int end) in DayTemplateEditing.Ranges(part))
+            List<(int Start, int End)> ranges = DayTemplateEditing.Ranges(part).ToList();
+            int lane = 0;
+            if (!part.IsFlexible)
             {
-                yield return new Piece(row, start, end,
+                lane = lanes.FindIndex(taken => !taken.Any(used => ranges.Any(range => range.Start < used.End && used.Start < range.End)));
+                if (lane < 0)
+                {
+                    lane = lanes.Count;
+                    lanes.Add([]);
+                }
+
+                lanes[lane].AddRange(ranges);
+            }
+
+            foreach ((int start, int end) in ranges)
+            {
+                yield return new Piece(row, lane, start, end,
                     StartIsEdge: !part.CrossesMidnight || start > 0,
                     EndIsEdge: !part.CrossesMidnight || end < MinutesPerDay);
             }
         }
     }
 
-    private Piece? PieceAt(double x)
+    private Piece? PieceAt(Point at)
     {
+        // The strip under the rows only adds, and the axis below it does too.
+        if (at.Y >= StripTop)
+        {
+            return null;
+        }
+
+        double x = at.X;
+        double laneHeight = LaneHeight;
         // Selected first, so a part being edited wins where pieces touch.
-        return Pieces().OrderByDescending(piece => piece.Row.IsSelected)
+        return Pieces().Where(piece => at.Y >= LaneTop(piece.Lane) - RowGap && at.Y <= LaneTop(piece.Lane) + laneHeight + RowGap)
+            .OrderByDescending(piece => piece.Row.IsSelected)
             .FirstOrDefault(piece => x >= X(piece.Start) - EdgeGrab && x <= X(piece.End) + EdgeGrab
                                      && (x >= X(piece.Start) && x <= X(piece.End) || EdgeAt(piece, x) is not null));
     }
@@ -274,7 +324,7 @@ public sealed class DayPlanBar : Control
         Whole,
     }
 
-    private sealed record Piece(PlanPartRowViewModel Row, int Start, int End, bool StartIsEdge, bool EndIsEdge);
+    private sealed record Piece(PlanPartRowViewModel Row, int Lane, int Start, int End, bool StartIsEdge, bool EndIsEdge);
 
     /// <param name="GrabOffset">Minutes from the part's start to where it was grabbed (moving a whole part).</param>
     /// <param name="CrossesMidnight">Whether the part was a night part when the drag started; it stays one.</param>

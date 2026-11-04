@@ -13,7 +13,7 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Text">
 /// The thought to park (park); a <see cref="SyncStartRequest"/> as JSON (start); the reason's length only, e.g. "24"
 /// (end early); a <see cref="SyncDayPlanEditRequest"/> as JSON (day plan edit); a <see cref="SyncNoiseRequest"/> as JSON (noise);
-/// a <see cref="SyncTaskRequest"/> as JSON (task add, edit, reorder).
+/// a <see cref="SyncTaskRequest"/> as JSON (task add, edit, reorder); a <see cref="SyncEventClassifyRequest"/> as JSON (classify event).
 /// </param>
 /// <param name="At">When it was done on the phone.</param>
 public sealed record SyncAction(Guid Id, string Kind, Guid Target, Guid? Item, string? Text, DateTimeOffset At)
@@ -47,4 +47,7 @@ public sealed record SyncAction(Guid Id, string Kind, Guid Target, Guid? Item, s
 
     /// <summary>Put the running session's tasks in a new order (ADR 48); taken only within 2 minutes.</summary>
     public const string KindTaskReorder = "taskReorder";
+
+    /// <summary>Classify one of the PC's calendar events, or make a keyword rule from it (ADR 64); taken only within a day.</summary>
+    public const string KindClassifyEvent = "classifyEvent";
 }

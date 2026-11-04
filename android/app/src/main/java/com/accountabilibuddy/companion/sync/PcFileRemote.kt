@@ -39,6 +39,29 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     /** The PC's end-early offer while the phone counts it down; null when none is open. */
     val offer: StateFlow<OpenOffer?> = _offer.asStateFlow()
 
+    /**
+     * Asks the PC to classify one of the events in its file (ADR 64), named by title and times since its keys stay on the PC. The PC applies its own rules: a session
+     * refuses it and a looser change waits. Null when sent, else why not.
+     */
+    fun classifyEvent(event: com.accountabilibuddy.companion.model.CalendarEvent, scope: String, choice: String, categoryId: UUID?, keyword: String? = null): String? {
+        val pc = target() ?: return "No PC has synced with this phone yet."
+        if (!PcFileControl.supportsEventClassify(pc.file.device)) {
+            return "Update AccountabiliBuddy on ${pc.file.device.name} to classify its events from here."
+        }
+
+        val request = buildJsonObject {
+            put("title", event.title)
+            put("start", EVENT_TIME.format(event.localStart))
+            put("end", EVENT_TIME.format(event.localEnd))
+            put("scope", scope)
+            put("choice", choice)
+            categoryId?.let { put("categoryId", it.toString()) }
+            keyword?.let { put("keyword", it) }
+        }
+        actions.add(SyncAction.CLASSIFY_EVENT, pc.file.device.deviceId, text = request.toString())
+        return null
+    }
+
     /** Shows [message] once, like a PC's answer (why a change could not be sent). */
     fun tell(message: String) {
         _news.value = message
@@ -218,6 +241,12 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
             return
         }
 
+        if (action.kind == SyncAction.CLASSIFY_EVENT) {
+            // Only what went wrong needs saying: the event's new category shows with the file.
+            if (result == null || !result.ok) _news.value = result?.message ?: "${pc.file.device.name} didn't take it."
+            return
+        }
+
         if (action.kind !in SyncAction.CONTROL_KINDS) {
             return
         }
@@ -308,6 +337,16 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     }
 
     companion object {
+        const val EVENT_SCOPE_THIS = "this"
+        const val EVENT_SCOPE_SERIES = "series"
+        const val EVENT_SCOPE_KEYWORD = "keyword"
+        const val EVENT_CHOICE_CATEGORY = "category"
+        const val EVENT_CHOICE_DONT = "dontClassify"
+        const val EVENT_CHOICE_AUTOMATIC = "automatic"
+
+        // Local wall-clock time with seconds, as the PC reads it.
+        private val EVENT_TIME: java.time.format.DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
+
         private const val KEY_CHOSEN = "chosen"
         private const val TOO_LATE = "Too late — ask to end it again."
         /** How long a request to a PC is worth answering. */

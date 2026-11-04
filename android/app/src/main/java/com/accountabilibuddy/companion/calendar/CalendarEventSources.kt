@@ -38,6 +38,7 @@ object CalendarEventSources {
         owned: List<CalendarEvent>,
         files: List<PcCalendarFile>,
         now: Instant,
+        classifications: List<com.accountabilibuddy.companion.model.EventClassification> = emptyList(),
     ): List<ClassifiedEvent> {
         val carried = carriedFrom(plan, files, now)
         val carriedByLook = HashMap<Triple<String, LocalDateTime, LocalDateTime>, MutableList<ClassifiedEvent>>()
@@ -46,15 +47,16 @@ object CalendarEventSources {
         val result = ArrayList<ClassifiedEvent>()
         val matched = HashSet<ClassifiedEvent>()
         for (event in owned) {
-            val own = EventCategoryResolver.categoryOf(event, plan, rules)
+            val own = EventCategoryResolver.categoryOf(event, plan, rules, classifications)
+            val ownByHand = EventCategoryResolver.isChosenByHand(event, classifications)
             val twins = carriedByLook[lookOf(event)].orEmpty()
             val twin = twins.maxByOrNull { strictness(it.category) }
             matched.addAll(twins)
             val item = when {
-                twin == null -> own?.let { ClassifiedEvent(event, it) }
+                twin == null -> own?.let { ClassifiedEvent(event, it, byHand = ownByHand) }
                 own == null || strictness(twin.category) > strictness(own) ->
-                    ClassifiedEvent(event, twin.category, carried = true, carriedKnownSince = twin.carriedKnownSince)
-                else -> ClassifiedEvent(event, own)
+                    ClassifiedEvent(event, twin.category, carried = true, carriedKnownSince = twin.carriedKnownSince, byHand = twin.byHand)
+                else -> ClassifiedEvent(event, own, byHand = ownByHand)
             }
             if (item != null) result += item
         }
@@ -75,7 +77,7 @@ object CalendarEventSources {
 
                 // A PC's ids stay apart from this phone's and from another PC's.
                 val keyed = event.copy(calendarId = "pc:${file.deviceId}:${event.calendarId}")
-                result += ClassifiedEvent(keyed, category, carried = true, carriedKnownSince = event.knownSince)
+                result += ClassifiedEvent(keyed, category, carried = true, carriedKnownSince = event.knownSince, byHand = event.categoryByHand)
             }
         }
 

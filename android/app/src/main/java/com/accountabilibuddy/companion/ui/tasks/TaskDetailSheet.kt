@@ -75,8 +75,10 @@ fun TaskDetailSheet(
     onDismiss: () -> Unit,
     /** True on a tablet: the details fill a pane beside the list instead of rising as a sheet. Everything else is the same. */
     inline: Boolean = false,
+    /** The category menu's "New category…". */
+    onCreateCategory: ((String) -> Choice)? = null,
 ) {
-    TaskDetailSheetBody(detail, categories, actions, onCommit, onDismiss, inline)
+    TaskDetailSheetBody(detail, categories, actions, onCommit, onDismiss, inline, onCreateCategory)
 }
 
 @Composable
@@ -87,6 +89,7 @@ private fun TaskDetailSheetBody(
     onCommit: (before: TaskFields, after: TaskFields) -> Unit,
     onDismiss: () -> Unit,
     inline: Boolean,
+    onCreateCategory: ((String) -> Choice)?,
 ) {
     val colors = Ab.colors
     val commitTo by rememberUpdatedState(onCommit)
@@ -158,7 +161,7 @@ private fun TaskDetailSheetBody(
             if (detail.editsDetails || detail.hasDueDate) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (detail.editsDetails) {
-                        TaskCategoryMenu(categories, draft.category, onSelect = { choice -> change(draft.copy(category = choice?.name, categoryColor = choice?.color)) })
+                        TaskCategoryMenu(categories, draft.category, onCreate = onCreateCategory, onSelect = { choice -> change(draft.copy(category = choice?.name, categoryColor = choice?.color)) })
                     }
                     if (detail.hasDueDate) DueDateMenu(draft.dueOn, onChange = { change(draft.copy(dueOn = it)) })
                 }

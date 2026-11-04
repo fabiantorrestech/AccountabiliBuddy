@@ -59,6 +59,47 @@ public static class DayPlanCut
         return onOverlaid > onStored ? onOverlaid : onStored;
     }
 
+    /// <summary>
+    /// How much of what is left of today a day plan change makes less strict (ADR 63): the time whose part drops to a lower rank
+    /// (<see cref="CategoryStrictness.OverlapRank"/>), such as Comms laid over Work or Rest over Pre-Work. Time with no part counts as Rest:
+    /// neither is guarded, so taking a Rest part away weakens nothing. A flexible break's window doesn't count until it is taken.
+    /// </summary>
+    public static TimeSpan WeakenedToday(DayPlan before, DayPlan after, DateTime localNow, Func<DateOnly, TimeSpan>? focusedOn = null, Func<DateOnly, SleepTimes?>? nightFallback = null)
+    {
+        var rest = new LocalWindow(localNow, localNow.Date.AddDays(1));
+        if (rest.End <= rest.Start)
+        {
+            return TimeSpan.Zero;
+        }
+
+        IReadOnlyList<PlannedPart> was = DayWorkWindows.PartsIn(before, rest, localNow, focusedOn, nightFallback);
+        IReadOnlyList<PlannedPart> now = DayWorkWindows.PartsIn(after, rest, localNow, focusedOn, nightFallback);
+        List<DateTime> edges = was.Concat(now)
+            .SelectMany(part => new[] { part.Window.Start, part.Window.End })
+            .Append(rest.Start).Append(rest.End)
+            .Distinct().Order().ToList();
+        TimeSpan weakened = TimeSpan.Zero;
+        for (int i = 0; i + 1 < edges.Count; i++)
+        {
+            if (RankAt(now, edges[i]) < RankAt(was, edges[i]))
+            {
+                weakened += edges[i + 1] - edges[i];
+            }
+        }
+
+        return weakened;
+    }
+
+    // Parts are cut so only the pairs that stay layered share a moment; of those the stricter says what the moment is (Pre-Work over Sleep).
+    private static int RankAt(IReadOnlyList<PlannedPart> parts, DateTime moment)
+    {
+        const int nothingPlanned = 1;
+        return parts.Where(part => !part.Part.IsFlexible && part.Window.Contains(moment))
+            .Select(part => CategoryStrictness.OverlapRank(part.Category.Behavior))
+            .Append(nothingPlanned)
+            .Max();
+    }
+
     private static IReadOnlyList<LocalWindow> Work(DayPlan plan, LocalWindow rest, DateTime localNow, Func<DateOnly, TimeSpan>? focusedOn, Func<DateOnly, SleepTimes?>? nightFallback)
     {
         return DayWorkWindows.WorkWindows(plan, rest, localNow, focusedOn, nightFallback).Select(focus => focus.Window).ToList();

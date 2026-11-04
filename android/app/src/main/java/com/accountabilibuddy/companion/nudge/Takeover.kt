@@ -53,7 +53,7 @@ object Takeover {
     }
 
     /**
-     * The card was hidden without an answer: checks every 3 s, through [maybeShow] and all its conditions, and brings it back.
+     * The card was hidden without an answer: checks at 0.3 s and 1 s, then every 2 s, through [maybeShow] and all its conditions, and brings it back.
      * Stops once it's answered or back, when the screen goes off or locks, or while nothing may nudge; an unlock or the next
      * refresh shows it again then. An allowed app or a call in front keeps it waiting here.
      */
@@ -62,8 +62,9 @@ object Takeover {
         val store = NudgeStore(app)
         stopWatchingUnanswered()
         returnWatch = scope.launch {
+            var checks = 0
             while (isActive) {
-                delay(RETURN_CHECK_MS)
+                delay(RETURN_CHECK_DELAYS_MS.getOrElse(checks++) { RETURN_CHECK_MS })
                 if (app.nudgeOnScreen || !store.load().unanswered || !inUse(app)) return@launch
                 val focus = nudgeFocus(app) ?: return@launch
                 maybeShow(app, focus, ClockFormat(is24Hour = false))
@@ -72,7 +73,7 @@ object Takeover {
     }
 
     // The app that came to the front last. The usage log only holds the moment an app came forward, so an app open for a long time
-    // is found by looking back an hour the first time; after that only the time since the last read is queried (every 3 s while the
+    // is found by looking back an hour the first time; after that only the time since the last read is queried (every 2 s while the
     // card waits) and the last answer stands until something else comes forward.
     private var frontCheckedAt: Instant? = null
     private var front: Pair<String, String?>? = null
@@ -202,7 +203,11 @@ object Takeover {
     }
 
     private const val TAG = "Takeover"
-    private const val RETURN_CHECK_MS = 3_000L
+    // Quick at first, with a second try in case Android's Home animation was still running at the first.
+    private val RETURN_CHECK_DELAYS_MS = longArrayOf(300L, 700L)
+
+    // Slower while the card waits (an allowed app or a call in front): each check reads the usage log.
+    private const val RETURN_CHECK_MS = 2_000L
     private val CLOCK_PACKAGES = setOf("com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage")
     private const val FRONT_LOOKBACK_SECONDS = 3_600L
     private const val WINDOW_SETTLE_MS = 150L

@@ -50,6 +50,9 @@ public sealed class SyncActionsService
     private readonly TimeProvider _time;
     private readonly SyncEndEarlyOffers _offers = new();
 
+    /// <summary>What classifies an event a phone asked about (ADR 64); set by the app once the calendars and lists exist.</summary>
+    public CalendarEventActions? EventActions { get; set; }
+
     // When this PC first saw each action still in a file (its file's arrival). In memory: applied ones are kept by id.
     private readonly Dictionary<Guid, DateTimeOffset> _firstSeen = [];
     private List<AppliedAction> _applied = [];
@@ -271,9 +274,28 @@ public sealed class SyncActionsService
             case SyncAction.KindTaskEdit:
             case SyncAction.KindTaskReorder:
                 return await ChangeTasksAsync(action, now);
+            case SyncAction.KindClassifyEvent:
+                return ClassifyEvent(action, now);
             default:
                 return Unsupported(action);
         }
+    }
+
+    // Through the same provider as the event menu, so a session refuses it and a looser change waits (ADR 64).
+    private SyncActionResult ClassifyEvent(SyncAction action, DateTimeOffset now)
+    {
+        if (IsLate(action, PlanEditFresh, now))
+        {
+            return TooLate(action);
+        }
+
+        if (EventActions is null || Read<SyncEventClassifyRequest>(action.Text) is not SyncEventClassifyRequest request)
+        {
+            return Invalid(action, "The PC couldn't read this request.");
+        }
+
+        (bool ok, string message) = EventActions.Apply(request, out bool invalid);
+        return ok ? Ok(action, message) : invalid ? Invalid(action, message) : Refused(action, message);
     }
 
     // Refused while a session runs, the profile must exist, the length 1 minute to 12 hours.

@@ -14,6 +14,8 @@ data class ClassifiedEvent(
     val carried: Boolean = false,
     /** When the PC first saw the event at this time and category (carried events only); null = not noticed. */
     val carriedKnownSince: Instant? = null,
+    /** The category was chosen by hand, here or on the PC, so it may lift Pre-Work for the event's time (ADR 64). */
+    val byHand: Boolean = false,
 )
 
 /**

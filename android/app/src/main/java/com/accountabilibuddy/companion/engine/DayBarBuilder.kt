@@ -233,7 +233,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             val end = if (event.localEnd.isAfter(event.localStart)) event.localEnd else event.localStart.plusMinutes(1)
             val window = LocalWindow(event.localStart, end)
             DayTimeline.clip(window, range)?.let {
-                toSpan(it, range, "${event.title} · ${if (event.isAllDay) "all day" else times(window)}").copy(color = event.color, allDay = event.isAllDay)
+                toSpan(it, range, "${event.title} · ${if (event.isAllDay) "all day" else times(window)}").copy(color = event.color, allDay = event.isAllDay, event = event)
             }
         }.sortedByDescending { it.allDay } // All-day slivers first, so timed events draw over them.
 

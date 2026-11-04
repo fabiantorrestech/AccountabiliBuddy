@@ -107,8 +107,10 @@ data class SyncFile(
  * category's id is local to a device. The name is the user's own text: sealed in the files, never logged.
  *
  * @property color "#RRGGBB".
+ * @property colorEditedAt When the user last chose the colour; the newest choice wins on every device (ADR 62). Null: not recoloured since
+ *   that came in, older than any stamped colour.
  */
-data class SyncCategory(val name: String, val color: String)
+data class SyncCategory(val name: String, val color: String, val colorEditedAt: Instant? = null)
 
 /**
  * A past group key (ADR 56): the group id and AES-256-GCM key a group had before a removal re-keyed it. Devices keep a few of these
@@ -358,6 +360,12 @@ data class SyncAction(
 
         /** Put a PC's running session's tasks in a new order (ADR 48): [text] `{ "order": ["task id", ...] }`. */
         const val TASK_REORDER = "taskReorder"
+
+        /**
+         * Classify one of a PC's calendar events, or make a keyword rule from it (ADR 64): [text] JSON
+         * `{ "title", "start", "end", "scope": "this|series|keyword", "choice": "category|dontClassify|automatic", "categoryId"?, "keyword"? }`; a PC takes it only within a day.
+         */
+        const val CLASSIFY_EVENT = "classifyEvent"
 
         /** The kinds that change a PC's running session's tasks (a PC answers them in its results). */
         val TASK_KINDS: Set<String> = setOf(TASK_ADD, TASK_EDIT, TASK_REORDER)

@@ -48,7 +48,7 @@ public static class DeviceCalendarEvents
         {
             if (categories.TryGetValue((entry.Event.CalendarId, entry.Event.Id), out DayCategory? category))
             {
-                events.Add(Classified(entry, category, firstKnown));
+                events.Add(Classified(entry, category, firstKnown, EventCategoryResolver.IsChosenByHand(entry.Event, classifications)));
             }
             else
             {
@@ -64,11 +64,17 @@ public static class DeviceCalendarEvents
     }
 
     // The record writes seriesId and occurrenceKey itself when they are set (and leaves them out when they are null).
-    private static JsonObject Classified(CalendarEntry entry, DayCategory category, Dictionary<(string, string), FirstKnownEntry> firstKnown)
+    // categoryByHand: the category was chosen by hand, so it may lift Pre-Work on the phone as here (ADR 64); left out otherwise.
+    private static JsonObject Classified(CalendarEntry entry, DayCategory category, Dictionary<(string, string), FirstKnownEntry> firstKnown, bool byHand)
     {
         JsonObject json = JsonSerializer.SerializeToNode(entry.Event, SyncJson.Options)!.AsObject();
         json["color"] = entry.Calendar.Color;
         json["categoryId"] = JsonSerializer.SerializeToNode(category.Id, SyncJson.Options);
+        if (byHand)
+        {
+            json["categoryByHand"] = true;
+        }
+
         if (FirstKnownTimes.KnownAt(firstKnown, entry.Event, category) is DateTimeOffset knownSince)
         {
             json["knownSince"] = JsonSerializer.SerializeToNode(knownSince, SyncJson.Options);

@@ -285,6 +285,23 @@ public sealed class DayBarControl : Control
         SetHovered(null);
     }
 
+    /// <summary>A calendar event on the Calendar row was right-clicked (ADR 64).</summary>
+    public event EventHandler<AccountabiliBuddy.Core.Domain.CalendarEvent>? EventRequested;
+
+    // Right-click (or the menu key at the pointer), the same event the Plan rows answer: the menu opens as the button is let go, so nothing closes it again.
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        ContextRequested += (_, e) =>
+        {
+            if (e.TryGetPosition(this, out Point at) && EventAt(at) is { } calendarEvent)
+            {
+                EventRequested?.Invoke(this, calendarEvent);
+                e.Handled = true;
+            }
+        };
+    }
+
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
@@ -445,6 +462,17 @@ public sealed class DayBarControl : Control
     }
 
     /// <summary>A session (Focus row, with a profile) or a plan part under the pointer: the things a click opens.</summary>
+    // The event under the pointer on the Calendar row; of a timed event and an all-day sliver, the timed one (it is drawn on top).
+    private AccountabiliBuddy.Core.Domain.CalendarEvent? EventAt(Point position)
+    {
+        if (RowAt(position) is not { Kind: TimelineRow.Calendar } row || FractionAt(position) is not double at)
+        {
+            return null;
+        }
+
+        return row.Spans.LastOrDefault(candidate => candidate.Event is not null && at >= candidate.Start && at <= candidate.End)?.Event;
+    }
+
     private (DayBarRow Row, DayBarSpan Span)? ClickableAt(Point position)
     {
         if (RowAt(position) is not DayBarRow row || FractionAt(position) is not double at)

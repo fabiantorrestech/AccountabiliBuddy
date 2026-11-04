@@ -112,11 +112,15 @@ class CompanionApp : Application() {
     /** ADR 58: the phone's own calendar rules; they stay on this phone (never synced, backed up or sent to the watch). */
     val calendarRules by lazy { com.accountabilibuddy.companion.calendar.CalendarRulesStore(this) }
 
+    /** The categories chosen by hand on this phone's own calendar events (ADR 64). */
+    val eventClassifications by lazy { com.accountabilibuddy.companion.calendar.EventClassificationStore(this) }
+
     /** ADR 58: lays classified calendar events over the stored day plan for the guards and displays; the stored plan itself when the feature is off. */
     val calendarOverlay by lazy {
         val pcFiles = com.accountabilibuddy.companion.calendar.PcFileEventsCache()
         com.accountabilibuddy.companion.calendar.CalendarOverlay(
             rulesStore = calendarRules,
+            classifications = eventClassifications,
             firstKnown = com.accountabilibuddy.companion.calendar.FirstKnownStore(File(filesDir, "companion/calendar-first-known.json")),
             reader = com.accountabilibuddy.companion.calendar.PhoneCalendarReader(this),
             sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null },
@@ -248,6 +252,12 @@ class CompanionApp : Application() {
 
     /** The shared next-session tasks and come-backs (ADR 48): items with edit times, merged with the other devices' lists. */
     val sharedLists by lazy { com.accountabilibuddy.companion.sync.SharedListsStore(this) }
+
+    /** This phone's own task categories (ADR 62). */
+    val taskCategories by lazy { com.accountabilibuddy.companion.sync.TaskCategoriesStore(this) }
+
+    /** The Tasks tab's saved filters; never synced. */
+    val taskFilterPresets by lazy { com.accountabilibuddy.companion.sync.TaskFilterPresetsStore(this) }
 
     /** Why the user added a 4th task to the next session's list (ADR 48); stays on this phone. */
     val overLimit by lazy { com.accountabilibuddy.companion.sync.OverLimitStore(this) }
@@ -404,6 +414,15 @@ class CompanionApp : Application() {
         sync.nextTasks = { sharedLists.nextTasksForSync() }
         sync.parked = { sharedLists.parkedForSync() }
         sync.later = { sharedLists.laterForSync() }
+        sync.categories = { taskCategories.forSync() }
+        // Something moved between lists takes its category's current colour with it, so an old colour isn't stamped anew (ADR 62).
+        sharedLists.colorOf = { name, stored ->
+            com.accountabilibuddy.companion.sync.TaskCategoryColors(taskCategories.categories.value, sync.received.value, java.time.Instant.now()).of(name, stored)
+        }
+        taskCategories.onChanged = {
+            relaySoon()
+            appScope.launch { driveSource.syncNow() }
+        }
         sync.onSharedLists = { nextTasks, parked, later, knowsDetails -> sharedLists.receive(nextTasks, parked, later, knowsDetails) }
         sharedLists.onChanged = {
             relaySoon()

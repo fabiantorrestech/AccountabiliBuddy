@@ -931,7 +931,8 @@ public sealed class SessionOverlayService : IDisposable
     // Held is only known while the Ctrl+Alt hook is on (hold to peek, ADR 53); otherwise the tile stays at its resting opacity.
     private void ApplyTileOpacity()
     {
-        _tile?.SetTileOpacity(_settings.Current.TileOpacity(_sessions.State.IsActive, _ctrlAlt.IsHeld));
+        OverlaySettings settings = _settings.Current;
+        _tile?.SetTileOpacity(settings.TileOpacity(_sessions.State.IsActive, _ctrlAlt.IsHeld), settings.SolidClockTime, settings.SolidClockDate);
     }
 
     private void ShowCornerClock(OverlaySettings settings, ForegroundScreenState foreground, OverlayAppRule? rule)

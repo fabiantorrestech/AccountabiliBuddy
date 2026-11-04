@@ -15,6 +15,11 @@ namespace AccountabiliBuddy.App.Controls;
 /// </summary>
 public partial class OverlayTileView : UserControl
 {
+    private double _opacity = 1;
+    private bool _solidTime;
+    private bool _solidDate;
+    private ContentControl? _clock;
+
     public OverlayTileView()
     {
         InitializeComponent();
@@ -25,12 +30,42 @@ public partial class OverlayTileView : UserControl
     {
         Rebuild(target, settings);
         ApplyShape(target, settings, heightDips);
+        ApplySolidity();
+    }
+
+    /// <summary>
+    /// How solid the tile looks (Settings › Overlay). The fill and each part are dimmed on their own instead of the whole tile, because a
+    /// child can't be more solid than its parent, and the time and date may stay solid. Clicks are not affected.
+    /// </summary>
+    public void SetSolidity(double opacity, bool solidTime, bool solidDate)
+    {
+        _opacity = opacity;
+        _solidTime = solidTime;
+        _solidDate = solidDate;
+        ApplySolidity();
+    }
+
+    private void ApplySolidity()
+    {
+        bool solidClock = _solidTime || _solidDate;
+        TileBack.Opacity = _opacity;
+        NudgeDot.Opacity = _opacity;
+        foreach (Control part in MainRow.Children.Concat(ExtraRow.Children))
+        {
+            part.Opacity = solidClock && ReferenceEquals(part, _clock) ? 1 : _opacity;
+        }
+
+        if (DataContext is TaskbarOverlayViewModel model)
+        {
+            model.SetClockLook(solidClock, solidClock && !_solidTime ? _opacity : 1, solidClock && !_solidDate ? _opacity : 1, _solidDate);
+        }
     }
 
     private void Rebuild(OverlayTarget target, OverlaySettings settings)
     {
         MainRow.Children.Clear();
         ExtraRow.Children.Clear();
+        _clock = null;
         bool vertical = target.Kind == OverlayTargetKind.VerticalTile;
         MainRow.Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
         MainRow.Spacing = vertical ? 2 : 12;
@@ -105,7 +140,8 @@ public partial class OverlayTileView : UserControl
                     MainRow.Children.Add(Block("controls"));
                     break;
                 case OverlayItemKind.TimeDate when ownClock:
-                    MainRow.Children.Add(Block("clock", target.CoversTray ? 0 : DropClock));
+                    _clock = Block("clock", target.CoversTray ? 0 : DropClock);
+                    MainRow.Children.Add(_clock);
                     clockAdded = true;
                     break;
                 case OverlayItemKind.Batteries when ownClock:
@@ -125,7 +161,8 @@ public partial class OverlayTileView : UserControl
             // It covers the tray, so it brings the clock and a ⌃ for the real overflow.
             if (!clockAdded)
             {
-                MainRow.Children.Add(Block("clock"));
+                _clock = Block("clock");
+                MainRow.Children.Add(_clock);
             }
 
             MainRow.Children.Add(Block("tray"));
@@ -237,21 +274,33 @@ public partial class OverlayTileView : UserControl
     private void ApplyShape(OverlayTarget target, OverlaySettings settings, double heightDips)
     {
         Tile.Padding = new Thickness(10, 0);
+        ShapeBoth(new CornerRadius(10), new Thickness(1));
         bool smallDocked = target.Kind == OverlayTargetKind.Docked && settings.Size == OverlaySize.Small;
         if (target.Kind == OverlayTargetKind.Docked && !smallDocked)
         {
-            Tile.CornerRadius = target.AlignRight ? new CornerRadius(10, 0, 0, 0) : new CornerRadius(0, 10, 0, 0);
-            Tile.BorderThickness = target.AlignRight ? new Thickness(1, 1, 0, 0) : new Thickness(0, 1, 1, 0);
+            ShapeBoth(
+                target.AlignRight ? new CornerRadius(10, 0, 0, 0) : new CornerRadius(0, 10, 0, 0),
+                target.AlignRight ? new Thickness(1, 1, 0, 0) : new Thickness(0, 1, 1, 0));
             return;
         }
 
-        Tile.BorderThickness = new Thickness(1);
-        Tile.CornerRadius = settings.Shape == OverlayShape.Pill || target.Kind == OverlayTargetKind.VerticalTile
-            ? new CornerRadius(Math.Min(heightDips, 999) / 2 > 40 ? 30 : heightDips / 2)
-            : new CornerRadius(smallDocked ? 8 : 10);
+        ShapeBoth(
+            settings.Shape == OverlayShape.Pill || target.Kind == OverlayTargetKind.VerticalTile
+                ? new CornerRadius(Math.Min(heightDips, 999) / 2 > 40 ? 30 : heightDips / 2)
+                : new CornerRadius(smallDocked ? 8 : 10),
+            new Thickness(1));
         if (target.Kind == OverlayTargetKind.VerticalTile)
         {
             Tile.Padding = new Thickness(6, 8);
         }
+    }
+
+    // The fill and line behind, and the parts' clip in front, keep one outline.
+    private void ShapeBoth(CornerRadius corners, Thickness line)
+    {
+        TileBack.CornerRadius = corners;
+        TileBack.BorderThickness = line;
+        Tile.CornerRadius = corners;
+        Tile.BorderThickness = line;
     }
 }

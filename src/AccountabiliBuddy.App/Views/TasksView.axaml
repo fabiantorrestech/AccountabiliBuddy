@@ -403,7 +403,43 @@
                             <Button.Flyout>
                                 <Flyout Placement="BottomEdgeAlignedRight" Opening="OnFilterFlyoutOpening">
                                     <ScrollViewer MaxHeight="420" Width="340" VerticalScrollBarVisibility="Auto">
-                                        <StackPanel Spacing="14" Margin="0,0,10,0" DataContext="{Binding Filter}">
+                                        <StackPanel Spacing="14" Margin="0,0,10,0">
+                                        <!-- Saved filters: the choices below and the search words, kept under a name. -->
+                                        <StackPanel Spacing="6" DataContext="{Binding Presets}">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Classes="section" Text="Saved" VerticalAlignment="Center" />
+                                                <Button Grid.Column="1" Classes="quiet" Padding="10,4" Command="{Binding AskNameCommand}" AutomationProperties.Name="Save current filter"
+                                                        ToolTip.Tip="Keep these filters and the search words under a name">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <mi:MaterialIcon Kind="BookmarkOutline" Width="14" Height="14" />
+                                                        <TextBlock Text="Save current…" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
+                                            <TextBox Text="{Binding NewName}" PlaceholderText="Name (Enter)" IsVisible="{Binding IsNaming}" MaxLength="40"
+                                                     AutomationProperties.Name="Name for this filter">
+                                                <TextBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
+                                                    <KeyBinding Gesture="Escape" Command="{Binding CancelNameCommand}" />
+                                                </TextBox.KeyBindings>
+                                            </TextBox>
+                                            <TextBlock Classes="muted" Text="Nothing saved yet." FontSize="13" IsVisible="{Binding IsEmpty}" />
+                                            <ItemsControl ItemsSource="{Binding Rows}" ItemsPanel="{StaticResource PillWrap}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:TaskFilterPresetRowViewModel">
+                                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                                            <Button Classes="chip small" Classes.selected="{Binding IsActive}" Command="{Binding ApplyCommand}" Content="{Binding Name}"
+                                                                    AutomationProperties.Name="{Binding Name}" />
+                                                            <Button Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" VerticalAlignment="Center" Command="{Binding DeleteCommand}"
+                                                                    AutomationProperties.Name="{Binding DeleteName}" ToolTip.Tip="Delete this saved filter">
+                                                                <mi:MaterialIcon Kind="Close" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" />
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                        <StackPanel Spacing="14" DataContext="{Binding Filter}">
                                             <Grid ColumnDefinitions="*,Auto">
                                                 <TextBlock Classes="section" Text="Filter and sort" VerticalAlignment="Center" />
                                                 <Button Grid.Column="1" Classes="quiet" Padding="10,4" Content="Clear" Command="{Binding ClearCommand}" IsEnabled="{Binding HasActive}"
@@ -425,6 +461,7 @@
                                                 <TextBlock Classes="muted" Text="Sort" FontSize="13" />
                                                 <ItemsControl ItemsSource="{Binding SortPills}" ItemsPanel="{StaticResource PillWrap}" ItemTemplate="{StaticResource FilterPill}" />
                                             </StackPanel>
+                                        </StackPanel>
                                         </StackPanel>
                                     </ScrollViewer>
                                 </Flyout>
@@ -479,16 +516,21 @@
                 <!-- The add row. -->
                 <Border DockPanel.Dock="Top" Classes="addPill" Margin="36,16,28,10" Padding="20,0,18,0" MinHeight="52" CornerRadius="26"
                         Background="{DynamicResource Ab.Surface2}" BorderBrush="Transparent" BorderThickness="1.5">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
                         <mi:MaterialIcon Kind="Plus" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                        <TextBox Grid.Column="1" Classes="rowEntry" Text="{Binding NewTaskText}" PlaceholderText="{Binding AddPlaceholder}"
+                        <!-- The category new tasks go in. -->
+                        <Button Grid.Column="1" Classes="quiet" Padding="6" Margin="6,0,0,0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                ToolTip.Tip="{Binding NewTaskCategoryTip}" AutomationProperties.Name="Category for new tasks" Click="OnNewTaskCategoryClick">
+                            <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
+                        </Button>
+                        <TextBox Grid.Column="2" Classes="rowEntry" Text="{Binding NewTaskText}" PlaceholderText="{Binding AddPlaceholder}"
                                  AutomationProperties.Name="Add a task" controls:TaskSuggestions.Picker="{Binding ListPicker}">
                             <TextBox.KeyBindings>
                                 <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                             </TextBox.KeyBindings>
                         </TextBox>
-                        <TextBlock Grid.Column="2" Classes="faint" Text="Enter" FontSize="13" VerticalAlignment="Center" />
-                        <Button Grid.Column="3" x:Name="ListPullButton" Classes="quiet" Margin="10,0,0,0" Padding="8,4" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="3" Classes="faint" Text="Enter" FontSize="13" VerticalAlignment="Center" />
+                        <Button Grid.Column="4" x:Name="ListPullButton" Classes="quiet" Margin="10,0,0,0" Padding="8,4" VerticalAlignment="Center"
                                 ToolTip.Tip="Take a task from your lists to Today: Later, Come back to, Unfinished, Auto-saved, Done today (search for the Archive)" AutomationProperties.Name="From your lists">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
@@ -523,6 +565,21 @@
                 <Border DockPanel.Dock="Top" Margin="36,14,28,0" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding IsManagingCategories}">
                     <views:CategoryEditorView DataContext="{Binding CategoryEditor}" />
+                </Border>
+
+                <!-- A picker's "New category…": its name; Enter makes it and applies it. -->
+                <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding IsNamingCategory}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox x:Name="NewCategoryBox" Classes="rowEntry" FontSize="14" Text="{Binding NewCategoryName}" PlaceholderText="New category name (Enter)"
+                                 AutomationProperties.Name="New category name">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding SaveNewCategoryCommand}" />
+                                <KeyBinding Gesture="Escape" Command="{Binding CancelNewCategoryCommand}" />
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                        <Button Grid.Column="1" Classes="quiet" Command="{Binding CancelNewCategoryCommand}" Padding="8,2" AutomationProperties.Name="Cancel new category"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
+                    </Grid>
                 </Border>
 
                 <!-- Why something was not done. -->

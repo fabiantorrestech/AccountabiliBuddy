@@ -17,9 +17,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +58,8 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * @param laterOldPc The name of a PC that shares the lists but predates the Later list and the task details (before 0.1.114); null normally.
  * @param category The chip picked; null is All.
  * @param addPlaceholder The words in the add field, which also say why it can't be used now.
+ * @param savedFilters The saved filters' chips; a tap applies one.
+ * @param newTaskCategory The add field's category dot.
  */
 @Composable
 fun TasksPane(
@@ -82,6 +86,11 @@ fun TasksPane(
     /** Every task "From your lists" can take, whatever the chip or the search shows; read when it is needed. */
     pickRows: () -> List<TaskRowModel> = { emptyList() },
     onPick: (TaskRowModel) -> Unit = {},
+    savedFilters: List<com.accountabilibuddy.companion.sync.TaskFilterPreset> = emptyList(),
+    onApplyFilter: (com.accountabilibuddy.companion.sync.TaskFilterPreset) -> Unit = {},
+    onSavedFilters: () -> Unit = {},
+    onCategories: () -> Unit = {},
+    newTaskCategory: (@Composable () -> Unit)? = null,
 ) {
     val filtering = category != null || search.isNotBlank()
     var picking by remember { mutableStateOf(false) }
@@ -97,6 +106,8 @@ fun TasksPane(
         ) {
             item {
                 AbPageHeader("Tasks") {
+                    AbQuietIconButton(Icons.Outlined.BookmarkBorder, "Saved filters", onClick = onSavedFilters)
+                    AbQuietIconButton(Icons.Outlined.Sell, "Categories", onClick = onCategories)
                     AbQuietIconButton(
                         if (searching) Icons.Outlined.Close else Icons.Outlined.Search,
                         if (searching) "Close search" else "Search tasks",
@@ -110,6 +121,19 @@ fun TasksPane(
                     AbChip("All", selected = category == null, onClick = { onCategory(null) })
                     model.categories.forEach { choice ->
                         AbChip(choice.name, selected = category.equals(choice.name, ignoreCase = true), onClick = { onCategory(choice.name) })
+                    }
+                }
+            }
+            if (savedFilters.isNotEmpty()) {
+                item {
+                    AbChipRow {
+                        savedFilters.forEach { preset ->
+                            AbChip(
+                                preset.name,
+                                selected = preset.category.equals(category, ignoreCase = true) && preset.search.equals(search.trim(), ignoreCase = true),
+                                onClick = { onApplyFilter(preset) },
+                            )
+                        }
                     }
                 }
             }
@@ -142,7 +166,7 @@ fun TasksPane(
         }
         AddField(
             placeholder = addPlaceholder, onSubmit = onAdd, accentPlus = true, enabled = addEnabled,
-            suggest = { typed -> matchingTasks(pickRows(), typed) }, onPick = onPick, onBrowse = { picking = true },
+            suggest = { typed -> matchingTasks(pickRows(), typed) }, onPick = onPick, onBrowse = { picking = true }, leading = newTaskCategory,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp),
         )
     }

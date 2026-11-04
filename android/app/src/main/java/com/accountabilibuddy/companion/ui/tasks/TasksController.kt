@@ -31,6 +31,42 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
     /** True when the next task would be a 4th on this phone's list (the "Keep it to 3" prompt; a running session's PC decides for itself). */
     fun needsReason(pc: TasksPc?): Boolean = pc == null && lists.nextTasks.value.size >= OverLimitStore.MAX_TASKS
 
+    // ---- Categories (ADR 62) ----
+
+    /** A category of [name] on this phone's list, in the next colour no listed category has; the same name in any case is the one that exists. */
+    fun createCategory(name: String): Choice {
+        val listed = com.accountabilibuddy.companion.sync.TaskCategoryColors(app.taskCategories.categories.value, app.sync.received.value, java.time.Instant.now()).listed
+        listed.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }?.let { return Choice(it.name, it.color) }
+        val added = app.taskCategories.add(name, listed.map { it.color })
+        return Choice(added.name, added.color)
+    }
+
+    /** Chooses a category's colour; it wins on every device as the newest choice. */
+    fun recolorCategory(name: String, color: String) {
+        app.taskCategories.recolor(name, color)
+    }
+
+    /** A new name for a category: on this phone's list and on the items in it. A name another category has is refused. */
+    fun renameCategory(choice: Choice, newName: String) {
+        val taken = com.accountabilibuddy.companion.sync.TaskCategoryColors(app.taskCategories.categories.value, app.sync.received.value, java.time.Instant.now()).listed
+            .any { it.name.equals(newName, ignoreCase = true) && !it.name.equals(choice.name, ignoreCase = true) }
+        if (taken) {
+            say("There's already a category called $newName.", null)
+            return
+        }
+
+        app.taskCategories.rename(choice.name, newName, choice.color)
+        lists.relabelCategory(choice.name, newName, choice.color)
+    }
+
+    fun categoryUseCount(name: String): Int = lists.countInCategory(name)
+
+    /** Takes a category off this phone's list and off the items in it. */
+    fun deleteCategory(name: String) {
+        app.taskCategories.delete(name)
+        lists.relabelCategory(name, null, null)
+    }
+
     // ---- Ticking ----
 
     /** Ticks a row (or un-ticks a ticked one that can be put back). A running task is ticked on the PC; it shows ticked at once. */

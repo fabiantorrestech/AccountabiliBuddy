@@ -2,12 +2,12 @@ using AccountabiliBuddy.Core.Domain;
 
 namespace AccountabiliBuddy.Core.Engine;
 
-/// <summary>Checks a day plan before it's saved: parts don't overlap, last at least 15 minutes and use a known category.</summary>
+/// <summary>Checks a day plan before it's saved: parts last at least 15 minutes and use a known category. Parts may overlap (ADR 63).</summary>
 public static class DayPlanValidator
 {
     public static TimeSpan ShortestPart { get; } = TimeSpan.FromMinutes(15);
 
-    /// <returns>Null when fine; otherwise what's wrong, e.g. "Work 12:00–13:00 overlaps Lunch 12:30–13:30."</returns>
+    /// <returns>Null when fine; otherwise what's wrong, e.g. "Work 12:00–12:10 is shorter than 15 minutes."</returns>
     public static string? Validate(DayTemplate template, IReadOnlyList<DayCategory> categories)
     {
         if (!Enum.IsDefined(template.Mode))
@@ -58,19 +58,6 @@ public static class DayPlanValidator
                 && (categories.First(category => category.Id == part.CategoryId).Behavior != CategoryBehavior.Rest || part.IsFlexible || part.CrossesMidnight))
             {
                 return $"{Describe(part, categories)} can't start by itself: only a rest part with fixed hours, within one day, can.";
-            }
-        }
-
-        for (int i = 0; i < template.Parts.Count; i++)
-        {
-            for (int j = i + 1; j < template.Parts.Count; j++)
-            {
-                if (Overlap(template.Parts[i], template.Parts[j])
-                    && !template.Parts[i].IsFlexible && !template.Parts[j].IsFlexible
-                    && !DayTemplateEditing.MayOverlap(template.Parts[i].CategoryId, template.Parts[j].CategoryId, categories))
-                {
-                    return $"{Describe(template.Parts[i], categories)} overlaps {Describe(template.Parts[j], categories)}.";
-                }
             }
         }
 
@@ -188,11 +175,6 @@ public static class DayPlanValidator
     {
         TimeSpan length = TimeSpan.FromMinutes(part.EndMinutes) - part.Start.ToTimeSpan();
         return part.CrossesMidnight ? length + TimeSpan.FromDays(1) : length;
-    }
-
-    private static bool Overlap(PlanPart a, PlanPart b)
-    {
-        return DayTemplateEditing.Ranges(a).Any(x => DayTemplateEditing.Ranges(b).Any(y => x.Start < y.End && y.Start < x.End));
     }
 
     private static string Describe(PlanPart part, IReadOnlyList<DayCategory> categories)

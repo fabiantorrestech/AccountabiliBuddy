@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 
+using AccountabiliBuddy.Core.Engine;
+
 namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
@@ -237,9 +239,11 @@ public sealed record DayPlan(
 
     /// <summary>
     /// Every part touching <paramref name="range"/>, placed on real dates and clipped to the range, in order. A part
-    /// that crosses midnight starts the evening before the date it belongs to. Where parts of different dates overlap
-    /// (yesterday's evening and tonight's sleep, which belongs to tomorrow), the later date's part wins and the earlier
-    /// one keeps only what's outside it, so parts never overlap and a night is never cut short.
+    /// that crosses midnight starts the evening before the date it belongs to. Where parts of one template overlap, the weaker
+    /// rules keep the shared time and the stricter part only what's outside it (ADR 63); on the same strength, the part that
+    /// starts later. Where parts of different templates overlap (yesterday's evening and tonight's sleep, which belongs to
+    /// tomorrow), the later date's part wins. So every moment has one answer, but for two pairs that stay layered: a flexible
+    /// break's window, which isn't a break until it is taken, and Pre-Work over Sleep (ADR 31).
     /// </summary>
     public IReadOnlyList<PlannedPart> PartsIn(LocalWindow range)
     {
@@ -260,14 +264,20 @@ public sealed record DayPlan(
             }
         }
 
+        Dictionary<DateTime, HashSet<Guid>> partIds = placed
+            .GroupBy(entry => entry.Day)
+            .ToDictionary(group => group.Key, group => group.Select(entry => entry.Part.Part.Id).ToHashSet());
         var parts = new List<PlannedPart>();
         foreach ((PlannedPart planned, DateTime day) in placed)
         {
-            // Parts of the same date never overlap (the validator sees to it); later dates take precedence.
             IEnumerable<LocalWindow> pieces = new[] { planned.Window };
-            foreach ((PlannedPart later, DateTime _) in placed.Where(other => other.Day > day))
+            foreach ((PlannedPart other, DateTime otherDay) in placed)
             {
-                pieces = pieces.SelectMany(piece => Without(piece, later.Window)).ToList();
+                bool sameTemplate = partIds[day].Contains(other.Part.Id) && partIds[otherDay].Contains(planned.Part.Id);
+                if (!ReferenceEquals(other, planned) && LosesTo(planned, day, other, otherDay, sameTemplate))
+                {
+                    pieces = pieces.SelectMany(piece => Without(piece, other.Window)).ToList();
+                }
             }
 
             foreach (LocalWindow piece in pieces)
@@ -328,6 +338,32 @@ public sealed record DayPlan(
     {
         return PartsIn(new LocalWindow(localTime, localTime.AddMinutes(1)))
             .FirstOrDefault(part => part.Window.Contains(localTime));
+    }
+
+    private static bool LosesTo(PlannedPart part, DateTime day, PlannedPart other, DateTime otherDay, bool sameTemplate)
+    {
+        if (StaysLayered(part, other) || (day != otherDay && !sameTemplate))
+        {
+            return otherDay > day;
+        }
+
+        int rank = CategoryStrictness.OverlapRank(part.Category.Behavior);
+        int otherRank = CategoryStrictness.OverlapRank(other.Category.Behavior);
+        if (rank != otherRank)
+        {
+            return otherRank < rank;
+        }
+
+        // Compared as text, so the phone settles a tie the same way.
+        return other.Window.Start != part.Window.Start
+            ? other.Window.Start > part.Window.Start
+            : string.CompareOrdinal(other.Part.Id.ToString("D"), part.Part.Id.ToString("D")) < 0;
+    }
+
+    private static bool StaysLayered(PlannedPart a, PlannedPart b)
+    {
+        return a.Part.IsFlexible || b.Part.IsFlexible
+            || (a.Category.Behavior, b.Category.Behavior) is (CategoryBehavior.PreWork, CategoryBehavior.Sleep) or (CategoryBehavior.Sleep, CategoryBehavior.PreWork);
     }
 
     /// <summary>What's left of <paramref name="window"/> outside <paramref name="hole"/>: nothing, one piece or two.</summary>

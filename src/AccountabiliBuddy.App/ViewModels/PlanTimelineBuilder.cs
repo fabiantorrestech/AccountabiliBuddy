@@ -55,6 +55,7 @@ public static class PlanTimelineBuilder
                 Title = entry.Event.Title,
                 SubText = "Calendar",
                 IsEvent = true,
+                Event = entry.Event,
             });
         }
 
@@ -114,7 +115,37 @@ public static class PlanTimelineBuilder
         }
 
         Flush();
+        AddEventsOutsideWork(rows, parts, timed, open, day);
         return rows;
+    }
+
+    // A timed event outside every work block gets a row of its own, in time order, so it can be reached too (ADR 64). Not one a part already shows: a classified
+    // event's own part stands for it there.
+    private static void AddEventsOutsideWork(
+        List<PlanTimelineRowViewModel> rows, IReadOnlyList<PlannedPart> parts, IReadOnlyList<(CalendarEvent Event, LocalWindow Window)> timed,
+        Action<PlanTimelineRowViewModel> open, LocalWindow day)
+    {
+        foreach ((CalendarEvent calendarEvent, LocalWindow window) in timed)
+        {
+            bool shown = rows.Any(row => row.SubRows.Any(sub => ReferenceEquals(sub.Event, calendarEvent)))
+                || parts.Any(part => part.Part.FromEvent && part.Window.Start < window.End && window.Start < part.Window.End);
+            if (shown)
+            {
+                continue;
+            }
+
+            int index = rows.FindIndex(row => row.At > window.Start);
+            var eventRow = new PlanTimelineRowViewModel(open)
+            {
+                TimeText = Clock(window.Start),
+                Title = calendarEvent.Title,
+                SubText = $"Calendar · until {ClockEnd(window.End, day)}",
+                IsEvent = true,
+                Event = calendarEvent,
+                At = window.Start,
+            };
+            rows.Insert(index < 0 ? rows.Count : index, eventRow);
+        }
     }
 
     /// <summary>"1:00 PM".</summary>
@@ -208,6 +239,7 @@ public static class PlanTimelineBuilder
         return new PlanTimelineRowViewModel(open)
         {
             TimeText = Clock(span.Start),
+            At = span.Start,
             Title = first.Name,
             SubText = goal > TimeSpan.Zero ? $"{until} · deep work goal {Span(goal)}" : until,
             SubRows = ordered,
@@ -229,6 +261,7 @@ public static class PlanTimelineBuilder
         return new PlanTimelineRowViewModel(open)
         {
             TimeText = Clock(part.Window.Start),
+            At = part.Window.Start,
             Title = part.Name,
             SubText = kind,
             PartId = part.Part.Id,
@@ -249,6 +282,7 @@ public static class PlanTimelineBuilder
             return new PlanTimelineRowViewModel(open)
             {
                 TimeText = Clock(part.Window.End),
+                At = part.Window.End,
                 Title = "Wake",
                 SubText = part.Part.WakeByAlarm ? "Wake-up alarm" : "Wake-up time",
                 IsSleep = true,
@@ -262,6 +296,7 @@ public static class PlanTimelineBuilder
             return new PlanTimelineRowViewModel(open)
             {
                 TimeText = Clock(part.Window.Start),
+                At = part.Window.Start,
                 Title = "Bedtime",
                 SubText = part.Part.WakeByAlarm ? "Wakes with your alarm" : $"Sleep until {Clock(wake)}",
                 IsSleep = true,
@@ -274,6 +309,7 @@ public static class PlanTimelineBuilder
             return new PlanTimelineRowViewModel(open)
             {
                 TimeText = Clock(part.Window.Start),
+                At = part.Window.Start,
                 Title = part.Name,
                 SubText = $"Until {Clock(part.Window.End)} · {Span(part.Window.End - part.Window.Start)}",
                 IsSleep = true,
