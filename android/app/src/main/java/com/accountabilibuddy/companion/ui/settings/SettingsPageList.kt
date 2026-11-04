@@ -19,21 +19,22 @@ const val REST_BANNER = "rest"
  * scrolled to that row, which is how a search result lands on its row.
  */
 @Composable
-fun SettingsPageList(rows: List<PageRow>, anchor: String?, modifier: Modifier = Modifier) {
+fun SettingsPageList(rows: List<PageRow>, anchor: String?, modifier: Modifier = Modifier, scrollAgain: Int = 0) {
     val state = rememberLazyListState()
     LazyColumn(modifier, state = state, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         items(rows, key = { it.key }) { row -> row.content() }
     }
-    ScrollToAnchor(state, anchor, rows.map { it.key })
+    ScrollToAnchor(state, anchor, rows.map { it.key }, scrollAgain)
 }
 
 /**
  * Scrolls [state] to the item at [anchor]'s place in [keys] (the keys of the list's items, in order) once when the page opens
- * with it; nothing when the anchor is null or not one of them. Memory only: nothing about the visit is kept.
+ * with it; nothing when the anchor is null or not one of them. Memory only: nothing about the visit is kept. A changed
+ * [scrollAgain] scrolls to the anchor again (a button on the page that points at it).
  */
 @Composable
-fun ScrollToAnchor(state: LazyListState, anchor: String?, keys: List<String>) {
-    LaunchedEffect(anchor) {
+fun ScrollToAnchor(state: LazyListState, anchor: String?, keys: List<String>, scrollAgain: Int = 0) {
+    LaunchedEffect(anchor, scrollAgain) {
         var index = keys.indexOf(anchor).takeIf { anchor != null }
         // The "resting" banner right above a row stays in view with it.
         if (index != null && index > 0 && keys[index - 1] == REST_BANNER) index -= 1

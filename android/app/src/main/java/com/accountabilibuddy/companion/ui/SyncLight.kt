@@ -69,7 +69,8 @@ class SyncNow(private val context: android.content.Context) {
         refreshing = true
         (context.applicationContext as CompanionApp).refreshNow { text ->
             refreshing = false
-            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            // Long: the line can name who answered.
+            Toast.makeText(context, text, Toast.LENGTH_LONG).show()
         }
     }
 }

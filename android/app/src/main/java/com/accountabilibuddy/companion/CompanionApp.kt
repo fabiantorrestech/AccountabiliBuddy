@@ -898,8 +898,8 @@ class CompanionApp : Application() {
     }
 
     /**
-     * The header's refresh: reads the sync folder and Drive (which also hand over this phone's file), then redraws.
-     * [onDone] gets what to say.
+     * The header's refresh: reads the sync folder, Drive and the relay (which also hand over this phone's file), then redraws.
+     * [onDone] gets what to say: who was reached, or that nobody was and why ([com.accountabilibuddy.companion.sync.SyncReachText]).
      */
     fun refreshNow(onDone: (String) -> Unit) {
         appScope.launch {
@@ -909,8 +909,22 @@ class CompanionApp : Application() {
                 runCatching { relaySource.syncNow() }.exceptionOrNull()?.let { "relay: ${it.message}" },
             )
             Refresher.refresh(this@CompanionApp)
-            val at = java.time.LocalTime.now().withSecond(0).withNano(0)
-            val text = if (problems.isEmpty()) "Up to date · refreshed $at" else "Refreshed $at, but ${problems.joinToString("; ")}"
+            val zone = java.time.ZoneId.systemDefault()
+            val now = java.time.Instant.now()
+            val at = com.accountabilibuddy.companion.sync.SyncReachText.clock(now, zone)
+            val text = when {
+                problems.isNotEmpty() -> "Refreshed $at, but ${problems.joinToString("; ")}"
+                !sync.isJoined -> "Up to date · refreshed $at"
+                else -> {
+                    // A way that is on and reports a problem after the pass didn't send; a way that is off isn't listed.
+                    val failed = buildSet {
+                        if (folderSource.status.value.problem != null) add(com.accountabilibuddy.companion.sync.SyncMethod.Folder)
+                        if (driveSource.status.value.problem != null) add(com.accountabilibuddy.companion.sync.SyncMethod.Drive)
+                        if (relaySource.status.value.problem != null) add(com.accountabilibuddy.companion.sync.SyncMethod.Relay)
+                    }
+                    "Refreshed $at. " + com.accountabilibuddy.companion.sync.SyncReachText.syncNowLine(sync.settings.value, sync.received.value, failed, now, zone)
+                }
+            }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onDone(text) }
         }
     }
