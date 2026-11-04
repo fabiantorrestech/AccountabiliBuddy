@@ -64,7 +64,7 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
                     if (prompt.relayOnInternet) {
                         Text(
                             "That is a relay on the internet, not on your home network.",
-                            color = Color(0xFFFCA5A5),
+                            color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -72,7 +72,7 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
                     if (prompt.newRelay) {
                         Text(
                             "This phone doesn't use that relay now.",
-                            color = Color(0xFFFCA5A5),
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
                 }

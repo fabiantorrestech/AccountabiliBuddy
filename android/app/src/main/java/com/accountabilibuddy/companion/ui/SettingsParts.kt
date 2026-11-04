@@ -32,6 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,12 +103,13 @@ internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled:
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = Ab.type.body, fontWeight = FontWeight.Medium, color = if (active) Ab.colors.ink else Ab.colors.faint)
                 if (long) {
-                    // A 44 x 44 dp target: the glyph is narrow.
+                    // A 48 x 48 dp target (the glyph is narrow), read as "More about <title>" rather than the glyph's name.
                     Box(
-                        Modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).clickable(role = Role.Button) { explained = !explained },
+                        Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clickable(role = Role.Button) { explained = !explained }
+                            .semantics { contentDescription = "More about $title" },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("ⓘ", style = Ab.type.body, color = Ab.colors.muted, textAlign = TextAlign.Center)
+                        Text("ⓘ", style = Ab.type.body, color = Ab.colors.muted, textAlign = TextAlign.Center, modifier = Modifier.clearAndSetSemantics { })
                     }
                 }
             }
@@ -122,9 +126,9 @@ internal fun ToggleRow(title: String, detail: String, checked: Boolean, enabled:
 internal fun Hint(text: String, label: String = "How this works") {
     var open by remember { mutableStateOf(false) }
     Column {
-        // Quiet (never the accent) and a 44 dp target.
-        Row(Modifier.heightIn(min = 44.dp).clickable(role = Role.Button) { open = !open }, verticalAlignment = Alignment.CenterVertically) {
-            Text("ⓘ $label", style = Ab.type.small, color = Ab.colors.muted)
+        // Quiet (never the accent) and a 48 dp target.
+        Row(Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) { open = !open }, verticalAlignment = Alignment.CenterVertically) {
+            Text("ⓘ $label", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.semantics { contentDescription = label })
         }
         if (open) {
             Text(text, style = Ab.type.small, color = Ab.colors.muted)

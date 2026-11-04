@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.accountabilibuddy.companion.ui.theme.AbColors
@@ -76,6 +77,9 @@ fun ThemedContent(
             // "Appearance light" means dark icons (for a light ground); a dark ground wants light icons.
             controller.isAppearanceLightStatusBars = !darkGround
             controller.isAppearanceLightNavigationBars = !darkGround
+            // The window behind Compose follows the theme too (the manifest theme only knows the phone's night setting), so a
+            // rotation or a recreate does not show the other ground for a frame.
+            if (systemBarIconsFollowTheme) window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(colors.bg.toArgb()))
         }
     }
 

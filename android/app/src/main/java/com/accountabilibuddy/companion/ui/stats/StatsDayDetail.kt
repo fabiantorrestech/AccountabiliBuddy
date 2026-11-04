@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -123,7 +124,9 @@ private fun LegendDot(text: String, color: Color) {
 private fun DayRowLine(row: DayListRow) {
     val colors = Ab.colors
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(vertical = 4.dp),
+        // The dot's colour (red for drift) also goes to TalkBack as words.
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(vertical = 4.dp)
+            .semantics(mergeDescendants = true) { if (row.isDrift) stateDescription = "Drift" },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
