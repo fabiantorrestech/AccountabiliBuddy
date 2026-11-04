@@ -14,7 +14,7 @@ internal fun HealthConnectSection(health: HealthStatus, onConnectHealth: () -> U
             when (health) {
                 HealthStatus.Connected -> "Health Connect: reading your measured sleep."
                 HealthStatus.NeedsPermission -> "Health Connect: not connected (the timeline's sleep strip and smart bedtime use it)."
-                HealthStatus.NotAvailable -> "Health Connect isn't available on this phone."
+                HealthStatus.NotAvailable -> "Health Connect isn't available on this phone. It may need installing or updating."
                 HealthStatus.Checking -> "Health Connect: checking…"
             },
         )

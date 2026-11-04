@@ -124,8 +124,15 @@ public sealed class SessionOverlayService : IDisposable
         _wakeTimer.Tick += (_, _) =>
         {
             _wakeTimer.Stop();
-            Update();
-            ArmWakeTimer();
+            try
+            {
+                Update();
+            }
+            finally
+            {
+                // Even if Update throws, the next wake still gets armed.
+                ArmWakeTimer();
+            }
         };
         _clockTimer.Tick += (_, _) => Update();
         _peekGuard.Tick += (_, _) =>
@@ -439,6 +446,11 @@ public sealed class SessionOverlayService : IDisposable
     // One timer wakes the overlay at the next moment something it shows runs out (a quick hide, a glow, the done notice, the nudge dot).
     private void ScheduleWake(DateTimeOffset at)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         if (at - _sessions.Now + WakeMargin <= TimeSpan.Zero)
         {
             return;
@@ -464,12 +476,10 @@ public sealed class SessionOverlayService : IDisposable
         }
 
         TimeSpan wait = _pendingWakes.Min() - now + WakeMargin;
-        if (!_wakeTimer.IsEnabled || wait < _wakeTimer.Interval)
-        {
-            _wakeTimer.Stop();
-            _wakeTimer.Interval = wait;
-            _wakeTimer.Start();
-        }
+        // Always restart with the time left: Interval is the original wait, not what remains of it.
+        _wakeTimer.Stop();
+        _wakeTimer.Interval = wait;
+        _wakeTimer.Start();
     }
 
     private void OnCtrlAlt(bool held)
@@ -956,14 +966,9 @@ public sealed class SessionOverlayService : IDisposable
         _clockTimer.Start();
     }
 
-    // The tile draws a clock when it covers the tray, or when Time & date is on at Medium and up (Small stays one line).
+    // The tile draws a clock when Time & date is on at Medium and up (Small stays one line).
     private static bool ShowsClock(OverlaySettings settings)
     {
-        if (settings.EffectivePlacement == OverlayPlacement.CoverTray)
-        {
-            return true;
-        }
-
         return settings.Size != OverlaySize.Small && settings.Items.Any(item => item.Kind == OverlayItemKind.TimeDate && item.Enabled);
     }
 

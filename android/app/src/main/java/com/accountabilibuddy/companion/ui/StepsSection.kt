@@ -32,7 +32,7 @@ internal fun StepsSection(steps: StepsState) {
             Note("Health Connect hasn't allowed steps yet. If the button does nothing, allow steps in Health Connect's settings (it opens them).")
             AbTonalButton("Allow Health Connect steps", onClick = store::askAgain)
         }
-        if (steps.enabled && steps.problem == StepsProblem.NotAvailable) Note("Health Connect isn't available on this phone.")
+        if (steps.enabled && steps.problem == StepsProblem.NotAvailable) Note("Health Connect isn't available on this phone. It may need installing or updating.")
         if (steps.enabled) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 AbValueButton("−500", onClick = { store.setGoal(steps.goal - StepsStore.GOAL_STEP) }, enabled = steps.goal > StepsStore.MIN_GOAL)

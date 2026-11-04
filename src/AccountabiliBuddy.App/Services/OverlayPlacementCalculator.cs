@@ -67,14 +67,8 @@ public static class OverlayPlacementCalculator
 
         PixelBox band;
         bool alignRight = true;
-        bool coversTray = false;
         switch (placement)
         {
-            case OverlayPlacement.CoverTray:
-                band = new PixelBox(taskbar.FreeArea?.Left ?? trayLeft - (int)(FallbackTileDips * scale), bar.Top, bar.Right, bar.Bottom);
-                coversTray = true;
-                break;
-
             case OverlayPlacement.TaskbarLeft when taskbar.LeftFreeArea is { } leftFree:
                 band = new PixelBox(bar.Left, bar.Top, leftFree.Right - gap, bar.Bottom);
                 alignRight = false;
@@ -100,7 +94,7 @@ public static class OverlayPlacementCalculator
                 break;
         }
 
-        return new OverlayTarget(OverlayTargetKind.Docked, taskbar.MonitorId, scale, band, alignRight, height, coversTray);
+        return new OverlayTarget(OverlayTargetKind.Docked, taskbar.MonitorId, scale, band, alignRight, height, false);
     }
 
     private static OverlayTarget Floating(TaskbarInfo taskbar, bool alignRight)
