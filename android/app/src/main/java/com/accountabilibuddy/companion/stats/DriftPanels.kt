@@ -8,8 +8,8 @@ import java.time.LocalDateTime
  * times only (ADR 8: drift never names a site or app here). Null when no device has sent a session.
  */
 object DriftPanels {
-    fun build(data: StatsData, range: StatsRange): BarPanel? {
-        val (from, to) = StatsFormat.bounds(range, data.today)
+    fun build(data: StatsData, period: StatsPeriod): BarPanel? {
+        val (from, to) = period.from to period.to
         val past = data.daysBetween(from, to)
         val visits = data.driftBetween(from, to)
         if (past.all { it.focused <= Duration.ZERO } && visits.isEmpty()) return null
@@ -21,7 +21,7 @@ object DriftPanels {
         while (!date.isAfter(to)) {
             val noBar = date.isAfter(data.today) || data.dayOf(date) == null
             val drift = perDay[date] ?: Duration.ZERO
-            val label = StatsFormat.barLabel(range, date)
+            val label = StatsFormat.barLabel(period, date)
             bars += StatsBar(
                 label, (StatsFormat.minutes(drift) / scale).toFloat(), BarKind.Drift, date == data.today, noBar,
                 if (noBar) "${StatsFormat.dayText(date)} · no data" else "${StatsFormat.dayText(date)} · ${StatsFormat.duration(drift)} off track", date.takeUnless { noBar },
@@ -39,7 +39,7 @@ object DriftPanels {
         }
 
         val note = if (visits.isEmpty()) "no drift in your sessions" else "stretches off track · ${StatsFormat.duration(total)} in sessions"
-        return BarPanel(visits.size.toString(), note, bars, null, null, cards, emptyList(), StatsDepth.caption(data, if (range == StatsRange.Week) 7 else 28))
+        return BarPanel(visits.size.toString(), note, bars, null, null, cards, emptyList(), StatsDepth.caption(data, period))
     }
 
 }

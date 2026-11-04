@@ -4,7 +4,6 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -33,14 +32,6 @@ object StatsFormat {
     /** The Monday of the week [date] is in. */
     fun mondayOf(date: LocalDate): LocalDate = date.minusDays((date.dayOfWeek.value - 1).toLong())
 
-    /** The first and last date the range covers: this week, this month, the last 365 days, or just today. */
-    fun bounds(range: StatsRange, today: LocalDate): Pair<LocalDate, LocalDate> = when (range) {
-        StatsRange.Week -> mondayOf(today).let { it to it.plusDays(6) }
-        StatsRange.Month -> YearMonth.from(today).let { it.atDay(1) to it.atEndOfMonth() }
-        StatsRange.Year -> today.minusDays(364) to today
-        StatsRange.Day -> today to today
-    }
-
     /** "Oct 26 – Nov 1", or one date as "Mon, Oct 26". */
     fun datesText(from: LocalDate, to: LocalDate): String {
         val short = DateTimeFormatter.ofPattern("MMM d", locale)
@@ -60,11 +51,32 @@ object StatsFormat {
     /** A weekday's first letter, for the labels under the week's bars. */
     fun weekdayLetter(date: LocalDate): String = date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale).take(1).uppercase(locale)
 
-    /** The label under a day's bar: the weekday's letter for a week, the date for some days of a month (the bars are too narrow for all). */
-    fun barLabel(range: StatsRange, date: LocalDate): String = when {
-        range == StatsRange.Week -> weekdayLetter(date)
+    /**
+     * The label under a day's bar: the weekday's letter up to a week; the date for some days of a month (the bars are too narrow
+     * for all); past 31 bars only the date of every 7th bar, counted from the first, so labels cannot collide. A custom range of 8 to
+     * 31 days labels evenly from its first day (every day up to 14 bars, then every 3rd), so a short range is not left with one label.
+     */
+    fun barLabel(period: StatsPeriod, date: LocalDate): String = when {
+        period.days <= 7 -> weekdayLetter(date)
+        period.kind == StatsRange.Custom && period.days <= 31 ->
+            if ((date.toEpochDay() - period.from.toEpochDay()) % (if (period.days <= 14) 1 else 3) == 0L) date.dayOfMonth.toString() else ""
+        period.days > 31 -> if ((date.toEpochDay() - period.from.toEpochDay()) % 7 == 0L) date.dayOfMonth.toString() else ""
         date.dayOfMonth in setOf(1, 8, 15, 22, 29) -> date.dayOfMonth.toString()
         else -> ""
+    }
+
+    /**
+     * How a period is named in a line: "this week" or "this month" for the current one, "last 30 days" for a rolling window ending
+     * today, otherwise its dates, so a label on a past period never says "this".
+     */
+    fun periodWords(period: StatsPeriod, today: LocalDate): String {
+        val current = !period.to.isBefore(today) && !period.from.isAfter(today)
+        return when {
+            period.kind == StatsRange.Week && current -> "this week"
+            period.kind == StatsRange.Month && current -> "this month"
+            period.kind in listOf(StatsRange.Last7, StatsRange.Last30, StatsRange.Last90) && period.to == today -> "last ${period.days} days"
+            else -> datesText(period.from, period.to)
+        }
     }
 
     /** "Mon" .. "Sun" for a row 0 (Monday) to 6 (Sunday). */
