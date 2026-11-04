@@ -101,9 +101,11 @@ fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
 
     var editingTime by remember { mutableStateOf<TimeField?>(null) }
     var pickingPlace by remember { mutableStateOf(false) }
+    val todayLayout by UiPrefs.todayLayout.collectAsState()
+    var arrangingToday by remember { mutableStateOf(false) }
 
     // A search result scrolls to its card (the page is one scrolling column).
-    val cards = remember { mapOf(SettingsAnchors.THEME to BringIntoViewRequester(), SettingsAnchors.LIGHT_DARK to BringIntoViewRequester(), SettingsAnchors.COLOUR to BringIntoViewRequester(), SettingsAnchors.ANIMATIONS to BringIntoViewRequester()) }
+    val cards = remember { mapOf(SettingsAnchors.THEME to BringIntoViewRequester(), SettingsAnchors.LIGHT_DARK to BringIntoViewRequester(), SettingsAnchors.COLOUR to BringIntoViewRequester(), SettingsAnchors.ANIMATIONS to BringIntoViewRequester(), SettingsAnchors.TODAY_LAYOUT to BringIntoViewRequester()) }
     LaunchedEffect(anchor) {
         val key = if (anchor == SettingsAnchors.TIMELINE_LOOK) SettingsAnchors.ANIMATIONS else anchor
         cards[key]?.bringIntoView()
@@ -187,6 +189,20 @@ fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
                 style = Ab.type.small, color = Ab.colors.muted,
             )
         }
+
+        AbCard(Modifier.bringIntoViewRequester(cards.getValue(SettingsAnchors.TODAY_LAYOUT))) {
+            AbSectionLabel("Today layout")
+            Text(
+                "Choose which cards show on Today, which wait in More today, which are hidden, and their order. " +
+                    "Guards and anything that can end a wait or a lock stay on Today. This phone only.",
+                style = Ab.type.small, color = Ab.colors.muted,
+            )
+            AbTonalButton(if (todayLayout.isDefault) "Arrange Today" else "Arrange Today (changed)", onClick = { arrangingToday = true }, modifier = Modifier.fillMaxWidth())
+        }
+    }
+
+    if (arrangingToday) {
+        TodayLayoutSheet(todayLayout, onChange = { UiPrefs.setTodayLayout(context, it) }, onDismiss = { arrangingToday = false })
     }
 
     editingTime?.let { field ->
