@@ -69,6 +69,7 @@ fun ThemedContent(
     // The status and navigation bar icons follow the app's light or dark, not the phone's. The takeover screens that paint
     // their own dark ground pass false and always get light icons, whatever the theme is.
     val view = LocalView.current
+    val windowGround = remember(colors.bg) { android.graphics.drawable.ColorDrawable(colors.bg.toArgb()) }
     if (!view.isInEditMode) {
         val darkGround = if (systemBarIconsFollowTheme) dark else true
         SideEffect {
@@ -79,7 +80,7 @@ fun ThemedContent(
             controller.isAppearanceLightNavigationBars = !darkGround
             // The window behind Compose follows the theme too (the manifest theme only knows the phone's night setting), so a
             // rotation or a recreate does not show the other ground for a frame.
-            if (systemBarIconsFollowTheme) window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(colors.bg.toArgb()))
+            if (systemBarIconsFollowTheme) window.setBackgroundDrawable(windowGround)
         }
     }
 

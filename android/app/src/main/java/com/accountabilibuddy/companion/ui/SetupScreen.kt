@@ -35,9 +35,9 @@ fun SetupScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var page by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    // Back steps to the page before; on the first page it does what "Skip for now" does (setup is also opened from Settings,
-    // where Back must not leave the app). Skipping only marks the setup as seen: nothing is granted or turned off.
-    androidx.activity.compose.BackHandler { if (page > 0) page-- else onDone() }
+    // Back steps to the page before. On the first page it closes setup only when setup was shown before (opened from Settings,
+    // where Back must not leave the app); on a first run it does nothing, so it never marks setup as shown ("Skip for now" does).
+    androidx.activity.compose.BackHandler { if (page > 0) page-- else if (SetupState.shown(context)) onDone() }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),

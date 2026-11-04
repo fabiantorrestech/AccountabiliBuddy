@@ -181,8 +181,9 @@ private fun GuardSwitch(app: CompanionApp) {
         val now = Instant.now()
         if (wantOn) {
             guard.turnOn()
-        } else {
-            guard.requestOff(now)
+        } else if (!guard.requestOff(now)) {
+            // Refused: a focus session is running.
+            locked = true
         }
 
         on = guard.isOn(now)
@@ -232,8 +233,9 @@ private fun PenaltySwitch(app: CompanionApp, penalty: PocketPenalty, title: Stri
         val now = Instant.now()
         if (wantOn) {
             store.turnOn(penalty)
-        } else {
-            store.requestOff(penalty, now)
+        } else if (!store.requestOff(penalty, now)) {
+            // Refused: a focus session is running.
+            locked = true
         }
 
         on = store.isOn(penalty, now)

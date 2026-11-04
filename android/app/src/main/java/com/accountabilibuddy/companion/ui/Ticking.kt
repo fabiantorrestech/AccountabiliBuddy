@@ -2,7 +2,7 @@ package com.accountabilibuddy.companion.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -20,7 +20,7 @@ import java.time.Instant
  * Display only: the rules that act on time (waits, locks) read the clock themselves and run in the services.
  */
 @Composable
-fun rememberTickingNow(key: Any?, periodMs: (Instant) -> Long?): MutableState<Instant> {
+fun rememberTickingNow(key: Any?, periodMs: (Instant) -> Long?): State<Instant> {
     val now = remember { mutableStateOf(Instant.now()) }
     val period = rememberUpdatedState(periodMs)
     val lifecycle = LocalLifecycleOwner.current.lifecycle

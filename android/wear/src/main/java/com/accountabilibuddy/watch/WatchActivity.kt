@@ -50,6 +50,7 @@ import com.accountabilibuddy.watch.ui.WeekPage
 import com.accountabilibuddy.watch.ui.use24HourClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -188,8 +189,9 @@ private fun WatchApp(
             }
         }
         val pager = rememberPagerState(pageCount = { pages.size })
-        // The page the user is on, by name: when the order changes (a session or lunch starts, a notice comes) the pager follows
-        // that page instead of staying on the same position, which would show another page or start over at the first.
+        // The page the user is on, by name: when the order changes the pager follows that page instead of staying on the same
+        // position (which would show another page or start over at the first). Exceptions that bring their page forward: a phone-link
+        // notice that appears, a session that starts (Session) and a lunch that starts (Lunch).
         val pagesNow by rememberUpdatedState(pages)
         var settled by remember { mutableStateOf<Page?>(null) }
         var lastPages by remember { mutableStateOf<List<Page>>(emptyList()) }
@@ -197,10 +199,26 @@ private fun WatchApp(
         LaunchedEffect(pages) {
             val before = lastPages
             lastPages = pages
-            // A notice about the phone link (ADR 54) that has just appeared is shown; otherwise the user stays where they are.
-            val target = if (Page.Notice in pages && Page.Notice !in before && before.isNotEmpty()) pages.indexOf(Page.Notice)
-            else settled?.let { pages.indexOf(it) } ?: -1
-            if (target >= 0 && target != pager.currentPage) pager.scrollToPage(target)
+            val forced = when {
+                before.isEmpty() -> null
+                Page.Notice in pages && Page.Notice !in before -> Page.Notice
+                else -> frontPage(pages).takeIf { (it == Page.Session || it == Page.Lunch) && it != frontPage(before) }
+            }
+            // A swipe in progress is not yanked: its page is the one the user chose (the pager shows the new order), so only a
+            // page that must come forward waits for it to settle, and the plain follow is skipped.
+            val swiping = pager.isScrollInProgress
+            if (swiping) snapshotFlow { pager.isScrollInProgress }.first { !it }
+            val target = when {
+                forced != null -> pages.indexOf(forced)
+                swiping -> -1
+                else -> settled?.let { pages.indexOf(it) } ?: -1
+            }
+            if (target >= 0) {
+                if (target != pager.currentPage) pager.scrollToPage(target)
+            } else if (!swiping) {
+                // The page the user was on is gone: they are on whatever the pager shows now.
+                settled = pages.getOrNull(pager.currentPage)
+            }
         }
         // Opened from the Timers complication or a timer's "Time's up" notification: that page, once.
         LaunchedEffect(openTimers, pager) {
@@ -210,8 +228,8 @@ private fun WatchApp(
             }
         }
         HorizontalPagerScaffold(pagerState = pager) {
-            // Only the page on screen is composed (and the next while swiping), so the other pages' rings are not redrawn each second.
-            HorizontalPager(state = pager, beyondViewportPageCount = 0) { page ->
+            // The next page on each side is composed ahead, so a swipe doesn't build it mid-gesture.
+            HorizontalPager(state = pager, beyondViewportPageCount = 1) { page ->
                 AnimatedPage(pageIndex = page, pagerState = pager) {
                     ScreenScaffold {
                         when (pages[page]) {
@@ -276,5 +294,8 @@ private fun LinkContent(snapshot: WatchSnapshot, now: State<Instant>, isSample: 
     }
     LinkPage(pcName = snapshot.pcName, updated = ages.updated, sources = ages.sources, isSample = isSample, onForget = onForget)
 }
+
+/** The first page that is not the phone-link notice: Today, or Session or Lunch while one runs. */
+private fun frontPage(pages: List<Page>): Page? = pages.firstOrNull { it != Page.Notice }
 
 private enum class Page { Notice, NotLinked, Today, Session, Lunch, Timers, Noise, Week, Alerts, Link }

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,7 +40,9 @@ fun WorkUseCard() {
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
     // Every 5 s while the card shows; every 15 s while there is no session to show it for.
-    var now by rememberTickingNow(Unit) { read -> if (PlacementSession.current(app, read)?.takeUnless { it.onBreak } != null) 5_000L else 15_000L }
+    // Done bumps the key, which looks at the time again at once.
+    var looked by remember { mutableIntStateOf(0) }
+    val now by rememberTickingNow(looked) { read -> if (PlacementSession.current(app, read)?.takeUnless { it.onBreak } != null) 5_000L else 15_000L }
     val session = PlacementSession.current(app, now)?.takeUnless { it.onBreak } ?: return
     val active = app.workUse.active(now)
     val uses = app.workUse.usesIn(session.start)
@@ -62,7 +65,7 @@ fun WorkUseCard() {
                 AbTonalButton("Done", onClick = {
                     app.workUse.endNow()
                     app.workUseChanged()
-                    now = Instant.now()
+                    looked++
                 })
             } else {
                 AbTonalButton("Need it for work", onClick = {
