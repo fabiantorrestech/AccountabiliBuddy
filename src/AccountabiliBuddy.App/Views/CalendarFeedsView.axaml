@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.CalendarFeedsView"
@@ -88,8 +89,7 @@
                                                                             </DataTemplate>
                                                                         </ComboBox.ItemTemplate>
                                                                     </ComboBox>
-                                                                    <Button Grid.Column="2" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this keyword"
-                                                                            AutomationProperties.Name="Remove keyword" />
+                                                                    <Button Grid.Column="2" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this keyword" AutomationProperties.Name="Remove keyword"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                                                 </Grid>
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>

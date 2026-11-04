@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
@@ -116,7 +117,7 @@
                             <TextBlock Classes="muted" Text="Run until" VerticalAlignment="Center" />
                             <TextBox x:Name="UntilBox" Text="{Binding UntilText}" Width="120" PlaceholderText="6:30pm" />
                             <Button Content="Set" Command="{Binding ApplyUntilCommand}" />
-                            <Button Content="✕" Command="{Binding CancelEditUntilCommand}" ToolTip.Tip="Cancel (Esc)" />
+                            <Button Command="{Binding CancelEditUntilCommand}" ToolTip.Tip="Cancel (Esc)" AutomationProperties.Name="Cancel (Esc)"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
                             <TextBlock Classes="faint" Text="or pick" VerticalAlignment="Center" FontSize="12" />

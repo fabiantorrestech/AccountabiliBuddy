@@ -127,7 +127,7 @@
                                             <Border Classes="dragHandle" ToolTip.Tip="Drag to move" AutomationProperties.Name="Drag to move"
                                                     PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                                     PointerCaptureLost="OnHandleCaptureLost">
-                                                <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             </Border>
                                             <!-- The number stays level with the title's first line when the title wraps; the same top margin keeps a one-line row centred. -->
                                             <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Top" Margin="0,15,0,0" />
@@ -171,9 +171,9 @@
                                                                                 <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
                                                                             </TextBox.KeyBindings>
                                                                         </TextBox>
-                                                                        <Button Grid.Column="1" Classes="small" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" />
-                                                                        <Button Grid.Column="2" Classes="small" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" />
-                                                                        <Button Grid.Column="3" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this step" />
+                                                                        <Button Grid.Column="1" Classes="small" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" AutomationProperties.Name="Move up"><mi:MaterialIcon Kind="ArrowUp" Width="14" Height="14" /></Button>
+                                                                        <Button Grid.Column="2" Classes="small" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" AutomationProperties.Name="Move down"><mi:MaterialIcon Kind="ArrowDown" Width="14" Height="14" /></Button>
+                                                                        <Button Grid.Column="3" Classes="small" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this step" AutomationProperties.Name="Remove this step"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                                                         <Button Grid.Column="4" Classes="small" Padding="6,0" AutomationProperties.Name="More actions for this step"
                                                                                 ToolTip.Tip="Rename, add a step after, delete" Click="OnRowMoreClick">
                                                                             <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
@@ -208,7 +208,7 @@
                                                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                                                             <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
                                                                             <TextBlock Text="{Binding Name}" FontSize="13" VerticalAlignment="Center" />
-                                                                            <TextBlock Text="✓" FontSize="13" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" />
+                                                                            <mi:MaterialIcon Kind="Check" Width="14" Height="14" VerticalAlignment="Center" IsVisible="{Binding IsSelected}" />
                                                                         </StackPanel>
                                                                     </Button>
                                                                 </DataTemplate>
@@ -345,7 +345,7 @@
                                         <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
                                     </TextBox.KeyBindings>
                                 </TextBox>
-                                <Button Grid.Column="2" Classes="small" Content="✕" Command="{Binding AskDeleteCommand}" ToolTip.Tip="Delete this category" />
+                                <Button Grid.Column="2" Classes="small" Command="{Binding AskDeleteCommand}" ToolTip.Tip="Delete this category" AutomationProperties.Name="Delete this category"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                 <!-- The delete question: always asked, with how many items lose the category. -->
                                 <Border Grid.Row="1" Grid.ColumnSpan="3" IsVisible="{Binding IsConfirmingDelete}" Margin="0,2,0,4" Padding="8,6" CornerRadius="6"
                                         BorderBrush="#40808080" BorderThickness="1">

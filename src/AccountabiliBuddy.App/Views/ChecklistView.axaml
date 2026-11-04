@@ -90,7 +90,7 @@
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                <TextBlock Text="✓" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" />
+                <mi:MaterialIcon Kind="Check" Width="14" Height="14" VerticalAlignment="Center" IsVisible="{Binding IsSelected}" />
             </StackPanel>
         </DataTemplate>
     </UserControl.Resources>
@@ -122,7 +122,7 @@
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}"
                                                     PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                                     PointerCaptureLost="OnHandleCaptureLost">
-                                                <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             </Border>
                                             <CheckBox Grid.Column="1" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
                                                       IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
@@ -159,20 +159,13 @@
                                                     <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
                                                 </TextBox.KeyBindings>
                                             </TextBox>
-                                            <Button Grid.Column="4" Classes="small onHover" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up"
-                                                    IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="5" Classes="small onHover" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down"
-                                                    IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="6" Classes="small onHover" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename"
-                                                    IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="7" Classes="small onHover" Content="⚑" Command="{Binding ParkCommand}"
-                                                    ToolTip.Tip="Park: it leaves the checklist and waits under Come back to"
-                                                    AutomationProperties.Name="Park"
-                                                    IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanPark}" />
+                                            <Button Grid.Column="4" Classes="small onHover" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Move up"><mi:MaterialIcon Kind="ArrowUp" Width="14" Height="14" /></Button>
+                                            <Button Grid.Column="5" Classes="small onHover" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Move down"><mi:MaterialIcon Kind="ArrowDown" Width="14" Height="14" /></Button>
+                                            <Button Grid.Column="6" Classes="small onHover" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Rename"><mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" /></Button>
+                                            <Button Grid.Column="7" Classes="small onHover" Command="{Binding ParkCommand}" ToolTip.Tip="Park: it leaves the checklist and waits under Come back to" AutomationProperties.Name="Park" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanPark}"><mi:MaterialIcon Kind="FlagOutline" Width="14" Height="14" /></Button>
                                             <Button Grid.Column="8" Classes="small" Content="+ step" Command="{Binding BeginAddSubtaskCommand}" ToolTip.Tip="Add a subtask"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                            <Button Grid.Column="9" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
-                                                    IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
+                                            <Button Grid.Column="9" Classes="small" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Remove"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                         </Grid>
                                         <ItemsControl ItemsSource="{Binding Subtasks}" Margin="44,0,0,0" IsVisible="{Binding HasSubtasks}">
                                             <ItemsControl.ItemTemplate>
@@ -183,7 +176,7 @@
                                                                 IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}"
                                                                 PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                                                                 PointerCaptureLost="OnHandleCaptureLost">
-                                                            <TextBlock Text="⠿" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                            <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                         </Border>
                                                         <CheckBox Grid.Column="1" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
@@ -205,14 +198,10 @@
                                                                 <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
                                                             </TextBox.KeyBindings>
                                                         </TextBox>
-                                                        <Button Grid.Column="3" Classes="small onHover" Content="↑" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up"
-                                                                IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                                        <Button Grid.Column="4" Classes="small onHover" Content="↓" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down"
-                                                                IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                                        <Button Grid.Column="5" Classes="small onHover" Content="✎" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename"
-                                                                IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
-                                                        <Button Grid.Column="6" Classes="small" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"
-                                                                IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" />
+                                                        <Button Grid.Column="3" Classes="small onHover" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move up" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Move up"><mi:MaterialIcon Kind="ArrowUp" Width="14" Height="14" /></Button>
+                                                        <Button Grid.Column="4" Classes="small onHover" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move down" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Move down"><mi:MaterialIcon Kind="ArrowDown" Width="14" Height="14" /></Button>
+                                                        <Button Grid.Column="5" Classes="small onHover" Command="{Binding BeginEditCommand}" ToolTip.Tip="Rename" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Rename"><mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" /></Button>
+                                                        <Button Grid.Column="6" Classes="small" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove" IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanEdit}" AutomationProperties.Name="Remove"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                                     </Grid>
                                                     <Border Classes="dropLine" VerticalAlignment="Top" IsVisible="{Binding IsDropAbove}" />
                                                     <Border Classes="dropLine" VerticalAlignment="Bottom" IsVisible="{Binding IsDropBelow}" />
@@ -313,7 +302,7 @@
                                         <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
                                     </TextBox.KeyBindings>
                                 </TextBox>
-                                <Button Grid.Column="2" Classes="small" Content="✕" Command="{Binding AskDeleteCommand}" ToolTip.Tip="Delete this category" />
+                                <Button Grid.Column="2" Classes="small" Command="{Binding AskDeleteCommand}" ToolTip.Tip="Delete this category" AutomationProperties.Name="Delete this category"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                 <!-- The delete question: always asked, with how many items lose the category. -->
                                 <Border Grid.Row="1" Grid.ColumnSpan="3" IsVisible="{Binding IsConfirmingDelete}" Margin="0,2,0,4" Padding="8,6" CornerRadius="6"
                                         BorderBrush="#40808080" BorderThickness="1">
