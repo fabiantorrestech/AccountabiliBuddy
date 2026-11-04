@@ -17,6 +17,7 @@ public partial class QuickSessionWindow : Window
     public QuickSessionWindow()
     {
         InitializeComponent();
+        Services.Motion.Gate(Card); // Motion "Off": the card appears at once.
 
         Opened += (_, _) =>
         {

@@ -92,6 +92,47 @@ public sealed class DayBarControl : Control
     private static readonly IPen HoverOutline = new Pen(new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)), 1.5);
     private static readonly Typeface TextTypeface = new(FontFamily.Default);
 
+    // The same few brushes every render (one set per theme), and the laid-out labels: the bar repaints as the now line moves, and the labels
+    // (row names, hour ticks, part names) do not change between those repaints.
+    private static readonly IBrush TrackBrushDark = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
+    private static readonly IBrush TrackBrushLight = new SolidColorBrush(Color.FromArgb(28, 0, 0, 0));
+    private static readonly IBrush TextBrushDark = new SolidColorBrush(Color.FromArgb(190, 255, 255, 255));
+    private static readonly IBrush TextBrushLight = new SolidColorBrush(Color.FromArgb(170, 0, 0, 0));
+    private const int MaxCachedTexts = 256;
+    private readonly Dictionary<TextKey, FormattedText> _texts = new();
+    private int _textBrushKey = 1;
+
+    private readonly record struct TextKey(string Text, double Size, double MaxWidth, int Brush);
+
+    /// <summary>
+    /// A laid-out label, kept for the next repaint. <paramref name="maxWidth"/> above zero makes it one line cut with "…".
+    /// <paramref name="brushKey"/> names the brush (0 white, 1 dark theme text, 2 light theme text), so a theme change gets new texts.
+    /// </summary>
+    private FormattedText Text(string text, double size, IBrush brush, int brushKey, double maxWidth = 0)
+    {
+        var key = new TextKey(text, size, maxWidth, brushKey);
+        if (_texts.TryGetValue(key, out FormattedText? cached))
+        {
+            return cached;
+        }
+
+        if (_texts.Count >= MaxCachedTexts)
+        {
+            _texts.Clear();
+        }
+
+        var created = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, TextTypeface, size, brush);
+        if (maxWidth > 0)
+        {
+            created.MaxTextWidth = maxWidth;
+            created.MaxLineCount = 1;
+            created.Trimming = TextTrimming.CharacterEllipsis;
+        }
+
+        _texts[key] = created;
+        return created;
+    }
+
     // Colours from the plan and calendars, parsed once each ("#RRGGBB"); a colour that doesn't parse uses the row's own.
     private static readonly Dictionary<string, IBrush?> SpanBrushes = new(StringComparer.OrdinalIgnoreCase);
 
@@ -176,8 +217,9 @@ public sealed class DayBarControl : Control
         DayBarLayout layout = Layout ?? DayBarLayout.Empty;
         Sizes size = Size;
         bool isDark = ActualThemeVariant == ThemeVariant.Dark;
-        var trackBrush = new SolidColorBrush(isDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(28, 0, 0, 0));
-        IBrush textBrush = isDark ? new SolidColorBrush(Color.FromArgb(190, 255, 255, 255)) : new SolidColorBrush(Color.FromArgb(170, 0, 0, 0));
+        IBrush trackBrush = isDark ? TrackBrushDark : TrackBrushLight;
+        IBrush textBrush = isDark ? TextBrushDark : TextBrushLight;
+        _textBrushKey = isDark ? 1 : 2;
         double rowsBottom = RowsBottom(size);
 
         // Transparent fill makes the whole area show tooltips.
@@ -189,12 +231,7 @@ public sealed class DayBarControl : Control
             context.DrawRectangle(trackBrush, null, new Rect(BarLeft(size), top, BarWidth(size), size.RowHeight), 3, 3);
             if (size.LabelWidth > 0)
             {
-                var label = new FormattedText(layout.Rows[i].Label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, TextTypeface, size.TextSize, textBrush)
-                {
-                    MaxTextWidth = size.LabelWidth - 6,
-                    MaxLineCount = 1,
-                    Trimming = TextTrimming.CharacterEllipsis,
-                };
+                FormattedText label = Text(layout.Rows[i].Label, size.TextSize, textBrush, _textBrushKey, size.LabelWidth - 6);
                 context.DrawText(label, new Point(0, top + ((size.RowHeight - label.Height) / 2)));
             }
         }
@@ -323,12 +360,8 @@ public sealed class DayBarControl : Control
 
             if (span.Label is string name && size.PartTextSize > 0 && box.Width >= MinPartWidthForName)
             {
-                var text = new FormattedText(name, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, TextTypeface, size.PartTextSize, Brushes.White)
-                {
-                    MaxTextWidth = Math.Max(0, box.Width - 6),
-                    MaxLineCount = 1,
-                    Trimming = TextTrimming.CharacterEllipsis,
-                };
+                // The width is rounded up to a whole pixel so a bar being resized does not fill the cache.
+                FormattedText text = Text(name, size.PartTextSize, Brushes.White, 0, Math.Max(1, Math.Ceiling(box.Width - 6)));
                 context.DrawText(text, new Point(box.X + 3, top + ((size.RowHeight - text.Height) / 2)));
             }
         }
@@ -399,7 +432,7 @@ public sealed class DayBarControl : Control
         {
             double x = BarLeft(size) + (tick.Position * BarWidth(size));
             context.DrawLine(tickPen, new Point(x, rowsBottom), new Point(x, axisTop));
-            var text = new FormattedText(tick.Label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, TextTypeface, size.TextSize, textBrush);
+            FormattedText text = Text(tick.Label, size.TextSize, textBrush, _textBrushKey);
             double left = Math.Clamp(x - (text.Width / 2), BarLeft(size), Math.Max(BarLeft(size), Bounds.Width - text.Width));
             if (left < labelsEnd + LabelGap)
             {

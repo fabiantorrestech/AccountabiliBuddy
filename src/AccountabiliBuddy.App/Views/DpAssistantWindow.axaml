@@ -10,11 +10,8 @@
         Width="880" Height="720" MinWidth="720" MinHeight="560"
         WindowStartupLocation="CenterScreen">
     <Window.Styles>
+        <!-- The colours, border and radius come from the shared Border.card (Themes/AbStyles.axaml); only the tighter padding is local. -->
         <Style Selector="Border.card">
-            <Setter Property="Background" Value="#1A808080" />
-            <Setter Property="BorderBrush" Value="#33808080" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="16,12" />
         </Style>
         <Style Selector="Border.locked">
@@ -60,8 +57,10 @@
         <ScrollViewer Padding="28,4,28,16">
             <StackPanel Spacing="12">
                 <Border Classes="locked" IsVisible="{Binding IsLocked}">
-                    <TextBlock Text="The day plan is locked while a focus session you started is running. You can look through the steps, but Save waits for the session to end."
-                               TextWrapping="Wrap" />
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="The day plan is locked while a focus session you started is running. You can look through the steps, but Save waits for the session to end." TextWrapping="Wrap" />
+                        <TextBlock Text="{x:Static vm:LockWording.WaysOut}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Muted}" />
+                    </StackPanel>
                 </Border>
 
                 <!-- 1. Workdays: any days; Monday to Friday by default -->

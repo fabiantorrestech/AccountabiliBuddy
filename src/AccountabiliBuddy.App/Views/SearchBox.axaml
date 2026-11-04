@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
@@ -56,11 +57,11 @@
                         <TextBlock Text="{Binding PageCounterText}" FontSize="12" Opacity="0.7" VerticalAlignment="Center" Margin="4,0,6,0" />
                         <Button Classes="findArrow" Command="{Binding PreviousCommand}" IsEnabled="{Binding HasPageMatches}"
                                 ToolTip.Tip="Previous match (↑ or Shift+Enter)">
-                            <TextBlock Text="▲" />
+                            <mi:MaterialIcon Kind="ChevronUp" Width="14" Height="14" />
                         </Button>
                         <Button Classes="findArrow" Command="{Binding NextCommand}" IsEnabled="{Binding HasPageMatches}"
                                 ToolTip.Tip="Next match (↓ or Enter)">
-                            <TextBlock Text="▼" />
+                            <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" />
                         </Button>
                         <controls:ClearTextButton Margin="2,0,0,0" />
                     </StackPanel>
