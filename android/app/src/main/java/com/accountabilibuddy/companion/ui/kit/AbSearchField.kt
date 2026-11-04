@@ -27,7 +27,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
  * A search field (board 5e): a pill on the second tone with a magnifier in front, the [placeholder] while it is empty and a clear
- * button once something is typed. Ink on a quiet tone, never the accent. At least 52 dp tall, with a 44 dp clear button.
+ * button once something is typed. Ink on a quiet tone, never the accent. At least 52 dp tall, with a 48 dp clear button named "Clear search".
  */
 @Composable
 fun AbSearchField(value: String, onValueChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
@@ -51,9 +51,9 @@ fun AbSearchField(value: String, onValueChange: (String) -> Unit, placeholder: S
             )
         }
         if (value.isNotEmpty()) {
-            AbQuietIconButton(Icons.Outlined.Close, contentDescription = "Clear the search", onClick = { onValueChange("") })
+            AbClearButton(onClick = { onValueChange("") })
         } else {
-            Box(Modifier.size(44.dp))
+            Box(Modifier.size(48.dp))
         }
     }
 }
