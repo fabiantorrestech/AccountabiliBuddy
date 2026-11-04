@@ -12,9 +12,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +50,7 @@ import com.accountabilibuddy.watch.ui.WeekPage
 import com.accountabilibuddy.watch.ui.use24HourClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -156,17 +158,6 @@ private fun WatchApp(
 
     val zone by remember { derivedStateOf { now.value.let { ZoneId.systemDefault() } } }
     val context = LocalContext.current
-    // A timer that's just up brings the Timers page to the front (its buzz comes from the alarm).
-    val timers by remember { TimerStore.timers(context) }.collectAsState()
-    val doneIds by remember { derivedStateOf { timers.filter { it.isDone(now.value) }.map { it.id }.toSet() } }
-    var seenDone by remember { mutableStateOf(doneIds) }
-    var timersDue by remember { mutableStateOf(false) }
-    LaunchedEffect(doneIds) {
-        if ((doneIds - seenDone).isNotEmpty()) {
-            timersDue = true
-        }
-        seenDone = doneIds
-    }
 
     AppScaffold {
         val snapshot = stored ?: sample
@@ -184,7 +175,8 @@ private fun WatchApp(
                     noticePage + listOf(Page.NotLinked, Page.Timers)
                 } else {
                     // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
-                    // starts over when the pages change). The Lunch page shows on a workday or while lunch runs, from today's snapshot.
+                    // keeps the user on the page they are on when the order changes). The Lunch page shows on a workday or while
+                    // lunch runs, from today's snapshot.
                     val running = snapshot.running?.isLiveAt(now.value) == true
                     val onLunch = lunch?.isRunning(now.value) == true
                     val order = when {
@@ -196,11 +188,42 @@ private fun WatchApp(
                 }
             }
         }
-        val pager = key(pages) { rememberPagerState(pageCount = { pages.size }) }
-        LaunchedEffect(openTimers, timersDue, pager) {
-            if (openTimers || timersDue) {
-                pager.scrollToPage(pages.indexOf(Page.Timers))
-                timersDue = false
+        val pager = rememberPagerState(pageCount = { pages.size })
+        // The page the user is on, by name: when the order changes the pager follows that page instead of staying on the same
+        // position (which would show another page or start over at the first). Exceptions that bring their page forward: a phone-link
+        // notice that appears, a session that starts (Session) and a lunch that starts (Lunch).
+        val pagesNow by rememberUpdatedState(pages)
+        var settled by remember { mutableStateOf<Page?>(null) }
+        var lastPages by remember { mutableStateOf<List<Page>>(emptyList()) }
+        LaunchedEffect(pager) { snapshotFlow { pager.settledPage }.collect { settled = pagesNow.getOrNull(it) } }
+        LaunchedEffect(pages) {
+            val before = lastPages
+            lastPages = pages
+            val forced = when {
+                before.isEmpty() -> null
+                Page.Notice in pages && Page.Notice !in before -> Page.Notice
+                else -> frontPage(pages).takeIf { (it == Page.Session || it == Page.Lunch) && it != frontPage(before) }
+            }
+            // A swipe in progress is not yanked: its page is the one the user chose (the pager shows the new order), so only a
+            // page that must come forward waits for it to settle, and the plain follow is skipped.
+            val swiping = pager.isScrollInProgress
+            if (swiping) snapshotFlow { pager.isScrollInProgress }.first { !it }
+            val target = when {
+                forced != null -> pages.indexOf(forced)
+                swiping -> -1
+                else -> settled?.let { pages.indexOf(it) } ?: -1
+            }
+            if (target >= 0) {
+                if (target != pager.currentPage) pager.scrollToPage(target)
+            } else if (!swiping) {
+                // The page the user was on is gone: they are on whatever the pager shows now.
+                settled = pages.getOrNull(pager.currentPage)
+            }
+        }
+        // Opened from the Timers complication or a timer's "Time's up" notification: that page, once.
+        LaunchedEffect(openTimers, pager) {
+            if (openTimers) {
+                pages.indexOf(Page.Timers).takeIf { it >= 0 }?.let { pager.scrollToPage(it) }
                 onTimersOpened()
             }
         }
@@ -271,5 +294,8 @@ private fun LinkContent(snapshot: WatchSnapshot, now: State<Instant>, isSample: 
     }
     LinkPage(pcName = snapshot.pcName, updated = ages.updated, sources = ages.sources, isSample = isSample, onForget = onForget)
 }
+
+/** The first page that is not the phone-link notice: Today, or Session or Lunch while one runs. */
+private fun frontPage(pages: List<Page>): Page? = pages.firstOrNull { it != Page.Notice }
 
 private enum class Page { Notice, NotLinked, Today, Session, Lunch, Timers, Noise, Week, Alerts, Link }

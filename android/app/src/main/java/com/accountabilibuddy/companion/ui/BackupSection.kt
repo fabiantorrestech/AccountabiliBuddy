@@ -32,12 +32,7 @@ internal fun BackupSection() {
     var message by remember { mutableStateOf<String?>(null) }
     // Import is locked during a focus session the user started (looked at again while the page is open, and again by import itself).
     var importLocked by remember { mutableStateOf(app.sync.removalLockedReason()) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        while (true) {
-            importLocked = app.sync.removalLockedReason()
-            kotlinx.coroutines.delay(2_000L)
-        }
-    }
+    PollWhileVisible(periodMs = { 5_000L }) { importLocked = app.sync.removalLockedReason() }
 
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(PhoneBackup.MIME)) { uri ->
         if (uri != null) {

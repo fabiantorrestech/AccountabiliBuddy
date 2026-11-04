@@ -35,6 +35,7 @@ import com.accountabilibuddy.companion.pause.PauseState
 import com.accountabilibuddy.companion.pause.PauseStatus
 import com.accountabilibuddy.companion.placement.GuardsLock
 import com.accountabilibuddy.companion.sync.PcState
+import com.accountabilibuddy.companion.ui.rememberTickingNow
 import com.accountabilibuddy.companion.ui.CurboxSetupPage
 import com.accountabilibuddy.companion.ui.EmergencySection
 import com.accountabilibuddy.companion.ui.EssentialsSection
@@ -244,13 +245,8 @@ private fun PhoneGuardPage(
         if (pause != null) {
             add(PageRow(SettingsAnchors.PHONE_GUARD) {
                 // Ticks the wait down while it's shown.
-                var now by remember { mutableStateOf(Instant.now()) }
-                LaunchedEffect(pause) {
-                    while (true) {
-                        now = Instant.now()
-                        kotlinx.coroutines.delay(1_000)
-                    }
-                }
+                // 1 s while the wait runs, 15 s while paused (when it ends), and not at all when the guard is simply on.
+                val now by rememberTickingNow(pause) { if (pause.requestedAt != null) 1_000L else if (pause.pausedAt != null) 15_000L else null }
                 PauseSection(pause, now, clock, pauseActions)
             })
         }

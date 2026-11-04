@@ -11,7 +11,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -64,7 +63,7 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
                     if (prompt.relayOnInternet) {
                         Text(
                             "That is a relay on the internet, not on your home network.",
-                            color = Color(0xFFFCA5A5),
+                            color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -72,7 +71,7 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
                     if (prompt.newRelay) {
                         Text(
                             "This phone doesn't use that relay now.",
-                            color = Color(0xFFFCA5A5),
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
                 }

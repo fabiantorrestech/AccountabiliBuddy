@@ -38,13 +38,8 @@ fun TestSessionCard(asPage: Boolean = false) {
     val test = app.testSession
     val window by test.window.collectAsState()
     var minutes by remember { mutableStateOf(test.minutes) }
-    var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(window) {
-        while (true) {
-            now = Instant.now()
-            kotlinx.coroutines.delay(1_000)
-        }
-    }
+    // 1 s only while a test runs; otherwise every 15 s (a session on another device that starts or ends).
+    val now by rememberTickingNow(window) { read -> if (window?.let { (start, end) -> !read.isBefore(start) && read.isBefore(end) } == true) 1_000L else 15_000L }
     val running = window?.takeIf { (start, end) -> !now.isBefore(start) && now.isBefore(end) }
     val realRunning = EssentialsLaunch.realSessionStart(app, now) != null
     val summary = when {

@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.OutlinedButton
@@ -29,7 +30,7 @@ fun AlertsPage(onChanged: () -> Unit) {
         Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("When a timer ends", fontSize = 13.sp)
+        Text("When a focus, break or timer ends", fontSize = 13.sp, textAlign = TextAlign.Center)
         OutlinedButton(onClick = {
             vibration = Vibration.entries[(vibration.ordinal + 1) % Vibration.entries.size]
             AlertSettings.setVibration(context, vibration)
