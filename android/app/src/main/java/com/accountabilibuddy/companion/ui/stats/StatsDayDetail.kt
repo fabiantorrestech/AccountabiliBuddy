@@ -13,9 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChevronLeft
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,22 +32,19 @@ import com.accountabilibuddy.companion.stats.DayPanel
 import com.accountabilibuddy.companion.stats.DayStripKind
 import com.accountabilibuddy.companion.stats.StatCard
 import com.accountabilibuddy.companion.ui.kit.AbCard
-import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
  * One day in detail (the PC's right column, board 5k): the title with ‹ ›, the 12 AM to 12 AM strip with focus, drift and planned
  * sleep, deep work against the goal and drift as two tiles, and the day's sessions (and stretches off track, times only) as a list.
- * [onPrevious] and [onNext] are null at the ends of the days the phone holds.
+ * The period bar above the chart steps between days.
  */
 @Composable
-fun StatsDayDetail(panel: DayPanel, onPrevious: (() -> Unit)?, onNext: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun StatsDayDetail(panel: DayPanel, modifier: Modifier = Modifier) {
     val colors = Ab.colors
     AbCard(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(panel.title, style = Ab.type.section, color = colors.ink, modifier = Modifier.weight(1f))
-            AbQuietIconButton(Icons.Outlined.ChevronLeft, "Previous day", onClick = { onPrevious?.invoke() }, enabled = onPrevious != null)
-            AbQuietIconButton(Icons.Outlined.ChevronRight, "Next day", onClick = { onNext?.invoke() }, enabled = onNext != null)
         }
 
         if (!panel.hasData) {

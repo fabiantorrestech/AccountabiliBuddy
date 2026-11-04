@@ -13,13 +13,13 @@ object OverviewPanels {
     private const val GOAL_HEADROOM = 1.25
 
     /** @param extraCards Phone and Sleep tiles, built from this phone's own data (they are left out when it has none). */
-    fun build(data: StatsData, range: StatsRange, selected: LocalDate, extraCards: List<StatCard>): BarPanel? {
+    fun build(data: StatsData, period: StatsPeriod, extraCards: List<StatCard>): BarPanel? {
         if (!data.hasHistory) return null
-        return if (range == StatsRange.Day) day(data, selected) else days(data, range, extraCards)
+        return if (period.kind == StatsRange.Day) day(data, period.from) else days(data, period, extraCards)
     }
 
-    private fun days(data: StatsData, range: StatsRange, extraCards: List<StatCard>): BarPanel {
-        val (from, to) = StatsFormat.bounds(range, data.today)
+    private fun days(data: StatsData, period: StatsPeriod, extraCards: List<StatCard>): BarPanel {
+        val (from, to) = period.from to period.to
         val past = data.daysBetween(from, to)
         val hasFocus = past.any { it.focused > Duration.ZERO }
         val total = past.fold(Duration.ZERO) { sum, day -> sum.plus(day.focused) }
@@ -33,7 +33,7 @@ object OverviewPanels {
             val focused = day?.focused ?: Duration.ZERO
             val met = goal != null && focused >= goal
             val kind = if (met) BarKind.Met else if (date == data.today) BarKind.Accent else BarKind.Plan
-            val label = StatsFormat.barLabel(range, date)
+            val label = StatsFormat.barLabel(period, date)
             bars += StatsBar(
                 label, (StatsFormat.minutes(focused) / scale).toFloat(), kind, date == data.today, noBar,
                 if (noBar) "${StatsFormat.dayText(date)} · no data" else "${StatsFormat.dayText(date)} · ${StatsFormat.duration(focused)}${if (met) " · goal met" else ""}",
@@ -43,15 +43,16 @@ object OverviewPanels {
         }
 
         val summary = goal?.let { ConsistencyStats.summarize(past, it, data.isWorkday, data.today) }
-        val period = if (range == StatsRange.Week) "this week" else "this month"
+        // A past period is named by its dates: "this week" on last month would say something false.
+        val words = StatsFormat.periodWords(period, data.today)
         val note = when {
             !hasFocus -> "deep work · nothing counted yet"
-            summary != null && summary.workdaysCounted > 0 -> "deep work $period · ${summary.workdaysMet} of ${summary.workdaysCounted} workdays met"
-            else -> "deep work $period"
+            summary != null && summary.workdaysCounted > 0 -> "deep work $words · ${summary.workdaysMet} of ${summary.workdaysCounted} workdays met"
+            else -> "deep work $words"
         }
         return BarPanel(
             StatsFormat.hoursMinutes(total), note, bars, goal?.let { (StatsFormat.minutes(it) / scale).toFloat() }, goal?.let { "goal ${StatsFormat.duration(it)}" },
-            extraCards + driftCard(data, from, to, hasFocus), rows(data, range, from, to), StatsDepth.caption(data, if (range == StatsRange.Week) 7 else 28),
+            extraCards + driftCard(data, from, to, hasFocus), rows(data, period), StatsDepth.caption(data, period),
         )
     }
 
@@ -92,10 +93,10 @@ object OverviewPanels {
         )
     }
 
-    // The days under the chart (board 5d). A week lists Monday to today, oldest first; a month lists the days with focus, newest first.
-    private fun rows(data: StatsData, range: StatsRange, from: LocalDate, to: LocalDate): List<StatsDayRow> {
-        val days = data.daysBetween(from, to)
-        val shown = if (range == StatsRange.Week) days else days.filter { it.focused > Duration.ZERO }.reversed()
+    // The days under the chart (board 5d). Up to a week lists every day that has happened, oldest first; a longer period lists the days with focus, newest first.
+    private fun rows(data: StatsData, period: StatsPeriod): List<StatsDayRow> {
+        val days = data.daysBetween(period.from, period.to)
+        val shown = if (period.days <= 7) days else days.filter { it.focused > Duration.ZERO }.reversed()
         return shown.map { day ->
             val met = data.goal != null && day.focused >= data.goal
             val detail = when {
