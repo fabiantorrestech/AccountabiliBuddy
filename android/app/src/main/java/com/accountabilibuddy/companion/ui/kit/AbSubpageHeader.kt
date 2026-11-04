@@ -18,19 +18,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /** A page one level down: a "← Settings" crumb that goes back, then the page's title in the display font. */
 @Composable
 fun AbSubpageHeader(crumb: String, title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
-            Modifier.heightIn(min = 44.dp).clickable(role = Role.Button, onClick = onBack),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to $crumb", tint = Ab.colors.muted, modifier = Modifier.size(20.dp))
-            Text(crumb, style = Ab.type.bodyMedium, fontWeight = FontWeight.Medium, color = Ab.colors.muted)
+        // On a tablet a Settings page sits beside the list, which is already the way back, so its "← Settings" crumb is left out.
+        if (!(LocalExpanded.current && crumb == "Settings")) {
+            Row(
+                Modifier.heightIn(min = 44.dp).clickable(role = Role.Button, onClick = onBack),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to $crumb", tint = Ab.colors.muted, modifier = Modifier.size(20.dp))
+                Text(crumb, style = Ab.type.bodyMedium, fontWeight = FontWeight.Medium, color = Ab.colors.muted)
+            }
         }
         Text(title, style = Ab.type.title, color = Ab.colors.ink)
     }

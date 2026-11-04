@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
@@ -58,6 +59,8 @@ fun SettingsList(
     onQueryChange: (String) -> Unit = {},
     onOpenResult: (SearchEntry) -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
+    /** The page showing beside the list on a tablet; its row is marked. Null on a phone. */
+    selected: SettingsCategory? = null,
 ) {
     val context = LocalContext.current
     val theme by UiPrefs.themeName.collectAsState()
@@ -76,8 +79,8 @@ fun SettingsList(
         if (searching) {
             item { SearchResults(results, inputs.guardsLock != null, onOpenResult) }
         } else {
-            item { CategoryCard(SettingsCategory.Main, summaries, inputs.guardsLock != null, onOpen) }
-            item { CategoryCard(SettingsCategory.Below, summaries, inputs.guardsLock != null, onOpen) }
+            item { CategoryCard(SettingsCategory.Main, summaries, inputs.guardsLock != null, onOpen, selected) }
+            item { CategoryCard(SettingsCategory.Below, summaries, inputs.guardsLock != null, onOpen, selected) }
             item {
                 Hint(
                     "Local only: the app talks only to your linked watch (through Google's encrypted relay only if you allow it in Devices & sync) " +
@@ -113,6 +116,7 @@ private fun CategoryCard(
     summaries: Map<SettingsCategory, String>,
     resting: Boolean,
     onOpen: (SettingsCategory) -> Unit,
+    selected: SettingsCategory? = null,
 ) {
     AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
         categories.forEachIndexed { index, category ->
@@ -120,6 +124,7 @@ private fun CategoryCard(
                 title = category.title, icon = category.icon, subtitle = summaries[category]?.takeIf { it.isNotEmpty() },
                 onClick = { onOpen(category) }, locked = resting && category == SettingsCategory.Guards,
                 divider = index < categories.lastIndex,
+                modifier = if (category == selected) Modifier.background(Ab.colors.surface2, Ab.shapes.mediumShape) else Modifier,
             )
         }
     }

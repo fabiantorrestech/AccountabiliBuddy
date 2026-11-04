@@ -34,6 +34,13 @@ import com.accountabilibuddy.companion.ui.settings.SettingsDetailHost
 import com.accountabilibuddy.companion.ui.settings.SettingsPageActions
 import com.accountabilibuddy.companion.ui.settings.SettingsPageInputs
 import com.accountabilibuddy.companion.ui.shell.CenteredPane
+import com.accountabilibuddy.companion.ui.shell.TextPaneWidth
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.key
 import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import com.accountabilibuddy.companion.ui.shell.NavLayout
 import com.accountabilibuddy.companion.ui.shell.rememberNavLayout
@@ -149,7 +156,10 @@ fun MainScreen(
     // Back: out of a page inside a place, then to Today, then out of the app. The modal screens keep what they did before
     // (Back leaves the app from them).
     val modalOpen = unlinked != null || showSetup || planDayOpen || whatsNewOpen || planDraft != null
-    BackHandler(enabled = nav.canGoBack && !modalOpen) { nav.back() }
+    // Beside the list a Settings page is not "one level down", so on a tablet Back leaves Settings for Today in one step.
+    BackHandler(enabled = nav.canGoBack && !modalOpen) {
+        if (wide && nav.destination == AppDestination.Settings) nav.select(AppDestination.Today) else nav.back()
+    }
 
     val pcState = controlPc?.let { PcFileControl.stateOf(it.file, java.time.Instant.now()) }
 
@@ -391,7 +401,8 @@ fun MainScreen(
                         "relay".takeIf { syncSettings.relayOn },
                         pcName,
                     ).joinToString(" · ")
-                    if (category == null) {
+                    // The list and a page are the same pieces on a phone (one at a time) and on a tablet (side by side).
+                    val settingsList: @Composable (SettingsCategory?) -> Unit = { selected ->
                         SettingsList(
                             SettingsListInputs(
                                 state = state, health = health, lunchLengthMinutes = lunchLength, pause = pauseState, takeoverOn = takeoverOn,
@@ -402,8 +413,10 @@ fun MainScreen(
                             onQueryChange = { settingsQuery = it },
                             onOpenResult = { nav.open(AppDestination.Settings, it.category.key, it.anchor) },
                             listState = settingsListState,
+                            selected = selected,
                         )
-                    } else {
+                    }
+                    val settingsDetail: @Composable (SettingsCategory) -> Unit = { category ->
                         SettingsDetailHost(
                             category = category,
                             anchor = shown.anchor,
@@ -486,6 +499,21 @@ fun MainScreen(
                             ),
                         )
                     }
+                    if (wide) {
+                        // List on the left, the chosen page on the right (the first one until a page is chosen).
+                        val chosen = category ?: SettingsCategory.Main.first()
+                        Row(Modifier.fillMaxSize()) {
+                            Box(Modifier.width(SettingsListWidth).fillMaxHeight()) { settingsList(chosen) }
+                            Box(Modifier.width(1.dp).fillMaxHeight().background(Ab.colors.line))
+                            Box(Modifier.weight(1f).fillMaxHeight()) {
+                                CenteredPane(maxWidth = TextPaneWidth) { key(chosen) { settingsDetail(chosen) } }
+                            }
+                        }
+                    } else if (category == null) {
+                        settingsList(null)
+                    } else {
+                        settingsDetail(category)
+                    }
                 }
             }
             }
@@ -544,3 +572,6 @@ fun MainScreen(
         )
     }
 }
+
+/** The Settings list's width beside a page on a tablet. */
+private val SettingsListWidth = 380.dp

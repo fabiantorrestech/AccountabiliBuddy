@@ -30,6 +30,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.outlined.Close
+import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -69,8 +73,10 @@ fun TaskDetailSheet(
     actions: TaskDetailActions,
     onCommit: (before: TaskFields, after: TaskFields) -> Unit,
     onDismiss: () -> Unit,
+    /** True on a tablet: the details fill a pane beside the list instead of rising as a sheet. Everything else is the same. */
+    inline: Boolean = false,
 ) {
-    TaskDetailSheetBody(detail, categories, actions, onCommit, onDismiss)
+    TaskDetailSheetBody(detail, categories, actions, onCommit, onDismiss, inline)
 }
 
 @Composable
@@ -80,6 +86,7 @@ private fun TaskDetailSheetBody(
     actions: TaskDetailActions,
     onCommit: (before: TaskFields, after: TaskFields) -> Unit,
     onDismiss: () -> Unit,
+    inline: Boolean,
 ) {
     val colors = Ab.colors
     val commitTo by rememberUpdatedState(onCommit)
@@ -135,9 +142,16 @@ private fun TaskDetailSheetBody(
     }
 
     val running = detail.ref.kind == TaskKind.Running
-    AbSheet(onDismiss = { commit(); onDismiss() }, modifier = Modifier.imePadding()) {
+    val body: @Composable ColumnScope.() -> Unit = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            AbSectionLabel(detail.label)
+            if (inline) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AbSectionLabel(detail.label, Modifier.weight(1f))
+                    AbQuietIconButton(Icons.Outlined.Close, contentDescription = "Close the details", onClick = { commit(); onDismiss() })
+                }
+            } else {
+                AbSectionLabel(detail.label)
+            }
             SheetField(
                 value = draft.title, onValueChange = { change(draft.copy(title = it), now = false) }, placeholder = "Task", onDone = { commit() },
             )
@@ -195,6 +209,11 @@ private fun TaskDetailSheetBody(
                 actions.onDelete?.let { run -> AbTonalButton("Delete", onClick = { closeAfter(run) }, icon = Icons.Outlined.Delete, modifier = Modifier.fillMaxWidth()) }
             }
         }
+    }
+    if (inline) {
+        Column(Modifier.fillMaxSize().imePadding().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = body)
+    } else {
+        AbSheet(onDismiss = { commit(); onDismiss() }, modifier = Modifier.imePadding(), content = body)
     }
 }
 
