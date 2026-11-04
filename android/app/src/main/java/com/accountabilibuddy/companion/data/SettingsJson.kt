@@ -152,6 +152,7 @@ object SettingsJson {
                 occurrenceKey = e.string("occurrenceKey"),
                 categoryId = e.string("categoryId")?.let { runCatching { java.util.UUID.fromString(it) }.getOrNull() },
                 knownSince = e.string("knownSince")?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant() }.getOrNull() },
+                categoryByHand = e.bool("categoryByHand", false),
             )
         }.getOrNull()
     }

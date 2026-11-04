@@ -492,6 +492,12 @@ public sealed partial class SessionTasksService : IDisposable
     /// <summary>Tells the pickers to look again, when the other devices' categories are not what they last showed. Call on the UI thread.</summary>
     public void NotifyOtherCategoriesChanged()
     {
+        // A colour another device chose later is this PC's colour too (ADR 62).
+        if (TaskCategoryColors.TakeNewer(_categories, OtherCategories().SelectMany(device => device.Categories), _time.GetUtcNow()) is IReadOnlyList<TaskCategory> newer)
+        {
+            _ = SetCategoriesAsync(newer);
+        }
+
         string signature = string.Join(
             "\u0001",
             OtherCategories().Select(device => $"{device.DeviceId:N}\u0002{string.Join("\u0003", device.Categories.Select(category => $"{category.Name}\u0004{category.Color}"))}"));
@@ -506,9 +512,9 @@ public sealed partial class SessionTasksService : IDisposable
 
     /// <summary>
     /// Takes a category another device lists into this PC's list: one with the same name (any case) is this PC's already and keeps its
-    /// colour; otherwise it is added with the colour the other device gave it. The id of this PC's category; null for a blank name.
+    /// colour; otherwise it is added with the colour given (none: the next colour no category has). The id of this PC's category; null for a blank name.
     /// </summary>
-    public async Task<Guid?> AdoptCategoryAsync(string name, string color)
+    public async Task<Guid?> AdoptCategoryAsync(string name, string? color)
     {
         int before = _categories.Count;
         Guid? id = await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: color));
@@ -554,12 +560,13 @@ public sealed partial class SessionTasksService : IDisposable
     }
 
     /// <summary>
-    /// Changes this PC's colour for the category only. Later items and come-backs are not touched (that would re-stamp them on every
-    /// device); the Tasks page shows this PC's colour for an item whose category name matches.
+    /// Chooses the category's colour, stamped so the newest choice wins on every device (ADR 62). Later items and come-backs are not
+    /// touched (that would re-stamp them on every device); every device shows a category's current colour for an item whose name matches.
     /// </summary>
     public Task RecolorCategoryAsync(Guid id, string color)
     {
-        return SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Color = color } : category).ToList());
+        DateTimeOffset now = _time.GetUtcNow();
+        return SetCategoriesAsync(_categories.Select(category => category.Id == id ? category with { Color = color, ColorEditedAt = now } : category).ToList());
     }
 
     /// <summary>
@@ -774,7 +781,8 @@ public sealed partial class SessionTasksService : IDisposable
             IReadOnlyList<SessionSubtask> openSteps = task.Subtasks.Where(step => !step.IsDone).ToList();
             // Remembered before the Later item is added, so the page that redraws on its change already leaves the task out.
             _movedToLater.Add(new MovedEntry(task.Id, _time.GetUtcNow()));
-            if (await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, null) is not null)
+            (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_categories, task.CategoryId, task.Category, task.CategoryColor);
+            if (await Later.AddAsync(task.Title, openSteps, categoryName, categoryColor, task.EstimateMinutes, task.Note, null) is not null)
             {
                 moved++;
             }
@@ -1227,7 +1235,9 @@ public sealed partial class SessionTasksService : IDisposable
 
     // A task that comes with a category this device doesn't have gets it, with the name and colour it came with (ADR 24, 48).
     // A colour change counts as an edit of the category: it restamps the category's tasks (ReconcileNextTasks), so the colour on
-    // the category's most recently edited task is the latest one, and a category this device already has takes it.
+    // the category's most recently edited task is the latest one, and a category this device already has takes it. Not once the
+    // category has a colour stamp: those travel in the devices' category lists (ADR 62), and a task can carry an old colour with a new edit
+    // (an old Later item moved to Today), which would undo the recolour.
     private bool TakeCategoriesFrom(IEnumerable<SyncNextTask> tasks)
     {
         var categories = _categories.ToList();
@@ -1245,7 +1255,7 @@ public sealed partial class SessionTasksService : IDisposable
                 categories.Add(new TaskCategory(Guid.NewGuid(), group.Key, sent ?? TaskCategory.Palette[categories.Count % TaskCategory.Palette.Count]));
                 changed = true;
             }
-            else if (sent is not null && !string.Equals(categories[index].Color, sent, StringComparison.OrdinalIgnoreCase))
+            else if (sent is not null && categories[index].ColorEditedAt is null && !string.Equals(categories[index].Color, sent, StringComparison.OrdinalIgnoreCase))
             {
                 categories[index] = categories[index] with { Color = sent };
                 changed = true;

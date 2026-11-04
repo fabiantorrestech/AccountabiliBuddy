@@ -3,6 +3,7 @@ using System.Globalization;
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Sync;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
@@ -36,10 +37,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private List<Guid> _unfinishedIds = [];
     private int _sessionRowCount;
     private readonly HashSet<TaskRowKey> _picked = [];
+    private Guid? _newTaskCategoryId;
+    private Guid? _filterCategoryId;
+    private Func<Guid?, Task>? _applyNewCategory;
 
     public TasksViewModel(
         SessionTasksService tasks, LaterStore later, ComebackStore comebacks, AutoSavedTaskStore autoSaved, NotebookViewModel archive,
-        SessionViewModel session, ConfigurationService configuration, TimeProvider time, TaskViewStore viewStore)
+        SessionViewModel session, ConfigurationService configuration, TimeProvider time, TaskViewStore viewStore, TaskFilterPresetStore presetStore)
     {
         _tasks = tasks;
         _later = later;
@@ -54,7 +58,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         CategoryEditor = new CategoryEditorViewModel(tasks);
         Filter = new TaskFilterViewModel(viewStore);
         Filter.Changed += OnFilterChanged;
-        CountsText = UnfinishedText = AddPlaceholder = SearchText = NewTaskText = Notice = string.Empty;
+        Presets = new TaskFilterPresetsViewModel(presetStore, () => (Filter.Snapshot(), SearchText), ApplyPreset);
+        CountsText = UnfinishedText = AddPlaceholder = SearchText = NewTaskText = Notice = NewTaskCategoryTip = NewCategoryName = string.Empty;
+        NewTaskCategoryBrush = Brushes.Transparent;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
         _autoSaved.Changed += OnStoreChanged;
@@ -74,6 +80,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     /// <summary>The filter button's state: Status, Category, Due and Sort (remembered on this PC).</summary>
     public TaskFilterViewModel Filter { get; }
+
+    /// <summary>The filter button's Saved section: filter choices and search words kept under a name.</summary>
+    public TaskFilterPresetsViewModel Presets { get; }
 
     /// <summary>The bar after a delete: "Deleted “…” · Undo".</summary>
     public UndoBarViewModel Undo { get; }
@@ -132,6 +141,21 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial string NewTaskText { get; set; }
+
+    /// <summary>The dot on the add row: the category new tasks go in; transparent for none.</summary>
+    [ObservableProperty]
+    public partial IBrush NewTaskCategoryBrush { get; set; }
+
+    /// <summary>What the add row's dot says, e.g. "New tasks go in Work (click to change)".</summary>
+    [ObservableProperty]
+    public partial string NewTaskCategoryTip { get; set; }
+
+    /// <summary>A picker's "New category…" was chosen: the name box shows under the header.</summary>
+    [ObservableProperty]
+    public partial bool IsNamingCategory { get; set; }
+
+    [ObservableProperty]
+    public partial string NewCategoryName { get; set; }
 
     [ObservableProperty]
     public partial bool IsSearchOpen { get; set; }
@@ -228,6 +252,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Detail?.Dispose();
     }
 
+    // A saved filter: its choices and its search words replace the ones in force; search words open the search box, so what narrows the list can be seen.
+    private void ApplyPreset(TaskFilterPreset preset)
+    {
+        Filter.Restore(preset.View);
+        SearchText = preset.Search;
+        IsSearchOpen = IsSearchOpen || preset.Search.Length > 0;
+    }
+
     [RelayCommand]
     private void ToggleSearch()
     {
@@ -315,8 +347,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private void DismissNotice() => Notice = string.Empty;
 
     /// <summary>
-    /// The add row's Enter: a task of this session while it has fewer than three (the filter's category if one is chosen),
-    /// else a Later item. A running session never gets a 4th task this way.
+    /// The add row's Enter: a task of this session while it has fewer than three, else a Later item, in the category the add row's
+    /// dot shows. A running session never gets a 4th task this way.
     /// </summary>
     [RelayCommand]
     private async Task AddTaskAsync()
@@ -328,18 +360,83 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         NewTaskText = string.Empty;
+        TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == _newTaskCategoryId);
         if (!SessionIsFull)
         {
-            await _tasks.AddAsync(title, null, Filter.SingleCategoryId);
+            await _tasks.AddAsync(title, null, category?.Id);
             return;
         }
 
-        TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == Filter.SingleCategoryId);
         SyncLaterItem? added = await _later.AddAsync(title, null, category?.Name, category?.Color, null, null, null);
         if (added is not null)
         {
             Select(new TaskRowKey(TaskRowKind.Later, added.Id));
         }
+    }
+
+    /// <summary>The add row's dot: every category, "No category" and "New category…"; the choice goes on the tasks added from now on.</summary>
+    internal IReadOnlyList<TaskMenuEntry> NewTaskCategoryEntries()
+    {
+        string? current = _tasks.Categories.FirstOrDefault(item => item.Id == _newTaskCategoryId)?.Name;
+        return CategoryChoices(current, markCurrent: true, PickNewTaskCategoryAsync);
+    }
+
+    private Task PickNewTaskCategoryAsync(Guid? id)
+    {
+        _newTaskCategoryId = id;
+        RefreshNewTaskCategory();
+        return Task.CompletedTask;
+    }
+
+    // A filter or chip on exactly one category presets the add row, as it always decided it; a pick after that stays until the filter changes again.
+    private void RefreshNewTaskCategory()
+    {
+        Guid? single = Filter.SingleCategoryId;
+        if (single != _filterCategoryId)
+        {
+            _filterCategoryId = single;
+            _newTaskCategoryId = single;
+        }
+
+        TaskCategory? chosen = _tasks.Categories.FirstOrDefault(item => item.Id == _newTaskCategoryId);
+        NewTaskCategoryBrush = TaskCategoryBrushes.Of(chosen?.Color);
+        NewTaskCategoryTip = chosen is null ? "New tasks have no category (click to choose one)" : $"New tasks go in {chosen.Name} (click to change)";
+    }
+
+    // "New category…" in a picker: the name box takes the keyboard; Enter makes the category and applies it to what the picker was for.
+    private void AskNewCategory(Func<Guid?, Task> apply)
+    {
+        _applyNewCategory = apply;
+        NewCategoryName = string.Empty;
+        IsNamingCategory = true;
+        FocusRequested?.Invoke(this, "newCategory");
+    }
+
+    /// <summary>Enter in the name box: a new category in the next colour no category has (the same name in any case is the one that exists), then applied.</summary>
+    [RelayCommand]
+    private async Task SaveNewCategoryAsync()
+    {
+        string name = NewCategoryName.Trim();
+        Func<Guid?, Task>? apply = _applyNewCategory;
+        CancelNewCategory();
+        if (name.Length == 0 || apply is null)
+        {
+            return;
+        }
+
+        if (await _tasks.AdoptCategoryAsync(name, null) is Guid id)
+        {
+            await apply(id);
+        }
+    }
+
+    /// <summary>Esc or the ✕ in the name box: nothing is added.</summary>
+    [RelayCommand]
+    private void CancelNewCategory()
+    {
+        _applyNewCategory = null;
+        NewCategoryName = string.Empty;
+        IsNamingCategory = false;
     }
 
     /// <summary>Moves every unfinished task of the past sessions listed to Later; nothing moves by itself.</summary>
@@ -871,11 +968,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         entries.Add(new TaskMenuEntry("No category", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null));
-        if (_tasks.Categories.Count == 0)
-        {
-            entries.Add(new TaskMenuEntry("Add categories with the Categories button above"));
-        }
-
+        entries.Add(NewCategoryEntry(apply));
         return entries;
     }
 
@@ -921,7 +1014,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             }
         }
 
+        entries.Add(NewCategoryEntry(apply));
         return entries;
+    }
+
+    private TaskMenuEntry NewCategoryEntry(Func<Guid?, Task> apply)
+    {
+        return TaskMenuEntry.Do("New category…", () => AskNewCategory(apply), MaterialIconKind.Plus);
     }
 
     private string? CategoryNameOf(TaskRowKey key)
@@ -934,7 +1033,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 return _comebacks.All.FirstOrDefault(item => item.Id == key.Id)?.Category;
             default:
                 SessionTask? task = FindTask(key.Id);
-                return task is null ? null : task.Category ?? _tasks.Categories.FirstOrDefault(category => category.Id == task.CategoryId)?.Name;
+                return task is null ? null : TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Name;
         }
     }
 
@@ -1051,6 +1150,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         DateOnly today = DateOnly.FromDateTime(LocalNow());
         Filter.SetCategories(_tasks.Categories);
         CategoryEditor.Refresh(_tasks.Categories);
+        RefreshNewTaskCategory();
         TaskDueFilter dueFilter = Filter.Due;
 
         // This session: the open tasks, numbered as the session runs them (the numbers don't change with a filter), in session order.
@@ -1113,10 +1213,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         foreach (PastTask item in shownPast)
         {
             Guid id = item.Task.Id;
-            TaskCategory? category = _tasks.Categories.FirstOrDefault(c => c.Id == item.Task.CategoryId);
+            (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_tasks.Categories, item.Task.CategoryId, item.Task.Category, item.Task.CategoryColor);
             otherRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Past, id), item.Task.Title, $"Session of {When(item.SessionStart, today)}",
-                item.Task.Category ?? category?.Name, item.Task.CategoryColor ?? category?.Color, categoryId: item.Task.CategoryId,
+                categoryName, categoryColor, categoryId: item.Task.CategoryId,
                 toggle: () => _tasks.SetTickedAsync(id, true), statusTag: "Unfinished", sortTime: item.SessionStart));
         }
 
@@ -1139,10 +1239,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         foreach (SessionTask task in DoneToday(today).Where(task => showsDone && InFilter(task.CategoryId, task.Category) && Matches(search, task.Title, task.Note, task.Subtasks.Select(step => step.Title))))
         {
             Guid id = task.Id;
-            TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
+            (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor);
             otherRows.Add(MakeRow(
-                new TaskRowKey(TaskRowKind.Done, id), task.Title, $"Finished {Clock(Local(task.DoneAt!.Value))}", task.Category ?? category?.Name,
-                task.CategoryColor ?? category?.Color, categoryId: task.CategoryId, isTicked: true, toggle: () => _tasks.SetTickedAsync(id, false),
+                new TaskRowKey(TaskRowKind.Done, id), task.Title, $"Finished {Clock(Local(task.DoneAt!.Value))}", categoryName,
+                categoryColor, categoryId: task.CategoryId, isTicked: true, toggle: () => _tasks.SetTickedAsync(id, false),
                 statusTag: "Done", sortTime: task.DoneAt!.Value));
         }
 
@@ -1170,6 +1270,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             ? "This session is full: Enter adds it to Later"
             : "Add a task · Ctrl+Alt+N from anywhere";
         RebuildCategoryChips();
+        Presets.Refresh();
 
         OnPropertyChanged(nameof(HasSessionRows));
         OnPropertyChanged(nameof(HasOtherRows));
@@ -1180,15 +1281,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     }
 
     // A Later item or come-back carries its category's name and the colour it had when it was set; this PC's own colour for that name
-    // wins when it has one (a recolour here changes only this PC's list), else the item's own shows.
+    // wins when it has one, else the item's own shows.
     private string? LocalColor(string? categoryName, string? storedColor)
     {
-        if (categoryName is null)
-        {
-            return storedColor;
-        }
-
-        return _tasks.Categories.FirstOrDefault(item => string.Equals(item.Name, categoryName, StringComparison.OrdinalIgnoreCase))?.Color ?? storedColor;
+        return TaskCategoryDisplay.Resolve(_tasks.Categories, null, categoryName, storedColor).Color;
     }
 
     private TaskListRowViewModel MakeRow(

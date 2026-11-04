@@ -67,7 +67,7 @@ fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier 
                     PlanDayDetails(model, actions)
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
-                    if (model.timeline.rows.isEmpty()) emptyText() else PlanTimeline(model.timeline.rows)
+                    if (model.timeline.rows.isEmpty()) emptyText() else PlanTimeline(model.timeline.rows, onEvent = actions.onEvent)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
@@ -86,7 +86,7 @@ fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier 
             if (model.timeline.rows.isEmpty()) {
                 item { emptyText() }
             } else {
-                item { PlanTimeline(model.timeline.rows) }
+                item { PlanTimeline(model.timeline.rows, onEvent = actions.onEvent) }
             }
         }
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -87,10 +87,10 @@ public partial class TaskbarOverlayWindow : Window
         }
     }
 
-    /// <summary>How solid the tile looks (Settings › Overlay). Its content only: clicks and the panel are not affected.</summary>
-    public void SetTileOpacity(double opacity)
+    /// <summary>How solid the tile looks (Settings › Overlay). Its content only: clicks and the panel are not affected. The time and date may stay solid.</summary>
+    public void SetTileOpacity(double opacity, bool solidTime, bool solidDate)
     {
-        TileView.Opacity = opacity;
+        TileView.SetSolidity(opacity, solidTime, solidDate);
     }
 
     public void Apply(OverlayTarget target, OverlaySettings settings, OverlayAppRule? rule)

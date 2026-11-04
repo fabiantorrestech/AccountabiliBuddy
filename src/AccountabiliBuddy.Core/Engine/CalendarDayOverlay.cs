@@ -18,7 +18,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// looser-change delay before it starts, and no session the user started is running; otherwise the plan stands there. A
 /// Comms piece outside the stored Comms parts of a day that has some is looser, because it opens mail and chat. Where events
 /// overlap, the stricter wins.</item>
-/// <item>A Sleep or Pre-Work part is never cut: the piece of an event over one is dropped.</item>
+/// <item>A Sleep part is never cut, and a Pre-Work part only by an event classified by hand, as a looser change (ADR 64); otherwise the piece of an event over one is dropped.</item>
 /// <item>An event that crosses midnight splits per date. An existing one-off day is the base for its date.</item>
 /// <item>Budget day: a Work event inside a Budget day's stretch never becomes a part. Under the looser rule it gives that
 /// day (the one whose stretch holds the time) a <see cref="DayTemplate.BudgetCredit"/> for its time that has already passed,
@@ -54,6 +54,9 @@ public static class CalendarDayOverlay
     // BudgetDate and Credited are for BudgetCredit regions: the Budget day whose stretch holds the time, and whether the notice was served.
     private sealed record Region(LocalWindow Window, RegionKind Kind, DayCategory Category, CalendarEvent Event, int Strictness)
     {
+            /// <summary>The event was classified by hand and this piece lies over Pre-Work, which it lifts for its time (ADR 64).</summary>
+            public bool LiftsPreWork { get; init; }
+
         public DateOnly? BudgetDate { get; init; }
 
         public bool Credited { get; init; }
@@ -118,6 +121,7 @@ public static class CalendarDayOverlay
         private void Collect(CalendarEvent calendarEvent, DayCategory category, List<Region> regions)
         {
             int strictness = CategoryStrictness.Of(category.Behavior);
+            bool byHand = EventCategoryResolver.IsChosenByHand(calendarEvent, _input.Classifications);
             bool? looserAllowed = null;
             bool LooserAllowed() => looserAllowed ??= IsLooserAllowed(calendarEvent, category);
 
@@ -125,19 +129,21 @@ public static class CalendarDayOverlay
             IReadOnlyList<PlannedPart> seen = DayWorkWindows.PartsIn(_stored, whole, _localNow, null, _input.NightFallback);
             foreach ((LocalWindow segment, PlannedPart? basePart) in Segments(whole, seen))
             {
-                if (basePart?.Category.Behavior is CategoryBehavior.Sleep or CategoryBehavior.PreWork)
+                bool overPreWork = basePart?.Category.Behavior == CategoryBehavior.PreWork;
+                if (basePart?.Category.Behavior == CategoryBehavior.Sleep || (overPreWork && !byHand))
                 {
                     continue;
                 }
 
-                int baseStrictness = basePart is null ? 0 : CategoryStrictness.Of(basePart.Category.Behavior);
+                // Lifting Pre-Work is always a looser change, so it counts as above every category an event can have.
+                int baseStrictness = overPreWork ? int.MaxValue : basePart is null ? 0 : CategoryStrictness.Of(basePart.Category.Behavior);
                 bool inBudgetStretch = basePart?.Part.Id == DayWorkWindows.BudgetWindowPartId;
                 foreach (LocalWindow piece in ByDate(segment))
                 {
                     Region? region = RegionFor(piece, category, calendarEvent, strictness, baseStrictness, basePart, inBudgetStretch, LooserAllowed);
                     if (region is not null)
                     {
-                        regions.Add(region);
+                        regions.Add(region with { LiftsPreWork = overPreWork });
                     }
                 }
             }
@@ -239,8 +245,8 @@ public static class CalendarDayOverlay
         private void PlaceEventPart(Region region)
         {
             DateOnly date = DateOnly.FromDateTime(region.Window.Start);
-            Cut(date, region.Window);
-            Cut(date.AddDays(1), region.Window);
+            Cut(date, region.Window, region.LiftsPreWork);
+            Cut(date.AddDays(1), region.Window, region.LiftsPreWork);
 
             var part = new PlanPart(
                 StableGuid($"event|{region.Event.CalendarId}|{region.Event.Id}|{region.Window.Start:yyyyMMddTHHmm}"),
@@ -256,12 +262,12 @@ public static class CalendarDayOverlay
 
         // Takes <paramref name="hole"/> out of the parts that belong to <paramref name="owner"/> (a part belongs to the date it
         // ends on, so the date's evening may be held by the next date's night). What is left of a part is placed again.
-        private void Cut(DateOnly owner, LocalWindow hole)
+        private void Cut(DateOnly owner, LocalWindow hole, bool liftsPreWork = false)
         {
             List<PlanPart> parts = PartsOf(owner);
             foreach (PlanPart part in parts.ToList())
             {
-                if (part.FromEvent || IsProtected(part))
+                if (part.FromEvent || IsProtected(part, liftsPreWork))
                 {
                     continue;
                 }
@@ -303,9 +309,10 @@ public static class CalendarDayOverlay
             _changed.Add(home);
         }
 
-        private bool IsProtected(PlanPart part)
+        private bool IsProtected(PlanPart part, bool liftsPreWork)
         {
-            return _stored.Category(part.CategoryId)?.Behavior is CategoryBehavior.Sleep or CategoryBehavior.PreWork;
+            CategoryBehavior? behavior = _stored.Category(part.CategoryId)?.Behavior;
+            return behavior == CategoryBehavior.Sleep || (behavior == CategoryBehavior.PreWork && !liftsPreWork);
         }
 
         // A date's template as the guards see it (a Free or Budget day without its work parts), the parts the overlay edits.

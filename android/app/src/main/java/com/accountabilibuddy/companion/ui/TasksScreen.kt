@@ -65,6 +65,8 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
     val nextTasks by app.sharedLists.nextTasks.collectAsState()
     val parked by app.sharedLists.parked.collectAsState()
     val later by app.sharedLists.later.collectAsState()
+    val ownCategories by app.taskCategories.categories.collectAsState()
+    val savedFilters by app.taskFilterPresets.presets.collectAsState()
     val received by app.sync.received.collectAsState()
     val pending by app.actions.pending.collectAsState()
     // Looked at again every half minute: a session that ended on the PC stops being "running" here too.
@@ -76,6 +78,11 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
     }
 
     var category by rememberSaveable { mutableStateOf<String?>(null) }
+    // The category new tasks go in: the chip presets it, as it always decided it; a pick after that stays until the chip changes.
+    var newTaskCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(category) { newTaskCategory = category }
+    var managingCategories by rememberSaveable { mutableStateOf(false) }
+    var managingFilters by rememberSaveable { mutableStateOf(false) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var laterOpen by rememberSaveable { mutableStateOf(false) }
     var doneOpen by rememberSaveable { mutableStateOf(false) }
@@ -89,8 +96,8 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
     val comebacks = OpenComebacks.of(parked, received, now)
     // Items whose "Add to Today" waits for a PC's answer: shown as sent, and not sent again.
     val waiting = app.todayHandoff.waitingIds(pending)
-    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now)
-    val chip = category?.let { name -> model.categories.firstOrNull { it.name.equals(name, ignoreCase = true) } }
+    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now, ownCategories = ownCategories)
+    val chip = newTaskCategory?.let { name -> model.categories.firstOrNull { it.name.equals(name, ignoreCase = true) } }
 
     val controller = remember(app, snackbar) {
         TasksController(app) { message, undo ->
@@ -148,16 +155,46 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
         onAddLater = { text -> controller.addLater(text, chip) },
         // Not narrowed by the chip or the search; what is already on its way to a PC or belongs to an older PC can't be taken.
         pickRows = {
-            TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, null, "", now)
+            TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, null, "", now, ownCategories = ownCategories)
                 .let { all -> all.comeBacks + all.later }
                 .filter { row -> !row.sending && !row.readOnly }
         },
         onPick = { row -> if (controller.needsReason(pc)) addingToday = row else controller.addToToday(row.ref, pc) },
+        savedFilters = savedFilters,
+        onApplyFilter = { preset ->
+            category = preset.category
+            search = preset.search
+            if (preset.search.isNotEmpty()) searching = true
+        },
+        onSavedFilters = { managingFilters = true },
+        onCategories = { managingCategories = true },
+        newTaskCategory = {
+            com.accountabilibuddy.companion.ui.tasks.TaskCategoryDotMenu(
+                model.categories, newTaskCategory, onSelect = { newTaskCategory = it?.name }, onCreate = controller::createCategory,
+            )
+        },
     )
     }
 
+    if (managingCategories) {
+        com.accountabilibuddy.companion.ui.tasks.TaskCategoriesSheet(model.categories, controller, onDismiss = { managingCategories = false })
+    }
+    if (managingFilters) {
+        com.accountabilibuddy.companion.ui.tasks.SavedFiltersSheet(
+            savedFilters, category, search,
+            onSave = { name -> app.taskFilterPresets.save(name, category, search) },
+            onApply = { preset ->
+                category = preset.category
+                search = preset.search
+                if (preset.search.isNotEmpty()) searching = true
+            },
+            onDelete = { app.taskFilterPresets.delete(it.id) },
+            onDismiss = { managingFilters = false },
+        )
+    }
+
     // The details of the task that was tapped, read fresh from the lists each time, so a sync that changes it shows here.
-    val detail = open?.let { ref -> detailOf(ref, nextTasks, later, pc, pending) }
+    val detail = open?.let { ref -> detailOf(ref, nextTasks, later, pc, pending, model.categories) }
     LaunchedEffect(open, detail == null) { if (open != null && detail == null) open = null }
     val shown = open
     val details: @Composable (Boolean) -> Unit = { inline ->
@@ -169,6 +206,7 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
                 onCommit = { before, after -> controller.commit(shown, before, after, pc) },
                 onDismiss = { open = null },
                 inline = inline,
+                onCreateCategory = controller::createCategory,
             )
         }
     }
@@ -221,23 +259,23 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
 }
 
 // The task [ref] as the sheet shows it, null when it is not on its list any more.
-private fun detailOf(ref: TaskRef, nextTasks: List<com.accountabilibuddy.shared.sync.SyncNextTask>, later: List<com.accountabilibuddy.shared.sync.SyncLaterItem>, pc: TasksPc?, pending: List<SyncAction>): TaskDetail? =
+private fun detailOf(ref: TaskRef, nextTasks: List<com.accountabilibuddy.shared.sync.SyncNextTask>, later: List<com.accountabilibuddy.shared.sync.SyncLaterItem>, pc: TasksPc?, pending: List<SyncAction>, categories: List<Choice>): TaskDetail? =
     when (ref.kind) {
         TaskKind.Next -> nextTasks.firstOrNull { it.id == ref.id && !it.isDone }?.let { task ->
             TaskDetail(
-                ref, "This session", TaskFields(task.title, task.subtasks.orEmpty(), task.estimateMinutes, task.note.orEmpty(), task.category, task.categoryColor, null),
+                ref, "This session", TaskFields(task.title, task.subtasks.orEmpty(), task.estimateMinutes, task.note.orEmpty(), task.category, currentColor(categories, task.category, task.categoryColor), null),
                 isDone = false, editsDetails = true, hasDueDate = false,
             )
         }
         TaskKind.Later -> later.firstOrNull { it.id == ref.id && it.doneAt == null }?.let { item ->
             TaskDetail(
-                ref, "Later", TaskFields(item.title, item.subtasks.orEmpty(), item.estimateMinutes, item.note.orEmpty(), item.category, item.categoryColor, item.dueOn),
+                ref, "Later", TaskFields(item.title, item.subtasks.orEmpty(), item.estimateMinutes, item.note.orEmpty(), item.category, currentColor(categories, item.category, item.categoryColor), item.dueOn),
                 isDone = false, editsDetails = true, hasDueDate = true,
             )
         }
         TaskKind.Running -> pc?.checklist?.tasks?.firstOrNull { it.id == ref.id }?.let { task ->
             TaskDetail(
-                ref, "${pc.name} session", TaskFields(task.title, task.subtasks, null, "", task.category, task.categoryColor, null),
+                ref, "${pc.name} session", TaskFields(task.title, task.subtasks, null, "", task.category, currentColor(categories, task.category, task.categoryColor), null),
                 isDone = task.isDone, editsDetails = false, hasDueDate = false,
                 sendingSteps = pending.filter { it.target == pc.pcId && it.kind == SyncAction.TICK_TASK }.mapNotNull { it.item }.toSet(),
                 pcNote = if (pc.canEdit) "Changes go to ${pc.name}, which applies them under its own rules. Estimates, notes and categories are set on ${pc.name}."
@@ -246,6 +284,10 @@ private fun detailOf(ref: TaskRef, nextTasks: List<com.accountabilibuddy.shared.
         }
         else -> null
     }
+
+// The category's colour as the list of choices has it now, else the colour the task stored.
+private fun currentColor(categories: List<Choice>, name: String?, stored: String?): String? =
+    categories.firstOrNull { it.name.equals(name, ignoreCase = true) }?.color ?: stored
 
 private fun detailActions(
     ref: TaskRef, detail: TaskDetail, controller: TasksController, pc: TasksPc?, onAddToToday: (TaskRowModel) -> Unit,

@@ -4,9 +4,9 @@ import com.accountabilibuddy.shared.sync.SessionTaskItem
 import com.accountabilibuddy.shared.sync.SyncNextTask
 
 /**
- * The task categories the phone can offer. The PC does not send its category list, so these are the categories the phone
- * has seen on tasks: the next session's tasks and the checklists in the PCs' files, by name (a category's id is local to
- * a device, ADR 48). A receiving PC creates a category it lacks, with the name and colour the task carries.
+ * The task categories the phone has seen on tasks: the next session's tasks and the checklists in the PCs' files, by name (a category's
+ * id is local to a device, ADR 48). A receiving PC creates a category it lacks, with the name and colour the task carries. The Tasks
+ * tab adds the devices' own lists to these and shows every one in its current colour ([TaskCategoryColors]).
  */
 object TaskCategoryChoices {
     /** One category: its name, its colour ("#RRGGBB", null when unknown) and, on a running checklist, the PC's id for it. */

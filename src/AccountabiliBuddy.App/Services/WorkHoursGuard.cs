@@ -266,6 +266,29 @@ public sealed class WorkHoursGuard : IDisposable
             : $"Day plan: frees {length} of today's work hours: {reasons} (work hours on this computer)";
     }
 
+    /// <summary>
+    /// For <see cref="ConfigurationService.DayPlanHold"/>, on any computer: a day plan change that makes some of what is left of today less
+    /// strict waits (ADR 63), such as Comms laid over Work or Rest over Pre-Work, with or without the work-hours guard. The line describing it, or null.
+    /// </summary>
+    public string? DescribeWeakening(DayPlan before, DayPlan after)
+    {
+        DayPlan beforeInForce = WithCalendarEvents?.Invoke(before) ?? before;
+        DayPlan afterInForce = WithCalendarEvents?.Invoke(after) ?? after;
+        TimeSpan onStored = DayPlanCut.WeakenedToday(before, after, LocalNow(), FocusedOn, NightFallback);
+        TimeSpan inForce = DayPlanCut.WeakenedToday(beforeInForce, afterInForce, LocalNow(), FocusedOn, NightFallback);
+        TimeSpan weakened = inForce > onStored ? inForce : onStored;
+        if (weakened <= TimeSpan.Zero)
+        {
+            return null;
+        }
+
+        string length = $"{(int)weakened.TotalHours}h {weakened.Minutes:00}m";
+        string reasons = string.Join("; ", DayPlanChanges.DescribeToday(before, after, Today()));
+        return reasons.Length == 0
+            ? $"Day plan: makes {length} of today less strict"
+            : $"Day plan: makes {length} of today less strict: {reasons}";
+    }
+
     public void Dispose()
     {
         _sessions.Ticked -= OnTicked;

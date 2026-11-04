@@ -265,8 +265,8 @@ class SyncCoordinator(
     var later: () -> List<com.accountabilibuddy.shared.sync.SyncLaterItem>? = { null }
 
     /**
-     * This phone's own task categories, name and colour, for its file so the PCs can offer them. The phone keeps no category list of its
-     * own yet (its picker lists the categories it has seen on tasks), so this stays null until the phone gets one; the field and its JSON
+     * This phone's own task categories, name, colour and when it was chosen, for its file so the PCs can offer them and take a newer
+     * colour (ADR 62). Null only in a file from before the phone had a list; the field and its JSON
      * are in place.
      */
     var categories: () -> List<com.accountabilibuddy.shared.sync.SyncCategory>? = { null }
@@ -820,7 +820,7 @@ class SyncCoordinator(
         later = runCatching { later() }.getOrNull(),
         // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
         pastKeys = pastKeys.forFile(),
-        // Null until the phone has its own task categories to publish (it has no list yet; the user knows). The PCs list theirs.
+        // Only the categories made or recoloured here (TaskCategoriesStore); the PCs list theirs.
         categories = runCatching { categories() }.getOrNull(),
         steps = runCatching { steps() }.getOrNull(),
     )

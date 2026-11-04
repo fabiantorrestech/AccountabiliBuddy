@@ -179,6 +179,53 @@ public partial class PlanView : UserControl
             DispatcherPriority.Background);
     }
 
+    // A timed event row inside a work block: a click or right-click opens the event menu (ADR 64).
+    private void OnEventRowClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        ShowEventRowMenu(sender);
+    }
+
+    private void OnEventRowContext(object? sender, ContextRequestedEventArgs e)
+    {
+        ShowEventRowMenu(sender);
+        e.Handled = true;
+    }
+
+    private void ShowEventRowMenu(object? sender)
+    {
+        if (sender is Button { DataContext: PlanSubRowViewModel { Event: { } calendarEvent } } button)
+        {
+            ShowEventMenu(button, calendarEvent);
+        }
+    }
+
+    // A timed event's own row: a click opens the menu (the row's command does nothing for it). Other rows keep their command.
+    private void OnTimelineRowClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: PlanTimelineRowViewModel { IsEvent: true, Event: { IsAllDay: false } calendarEvent } } button)
+        {
+            ShowEventMenu(button, calendarEvent);
+        }
+    }
+
+    // Right-click on any row that is an event, or a part a classified event made.
+    private void OnTimelineRowContext(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is Button { DataContext: PlanTimelineRowViewModel row } button && DataContext is PlanViewModel page && page.EventOf(row) is { } calendarEvent)
+        {
+            ShowEventMenu(button, calendarEvent);
+            e.Handled = true;
+        }
+    }
+
+    private void ShowEventMenu(Button button, AccountabiliBuddy.Core.Domain.CalendarEvent calendarEvent)
+    {
+        if (DataContext is PlanViewModel { EventMenu: { } menu })
+        {
+            CalendarEventMenuPresenter.Show(button, menu, calendarEvent, PlacementMode.Pointer);
+        }
+    }
+
     private void OnScrimPressed(object? sender, PointerPressedEventArgs e)
     {
         _subscribed?.CloseSheet();

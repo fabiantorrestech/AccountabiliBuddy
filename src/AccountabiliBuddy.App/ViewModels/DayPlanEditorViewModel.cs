@@ -353,16 +353,16 @@ public sealed partial class DayPlanEditorViewModel : ObservableObject
         Selected = Parts.First(row => row.Id == added);
     }
 
-    /// <summary>Resizes a part (an edge dragged): cut back where it would run into another.</summary>
+    /// <summary>Resizes a part (an edge dragged): it stops at a neighbour's edge at first, and overlaps it when dragged further (ADR 63).</summary>
     /// <param name="crossesMidnight">Whether the part crossed midnight when the drag started (it stays that way).</param>
     /// <returns>False when the change was refused (less than 15 minutes would be left).</returns>
     public bool Move(Guid partId, int startMinute, int endMinute, bool crossesMidnight)
     {
-        DayTemplate? next = DayTemplateEditing.Move(ToTemplate(), partId, startMinute, endMinute, crossesMidnight, Categories);
+        DayTemplate? next = DayTemplateEditing.Move(ToTemplate(), partId, startMinute, endMinute, crossesMidnight, Categories, stickToNeighbours: true);
         return next is not null && Show(next, partId);
     }
 
-    /// <summary>Moves a whole part (its middle dragged), keeping its length; refused where it would hit another part.</summary>
+    /// <summary>Moves a whole part (its middle dragged), keeping its length; it may lie over another part (ADR 63).</summary>
     public bool MoveWhole(Guid partId, int startMinute, int lengthMinutes)
     {
         int start = Math.Clamp(DayTemplateEditing.Snap(startMinute), 0, 24 * 60 - lengthMinutes);

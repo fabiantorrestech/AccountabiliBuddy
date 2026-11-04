@@ -115,7 +115,7 @@ public static class SyncFileCodec
 
         List<SyncCategory> clean = file.Categories
             .Where(category => category is { Name: not null } && category.Name.Trim().Length is > 0 and <= MaxCategoryNameLength)
-            .Select(category => new SyncCategory(category.Name.Trim(), IsHexColor(category.Color) ? category.Color : TaskCategory.Palette[0]))
+            .Select(category => new SyncCategory(category.Name.Trim(), IsHexColor(category.Color) ? category.Color : TaskCategory.Palette[0], category.ColorEditedAt))
             .Take(MaxCategories)
             .ToList();
         return file with { Categories = clean };

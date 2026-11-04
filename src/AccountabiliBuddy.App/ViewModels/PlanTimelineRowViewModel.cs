@@ -29,8 +29,16 @@ public sealed partial class PlanTimelineRowViewModel
     /// <summary>The plan part that stands for this row, so its editor can open on it; null for a part the editor doesn't list (a Budget day's window).</summary>
     public Guid? PartId { get; init; }
 
-    /// <summary>An all-day calendar event listed at the top of the day; it opens the month view.</summary>
+    /// <summary>A calendar event's own row: an all-day one at the top of the day opens the month view; a timed one outside a work block opens the event menu.</summary>
     public bool IsEvent { get; init; }
+
+    /// <summary>The calendar event this row stands for; null for a part of the plan (ADR 64).</summary>
+    public CalendarEvent? Event { get; init; }
+
+    /// <summary>When the row's time is; orders a timed event's row among the parts. Null for all-day rows.</summary>
+    public DateTime? At { get; init; }
+
+    public string Tip => IsEvent ? "Right-click for this event's options" : "Open this part in its editor";
 
     /// <summary>The part was made by a classified calendar event (ADR 58): it exists only in the effective plan, so its click opens the event's picker.</summary>
     public bool FromEvent { get; init; }

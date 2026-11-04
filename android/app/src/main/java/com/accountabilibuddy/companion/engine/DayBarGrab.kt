@@ -21,6 +21,26 @@ data class BarPiece(
 object DayBarGrab {
     private const val MINUTES_PER_DAY = 24 * 60
 
+    /**
+     * Which row of the bar each part is on: parts that overlap get rows of their own (ADR 63), so a covered one can still be picked. Each takes
+     * the first row with room; a flexible break's window stays on the first, over the work around it, and takes no room.
+     */
+    fun lanes(template: DayTemplate): Map<UUID, Int> {
+        val taken = mutableListOf<MutableList<Pair<Int, Int>>>()
+        return template.parts.associate { part ->
+            if (part.isFlexible) return@associate part.id to 0
+            val ranges = DayTemplateEditing.ranges(part)
+            var lane = taken.indexOfFirst { used -> used.none { other -> ranges.any { it.first < other.second && other.first < it.second } } }
+            if (lane < 0) {
+                lane = taken.size
+                taken.add(mutableListOf())
+            }
+
+            taken[lane].addAll(ranges)
+            part.id to lane
+        }
+    }
+
     fun pieces(template: DayTemplate): List<BarPiece> = template.parts.flatMap { part ->
         DayTemplateEditing.ranges(part).map { (start, end) ->
             BarPiece(

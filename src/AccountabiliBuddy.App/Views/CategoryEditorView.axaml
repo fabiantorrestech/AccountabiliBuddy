@@ -2,10 +2,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.CategoryEditorView"
              x:DataType="vm:CategoryEditorViewModel">
     <!-- The Categories editor of the Tasks page: the same rows as Today's tag button. Add (Enter), rename (Enter or click away),
-         recolour (8 colours) and delete. -->
+         recolour and delete. -->
     <StackPanel Spacing="4">
         <TextBlock Text="Categories" FontWeight="SemiBold" />
         <TextBlock Classes="faint" Text="Deleting one leaves its tasks, Later items and come-backs with no category." FontSize="12" TextWrapping="Wrap" />
@@ -14,14 +15,7 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:TaskCategoryRowViewModel">
                     <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" Margin="0,2">
-                        <ComboBox ItemsSource="{Binding Colors}" SelectedItem="{Binding SelectedColor}" MinWidth="0"
-                                  AutomationProperties.Name="Colour">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:ColorChoice">
-                                    <Ellipse Width="14" Height="14" Fill="{Binding Brush}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
+                        <controls:CategoryColorButton />
                         <TextBox Grid.Column="1" Text="{Binding Name}" LostFocus="OnCategoryNameLostFocus"
                                  AutomationProperties.Name="Category name">
                             <TextBox.KeyBindings>

@@ -296,9 +296,11 @@ data class DayPlan(
         cycle.templateIdFor(date)?.let { templateById(it) } ?: templateById(OFF_DAY_TEMPLATE_ID) ?: DayTemplate()
 
     /**
-     * Every part touching [range], on real dates, clipped to the range, in order. Where parts of different dates
-     * overlap (yesterday's evening and tonight's sleep, which belongs to tomorrow), the later date's part wins and the
-     * earlier one keeps only what's outside it.
+     * Every part touching [range], on real dates, clipped to the range, in order. Where parts of one template overlap, the weaker
+     * rules keep the shared time and the stricter part only what's outside it (ADR 63); on the same strength, the part that starts later.
+     * Where parts of different templates overlap (yesterday's evening and tonight's sleep, which belongs to tomorrow), the later date's
+     * part wins. So every moment has one answer, but for two pairs that stay layered: a flexible break's window, which isn't a break until
+     * it is taken, and Pre-Work over Sleep (ADR 31). The same as the PC's DayPlan.PartsIn.
      */
     fun partsIn(range: LocalWindow): List<PlannedPart> {
         val placed = mutableListOf<Pair<PlannedPart, LocalDate>>()
@@ -315,12 +317,15 @@ data class DayPlan(
             date = date.plusDays(1)
         }
 
+        val partIds = placed.groupBy({ it.second }, { it.first.part.id }).mapValues { it.value.toSet() }
         val parts = mutableListOf<PlannedPart>()
         for ((planned, day) in placed) {
-            // Parts of the same date never overlap (the PC validates them); later dates take precedence.
             var pieces = listOf(planned.window)
-            for ((later, _) in placed.filter { it.second.isAfter(day) }) {
-                pieces = pieces.flatMap { without(it, later.window) }
+            for ((other, otherDay) in placed) {
+                val sameTemplate = other.part.id in partIds.getValue(day) && planned.part.id in partIds.getValue(otherDay)
+                if (other !== planned && losesTo(planned, day, other, otherDay, sameTemplate)) {
+                    pieces = pieces.flatMap { without(it, other.window) }
+                }
             }
 
             for (piece in pieces) {
@@ -334,6 +339,20 @@ data class DayPlan(
 
         return parts.sortedWith(compareBy<PlannedPart>({ it.window.start }, { it.window.end }, { it.part.id }))
     }
+
+    private fun losesTo(part: PlannedPart, day: LocalDate, other: PlannedPart, otherDay: LocalDate, sameTemplate: Boolean): Boolean {
+        if (staysLayered(part, other) || (day != otherDay && !sameTemplate)) return otherDay.isAfter(day)
+        val rank = com.accountabilibuddy.companion.engine.CategoryStrictness.overlapRank(part.category.behavior)
+        val otherRank = com.accountabilibuddy.companion.engine.CategoryStrictness.overlapRank(other.category.behavior)
+        if (rank != otherRank) return otherRank < rank
+        // Compared as text, so the PC settles a tie the same way.
+        return if (other.window.start != part.window.start) other.window.start.isAfter(part.window.start) else other.part.id.toString() < part.part.id.toString()
+    }
+
+    private fun staysLayered(a: PlannedPart, b: PlannedPart): Boolean =
+        a.part.isFlexible || b.part.isFlexible ||
+            (a.category.behavior == CategoryBehavior.PreWork && b.category.behavior == CategoryBehavior.Sleep) ||
+            (a.category.behavior == CategoryBehavior.Sleep && b.category.behavior == CategoryBehavior.PreWork)
 
     /**
      * The night before [day] as the plan has it for that day: its Sleep part from the evening before, else one

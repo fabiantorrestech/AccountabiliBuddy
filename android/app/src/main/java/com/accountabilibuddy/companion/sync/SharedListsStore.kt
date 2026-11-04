@@ -53,6 +53,31 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     /** Set by the app: the user changed a list here, so it goes to the other devices soon. */
     var onChanged: () -> Unit = {}
 
+    /** Set by the app: the current colour of a category (ADR 62); an item moved between lists takes it, not the one it stored. */
+    var colorOf: (name: String?, stored: String?) -> String? = { _, stored -> stored }
+
+    /** How many live items hold category [name] (any case): what a delete would take it off. */
+    @Synchronized
+    fun countInCategory(name: String): Int {
+        fun held(category: String?) = category.equals(name, ignoreCase = true)
+        return all.nextTasks.count { it.deletedAt == null && held(it.category) } +
+            all.later.count { it.deletedAt == null && held(it.category) } +
+            all.parked.count { it.deletedAt == null && held(it.category) }
+    }
+
+    /**
+     * Carries a renamed or deleted category ([newName] null) to the items in it, as ordinary stamped edits, the same as the PC does. A limit,
+     * also the PC's: merge works on whole items, so such an edit can win over an older edit made on a device that hasn't synced yet.
+     */
+    fun relabelCategory(oldName: String, newName: String?, newColor: String?) = edit { lists, time ->
+        fun held(category: String?) = category.equals(oldName, ignoreCase = true)
+        lists.copy(
+            nextTasks = lists.nextTasks.map { if (it.deletedAt == null && held(it.category)) it.copy(category = newName, categoryColor = newColor, editedAt = SharedListMerge.nextStamp(time, it)) else it },
+            later = lists.later.map { if (it.deletedAt == null && held(it.category)) it.copy(category = newName, categoryColor = newColor, editedAt = SharedListMerge.nextStamp(time, it)) else it },
+            parked = lists.parked.map { if (it.deletedAt == null && held(it.category)) it.copy(category = newName, categoryColor = newColor, editedAt = SharedListMerge.nextStamp(time, it)) else it },
+        )
+    }
+
     /** The next session's list for this phone's sync file: its tasks and the tombstones of the last 30 days. */
     @Synchronized
     fun nextTasksForSync(): List<SyncNextTask> {
@@ -255,7 +280,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             val parked = lists.parked.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
             val last = lists.nextTasks.filter { it.deletedAt == null && it.category == parked.category }.maxOfOrNull { it.position }
             val task = SyncNextTask(
-                newId(), parked.text, null, parked.category, parked.categoryColor, null, time, null, SharedListMerge.positionBetween(last, null),
+                newId(), parked.text, null, parked.category, colorOf(parked.category, parked.categoryColor), null, time, null, SharedListMerge.positionBetween(last, null),
             )
             newTaskId = task.id
             lists.copy(
@@ -338,7 +363,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
             val last = lists.nextTasks.filter { it.deletedAt == null && it.category == item.category }.maxOfOrNull { it.position }
             val task = SyncNextTask(
-                newId(), item.title, null, item.category, item.categoryColor, TaskSteps.reopened(item.subtasks).ifEmpty { null }, time, null,
+                newId(), item.title, null, item.category, colorOf(item.category, item.categoryColor), TaskSteps.reopened(item.subtasks).ifEmpty { null }, time, null,
                 SharedListMerge.positionBetween(last, null), item.estimateMinutes, item.note,
             )
             newTaskId = task.id
@@ -357,7 +382,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             val task = lists.nextTasks.firstOrNull { it.id == id && it.deletedAt == null && !it.isDone } ?: return@edit lists
             val last = lists.later.filter { it.deletedAt == null }.maxOfOrNull { it.position }
             val item = SyncLaterItem(
-                newId(), task.title, TaskSteps.open(task.subtasks).ifEmpty { null }, task.category, task.categoryColor, task.estimateMinutes,
+                newId(), task.title, TaskSteps.open(task.subtasks).ifEmpty { null }, task.category, colorOf(task.category, task.categoryColor), task.estimateMinutes,
                 task.note, null, time, null, SharedListMerge.positionBetween(last, null), task.plannedFor,
             )
             newItemId = item.id
@@ -376,7 +401,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             val parked = lists.parked.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
             val last = lists.later.filter { it.deletedAt == null }.maxOfOrNull { it.position }
             val item = SyncLaterItem(
-                newId(), parked.text, null, parked.category, parked.categoryColor, null, null, null, time, null, SharedListMerge.positionBetween(last, null),
+                newId(), parked.text, null, parked.category, colorOf(parked.category, parked.categoryColor), null, null, null, time, null, SharedListMerge.positionBetween(last, null),
             )
             newItemId = item.id
             lists.copy(
@@ -395,7 +420,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             val steps = TaskSteps.open(item.subtasks).size
             val text = if (steps > 0) "${item.title} (+$steps ${if (steps == 1) "step" else "steps"})" else item.title
             val last = lists.parked.maxOfOrNull { it.position }
-            val parked = SyncParked(newId(), text, time, null, time, null, SharedListMerge.positionBetween(last, null), item.category, item.categoryColor)
+            val parked = SyncParked(newId(), text, time, null, time, null, SharedListMerge.positionBetween(last, null), item.category, colorOf(item.category, item.categoryColor))
             newParkedId = parked.id
             lists.copy(
                 parked = lists.parked + parked,

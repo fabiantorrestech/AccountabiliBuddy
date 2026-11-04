@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class CalendarOverlay(
     private val rulesStore: CalendarRulesStore,
+    private val classifications: EventClassificationStore,
     private val firstKnown: FirstKnownStore,
     private val reader: PhoneCalendarReader,
     private val sessionRunning: (Instant) -> Boolean,
@@ -61,6 +62,9 @@ class CalendarOverlay(
 
     private var cached: Cached? = null
 
+    /** The events read from this phone's own calendar, for the Plan timeline; empty while the switch is off. */
+    val ownEvents: List<com.accountabilibuddy.companion.model.CalendarEvent> get() = own.events
+
     /** The rules in force and any change waiting (for the rule page). */
     val rules get() = rulesStore.rules
 
@@ -78,17 +82,18 @@ class CalendarOverlay(
         val running = sessionRunning(now)
         val current = rulesStore.settle(now, running)
         if (!current.active.enabled) return stored
+        val chosen = classifications.settle(now, running)
 
         refreshOwnSoon(now)
         val files = pcFiles()
         val minute = now.epochSecond / 60
-        val key = listOf(own.version, own.loaded, current.active, files.map { it.writtenAt to it.events.size }, running, minute, nightFallback != null)
+        val key = listOf(own.version, own.loaded, current.active, chosen, files.map { it.writtenAt to it.events.size }, running, minute, nightFallback != null)
         synchronized(gate) {
             cached?.let { if (it.stored === stored && it.key == key) return it.plan }
 
             val local = LocalDateTime.ofInstant(now, zone())
             val loaded = own.loaded
-            val classified: List<ClassifiedEvent> = CalendarEventSources.merge(stored, current.active, own.events, files, now)
+            val classified: List<ClassifiedEvent> = CalendarEventSources.merge(stored, current.active, own.events, files, now, chosen)
             val updated = FirstKnownTimes.update(firstKnown.entries, classified, now, local)
             // Until the first read of the phone's calendar has landed (a fresh start), its events are not known to be gone: keep their stamps.
             val next = if (loaded) updated else FirstKnownTimes.keeping(firstKnown.entries, updated) { it.calendarId.startsWith(PhoneCalendarReader.ID_PREFIX) }

@@ -58,16 +58,7 @@ object DayPlanValidator {
             }
         }
 
-        for (i in template.parts.indices) {
-            for (j in i + 1 until template.parts.size) {
-                if (overlap(template.parts[i], template.parts[j]) && !template.parts[i].isFlexible && !template.parts[j].isFlexible &&
-                    !DayTemplateEditing.mayOverlap(template.parts[i].categoryId, template.parts[j].categoryId, categories)
-                ) {
-                    return "${describe(template.parts[i], categories)} overlaps ${describe(template.parts[j], categories)}."
-                }
-            }
-        }
-
+        // Parts may overlap (ADR 63).
         return null
     }
 
@@ -119,9 +110,6 @@ object DayPlanValidator {
         val minutes = DayTemplateEditing.endMinutes(part) - DayTemplateEditing.minutesOf(part.start)
         return if (part.crossesMidnight) minutes + 24 * 60 else minutes
     }
-
-    private fun overlap(a: PlanPart, b: PlanPart): Boolean =
-        DayTemplateEditing.ranges(a).any { x -> DayTemplateEditing.ranges(b).any { y -> x.first < y.second && y.first < x.second } }
 
     private fun describe(part: PlanPart, categories: List<DayCategory>): String {
         val name = part.label ?: categories.firstOrNull { it.id == part.categoryId }?.name ?: "A part"

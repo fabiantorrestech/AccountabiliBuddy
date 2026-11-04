@@ -237,6 +237,31 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsStart { get; set; }
 
+    /// <summary>The clock has a solid backing: its time or date is kept solid (Settings › Overlay).</summary>
+    [ObservableProperty]
+    public partial bool ClockBacked { get; set; }
+
+    /// <summary>The time line's own opacity; the clock block isn't dimmed while it is backed, so a line that isn't kept solid is dimmed here.</summary>
+    [ObservableProperty]
+    public partial double ClockTimeOpacity { get; set; } = 1;
+
+    /// <summary>The same for the date line.</summary>
+    [ObservableProperty]
+    public partial double ClockDateOpacity { get; set; } = 1;
+
+    /// <summary>The date is kept solid: it reads in Ink rather than Muted.</summary>
+    [ObservableProperty]
+    public partial bool ClockDateSolid { get; set; }
+
+    /// <summary>How the clock block looks now, from <see cref="Controls.OverlayTileView"/>.</summary>
+    public void SetClockLook(bool backed, double timeOpacity, double dateOpacity, bool dateSolid)
+    {
+        ClockBacked = backed;
+        ClockTimeOpacity = timeOpacity;
+        ClockDateOpacity = dateOpacity;
+        ClockDateSolid = dateSolid;
+    }
+
     [ObservableProperty]
     public partial string ClockText { get; set; }
 

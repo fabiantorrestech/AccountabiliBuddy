@@ -94,9 +94,6 @@ public sealed partial class PlanViewModel : ObservableObject
     /// <summary>Opens the Setup DP Assistant (locked during a session like the editors); set by the app.</summary>
     public ICommand? OpenDpAssistant { get; set; }
 
-    /// <summary>True when this computer's work-hours guard is on (ADR 28), so a change that frees today's work hours waits; set by the app.</summary>
-    public Func<bool> WorkHoursGuardOn { get; set; } = () => false;
-
     /// <summary>Opens the Today page ("Start" on a goal that doesn't fit); set by the app.</summary>
     public Action? ShowToday { get; set; }
 
@@ -224,6 +221,15 @@ public sealed partial class PlanViewModel : ObservableObject
     // The picker's lock and marks follow the session and the choices; posted, as these can be raised on another thread.
     private void RefreshPicker() => Dispatcher.UIThread.Post(() => EventPicker?.Refresh());
 
+    /// <summary>The menu on a calendar event (ADR 64); set by the app.</summary>
+    public CalendarEventMenu? EventMenu { get; set; }
+
+    /// <summary>The calendar event a timeline row is about: its own, or the one a classified part came from; null for any other row.</summary>
+    public CalendarEvent? EventOf(PlanTimelineRowViewModel row)
+    {
+        return row.Event ?? (row.FromEvent ? EventBehind(_configuration.Editing.DayPlan, row) : null);
+    }
+
     /// <summary>The picker on one calendar event (ADR 58); null while closed.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEventPickerOpen))]
@@ -329,7 +335,12 @@ public sealed partial class PlanViewModel : ObservableObject
     {
         if (row.IsEvent)
         {
-            OpenChangeADay(SelectedDate);
+            // A timed event's row opens the event menu, which the view shows at the row.
+            if (row.Event is not { IsAllDay: false })
+            {
+                OpenChangeADay(SelectedDate);
+            }
+
             return;
         }
 
@@ -406,12 +417,10 @@ public sealed partial class PlanViewModel : ObservableObject
 
         IsLocked = _sessions.IsEnforcing;
         HasUnsavedPlan = DayPlan.HasUnsavedChanges;
-        // ADR 28: a change waits only when it frees today's work hours and the work-hours guard is on; otherwise it applies at once.
+        // ADR 28, 63: a change waits when it frees today's work hours or makes what is left of today less strict; otherwise it applies at once.
         RuleText = IsLocked
             ? "Locked while a focus session you started runs."
-            : WorkHoursGuardOn()
-                ? $"A change that frees today's work hours waits {(int)_configuration.Current.Locks.LooseningDelay.TotalMinutes} min; any other applies at once."
-                : "Changes apply at once.";
+            : $"A change that makes today less strict waits {(int)_configuration.Current.Locks.LooseningDelay.TotalMinutes} min; any other applies at once.";
         _refreshedOn = today;
         CanGoToToday = SelectedDate != today;
         OnlyThisDayText = $"Change only {SelectedDate:ddd MMM d}";

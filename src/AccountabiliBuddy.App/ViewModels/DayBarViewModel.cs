@@ -29,6 +29,10 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 {
     private static readonly TimeSpan RedrawInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>The menu on a calendar event of the Calendar row (ADR 64); set by the app on the bar where it can be used.</summary>
+    public CalendarEventMenu? EventMenu { get; set; }
+
     private static readonly TimeSpan HistoryReloadInterval = TimeSpan.FromMinutes(5);
 
     // Session events are written in the background; reading right after a start or end could miss them.
@@ -778,7 +782,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                     ? calendarEvent.LocalEnd
                     : calendarEvent.LocalStart.AddMinutes(1));
                 string when = calendarEvent.IsAllDay ? "all day" : Times(window);
-                items.Add(new TimelineItem(window, $"{calendarEvent.Title} · {when}", entry.Calendar.Color, calendarEvent.IsAllDay));
+                items.Add(new TimelineItem(window, $"{calendarEvent.Title} · {when}", entry.Calendar.Color, calendarEvent.IsAllDay, calendarEvent));
             }
         }
 

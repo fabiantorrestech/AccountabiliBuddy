@@ -165,7 +165,7 @@
             <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" Padding="0,2">
                 <Panel>
                     <Button Classes="rowHit" Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Title}"
-                            ToolTip.Tip="Open this part in its editor" />
+                            ToolTip.Tip="{Binding Tip}" Click="OnTimelineRowClick" ContextRequested="OnTimelineRowContext" />
                     <!-- Only the sub-rows of calendar events take clicks of their own (ADR 58); everything else passes the click to the button behind. -->
                     <Grid ColumnDefinitions="Auto,6,*" Margin="0,12">
                         <TextBlock Classes="muted timeCol" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Top" Margin="8,3,0,0" IsHitTestVisible="False" />
@@ -191,10 +191,10 @@
                                                     <TextBlock Grid.Column="2" Classes="muted" Text="{Binding RightText}" FontSize="13" VerticalAlignment="Center" Margin="10,0,0,0" />
                                                 </Grid>
                                             </Border>
-                                            <!-- A timed calendar event: a click picks its category (ADR 58). -->
-                                            <Button IsVisible="{Binding IsClickable}" Classes="eventRow" Command="{Binding OpenCommand}" HorizontalAlignment="Stretch"
+                                            <!-- A timed calendar event: a click or right-click opens its menu (ADR 64). -->
+                                            <Button IsVisible="{Binding IsClickable}" Classes="eventRow" Click="OnEventRowClick" ContextRequested="OnEventRowContext" HorizontalAlignment="Stretch"
                                                     HorizontalContentAlignment="Stretch" AutomationProperties.Name="{Binding Title, StringFormat='Pick a category for {0}'}"
-                                                    ToolTip.Tip="Pick a day plan category for this event">
+                                                    ToolTip.Tip="Classify this event: what it counts as in your day">
                                                 <Grid ColumnDefinitions="76,*,Auto">
                                                     <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="15" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />

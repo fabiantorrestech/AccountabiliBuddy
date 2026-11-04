@@ -113,6 +113,8 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
             HeldOpacity = SessionHeldOpacityPercent / 100,
             TimelineOpacity = TimelineOpacityPercent / 100,
             TimelineHeldOpacity = TimelineHeldOpacityPercent / 100,
+            SolidClockTime = SolidClockTime,
+            SolidClockDate = SolidClockDate,
             ContentOrder = _usesDefaultOrder ? null : Items.Select(row => row.ToItem()).ToList(),
         });
     }
@@ -160,6 +162,14 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool ShowSeconds { get; set; }
+
+    /// <summary>The tile's time stays solid whatever the opacity (<see cref="OverlaySettings.SolidClockTime"/>).</summary>
+    [ObservableProperty]
+    public partial bool SolidClockTime { get; set; }
+
+    /// <summary>The same for its date (<see cref="OverlaySettings.SolidClockDate"/>).</summary>
+    [ObservableProperty]
+    public partial bool SolidClockDate { get; set; }
 
     /// <summary>The tile at rest during a session, 20 to 100% (<see cref="OverlaySettings.Opacity"/>).</summary>
     [ObservableProperty]
@@ -267,6 +277,8 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         SessionHeldOpacityPercent = Math.Round(settings.HeldOpacity * 100);
         TimelineOpacityPercent = Math.Round(settings.TimelineOpacity * 100);
         TimelineHeldOpacityPercent = Math.Round(settings.TimelineHeldOpacity * 100);
+        SolidClockTime = settings.SolidClockTime;
+        SolidClockDate = settings.SolidClockDate;
         PanelSizeIndex = (int)settings.PanelSize;
         HoldToPeek = settings.HoldToPeek;
         PeekDelayIndex = Array.IndexOf(PeekDelayValues, settings.PeekDelayMs);
@@ -484,6 +496,16 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
             Touch(OverlayPreviewScene.Panel);
             Save(s => s with { PeekDelayMs = PeekDelayValues[value] });
         }
+    }
+
+    partial void OnSolidClockTimeChanged(bool value)
+    {
+        Save(s => s with { SolidClockTime = value });
+    }
+
+    partial void OnSolidClockDateChanged(bool value)
+    {
+        Save(s => s with { SolidClockDate = value });
     }
 
     partial void OnPanelStickyChanged(bool value)

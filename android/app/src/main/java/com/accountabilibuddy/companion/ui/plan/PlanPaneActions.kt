@@ -13,4 +13,6 @@ data class PlanPaneActions(
     val onCategories: () -> Unit,
     val onSetWeek: (Int) -> Unit,
     val onDiscardEdit: () -> Unit,
+    /** A calendar event was tapped on the timeline (ADR 64). */
+    val onEvent: (com.accountabilibuddy.companion.model.CalendarEvent) -> Unit = {},
 )

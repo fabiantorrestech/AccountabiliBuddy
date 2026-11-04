@@ -57,7 +57,7 @@ data class CalendarOverlayInput(
  *   running; an event carried by a PC's file also needs the PC's own notice ([ClassifiedEvent.carriedKnownSince]); otherwise the plan
  *   stands there. A Comms piece outside the stored Comms parts of a day that has some is looser, because it opens mail and chat. Where
  *   events overlap, the stricter wins.
- * - A Sleep or Pre-Work part is never cut: the piece of an event over one is dropped.
+ * - A Sleep part is never cut, and a Pre-Work part only by an event classified by hand, as a looser change (ADR 64); otherwise the piece of an event over one is dropped.
  * - An event that crosses midnight splits per date. An existing one-off day is the base for its date.
  * - Budget day: a Work event inside a Budget day's stretch never becomes a part. Under the looser rule it gives that day (the one whose
  *   stretch holds the time) a [DayTemplate.budgetCredit] for its time that has already passed, less any time also counted as focus, so a
@@ -95,6 +95,8 @@ object CalendarDayOverlay {
         val strictness: Int,
         val budgetDate: LocalDate? = null,
         val credited: Boolean = false,
+        /** The event was classified by hand and this piece lies over Pre-Work, which it lifts for its time (ADR 64). */
+        val liftsPreWork: Boolean = false,
     )
 
     private class Overlay(private val stored: DayPlan, private val input: CalendarOverlayInput, private val localNow: LocalDateTime) {
@@ -141,12 +143,14 @@ object CalendarDayOverlay {
             val whole = LocalWindow(event.localStart, event.localEnd)
             val seen = DayWorkWindows.partsIn(stored, whole, localNow, null, input.nightFallback)
             for ((segment, basePart) in segments(whole, seen)) {
-                if (basePart?.category?.behavior == CategoryBehavior.Sleep || basePart?.category?.behavior == CategoryBehavior.PreWork) continue
+                val overPreWork = basePart?.category?.behavior == CategoryBehavior.PreWork
+                if (basePart?.category?.behavior == CategoryBehavior.Sleep || (overPreWork && !item.byHand)) continue
 
-                val baseStrictness = basePart?.let { CategoryStrictness.of(it.category.behavior) } ?: 0
+                // Lifting Pre-Work is always a looser change, so it counts as above every category an event can have.
+                val baseStrictness = if (overPreWork) Int.MAX_VALUE else basePart?.let { CategoryStrictness.of(it.category.behavior) } ?: 0
                 val inBudgetStretch = basePart?.part?.id == DayWorkWindows.BUDGET_WINDOW_PART_ID
                 for (piece in byDate(segment)) {
-                    regionFor(piece, category, event, strictness, baseStrictness, basePart, inBudgetStretch, allowed)?.let(regions::add)
+                    regionFor(piece, category, event, strictness, baseStrictness, basePart, inBudgetStretch, allowed)?.let { regions.add(it.copy(liftsPreWork = overPreWork)) }
                 }
             }
         }
@@ -221,8 +225,8 @@ object CalendarDayOverlay {
 
         private fun placeEventPart(region: Region) {
             val date = region.window.start.toLocalDate()
-            cut(date, region.window)
-            cut(date.plusDays(1), region.window)
+            cut(date, region.window, region.liftsPreWork)
+            cut(date.plusDays(1), region.window, region.liftsPreWork)
 
             val part = PlanPart(
                 stableUuid("event|${region.event.calendarId}|${region.event.id}|${region.window.start.format(STAMP)}"),
@@ -237,10 +241,10 @@ object CalendarDayOverlay {
 
         // Takes [hole] out of the parts that belong to [owner] (a part belongs to the date it ends on, so the date's evening may be
         // held by the next date's night). What is left of a part is placed again.
-        private fun cut(owner: LocalDate, hole: LocalWindow) {
+        private fun cut(owner: LocalDate, hole: LocalWindow, liftsPreWork: Boolean = false) {
             val list = partsOf(owner)
             for (part in list.toList()) {
-                if (part.fromEvent || isProtected(part)) continue
+                if (part.fromEvent || isProtected(part, liftsPreWork)) continue
 
                 val window = rawWindow(part, owner)
                 if (!window.end.isAfter(hole.start) || !window.start.isBefore(hole.end)) continue
@@ -269,9 +273,9 @@ object CalendarDayOverlay {
             changed.add(home)
         }
 
-        private fun isProtected(part: PlanPart): Boolean {
+        private fun isProtected(part: PlanPart, liftsPreWork: Boolean): Boolean {
             val behavior = stored.category(part.categoryId)?.behavior
-            return behavior == CategoryBehavior.Sleep || behavior == CategoryBehavior.PreWork
+            return behavior == CategoryBehavior.Sleep || (behavior == CategoryBehavior.PreWork && !liftsPreWork)
         }
 
         // A date's template as the guards see it (a Free or Budget day without its work parts), the parts the overlay edits.

@@ -551,7 +551,7 @@ public partial class App : Application
         _appearance = appTheme;
         _motion.Apply();
         // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
-        _configuration.DayPlanHold = _workHours.DescribeCut;
+        _configuration.DayPlanHold = (before, after) => _workHours.DescribeCut(before, after) ?? _workHours.DescribeWeakening(before, after);
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _workHours.OnActivity(snapshot));
         // The gate: reaching for a dev tool once work starts, or after 3 idle minutes, asks what you were about to do (ADR 28).
         _workGate = new WorkGateService(_workHours, new Win32UserIdleDetector(), _comebacks, _sessions);
@@ -878,7 +878,7 @@ public partial class App : Application
         _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(FollowPhoneAlarm);
         // Task categories from every device: this PC lists its own in its sync file, and the "Add a task" pickers group the other
         // devices' by name (a removed device's are gone: Active). The pickers look again when a device's list or the group changes.
-        syncCoordinator.Categories = () => sessionTasks.Categories.Select(category => new AccountabiliBuddy.Core.Sync.SyncCategory(category.Name, category.Color)).ToList();
+        syncCoordinator.Categories = () => sessionTasks.Categories.Select(category => new AccountabiliBuddy.Core.Sync.SyncCategory(category.Name, category.Color, category.ColorEditedAt)).ToList();
         sessionTasks.OtherDeviceCategories = () => receivedDevices.Active
             .Where(device => device.File.Categories is { Count: > 0 })
             .OrderBy(device => device.File.Device.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -1299,7 +1299,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents)),
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents), new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector())),
             Plan = planViewModel,
             Stats = statsViewModel,
             DayBar = _dayBar,
@@ -1307,8 +1307,14 @@ public partial class App : Application
             Devices = devices,
         };
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
-        planViewModel.WorkHoursGuardOn = () => _workHours?.Settings.On == true;
         planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;
+        // The menu on a calendar event, wherever it shows, and the same changes asked from a phone (ADR 64).
+        var eventActions = new CalendarEventActions(effectivePlan, calendars, _later!);
+        var eventMenu = new CalendarEventMenu(effectivePlan, _configuration!, calendars, eventActions, time, message => presenter.ShowNotice("Calendar event", message));
+        planViewModel.EventMenu = eventMenu;
+        _dayBar.EventMenu = eventMenu;
+        timelineDay.EventMenu = eventMenu; // Today's timeline is this bar.
+        syncActions.EventActions = eventActions;
         exceptionsViewModel.PickEventCategory = planViewModel.OpenEventPicker;
         exceptionsViewModel.OpenConnections = () =>
         {

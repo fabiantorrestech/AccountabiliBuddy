@@ -29,6 +29,9 @@ object PcFileControl {
      */
     const val LATER_DETAILS_VERSION = "0.1.114"
 
+    /** The first PC version that takes a phone's request to classify one of its calendar events (ADR 64). */
+    const val EVENT_CLASSIFY_VERSION = "0.1.127"
+
     // A file older than this doesn't say the session still runs; a phase over for longer than this has ended (the PC went off).
     private val FRESH: Duration = Duration.ofHours(12)
     private val OVER_FOR: Duration = Duration.ofMinutes(10)
@@ -83,6 +86,9 @@ object PcFileControl {
 
     /** True when the PC's app applies task changes for its running session (by the version on its card). */
     fun supportsTaskEdits(card: SyncDeviceCard): Boolean = compareVersions(card.appVersion, TASK_EDIT_VERSION) >= 0
+
+    /** True when the PC's app classifies an event a phone asks about (ADR 64, by the version on its card). */
+    fun supportsEventClassify(card: SyncDeviceCard): Boolean = compareVersions(card.appVersion, EVENT_CLASSIFY_VERSION) >= 0
 
     /** True when the PC's app keeps the Later list and applies a task's estimate and note (by the version on its card). */
     fun supportsLaterDetails(card: SyncDeviceCard): Boolean = compareVersions(card.appVersion, LATER_DETAILS_VERSION) >= 0

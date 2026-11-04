@@ -167,7 +167,7 @@ public sealed partial class NotebookViewModel : ObservableObject
             foreach (SessionTask task in checklist.Tasks)
             {
                 DateTimeOffset sort = task.DoneAt ?? start;
-                // Its category as it was when the session ended, e.g. "Work · Session of …".
+                // Its category as it is now (as it was when the session ended, if it has since been deleted), e.g. "Work · Session of …".
                 string category = CategoryName(task) is string name ? $"{name} · " : string.Empty;
                 string session = checklist.OutsideSession ? "Done outside a session" : $"Session of {When(start)}";
                 TaskRowKey key = new(task.DoneAt is null ? TaskRowKind.Past : TaskRowKind.Done, task.Id);
@@ -184,7 +184,7 @@ public sealed partial class NotebookViewModel : ObservableObject
                     isTicked: task.DoneAt is not null,
                     addStep: title => _tasks.AddHistoryStepAsync(task.Id, title),
                     menu: item => Host?.MenuFor(key, rename: item.BeginRename, addStep: item.BeginAddStep) ?? [],
-                    categoryColor: task.CategoryColor ?? _tasks.Categories.FirstOrDefault(c => c.Id == task.CategoryId)?.Color);
+                    categoryColor: TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Color);
                 int order = 0;
                 foreach (SessionSubtask subtask in task.Subtasks)
                 {
@@ -215,7 +215,7 @@ public sealed partial class NotebookViewModel : ObservableObject
 
     private string? CategoryName(SessionTask task)
     {
-        return task.Category ?? _tasks.Categories.FirstOrDefault(category => category.Id == task.CategoryId)?.Name;
+        return TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Name;
     }
 
     private string When(DateTimeOffset time)

@@ -25,4 +25,9 @@ data class CalendarEvent(
     val categoryId: UUID? = null,
     /** From the PC's file only: when the PC first saw the event at this time and category; null = not noticed. */
     val knownSince: Instant? = null,
-)
+    /** From the PC's file only: the category was chosen by hand, so it may lift Pre-Work for the event's time (ADR 64). */
+    val categoryByHand: Boolean = false,
+) {
+    /** What a "this event" classification is stored under: the occurrence's series and original time when it has them, else its id (the PC's ClassificationKey). */
+    val classificationKey: String get() = if (seriesId == null) id else "$seriesId#$occurrenceKey"
+}

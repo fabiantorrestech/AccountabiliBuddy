@@ -55,7 +55,7 @@ public sealed class ConfigurationService
     /// When a day plan change is waiting (<see cref="DayPlanHold"/>), what to tell the user who made it; null otherwise.
     /// </summary>
     public string? DayPlanWaitText => Pending is { } pending && !SameDayPlan(Current.DayPlan, pending.Document.DayPlan)
-        ? $"Waits {(int)Current.Locks.LooseningDelay.TotalMinutes} min: it frees part of today's work hours (work hours on this computer). The banner counts down and can cancel it."
+        ? $"Waits {(int)Current.Locks.LooseningDelay.TotalMinutes} min: it makes part of today less strict. The banner counts down and can cancel it."
         : null;
 
     /// <summary>Set when saved settings could not be read. Saving is then disabled so nothing is overwritten.</summary>

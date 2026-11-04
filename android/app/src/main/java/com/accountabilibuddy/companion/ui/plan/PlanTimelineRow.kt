@@ -13,4 +13,8 @@ data class PlanTimelineRow(
     val isSleep: Boolean = false,
     val isEvent: Boolean = false,
     val subRows: List<PlanSubRow> = emptyList(),
+    /** The calendar event this row stands for; a tap opens its sheet (ADR 64). */
+    val event: com.accountabilibuddy.companion.model.CalendarEvent? = null,
+    /** When the row's time is; orders a timed event's row among the parts. Null for all-day rows. */
+    val at: java.time.LocalDateTime? = null,
 )

@@ -54,7 +54,7 @@ object PlanTimelineBuilder {
         val rows = mutableListOf<PlanTimelineRow>()
         // All-day events head the day.
         for (event in allDay) {
-            rows += PlanTimelineRow(time = "All day", title = event.title, sub = "Calendar", isEvent = true)
+            rows += PlanTimelineRow(time = "All day", title = event.title, sub = "Calendar", isEvent = true, event = event)
         }
 
         var group: MutableList<PlannedPart>? = null
@@ -99,6 +99,19 @@ object PlanTimelineBuilder {
         }
 
         flush()
+        // A timed event outside every work block gets a row of its own, in time order, so it can be reached too (ADR 64). Not one a part already shows: a classified
+        // event's own part stands for it there.
+        for ((event, window) in timed) {
+            val shown = rows.any { row -> row.subRows.any { it.event === event } } ||
+                parts.any { it.part.fromEvent && it.window.start < window.end && window.start < it.window.end }
+            if (shown) continue
+            val index = rows.indexOfFirst { row -> row.at != null && row.at > window.start }
+            val row = PlanTimelineRow(
+                time = clock.time(window.start), title = event.title, sub = "Calendar · until ${clock.time(window.end)}", isEvent = true, event = event, at = window.start,
+            )
+            if (index < 0) rows += row else rows.add(index, row)
+        }
+
         return PlanDayTimeline(rows, hasWork = parts.any { it.category.behavior.isWork })
     }
 
@@ -155,7 +168,7 @@ object PlanTimelineBuilder {
 
         for ((event, window) in inside) {
             val at = if (window.start < span.start) span.start else window.start
-            lines += at to PlanSubRow(time = clock.time(at), title = event.title, right = "Calendar", isEvent = true)
+            lines += at to PlanSubRow(time = clock.time(at), title = event.title, right = "Calendar", isEvent = true, event = event)
         }
 
         val sorted = lines.sortedBy { it.first }

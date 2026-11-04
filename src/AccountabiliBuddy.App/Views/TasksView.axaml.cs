@@ -76,12 +76,17 @@ public partial class TasksView : UserControl
         }
     }
 
-    // A row's menu said Rename or Add subtask: the detail card shows that task, and its title or step box takes the keyboard.
+    // A row's menu said Rename or Add subtask: the detail card shows that task, and its title or step box takes the keyboard. A picker's "New category…": its name box does.
     private void OnFocusRequested(object? sender, string target)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            string name = target == "step" ? "DetailStepBox" : "DetailTitleBox";
+            string name = target switch
+            {
+                "step" => "DetailStepBox",
+                "newCategory" => "NewCategoryBox",
+                _ => "DetailTitleBox",
+            };
             TextBox? box = this.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(candidate => candidate.Name == name);
             if (box is null)
             {
@@ -112,6 +117,16 @@ public partial class TasksView : UserControl
         if (sender is Button button)
         {
             TaskMenus.ShowCategoryPicker(button);
+            e.Handled = true;
+        }
+    }
+
+    // The add row's dot: which category new tasks go in.
+    private void OnNewTaskCategoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && DataContext is TasksViewModel page)
+        {
+            TaskMenus.ShowEntries(button, page.NewTaskCategoryEntries(), PlacementMode.BottomEdgeAlignedLeft);
             e.Handled = true;
         }
     }
