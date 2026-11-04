@@ -403,7 +403,7 @@ public sealed class ShutdownService : IDisposable
 
         if ((!_state.OpenedByHand && !Settings.Enabled) || now >= ClosesAtFor(ToLocal(openedAt), now))
         {
-            _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false };
+            _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false, LastShownOn = LastShownAfterClose(date, _state.OpenedByHand, now) };
             _ = SaveAsync();
             return false;
         }
@@ -519,6 +519,16 @@ public sealed class ShutdownService : IDisposable
         return card.Review.HasAnswer || _reviews.Of(date) is not null;
     }
 
+    // A card started by hand doesn't come back by itself (hard rules). An automatic card is marked shown when it opens; a hand card is
+    // marked when it closes after the work end (Not now, auto-close, a finish, a restart that finds it expired), or the next tick would
+    // open it again as an automatic one. Closed before the work end, the evening card still comes.
+    private DateOnly? LastShownAfterClose(DateOnly date, bool byHand, DateTime now)
+    {
+        DateOnly? shown = _state.LastShownOn;
+        bool workOver = byHand && WorkEnd(date, now) is DateTime end && end <= now;
+        return workOver && (shown is null || shown < date) ? date : shown;
+    }
+
     private void CloseCard()
     {
         _ = CloseCardAsync();
@@ -526,7 +536,8 @@ public sealed class ShutdownService : IDisposable
 
     private Task CloseCardAsync()
     {
-        _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false };
+        DateOnly? shownOn = LastShownAfterClose(_openFor, _state.OpenedByHand, LocalNow());
+        _state = _state with { OpenFor = null, OpenedAt = null, OpenedByHand = false, LastShownOn = shownOn };
         Current = null;
         Changed?.Invoke(this, EventArgs.Empty);
         return SaveAsync();
