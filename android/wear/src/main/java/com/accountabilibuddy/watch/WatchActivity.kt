@@ -12,9 +12,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.platform.LocalContext
@@ -156,17 +157,6 @@ private fun WatchApp(
 
     val zone by remember { derivedStateOf { now.value.let { ZoneId.systemDefault() } } }
     val context = LocalContext.current
-    // A timer that's just up brings the Timers page to the front (its buzz comes from the alarm).
-    val timers by remember { TimerStore.timers(context) }.collectAsState()
-    val doneIds by remember { derivedStateOf { timers.filter { it.isDone(now.value) }.map { it.id }.toSet() } }
-    var seenDone by remember { mutableStateOf(doneIds) }
-    var timersDue by remember { mutableStateOf(false) }
-    LaunchedEffect(doneIds) {
-        if ((doneIds - seenDone).isNotEmpty()) {
-            timersDue = true
-        }
-        seenDone = doneIds
-    }
 
     AppScaffold {
         val snapshot = stored ?: sample
@@ -184,7 +174,8 @@ private fun WatchApp(
                     noticePage + listOf(Page.NotLinked, Page.Timers)
                 } else {
                     // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
-                    // starts over when the pages change). The Lunch page shows on a workday or while lunch runs, from today's snapshot.
+                    // keeps the user on the page they are on when the order changes). The Lunch page shows on a workday or while
+                    // lunch runs, from today's snapshot.
                     val running = snapshot.running?.isLiveAt(now.value) == true
                     val onLunch = lunch?.isRunning(now.value) == true
                     val order = when {
@@ -196,17 +187,31 @@ private fun WatchApp(
                 }
             }
         }
-        val pager = key(pages) { rememberPagerState(pageCount = { pages.size }) }
-        LaunchedEffect(openTimers, timersDue, pager) {
-            if (openTimers || timersDue) {
-                pager.scrollToPage(pages.indexOf(Page.Timers))
-                timersDue = false
+        val pager = rememberPagerState(pageCount = { pages.size })
+        // The page the user is on, by name: when the order changes (a session or lunch starts, a notice comes) the pager follows
+        // that page instead of staying on the same position, which would show another page or start over at the first.
+        val pagesNow by rememberUpdatedState(pages)
+        var settled by remember { mutableStateOf<Page?>(null) }
+        var lastPages by remember { mutableStateOf<List<Page>>(emptyList()) }
+        LaunchedEffect(pager) { snapshotFlow { pager.settledPage }.collect { settled = pagesNow.getOrNull(it) } }
+        LaunchedEffect(pages) {
+            val before = lastPages
+            lastPages = pages
+            // A notice about the phone link (ADR 54) that has just appeared is shown; otherwise the user stays where they are.
+            val target = if (Page.Notice in pages && Page.Notice !in before && before.isNotEmpty()) pages.indexOf(Page.Notice)
+            else settled?.let { pages.indexOf(it) } ?: -1
+            if (target >= 0 && target != pager.currentPage) pager.scrollToPage(target)
+        }
+        // Opened from the Timers complication or a timer's "Time's up" notification: that page, once.
+        LaunchedEffect(openTimers, pager) {
+            if (openTimers) {
+                pages.indexOf(Page.Timers).takeIf { it >= 0 }?.let { pager.scrollToPage(it) }
                 onTimersOpened()
             }
         }
         HorizontalPagerScaffold(pagerState = pager) {
-            // The next page on each side is composed ahead, so a swipe doesn't build it mid-gesture.
-            HorizontalPager(state = pager, beyondViewportPageCount = 1) { page ->
+            // Only the page on screen is composed (and the next while swiping), so the other pages' rings are not redrawn each second.
+            HorizontalPager(state = pager, beyondViewportPageCount = 0) { page ->
                 AnimatedPage(pageIndex = page, pagerState = pager) {
                     ScreenScaffold {
                         when (pages[page]) {
