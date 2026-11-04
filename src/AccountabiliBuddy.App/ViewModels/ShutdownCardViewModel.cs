@@ -92,7 +92,7 @@ public sealed partial class ShutdownCardViewModel : ObservableObject
         ShutdownStep.LookAhead => "What's due soon and what's on your calendar. Read-only.",
         ShutdownStep.PlanTomorrow => "Pick up to three tasks and the part of tomorrow each belongs to.",
         ShutdownStep.Review => "How the day went. The feeling and note are optional and stay sealed on this PC.",
-        _ => "Here is what you checked. Nothing is locked: you can still work if you want to.",
+        _ => "Here is what you checked. Nothing is locked: you can still work if you want to. If work is still on, your start reminders keep working until it ends.",
     };
 
     /// <summary>E.g. "Step 2 of 4"; the closing screen counts as no step.</summary>

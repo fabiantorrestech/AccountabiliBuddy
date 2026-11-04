@@ -14,8 +14,9 @@ namespace AccountabiliBuddy.App.Services;
 /// without work parts. A "work ends soon" reminder comes a settable number of minutes before (15 by default). "Not now" closes the card
 /// and brings it back once, 30 minutes later. A card left open closes by itself 6 hours after it opened or when the next work part
 /// starts, whichever is first; nothing on it is applied then, except a typed tomorrow's first task (kept under the Tasks page's
-/// "Auto-saved") and a written review. Each step writes its choices when "Next" is pressed. Finishing records the day; until the next
-/// work part (or 4:00 AM) Today says "Work over for today" and the work-start nudges stay quiet. Nothing is ever locked, and bedtime and
+/// "Auto-saved") and a written review. Each step writes its choices when "Next" is pressed. Finishing records the day; once the day's work
+/// is over (finishing in the middle of the workday changes nothing until then) and until the next work part (or 4:00 AM) Today says
+/// "Work over for today" and the work-start nudges stay quiet, never during a work part. Nothing is ever locked, and bedtime and
 /// sleep are untouched. The card never opens during a session, and never reads or writes a session's PC-off stretches (ADR 60).
 /// Use from the UI thread only.
 /// </summary>
@@ -49,9 +50,19 @@ public sealed class ShutdownService : IDisposable
     private readonly CalendarService _calendar;
     private ShutdownState _state = new(null);
 
-    // The plan date the open card wraps up, and when it closes by itself.
+    // The plan date the open card wraps up, when it opened and when it closes by itself.
     private DateOnly _openFor;
+    private DateTimeOffset _openedAt;
     private DateTime _closesAt;
+
+    // What was typed on a card put off with "Not now", kept for the card that comes back (also kept under Auto-saved until then).
+    private ParkedDraft? _parked;
+
+    // "Work over" is recomputed every second; its end only changes with the finish or the work end, so it is kept for the tick that asks again.
+    private (DateTime Anchor, DateTime Until)? _workOverEnd;
+
+    // One end-of-work reminder per plan date, but the QR reminder waits for the card only this long after it opened.
+    private static readonly TimeSpan QrWaitsFor = TimeSpan.FromMinutes(30);
 
     public ShutdownService(
         SessionController sessions, ConfigurationService configuration, SessionTasksService tasks, ComebackStore comebacks,
@@ -86,6 +97,9 @@ public sealed class ShutdownService : IDisposable
     /// <summary>Opens the Plan page (the planning step's link). Set by the app.</summary>
     public Action? OpenPlan { get; set; }
 
+    /// <summary>A day off (Pre-Work said today is not a work day): no reminder comes, like the start nudge. Set by the app.</summary>
+    public Func<bool> IsDayOff { get; set; } = () => false;
+
     private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
 
     /// <summary>The routine's settings, held to their limits.</summary>
@@ -103,14 +117,14 @@ public sealed class ShutdownService : IDisposable
     /// <summary>True while <see cref="WorkOver"/> holds: the work-start nudges stay quiet.</summary>
     public bool IsWorkOver => WorkOver is not null;
 
+    /// <summary>The card in <see cref="Current"/> came back after a restart, not from the end of work: no second "work's done" notice.</summary>
+    public bool CardWasRestored { get; private set; }
+
     /// <summary>Raised when <see cref="Current"/> opens or closes.</summary>
     public event EventHandler? Changed;
 
     /// <summary>Raised when <see cref="WorkOver"/> starts or ends.</summary>
     public event EventHandler? WorkOverChanged;
-
-    /// <summary>Raised when the settings were saved.</summary>
-    public event EventHandler? SettingsChanged;
 
     /// <summary>Raised when a card that closed by itself kept its tomorrow's first task under the Tasks page's "Auto-saved".</summary>
     public event EventHandler? AutoSaved;
@@ -136,7 +150,6 @@ public sealed class ShutdownService : IDisposable
     public async Task SaveSettingsAsync(ShutdownSettings settings)
     {
         _state = _state with { Settings = settings.Normalized() };
-        SettingsChanged?.Invoke(this, EventArgs.Empty);
         if (!Settings.Enabled)
         {
             _state = _state with { ReturnAt = null };
@@ -156,32 +169,33 @@ public sealed class ShutdownService : IDisposable
     /// <returns>True when the card is open; false while a session runs.</returns>
     public bool StartByHand()
     {
-        if (Current is not null)
-        {
-            return true;
-        }
-
+        // During a session even an open card is hidden, so there is nothing to show: the caller says it waits.
         if (_sessions.State.IsActive)
         {
             return false;
         }
 
-        DateTime now = LocalNow();
-        Open(PlanDateOf(now), null, byHand: true);
+        if (Current is not null)
+        {
+            return true;
+        }
+
+        Open(PlanDateOf(LocalNow()), byHand: true);
         return true;
     }
 
-    /// <summary>True while a shutdown card is open or is due to open (it waits for a session to end). Other end-of-day reminders hold back meanwhile.</summary>
+    /// <summary>
+    /// True while a shutdown card is due to open (it waits for a session to end), or is open and was opened less than 30 minutes ago. The QR
+    /// scan reminder holds back meanwhile; a card nobody answers does not hold it for hours.
+    /// </summary>
     public bool IsCardOpenOrDue()
     {
-        return Current is not null || (Settings.Enabled && DueDate(LocalNow()) is not null);
-    }
+        if (Current is not null && _sessions.Now - _openedAt < QrWaitsFor)
+        {
+            return true;
+        }
 
-    /// <summary>When the reminder comes on a plan date: the set minutes before work ends. Null on a date with no work parts or with no reminder.</summary>
-    public DateTime? ReminderAt(DateOnly date)
-    {
-        int minutes = Settings.ReminderMinutes;
-        return minutes > 0 && WorkEnd(date) is DateTime end ? end.AddMinutes(-minutes) : null;
+        return Current is null && Settings.Enabled && DueDate(LocalNow()) is not null;
     }
 
     /// <summary>Opens the card once the day's work is over, reminds before that, and closes one left open too long. Runs every second.</summary>
@@ -212,7 +226,7 @@ public sealed class ShutdownService : IDisposable
 
         if (DueDate(now) is DateOnly due)
         {
-            Open(due, WorkEnd(due), byHand: false);
+            Open(due, byHand: false);
             return;
         }
 
@@ -294,9 +308,10 @@ public sealed class ShutdownService : IDisposable
         return (_state.LastShownOn is DateOnly shown && shown >= date) || IsFinished(date);
     }
 
+    // A day finished in the middle of the workday doesn't count: the card still comes when work ends.
     private bool IsFinished(DateOnly date)
     {
-        return _state.Days?.Any(day => day.Date == date) ?? false;
+        return _state.Days?.Any(day => day.Date == date && day.AfterWork) ?? false;
     }
 
     // When a card opened at [anchor] closes by itself: 6 hours later, or when the next work part starts if that is sooner.
@@ -308,29 +323,73 @@ public sealed class ShutdownService : IDisposable
 
     // ---- Opening, restoring and putting off ----
 
-    private void Open(DateOnly date, DateTime? workEnd, bool byHand)
+    private void Open(DateOnly date, bool byHand)
     {
-        DateTime now = LocalNow();
         _openFor = date;
-        _closesAt = ClosesAtFor(workEnd ?? now);
+        _openedAt = _sessions.Now;
+        _closesAt = ClosesAtFor(LocalNow());
         DateOnly shown = _state.LastShownOn is DateOnly last && last > date ? last : date;
         _state = _state with
         {
             LastShownOn = byHand ? _state.LastShownOn : shown,
             OpenFor = date,
-            OpenedAt = _sessions.Now,
+            OpenedAt = _openedAt,
             OpenedByHand = byHand,
             ReturnAt = null,
         };
         _ = SaveAsync();
+        CardWasRestored = false;
         ShowCard(BuildCard(date, byHand), date);
     }
 
     private void ShowCard(ShutdownCardViewModel card, DateOnly date)
     {
+        if (_parked is { } parked && parked.Date == date)
+        {
+            _ = RestoreDraftAsync(card, parked);
+        }
+
+        _parked = null;
         Current = card;
         Changed?.Invoke(this, EventArgs.Empty);
         _ = FillDriftAsync(card, date);
+    }
+
+    // The card that comes back after "Not now" gets what was typed on the one before, and it leaves Auto-saved again.
+    private async Task RestoreDraftAsync(ShutdownCardViewModel card, ParkedDraft parked)
+    {
+        // All texts go back first (synchronously); only the ones that found their place leave Auto-saved.
+        var restored = new List<ParkedText>();
+        foreach (ParkedText text in parked.Texts)
+        {
+            if (text.Row is null)
+            {
+                card.TomorrowTask = text.Title;
+                restored.Add(text);
+            }
+            else if (text.Row < card.PlanRows.Count)
+            {
+                card.PlanRows[text.Row.Value].Text = text.Title;
+                if (text.PartIndex is int part && part < card.PlanRows[text.Row.Value].Parts.Count)
+                {
+                    card.PlanRows[text.Row.Value].PartIndex = part;
+                }
+
+                restored.Add(text);
+            }
+        }
+
+        foreach (ParkedText text in restored)
+        {
+            try
+            {
+                await _autoSaved.RemoveAsync(text.AutoSavedId);
+            }
+            catch (SqliteException)
+            {
+                // Best effort: it stays under Auto-saved as well.
+            }
+        }
     }
 
     // The app restarted with a card open: it comes back (as long as it would still be open and the routine, or a hand start, asked for it).
@@ -349,7 +408,9 @@ public sealed class ShutdownService : IDisposable
         }
 
         _openFor = date;
+        _openedAt = openedAt;
         _closesAt = ClosesAtFor(ToLocal(openedAt));
+        CardWasRestored = true;
         ShowCard(BuildCard(date, _state.OpenedByHand), date);
         return true;
     }
@@ -374,51 +435,73 @@ public sealed class ShutdownService : IDisposable
             return false;
         }
 
-        Open(date, end, byHand: false);
+        Open(date, byHand: false);
         return true;
     }
 
-    private Task NotNowAsync()
+    private async Task NotNowAsync()
     {
         ShutdownCardViewModel? card = Current;
         if (card is null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        bool firstTime = !_state.OpenedByHand && _state.NotNowOn != _openFor;
-        _ = KeepUnsavedAsync(card, _openFor, announce: false);
+        bool returns = !_state.OpenedByHand && _state.NotNowOn != _openFor;
+        DateOnly date = _openFor;
         _state = _state with
         {
-            NotNowOn = _state.OpenedByHand ? _state.NotNowOn : _openFor,
-            ReturnAt = firstTime ? _sessions.Now + NotNowReturnAfter : null,
+            NotNowOn = _state.OpenedByHand ? _state.NotNowOn : date,
+            ReturnAt = returns ? _sessions.Now + NotNowReturnAfter : null,
         };
-        return CloseCardAsync();
+        await CloseCardAsync();
+        List<ParkedText> kept = await KeepUnsavedAsync(card, date);
+        // A card that comes back gets what was typed back; one that doesn't leaves it under Auto-saved.
+        _parked = returns && kept.Count > 0 ? new ParkedDraft(date, kept) : null;
     }
 
-    // The card was left open too long: it closes like Not now without a return, but a typed tomorrow's first task is kept under "Auto-saved".
+    // The card was left open too long: it closes like Not now without a return, but what was typed is kept (see KeepUnsavedAsync).
     private void AutoClose()
     {
         ShutdownCardViewModel card = Current!;
-        _ = KeepUnsavedAsync(card, _openFor, announce: true);
+        DateOnly date = _openFor;
         CloseCard();
+        _ = KeepAndAnnounceAsync(card, date);
     }
 
-    // What was typed but never applied is not lost: a review (sealed) and tomorrow's first task (under "Auto-saved").
-    private async Task KeepUnsavedAsync(ShutdownCardViewModel card, DateOnly date, bool announce)
+    private async Task KeepAndAnnounceAsync(ShutdownCardViewModel card, DateOnly date)
     {
-        string tomorrow = card.TomorrowTask.Trim();
-        bool hasReview = card.Review.HasAnswer;
+        if ((await KeepUnsavedAsync(card, date)).Count > 0)
+        {
+            AutoSaved?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    // What was typed but never applied is not lost: a review (sealed) and the tasks typed for tomorrow (first task and planned rows, under
+    // "Auto-saved"). A task chosen from a list is still in its list, so it is not copied. Applied inputs were cleared by their step.
+    private async Task<List<ParkedText>> KeepUnsavedAsync(ShutdownCardViewModel card, DateOnly date)
+    {
+        var kept = new List<ParkedText>();
         try
         {
-            if (hasReview)
+            if (NeedsReviewSave(card, date))
             {
                 await _reviews.SaveReviewAsync(date, card.Review.Feeling, card.Review.Note);
             }
 
-            if (tomorrow.Length > 0)
+            string tomorrow = card.TomorrowTask.Trim();
+            if (tomorrow.Length > 0 && card.TomorrowSource is null && await _autoSaved.AddAsync(tomorrow, date) is { } item)
             {
-                await _autoSaved.AddAsync(tomorrow, date);
+                kept.Add(new ParkedText(null, null, tomorrow, item.Id));
+            }
+
+            for (int row = 0; row < card.PlanRows.Count; row++)
+            {
+                ShutdownPlanRowViewModel planRow = card.PlanRows[row];
+                if (planRow.Title.Length > 0 && planRow.Source is null && await _autoSaved.AddAsync(planRow.Title, date) is { } saved)
+                {
+                    kept.Add(new ParkedText(row, planRow.PartIndex, planRow.Title, saved.Id));
+                }
             }
         }
         catch (SqliteException)
@@ -426,10 +509,13 @@ public sealed class ShutdownService : IDisposable
             // Best effort: the item still shows until the app restarts.
         }
 
-        if (announce && tomorrow.Length > 0)
-        {
-            AutoSaved?.Invoke(this, EventArgs.Empty);
-        }
+        return kept;
+    }
+
+    // A review is written when something was answered, or when an earlier answer was cleared.
+    private bool NeedsReviewSave(ShutdownCardViewModel card, DateOnly date)
+    {
+        return card.Review.HasAnswer || _reviews.Of(date) is not null;
     }
 
     private void CloseCard()
@@ -450,7 +536,7 @@ public sealed class ShutdownService : IDisposable
     private void RemindIfDue(DateTime now)
     {
         int minutes = Settings.ReminderMinutes;
-        if (minutes <= 0)
+        if (minutes <= 0 || IsDayOff())
         {
             return;
         }
@@ -477,7 +563,9 @@ public sealed class ShutdownService : IDisposable
 
     // ---- Work over for today ----
 
-    // Recomputed every second from the last finished day; raised only when it starts or ends.
+    // Recomputed every second from the last finished day; raised only when it starts or ends. It never starts while the day's work is
+    // still ahead (finishing at 9:30 in a 9-5 day changes nothing until 5:00 PM; a Budget day's work ends at bedtime, or when the budget
+    // is met), so the work-start nudges keep working through the workday.
     private void RefreshWorkOver(DateTime now)
     {
         ShutdownWorkOver? computed = null;
@@ -486,10 +574,14 @@ public sealed class ShutdownService : IDisposable
             DateTime finished = ToLocal(last.CompletedAt);
             if (finished <= now && now - finished < TimeSpan.FromHours(30))
             {
-                DateTime until = WorkOverEnd(finished);
-                if (now < until)
+                DateTime? workEnd = WorkEnd(last.Date);
+                if (workEnd is null || workEnd <= now)
                 {
-                    computed = new ShutdownWorkOver(last.Line, last.Checked, until);
+                    DateTime until = WorkOverEnd(workEnd is DateTime over && over > finished ? over : finished);
+                    if (now < until)
+                    {
+                        computed = new ShutdownWorkOver(last.Line, last.Checked, until);
+                    }
                 }
             }
         }
@@ -506,11 +598,18 @@ public sealed class ShutdownService : IDisposable
         WorkOverChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    // The next work part after the routine was finished, or 4:00 AM when that comes first.
-    private DateTime WorkOverEnd(DateTime finished)
+    // The next work part after [anchor] (the finish, or the work end when that came later), or 4:00 AM when that comes first.
+    private DateTime WorkOverEnd(DateTime anchor)
     {
-        DateTime morning = (finished.TimeOfDay < NewDayAt ? finished.Date : finished.Date.AddDays(1)) + NewDayAt;
-        return NextWorkStartAfter(finished) is DateTime nextWork && nextWork < morning ? nextWork : morning;
+        if (_workOverEnd is { } known && known.Anchor == anchor && known.Until > LocalNow())
+        {
+            return known.Until;
+        }
+
+        DateTime morning = (anchor.TimeOfDay < NewDayAt ? anchor.Date : anchor.Date.AddDays(1)) + NewDayAt;
+        DateTime until = NextWorkStartAfter(anchor) is DateTime nextWork && nextWork < morning ? nextWork : morning;
+        _workOverEnd = (anchor, until);
+        return until;
     }
 
     // ---- Building the card ----
@@ -717,7 +816,7 @@ public sealed class ShutdownService : IDisposable
                 await ApplyPlanAsync(card);
                 break;
             case ShutdownStep.Review:
-                if (card.Review.HasAnswer)
+                if (NeedsReviewSave(card, date))
                 {
                     await _reviews.SaveReviewAsync(date, card.Review.Feeling, card.Review.Note);
                 }
@@ -794,13 +893,21 @@ public sealed class ShutdownService : IDisposable
             }
         }
 
-        var planned = new HashSet<string>(StringComparer.Ordinal);
+        // A title already on the next session's list isn't planned a second time.
+        var planned = new HashSet<string>(_tasks.Current.Tasks.Select(task => task.Title), StringComparer.Ordinal);
         foreach (ShutdownPlanRowViewModel row in card.PlanRows)
         {
             if (row.Title.Length > 0 && row.Slot is PlannedSlot slot && planned.Add(row.Title))
             {
                 await _tasks.PlanForTomorrowAsync(row.Source, row.Title, slot);
             }
+        }
+
+        // Applied: the inputs are emptied, so "Not now" or an auto-close doesn't keep them a second time.
+        card.TomorrowTask = string.Empty;
+        foreach (ShutdownPlanRowViewModel row in card.PlanRows)
+        {
+            row.Text = string.Empty;
         }
     }
 
@@ -809,9 +916,11 @@ public sealed class ShutdownService : IDisposable
     {
         DateTimeOffset now = _sessions.Now;
         DateTimeOffset keptFrom = now.AddDays(-KeptDays);
+        // Only a finish once work is over (or within the reminder minutes before it ends) settles the day; a morning finish doesn't.
+        bool afterWork = WorkEnd(date) is not DateTime workEnd || LocalNow() >= workEnd.AddMinutes(-Settings.ReminderMinutes);
         List<ShutdownDay> days = (_state.Days ?? [])
             .Where(day => day.Date != date && day.CompletedAt >= keptFrom)
-            .Append(new ShutdownDay(date, now, card.Checked.ToList(), card.ClosingLine))
+            .Append(new ShutdownDay(date, now, card.Checked.ToList(), card.ClosingLine, afterWork))
             .ToList();
         _state = _state with { Days = days, NotNowOn = null, ReturnAt = null };
         await CloseCardAsync();
@@ -834,4 +943,9 @@ public sealed class ShutdownService : IDisposable
     {
         CheckNow();
     }
+
+    // One typed task kept from a card: where it was ("Row" null = tomorrow's first task), the part picked, and its Auto-saved item.
+    private sealed record ParkedText(int? Row, int? PartIndex, string Title, Guid AutoSavedId);
+
+    private sealed record ParkedDraft(DateOnly Date, IReadOnlyList<ParkedText> Texts);
 }

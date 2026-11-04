@@ -587,7 +587,8 @@ public partial class App : Application
         _preWork.Changed += (_, _) => ShowPreWork(monitorLocator);
         _preWork.DayOffTaken += (_, _) => _ = _workHours.TakeDayOffAsync();
         // Nothing steers on a day off or during lunch.
-        _startNudge!.IsDayOff = () => _preWork.IsDayOff || _lunch!.IsOnLunch || (_shutdown?.IsWorkOver ?? false);
+        _startNudge!.IsDayOff = () => _preWork.IsDayOff || _lunch!.IsOnLunch;
+        _startNudge.IsWorkOver = () => _shutdown?.IsWorkOver ?? false;
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _preWork.OnActivity(snapshot));
         // The review card after each session: what it used with no rule, as rules.
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
@@ -1097,10 +1098,11 @@ public partial class App : Application
         _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved, shutdownReviews, calendars);
         _shutdown.LoadBlocking();
         sessionViewModel.StartShutdownHandler = () => _shutdown.StartByHand();
+        _shutdown.IsDayOff = () => _preWork.IsDayOff;
         _shutdown.Changed += (_, _) =>
         {
             sessionViewModel.Shutdown = _shutdown.Current;
-            if (_shutdown.Current is { StartedByHand: false })
+            if (_shutdown.Current is { StartedByHand: false } && !_shutdown.CardWasRestored)
             {
                 presenter.ShowNotice("Work's done for today", "A short shutdown routine is waiting on Today: capture, look ahead, plan tomorrow.");
             }

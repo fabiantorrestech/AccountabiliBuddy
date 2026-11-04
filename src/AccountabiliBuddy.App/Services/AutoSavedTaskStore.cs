@@ -76,16 +76,19 @@ public sealed class AutoSavedTaskStore
     }
 
     /// <summary>Keeps <paramref name="title"/> from the shutdown card of <paramref name="wrapUpOf"/>; a blank title adds nothing.</summary>
-    public Task AddAsync(string title, DateOnly wrapUpOf)
+    /// <returns>The item kept; null for a blank title.</returns>
+    public async Task<AutoSavedTask?> AddAsync(string title, DateOnly wrapUpOf)
     {
         string trimmed = title.Trim();
         if (trimmed.Length == 0)
         {
-            return Task.CompletedTask;
+            return null;
         }
 
-        _all.Add(new AutoSavedTask(Guid.NewGuid(), trimmed, wrapUpOf, _time.GetUtcNow()));
-        return SaveAsync();
+        var item = new AutoSavedTask(Guid.NewGuid(), trimmed, wrapUpOf, _time.GetUtcNow());
+        _all.Add(item);
+        await SaveAsync();
+        return item;
     }
 
     /// <summary>Deletes the item <paramref name="id"/>; an unknown id changes nothing.</summary>

@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
@@ -61,19 +62,40 @@ public sealed partial class ShutdownReviewViewModel : ObservableObject
     /// <summary>Something was written or chosen, so there is something to keep.</summary>
     public bool HasAnswer => Feeling is not null || Note.Trim().Length > 0;
 
+    /// <summary>Takes the feeling back: none is chosen (an earlier answer is cleared when the step is saved).</summary>
+    [RelayCommand]
+    private void ClearFeeling()
+    {
+        foreach (ShutdownFeelingOption option in FeelingOptions.Where(option => option.IsSelected))
+        {
+            option.IsSelected = false;
+        }
+    }
+
     private void OnOptionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(ShutdownFeelingOption.IsSelected) || sender is not ShutdownFeelingOption { IsSelected: true } chosen)
+        if (e.PropertyName != nameof(ShutdownFeelingOption.IsSelected) || sender is not ShutdownFeelingOption changed)
         {
             return;
         }
 
+        if (!changed.IsSelected)
+        {
+            // Only a take-back leaves none selected (choosing another unselects this one after the new one is set).
+            if (!FeelingOptions.Any(option => option.IsSelected))
+            {
+                Feeling = null;
+            }
+
+            return;
+        }
+
         // One at a time.
-        foreach (ShutdownFeelingOption other in FeelingOptions.Where(option => option != chosen && option.IsSelected))
+        foreach (ShutdownFeelingOption other in FeelingOptions.Where(option => option != changed && option.IsSelected))
         {
             other.IsSelected = false;
         }
 
-        Feeling = chosen.Value;
+        Feeling = changed.Value;
     }
 }

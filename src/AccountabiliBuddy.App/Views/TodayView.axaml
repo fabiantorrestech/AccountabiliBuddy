@@ -373,6 +373,8 @@
                                                 <mi:MaterialIcon Kind="EmoticonNeutralOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                                                 <TextBlock Classes="section" Text="How did today go? (optional)" VerticalAlignment="Center" />
                                             </StackPanel>
+                                            <Button Classes="quiet" HorizontalAlignment="Left" Content="No feeling" Command="{Binding ClearFeelingCommand}"
+                                                    FontSize="12" Padding="8,2" MinHeight="0" AutomationProperties.Name="Take the feeling back" />
                                             <ItemsControl ItemsSource="{Binding FeelingOptions}">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>
