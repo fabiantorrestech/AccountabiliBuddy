@@ -1,8 +1,8 @@
 namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
-/// A day plan category chosen on one calendar event or on its whole series (ADR 58). Kept on this device only, in the
-/// documents table; it never goes into the shared profile JSON.
+/// A day plan category chosen on one calendar event or on its whole series (ADR 58). Stored on this device only (the choice itself), in the
+/// documents table; it never goes into the shared profile JSON. What it resolves to travels in the sealed sync file (hard-rules, ADR 58).
 /// </summary>
 /// <param name="CalendarId">The calendar the event is in.</param>
 /// <param name="Key">

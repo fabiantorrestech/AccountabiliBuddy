@@ -37,12 +37,12 @@ public static class OverlayContentOrder
     ];
 
     /// <summary>
-    /// What an untouched list (never saved) shows: the clock and batteries are on where the tile always drew them (Wide, and over the tray) and
+    /// What an untouched list (never saved) shows: the clock and batteries are on where the tile always drew them (Wide) and
     /// off at Small, Medium and Large, which kept the tile as it was before those two could be switched on there.
     /// </summary>
     public static IReadOnlyList<OverlayItem> DefaultFor(OverlaySize size, OverlayPlacement placement)
     {
-        return size == OverlaySize.Wide || placement == OverlayPlacement.CoverTray ? FocusFirst : FocusFirstWithoutClock;
+        return size == OverlaySize.Wide ? FocusFirst : FocusFirstWithoutClock;
     }
 
     private static IReadOnlyList<OverlayItem> FocusFirstWithoutClock { get; } =

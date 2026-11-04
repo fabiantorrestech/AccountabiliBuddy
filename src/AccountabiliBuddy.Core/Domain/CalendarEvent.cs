@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="LocalEnd">End (exclusive); midnight after the last day for an all-day event.</param>
 /// <param name="SeriesId">
 /// What stays the same across a repeating event's occurrences (iCal UID, Google's recurring event id) and, for iCal, across a
-/// single event being moved; null for events of the in-app calendar and Google's single events. Never leaves the device.
+/// single event being moved; null for events of the in-app calendar and Google's single events. Leaves the device only in the sealed sync file, on an event that resolves to a day plan category (ADR 58).
 /// </param>
 /// <param name="OccurrenceKey">
 /// Which occurrence of the series this is, by its original time (iCal RECURRENCE-ID or the occurrence's start, Google's
