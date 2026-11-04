@@ -44,6 +44,7 @@ import com.accountabilibuddy.companion.sync.FolderStatus
 import com.accountabilibuddy.companion.sync.PendingSyncOff
 import com.accountabilibuddy.companion.sync.SyncMethod
 import com.accountabilibuddy.companion.sync.SyncOffWait
+import com.accountabilibuddy.companion.sync.SyncReachText
 import com.accountabilibuddy.companion.ui.kit.AbTextButton
 import com.accountabilibuddy.companion.ui.kit.ChangeWaitsSheet
 import com.accountabilibuddy.companion.sync.PhoneSyncSettings
@@ -145,6 +146,8 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
     val settings = devices.settings
     val context = LocalContext.current
     var dialog by remember { mutableStateOf<DevicesDialog?>(null) }
+    // The "nobody heard from" banner's button: scrolls to How they sync (the anchor stays, the count asks again).
+    var showMethods by remember { mutableStateOf(0) }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(actions.onFolderChosen) }
     val signIn = rememberDriveSignIn(actions)
     val relayFields = rememberRelayFields(settings)
@@ -163,7 +166,9 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
 
     val rows = buildList {
         add(PageRow(SettingsAnchors.DEVICES) {
-            DevicesCard(devices, DevicesModel.allRows(devices, detectedIds, page.watch.settings, now), DevicesModel.staleNote(devices, now, zone, hideWatchCards = page.watch.settings.linkedNodeId != null), DevicesModel.todayLine(devices, now, zone), actions)
+            DevicesCard(devices, DevicesModel.allRows(devices, detectedIds, page.watch.settings, now), DevicesModel.staleNote(devices, now, zone, hideWatchCards = page.watch.settings.linkedNodeId != null), DevicesModel.todayLine(devices, now, zone), actions, onShowMethods = { showMethods++ },
+                // The last Sync now's full line, while the settings are still the ones it ran with.
+                syncReport = page.syncNow.report?.takeIf { it.settings == settings }?.full)
         })
 
         add(PageRow(SettingsAnchors.HOW_THEY_SYNC) {
@@ -303,7 +308,12 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        SettingsPageList(rows, anchor, Modifier.weight(1f))
+        SettingsPageList(
+            rows,
+            if (showMethods > 0) SettingsAnchors.HOW_THEY_SYNC else anchor,
+            Modifier.weight(1f),
+            scrollAgain = showMethods,
+        )
         DevicesBottomBar(page.syncNow, canAdd = devices.joined, onAdd = { dialog = DevicesDialog.LinkDevice })
     }
 
@@ -389,7 +399,7 @@ private fun rememberDriveSignIn(actions: DevicesActions): () -> Unit {
 
 /** The list of devices (board 5f): one card with a row each, then the note about a device that is behind. */
 @Composable
-private fun DevicesCard(devices: DevicesState, rows: List<DeviceRow>, stale: StaleNote?, todayLine: String?, actions: DevicesActions) {
+private fun DevicesCard(devices: DevicesState, rows: List<DeviceRow>, stale: StaleNote?, todayLine: String?, actions: DevicesActions, onShowMethods: () -> Unit, syncReport: String? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         AbCard(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
             rows.forEachIndexed { index, row ->
@@ -409,9 +419,13 @@ private fun DevicesCard(devices: DevicesState, rows: List<DeviceRow>, stale: Sta
         devices.removalLocked?.let {
             Text("Removing a device: $it", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
         }
+        // Linked, but nobody heard from: what is missing (no way on, or a way on and nothing there yet), and the way to the switches.
         if (devices.joined && devices.received.isEmpty()) {
-            Text("No other device yet.", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
-            Hint("Scan the PC's codes, open a sync file, or sign in to Google Drive below.", label = "How to bring them in")
+            AbInfoBanner(syncReport ?: SyncReachText.whileNobodyHeard(devices.settings), icon = Icons.Outlined.SyncProblem)
+            AbTextButton("Show sync methods", onClick = onShowMethods)
+            Hint("You can also scan the PC's codes or open a sync file.", label = "How to bring them in")
+        } else {
+            syncReport?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
     }
 }

@@ -266,12 +266,16 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             val refused = sync.saveSettings(
                 sync.settings.value.copy(relayOn = true, relayUrl = offer.relayUrl, relayPin = offer.relayPin, relayAdmission = offer.relayAdmission),
             )
-            message.value = refused ?: "Joined ${offer.pcName}'s devices, through the relay."
+            message.value = refused ?: joinedMessage("Joined ${offer.pcName}'s devices, through the relay.")
             return
         }
 
-        message.value = "Joined ${offer.pcName}'s devices."
+        message.value = joinedMessage("Joined ${offer.pcName}'s devices.")
     }
+
+    // A code gives the group's key and no way to reach anyone: while no other device is held, say what is missing.
+    private fun joinedMessage(joined: String): String =
+        if (sync.received.value.isEmpty()) "$joined ${com.accountabilibuddy.companion.sync.SyncReachText.whileNobodyHeard(sync.settings.value)}" else joined
 
     /** One of the PC's sync QR codes was scanned: e.g. "2 of 3 scanned", then "Synced Work PC". */
     fun scanSyncCode(link: String) {
@@ -589,7 +593,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
             return false
         }
 
-        message.value = "Joined your devices."
+        message.value = joinedMessage("Joined your devices.")
         return true
     }
 

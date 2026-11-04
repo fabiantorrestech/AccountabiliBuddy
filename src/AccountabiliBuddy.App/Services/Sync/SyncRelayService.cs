@@ -139,15 +139,15 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
         Restart();
     }
 
-    /// <summary>Seals this PC's file and puts it on the relay now.</summary>
-    public async Task WriteNowAsync()
+    /// <summary>Seals this PC's file and puts it on the relay now. True when the relay took the file.</summary>
+    public async Task<bool> WriteNowAsync()
     {
         RelayAccess? access = _access;
         SyncKey? key = _key;
         string ownName = _ownName;
         if (_disposed || access is null || key is null)
         {
-            return;
+            return false;
         }
 
         CancellationToken token = _lifetime.Token;
@@ -156,7 +156,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
         {
             if (token.IsCancellationRequested)
             {
-                return;
+                return false;
             }
 
             // Changes during the write set it again.
@@ -169,7 +169,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
             catch (SqliteException)
             {
                 _ownDirty = true;
-                return; // The history can't be read right now; the next write tries again.
+                return false; // The history can't be read right now; the next write tries again.
             }
 
             byte[] sealedBytes = SyncFileCodec.Seal(file, key);
@@ -178,16 +178,19 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                 _lastPutEtag = await _network.PutRelayFileAsync(access, ownName, sealedBytes, token);
                 _lastWriteTick = Environment.TickCount64;
                 SetWriteProblem(null);
+                return true;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 // Restarted or stopped while writing.
                 _ownDirty = true;
+                return false;
             }
             catch (Exception ex) when (IsRelayFailure(ex))
             {
                 _ownDirty = true;
                 SetWriteProblem(Describe(ex, access));
+                return false;
             }
         }
         finally

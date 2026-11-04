@@ -96,12 +96,12 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         Restart();
     }
 
-    /// <summary>Writes this PC's file now (nothing while the switch is off or outside a group).</summary>
-    public async Task WriteNowAsync()
+    /// <summary>Writes this PC's file now (nothing while the switch is off or outside a group). True when the file was put in the folder.</summary>
+    public async Task<bool> WriteNowAsync()
     {
         if (!TryGetFolder(out string folder, out string ownName, out SyncKey? key))
         {
-            return;
+            return false;
         }
 
         await _writing.WaitAsync();
@@ -115,11 +115,12 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
             catch (SqliteException)
             {
                 // The history can't be read right now; the next write tries again.
-                return;
+                return false;
             }
 
             byte[] sealedBytes = SyncFileCodec.Seal(file, key);
             string target = Path.Combine(folder, ownName);
+            bool wrote = false;
             try
             {
                 // Written beside it and moved over it, so a reader never sees half a file.
@@ -130,6 +131,7 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
                     File.Move(temporary, target, overwrite: true);
                 });
                 _writeProblem = null;
+                wrote = true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
@@ -137,6 +139,7 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
             }
 
             UpdateProblem();
+            return wrote;
         }
         finally
         {

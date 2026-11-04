@@ -64,12 +64,17 @@ class SyncNow(private val context: android.content.Context) {
     var refreshing by mutableStateOf(false)
         private set
 
+    /** The last Sync now's full line, for Devices & sync; the toast carries the short one (Android shows two lines of a text toast). */
+    var report by mutableStateOf<com.accountabilibuddy.companion.sync.SyncReachText.Report?>(null)
+        private set
+
     fun run() {
         if (refreshing) return
         refreshing = true
-        (context.applicationContext as CompanionApp).refreshNow { text ->
+        (context.applicationContext as CompanionApp).refreshNow { result ->
             refreshing = false
-            Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+            report = result
+            Toast.makeText(context, result.short, Toast.LENGTH_LONG).show()
         }
     }
 }

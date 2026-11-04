@@ -898,20 +898,47 @@ class CompanionApp : Application() {
     }
 
     /**
-     * The header's refresh: reads the sync folder and Drive (which also hand over this phone's file), then redraws.
-     * [onDone] gets what to say.
+     * The header's refresh: reads the sync folder, Drive and the relay (which also hand over this phone's file), then redraws.
+     * [onDone] gets what to say: who was reached, or that nobody was and why ([com.accountabilibuddy.companion.sync.SyncReachText]),
+     * as a short line for a toast and the full line for Devices & sync.
      */
-    fun refreshNow(onDone: (String) -> Unit) {
+    fun refreshNow(onDone: (com.accountabilibuddy.companion.sync.SyncReachText.Report) -> Unit) {
         appScope.launch {
+            val started = java.time.Instant.now()
             val problems = listOfNotNull(
                 runCatching { folderSource.syncNow() }.exceptionOrNull()?.let { "sync folder: ${it.message}" },
                 runCatching { driveSource.syncNow() }.exceptionOrNull()?.let { "Drive: ${it.message}" },
                 runCatching { relaySource.syncNow() }.exceptionOrNull()?.let { "relay: ${it.message}" },
             )
             Refresher.refresh(this@CompanionApp)
-            val at = java.time.LocalTime.now().withSecond(0).withNano(0)
-            val text = if (problems.isEmpty()) "Up to date · refreshed $at" else "Refreshed $at, but ${problems.joinToString("; ")}"
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onDone(text) }
+            val zone = java.time.ZoneId.systemDefault()
+            val now = java.time.Instant.now()
+            val at = com.accountabilibuddy.companion.sync.SyncReachText.clock(now, zone)
+            val reach = com.accountabilibuddy.companion.sync.SyncReachText
+            val report = when {
+                problems.isNotEmpty() -> "Couldn't finish: ${problems.joinToString("; ")}".let { com.accountabilibuddy.companion.sync.SyncReachText.Report(it, it) }
+                !sync.isJoined -> "Up to date · refreshed $at".let { com.accountabilibuddy.companion.sync.SyncReachText.Report(it, it) }
+                else -> {
+                    // A way that is on and did not finish a pass that began now didn't send. A damaged file read still finishes a pass.
+                    val settings = sync.settings.value
+                    val failed = reach.failedSends(
+                        settings,
+                        mapOf(
+                            com.accountabilibuddy.companion.sync.SyncMethod.Folder to folderSource.status.value.lastSyncAt,
+                            com.accountabilibuddy.companion.sync.SyncMethod.Drive to driveSource.status.value.lastSyncAt,
+                            com.accountabilibuddy.companion.sync.SyncMethod.Relay to relaySource.status.value.lastSyncAt,
+                        ),
+                        started,
+                    )
+                    val others = sync.received.value
+                    com.accountabilibuddy.companion.sync.SyncReachText.Report(
+                        reach.syncNowShort(settings, others, failed, started),
+                        reach.syncNowLine(settings, others, failed, started, now, zone),
+                        settings,
+                    )
+                }
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onDone(report) }
         }
     }
 
