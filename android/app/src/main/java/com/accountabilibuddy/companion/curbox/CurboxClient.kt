@@ -27,7 +27,10 @@ import kotlin.coroutines.resume
  * rules turn back on; never a group's contents or schedule. Curbox is found by the API's action, not a fixed
  * package (debug and release builds differ).
  */
-class CurboxClient(private val context: Context) {
+class CurboxClient(callerContext: Context) {
+    // Always the application context: a BroadcastReceiver's own context may not bind to services
+    // (ReceiverCallNotAllowedException), and the block guard's alarm receiver is such a caller.
+    private val context: Context = callerContext.applicationContext
     /** Curbox's package when it's installed with the API, else null. */
     fun findPackage(): String? = context.packageManager.resolveService(Intent(BIND_ACTION), 0)?.serviceInfo?.packageName
 
@@ -178,6 +181,9 @@ class CurboxClient(private val context: Context) {
 
             api?.let { withContext(Dispatchers.IO) { block(it) } }
         } catch (e: android.os.RemoteException) {
+            null
+        } catch (e: SecurityException) {
+            // Curbox refuses the bind: the same as not being there.
             null
         } finally {
             // Without this, a timeout left Curbox's service bound (and running) until the app was closed.
