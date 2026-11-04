@@ -53,10 +53,13 @@ object StatsFormat {
 
     /**
      * The label under a day's bar: the weekday's letter up to a week; the date for some days of a month (the bars are too narrow
-     * for all); past 31 bars only the date of every 7th bar, counted from the first, so labels cannot collide.
+     * for all); past 31 bars only the date of every 7th bar, counted from the first, so labels cannot collide. A custom range of 8 to
+     * 31 days labels evenly from its first day (every day up to 14 bars, then every 3rd), so a short range is not left with one label.
      */
     fun barLabel(period: StatsPeriod, date: LocalDate): String = when {
         period.days <= 7 -> weekdayLetter(date)
+        period.kind == StatsRange.Custom && period.days <= 31 ->
+            if ((date.toEpochDay() - period.from.toEpochDay()) % (if (period.days <= 14) 1 else 3) == 0L) date.dayOfMonth.toString() else ""
         period.days > 31 -> if ((date.toEpochDay() - period.from.toEpochDay()) % 7 == 0L) date.dayOfMonth.toString() else ""
         date.dayOfMonth in setOf(1, 8, 15, 22, 29) -> date.dayOfMonth.toString()
         else -> ""

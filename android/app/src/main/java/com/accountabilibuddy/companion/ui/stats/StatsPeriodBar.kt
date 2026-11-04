@@ -74,12 +74,12 @@ fun StatsPeriodBar(
 }
 
 /**
- * The two dates of a Custom range as buttons, each opening Material's date picker. Only days the phone keeps, up to today, can be
- * picked; if the two come out the wrong way round they swap ([StatsPeriod.custom]).
+ * The two dates of a Custom range as buttons, each opening Material's date picker. Only days from [earliest] (the first day the view has
+ * anything for, the same one its ‹ arrow stops at) up to today can be picked; if the two come out the wrong way round they swap ([StatsPeriod.custom]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsCustomDates(period: StatsPeriod, firstDay: LocalDate, today: LocalDate, onChange: (StatsPeriod) -> Unit, modifier: Modifier = Modifier) {
+fun StatsCustomDates(period: StatsPeriod, earliest: LocalDate, today: LocalDate, onChange: (StatsPeriod) -> Unit, modifier: Modifier = Modifier) {
     // 0 none, 1 the first date, 2 the last date; survives rotation.
     var picking by rememberSaveable { mutableStateOf(0) }
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
@@ -90,14 +90,18 @@ fun StatsCustomDates(period: StatsPeriod, firstDay: LocalDate, today: LocalDate,
     if (picking != 0) {
         val editingFirst = picking == 1
         val shown = if (editingFirst) period.from else period.to
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = shown.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
-            selectableDates = object : SelectableDates {
+        // Kept across recompositions (the picker's state is keyed on it) and renewed when the day or the first day moves.
+        val selectable = remember(earliest, today) {
+            object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean {
                     val date = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
-                    return !date.isBefore(firstDay) && !date.isAfter(today)
+                    return !date.isBefore(earliest) && !date.isAfter(today)
                 }
-            },
+            }
+        }
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = shown.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
+            selectableDates = selectable,
         )
         DatePickerDialog(
             onDismissRequest = { picking = 0 },
@@ -107,7 +111,7 @@ fun StatsCustomDates(period: StatsPeriod, firstDay: LocalDate, today: LocalDate,
                     val millis = state.selectedDateMillis ?: return@AbTextButton
                     val date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
                     val picked = if (editingFirst) StatsPeriod.custom(date, period.to) else StatsPeriod.custom(period.from, date)
-                    onChange(StatsPeriods.clamp(picked, firstDay, today))
+                    onChange(StatsPeriods.clamp(picked, earliest, today))
                 })
             },
             dismissButton = { AbTextButton("Cancel", onClick = { picking = 0 }) },

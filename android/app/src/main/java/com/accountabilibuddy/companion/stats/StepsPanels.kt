@@ -10,7 +10,8 @@ import java.time.LocalDate
  * (or one before them) shows only what there is.
  */
 object StepsPanels {
-    private const val DAYS = 30
+    /** How many days of steps the phone keeps. */
+    const val DAYS = 30
     private const val HEADROOM = 1.15
 
     /** Null with the switch off or no counted day in [period] (inside the last 30 days). */
@@ -20,6 +21,8 @@ object StepsPanels {
         val byDay = steps.days.filter { !it.date.isAfter(today) && !it.date.isBefore(period.from) && !it.date.isAfter(period.to) }.associateBy { it.date }
         if (byDay.isEmpty()) return null
 
+        // Days that haven't come yet are not missing, so they stay out of the count.
+        val daysSoFar = ((minOf(period.to, today).toEpochDay() - period.from.toEpochDay()).toInt() + 1).coerceAtLeast(1)
         val goal = steps.goal
         val scale = maxOf(goal * HEADROOM, byDay.values.maxOf { it.count }.toDouble())
         val bars = (0 until period.days).map { offset ->
@@ -51,7 +54,7 @@ object StepsPanels {
             if (average == null) "no whole day counted yet · today so far is on the chart"
             else "steps a day on average · ${whole.size} whole ${StatsFormat.plural(whole.size, "day")}, today left out",
             bars, (goal / scale).toFloat(), "goal ${numbers.format(goal)}", cards, emptyList(),
-            if (byDay.size < period.days) "${byDay.size} of the period's ${period.days} days have a count. Steps are read from Health Connect for up to the last $DAYS days." else null,
+            if (byDay.size < daysSoFar) "${byDay.size} of the period's $daysSoFar ${StatsFormat.plural(daysSoFar, "day")} so far have a count. Steps are read from Health Connect for up to the last $DAYS days." else null,
         )
     }
 }

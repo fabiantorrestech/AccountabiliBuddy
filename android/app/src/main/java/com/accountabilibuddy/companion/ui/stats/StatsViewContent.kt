@@ -63,11 +63,7 @@ fun StatsViewContent(
                     BarPanelCard(panel, onBarClick = onPickDay, onOpenView = actions.onSelectView)
                     if (overviewPeriod.kind == StatsRange.Day) {
                         val detail = remember(model, day) { DayPanels.build(data, day, model.sleepOn) }
-                        StatsDayDetail(
-                            detail,
-                            onPrevious = if (day.isAfter(data.firstData)) ({ onPickDay(day.minusDays(1)) }) else null,
-                            onNext = if (day.isBefore(data.today)) ({ onPickDay(day.plusDays(1)) }) else null,
-                        )
+                        StatsDayDetail(detail)
                     } else {
                         StatsDaysCard(panel.days, onDayClick = onPickDay)
                     }

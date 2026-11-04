@@ -64,11 +64,12 @@ fun StatsPane(
     val shownRange = if (dayOpened) StatsRange.Day else shownView.coerce(range)
     // The period stepped to; null follows the current one (so it moves on at midnight). Custom is always held as picked.
     var stepped by rememberSaveable(stateSaver = SteppedSaver) { mutableStateOf<StatsPeriod?>(null) }
-    val firstDay = model.data.firstDay
+    // The first day this view has anything for: the ‹ arrow and the Custom pickers go no further back (Steps has its own 30 days).
+    val earliest = StatsPeriods.firstReachable(shownView, model.data.firstData, today)
     val period = when (shownRange) {
         null -> null
         StatsRange.Day -> StatsPeriod.of(StatsRange.Day, day)
-        else -> StatsPeriods.resolve(shownRange, stepped, today, firstDay)
+        else -> StatsPeriods.resolve(shownRange, stepped, today, earliest)
     }
     // A Custom range opens on its dates and keeps them (it does not roll with the date like the current week does).
     LaunchedEffect(shownRange, stepped?.kind) {
@@ -88,12 +89,15 @@ fun StatsPane(
         if (next.kind == StatsRange.Day) setDay(next.from) else stepped = StatsPeriods.toHold(next, today)
     }
 
-    val own = remember(actions, shownRange, today) {
+    val underlyingRange = shownView.coerce(range)
+    val own = remember(actions, shownRange, underlyingRange, dayOpened, today) {
         StatsPaneActions(
             { dayOpened = false; actions.onSelectView(it) },
             {
-                // The chip already chosen jumps back to the current period (Custom keeps its dates); another kind opens on its own.
-                if (it != shownRange || it != StatsRange.Custom) stepped = null
+                // The chip already chosen jumps back to the current period (Custom keeps its dates); another kind opens on its own. Coming back
+                // from a day opened by a tap on a bar to the kind it came from keeps the period that was stepped to.
+                val sameKind = it == underlyingRange
+                if (!sameKind || (it != StatsRange.Custom && !dayOpened)) stepped = null
                 if (it == StatsRange.Custom && stepped == null) stepped = StatsPeriod.current(StatsRange.Custom, today)
                 dayOpened = false
                 actions.onSelectRange(it)
@@ -132,7 +136,7 @@ fun StatsPane(
                 val isDay = period.kind == StatsRange.Day
                 StatsPeriodBar(
                     if (isDay) StatsFormat.dayText(day) else StatsFormat.datesText(period.from, period.to),
-                    canStepBack = period.hasPrevious(model.data.firstData),
+                    canStepBack = period.hasPrevious(earliest),
                     canStepForward = period.hasNext(today),
                     onBack = { goTo(period.previous()) },
                     onForward = { goTo(period.next(today)) },
@@ -141,7 +145,7 @@ fun StatsPane(
             }
 
             if (period.kind == StatsRange.Custom) {
-                item { StatsCustomDates(period, firstDay, today, onChange = { stepped = it }) }
+                item { StatsCustomDates(period, earliest, today, onChange = { stepped = it }) }
             }
         }
 
@@ -166,7 +170,6 @@ private const val FOLLOW_TODAY = Long.MIN_VALUE
 private val SteppedSaver = Saver<StatsPeriod?, List<Any>>(
     save = { period -> period?.let { listOf(it.kind.name, it.from.toEpochDay(), it.to.toEpochDay()) } ?: emptyList() },
     restore = { saved ->
-        if (saved.size != 3) null
-        else StatsPeriod(StatsRange.valueOf(saved[0] as String), LocalDate.ofEpochDay(saved[1] as Long), LocalDate.ofEpochDay(saved[2] as Long))
+        runCatching { StatsPeriod(StatsRange.valueOf(saved[0] as String), LocalDate.ofEpochDay(saved[1] as Long), LocalDate.ofEpochDay(saved[2] as Long)) }.getOrNull()
     },
 )

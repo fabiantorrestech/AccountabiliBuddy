@@ -15,6 +15,13 @@ object StatsPeriods {
         else -> stepped
     }
 
+    /**
+     * The first date [view] can show anything for, which is also as far back as its ‹ arrow and its Custom pickers go: Steps its own
+     * last 30 days, every other view the first day with focus history.
+     */
+    fun firstReachable(view: StatsView, firstData: LocalDate, today: LocalDate): LocalDate =
+        if (view == StatsView.Steps) today.minusDays(StepsPanels.DAYS - 1L) else firstData
+
     /** What to hold after moving to [period]: null when it is the current one, so it keeps following the date. */
     fun toHold(period: StatsPeriod, today: LocalDate): StatsPeriod? =
         if (period.kind != StatsRange.Custom && period == StatsPeriod.current(period.kind, today)) null else period

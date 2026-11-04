@@ -26,7 +26,7 @@ enum class StatsView(val key: String, val title: String, val about: String, val 
     Phone("phone", "Phone", "Pickups and screen time in sessions", emptyList()),
     Steps(
         "steps", "Steps", "Daily steps against your goal",
-        listOf(StatsRange.Week, StatsRange.Month, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90, StatsRange.Custom), true,
+        listOf(StatsRange.Last7, StatsRange.Last30, StatsRange.Last90, StatsRange.Custom), true,
     );
 
     /** The range a person who never chose one gets (the one the board shows); null for a view with no ranges. */
@@ -39,10 +39,12 @@ enum class StatsView(val key: String, val title: String, val about: String, val 
             Sleep, Phone -> null
         }
 
-    /** [range] when this view has it, else the nearest one it has (the PC's rule); null for a view with no ranges. */
+    /** [range] when this view has it, else the nearest one it has (the PC's rule; Steps always Last 30); null for a view with no ranges. */
     fun coerce(range: StatsRange?): StatsRange? {
         if (ranges.isEmpty()) return null
         if (range != null && range in ranges) return range
+        // Steps has only the phone's last 30 days: a calendar range chosen elsewhere (a week, a month) would show a few days, so it opens on Last 30.
+        if (this == Steps) return StatsRange.Last30
         val wanted = range ?: defaultRange
         return when {
             wanted == null -> ranges.first()
