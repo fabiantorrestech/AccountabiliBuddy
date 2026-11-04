@@ -11,6 +11,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.key
+import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.engine.ClockFormat
@@ -45,11 +48,15 @@ fun DayTypesEditor(
     var openText by rememberSaveable { mutableStateOf<String?>(null) }
     val open = openText?.let { text -> plan.templates.firstOrNull { it.id.toString() == text } }
 
-    if (open != null) {
+    val wide = LocalExpanded.current
+    if (open != null && !wide) {
         DayTypeDetail(plan, open, clock, smartNote(if (plan.isWorkdayTemplate(open.id)) NightKind.Workday else NightKind.OffDay), onChange, onMessage) { openText = null }
         return
     }
 
+    // On a tablet the list stays on the left and the day type being edited is on the right.
+    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+    Box(Modifier.weight(1f)) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "A day type is how a day is planned: a schedule, a budget of focus hours, or free. The Week tab says which weekdays follow which.",
@@ -71,6 +78,19 @@ fun DayTypesEditor(
             onChange(added)
             openText = id.toString()
         })
+    }
+    }
+    if (wide) {
+        Box(Modifier.weight(1f)) {
+            if (open != null) {
+                key(open.id) {
+                    DayTypeDetail(plan, open, clock, smartNote(if (plan.isWorkdayTemplate(open.id)) NightKind.Workday else NightKind.OffDay), onChange, onMessage) { openText = null }
+                }
+            } else {
+                Text("Pick a day type to edit it.", style = Ab.type.bodyMedium, color = Ab.colors.muted)
+            }
+        }
+    }
     }
 }
 

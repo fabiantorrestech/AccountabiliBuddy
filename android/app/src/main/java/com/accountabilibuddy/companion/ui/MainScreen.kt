@@ -278,16 +278,18 @@ fun MainScreen(
             }
 
             planDraft?.let { draft ->
-                DayPlanEditorScreen(
-                    draft = draft,
-                    startTab = viewModel.planEditorTab,
-                    pcName = pcName,
-                    clock = viewModel.clock,
-                    onChange = viewModel::updatePlanDraft,
-                    onSave = viewModel::savePlanDraft,
-                    onClose = viewModel::closePlanEditor,
-                    onMessage = { viewModel.message.value = it },
-                )
+                CenteredPane(maxWidth = 1100.dp) {
+                    DayPlanEditorScreen(
+                        draft = draft,
+                        startTab = viewModel.planEditorTab,
+                        pcName = pcName,
+                        clock = viewModel.clock,
+                        onChange = viewModel::updatePlanDraft,
+                        onSave = viewModel::savePlanDraft,
+                        onClose = viewModel::closePlanEditor,
+                        onMessage = { viewModel.message.value = it },
+                    )
+                }
                 return@Column
             }
 
