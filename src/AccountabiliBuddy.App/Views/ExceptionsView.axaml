@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
@@ -58,7 +59,7 @@
                    Text="Single dates planned differently from your day plan: a day off, a half day. Pick a date, then Plan this day differently; it starts from that day's default day plan and applies as soon as it's saved." />
         <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Waiting}"
                 BorderThickness="3,0,0,0" Padding="14,10" Margin="0,0,0,12" CornerRadius="6">
-            <TextBlock Text="One-off days are locked while a focus session you started is running." TextWrapping="Wrap" />
+            <TextBlock TextWrapping="Wrap"><Run Text="One-off days are locked while a focus session you started is running." /><LineBreak /><Run Text="{x:Static vm:LockWording.WaysOut}" Foreground="{DynamicResource Ab.Muted}" /></TextBlock>
         </Border>
 
         <Grid ColumnDefinitions="*,16,320">
@@ -85,9 +86,9 @@
                     </StackPanel>
                 </Border>
                 <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="0,0,0,6">
-                    <Button Grid.Column="0" Content="◀" Command="{Binding PreviousMonthCommand}" ToolTip.Tip="Previous month" />
+                    <Button Grid.Column="0" Command="{Binding PreviousMonthCommand}" ToolTip.Tip="Previous month" AutomationProperties.Name="Previous month"><mi:MaterialIcon Kind="ChevronLeft" Width="14" Height="14" /></Button>
                     <Button Grid.Column="1" Content="Today" Command="{Binding GoToTodayCommand}" Margin="6,0" />
-                    <Button Grid.Column="2" Content="▶" Command="{Binding NextMonthCommand}" ToolTip.Tip="Next month" />
+                    <Button Grid.Column="2" Command="{Binding NextMonthCommand}" ToolTip.Tip="Next month" AutomationProperties.Name="Next month"><mi:MaterialIcon Kind="ChevronRight" Width="14" Height="14" /></Button>
                     <TextBlock Grid.Column="3" Text="{Binding MonthTitle}" FontSize="18" FontWeight="SemiBold"
                                VerticalAlignment="Center" Margin="12,0,8,0" TextTrimming="CharacterEllipsis" />
                     <Button Grid.Column="4" Content="Refresh calendars" HorizontalAlignment="Right"
@@ -181,10 +182,7 @@
                                                     CommandParameter="{Binding}" />
                                         </StackPanel>
                                     </StackPanel>
-                                    <Button Grid.Column="2" Content="✕" ToolTip.Tip="Remove event" IsVisible="{Binding IsEditable}"
-                                            VerticalAlignment="Top"
-                                            Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveEventCommand}"
-                                            CommandParameter="{Binding}" />
+                                    <Button Grid.Column="2" ToolTip.Tip="Remove event" IsVisible="{Binding IsEditable}" VerticalAlignment="Top" Command="{Binding $parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).RemoveEventCommand}" CommandParameter="{Binding}" AutomationProperties.Name="Remove event"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -235,8 +233,7 @@
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="Edit" Command="{Binding EditCommand}" VerticalAlignment="Top" Margin="4,0"
                                             IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" />
-                                    <Button Grid.Column="2" Content="✕" ToolTip.Tip="Back to the default day plan" Command="{Binding DeleteCommand}" VerticalAlignment="Top"
-                                            IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" />
+                                    <Button Grid.Column="2" ToolTip.Tip="Back to the default day plan" Command="{Binding DeleteCommand}" VerticalAlignment="Top" IsEnabled="{Binding !$parent[ItemsControl].((vm:ExceptionsViewModel)DataContext).IsLocked}" AutomationProperties.Name="Back to the default day plan"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>

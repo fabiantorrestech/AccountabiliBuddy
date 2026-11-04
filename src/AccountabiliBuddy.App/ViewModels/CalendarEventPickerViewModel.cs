@@ -100,7 +100,7 @@ public sealed partial class CalendarEventPickerViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsLocked { get; set; }
 
-    public string LockText => "Locked while a focus session you started runs.";
+    public string LockText => $"Locked while a focus session you started runs. {LockWording.WaysOut}";
 
     partial void OnIsWholeSeriesChanged(bool value)
     {

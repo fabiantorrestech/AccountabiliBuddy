@@ -1050,7 +1050,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SettingsSection.YourDay, SettingsSection.FocusSessions, SettingsSection.Guards, SettingsSection.AppAndData,
     ];
 
-    /// <summary>"Resting while you focus. Changes open again at 4:05 PM." (or when the session ends, for one with no set end); read by the resting banner.</summary>
+    /// <summary>"Resting while you focus. Changes open again at 4:05 PM." plus the ways out (or when the session ends, for one with no set end); read by the resting banner.</summary>
     [ObservableProperty]
     public partial string RestingBannerText { get; set; } = string.Empty;
 
@@ -1059,8 +1059,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         SessionState state = _sessions.State;
         DateTimeOffset? end = state.Mode == SessionMode.Manual ? state.FocusEndsAt(_sessions.Now) : null;
         RestingBannerText = end is DateTimeOffset at
-            ? $"Resting while you focus. Changes open again at {TimeZoneInfo.ConvertTime(at, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}."
-            : "Resting while you focus. Changes open again when the session ends.";
+            ? $"Resting while you focus. Changes open again at {TimeZoneInfo.ConvertTime(at, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}. {LockWording.WaysOut}"
+            : $"Resting while you focus. Changes open again when the session ends. {LockWording.WaysOut}";
     }
 
     /// <summary>The "resting while you focus" banner: only on a row that holds a locked setting.</summary>

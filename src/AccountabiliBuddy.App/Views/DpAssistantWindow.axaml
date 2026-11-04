@@ -60,8 +60,7 @@
         <ScrollViewer Padding="28,4,28,16">
             <StackPanel Spacing="12">
                 <Border Classes="locked" IsVisible="{Binding IsLocked}">
-                    <TextBlock Text="The day plan is locked while a focus session you started is running. You can look through the steps, but Save waits for the session to end."
-                               TextWrapping="Wrap" />
+                    <TextBlock TextWrapping="Wrap"><Run Text="The day plan is locked while a focus session you started is running. You can look through the steps, but Save waits for the session to end." /><LineBreak /><Run Text="{x:Static vm:LockWording.WaysOut}" Foreground="{DynamicResource Ab.Muted}" /></TextBlock>
                 </Border>
 
                 <!-- 1. Workdays: any days; Monday to Friday by default -->

@@ -29,7 +29,7 @@
     <DockPanel Margin="30,8,24,20">
         <Border DockPanel.Dock="Top" IsVisible="{Binding IsLocked}" Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Waiting}"
                 BorderThickness="3,0,0,0" Padding="14,10" Margin="0,0,0,12" CornerRadius="6">
-            <TextBlock Text="The day plan is locked while a focus session you started is running." TextWrapping="Wrap" />
+            <TextBlock TextWrapping="Wrap"><Run Text="The day plan is locked while a focus session you started is running." /><LineBreak /><Run Text="{x:Static vm:LockWording.WaysOut}" Foreground="{DynamicResource Ab.Muted}" /></TextBlock>
         </Border>
 
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
