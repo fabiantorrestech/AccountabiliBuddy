@@ -53,7 +53,8 @@ fun TodaySink.todayItem(part: TodayItem, c: TodayItemContext) {
         TodayItem.Guard -> {
             if (c.guardsLock != null) item(key = "guard") { GuardBanner(c.guardsLock, c.guardOn) }
             // ADR 58: what calendar events changed in the guards today, by category and time, never a title.
-            if (!c.inSession) c.info?.calendar?.forEach { line -> item(key = "calendar-$line") { MutedLine(line) } }
+            // The index is in the key: two events can give the same line.
+            if (!c.inSession) c.info?.calendar?.forEachIndexed { index, line -> item(key = "calendar-$index") { MutedLine(line) } }
         }
         TodayItem.LunchChip -> {
             // The Budget pace the PC's own card showed (ADR 47); amber-ish (the waiting colour) when the day can't hold the rest. It rides

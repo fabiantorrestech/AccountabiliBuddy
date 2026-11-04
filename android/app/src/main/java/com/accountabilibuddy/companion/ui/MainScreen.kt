@@ -119,7 +119,8 @@ fun MainScreen(
     // Where the user is in the five places (the old `tab` number), kept across rotation and the process being recreated.
     val nav = rememberAppNav()
     val navLayout = rememberNavLayout()
-    // The tablet layout (a window 840 dp wide or more): the sidebar, and the panes side by side. A phone never takes it.
+    // The tablet layout (a window 840 dp wide or more on a device whose smallest width is 600 dp or more): the sidebar, and the panes side
+    // by side. A phone, even turned to landscape, keeps the bottom bar.
     val wide = navLayout == NavLayout.Rail
     val syncNow = rememberSyncNow()
     val settingsListState = rememberLazyListState()
@@ -153,8 +154,8 @@ fun MainScreen(
         if (unlinked == null) nav.open(path)
     }
 
-    // Back: out of a page inside a place, then to Today, then out of the app. The modal screens keep what they did before
-    // (Back leaves the app from them).
+    // Back: out of a page inside a place, then to Today, then out of the app. The modal screens are left out: each handles Back
+    // itself or not at all (the first-run setup's first page does nothing on Back).
     val modalOpen = unlinked != null || showSetup || planDayOpen || whatsNewOpen || planDraft != null
     // Beside the list a Settings page is not "one level down", so on a tablet Back leaves Settings for Today in one step.
     // A task's details beside the Tasks list (tablet) close first; the page that answers is TasksScreen's own BackHandler, which sits deeper in the

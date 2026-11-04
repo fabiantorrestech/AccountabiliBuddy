@@ -215,6 +215,8 @@ private fun WatchApp(
             }
             if (target >= 0) {
                 if (target != pager.currentPage) pager.scrollToPage(target)
+                // A page already at its index does not scroll, so no settledPage is emitted: the page the user is on is this one all the same.
+                settled = pages[target]
             } else if (!swiping) {
                 // The page the user was on is gone: they are on whatever the pager shows now.
                 settled = pages.getOrNull(pager.currentPage)
