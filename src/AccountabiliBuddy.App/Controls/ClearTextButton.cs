@@ -12,6 +12,7 @@ namespace AccountabiliBuddy.App.Controls;
 /// <summary>
 /// The small "x" at the end of a search or filter box. Put it in the TextBox's InnerRightContent: it shows only while the box has
 /// text, and one click empties the box (the bound search updates as if the text were deleted by hand) and keeps the cursor in it.
+/// It needs a TextBox ancestor: attached anywhere else it stays hidden, and nothing in the app does that today.
 /// </summary>
 public sealed class ClearTextButton : Button
 {

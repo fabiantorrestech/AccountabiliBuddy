@@ -10,7 +10,7 @@ public sealed record EventRowViewModel(CalendarEntry Entry)
 
     public string When => Entry.Event.IsAllDay
         ? "All day"
-        : $"{Entry.Event.LocalStart:t} – {Entry.Event.LocalEnd:t}";
+        : $"{OverlayTimeText.Clock(Entry.Event.LocalStart)} – {OverlayTimeText.Clock(Entry.Event.LocalEnd)}";
 
     public string CalendarName => $"{Entry.Calendar.Name} · {Entry.Source.Name}";
 

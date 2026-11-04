@@ -76,8 +76,8 @@ public sealed class CalendarSourceRowViewModel : ObservableObject
         {
             DateTime local = TimeZoneInfo.ConvertTime(success, zone).DateTime;
             string when = local.Date == TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, zone).Date
-                ? local.ToString("t", CultureInfo.CurrentCulture)
-                : $"{local.ToString("d MMM", CultureInfo.CurrentCulture)} {local.ToString("t", CultureInfo.CurrentCulture)}";
+                ? OverlayTimeText.Clock(local)
+                : $"{local.ToString("d MMM", CultureInfo.CurrentCulture)} {OverlayTimeText.Clock(local)}";
             return $"Updated {when}";
         }
 

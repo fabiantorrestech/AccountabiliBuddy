@@ -106,6 +106,22 @@ public sealed class UpdateService : IDisposable
         await _store.SaveAsync(SettingsKey, Settings);
     }
 
+    private static string CheckFailureText(Exception ex)
+    {
+        // A latest release without its update list answers 404; a busy shared network can get 403 from GitHub.
+        if (ex.Message.Contains("404", StringComparison.Ordinal))
+        {
+            return "No update information is published for the latest release yet. Try again later.";
+        }
+
+        if (ex.Message.Contains("403", StringComparison.Ordinal))
+        {
+            return "GitHub is limiting update checks from this network right now. Try again later.";
+        }
+
+        return $"Couldn't check for updates ({ex.Message}).";
+    }
+
     /// <param name="manual">From Check now: report "up to date" too, and don't show a notice.</param>
     public async Task CheckAsync(bool manual)
     {
@@ -122,7 +138,7 @@ public sealed class UpdateService : IDisposable
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            SetState($"Couldn't check for updates ({ex.Message}).", busy: false);
+            SetState(CheckFailureText(ex), busy: false);
             return;
         }
 

@@ -406,7 +406,7 @@ private fun BoxScope.SearchBand(
                     field()
                 }
             },
-            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp).focusRequester(focus),
         )
         if (query.isNotEmpty()) {
             AbClearButton(onClick = { query = ""; searched = null }, modifier = Modifier.align(Alignment.CenterEnd), tint = Color(0x99FFFFFF))

@@ -17,7 +17,7 @@ namespace AccountabiliBuddy.App.Services;
 /// Nothing here is backed up or restored: a restore would skip the waits. Reads are snapshots of immutable lists and may come
 /// from any thread; changes are made under a lock and saved one after another so an older state never overwrites a newer one.
 /// The gate on classification and rule changes (refused during a session, a looser one waits) lives in
-/// <see cref="EffectiveDayPlanProvider"/>; the members here that skip it are <c>internal</c> for that reason.
+/// <see cref="EffectiveDayPlanProvider"/>; the members here that skip it are <c>internal</c>, which only keeps other assemblies out: any code in this App assembly can still call them, so callers must go through the provider.
 /// </summary>
 public sealed class CalendarOverlayStore
 {

@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.Core.Engine;
 /// </summary>
 public static class EventCategoryResolver
 {
-    /// <summary>A longer event is ignored (it can only make the day stricter than it would be).</summary>
+    /// <summary>A longer event is ignored (it keeps one runaway event from taking over the plan; ignoring a long Work event does loosen that day, so it is a fixed limit, not a safe default).</summary>
     public static readonly TimeSpan LongestEvent = TimeSpan.FromDays(7);
 
     /// <summary>True for a timed event that has a length and isn't longer than <see cref="LongestEvent"/>.</summary>
