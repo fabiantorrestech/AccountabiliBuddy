@@ -29,6 +29,7 @@ public sealed class DeepWorkService : IDisposable
     private DateOnly _countedDay;
     private TimeSpan _countedToday;
     private TimeSpan _countedYesterday;
+    private TimeSpan _focusedYesterday;
     private IReadOnlyList<LocalWindow> _countedWindows = Array.Empty<LocalWindow>();
 
     /// <param name="loadRecords">This PC's sessions around today, newest first (<see cref="SessionHistoryBuilder.Build"/>).</param>
@@ -68,6 +69,18 @@ public sealed class DeepWorkService : IDisposable
         return !_loaded ? TimeSpan.Zero
             : date == _countedDay ? _countedToday
             : date == _countedDay.AddDays(-1) ? _countedYesterday
+            : TimeSpan.Zero;
+    }
+
+    /// <summary>
+    /// Focus on a date as the goal counts it (sessions added by hand included, unlike <see cref="FocusedOn"/>): today's is
+    /// <see cref="Progress"/>'s, yesterday's is kept from the same read; zero for any other date or before the first read.
+    /// </summary>
+    public TimeSpan ShownFocusOn(DateOnly date)
+    {
+        return !_loaded ? TimeSpan.Zero
+            : date == _countedDay ? Progress.Focused
+            : date == _countedDay.AddDays(-1) ? _focusedYesterday
             : TimeSpan.Zero;
     }
 
@@ -129,7 +142,9 @@ public sealed class DeepWorkService : IDisposable
         // Only the other devices' sessions near today (each device keeps up to 90 days).
         DateTimeOffset from = now.AddDays(-2);
         List<SyncSession> others = _others().Where(session => (session.End ?? now) > from).ToList();
-        DeepWorkDay day = DeepWork.Days(_records, others, _isOmitted, _sessions.State.IsRealSession, today, today, now, zone)[0];
+        IReadOnlyList<DeepWorkDay> shownDays = DeepWork.Days(_records, others, _isOmitted, _sessions.State.IsRealSession, today.AddDays(-1), today, now, zone);
+        DeepWorkDay day = shownDays[1];
+        _focusedYesterday = TimeSpan.FromMinutes(Math.Floor(shownDays[0].Focused.TotalMinutes));
         // A Budget counts only sessions the user ran (this PC's and other devices'), never ones added by hand in History;
         // time stepped away (breaks, side tasks, planning) is already out of every session. Yesterday too: a Budget day
         // that runs past midnight is still counted against yesterday (see FocusedOn).

@@ -1234,7 +1234,7 @@ public partial class App : Application
 
             return date == DateOnly.FromDateTime(time.GetLocalNow().DateTime)
                 ? _deepWork.Progress
-                : new AccountabiliBuddy.Core.Engine.GoalProgress(_deepWork.FocusedOn(date), goal.Current.DailyMinutes);
+                : new AccountabiliBuddy.Core.Engine.GoalProgress(_deepWork.ShownFocusOn(date), goal.Current.DailyMinutes);
         };
         _shutdown.DriftFor = async date =>
         {
