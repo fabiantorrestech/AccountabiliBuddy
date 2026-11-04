@@ -47,7 +47,7 @@ class TodayItemContext(
  * Draws one arrangeable part of Today, or nothing when it has nothing to say (the same conditions the cards always had). A part
  * only decides what it draws; where it sits and whether it shows at all is the layout's say ([com.accountabilibuddy.companion.today.TodayLayout]).
  * A few parts carry a neighbour that belongs with them: the guard banner brings the calendar lines (nothing running), the lunch
- * chip brings the "all tasks are ticked" line (a session), the focus ring brings the Budget pace (a session).
+ * chip brings the Budget pace and the "all tasks are ticked" line (a session). Both are warnings or notes that must survive hiding the focus ring.
  */
 fun LazyListScope.todayItem(part: TodayItem, c: TodayItemContext) {
     when (part) {
@@ -57,6 +57,9 @@ fun LazyListScope.todayItem(part: TodayItem, c: TodayItemContext) {
             if (!c.inSession) c.info?.calendar?.forEach { line -> item(key = "calendar-$line") { MutedLine(line) } }
         }
         TodayItem.LunchChip -> {
+            // The Budget pace the PC's own card showed (ADR 47); amber-ish (the waiting colour) when the day can't hold the rest. It rides
+            // here, with a part that can't be hidden, so hiding the ring never hides the "behind" warning.
+            if (c.inSession) c.info?.pace?.let { pace -> item(key = "pace") { Text(BudgetPaceLine.text(pace), style = Ab.type.bodyMedium, color = if (pace.behind) Ab.meaning(Ab.colors.waiting) else Ab.colors.muted) } }
             // Every task ticked: the phone's way out is still the PC's wait; the PC can end it at once.
             if (c.inSession && c.allTasksTicked) item(key = "all-done") { MutedLine("All tasks are ticked. On the PC, a finished session can usually end at once.") }
             if (c.lunchChip != null) item(key = "lunch-chip") { LunchChip(c.lunch, c.clock, c.lunchChip) }
@@ -65,8 +68,6 @@ fun LazyListScope.todayItem(part: TodayItem, c: TodayItemContext) {
         TodayItem.Ring -> {
             val info = c.info
             if (info != null && (info.goalMinutes != null || info.focusedMinutes > 0)) item(key = "ring") { RingCard(info.focusedMinutes, info.goalMinutes) }
-            // The Budget pace the PC's own card showed (ADR 47); amber-ish (the waiting colour) when the day can't hold the rest.
-            if (c.inSession) info?.pace?.let { pace -> item(key = "pace") { Text(BudgetPaceLine.text(pace), style = Ab.type.bodyMedium, color = if (pace.behind) Ab.meaning(Ab.colors.waiting) else Ab.colors.muted) } }
         }
         TodayItem.Comebacks -> if (!c.inSession && c.comebacks != null && c.comebacks.items.isNotEmpty()) item(key = "comebacks") { ComebackCard(c.comebacks, c.actions.onOpenTasks) }
         TodayItem.SmallCards -> if (!c.inSession) item(key = "small") { SmallCardsRow(c.hasTimer, c.phoneUsage, c.clock, c.actions.onAllowUsage) }

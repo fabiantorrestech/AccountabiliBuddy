@@ -39,9 +39,23 @@ object HeaderSource {
             // The clock now, not [now]: Today's [now] may be up to 30 s old when a test starts.
             testEndsAt = app.testSession.running()?.second,
             // Today's lunch while it runs (the clock now, like the test session above); it follows +5 / -5 and a lunch from another device.
-            lunchEndsAt = app.lunch.today()?.end?.takeIf { it.isAfter(java.time.Instant.now()) },
+            // Not while a session is counting (see [sessionCounting]): then the session's own countdown is the right one.
+            lunchEndsAt = app.lunch.today()?.end?.takeIf { it.isAfter(java.time.Instant.now()) && !sessionCounting(app, java.time.Instant.now()) },
         )
         return DayHeader.build(input, clock)
+    }
+
+    /**
+     * A session that is really counting now: the phone's test session, or a PC file's live running session that is not stepped away
+     * or off ([PcFileControl.liveRunning] reports a PC that is off as away). Lunch pauses a session as a step away, so a session
+     * that is paused during lunch does not count; one started during lunch, or back early from the step-away shortcut, does.
+     */
+    private fun sessionCounting(app: CompanionApp, now: java.time.Instant): Boolean {
+        if (app.testSession.running(now) != null) return true
+        return app.sync.received.value.any { received ->
+            received.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC &&
+                PcFileControl.liveRunning(received.file, now)?.let { it.awaySince == null } == true
+        }
     }
 
     /** Today's phone screen time in minutes over the bar's day; null without Usage access. */

@@ -10,7 +10,7 @@ import com.accountabilibuddy.shared.sync.SyncBlocker
 import android.os.IBinder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -179,7 +179,8 @@ class CurboxClient(callerContext: Context) {
                 if (!bound && continuation.isActive) continuation.resume(null)
             }
 
-            api?.let { withContext(Dispatchers.IO) { block(it) } }
+            // Interruptible, so the 5-second timeout stops waiting for a binder call that hangs instead of holding the caller.
+            api?.let { runInterruptible(Dispatchers.IO) { block(it) } }
         } catch (e: android.os.RemoteException) {
             null
         } catch (e: SecurityException) {

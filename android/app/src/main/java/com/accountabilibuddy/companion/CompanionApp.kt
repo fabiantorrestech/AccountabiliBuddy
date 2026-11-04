@@ -415,6 +415,8 @@ class CompanionApp : Application() {
         lunch.onChanged = {
             relaySoon()
             appScope.launch {
+                // Drawn once at once ("I'm back", +5 / -5 move the pinned countdown now), and again after the syncs below.
+                runCatching { Refresher.refresh(this@CompanionApp) }
                 // The sync folder too: a lunch started here reaches the PCs without waiting for the next folder sync.
                 runCatching { folderSource.syncNow() }
                 // Our file is written: tell Autosync to move it, then read the folder again a little later for what came back.

@@ -194,7 +194,7 @@ fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
             AbSectionLabel("Today layout")
             Text(
                 "Choose which cards show on Today, which wait in More today, which are hidden, and their order. " +
-                    "Guards and what you owe always show. This phone only.",
+                    "Guards and anything that can end a wait or a lock stay on Today. This phone only.",
                 style = Ab.type.small, color = Ab.colors.muted,
             )
             AbTonalButton(if (todayLayout.isDefault) "Arrange Today" else "Arrange Today (changed)", onClick = { arrangingToday = true }, modifier = Modifier.fillMaxWidth())

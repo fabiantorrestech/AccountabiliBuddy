@@ -15,7 +15,8 @@ class BlockGuardReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
-                BlockGuard.run(context)
+                // Whatever Curbox's binder throws must not kill the process before the next alarm is set (as Refresher does).
+                runCatching { BlockGuard.run(context) }
             } finally {
                 pending.finish()
             }

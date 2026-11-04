@@ -40,6 +40,7 @@ object BlockGuard {
     private const val PREFS = "blockGuard"
     private const val NOTICE_ID = 50
     private const val HISTORY_MAX = 40
+    private const val RETRY_MINUTES = 2L
     private val mutex = Mutex()
 
     fun enabled(context: Context): Boolean = prefs(context).getBoolean("on", true)
@@ -65,7 +66,11 @@ object BlockGuard {
         val app = context.applicationContext as CompanionApp
         val prefs = prefs(context)
         val curbox = CurboxClient(context)
-        val read = curbox.blockers() ?: return@withLock
+        val read = curbox.blockers()
+        if (read == null) {
+            retrySoon(context, curbox, prefs.getLong("lastRun", 0L), now)
+            return@withLock
+        }
         prefs.edit().putString("blockers", writeBlockers(read)).apply()
 
         val known = prefs.getStringSet("known", emptySet()).orEmpty().toMutableSet()
@@ -95,6 +100,19 @@ object BlockGuard {
             .putStringSet("known", known)
             .apply()
         schedule(context, if (enabled(context)) BlockRearm.next(plan, BlockRef.PHONE, now) else null)
+    }
+
+    /**
+     * Curbox didn't answer (busy, restarting): with the guard on, Curbox installed and an event waiting since the last run (a re-enable
+     * that was due), the guard looks again in about 2 minutes, so a block isn't left off until the next refresh. Nothing is waiting, or
+     * Curbox isn't there: no alarm (the next refresh asks again as before).
+     */
+    private fun retrySoon(context: Context, curbox: CurboxClient, lastRunMillis: Long, now: LocalDateTime) {
+        if (!enabled(context) || lastRunMillis <= 0 || curbox.findPackage() == null) return
+        val app = context.applicationContext as CompanionApp
+        val lastRun = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(lastRunMillis), ZoneId.systemDefault()).coerceAtLeast(now.minusDays(1))
+        val plan = app.store.state.value.document.dayPlan
+        if (BlockRearm.between(plan, BlockRef.PHONE, lastRun, now).any { it.turnOn }) schedule(context, now.plusMinutes(RETRY_MINUTES))
     }
 
     private fun notify(context: Context, at: LocalDateTime, names: List<String>) {

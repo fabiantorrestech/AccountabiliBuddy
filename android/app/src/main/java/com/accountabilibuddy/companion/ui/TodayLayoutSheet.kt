@@ -32,7 +32,7 @@ fun TodayLayoutSheet(layout: TodayLayout, onChange: (TodayLayout) -> Unit, onDis
     AbSheet(onDismiss = onDismiss) {
         Text("Today layout", style = type.head, color = colors.ink)
         Text(
-            "Drag to reorder. A lock means the part always shows: it carries a guard or something you owe. What a running session says is always first.",
+            "Drag to reorder. A lock means the part always shows: it is a guard or a way to end something. What a running session says is always first.",
             style = type.bodyMedium, color = colors.muted,
         )
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {

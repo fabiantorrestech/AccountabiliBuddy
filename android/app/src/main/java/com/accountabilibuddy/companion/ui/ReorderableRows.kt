@@ -65,6 +65,13 @@ fun <T : Any> ReorderableRows(
                         Box(
                             Modifier
                                 .size(44.dp)
+                                // On the handle, which has the description a screen reader reads: Move up and Move down are its actions.
+                                .semantics {
+                                    customActions = listOf(
+                                        CustomAccessibilityAction("Move up") { if (index > 0) currentOnReorder(currentItems.toMutableList().apply { add(index - 1, removeAt(index)) }); true },
+                                        CustomAccessibilityAction("Move down") { if (index < currentItems.lastIndex) currentOnReorder(currentItems.toMutableList().apply { add(index + 1, removeAt(index)) }); true },
+                                    )
+                                }
                                 .pointerInput(item) {
                                     detectDragGestures(
                                         onDragStart = { working = currentItems; dragging = item; offset = 0f },
@@ -96,15 +103,7 @@ fun <T : Any> ReorderableRows(
                         .fillMaxWidth()
                         .onSizeChanged { if (index == 0) rowPx = it.height.toFloat() }
                         .zIndex(if (isDragged) 1f else 0f)
-                        .graphicsLayer { translationY = if (isDragged) offset else 0f }
-                        .semantics {
-                            if (draggable) {
-                                customActions = listOf(
-                                    CustomAccessibilityAction("Move up") { if (index > 0) currentOnReorder(currentItems.toMutableList().apply { add(index - 1, removeAt(index)) }); true },
-                                    CustomAccessibilityAction("Move down") { if (index < currentItems.lastIndex) currentOnReorder(currentItems.toMutableList().apply { add(index + 1, removeAt(index)) }); true },
-                                )
-                            }
-                        },
+                        .graphicsLayer { translationY = if (isDragged) offset else 0f },
                 ) {
                     row(item, handle)
                 }

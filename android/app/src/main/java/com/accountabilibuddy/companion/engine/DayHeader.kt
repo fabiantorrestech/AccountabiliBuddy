@@ -74,9 +74,9 @@ object DayHeader {
         val today = now.toLocalDate()
         val focus = input.focus?.takeIf { it.date == today }
 
-        // Lunch first, even over a running session: lunch pauses a session as a step away (or cuts its break short), so while it
-        // runs the session's own countdown is paused and would count down wrongly. Lunch is the one clock that is right; the
-        // session's countdown is back as soon as lunch ends. +5 / -5 and a lunch from another device move this with them.
+        // Lunch first, over a session that lunch paused (a step away): that session's own countdown would count down wrongly, and lunch
+        // is the one clock that is right. HeaderSource sends no [HeaderInput.lunchEndsAt] while a session is really counting, so a
+        // session started during lunch keeps its countdown. +5 / -5 and a lunch from another device move this with them.
         input.lunchEndsAt?.takeIf { it.isAfter(nowInstant) }?.let { endsAt ->
             return HeaderText("Lunch · ${minutesText(Duration.between(nowInstant, endsAt))} left", "", endsAt, "Lunch · %s left")
         }
