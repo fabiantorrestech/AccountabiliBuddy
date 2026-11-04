@@ -45,7 +45,15 @@ public sealed partial class FocusViewModel : ObservableObject
         StepAwayText = "Step away";
 
         _sessions.StateChanged += (_, _) => Refresh();
-        _sessions.Ticked += (_, _) => Refresh();
+        // Nothing on this page moves with the clock while no session runs (a state change refreshes it, as does every edit to the
+        // checklist), so an idle tick does nothing instead of raising the same notifications every second.
+        _sessions.Ticked += (_, _) =>
+        {
+            if (IsActive || _sessions.State.IsActive)
+            {
+                Refresh();
+            }
+        };
         if (checklist is not null)
         {
             checklist.PropertyChanged += (_, _) => RefreshTasks();

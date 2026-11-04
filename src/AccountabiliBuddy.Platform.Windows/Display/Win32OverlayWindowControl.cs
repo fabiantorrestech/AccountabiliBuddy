@@ -54,6 +54,15 @@ public sealed class Win32OverlayWindowControl : IOverlayWindowControl
 
     public void KeepOnTop(nint windowHandle)
     {
+        // Nothing above it and already always-on-top: SetWindowPos would change nothing, so it is not called (this runs every second).
+        // Anything in front of it, such as the taskbar after a click or a tray menu, fails this test and the window is put back as before.
+        var window = new HWND(windowHandle);
+        bool isTopmost = ((WINDOW_EX_STYLE)PInvoke.GetWindowLong(window, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE)).HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST);
+        if (isTopmost && PInvoke.GetWindow(window, GET_WINDOW_CMD.GW_HWNDPREV) == HWND.Null)
+        {
+            return;
+        }
+
         // HWND_TOPMOST (-1): first among the always-on-top windows; nothing else about it changes.
         PInvoke.SetWindowPos(new HWND(windowHandle), new HWND(-1), 0, 0, 0, 0,
             SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE

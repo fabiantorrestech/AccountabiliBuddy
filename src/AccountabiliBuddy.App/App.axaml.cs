@@ -142,6 +142,8 @@ public partial class App : Application
     private LunchRunIntoService? _lunchRunInto;
     private LunchRunIntoCardWindow? _lunchRunIntoWindow;
     private Motion? _motion;
+    private GoalCardViewModel? _goalCard;
+    private WeekCardViewModel? _weekCard;
     private AccountabiliBuddy.App.Services.Sync.PhonePickups? _phonePickups;
     private AccountabiliBuddy.App.Services.Sync.PhonePlacementService? _phonePlacement;
     private DeepWorkService? _deepWork;
@@ -1076,6 +1078,8 @@ public partial class App : Application
         sessionViewModel.Goal.PaceRefreshed += (_, _) => _sessionOverlay?.SetGoalText(goalOverlayText());
         _configuration.Changed += (_, _) => sessionViewModel.Goal?.RefreshPace();
         sessionViewModel.Week = new WeekCardViewModel(_configuration, _sessions, () => DateOnly.FromDateTime(time.GetLocalNow().DateTime));
+        _goalCard = sessionViewModel.Goal;
+        _weekCard = sessionViewModel.Week;
         // A phone's file arrived: its pickups show on Today, the review card and the Focus row.
         receivedDevices.Changed += (_, _) =>
         {
@@ -2282,9 +2286,14 @@ public partial class App : Application
         SessionState state = _sessions.State;
         string? profileName = ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId);
 
-        _trayIcon.ToolTipText = state.IsActive
+        // Written only when the text changed: with no session it never does, and Windows is not asked to redraw a tooltip every second.
+        string tip = state.IsActive
             ? $"AccountabiliBuddy · {SessionStatusFormatter.Title(state, profileName)} · {SessionStatusFormatter.Detail(state, _sessions.Now)}"
             : "AccountabiliBuddy · no session running";
+        if (_trayIcon.ToolTipText != tip)
+        {
+            _trayIcon.ToolTipText = tip;
+        }
 
         if (_endSessionMenuItem is not null)
         {
@@ -2799,6 +2808,8 @@ public partial class App : Application
             await _noiseSettings.FlushAsync();
         }
 
+        _goalCard?.Dispose();
+        _weekCard?.Dispose();
         _headphones?.Dispose();
 
         if (_mainWindow is not null)
