@@ -563,8 +563,9 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     {
         if (SyncNow is not null)
         {
+            DateTimeOffset passStart = _time.GetUtcNow();
             IReadOnlyList<string> failed = await SyncNow();
-            Message = SyncReachText.SyncNowLine(_settings.Current, _received.Active, failed, _time.GetUtcNow(), _time.LocalTimeZone);
+            Message = SyncReachText.SyncNowLine(_settings.Current, _received.Active, failed, passStart, _time.GetUtcNow(), _time.LocalTimeZone);
         }
     }
 

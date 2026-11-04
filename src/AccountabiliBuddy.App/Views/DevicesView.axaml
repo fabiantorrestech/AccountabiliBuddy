@@ -97,7 +97,7 @@
 
             <!-- The ways this PC shares: each is its own switch, so several can be on at once (the sync files are the same for all of them). -->
             <TextBlock x:Name="SyncMethodsHeader" Classes="sGroup" Text="How they sync" />
-            <Border Classes="sPanel">
+            <Border x:Name="SyncMethodsPanel" Classes="sPanel">
                 <StackPanel Margin="0,0,0,-1">
                     <Border Classes="sRow" Padding="18,15">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">

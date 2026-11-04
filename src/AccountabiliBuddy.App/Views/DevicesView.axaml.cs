@@ -18,7 +18,9 @@ public partial class DevicesView : UserControl
     // The "nobody heard from" banner's button: scrolls to the sync method switches.
     private void OnShowSyncMethods(object? sender, RoutedEventArgs e)
     {
+        // The header, then the panel under it: the switches themselves end up on screen.
         SyncMethodsHeader.BringIntoView();
+        SyncMethodsPanel.BringIntoView();
     }
 
     // Sync files (.absync) or pictures of the phone's QR codes.

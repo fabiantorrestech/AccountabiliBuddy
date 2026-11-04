@@ -166,7 +166,9 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
 
     val rows = buildList {
         add(PageRow(SettingsAnchors.DEVICES) {
-            DevicesCard(devices, DevicesModel.allRows(devices, detectedIds, page.watch.settings, now), DevicesModel.staleNote(devices, now, zone, hideWatchCards = page.watch.settings.linkedNodeId != null), DevicesModel.todayLine(devices, now, zone), actions, onShowMethods = { showMethods++ })
+            DevicesCard(devices, DevicesModel.allRows(devices, detectedIds, page.watch.settings, now), DevicesModel.staleNote(devices, now, zone, hideWatchCards = page.watch.settings.linkedNodeId != null), DevicesModel.todayLine(devices, now, zone), actions, onShowMethods = { showMethods++ },
+                // The last Sync now's full line, while the settings are still the ones it ran with.
+                syncReport = page.syncNow.report?.takeIf { it.settings == settings }?.full)
         })
 
         add(PageRow(SettingsAnchors.HOW_THEY_SYNC) {
@@ -397,7 +399,7 @@ private fun rememberDriveSignIn(actions: DevicesActions): () -> Unit {
 
 /** The list of devices (board 5f): one card with a row each, then the note about a device that is behind. */
 @Composable
-private fun DevicesCard(devices: DevicesState, rows: List<DeviceRow>, stale: StaleNote?, todayLine: String?, actions: DevicesActions, onShowMethods: () -> Unit) {
+private fun DevicesCard(devices: DevicesState, rows: List<DeviceRow>, stale: StaleNote?, todayLine: String?, actions: DevicesActions, onShowMethods: () -> Unit, syncReport: String? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         AbCard(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
             rows.forEachIndexed { index, row ->
@@ -419,9 +421,11 @@ private fun DevicesCard(devices: DevicesState, rows: List<DeviceRow>, stale: Sta
         }
         // Linked, but nobody heard from: what is missing (no way on, or a way on and nothing there yet), and the way to the switches.
         if (devices.joined && devices.received.isEmpty()) {
-            AbInfoBanner(SyncReachText.whileNobodyHeard(devices.settings), icon = Icons.Outlined.SyncProblem)
+            AbInfoBanner(syncReport ?: SyncReachText.whileNobodyHeard(devices.settings), icon = Icons.Outlined.SyncProblem)
             AbTextButton("Show sync methods", onClick = onShowMethods)
             Hint("You can also scan the PC's codes or open a sync file.", label = "How to bring them in")
+        } else {
+            syncReport?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp)) }
         }
     }
 }

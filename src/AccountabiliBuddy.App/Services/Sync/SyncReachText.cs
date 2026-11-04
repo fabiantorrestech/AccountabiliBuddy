@@ -13,7 +13,7 @@ public static class SyncReachText
 {
     /// <summary>Linked, no automatic method on.</summary>
     public const string NoMethodLine =
-        "Linked, but this PC can't reach your other devices yet. Turn on the sync method they use: a sync folder, Google Drive or your relay.";
+        "This PC can't reach your other devices yet. Turn on the sync method they use: a sync folder, Google Drive or your relay.";
 
     /// <summary>What Sync now says when no automatic method is on.</summary>
     public const string NothingSentLine =
@@ -57,9 +57,10 @@ public static class SyncReachText
     /// </summary>
     /// <param name="settings">The sync settings as they are now.</param>
     /// <param name="others">The other devices this PC holds (not the removed ones).</param>
-    /// <param name="failed">The methods that are on but whose write failed.</param>
+    /// <param name="failed">The methods whose write failed; only the ones that are on count.</param>
+    /// <param name="passStart">When this Sync now began: a device whose copy changed since is "heard from", the others "last heard from".</param>
     public static string SyncNowLine(
-        SyncSettings settings, IReadOnlyList<ReceivedDevice> others, IReadOnlyCollection<string> failed, DateTimeOffset now, TimeZoneInfo zone)
+        SyncSettings settings, IReadOnlyList<ReceivedDevice> others, IReadOnlyCollection<string> failed, DateTimeOffset passStart, DateTimeOffset now, TimeZoneInfo zone)
     {
         IReadOnlyList<string> on = MethodsOn(settings);
         if (on.Count == 0)
@@ -68,7 +69,8 @@ public static class SyncReachText
         }
 
         List<string> sent = on.Where(method => !failed.Contains(method)).ToList();
-        string failure = failed.Count == 0 ? string.Empty : $"Couldn't send through {Names(on.Where(failed.Contains).ToList())}. ";
+        List<string> failedOn = on.Where(failed.Contains).ToList();
+        string failure = failedOn.Count == 0 ? string.Empty : $"Couldn't send through {Names(failedOn)}. ";
         if (sent.Count == 0)
         {
             return failure + "Nothing was sent.";
@@ -85,10 +87,15 @@ public static class SyncReachText
             return failure + sentPart + "No other device has answered yet. They must use the same method.";
         }
 
-        return failure + sentPart + "Heard from " + JoinAnd(heard.Select(device => $"{device.File.Device.Name} (sent {When(device.File.Device.WrittenAt, now, zone)})").ToList()) + ".";
+        string Describe(ReceivedDevice device) => $"{device.File.Device.Name} (sent {When(device.File.Device.WrittenAt, now, zone)})";
+        List<string> fresh = heard.Where(device => device.ReceivedAt >= passStart).Select(Describe).ToList();
+        List<string> older = heard.Where(device => device.ReceivedAt < passStart).Select(Describe).ToList();
+        string reached = fresh.Count == 0 ? string.Empty : "Heard from " + JoinAnd(fresh) + ". ";
+        string last = older.Count == 0 ? string.Empty : "Last heard from " + JoinAnd(older) + ".";
+        return (failure + sentPart + reached + last).TrimEnd();
     }
 
-    /// <summary>"10:35 AM" today, "yesterday 10:35 AM", else "Mon 10:35 AM"; 12-hour whatever the system's setting.</summary>
+    /// <summary>"10:35 AM" today, "yesterday 10:35 AM", "Mon 10:35 AM" within the week, from 7 days back a date ("Oct 12"); 12-hour whatever the system's setting.</summary>
     public static string When(DateTimeOffset at, DateTimeOffset now, TimeZoneInfo zone)
     {
         DateTimeOffset local = TimeZoneInfo.ConvertTime(at, zone);
@@ -96,6 +103,7 @@ public static class SyncReachText
         string time = Clock(local);
         return local.Date == today.Date ? time
             : local.Date == today.Date.AddDays(-1) ? $"yesterday {time}"
+            : local.Date <= today.Date.AddDays(-7) ? local.ToString("MMM d", CultureInfo.InvariantCulture)
             : $"{local.ToString("ddd", CultureInfo.InvariantCulture)} {time}";
     }
 

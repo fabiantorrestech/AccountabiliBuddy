@@ -1328,6 +1328,7 @@ public partial class App : Application
         mainViewModel.RefreshAll = async () =>
         {
             var problems = new List<string>();
+            DateTimeOffset passStart = time.GetUtcNow();
             async Task Step(string name, Func<Task>? step)
             {
                 if (step is null)
@@ -1383,7 +1384,7 @@ public partial class App : Application
             return syncIdentity.Key is null
                 ? $"Up to date · refreshed {at}"
                 : $"Refreshed {at}. " + AccountabiliBuddy.App.Services.Sync.SyncReachText.SyncNowLine(
-                    syncSettings.Current, receivedDevices.Active, failedSends, time.GetUtcNow(), time.LocalTimeZone);
+                    syncSettings.Current, receivedDevices.Active, failedSends, passStart, time.GetUtcNow(), time.LocalTimeZone);
         };
 
         // A session added, edited or deleted by hand (ADR 20): both day bars read the history again, and other devices get it.
@@ -1557,31 +1558,37 @@ public partial class App : Application
             // Writes, then reads the other devices' files through the same accept path as a normal read; says which writes failed.
             IReadOnlyList<string> on = AccountabiliBuddy.App.Services.Sync.SyncReachText.MethodsOn(syncSettings.Current);
             var failed = new List<string>();
-            if (!await _syncFolder!.WriteNowAsync() && on.Contains(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodFolder))
+
+            // One method at a time, so one that throws doesn't skip the others. A write that didn't happen on a method that is
+            // on is a failed send; a read that throws is the method's own problem line, and the report says only who answered.
+            async Task Exchange(string method, Func<Task<bool>> write, Func<Task> read)
             {
-                failed.Add(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodFolder);
+                bool wrote = false;
+                try
+                {
+                    wrote = await write();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
+                {
+                }
+
+                if (!wrote && on.Contains(method))
+                {
+                    failed.Add(method);
+                }
+
+                try
+                {
+                    await read();
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
+                {
+                }
             }
 
-            if (!await _syncDrive!.WriteNowAsync() && on.Contains(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodDrive))
-            {
-                failed.Add(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodDrive);
-            }
-
-            if (!await _syncRelay!.WriteNowAsync() && on.Contains(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodRelay))
-            {
-                failed.Add(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodRelay);
-            }
-
-            try
-            {
-                await _syncFolder.ReadNowAsync();
-                await _syncDrive.ReadNowAsync();
-                await _syncRelay.ReadNowAsync();
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or HttpRequestException or InvalidOperationException)
-            {
-                // The method's own problem line says what went wrong; the report below says only who answered.
-            }
+            await Exchange(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodFolder, _syncFolder!.WriteNowAsync, _syncFolder.ReadNowAsync);
+            await Exchange(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodDrive, _syncDrive!.WriteNowAsync, _syncDrive.ReadNowAsync);
+            await Exchange(AccountabiliBuddy.Core.Sync.SyncDeviceCard.MethodRelay, _syncRelay!.WriteNowAsync, _syncRelay.ReadNowAsync);
 
             // Seals this PC's file again.
             syncCoordinator.NotifyHistoryChanged();
