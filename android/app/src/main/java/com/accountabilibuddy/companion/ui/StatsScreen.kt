@@ -24,6 +24,8 @@ import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.ui.stats.PhoneDayLoader
 import com.accountabilibuddy.companion.ui.stats.SleepNightModel
 import com.accountabilibuddy.companion.ui.stats.StatsPane
+import com.accountabilibuddy.companion.ui.shell.CenteredPane
+import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.stats.StatsPaneActions
 import com.accountabilibuddy.companion.ui.stats.StatsPaneModel
 import com.accountabilibuddy.companion.ui.stats.StatsPrefs
@@ -131,5 +133,6 @@ fun StatsScreen(
     val actions = remember(prefs, onConnectHealth, onRefreshSleep, onAllowUsage) {
         StatsPaneActions(prefs::select, prefs::chooseRange, prefs::chooseViews, onConnectHealth, onRefreshSleep, onAllowUsage)
     }
-    StatsPane(model, prefs.view, prefs.range, prefs.views, actions, modifier)
+    // On a tablet the charts and tiles keep a readable width in the middle of the pane (a phone draws it as before).
+    CenteredPane(maxWidth = 960.dp) { StatsPane(model, prefs.view, prefs.range, prefs.views, actions, modifier) }
 }

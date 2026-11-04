@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -48,8 +49,9 @@ class TimerRingActivity : ComponentActivity() {
             CompanionTheme(systemBarIconsFollowTheme = false) {
                 val ringing by TimerRinger.ringing.collectAsStateWithLifecycle()
                 LaunchedEffect(ringing.isEmpty()) { if (ringing.isEmpty()) finish() }
+                GuardFrame(Modifier.fillMaxSize().background(Color(0xFF0B1020))) {
                 Column(
-                    Modifier.fillMaxSize().background(Color(0xFF0B1020)).padding(32.dp),
+                    Modifier.fillMaxSize().padding(32.dp),
                     verticalArrangement = Arrangement.spacedBy(28.dp, Alignment.CenterVertically),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -68,6 +70,7 @@ class TimerRingActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
                 }
             }
         }

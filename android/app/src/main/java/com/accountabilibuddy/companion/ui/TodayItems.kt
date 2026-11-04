@@ -1,6 +1,5 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
@@ -49,7 +48,7 @@ class TodayItemContext(
  * A few parts carry a neighbour that belongs with them: the guard banner brings the calendar lines (nothing running), the lunch
  * chip brings the Budget pace and the "all tasks are ticked" line (a session). Both are warnings or notes that must survive hiding the focus ring.
  */
-fun LazyListScope.todayItem(part: TodayItem, c: TodayItemContext) {
+fun TodaySink.todayItem(part: TodayItem, c: TodayItemContext) {
     when (part) {
         TodayItem.Guard -> {
             if (c.guardsLock != null) item(key = "guard") { GuardBanner(c.guardsLock, c.guardOn) }

@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,22 +39,25 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * The noise player, as in the PC's sidebar: the sound's name, previous, play/pause, next and the player's own volume, and the
  * lock (plays only with headphones connected). Today shows it as a card once a sound folder is set; the folder is chosen in
  * Settings › Alerts & on-screen. Ink and tonal colours: the accent is for progress and the one main button.
+ * [compact] (the tablet's sidebar) puts the name and the lock on one line and the three buttons on the next, for a narrow column.
  */
 @Composable
-fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer) {
+fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, compact: Boolean = false) {
     val colors = Ab.colors
     var volume by remember(settings.volume) { mutableFloatStateOf(settings.volume.toFloat()) }
     AbCard(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), verticalSpacing = 0.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        val title: @Composable (Modifier) -> Unit = { modifier ->
             if (state.needsHeadphones) {
-                Text("Connect headphones", style = Ab.type.bodyMedium, color = colors.drift, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                Text("Connect headphones", style = Ab.type.bodyMedium, color = colors.drift, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier.padding(start = 8.dp))
             } else {
                 Text(
                     state.title ?: if (state.fileCount == 0) "No sounds in that folder" else "Noise",
-                    style = Ab.type.bodyMedium, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 8.dp),
+                    style = Ab.type.bodyMedium, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier.padding(start = 8.dp),
                 )
             }
-            // The lock: the drift colour while it keeps the player quiet (no headphones).
+        }
+        // The lock: the drift colour while it keeps the player quiet (no headphones).
+        val lock: @Composable () -> Unit = {
             IconButton(onClick = { player.setHeadphoneLock(!settings.headphoneLock) }) {
                 Icon(
                     if (settings.headphoneLock) Icons.Filled.Lock else Icons.Filled.LockOpen,
@@ -66,8 +70,14 @@ fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer) {
                     modifier = Modifier.size(22.dp),
                 )
             }
+        }
+        val previous: @Composable () -> Unit = {
             IconButton(onClick = player::previous) { Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous", tint = colors.muted, modifier = Modifier.size(28.dp)) }
+        }
+        val next: @Composable () -> Unit = {
             IconButton(onClick = player::next) { Icon(Icons.Filled.SkipNext, contentDescription = "Next", tint = colors.muted, modifier = Modifier.size(28.dp)) }
+        }
+        val playPause: @Composable () -> Unit = {
             IconButton(onClick = player::toggle, modifier = Modifier.size(56.dp)) {
                 Icon(
                     if (state.playing) Icons.Filled.PauseCircle else Icons.Filled.PlayCircle,
@@ -75,6 +85,25 @@ fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer) {
                     tint = colors.ink,
                     modifier = Modifier.size(48.dp),
                 )
+            }
+        }
+        if (compact) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                title(Modifier.weight(1f))
+                lock()
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                previous()
+                playPause()
+                next()
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                title(Modifier.weight(1f))
+                lock()
+                previous()
+                next()
+                playPause()
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

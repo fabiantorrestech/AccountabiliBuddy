@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -209,7 +210,7 @@ private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, shown: Boolean, 
         pickups = sessionStart?.let { start -> withContext(Dispatchers.Default) { app.sync.unlocksSince(start)?.size } }
     }
 
-    androidx.compose.foundation.layout.Box(
+    GuardFrame(
         Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding(),
     ) {
         Column(
