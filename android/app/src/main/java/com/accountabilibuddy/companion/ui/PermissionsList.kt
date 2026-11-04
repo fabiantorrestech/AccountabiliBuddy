@@ -23,6 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
@@ -93,8 +96,12 @@ fun PermissionsList(health: HealthStatus, onConnectHealth: () -> Unit, onAllowUs
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         rows.forEach { row ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Text(if (row.granted) "✓" else "○", color = if (row.granted) Ab.colors.met else Ab.colors.waiting, style = Ab.type.body, fontWeight = FontWeight.Bold)
+            // The state is the glyph's shape and the colour; TalkBack gets it as words on the row instead of the glyph's name.
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { stateDescription = if (row.granted) "Allowed" else "Not allowed" },
+            ) {
+                Text(if (row.granted) "✓" else "○", modifier = Modifier.clearAndSetSemantics { }, color = if (row.granted) Ab.colors.met else Ab.colors.waiting, style = Ab.type.body, fontWeight = FontWeight.Bold)
                 Column(Modifier.weight(1f)) {
                     Text(row.title, style = Ab.type.body, fontWeight = FontWeight.Medium, color = Ab.colors.ink)
                     Note(row.why)

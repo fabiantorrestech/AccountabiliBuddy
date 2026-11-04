@@ -161,16 +161,14 @@ private fun GuardSwitch(app: CompanionApp) {
     var offAt by remember { mutableStateOf(guard.pendingOffAt(Instant.now())) }
     var locked by remember { mutableStateOf(guard.locked(Instant.now())) }
     // A pending off comes due, or a session starts, while the page is open.
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = Instant.now()
-            val wasOn = on
-            on = guard.isOn(now)
-            offAt = guard.pendingOffAt(now)
-            locked = guard.locked(now)
-            if (wasOn && !on) PinnedTimelineService.checkPlacement()
-            delay(2_000L)
-        }
+    // Every 2 s while an off is pending, else every 10 s.
+    PollWhileVisible(periodMs = { if (offAt != null) 2_000L else 10_000L }) {
+        val now = Instant.now()
+        val wasOn = on
+        on = guard.isOn(now)
+        offAt = guard.pendingOffAt(now)
+        locked = guard.locked(now)
+        if (wasOn && !on) PinnedTimelineService.checkPlacement()
     }
 
     val detail = when {
@@ -183,8 +181,9 @@ private fun GuardSwitch(app: CompanionApp) {
         val now = Instant.now()
         if (wantOn) {
             guard.turnOn()
-        } else {
-            guard.requestOff(now)
+        } else if (!guard.requestOff(now)) {
+            // Refused: a focus session is running.
+            locked = true
         }
 
         on = guard.isOn(now)
@@ -217,14 +216,11 @@ private fun PenaltySwitch(app: CompanionApp, penalty: PocketPenalty, title: Stri
     var offAt by remember { mutableStateOf(store.pendingOffAt(penalty, Instant.now())) }
     var locked by remember { mutableStateOf(store.locked(Instant.now())) }
     // A pending off comes due, or a session starts, while the page is open.
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = Instant.now()
-            on = store.isOn(penalty, now)
-            offAt = store.pendingOffAt(penalty, now)
-            locked = store.locked(now)
-            delay(2_000L)
-        }
+    PollWhileVisible(periodMs = { if (offAt != null) 2_000L else 10_000L }) {
+        val now = Instant.now()
+        on = store.isOn(penalty, now)
+        offAt = store.pendingOffAt(penalty, now)
+        locked = store.locked(now)
     }
 
     val detail = when {
@@ -237,8 +233,9 @@ private fun PenaltySwitch(app: CompanionApp, penalty: PocketPenalty, title: Stri
         val now = Instant.now()
         if (wantOn) {
             store.turnOn(penalty)
-        } else {
-            store.requestOff(penalty, now)
+        } else if (!store.requestOff(penalty, now)) {
+            // Refused: a focus session is running.
+            locked = true
         }
 
         on = store.isOn(penalty, now)
