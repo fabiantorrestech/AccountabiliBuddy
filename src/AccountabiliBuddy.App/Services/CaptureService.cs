@@ -28,6 +28,9 @@ public sealed class CaptureService : IDisposable
         HotkeyError = _hotkey.TryRegister(Shortcut, out string? error) ? null : error;
     }
 
+    /// <summary>True after the shutdown routine was finished (until the next work part): the popup says a thought waits for tomorrow. Set by the app.</summary>
+    public Func<bool>? IsWorkOver { get; set; }
+
     /// <summary>Why the shortcut isn't active (another app has it), or null.</summary>
     public string? HotkeyError { get; }
 
@@ -41,6 +44,11 @@ public sealed class CaptureService : IDisposable
         }
 
         var popup = new CapturePopup();
+        if (IsWorkOver?.Invoke() == true)
+        {
+            popup.HintText = "Work is over: Enter saves it under Come back to, for tomorrow · Esc drops it";
+        }
+
         popup.Saved += (_, text) => _ = _comebacks.AddAsync(text);
         popup.Closed += (_, _) => _popup = null;
         if (_monitors.Find(_monitors.FindMonitorUnderCursor()) is MonitorArea area)

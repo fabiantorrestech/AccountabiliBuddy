@@ -194,6 +194,24 @@ public sealed class EnforcementPresenter
         toast.Show();
     }
 
+    /// <summary>
+    /// A reminder with one action on the monitor under the mouse cursor (e.g. "Work ends at 5:00 PM" with "Start shutdown"); it closes
+    /// itself after a while, with nothing to answer.
+    /// </summary>
+    public void ShowReminderWithAction(string title, string message, string actionLabel, Action onAction)
+    {
+        MonitorArea? area = _monitors.Find(_monitors.FindMonitorUnderCursor());
+        if (area is null)
+        {
+            return;
+        }
+
+        var viewModel = new NudgeToastViewModel(title, message, actionLabel, onAction, staysOpen: false, accent: null, onLater: null, lifeTime: ReminderLife);
+        var toast = new NudgeToast { DataContext = viewModel };
+        PlaceReminder(toast, area);
+        toast.Show();
+    }
+
     public void CloseAll()
     {
         foreach (MonitorPresentation presentation in _presentationByMonitor.Values)

@@ -99,6 +99,23 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowsShutdown), nameof(CardState))]
     public partial ShutdownCardViewModel? Shutdown { get; set; }
 
+    /// <summary>"Work over for today" while the shutdown routine's finish holds (until the next work part); null otherwise. Nothing is locked by it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsWorkOver))]
+    public partial ShutdownWorkOver? WorkOver { get; set; }
+
+    /// <summary>Today says "Work over for today" while no session runs.</summary>
+    public bool ShowsWorkOver => WorkOver is not null && !IsSessionActive;
+
+    /// <summary>"Start shutdown" (set by the app): opens the routine now, on any day. Not offered during a session.</summary>
+    public Func<bool>? StartShutdownHandler { get; set; }
+
+    [RelayCommand]
+    private void StartShutdown()
+    {
+        StartShutdownHandler?.Invoke();
+    }
+
     /// <summary>The shutdown card takes the main card's place, unless a session runs (started from a hotkey, the tray or the popup).</summary>
     public bool ShowsShutdown => Shutdown is not null && !IsSessionActive;
 
@@ -246,7 +263,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial bool HasNoProfiles { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome), nameof(ShowsShutdown), nameof(CardState))]
+    [NotifyPropertyChangedFor(nameof(ShowsStart), nameof(ShowsWelcome), nameof(ShowsShutdown), nameof(ShowsWorkOver), nameof(CardState))]
     [NotifyCanExecuteChangedFor(nameof(EndSessionCommand))]
     public partial bool IsSessionActive { get; set; }
 

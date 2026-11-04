@@ -1,5 +1,6 @@
 using System.Globalization;
 using AccountabiliBuddy.App.Controls;
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Sync;
@@ -224,6 +225,53 @@ internal static class StatsBarPanels
         return new StatsBarPanel(
             total.ToString(CultureInfo.CurrentCulture), $"pickups during sessions · longest down {Down(pickups.Max(pickup => pickup.LongestDownMinutes))}",
             bars, double.NaN, null, cards);
+    }
+
+    /// <summary>
+    /// "How did today go" over the period: a bar per day for the feeling (1 to 5), the average, how many days were reviewed and the
+    /// latest note. Null when the period holds no review. The notes are private text read from this PC's sealed list.
+    /// </summary>
+    public static StatsBarPanel? Reviews(IReadOnlyList<ShutdownReview> reviews, StatsPeriod period, DateOnly today)
+    {
+        List<ShutdownReview> inPeriod = reviews.Where(review => review.Date >= period.From && review.Date <= period.To).OrderBy(review => review.Date).ToList();
+        if (inPeriod.Count == 0)
+        {
+            return null;
+        }
+
+        Dictionary<DateOnly, ShutdownReview> byDate = inPeriod.ToDictionary(review => review.Date);
+        var bars = new List<StatsBar>();
+        for (DateOnly date = period.From; date <= period.To; date = date.AddDays(1))
+        {
+            bool future = date > today;
+            byDate.TryGetValue(date, out ShutdownReview? review);
+            int feeling = review?.Feeling ?? 0;
+            string day = date.ToString("ddd, MMM d", CultureInfo.CurrentCulture);
+            string tip = review is null ? $"{day} · no review"
+                : $"{day} · {(review.Feeling is int value ? $"feeling {value} of 5" : "no feeling")}{(review.Note.Length > 0 ? $" · {review.Note}" : string.Empty)}";
+            bars.Add(new StatsBar(
+                BarLabel(period, date), feeling / 5.0, feeling >= 4 ? StatsBarKind.Met : date == today ? StatsBarKind.Accent : StatsBarKind.Plan,
+                date == today, future, tip));
+        }
+
+        List<int> feelings = inPeriod.Where(review => review.Feeling is not null).Select(review => review.Feeling!.Value).ToList();
+        int days = period.Days;
+        var cards = new List<StatsCard> { new("Days reviewed", $"{inPeriod.Count} of {days}", "days you answered how it went") };
+        ShutdownReview? best = inPeriod.Where(review => review.Feeling is not null).OrderByDescending(review => review.Feeling).ThenByDescending(review => review.Date).FirstOrDefault();
+        if (best is not null)
+        {
+            cards.Add(new StatsCard("Best day", best.Date.ToString("MMM d", CultureInfo.CurrentCulture), $"feeling {best.Feeling} of 5"));
+        }
+
+        if (inPeriod.LastOrDefault(review => review.Note.Length > 0) is { } latest)
+        {
+            string note = latest.Note.Length > 90 ? latest.Note[..90].TrimEnd() + "…" : latest.Note;
+            cards.Add(new StatsCard("Latest note", latest.Date.ToString("MMM d", CultureInfo.CurrentCulture), note));
+        }
+
+        string average = feelings.Count == 0 ? "–" : feelings.Average().ToString("0.0", CultureInfo.CurrentCulture);
+        string note2 = feelings.Count == 0 ? "no feelings chosen in this period" : $"average feeling out of 5 · {feelings.Count} {Plural(feelings.Count, "day")}";
+        return new StatsBarPanel(average, note2, bars, double.NaN, null, cards);
     }
 
     public static StatsBarPanel? SleepView(StatsData data)
