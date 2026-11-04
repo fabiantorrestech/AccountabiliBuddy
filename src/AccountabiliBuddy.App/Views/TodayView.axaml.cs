@@ -12,10 +12,21 @@ public partial class TodayView : UserControl
     private SessionViewModel? _subscribed;
     private TodayCardState? _shownState;
 
-    // "From your lists" by tomorrow's first task: read the lists as the picker opens; an item chosen closes it.
+    // "From your lists" by tomorrow's first task or one of tomorrow's planned tasks: read the lists as the picker opens; an item chosen closes it.
     private void OnTomorrowPickerOpening(object? sender, EventArgs e)
     {
-        if (sender is not Flyout { Target.DataContext: ViewModels.ShutdownCardViewModel { TomorrowPicker: { } picker } } flyout)
+        if (sender is not Flyout flyout)
+        {
+            return;
+        }
+
+        ViewModels.ListPickerViewModel? owned = flyout.Target?.DataContext switch
+        {
+            ViewModels.ShutdownCardViewModel card => card.TomorrowPicker,
+            ViewModels.ShutdownPlanRowViewModel row => row.Picker,
+            _ => null,
+        };
+        if (owned is not { } picker)
         {
             return;
         }

@@ -806,6 +806,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool HasLunch => Lunch is not null;
 
+    /// <summary>The end-of-day shutdown routine (Your day); null hides it.</summary>
+    public ShutdownSettingsViewModel? Shutdown { get; init; }
+
+    public bool HasShutdown => Shutdown is not null;
+
     public MotionViewModel? Motion { get; init; }
 
     /// <summary>Theme, light or dark and colour (Settings → On screen &amp; sound → Appearance).</summary>

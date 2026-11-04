@@ -232,6 +232,49 @@ public sealed partial class SessionTasksService
         return item?.Id;
     }
 
+    /// <summary>
+    /// A task for tomorrow's plan (the shutdown routine's "Plan tomorrow"): it sits on the Later list "put in plan" for the day part
+    /// <paramref name="slot"/>, the same as the Tasks page's "Put in plan", so it joins the next session's list when that part starts
+    /// (ADR 50) and never takes one of today's three places. A task chosen from a list moves from there (a finished one stays in its
+    /// record); a typed one (<paramref name="source"/> null) is new.
+    /// </summary>
+    /// <returns>False when nothing was planned (no Later list, a blank title, or the chosen task is gone).</returns>
+    public async Task<bool> PlanForTomorrowAsync((ViewModels.PulledListKind Kind, Guid Id)? source, string title, PlannedSlot slot)
+    {
+        if (Later is null || title.Trim().Length == 0)
+        {
+            return false;
+        }
+
+        Guid? laterId = null;
+        switch (source?.Kind)
+        {
+            case ViewModels.PulledListKind.Later when Later.Items.Any(candidate => candidate.Id == source.Value.Id):
+                laterId = source.Value.Id;
+                break;
+            case ViewModels.PulledListKind.ComeBack:
+                laterId = await MoveComebackToLaterAsync(source.Value.Id);
+                break;
+            case ViewModels.PulledListKind.Unfinished or ViewModels.PulledListKind.DoneToday or ViewModels.PulledListKind.Archive:
+                laterId = await MoveHistoryTaskToLaterAsync(source.Value.Id);
+                break;
+            case ViewModels.PulledListKind.AutoSaved when AutoSaved is not null:
+                laterId = (await Later.AddAsync(title, null, null, null, null, null, null, slot))?.Id;
+                await AutoSaved.RemoveAsync(source.Value.Id);
+                return laterId is not null;
+            case null:
+                return await Later.AddAsync(title, null, null, null, null, null, null, slot) is not null;
+        }
+
+        if (laterId is not Guid id)
+        {
+            return false;
+        }
+
+        await Later.EditAsync(id, item => item with { PlannedFor = slot });
+        return true;
+    }
+
     /// <summary>A new open step just after the step <paramref name="stepId"/> of the checklist; it reopens a task that was done.</summary>
     public Task AddSubtaskAfterAsync(Guid stepId, string title)
     {

@@ -73,6 +73,82 @@
                     </Border>
                 </StackPanel>
 
+                <!-- The end-of-day shutdown routine: a short stepped flow on Today, ending in "Work over for today". It enforces nothing. -->
+                <StackPanel Spacing="6" search:SearchArea.Name="Shutdown routine" IsVisible="{Binding HasShutdown}">
+                    <TextBlock Classes="sGroup" Text="Shutdown routine" />
+                    <Border Classes="sPanel" DataContext="{Binding Shutdown}" x:DataType="vm:ShutdownSettingsViewModel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Offer the shutdown routine when work ends" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="When your day's last work part is over (or a Budget day's work is done), Today offers a short routine: empty your capture, sort unfinished tasks, look ahead, plan tomorrow, review the day. Never during a session. Off means no card and no reminder; Start shutdown on Today still works. It locks nothing, and bedtime and sleep are unchanged." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Center" AutomationProperties.Name="Offer the shutdown routine" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Empty your capture: give each parked thought a home" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding CaptureOn}" VerticalAlignment="Center" AutomationProperties.Name="Empty your capture step" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Unfinished tasks: tick what's done, carry the rest" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding UnfinishedOn}" VerticalAlignment="Center" AutomationProperties.Name="Unfinished tasks step" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Look ahead: Later items due soon and your calendar for two weeks" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding LookAheadOn}" VerticalAlignment="Center" AutomationProperties.Name="Look ahead step" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <TextBlock Classes="sTitle" Text="Plan tomorrow: up to three tasks in tomorrow's day parts" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding PlanOn}" VerticalAlignment="Center" AutomationProperties.Name="Plan tomorrow step" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Today in review: focus, drift, what got done, how did today go" />
+                                        <TextBlock Classes="sHint" Text="The feeling and the one-line note stay sealed on this PC for 90 days and show over time in Stats." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding ReviewOn}" VerticalAlignment="Center" AutomationProperties.Name="Today in review step" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Closing line" />
+                                        <TextBlock Classes="sHint" Text="What the last screen and Today say once you finish. Blank means &quot;Work over for today.&quot;" />
+                                    </StackPanel>
+                                    <TextBox Grid.Column="1" Text="{Binding ClosingLine}" MaxLength="{x:Static vm:ShutdownSettingsViewModel.MaxClosingLineLength}" MinWidth="240"
+                                             VerticalAlignment="Center" AutomationProperties.Name="Closing line" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Remind me before work ends" />
+                                        <TextBlock Classes="sHint"
+                                                   Text="A notice this many minutes before your last work part ends (0 = none). On a Budget day work has no fixed end, so it comes before your bedtime while the budget is unmet; once the budget is met the routine is offered at once. Free days have neither." />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <NumericUpDown Value="{Binding ReminderMinutes}" Minimum="0" Maximum="{x:Static vm:ShutdownSettingsViewModel.MaxReminderMinutes}"
+                                                       Increment="5" FormatString="0" Width="110" AutomationProperties.Name="Reminder minutes" />
+                                        <TextBlock Text="minutes" VerticalAlignment="Center" Classes="muted" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
                 <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->
                 <StackPanel Spacing="6" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
                     <TextBlock Classes="sGroup" Text="Work hours on this computer" />

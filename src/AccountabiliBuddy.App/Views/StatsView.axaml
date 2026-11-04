@@ -432,6 +432,7 @@
                         <ContentControl Content="{Binding SleepPanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsSleep}" VerticalAlignment="Top" HorizontalContentAlignment="Stretch" />
                         <ContentControl Content="{Binding PhonePanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsPhone}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                         <ContentControl Content="{Binding StepsPanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsSteps}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+                        <ContentControl Content="{Binding ReviewsPanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsReviews}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                         <TextBlock Classes="muted" Text="{Binding EmptyText}" IsVisible="{Binding ShowsEmpty}" FontSize="15" TextWrapping="Wrap" Margin="0,40,0,0" HorizontalAlignment="Center" />
                     </Panel>
                 </ScrollViewer>

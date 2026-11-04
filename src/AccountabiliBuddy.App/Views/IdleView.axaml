@@ -50,6 +50,17 @@
                 <TextBlock Classes="display muted" FontSize="20" TextWrapping="Wrap" Text="{Binding IdleNextText}"
                            IsVisible="{Binding IdleNextText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             </StackPanel>
+            <!-- After the shutdown routine: "Work over for today" and what was checked, until the next work part. Nothing is locked. -->
+            <Border Classes="inner" IsVisible="{Binding ShowsWorkOver}" MaxWidth="640" HorizontalAlignment="Left">
+                <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                        <TextBlock Text="{Binding WorkOver.Line}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap" Text="{Binding WorkOver.CheckedText}"
+                               IsVisible="{Binding WorkOver.CheckedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </Border>
             <Panel IsVisible="{Binding QuickStart.Checklist, Converter={x:Static ObjectConverters.IsNotNull}}" MaxWidth="640" HorizontalAlignment="Left">
                 <views:TodayTaskRowsView DataContext="{Binding QuickStart.Checklist}" />
             </Panel>
@@ -95,6 +106,14 @@
                         </StackPanel>
                     </Flyout>
                 </FlyoutBase.AttachedFlyout>
+            </Button>
+            <!-- The end-of-day routine, any time (also on a day with no work parts). -->
+            <Button Classes="quiet pill" Command="{Binding StartShutdownCommand}" AutomationProperties.Name="Start shutdown"
+                    ToolTip.Tip="Wrap up the day: empty your capture, look ahead, plan tomorrow">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <mi:MaterialIcon Kind="WeatherSunset" Width="16" Height="16" VerticalAlignment="Center" />
+                    <TextBlock Text="Start shutdown" />
+                </StackPanel>
             </Button>
           </WrapPanel>
 

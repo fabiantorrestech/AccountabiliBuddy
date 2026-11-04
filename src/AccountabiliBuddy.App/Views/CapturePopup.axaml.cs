@@ -21,6 +21,12 @@ public partial class CapturePopup : Window
         Closing += (_, _) => SaveOnce();
     }
 
+    /// <summary>The line under the box; after the shutdown routine it says the thought waits for tomorrow.</summary>
+    public string HintText
+    {
+        set => HintLine.Text = value;
+    }
+
     /// <summary>Raised with the text when it's saved (Enter or clicking away), never for Esc.</summary>
     public event EventHandler<string>? Saved;
 

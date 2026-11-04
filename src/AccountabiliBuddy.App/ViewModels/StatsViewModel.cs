@@ -45,6 +45,7 @@ public sealed partial class StatsViewModel : ObservableObject
     private readonly DailyStepsService _steps;
     private readonly PrivacySettingsService _privacy;
     private readonly SqliteJsonDocumentStore _documents;
+    private readonly ShutdownReviewStore _reviews;
     private readonly TimeProvider _time;
     private readonly Func<bool> _isSessionRunning;
     private readonly DispatcherTimer _refreshSoon;
@@ -75,8 +76,10 @@ public sealed partial class StatsViewModel : ObservableObject
         PrivacySettingsService privacy,
         SqliteJsonDocumentStore documents,
         TimeProvider time,
-        Func<bool> isSessionRunning)
+        Func<bool> isSessionRunning,
+        ShutdownReviewStore reviews)
     {
+        _reviews = reviews;
         Details = details;
         _log = log;
         _loadRecords = loadRecords;
@@ -101,7 +104,7 @@ public sealed partial class StatsViewModel : ObservableObject
         foreach ((StatsViewKind kind, string text) in new[]
                  {
                      (StatsViewKind.Overview, "Overview"), (StatsViewKind.Consistency, "Consistency"), (StatsViewKind.Intensity, "Intensity"),
-                     (StatsViewKind.FocusGraph, "Focus graph"), (StatsViewKind.Drift, "Drift"), (StatsViewKind.Sleep, "Sleep"), (StatsViewKind.Phone, "Phone"), (StatsViewKind.Steps, "Steps"),
+                     (StatsViewKind.FocusGraph, "Focus graph"), (StatsViewKind.Drift, "Drift"), (StatsViewKind.Sleep, "Sleep"), (StatsViewKind.Phone, "Phone"), (StatsViewKind.Steps, "Steps"), (StatsViewKind.Reviews, "Day reviews"),
                  })
         {
             Chips.Add(new StatsChipViewModel(kind, text));
@@ -134,6 +137,7 @@ public sealed partial class StatsViewModel : ObservableObject
         privacy.Changed += (_, _) => RequestRefresh();
         received.Changed += (_, _) => RequestRefresh();
         steps.Changed += (_, _) => RequestRefresh();
+        reviews.Changed += (_, _) => RequestRefresh();
         omitted.Changed += (_, _) => RequestRefresh();
         deleted.Changed += (_, _) => RequestRefresh();
         goal.Changed += (_, _) => RequestRefresh();
@@ -176,7 +180,7 @@ public sealed partial class StatsViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsOverview), nameof(ShowsConsistency), nameof(ShowsIntensity), nameof(ShowsFocusGraph),
-        nameof(ShowsDrift), nameof(ShowsSleep), nameof(ShowsPhone), nameof(ShowsSteps), nameof(ShowsEmpty), nameof(EmptyText), nameof(Subtitle), nameof(ShowsDayColumn), nameof(ShowsRange))]
+        nameof(ShowsDrift), nameof(ShowsSleep), nameof(ShowsPhone), nameof(ShowsSteps), nameof(ShowsReviews), nameof(ShowsEmpty), nameof(EmptyText), nameof(Subtitle), nameof(ShowsDayColumn), nameof(ShowsRange))]
     public partial StatsViewKind View { get; set; }
 
     [ObservableProperty]
@@ -237,6 +241,10 @@ public sealed partial class StatsViewModel : ObservableObject
     public partial StatsBarPanel? StepsPanel { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsReviews), nameof(ShowsEmpty))]
+    public partial StatsBarPanel? ReviewsPanel { get; set; }
+
+    [ObservableProperty]
     public partial StatsDayPanel? Day { get; set; }
 
     /// <summary>"Oct 26 – Nov 1", or the day for the Day range.</summary>
@@ -265,8 +273,10 @@ public sealed partial class StatsViewModel : ObservableObject
 
     public bool ShowsSteps => View == StatsViewKind.Steps && StepsPanel is not null;
 
+    public bool ShowsReviews => View == StatsViewKind.Reviews && ReviewsPanel is not null;
+
     /// <summary>The shown view has nothing in this range: the page says so instead of drawing it.</summary>
-    public bool ShowsEmpty => IsLoaded && !(ShowsOverview || ShowsConsistency || ShowsIntensity || ShowsFocusGraph || ShowsDrift || ShowsSleep || ShowsPhone || ShowsSteps);
+    public bool ShowsEmpty => IsLoaded && !(ShowsOverview || ShowsConsistency || ShowsIntensity || ShowsFocusGraph || ShowsDrift || ShowsSleep || ShowsPhone || ShowsSteps || ShowsReviews);
 
     public string EmptyText => _beforeHistory && _data is not null && !HasNoHistory(_data)
         ? $"History starts {_data.FirstData.ToString("MMM d", CultureInfo.CurrentCulture)}. Nothing was recorded before that."
@@ -276,6 +286,7 @@ public sealed partial class StatsViewModel : ObservableObject
     {
         StatsViewKind.Sleep => "Your phone hasn't sent sleep numbers yet.",
         StatsViewKind.Phone => "No sessions with a phone count in this range.",
+        StatsViewKind.Reviews => "No day reviews in this period. Finish the shutdown routine's review step and your answers show here.",
         StatsViewKind.Steps => "Your phone has no step counts for this period. It shares the last 14 days, and a day with no data stays empty.",
         StatsViewKind.Drift => _data is { LoggingOn: false } ? "Activity history is off, so drift isn't being recorded." : "No sessions in this range yet.",
         _ => "No focus sessions in this range yet. Start one on Today and this fills in.",
@@ -293,6 +304,7 @@ public sealed partial class StatsViewModel : ObservableObject
         StatsViewKind.Sleep => "From your phone's smart bedtime · last 2 weeks",
         StatsViewKind.Phone => $"Pickups during sessions · {RangeText}",
         StatsViewKind.Steps => $"Daily steps from your phone · {RangeText}",
+        StatsViewKind.Reviews => $"How did today go, from the shutdown routine · {RangeText}",
         _ => RangeText,
     };
 
@@ -737,6 +749,7 @@ public sealed partial class StatsViewModel : ObservableObject
                 StatsViewKind.Sleep => hasSleep,
                 StatsViewKind.Phone => _data.PhoneCounts,
                 StatsViewKind.Steps => _steps.Current is not null,
+                StatsViewKind.Reviews => _reviews.Items.Count > 0,
                 _ => true,
             };
         }
@@ -763,9 +776,9 @@ public sealed partial class StatsViewModel : ObservableObject
         StatsPeriod period = Range == StatsRange.Day ? StatsPeriod.For(StatsRange.Day, SelectedDay) : _period;
         // A period that ended before the first day with history has no data at all: the page says where history starts, no zeros.
         // The Steps view has its own data (the phone's last 14 days), so the focus history's start doesn't apply to it.
-        _beforeHistory = UsesPeriod(View) && View != StatsViewKind.Steps && period.To < _data.FirstData;
+        _beforeHistory = UsesPeriod(View) && View is not (StatsViewKind.Steps or StatsViewKind.Reviews) && period.To < _data.FirstData;
         string text = Range == StatsRange.Day ? SelectedDay.ToString("ddd, MMM d", CultureInfo.CurrentCulture) : StatsFormat.DatesText(period.From, period.To);
-        bool startsBefore = UsesPeriod(View) && View != StatsViewKind.Steps && period.From < _data.FirstData && !_beforeHistory;
+        bool startsBefore = UsesPeriod(View) && View is not (StatsViewKind.Steps or StatsViewKind.Reviews) && period.From < _data.FirstData && !_beforeHistory;
         RangeText = startsBefore ? $"{text} · history starts {_data.FirstData.ToString("MMM d", CultureInfo.CurrentCulture)}" : text;
         OnPropertyChanged(nameof(EmptyText));
         OnPropertyChanged(nameof(PeriodLabel));
@@ -799,6 +812,9 @@ public sealed partial class StatsViewModel : ObservableObject
             case StatsViewKind.Steps:
                 StepsPanel = StatsStepsPanels.Build(_steps.Current, period, _data.Today);
                 break;
+            case StatsViewKind.Reviews:
+                ReviewsPanel = StatsBarPanels.Reviews(_reviews.Items, period, _data.Today);
+                break;
         }
 
         OnPropertyChanged(nameof(Subtitle));
@@ -822,7 +838,7 @@ public sealed partial class StatsViewModel : ObservableObject
     {
         StatsViewKind.Overview =>
             [StatsRange.Day, StatsRange.Week, StatsRange.Month, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90, StatsRange.Custom],
-        StatsViewKind.Drift or StatsViewKind.Phone or StatsViewKind.Steps =>
+        StatsViewKind.Drift or StatsViewKind.Phone or StatsViewKind.Steps or StatsViewKind.Reviews =>
             [StatsRange.Week, StatsRange.Month, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90, StatsRange.Custom],
         StatsViewKind.Consistency => [StatsRange.Week, StatsRange.Month, StatsRange.Year, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90],
         StatsViewKind.Intensity => [StatsRange.Week, StatsRange.Month, StatsRange.Year],
@@ -833,7 +849,7 @@ public sealed partial class StatsViewModel : ObservableObject
     // Overview, Consistency, Drift and Phone read the chosen period (and step through it); Intensity and Focus graph keep their
     // fixed windows ending today.
     private static bool UsesPeriod(StatsViewKind view) =>
-        view is StatsViewKind.Overview or StatsViewKind.Consistency or StatsViewKind.Drift or StatsViewKind.Phone or StatsViewKind.Steps;
+        view is StatsViewKind.Overview or StatsViewKind.Consistency or StatsViewKind.Drift or StatsViewKind.Phone or StatsViewKind.Steps or StatsViewKind.Reviews;
 
     // A range the new view doesn't have becomes the nearest one it does.
     private void CoerceRange()

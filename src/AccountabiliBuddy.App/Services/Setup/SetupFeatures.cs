@@ -10,8 +10,16 @@ public static class SetupFeatures
 {
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
-        SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard) => new[]
+        SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard,
+        ShutdownService shutdown) => new[]
     {
+        new SetupFeature(
+            "shutdown.routine", "0.1.126",
+            "Shutdown routine: wrap up the day, then \"Work over for today\"",
+            "A short optional flow on Today when work ends or when you press Start shutdown: empty your capture, sort unfinished tasks, look ahead, plan tomorrow, review the day. Every step can be skipped and nothing is locked.",
+            IsRelevant: () => true,
+            IsSetUp: () => shutdown.HasBeenConfigured,
+            Step: ViewModels.AssistantStep.ShutdownRoutine),
         new SetupFeature(
             "quit.safeguard", "0.1.124",
             "Quit safeguard: stop AccountabiliBuddy being closed when it matters",

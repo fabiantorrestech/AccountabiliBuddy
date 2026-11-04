@@ -58,6 +58,9 @@ public enum AssistantStep
     /// <summary>ADR 59: the quit safeguard, set up here or in Settings › Guards (only as a new feature, not in the first run).</summary>
     QuitSafeguard,
 
+    /// <summary>Step 13: the shutdown routine, an optional end-of-day flow on Today, set in Settings › Your day (only as a new feature, not in the first run).</summary>
+    ShutdownRoutine,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

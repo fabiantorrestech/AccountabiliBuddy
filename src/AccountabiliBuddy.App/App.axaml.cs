@@ -587,7 +587,7 @@ public partial class App : Application
         _preWork.Changed += (_, _) => ShowPreWork(monitorLocator);
         _preWork.DayOffTaken += (_, _) => _ = _workHours.TakeDayOffAsync();
         // Nothing steers on a day off or during lunch.
-        _startNudge!.IsDayOff = () => _preWork.IsDayOff || _lunch!.IsOnLunch;
+        _startNudge!.IsDayOff = () => _preWork.IsDayOff || _lunch!.IsOnLunch || (_shutdown?.IsWorkOver ?? false);
         _activityWatcher.ActivityChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => _preWork.OnActivity(snapshot));
         // The review card after each session: what it used with no rule, as rules.
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
@@ -1091,16 +1091,30 @@ public partial class App : Application
         var autoSaved = new AutoSavedTaskStore(documents, new DpapiDataProtector(), time);
         autoSaved.LoadBlocking();
         sessionTasks.AutoSaved = autoSaved;
-        _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved);
+        // "How did today go" (a feeling and a line): sealed on this PC, 90 days, shown over time in Stats.
+        var shutdownReviews = new ShutdownReviewStore(documents, new DpapiDataProtector(), time);
+        shutdownReviews.LoadBlocking();
+        _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved, shutdownReviews, calendars);
         _shutdown.LoadBlocking();
+        sessionViewModel.StartShutdownHandler = () => _shutdown.StartByHand();
         _shutdown.Changed += (_, _) =>
         {
             sessionViewModel.Shutdown = _shutdown.Current;
-            if (_shutdown.Current is not null)
+            if (_shutdown.Current is { StartedByHand: false })
             {
-                presenter.ShowNotice("Work's done for today", "A one-minute wrap-up is waiting on Today: come-backs, open tasks, tomorrow's first task.");
+                presenter.ShowNotice("Work's done for today", "A short shutdown routine is waiting on Today: capture, look ahead, plan tomorrow.");
             }
         };
+        // "Work over for today": Today says so, the start nudges stay quiet and a thought parked now is for tomorrow.
+        _shutdown.WorkOverChanged += (_, _) => ShowWorkOver(sessionViewModel);
+        ShowWorkOver(sessionViewModel);
+        _capture!.IsWorkOver = () => _shutdown.IsWorkOver;
+        // The reminder before work ends (the service holds it back during a session and over an open card).
+        _shutdown.ReminderDue += (_, reminder) => presenter.ShowReminderWithAction(
+            $"Work ends at {reminder.WorkEndsAt.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}",
+            "A short shutdown routine is ready when you are.",
+            "Start shutdown",
+            StartShutdownFromUi);
         _shutdown.AutoSaved += (_, _) => presenter.ShowNotice("Wrap-up closed", "Your tomorrow task is saved under Tasks → Auto-saved.");
         // Earned time (design K): today's goal met across the user's devices opens this computer's work hours.
         _workHours!.Goal = () => _deepWork?.UnlockProgress;
@@ -1207,7 +1221,40 @@ public partial class App : Application
             historyViewModel, activityLog, _recorder,
             async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
             receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, dailySteps, privacy, documents, time,
-            () => _sessions!.State.IsRealSession);
+            () => _sessions!.State.IsRealSession, shutdownReviews);
+        // The shutdown routine's review step: today's focus against the goal and the time off track (history on only), the same numbers as Stats.
+        _shutdown.FocusFor = date =>
+        {
+            if (_deepWork is null)
+            {
+                return null;
+            }
+
+            return date == DateOnly.FromDateTime(time.GetLocalNow().DateTime)
+                ? _deepWork.Progress
+                : new AccountabiliBuddy.Core.Engine.GoalProgress(_deepWork.FocusedOn(date), goal.Current.DailyMinutes);
+        };
+        _shutdown.DriftFor = async date =>
+        {
+            if (!privacy.Current.ActivityLogEnabled)
+            {
+                return null;
+            }
+
+            TimeZoneInfo zone = time.LocalTimeZone;
+            DateTime dayStart = date.ToDateTime(TimeOnly.MinValue);
+            DateTime dayEnd = dayStart.AddDays(1);
+            var from = new DateTimeOffset(dayStart, zone.GetUtcOffset(dayStart));
+            var to = new DateTimeOffset(dayEnd, zone.GetUtcOffset(dayEnd));
+            DateTimeOffset now = time.GetUtcNow();
+            IReadOnlyList<SessionRecord> records = sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from.AddDays(-1), to.AddDays(1))));
+            List<TimeRange> leftOut = records
+                .Where(record => omittedSessions.IsOmitted(record.StartedAt) || record.Mode == SessionMode.Scheduled)
+                .Select(record => new TimeRange(record.StartedAt, record.EndedAt ?? now))
+                .ToList();
+            IReadOnlyList<DriftStretch> visits = DriftMarks.Merge(await activityLog.GetDriftAsync(from, to, leftOut, deletedUsage.Parts), TimeSpan.FromMinutes(2));
+            return visits.Aggregate(TimeSpan.Zero, (sum, visit) => sum + (visit.End - visit.Start));
+        };
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
@@ -1226,6 +1273,7 @@ public partial class App : Application
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
                 Lunch = new LunchSettingsViewModel(_lunch!),
+                Shutdown = new ShutdownSettingsViewModel(_shutdown!),
                 Motion = new MotionViewModel(_motion!),
                 Appearance = new AppearanceViewModel(appTheme),
                 Headphones = new HeadphoneSettingsViewModel(_headphones!),
@@ -1317,6 +1365,8 @@ public partial class App : Application
         qrSync.LoadBlocking();
         qrSync.FocusedOn = _workHours!.FocusedOn;
         qrSync.NightFallback = _workHours.NightFallback;
+        // One end-of-day prompt at a time: the shutdown card goes first, the scan reminder follows once it is answered.
+        qrSync.Deferred = () => _shutdown!.IsCardOpenOrDue();
         _qrSync = qrSync;
         var syncImport = new AccountabiliBuddy.App.Services.Sync.SyncImportService(syncCoordinator, syncIdentity);
         void ShowSyncQr() => new SyncQrWindow { DataContext = new SyncQrViewModel(qrSync.LinksForNowAsync) }.Show();
@@ -1379,7 +1429,7 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -1484,6 +1534,7 @@ public partial class App : Application
 
         sessionViewModel.NoisePlayer = noisePlayer;
         mainViewModel.Settings.OpenDayPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.PlanTab;
+        _shutdown.OpenPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.PlanTab;
         _mainWindow = new MainWindow { DataContext = mainViewModel };
         // The start nudge: Today, with the keyboard in "Add a task". After a session (or a calendar event, lunch or the
         // met goal) the user may be typing elsewhere, so the window stays where it is and only its taskbar button flashes.
@@ -1870,6 +1921,10 @@ public partial class App : Application
         var emergencyItem = new NativeMenuItem("Emergency release (Cold Turkey)…");
         emergencyItem.Click += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);
 
+        // Allowed during focus (it opens nothing then): the card waits for the session to end.
+        var shutdownItem = new NativeMenuItem("Start shutdown");
+        shutdownItem.Click += (_, _) => StartShutdownFromUi();
+
         var quitItem = new NativeMenuItem("Quit");
         quitItem.Click += async (_, _) => await QuitAsync();
 
@@ -1879,6 +1934,7 @@ public partial class App : Application
         menu.Items.Add(onScreenItem);
         menu.Items.Add(_stepAwayMenuItem);
         menu.Items.Add(_endSessionMenuItem);
+        menu.Items.Add(shutdownItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(emergencyItem);
         menu.Items.Add(quitItem);
@@ -2460,6 +2516,39 @@ public partial class App : Application
         _ = _setupAssistant?.MarkShownAsync();
         _assistantWindow.Show();
         _assistantWindow.Activate();
+    }
+
+    // "Work over for today" (or its end): Today's line and the capture box's wording follow.
+    private void ShowWorkOver(SessionViewModel session)
+    {
+        ShutdownWorkOver? workOver = _shutdown?.WorkOver;
+        session.WorkOver = workOver;
+        if (session.Comebacks is not null)
+        {
+            session.Comebacks.IsWorkOver = workOver is not null;
+        }
+    }
+
+    // "Start shutdown" from the tray or the reminder: the routine opens on Today. During a session it doesn't open; it says so.
+    private void StartShutdownFromUi()
+    {
+        if (_shutdown is null)
+        {
+            return;
+        }
+
+        if (!_shutdown.StartByHand())
+        {
+            _presenter?.ShowNotice("Shutdown waits", "The routine doesn't open during a session. Start it once the session ends.");
+            return;
+        }
+
+        if (_mainWindow?.DataContext is MainWindowViewModel main)
+        {
+            main.SelectedTab = (int)MainTab.Today;
+        }
+
+        ShowMainWindow();
     }
 
     private void ShowMainWindow()

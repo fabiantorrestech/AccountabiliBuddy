@@ -29,6 +29,28 @@ public sealed partial class ComebacksViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HasItems { get; set; }
 
+    /// <summary>"Work over for today" holds (the shutdown routine was finished): a thought parked now goes to tomorrow. Set by the app.</summary>
+    public bool IsWorkOver
+    {
+        get => _isWorkOver;
+        set
+        {
+            if (SetProperty(ref _isWorkOver, value))
+            {
+                OnPropertyChanged(nameof(PlaceholderText));
+                OnPropertyChanged(nameof(HintText));
+            }
+        }
+    }
+
+    private bool _isWorkOver;
+
+    /// <summary>The add line's placeholder; after the shutdown routine it says the thought waits for tomorrow.</summary>
+    public string PlaceholderText => IsWorkOver ? "Work is over: park it for tomorrow (Enter)" : "Park an idea (Enter)";
+
+    /// <summary>The line under the add line.</summary>
+    public string HintText => IsWorkOver ? "It waits under Come back to for tomorrow. Ctrl+Alt+N parks a thought from anywhere" : "Ctrl+Alt+N parks a thought without leaving this";
+
     /// <summary>The add line (Enter adds).</summary>
     [ObservableProperty]
     public partial string NewText { get; set; }

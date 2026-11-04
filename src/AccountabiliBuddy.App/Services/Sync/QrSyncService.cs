@@ -60,6 +60,12 @@ public sealed class QrSyncService : IDisposable
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>
+    /// True while another end-of-day prompt (the shutdown routine's card) is open or due: the reminder holds back, without being used up,
+    /// and comes at the next check after that is answered. Set by the app; null = never holds back.
+    /// </summary>
+    public Func<bool>? Deferred { get; set; }
+
     /// <summary>The reminder is due: show "Scan today's code to sync your phone" with Show code and Later.</summary>
     public event EventHandler? ReminderDue;
 
@@ -139,7 +145,7 @@ public sealed class QrSyncService : IDisposable
     /// <summary>Raises <see cref="ReminderDue"/> when the reminder is due at <paramref name="now"/>, and notes it.</summary>
     public async Task ShowReminderIfDueAsync(DateTimeOffset now)
     {
-        if (!_settings.Current.QrOn || _identity.Key is null)
+        if (!_settings.Current.QrOn || _identity.Key is null || (Deferred?.Invoke() ?? false))
         {
             return;
         }
