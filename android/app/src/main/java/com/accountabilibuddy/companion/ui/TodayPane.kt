@@ -1,7 +1,12 @@
 package com.accountabilibuddy.companion.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.today.TodayItem
+import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -83,37 +88,57 @@ fun TodayPane(
     // A phone with no plan from the PC yet cannot say what is next (its default plan would read as a day off).
     val info = model.today?.let { if (session == null && !state.hasImport) it.copy(dateSuffix = null, next = "No plan on this phone yet.") else it }
 
+    // The tablet draws the same parts as a dashboard ([WideToday]); with it the timeline runs across the top, wherever the layout put it
+    // (a part the person hid stays hidden).
+    val wide = LocalExpanded.current
+    val dayBarOnTop = wide && layout.placementOf(TodayItem.DayBar) != TodayPlacement.Hidden
+    val parts = TodayItemContext(
+        inSession = session != null, state = state, model = model, info = info, clock = clock, pc = pc, comebacks = comebacks,
+        phoneUsage = phoneUsage, hasTimer = hasTimer, lunchChip = chip, lunch = lunch, guardsLock = guardsLock, guardOn = guardOn,
+        beeminder = beeminder, noiseCard = noiseCard, stepsState = stepsState, actions = actions,
+        allTasksTicked = session != null && !session.isPlanning && pc.tasks != null && pc.tasks.tasks.isNotEmpty() && pc.tasks.tasks.all { it.isDone },
+        showWorkUse = showWorkUse, showDayOff = showDayOff,
+    )
+    val body: TodaySink.() -> Unit = {
+        if (session == null) {
+            idleHead(info, model, pc, clock, guardsLock, syncLight, banner, actions, onStart = { starting = true })
+        } else {
+            sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, banner)
+        }
+        // The arrangeable parts (Settings › Appearance › Today layout): the person's order and places. With nothing chosen
+        // this is how Today was always drawn. The head above, and the safety parts the layout can't hide, always show.
+        val above = layout.itemsAt(TodayPlacement.Above, parts.inSession).filter { !(dayBarOnTop && it == TodayItem.DayBar) }
+        above.forEach { part -> todayItem(part, parts) }
+        val folded = layout.itemsAt(TodayPlacement.Fold, parts.inSession).filter { !(dayBarOnTop && it == TodayItem.DayBar) }
+        if (folded.isNotEmpty()) item(key = "more-toggle") { MoreTodayToggle(expanded, onToggle = { expanded = !expanded }) }
+        if (expanded) folded.forEach { part -> todayItem(part, parts) }
+        if (dayBarOnTop) todayItem(TodayItem.DayBar, parts)
+    }
+
     Column(Modifier.fillMaxSize()) {
-        LazyColumn(
-            Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (session == null) {
-                idleHead(info, model, pc, clock, guardsLock, syncLight, banner, actions, onStart = { starting = true })
-            } else {
-                sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, banner)
+        if (wide) {
+            WideToday(TodayBlocks().apply(body).blocks, Modifier.weight(1f))
+        } else {
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                asTodaySink().body()
             }
-            // The arrangeable parts (Settings › Appearance › Today layout): the person's order and places. With nothing chosen
-            // this is how Today was always drawn. The head above, and the safety parts the layout can't hide, always show.
-            val tasks = pc.tasks
-            val parts = TodayItemContext(
-                inSession = session != null, state = state, model = model, info = info, clock = clock, pc = pc, comebacks = comebacks,
-                phoneUsage = phoneUsage, hasTimer = hasTimer, lunchChip = chip, lunch = lunch, guardsLock = guardsLock, guardOn = guardOn,
-                beeminder = beeminder, noiseCard = noiseCard, stepsState = stepsState, actions = actions,
-                allTasksTicked = session != null && !session.isPlanning && tasks != null && tasks.tasks.isNotEmpty() && tasks.tasks.all { it.isDone },
-                showWorkUse = showWorkUse, showDayOff = showDayOff,
-            )
-            layout.itemsAt(TodayPlacement.Above, parts.inSession).forEach { part -> todayItem(part, parts) }
-            val folded = layout.itemsAt(TodayPlacement.Fold, parts.inSession)
-            if (folded.isNotEmpty()) item(key = "more-toggle") { MoreTodayToggle(expanded, onToggle = { expanded = !expanded }) }
-            if (expanded) folded.forEach { part -> todayItem(part, parts) }
         }
         if (session != null) {
-            SessionActions(
-                stepAway, canEndEarly = pc.updateNeeded == null && pc.waiting == null, onEndEarly = actions.onEndEarly,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
-            )
+            val actionsRow: @Composable (Modifier) -> Unit = { modifier ->
+                SessionActions(stepAway, canEndEarly = pc.updateNeeded == null && pc.waiting == null, onEndEarly = actions.onEndEarly, modifier = modifier)
+            }
+            if (wide) {
+                // Not full width: a centred row of the buttons, as wide as a phone.
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    actionsRow(Modifier.widthIn(max = 560.dp).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp))
+                }
+            } else {
+                actionsRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp))
+            }
         }
     }
 
@@ -133,7 +158,7 @@ fun TodayPane(
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.getDefault())
 
 // Nothing running (board 5a): date line, the two-line headline and the way to start. The cards follow as arranged ([todayItem]).
-private fun androidx.compose.foundation.lazy.LazyListScope.idleHead(
+private fun TodaySink.idleHead(
     info: com.accountabilibuddy.companion.engine.TodayInfo?,
     model: DayBarModel,
     pc: TodayPc,
@@ -158,7 +183,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.idleHead(
 }
 
 // A running session (boards 5b, 6a), planning stage, or break: the header, the timer, what the PC says and the task list. The cards follow as arranged.
-private fun androidx.compose.foundation.lazy.LazyListScope.sessionHead(
+private fun TodaySink.sessionHead(
     model: DayBarModel,
     clock: ClockFormat,
     pc: TodayPc,

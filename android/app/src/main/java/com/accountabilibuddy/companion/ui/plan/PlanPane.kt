@@ -14,6 +14,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.ThisWeekCard
@@ -35,32 +41,56 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 @Composable
 fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier = Modifier) {
     var weekSheet by remember { mutableStateOf(false) }
-    Column(modifier.fillMaxSize()) {
+    val header: @Composable () -> Unit = {
+        Column {
+            AbPageHeader("Plan") { PlanMenu(model, actions, onWeekSheet = { weekSheet = true }) }
+            Text(
+                model.title + (model.weekLabel?.let { " · $it" } ?: ""),
+                style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+    }
+    val buttons: @Composable RowScope.() -> Unit = {
+        AbTonalButton("Change a day", onClick = actions.onChangeDay, enabled = model.canEdit, modifier = Modifier.weight(1f))
+        AbTonalButton("Templates", onClick = actions.onTemplates, enabled = model.canEdit, modifier = Modifier.weight(1f))
+    }
+    val emptyText: @Composable () -> Unit = {
+        Text(model.emptyText ?: "Nothing is planned for this day.", style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
+    }
+    if (LocalExpanded.current) {
+        // A tablet: the day (the week, then what to know about it) on the left, its timeline on the right, the buttons at the foot.
+        Column(modifier.fillMaxSize()) {
+            Box(Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp)) { header() }
+            Row(Modifier.weight(1f).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Column(Modifier.weight(0.85f).verticalScroll(rememberScrollState()).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    WeekStrip(model.cells, onPick = actions.onPick, onShiftWeek = actions.onShiftWeek)
+                    PlanDayDetails(model, actions)
+                }
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+                    if (model.timeline.rows.isEmpty()) emptyText() else PlanTimeline(model.timeline.rows)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                Row(Modifier.widthIn(max = 560.dp).padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { buttons() }
+            }
+        }
+    } else Column(modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.weight(1f),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Column {
-                    AbPageHeader("Plan") { PlanMenu(model, actions, onWeekSheet = { weekSheet = true }) }
-                    Text(
-                        model.title + (model.weekLabel?.let { " · $it" } ?: ""),
-                        style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                }
-            }
+            item { header() }
             item { WeekStrip(model.cells, onPick = actions.onPick, onShiftWeek = actions.onShiftWeek) }
             item { PlanDayDetails(model, actions) }
             if (model.timeline.rows.isEmpty()) {
-                item { Text(model.emptyText ?: "Nothing is planned for this day.", style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp)) }
+                item { emptyText() }
             } else {
                 item { PlanTimeline(model.timeline.rows) }
             }
         }
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            AbTonalButton("Change a day", onClick = actions.onChangeDay, enabled = model.canEdit, modifier = Modifier.weight(1f))
-            AbTonalButton("Templates", onClick = actions.onTemplates, enabled = model.canEdit, modifier = Modifier.weight(1f))
+            buttons()
         }
     }
 

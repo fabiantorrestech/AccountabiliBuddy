@@ -33,7 +33,21 @@ import com.accountabilibuddy.companion.ui.settings.SettingsAnchors
 import com.accountabilibuddy.companion.ui.settings.SettingsDetailHost
 import com.accountabilibuddy.companion.ui.settings.SettingsPageActions
 import com.accountabilibuddy.companion.ui.settings.SettingsPageInputs
+import com.accountabilibuddy.companion.ui.shell.CenteredPane
+import com.accountabilibuddy.companion.ui.shell.TextPaneWidth
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.key
+import com.accountabilibuddy.companion.ui.shell.LocalExpanded
+import com.accountabilibuddy.companion.ui.shell.NavLayout
 import com.accountabilibuddy.companion.ui.shell.rememberNavLayout
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.SyncAction
 
 /**
@@ -105,6 +119,8 @@ fun MainScreen(
     // Where the user is in the five places (the old `tab` number), kept across rotation and the process being recreated.
     val nav = rememberAppNav()
     val navLayout = rememberNavLayout()
+    // The tablet layout (a window 840 dp wide or more): the sidebar, and the panes side by side. A phone never takes it.
+    val wide = navLayout == NavLayout.Rail
     val syncNow = rememberSyncNow()
     val settingsListState = rememberLazyListState()
     // The Settings search text: in memory only (never saved or sent), and gone when the user leaves Settings.
@@ -140,7 +156,12 @@ fun MainScreen(
     // Back: out of a page inside a place, then to Today, then out of the app. The modal screens keep what they did before
     // (Back leaves the app from them).
     val modalOpen = unlinked != null || showSetup || planDayOpen || whatsNewOpen || planDraft != null
-    BackHandler(enabled = nav.canGoBack && !modalOpen) { nav.back() }
+    // Beside the list a Settings page is not "one level down", so on a tablet Back leaves Settings for Today in one step.
+    // A task's details beside the Tasks list (tablet) close first; the page that answers is TasksScreen's own BackHandler, which sits deeper in the
+    // composition and so takes Back before this one.
+    BackHandler(enabled = nav.canGoBack && !modalOpen) {
+        if (wide && nav.destination == AppDestination.Settings) nav.select(AppDestination.Today) else nav.back()
+    }
 
     val pcState = controlPc?.let { PcFileControl.stateOf(it.file, java.time.Instant.now()) }
 
@@ -168,11 +189,41 @@ fun MainScreen(
         },
     )
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalGuardsLock provides guardsLock) {
+    // The sync light: it reads the group's files and the methods' last results; the alarm apps are not needed here. On Today's date line
+    // on a phone; in the sidebar on a tablet.
+    val syncLightSlot: @Composable () -> Unit = {
+        val lightDevices = remember(viewModel.deviceName, syncKey, syncSettings, syncReceived, folderStatus, driveStatus, relayStatus) {
+            DevicesState(
+                deviceName = viewModel.deviceName, joined = syncKey != null, settings = syncSettings, received = syncReceived,
+                folder = folderStatus, drive = driveStatus, relay = relayStatus,
+            )
+        }
+        SyncLightHost(
+            devices = lightDevices,
+            watch = WatchSectionState(watchSettings, detectedWatches),
+            detectedWatchIds = detectedWatches.map { it.id }.toSet(),
+            syncNow = syncNow,
+            onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
+        )
+    }
+    // Only the tablet needs the Today layout here (a phone does not collect it); the noise player in the sidebar follows its "hidden".
+    val todayLayoutPref = if (wide) UiPrefs.todayLayout.collectAsStateWithLifecycle().value else null
+    val noiseInSidebar = noiseState.hasFolder && todayLayoutPref != null &&
+        todayLayoutPref.placementOf(com.accountabilibuddy.companion.today.TodayItem.Noise) != com.accountabilibuddy.companion.today.TodayPlacement.Hidden
+
+    androidx.compose.runtime.CompositionLocalProvider(LocalGuardsLock provides guardsLock, LocalExpanded provides wide) {
     AppScaffold(
         nav = nav,
         layout = navLayout,
         snackbar = snackbar,
+        railFooter = {
+            if (noiseInSidebar) NoiseCard(noiseState, noiseSettings, noise, compact = true)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Sync", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                // 48 dp to touch here (the sidebar is used with a finger or a stylus).
+                androidx.compose.runtime.CompositionLocalProvider(LocalSyncTouch provides 48.dp) { syncLightSlot() }
+            }
+        },
         // Hidden while the day plan editor is open (its own Save and Cancel lead out) and while the phone is unlinked (ADR 54):
         // that screen is the whole app until the user chooses. Every other screen, a running focus session included, has the bar.
         showNav = planDraft == null && unlinked == null,
@@ -186,56 +237,64 @@ fun MainScreen(
         Column(Modifier.padding(padding)) {
             // ADR 54: removed from the group, or cut off by a removal. Nothing syncs and no other screen shows until the user chooses.
             unlinked?.let { state ->
-                UnlinkedScreen(
-                    state = state,
-                    lockedReason = removalLocked,
-                    onJoin = viewModel::joinWithCode,
-                    onJoinLink = viewModel::offerJoinText,
-                    onContinueUnsynced = {
-                        // Lands on Today, with the one-time note shown as a message.
-                        if (viewModel.continueUnsynced()) nav.select(AppDestination.Today)
-                    },
-                    onStartFromScratch = viewModel::startFromScratch,
-                )
+                CenteredPane {
+                    UnlinkedScreen(
+                        state = state,
+                        lockedReason = removalLocked,
+                        onJoin = viewModel::joinWithCode,
+                        onJoinLink = viewModel::offerJoinText,
+                        onContinueUnsynced = {
+                            // Lands on Today, with the one-time note shown as a message.
+                            if (viewModel.continueUnsynced()) nav.select(AppDestination.Today)
+                        },
+                        onStartFromScratch = viewModel::startFromScratch,
+                    )
+                }
                 return@Column
             }
 
             if (showSetup) {
-                SetupScreen(health, onConnectHealth, onAllowUsage, onConnectCurbox, viewModel::setReenableTime) {
-                    SetupState.markShown(context)
-                    showSetup = false
+                CenteredPane {
+                    SetupScreen(health, onConnectHealth, onAllowUsage, onConnectCurbox, viewModel::setReenableTime) {
+                        SetupState.markShown(context)
+                        showSetup = false
+                    }
                 }
                 return@Column
             }
 
             if (planDayOpen) {
-                PlanDayScreen(
-                    plan = state.document.dayPlan,
-                    blocks = remember { viewModel.planDayBlocks() },
-                    onSave = viewModel::savePlannedDays,
-                    onClose = { viewModel.planDayOpen.value = false },
-                    slept = state.slept,
-                    loadBlocks = viewModel::planDayBlocks,
-                )
+                CenteredPane(maxWidth = 640.dp) {
+                    PlanDayScreen(
+                        plan = state.document.dayPlan,
+                        blocks = remember { viewModel.planDayBlocks() },
+                        onSave = viewModel::savePlannedDays,
+                        onClose = { viewModel.planDayOpen.value = false },
+                        slept = state.slept,
+                        loadBlocks = viewModel::planDayBlocks,
+                    )
+                }
                 return@Column
             }
 
             if (whatsNewOpen) {
-                WhatsNewScreen(onConnectCurbox, viewModel::setReenableTime) { whatsNewOpen = false }
+                CenteredPane { WhatsNewScreen(onConnectCurbox, viewModel::setReenableTime) { whatsNewOpen = false } }
                 return@Column
             }
 
             planDraft?.let { draft ->
-                DayPlanEditorScreen(
-                    draft = draft,
-                    startTab = viewModel.planEditorTab,
-                    pcName = pcName,
-                    clock = viewModel.clock,
-                    onChange = viewModel::updatePlanDraft,
-                    onSave = viewModel::savePlanDraft,
-                    onClose = viewModel::closePlanEditor,
-                    onMessage = { viewModel.message.value = it },
-                )
+                CenteredPane(maxWidth = 1100.dp) {
+                    DayPlanEditorScreen(
+                        draft = draft,
+                        startTab = viewModel.planEditorTab,
+                        pcName = pcName,
+                        clock = viewModel.clock,
+                        onChange = viewModel::updatePlanDraft,
+                        onSave = viewModel::savePlanDraft,
+                        onClose = viewModel::closePlanEditor,
+                        onMessage = { viewModel.message.value = it },
+                    )
+                }
                 return@Column
             }
 
@@ -301,7 +360,8 @@ fun MainScreen(
                         beeminder = beeminder,
                         // The noise player (it was a bar above the tabs): a card once a sound folder is set; the folder is chosen
                         // in Settings › Alerts & on-screen.
-                        noiseCard = if (noiseState.hasFolder) {
+                        // On a tablet it plays from the sidebar instead.
+                        noiseCard = if (noiseState.hasFolder && !wide) {
                             { NoiseCard(noiseState, noiseSettings, noise) }
                         } else {
                             null
@@ -315,22 +375,8 @@ fun MainScreen(
                             onOpenTasks = { nav.select(AppDestination.Tasks) },
                             onAllowUsage = onAllowUsage,
                         ),
-                        syncLight = {
-                            // The light reads the group's files and the methods' last results; the alarm apps are not needed here.
-                            val lightDevices = remember(viewModel.deviceName, syncKey, syncSettings, syncReceived, folderStatus, driveStatus, relayStatus) {
-                                DevicesState(
-                                    deviceName = viewModel.deviceName, joined = syncKey != null, settings = syncSettings, received = syncReceived,
-                                    folder = folderStatus, drive = driveStatus, relay = relayStatus,
-                                )
-                            }
-                            SyncLightHost(
-                                devices = lightDevices,
-                                watch = WatchSectionState(watchSettings, detectedWatches),
-                                detectedWatchIds = detectedWatches.map { it.id }.toSet(),
-                                syncNow = syncNow,
-                                onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
-                            )
-                        },
+                        // On a tablet the sync light lives in the sidebar, on every place.
+                        syncLight = if (wide) ({}) else syncLightSlot,
                         banner = { WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ }) },
                     )
                 }
@@ -362,7 +408,8 @@ fun MainScreen(
                         "relay".takeIf { syncSettings.relayOn },
                         pcName,
                     ).joinToString(" · ")
-                    if (category == null) {
+                    // The list and a page are the same pieces on a phone (one at a time) and on a tablet (side by side).
+                    val settingsList: @Composable (SettingsCategory?) -> Unit = { selected ->
                         SettingsList(
                             SettingsListInputs(
                                 state = state, health = health, lunchLengthMinutes = lunchLength, pause = pauseState, takeoverOn = takeoverOn,
@@ -373,8 +420,10 @@ fun MainScreen(
                             onQueryChange = { settingsQuery = it },
                             onOpenResult = { nav.open(AppDestination.Settings, it.category.key, it.anchor) },
                             listState = settingsListState,
+                            selected = selected,
                         )
-                    } else {
+                    }
+                    val settingsDetail: @Composable (SettingsCategory) -> Unit = { category ->
                         SettingsDetailHost(
                             category = category,
                             anchor = shown.anchor,
@@ -457,6 +506,21 @@ fun MainScreen(
                             ),
                         )
                     }
+                    if (wide) {
+                        // List on the left, the chosen page on the right (the first one until a page is chosen).
+                        val chosen = category ?: SettingsCategory.Main.first()
+                        Row(Modifier.fillMaxSize()) {
+                            Box(Modifier.width(SettingsListWidth).fillMaxHeight()) { settingsList(chosen) }
+                            Box(Modifier.width(1.dp).fillMaxHeight().background(Ab.colors.line))
+                            Box(Modifier.weight(1f).fillMaxHeight()) {
+                                CenteredPane(maxWidth = TextPaneWidth) { key(chosen) { settingsDetail(chosen) } }
+                            }
+                        }
+                    } else if (category == null) {
+                        settingsList(null)
+                    } else {
+                        settingsDetail(category)
+                    }
                 }
             }
             }
@@ -515,3 +579,6 @@ fun MainScreen(
         )
     }
 }
+
+/** The Settings list's width beside a page on a tablet. */
+private val SettingsListWidth = 380.dp

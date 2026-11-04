@@ -13,6 +13,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
+import androidx.compose.runtime.key
+import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.shell.LocalExpanded
+import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.accountabilibuddy.companion.CompanionApp
@@ -110,6 +122,7 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
         canMoveToComeBack = comebacks.legacySource == null,
     )
 
+    val tasksList: @Composable () -> Unit = {
     TasksPane(
         model = model, pc = pc, comebackOldPc = comebacks.legacySource,
         // The newest PC's version says whether Later reaches it (the received copy keeps no Later list to look at).
@@ -141,19 +154,42 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
         },
         onPick = { row -> if (controller.needsReason(pc)) addingToday = row else controller.addToToday(row.ref, pc) },
     )
+    }
 
     // The details of the task that was tapped, read fresh from the lists each time, so a sync that changes it shows here.
     val detail = open?.let { ref -> detailOf(ref, nextTasks, later, pc, pending) }
     LaunchedEffect(open, detail == null) { if (open != null && detail == null) open = null }
     val shown = open
-    if (shown != null && detail != null) {
-        TaskDetailSheet(
-            detail = detail,
-            categories = model.categories,
-            actions = detailActions(shown, detail, controller, pc, onAddToToday = { row -> if (controller.needsReason(pc)) addingToday = row else controller.addToToday(row.ref, pc) }),
-            onCommit = { before, after -> controller.commit(shown, before, after, pc) },
-            onDismiss = { open = null },
-        )
+    val details: @Composable (Boolean) -> Unit = { inline ->
+        if (shown != null && detail != null) {
+            TaskDetailSheet(
+                detail = detail,
+                categories = model.categories,
+                actions = detailActions(shown, detail, controller, pc, onAddToToday = { row -> if (controller.needsReason(pc)) addingToday = row else controller.addToToday(row.ref, pc) }),
+                onCommit = { before, after -> controller.commit(shown, before, after, pc) },
+                onDismiss = { open = null },
+                inline = inline,
+            )
+        }
+    }
+    // On a tablet the details are a pane, not a sheet (a sheet closes on Back by itself): Back closes the pane first.
+    androidx.activity.compose.BackHandler(enabled = LocalExpanded.current && shown != null && detail != null) { open = null }
+    if (LocalExpanded.current) {
+        // A tablet: the list on the left, the chosen task's details on the right (the same details a phone shows in a sheet).
+        Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxHeight()) { tasksList() }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(Ab.colors.line))
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                if (shown != null && detail != null) {
+                    key(shown) { details(true) }
+                } else {
+                    Text("Select a task to see its steps, estimate and note.", style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(24.dp))
+                }
+            }
+        }
+    } else {
+        tasksList()
+        details(false)
     }
 
     editing?.let { row ->

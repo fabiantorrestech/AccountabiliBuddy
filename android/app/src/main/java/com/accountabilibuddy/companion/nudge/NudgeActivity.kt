@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -143,7 +144,7 @@ private fun NudgeCard(
         store.save(next)
     }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)), contentAlignment = Alignment.Center) {
+    GuardFrame(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)), contentAlignment = Alignment.Center) {
         Column(Modifier.fillMaxWidth().padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (menu == MENU_EMERGENCY) {
                 EmergencyChooser(emergency, onStarted = { onDone(); onEssentials() }, onBack = { menu = MENU_CHOOSE })

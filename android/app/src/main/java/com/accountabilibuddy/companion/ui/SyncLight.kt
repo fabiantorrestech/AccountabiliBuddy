@@ -53,6 +53,9 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.Instant
 import kotlinx.coroutines.delay
 
+/** The smallest touch target of the sync light's dot row and refresh button: 44 dp on a phone, 48 dp in the tablet's sidebar. */
+val LocalSyncTouch = androidx.compose.runtime.compositionLocalOf { 44.dp }
+
 /**
  * "Sync now" for the whole phone: reads the sync folder, Drive and the relay, redraws, and says what happened. One holder
  * so the light's refresh button and its popover share the "syncing" state.
@@ -124,7 +127,7 @@ fun SyncLight(
             var open by remember { mutableStateOf(false) }
             Box {
                 Row(
-                    Modifier.heightIn(min = 44.dp).clickable(role = Role.Button) { open = true }
+                    Modifier.heightIn(min = LocalSyncTouch.current).clickable(role = Role.Button) { open = true }
                         .semantics { contentDescription = "Sync status: ${model.headline}" }.padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -169,7 +172,7 @@ private fun RefreshButton(refreshing: Boolean, onClick: () -> Unit) {
     } else {
         0f
     }
-    AbQuietIconButton(Icons.Outlined.Sync, contentDescription = "Sync now", onClick = onClick, enabled = !refreshing, modifier = Modifier.rotate(angle))
+    AbQuietIconButton(Icons.Outlined.Sync, contentDescription = "Sync now", onClick = onClick, enabled = !refreshing, modifier = Modifier.size(LocalSyncTouch.current).rotate(angle))
 }
 
 /** A device's outline (PC, phone or watch), 13 dp, drawn from [DeviceKind.iconPath] in a 16 x 16 box. */

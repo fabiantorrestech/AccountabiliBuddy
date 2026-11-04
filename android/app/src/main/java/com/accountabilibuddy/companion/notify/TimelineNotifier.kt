@@ -48,7 +48,8 @@ object TimelineNotifier {
 
         val night = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val metrics = context.resources.displayMetrics
-        val width = ((context.resources.configuration.screenWidthDp - SIDE_MARGINS_DP) * metrics.density).toInt()
+        // A notification card is never wider than about 700 dp (a tablet or an unfolded phone shows it in a column, not across the screen).
+        val width = ((minOf(context.resources.configuration.screenWidthDp, MAX_CARD_WIDTH_DP) - SIDE_MARGINS_DP) * metrics.density).toInt()
         val look = com.accountabilibuddy.companion.ui.UiPrefs.barLook.value
         val text = when (look) {
             com.accountabilibuddy.companion.ui.BarLook.Color -> if (night) 0xFFFFFFFF.toInt() else 0xFF042F2E.toInt()
@@ -197,4 +198,7 @@ object TimelineNotifier {
 
     // The shade's card padding on both sides, roughly; the image scales to fit what's left.
     private const val SIDE_MARGINS_DP = 64
+
+    // The widest the card's bar is drawn for, before the side margins.
+    private const val MAX_CARD_WIDTH_DP = 700
 }
