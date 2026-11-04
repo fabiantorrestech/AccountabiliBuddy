@@ -35,6 +35,20 @@ public sealed class Motion
 
     public bool IsOn => Settings.Speed != MotionSpeed.Off;
 
+    /// <summary>Raised on the UI thread after the speed was changed, so controls with their own XAML transitions can follow it.</summary>
+    public static event EventHandler? SpeedChanged;
+
+    /// <summary>
+    /// Takes the XAML-declared transitions off <paramref name="target"/> while Motion is Off (the change then shows at once).
+    /// Returns the transitions to put back, or null when there were none. Call again with <paramref name="original"/> to follow a change.
+    /// </summary>
+    public static Transitions? Gate(Animatable target, Transitions? original = null)
+    {
+        original ??= target.Transitions;
+        target.Transitions = Current is { IsOn: false } ? null : original;
+        return original;
+    }
+
     public void LoadBlocking()
     {
         try
@@ -53,6 +67,7 @@ public sealed class Motion
     {
         Settings = settings;
         Apply();
+        SpeedChanged?.Invoke(this, EventArgs.Empty);
         await _store.SaveAsync(DocumentKey, settings);
     }
 

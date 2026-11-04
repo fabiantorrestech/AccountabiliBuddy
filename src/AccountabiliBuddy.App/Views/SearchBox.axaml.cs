@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -13,6 +14,7 @@ namespace AccountabiliBuddy.App.Views;
 public partial class SearchBox : UserControl
 {
     private TopLevel? _topLevel;
+    private Transitions? _boxTransitions;
 
     /// <summary>Esc was pressed in the box: it is cleared, and the flyout it sits in should close.</summary>
     public event EventHandler? CloseRequested;
@@ -27,12 +29,21 @@ public partial class SearchBox : UserControl
         base.OnAttachedToVisualTree(e);
         _topLevel = TopLevel.GetTopLevel(this);
         _topLevel?.AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _boxTransitions = Services.Motion.Gate(Box, _boxTransitions);
+        Services.Motion.SpeedChanged += OnMotionChanged;
+    }
+
+    // Motion "Off": the box widens and shrinks at once.
+    private void OnMotionChanged(object? sender, EventArgs e)
+    {
+        _boxTransitions = Services.Motion.Gate(Box, _boxTransitions);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _topLevel?.RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
         _topLevel = null;
+        Services.Motion.SpeedChanged -= OnMotionChanged;
         base.OnDetachedFromVisualTree(e);
     }
 
