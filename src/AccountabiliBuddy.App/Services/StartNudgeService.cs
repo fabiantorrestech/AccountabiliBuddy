@@ -83,6 +83,9 @@ public sealed class StartNudgeService
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>Work ended early (ADR 65), cut out of the work windows: that time counts as not work. Set by the app; null = none.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
+
     /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
     public Func<DayPlan>? GuardedPlan { get; set; }
 
@@ -442,7 +445,7 @@ public sealed class StartNudgeService
         }
 
         DateTime now = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        IReadOnlyList<PlannedFocus> today = DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(now.Date, now.Date.AddDays(1)), now, FocusedOn, NightFallback);
+        IReadOnlyList<PlannedFocus> today = DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(now.Date, now.Date.AddDays(1)), now, FocusedOn, NightFallback, WorkEnded?.Invoke());
         if (today.Count == 0)
         {
             return null;
@@ -479,7 +482,7 @@ public sealed class StartNudgeService
             : null;
 
         // Windows that begin today; the part of last night's window after midnight is not the day's start.
-        DateTime? firstStart = DayWorkWindows.WorkWindows(plan, new LocalWindow(now.Date, now.Date.AddDays(1)), now, FocusedOn, NightFallback)
+        DateTime? firstStart = DayWorkWindows.WorkWindows(plan, new LocalWindow(now.Date, now.Date.AddDays(1)), now, FocusedOn, NightFallback, WorkEnded?.Invoke())
             .Select(focus => focus.Window.Start)
             .Where(start => start > now.Date)
             .Cast<DateTime?>()
@@ -499,7 +502,7 @@ public sealed class StartNudgeService
     private LocalWindow? CurrentWorkPart()
     {
         DateTime now = TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
-        return DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, FocusedOn, NightFallback)
+        return DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, FocusedOn, NightFallback, WorkEnded?.Invoke())
             .Where(focus => focus.Window.Start <= now && now < focus.Window.End)
             .Select(focus => (LocalWindow?)focus.Window)
             .FirstOrDefault();

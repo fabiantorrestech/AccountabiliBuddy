@@ -100,6 +100,22 @@ public static class TimelineRowsBuilder
                 continue;
             }
 
+            if (part.Category.Behavior.IsWork() && day.Ended is { Count: > 0 } ended)
+            {
+                // Work ended early (ADR 65): what is left as usual, the ended stretch faded in the same colour.
+                foreach (LocalWindow worked in DayTimeline.Subtract([shown], ended))
+                {
+                    spans.Add(ToSpan(worked, day.Range, tip) with { Color = part.Category.Color, Label = part.Name });
+                }
+
+                foreach (LocalWindow stopped in DayTimeline.Subtract([shown], DayTimeline.Subtract([shown], ended)))
+                {
+                    spans.Add(ToSpan(stopped, day.Range, $"{tip} (ended early)") with { Color = part.Category.Color, IsEnded = true });
+                }
+
+                continue;
+            }
+
             if (part.Category.Behavior != CategoryBehavior.PreWork || nights.Count == 0)
             {
                 spans.Add(ToSpan(shown, day.Range, tip) with { Color = part.Category.Color, Label = part.Name });

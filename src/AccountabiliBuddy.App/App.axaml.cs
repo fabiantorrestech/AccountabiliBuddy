@@ -148,6 +148,8 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Sync.PhonePlacementService? _phonePlacement;
     private DeepWorkService? _deepWork;
     private ShutdownService? _shutdown;
+    private WorkEndedService? _workEnded;
+    private EndWorkEarlyDialog? _endWorkDialog;
     private ComebackStore? _comebacks;
     private LaterStore? _later;
     private AccountabiliBuddy.App.Services.Beeminder.BeeminderService? _beeminder;
@@ -839,7 +841,8 @@ public partial class App : Application
             {
                 DateTime now = time.GetLocalNow().DateTime;
                 return DayWorkWindows.WorkWindows(
-                        effectivePlan.Current, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, _workHours?.FocusedOn, _workHours?.NightFallback)
+                        effectivePlan.Current, new LocalWindow(now.Date.AddDays(-1), now.Date.AddDays(2)), now, _workHours?.FocusedOn, _workHours?.NightFallback,
+                        _workEnded?.Windows)
                     .Any(focus => focus.Window.Start <= now && now < focus.Window.End);
             },
         };
@@ -1049,7 +1052,7 @@ public partial class App : Application
         {
             DateTime now = time.GetLocalNow().DateTime;
             DateOnly today = DateOnly.FromDateTime(now);
-            return DayWorkWindows.Pace(effectivePlan.Current, today, _deepWork?.FocusedOn(today) ?? TimeSpan.Zero, now, _workHours?.NightFallback);
+            return DayWorkWindows.Pace(effectivePlan.Current, today, _deepWork?.FocusedOn(today) ?? TimeSpan.Zero, now, _workHours?.NightFallback, _workEnded?.Windows);
         };
         Func<string> goalOverlayText = () => budgetPace() is BudgetPace pace
             ? $"Goal · {_deepWork.Progress.Text} · {BudgetPaceText.Describe(pace)}"
@@ -1102,7 +1105,34 @@ public partial class App : Application
         shutdownReviews.LoadBlocking();
         _shutdown = new ShutdownService(_sessions, _configuration, sessionTasks, _comebacks!, documents, autoSaved, shutdownReviews, calendars);
         _shutdown.LoadBlocking();
-        sessionViewModel.StartShutdownHandler = () => _shutdown.StartByHand();
+        // Work ended early (ADR 65): Start shutdown during a work part ends the block after the end-early wait and reason (StartShutdownFromUi).
+        _workEnded = new WorkEndedService(_sessions, documents, new DpapiDataProtector());
+        _workEnded.LoadBlocking();
+        sessionViewModel.StartShutdownHandler = () =>
+        {
+            StartShutdownFromUi();
+            return true;
+        };
+        sessionViewModel.BackToWorkHandler = _workEnded.BackToWorkAsync;
+        sessionViewModel.CanGoBackToWork = _workEnded.CanGoBack;
+        _sessions.Ticked += (_, _) => sessionViewModel.CanGoBackToWork = _workEnded.CanGoBack;
+        // Times only in this PC's sync file (never the reason); another PC's newer edit for today is taken, like lunch.
+        syncCoordinator.WorkEnded = _workEnded.ForSync;
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            foreach (AccountabiliBuddy.Core.Sync.SyncWorkEnded received in receivedDevices.Active.Select(device => device.File.WorkEnded).OfType<AccountabiliBuddy.Core.Sync.SyncWorkEnded>())
+            {
+                _workEnded.Receive(received);
+            }
+        });
+        _workEnded.Changed += (_, _) =>
+        {
+            sessionViewModel.CanGoBackToWork = _workEnded.CanGoBack;
+            _dayBar?.Redraw();
+            timelineDay.Redraw();
+            syncCoordinator.NotifyHistoryChanged();
+            _syncFolder?.WriteSoon();
+        };
         _shutdown.IsDayOff = () => _preWork.IsDayOff;
         _shutdown.Changed += (_, _) =>
         {
@@ -1155,6 +1185,16 @@ public partial class App : Application
         _workHours.WithCalendarEvents = effectivePlan.Of;
         // The guards read the plan with the day's classified calendar events laid over it (ADR 58).
         Func<DayPlan> guardedPlan = () => effectivePlan.Current;
+        // Work ended early (ADR 65): one list, cut out of the work windows by DayWorkWindows for every guard.
+        Func<IReadOnlyList<LocalWindow>> workEnded = () => _workEnded.Windows;
+        _workHours.WorkEnded = workEnded;
+        _startNudge.WorkEnded = workEnded;
+        _shutdown.WorkEnded = workEnded;
+        _dayBar.WorkEnded = workEnded;
+        timelineDay.WorkEnded = workEnded;
+        _workEnded.WorkIn = (range, now) => DayWorkWindows.WorkWindows(effectivePlan.Current, range, now, countedFocus, nightFallback, _workEnded.Windows)
+            .Select(focus => focus.Window)
+            .ToList();
         _workHours.GuardedPlan = guardedPlan;
         _startNudge.GuardedPlan = guardedPlan;
         _shutdown.GuardedPlan = guardedPlan;
@@ -1217,6 +1257,8 @@ public partial class App : Application
             _configuration, _sessions, calendars, dayPlanViewModel, exceptionsViewModel, planHelperDismissals,
             () => TimeSpan.FromMinutes(goal.Current.DailyMinutes), countedFocus, nightFallback, effectivePlan);
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(planViewModel.NotifyFocusChanged);
+        planViewModel.WorkEnded = workEnded;
+        _workEnded.Changed += (_, _) => planViewModel.NotifyWorkEndedChanged();
         var historyViewModel = new HistoryViewModel(activityLog, _recorder, _configuration, privacy, omittedSessions, displayNames, _icons, hiddenUsage, hiddenDistractions, deletedUsage, time,
             _programPaths, desktopShell, isSessionRunning: () => _sessions!.State.IsRealSession)
         {
@@ -1411,6 +1453,7 @@ public partial class App : Application
         qrSync.LoadBlocking();
         qrSync.FocusedOn = _workHours!.FocusedOn;
         qrSync.NightFallback = _workHours.NightFallback;
+        qrSync.WorkEnded = _workHours.WorkEnded;
         // One end-of-day prompt at a time: the shutdown card goes first, the scan reminder follows once it is answered.
         qrSync.Deferred = () => _shutdown!.IsCardOpenOrDue();
         _qrSync = qrSync;
@@ -1440,6 +1483,8 @@ public partial class App : Application
         coldTurkeyKeys.LoadBlocking();
         coldTurkeyKeys.FocusedOn = _workHours!.FocusedOn;
         coldTurkeyKeys.NightFallback = _workHours.NightFallback;
+        coldTurkeyKeys.WorkEnded = _workHours.WorkEnded;
+        _workEnded!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         _coldTurkeyKeys = coldTurkeyKeys;
         coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
         // A new key comes from a timer, a check or a session ending, never straight from a click: shown without taking focus.
@@ -1464,6 +1509,7 @@ public partial class App : Application
         quitGuard.LoadBlocking();
         quitGuard.FocusedOn = _workHours!.FocusedOn;
         quitGuard.NightFallback = _workHours.NightFallback;
+        quitGuard.WorkEnded = _workHours.WorkEnded;
         _quitGuard = quitGuard;
         setupViewModel.StartupLocked = () => quitGuard.Current.On;
         quitGuard.Changed += (_, _) => setupViewModel.RefreshStartupLock();
@@ -2636,10 +2682,20 @@ public partial class App : Application
         }
     }
 
-    // "Start shutdown" from the tray or the reminder: the routine opens on Today. During a session it doesn't open; it says so.
-    private void StartShutdownFromUi()
+    private void StartShutdownFromUi() => _ = StartShutdownFromUiAsync();
+
+    // "Start shutdown" from Today, the tray or the reminder: the routine opens on Today. During a session it doesn't open; it says so.
+    // During a work part (ADR 65) it first asks to end work early, with the end-early wait and reason; cancelling changes nothing and
+    // opens nothing. Outside a work part, or with a card already open, it opens as before.
+    private async Task StartShutdownFromUiAsync()
     {
-        if (_shutdown is null)
+        if (_shutdown is null || _sessions is null)
+        {
+            return;
+        }
+
+        if (!_sessions.State.IsActive && _shutdown.Current is null && _workEnded?.Propose() is WorkEndProposal proposal
+            && !await ConfirmEndWorkEarlyAsync(proposal))
         {
             return;
         }
@@ -2656,6 +2712,50 @@ public partial class App : Application
         }
 
         ShowMainWindow();
+    }
+
+    // "End work early?": the wait and reason of ending a session early (the same Bypass settings), and "Also end later work today" when
+    // more work comes later the same day. True once work was ended (or no work part runs any more); false when cancelled.
+    private async Task<bool> ConfirmEndWorkEarlyAsync(WorkEndProposal proposal)
+    {
+        if (_endWorkDialog is not null)
+        {
+            _endWorkDialog.Activate();
+            return false;
+        }
+
+        using var viewModel = new EndWorkEarlyDialogViewModel(proposal, _configuration!.Current.Bypass, _sessions!.TimeProvider);
+        var dialog = new EndWorkEarlyDialog { DataContext = viewModel };
+        _endWorkDialog = dialog;
+        bool confirmed;
+        try
+        {
+            confirmed = _mainWindow is { IsVisible: true } owner
+                ? await dialog.ShowDialog<bool>(owner)
+                : await ShowWithoutOwnerAsync(dialog);
+        }
+        finally
+        {
+            _endWorkDialog = null;
+        }
+
+        // Never during a session: one started while the dialog was up keeps the work block as it is.
+        if (!confirmed || _sessions.State.IsActive)
+        {
+            return false;
+        }
+
+        await _workEnded!.EndAsync(viewModel.AlsoEndLater, viewModel.Reason);
+        return true;
+    }
+
+    private static Task<bool> ShowWithoutOwnerAsync(EndWorkEarlyDialog dialog)
+    {
+        var completion = new TaskCompletionSource<bool>();
+        dialog.Closed += (_, _) => completion.TrySetResult(dialog.Confirmed);
+        dialog.Show();
+        dialog.Activate();
+        return completion.Task;
     }
 
     private void ShowMainWindow()

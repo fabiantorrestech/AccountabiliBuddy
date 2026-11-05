@@ -52,6 +52,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// and an app that predates it, which ignore it. A value that can't be read is dropped by <see cref="SyncStepsConverter"/>, never
 /// failing the file. Never leaves the user's own devices.
 /// </param>
+/// <param name="WorkEnded">
+/// A PC's work ended early today (ADR 65): the plan date, the ended windows and when they were last edited, times only. Null when
+/// nothing was ended or undone today, and from an app that predates it, which ignore it (an older phone keeps nudging: the stricter side).
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -85,7 +89,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncLaterItem>? Later = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastKey>? PastKeys = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncCategoriesConverter))] IReadOnlyList<SyncCategory>? Categories = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncSteps? Steps = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncSteps? Steps = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncWorkEnded? WorkEnded = null)
 {
     public const int CurrentFormatVersion = 1;
 }

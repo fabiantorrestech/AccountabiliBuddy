@@ -79,6 +79,9 @@ public sealed class DayBarControl : Control
     // Marks at rest when they're dulled too (QuietMarks): same colours, mostly see-through.
     private const double QuietMarkOpacity = 0.35;
 
+    // How strongly a stretch of work ended early (ADR 65) is drawn.
+    private const double EndedOpacity = 0.25;
+
     private static readonly IBrush AwayBrush = new SolidColorBrush(Color.FromRgb(100, 116, 139));
     private static readonly IPen AwayStripePen = new Pen(new SolidColorBrush(Color.FromRgb(21, 25, 30), 0.7), 2);
 
@@ -341,6 +344,7 @@ public sealed class DayBarControl : Control
             Rect box = SpanRect(size, span, top);
             IBrush brush = span.IsAway ? BrushFor(span.Color) ?? AwayBrush
                 : span.IsOverlap ? SeeThrough(span.Color)
+                : span.IsEnded ? Faded(span.Color)
                 : Quiet ? QuietBrush
                 : span.Hatched ? AddedBrush
                 : BrushFor(span.Color) ?? DefaultBrush(row.Kind);
@@ -358,6 +362,11 @@ public sealed class DayBarControl : Control
                 // Pre-Work over Sleep: stripes in its own colour over the see-through fill.
                 DrawStripes(context, box, new Pen(BrushFor(span.Color) ?? DefaultBrush(row.Kind), 1.5));
                 continue;
+            }
+
+            if (span.IsEnded)
+            {
+                continue; // Work ended early (ADR 65): its own colour, faded, with no name.
             }
 
             if (Quiet)
@@ -607,6 +616,10 @@ public sealed class DayBarControl : Control
     }
 
     // A part's colour, mostly see-through (Pre-Work over Sleep).
+    // Work ended early (ADR 65): the part's own colour, much lighter.
+    private static IBrush Faded(string? hex) =>
+        hex is not null && Color.TryParse(hex, out Color color) ? new SolidColorBrush(color, EndedOpacity) : QuietBrush;
+
     private static IBrush SeeThrough(string? hex) =>
         hex is not null && Color.TryParse(hex, out Color color) ? new SolidColorBrush(color, 0.35) : QuietBrush;
 

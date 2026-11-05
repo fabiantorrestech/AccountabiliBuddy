@@ -15,7 +15,8 @@ namespace AccountabiliBuddy.App.Services;
 /// and brings it back once, 30 minutes later. A card left open closes by itself 6 hours after it opened or when the next work part
 /// starts, whichever is first; nothing on it is applied then, except a typed tomorrow's first task (kept under the Tasks page's
 /// "Auto-saved") and a written review. Each step writes its choices when "Next" is pressed. Finishing records the day; once the day's work
-/// is over (finishing in the middle of the workday changes nothing until then) and until the next work part (or 4:00 AM) Today says
+/// is over (a finish in the middle of the workday changes nothing until then, unless Start shutdown ended the work block early, ADR 65:
+/// the ended windows in <see cref="WorkEnded"/> move the day's work end to that moment) and until the next work part (or 4:00 AM) Today says
 /// "Work over for today" and the work-start nudges stay quiet, never during a work part. Nothing is ever locked, and bedtime and
 /// sleep are untouched. The card never opens during a session, and never reads or writes a session's PC-off stretches (ADR 60).
 /// Use from the UI thread only.
@@ -81,6 +82,9 @@ public sealed class ShutdownService : IDisposable
 
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
+
+    /// <summary>Work ended early (ADR 65), cut out of the work windows: that time counts as not work. Set by the app; null = none.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
 
     /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
     public Func<DayPlan>? GuardedPlan { get; set; }
@@ -249,7 +253,7 @@ public sealed class ShutdownService : IDisposable
     }
 
     // The plan date a manual start wraps up: before 4:00 AM it is still the day that went on past midnight.
-    private static DateOnly PlanDateOf(DateTime now)
+    internal static DateOnly PlanDateOf(DateTime now)
     {
         return DateOnly.FromDateTime(now.Add(-NewDayAt));
     }
@@ -278,7 +282,7 @@ public sealed class ShutdownService : IDisposable
     private List<PlannedFocus> WorkStartingOn(DateOnly date, DateTime now)
     {
         DateTime start = date.ToDateTime(TimeOnly.MinValue);
-        return DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(start, start.AddDays(2)), now, FocusedOn, NightFallback)
+        return DayWorkWindows.WorkWindows(PlanInForce, new LocalWindow(start, start.AddDays(2)), now, FocusedOn, NightFallback, WorkEnded?.Invoke())
             .Where(part => DateOnly.FromDateTime(part.Window.Start) == date)
             .ToList();
     }
