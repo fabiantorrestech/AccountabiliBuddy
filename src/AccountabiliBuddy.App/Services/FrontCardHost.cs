@@ -10,6 +10,8 @@ namespace AccountabiliBuddy.App.Services;
 /// and takes the focus back (<see cref="CardBackdrop"/>, <see cref="CardKeeper"/>). There is one dim and one keeper however many
 /// cards are up: the newest card is the one kept in front, older ones stay above the dim under it. The dim goes with the last card.
 /// A card's own ways out (its buttons) are not touched.
+/// While the computer sleeps the cards and dims are hidden (<see cref="Suspend"/>), never closed, so no service sees a close; cards
+/// asked for meanwhile wait, and <see cref="Resume"/> shows the ones still registered.
 /// </summary>
 public sealed class FrontCardHost
 {
@@ -19,6 +21,7 @@ public sealed class FrontCardHost
     private readonly List<Window> _cards = new();
     private CardBackdrop? _backdrop;
     private CardKeeper? _keeper;
+    private bool _suspended;
 
     public FrontCardHost(IVirtualDesktops desktops, IForegroundFocus focus, IOverlayWindowControl windowControl)
     {
@@ -36,6 +39,57 @@ public sealed class FrontCardHost
             card.Closed += OnCardClosed;
         }
 
+        if (_suspended)
+        {
+            return; // Registered, shown by Resume if it is still wanted then.
+        }
+
+        Present(card);
+    }
+
+    /// <summary>
+    /// The computer is going to sleep: hides every card and the dims so none is on screen when it wakes. Nothing is closed or
+    /// answered, and cards asked for until <see cref="Resume"/> are only registered.
+    /// </summary>
+    public void Suspend()
+    {
+        if (_suspended)
+        {
+            return;
+        }
+
+        _suspended = true;
+        foreach (Window card in _cards)
+        {
+            card.Hide();
+        }
+
+        _keeper?.Dispose();
+        _keeper = null;
+        _backdrop?.Dispose(); // Closes the dims; the cards stay, hidden.
+        _backdrop = null;
+    }
+
+    /// <summary>
+    /// The computer woke up: shows the cards still registered (a service that has since closed its card already removed it) with
+    /// a fresh dim. The caller re-checks the services first, so only cards still due are left.
+    /// </summary>
+    public void Resume()
+    {
+        if (!_suspended)
+        {
+            return;
+        }
+
+        _suspended = false;
+        foreach (Window card in _cards.ToList())
+        {
+            Present(card);
+        }
+    }
+
+    private void Present(Window card)
+    {
         _backdrop ??= new CardBackdrop(_windowControl);
         _backdrop.SetCards(_cards);
         _backdrop.Maintain(); // The dim first, so the card opens on top of it.
@@ -54,7 +108,7 @@ public sealed class FrontCardHost
     /// </summary>
     public void Raise(Window card)
     {
-        if (_backdrop is null || !_cards.Contains(card))
+        if (_suspended || _backdrop is null || !_cards.Contains(card))
         {
             return;
         }
@@ -84,7 +138,7 @@ public sealed class FrontCardHost
 
     private void ReleaseIfEmpty()
     {
-        if (_cards.Count > 0)
+        if (_cards.Count > 0 || _suspended)
         {
             return;
         }

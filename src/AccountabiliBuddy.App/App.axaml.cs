@@ -159,6 +159,7 @@ public partial class App : Application
     private StartOfDayWindow? _startOfDayWindow;
     // The cards in front of everything (gate, Pre-Work, start nudge, session cards): dim behind, kept in front, follow the virtual desktop.
     private readonly FrontCardHost _frontCards = new(new WindowsVirtualDesktops(), new WindowsForegroundFocus(), new Win32OverlayWindowControl());
+    private PowerTransitions? _power;
     private AwayCardWindow? _awayCardWindow;
     private PickTasksWindow? _pickTasksWindow;
     private ReadyCardWindow? _readyCardWindow;
@@ -1162,6 +1163,7 @@ public partial class App : Application
         timelineDay.GuardedPlan = guardedPlan;
         _headphones!.NightFallback = nightFallback;
         _shutdown.NightFallback = nightFallback;
+        WatchPowerTransitions();
         _dayBar.NightFallback = nightFallback;
         timelineDay.NightFallback = nightFallback;
         _ = _deepWork.ReloadAsync();
@@ -2068,6 +2070,26 @@ public partial class App : Application
         _frontCards.Show(window);
     }
 
+    /// <summary>
+    /// Hides the front cards while the computer sleeps and, on waking, lets each service re-check against the current time and
+    /// plan before the cards still due are shown again: a card for a state that ended during the sleep is never seen.
+    /// </summary>
+    private void WatchPowerTransitions()
+    {
+        _power = new PowerTransitions();
+        _power.Suspending += (_, _) => _frontCards.Suspend();
+        _power.Resumed += (_, _) =>
+        {
+            // The cards stay hidden and registered while these run: a service that closes its card removes it, one that opens a
+            // card only registers it. Then what is left is shown.
+            _preWork?.CheckNow();
+            _startNudge?.CheckNow();
+            _workGate?.CheckNow();
+            _shutdown?.CheckNow();
+            _frontCards.Resume();
+        };
+    }
+
     /// <summary>Shows or closes the Pre-Work window (ADR 31) as the service opens or closes it.</summary>
     private void ShowPreWork(IMonitorLocator monitors)
     {
@@ -2902,6 +2924,7 @@ public partial class App : Application
         _sessionReview?.Dispose();
         _workHours?.Dispose();
         _capture?.Dispose();
+        _power?.Dispose();
         _workGate?.Dispose();
         _hyperfocus?.Dispose();
         _deepWork?.Dispose();
