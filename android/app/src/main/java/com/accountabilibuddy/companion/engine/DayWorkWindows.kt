@@ -133,7 +133,8 @@ object DayWorkWindows {
         val left = Duration.ofMinutes(minutes.toLong()).minus(focusedSoFar).minus(template.budgetCredit).let { if (it.isNegative) Duration.ZERO else it }
         val ahead = LocalWindow(now, LATEST)
         // Work ended early (ADR 65) is no longer available.
-        val available = DayTimeline.subtract(budgetWindows(plan, viewOf(plan), date, null, now, nightFallback), plan.endedWork)
+        val budget = budgetWindows(plan, viewOf(plan), date, null, now, nightFallback)
+        val available = (if (plan.endedWork.isEmpty()) budget else DayTimeline.subtract(budget, plan.endedWork))
             .mapNotNull { DayTimeline.clip(it, ahead) }
             .fold(Duration.ZERO) { sum, window -> sum.plus(Duration.between(window.start, window.end)) }
         return BudgetPace(left, available, !left.isZero && available < left)

@@ -144,13 +144,14 @@ class CompanionApp : Application() {
 
     /**
      * Today's work ended early by Start shutdown on a PC (ADR 65), as local windows: the newest edit for today among the received
-     * files wins (an undo leaves none). Empty before sync starts, or when no PC sent any.
+     * files wins (an undo leaves none). Empty before sync starts, or when no PC sent any. "Today" is the PC's plan date, which runs
+     * until 4:00 AM (ShutdownService.PlanDateOf).
      */
     fun workEndedToday(now: java.time.Instant = java.time.Instant.now()): List<com.accountabilibuddy.companion.model.LocalWindow> {
         if (!::sync.isInitialized) return emptyList()
         val zone = java.time.ZoneId.systemDefault()
-        val today = now.atZone(zone).toLocalDate()
-        val newest = com.accountabilibuddy.shared.sync.SyncWorkEnded.newestFor(sync.received.value.map { it.file }, today) ?: return emptyList()
+        val today = now.atZone(zone).minusHours(4).toLocalDate()
+        val newest = com.accountabilibuddy.shared.sync.SyncWorkEnded.newestFor(sync.received.value.map { it.file }, today, now) ?: return emptyList()
         return newest.windows.map { window ->
             com.accountabilibuddy.companion.model.LocalWindow(
                 java.time.LocalDateTime.ofInstant(window.start, zone), java.time.LocalDateTime.ofInstant(window.end, zone),
@@ -736,6 +737,9 @@ class CompanionApp : Application() {
     /** How long before a planned lunch window the phone starts listening for a lunch started elsewhere. */
     private val LUNCH_LEAD: java.time.Duration = java.time.Duration.ofHours(1)
 
+    /** Screen on and an unlock this close together refresh once. */
+    private val SCREEN_REFRESH_GAP_MS = 2_000L
+
     // "Play when headphones connect" → "Only at certain times": true when the schedule allows auto-play right now.
     private fun headphoneScheduleAllowsNow(): Boolean {
         val state = store.state.value
@@ -782,12 +786,18 @@ class CompanionApp : Application() {
     /**
      * The screen coming on or an unlock redraws the notices (Pre-Work, Work time) and cards at once, so one left from a
      * part that ended while the phone slept is gone before it's seen. The pinned timeline service already does this
-     * while it runs, so this one stands aside then (the refresher's lock keeps them one at a time anyway).
+     * while it runs, so this one stands aside then (the refresher's lock keeps them one at a time anyway). Screen on and an unlock
+     * usually come together: one within [SCREEN_REFRESH_GAP_MS] of the last is skipped.
      */
     private fun refreshOnScreenOn() {
         val receiver = object : android.content.BroadcastReceiver() {
+            private var lastAt = 0L
+
             override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
                 if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning) return
+                val at = android.os.SystemClock.elapsedRealtime()
+                if (lastAt != 0L && at - lastAt < SCREEN_REFRESH_GAP_MS) return
+                lastAt = at
                 refreshSoon()
             }
         }

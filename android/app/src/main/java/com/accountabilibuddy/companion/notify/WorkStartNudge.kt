@@ -22,6 +22,7 @@ object WorkStartNudge {
     private const val PREFS = "nudges"
     private const val LAST = "lastNudge"
     private const val REPEAT = "repeatMinutes"
+    private const val POSTED_END = "postedStretchEnd"
 
     /** Nudge again every this many minutes (5, 10 or 15); 0 = once per stretch. 5 by default. */
     fun repeatMinutes(context: Context): Int = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(REPEAT, 5)
@@ -59,11 +60,34 @@ object WorkStartNudge {
         }
 
         val repeat = com.accountabilibuddy.companion.nudge.GoalBonus.repeatMinutes(focus, repeatMinutes(context), now)
-        if (!WorkStart.nudgeDue(focus, now, lastNudge(context), repeat) || !TimelineNotifier.canPost(context)) {
+        if (!TimelineNotifier.canPost(context)) return
+        if (!WorkStart.nudgeDue(focus, now, lastNudge(context), repeat)) {
+            extendShowing(context, stretchEnd, now)
             return
         }
 
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(LAST, now.toString()).apply()
+        val bonus = com.accountabilibuddy.companion.nudge.GoalBonus.of(focus, now)
+        if (bonus != null) {
+            post(context, "Goal met · bonus round?", "${com.accountabilibuddy.companion.nudge.GoalBonus.duration(bonus.focusedMinutes)} today. Time left in work hours: a bonus block counts extra.", stretchEnd, now, quietly = false)
+        } else {
+            post(context, "Work time · plan 3 tasks and start", "No session is running yet. Write down what you're doing first, start on your computer, and put the phone away.", stretchEnd, now, quietly = false)
+        }
+    }
+
+    // The timeout is fixed when posted: while the notice still shows and the stretch now ends at another time (it got longer, say),
+    // post it again silently with the same text and the new timeout, so it doesn't vanish while the stretch still holds.
+    private fun extendShowing(context: Context, stretchEnd: Instant, now: Instant) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getString(POSTED_END, null) == stretchEnd.toString()) return
+        val manager = context.getSystemService(android.app.NotificationManager::class.java) ?: return
+        val showing = manager.activeNotifications.firstOrNull { it.id == ID }?.notification ?: return
+        val title = showing.extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: return
+        val text = showing.extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: return
+        post(context, title, text, stretchEnd, now, quietly = true)
+    }
+
+    private fun post(context: Context, title: String, text: String, stretchEnd: Instant, now: Instant, quietly: Boolean) {
         val open = PendingIntent.getActivity(
             context, 5, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -72,18 +96,11 @@ object WorkStartNudge {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setSmallIcon(R.drawable.ic_stat_timeline)
-            .apply {
-                val bonus = com.accountabilibuddy.companion.nudge.GoalBonus.of(focus, now)
-                if (bonus != null) {
-                    setContentTitle("Goal met · bonus round?")
-                    setContentText("${com.accountabilibuddy.companion.nudge.GoalBonus.duration(bonus.focusedMinutes)} today. Time left in work hours: a bonus block counts extra.")
-                } else {
-                    setContentTitle("Work time · plan 3 tasks and start")
-                    setContentText("No session is running yet. Write down what you're doing first, start on your computer, and put the phone away.")
-                }
-            }
+            .setContentTitle(title)
+            .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle())
             .setAutoCancel(true)
+            .setOnlyAlertOnce(quietly)
             // Android removes it by itself when the stretch ends, even if the app is not running then.
             .setTimeoutAfter(Duration.between(now, stretchEnd).toMillis().coerceAtLeast(1L))
             .setContentIntent(open)
@@ -91,6 +108,7 @@ object WorkStartNudge {
             .build()
         try {
             NotificationManagerCompat.from(context).notify(ID, notification)
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(POSTED_END, stretchEnd.toString()).apply()
         } catch (e: SecurityException) {
             // Permission withdrawn meanwhile.
         }

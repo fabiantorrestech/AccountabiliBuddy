@@ -154,9 +154,16 @@ object Refresher {
         // Lunch's end: the session's lock is asked for again then.
         val untilLunchEnd = (context.applicationContext as CompanionApp).lunch.today()?.end
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        // A pause's end and emergency time's end: a work card closed for now (still owed) comes back then.
+        val pauseState = (context.applicationContext as CompanionApp).pause.state.value
+        val untilPauseEnd = pauseState.pausedAt
+            ?.let { com.accountabilibuddy.companion.pause.PauseRules.until(pauseState, it, java.time.ZoneId.systemDefault()) }
+            ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        val untilEmergencyEnd = (context.applicationContext as CompanionApp).emergency.active()?.end
+            ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilPlanEdge = planEdgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilPlanEdge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilPauseEnd, untilEmergencyEnd, untilPlanEdge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

@@ -33,6 +33,12 @@ import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.ui.CompanionTheme
 import com.accountabilibuddy.shared.WorkStart
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -46,23 +52,31 @@ import java.time.ZoneId
 class NudgeActivity : ComponentActivity() {
     // An open card closes as soon as it no longer applies (the PC's does the same): lunch, a pause, a day off or emergency time
     // (nothing may nudge), a session on any device, or the work stretch is over. Checked at once on resume, so a card left behind
-    // the lock screen never greets the next unlock, then every 5 s while it is up.
-    private val stillDueCheck: Runnable = object : Runnable {
-        override fun run() {
-            when (dueState()) {
-                Due.STILL_DUE -> Unit
-                Due.QUIET -> {
-                    closeForNow()
-                    return
-                }
-                Due.OVER -> {
-                    closeNoLongerDue()
-                    return
-                }
-            }
+    // the lock screen never greets the next unlock (on the main thread, before the card is drawn), then every 5 s while it is up
+    // (worked out off the main thread, since it builds a full snapshot).
+    private var stillDueWatch: kotlinx.coroutines.Job? = null
 
-            window.decorView.removeCallbacks(this)
-            window.decorView.postDelayed(this, 5_000L)
+    // Closes the card when it no longer applies; true while it is still due.
+    private fun act(due: Due): Boolean = when (due) {
+        Due.STILL_DUE -> true
+        Due.QUIET -> {
+            closeForNow()
+            false
+        }
+        Due.OVER -> {
+            closeNoLongerDue()
+            false
+        }
+    }
+
+    private fun watchStillDue() {
+        stillDueWatch?.cancel()
+        stillDueWatch = lifecycleScope.launch {
+            while (isActive) {
+                delay(5_000L)
+                val due = withContext(Dispatchers.Default) { dueState() }
+                if (!act(due)) return@launch
+            }
         }
     }
 
@@ -97,11 +111,12 @@ class NudgeActivity : ComponentActivity() {
         super.onResume()
         (application as CompanionApp).nudgeOnScreen = true
         Takeover.stopWatchingUnanswered()
-        stillDueCheck.run()
+        if (act(dueState())) watchStillDue()
     }
 
     override fun onPause() {
-        window.decorView.removeCallbacks(stillDueCheck)
+        stillDueWatch?.cancel()
+        stillDueWatch = null
         super.onPause()
     }
 

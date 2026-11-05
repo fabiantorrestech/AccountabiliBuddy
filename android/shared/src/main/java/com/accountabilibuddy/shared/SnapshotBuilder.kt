@@ -65,8 +65,8 @@ object SnapshotBuilder {
 
         val parts = input.parts.filter { it.end.isAfter(dayStart) && it.start.isBefore(dayEnd) }
         val endedParts = input.endedParts.filter { it.end.isAfter(dayStart) && it.start.isBefore(dayEnd) }
-        // Planned work stays what was planned: work ended early still counts in it (ADR 65 changes nothing about the totals).
-        val planned = WatchSnapshot.minutes((parts + endedParts).filter { it.kind == "watch" }.map { TimeWindow(maxOf(it.start, dayStart), minOf(it.end, dayEnd)) })
+        // Work ended early (ADR 65) is left out of the planned minutes, as the PC's and phone's day bar totals do.
+        val planned = WatchSnapshot.minutes(parts.filter { it.kind == "watch" }.map { TimeWindow(maxOf(it.start, dayStart), minOf(it.end, dayEnd)) })
 
         val snapshot = WatchSnapshot(
             createdAt = input.now,

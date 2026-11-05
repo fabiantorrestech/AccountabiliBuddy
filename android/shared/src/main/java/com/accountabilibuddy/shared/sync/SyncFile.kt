@@ -114,9 +114,14 @@ data class SyncFile(
  */
 data class SyncWorkEnded(val date: java.time.LocalDate, val windows: List<SyncWorkEndedWindow>, val editedAt: Instant) {
     companion object {
-        /** The newest edit for [date] among [files]; null when none of them says anything about that date. */
-        fun newestFor(files: List<SyncFile>, date: java.time.LocalDate): SyncWorkEnded? =
-            files.mapNotNull { it.workEnded }.filter { it.date == date }.maxByOrNull { it.editedAt }
+        /**
+         * The newest edit for [date] among [files]; null when none of them says anything about that date. An edit more than
+         * [SharedListMerge.FUTURE_LIMIT] past [now] (a device whose clock runs fast) is ignored, as on the PC.
+         */
+        fun newestFor(files: List<SyncFile>, date: java.time.LocalDate, now: Instant = Instant.now()): SyncWorkEnded? {
+            val limit = now.plus(SharedListMerge.FUTURE_LIMIT)
+            return files.mapNotNull { it.workEnded }.filter { it.date == date && !it.editedAt.isAfter(limit) }.maxByOrNull { it.editedAt }
+        }
     }
 }
 
