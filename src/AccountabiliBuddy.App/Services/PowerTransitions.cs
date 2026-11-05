@@ -19,6 +19,8 @@ public sealed class PowerTransitions : IDisposable
 
     private readonly SessionController _sessions;
     private bool _suspended;
+    private int _suspendCount;
+    private bool _fallbackPosted;
     private DateTimeOffset? _lastTickAt;
     private TimeSpan _steadyFor;
     private bool _disposed;
@@ -64,6 +66,7 @@ public sealed class PowerTransitions : IDisposable
     private void RaiseSuspending()
     {
         _suspended = true;
+        _suspendCount++;
         _lastTickAt = null;
         _steadyFor = TimeSpan.Zero;
         Suspending?.Invoke(this, EventArgs.Empty);
@@ -93,9 +96,25 @@ public sealed class PowerTransitions : IDisposable
         }
 
         _lastTickAt = now;
-        if (_steadyFor >= NoSleepAfter)
+        if (_steadyFor >= NoSleepAfter && !_fallbackPosted)
         {
-            RaiseResumed();
+            // Posted, not raised here: Resumed ticks the sessions again, which must not happen inside this tick.
+            _fallbackPosted = true;
+            int suspendCount = _suspendCount;
+            Dispatcher.UIThread.Post(() => RaiseFallbackResumed(suspendCount), DispatcherPriority.Background);
         }
+    }
+
+    private void RaiseFallbackResumed(int suspendCount)
+    {
+        _fallbackPosted = false;
+
+        // The real wake came first, or another sleep was announced since: that one decides.
+        if (!_suspended || suspendCount != _suspendCount || _disposed)
+        {
+            return;
+        }
+
+        RaiseResumed();
     }
 }

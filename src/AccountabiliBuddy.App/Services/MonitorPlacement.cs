@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using AccountabiliBuddy.Core.Ports;
 using Avalonia;
 using Avalonia.Controls;
@@ -32,17 +33,35 @@ public static class MonitorPlacement
         window.Opened += (_, _) => MoveToCorner(window, area, corner);
     }
 
+    // The monitor each centred window is kept on; Recenter changes it, so the size handlers follow the window to its new monitor.
+    private static readonly ConditionalWeakTable<Window, StrongBox<MonitorArea>> CenterTargets = new();
+
     /// <summary>Centres the window in the monitor's work area, also when its content changes size.</summary>
     public static void Center(Window window, MonitorArea area)
     {
         window.Position = new PixelPoint(area.WorkArea.Left + CornerMarginPixels, area.WorkArea.Top + CornerMarginPixels);
 
-        window.SizeChanged += (_, _) => Recenter(window, area);
-        window.Opened += (_, _) => Recenter(window, area);
+        StrongBox<MonitorArea> target = CenterTargets.GetValue(window, _ => new StrongBox<MonitorArea>(area));
+        target.Value = area;
+        window.SizeChanged += (_, _) => MoveToCenter(window, target.Value);
+        window.Opened += (_, _) => MoveToCenter(window, target.Value);
     }
 
-    /// <summary>Moves the window to the centre of the monitor's work area once, by its current size (no handlers are added).</summary>
+    /// <summary>
+    /// Moves the window to the centre of the monitor's work area now, by its current size, and keeps it on that monitor from
+    /// now on if <see cref="Center"/> placed it (no handlers are added).
+    /// </summary>
     public static void Recenter(Window window, MonitorArea area)
+    {
+        if (CenterTargets.TryGetValue(window, out StrongBox<MonitorArea>? target))
+        {
+            target.Value = area;
+        }
+
+        MoveToCenter(window, area);
+    }
+
+    private static void MoveToCenter(Window window, MonitorArea area)
     {
         double scaling = window.DesktopScaling;
         int widthPixels = (int)Math.Ceiling(window.Bounds.Width * scaling);

@@ -22,6 +22,7 @@ public sealed class FrontCardHost
     private CardBackdrop? _backdrop;
     private CardKeeper? _keeper;
     private bool _suspended;
+    private int _suspendCount;
 
     public FrontCardHost(IVirtualDesktops desktops, IForegroundFocus focus, IOverlayWindowControl windowControl)
     {
@@ -53,6 +54,7 @@ public sealed class FrontCardHost
     /// </summary>
     public void Suspend()
     {
+        _suspendCount++; // Also when already suspended: a wake whose Resume is still queued is then stale.
         if (_suspended)
         {
             return;
@@ -70,14 +72,18 @@ public sealed class FrontCardHost
         _backdrop = null;
     }
 
+    /// <summary>Counts the suspends; a wake reads it before re-checking and hands it to <see cref="Resume"/>.</summary>
+    public int SuspendCount => _suspendCount;
+
     /// <summary>
     /// The computer woke up: shows the cards still registered (a service that has since closed its card already removed it) with
     /// a fresh dim, each centred again on the monitor under the cursor (the one it was on may have been unplugged meanwhile).
-    /// The caller re-checks the services first, so only cards still due are left.
+    /// The caller re-checks the services first, so only cards still due are left. <paramref name="suspendCount"/> is
+    /// <see cref="SuspendCount"/> as it was at the wake: if the computer went to sleep again since, this Resume is stale and does nothing.
     /// </summary>
-    public void Resume(IMonitorLocator monitors)
+    public void Resume(IMonitorLocator monitors, int suspendCount)
     {
-        if (!_suspended)
+        if (!_suspended || suspendCount != _suspendCount)
         {
             return;
         }
@@ -86,6 +92,12 @@ public sealed class FrontCardHost
         MonitorArea? area = monitors.Find(monitors.FindMonitorUnderCursor());
         foreach (Window card in _cards.ToList())
         {
+            // Showing one card can close another, and a closed window can't be shown again.
+            if (!_cards.Contains(card) || card.TryGetPlatformHandle() is null)
+            {
+                continue;
+            }
+
             Present(card);
             if (area is MonitorArea target)
             {

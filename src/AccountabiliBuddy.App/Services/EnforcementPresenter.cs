@@ -217,12 +217,14 @@ public sealed class EnforcementPresenter
 
     /// <summary>
     /// Closes the reminder toasts still up (they show for 20 s, so one can be left on screen when the computer sleeps and wakes
-    /// stale). The enforcement toasts and the drift overlay belong to the engine and are left alone.
+    /// stale). Each counts as unanswered, as if it had timed out, so the ones that leave a dot on the overlay still do. The
+    /// enforcement toasts and the drift overlay belong to the engine and are left alone.
     /// </summary>
     public void CloseReminders()
     {
         foreach (NudgeToast toast in _reminders.ToList())
         {
+            (toast.DataContext as NudgeToastViewModel)?.RaiseExpired();
             toast.Close();
         }
     }
