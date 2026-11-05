@@ -1163,7 +1163,7 @@ public partial class App : Application
         timelineDay.GuardedPlan = guardedPlan;
         _headphones!.NightFallback = nightFallback;
         _shutdown.NightFallback = nightFallback;
-        WatchPowerTransitions();
+        WatchPowerTransitions(monitorLocator);
         _dayBar.NightFallback = nightFallback;
         timelineDay.NightFallback = nightFallback;
         _ = _deepWork.ReloadAsync();
@@ -2074,19 +2074,18 @@ public partial class App : Application
     /// Hides the front cards while the computer sleeps and, on waking, lets each service re-check against the current time and
     /// plan before the cards still due are shown again: a card for a state that ended during the sleep is never seen.
     /// </summary>
-    private void WatchPowerTransitions()
+    private void WatchPowerTransitions(IMonitorLocator monitors)
     {
-        _power = new PowerTransitions();
+        _power = new PowerTransitions(_sessions!);
         _power.Suspending += (_, _) => _frontCards.Suspend();
         _power.Resumed += (_, _) =>
         {
-            // The cards stay hidden and registered while these run: a service that closes its card removes it, one that opens a
-            // card only registers it. Then what is left is shown.
-            _preWork?.CheckNow();
-            _startNudge?.CheckNow();
-            _workGate?.CheckNow();
-            _shutdown?.CheckNow();
-            _frontCards.Resume();
+            // The cards stay hidden and registered while the services re-check: one that closes its card removes it, one that
+            // opens a card only registers it. A full tick handles the session's sleep gap first, then every service checks again.
+            _sessions!.TickNow();
+
+            // Closes that the services posted (Pick's Dismiss, say) run before this: only then is what is left shown.
+            Dispatcher.UIThread.Post(() => _frontCards.Resume(monitors), DispatcherPriority.Background);
         };
     }
 

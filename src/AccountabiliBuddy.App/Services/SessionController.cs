@@ -341,6 +341,15 @@ public sealed class SessionController : IDisposable
         }
     }
 
+    /// <summary>
+    /// Runs one full tick now, the same body as the timer's: the sleep gap is handled first, then <see cref="Ticked"/> is raised, so
+    /// every service re-checks against the current time. Used after waking from sleep.
+    /// </summary>
+    public void TickNow()
+    {
+        OnTick(this, EventArgs.Empty);
+    }
+
     private void OnTick(object? sender, EventArgs e)
     {
         // The clock counts sleep, so a jump between ticks means the PC slept with a session running: the same rule as a shutdown.

@@ -72,9 +72,10 @@ public sealed class FrontCardHost
 
     /// <summary>
     /// The computer woke up: shows the cards still registered (a service that has since closed its card already removed it) with
-    /// a fresh dim. The caller re-checks the services first, so only cards still due are left.
+    /// a fresh dim, each centred again on the monitor under the cursor (the one it was on may have been unplugged meanwhile).
+    /// The caller re-checks the services first, so only cards still due are left.
     /// </summary>
-    public void Resume()
+    public void Resume(IMonitorLocator monitors)
     {
         if (!_suspended)
         {
@@ -82,9 +83,15 @@ public sealed class FrontCardHost
         }
 
         _suspended = false;
+        MonitorArea? area = monitors.Find(monitors.FindMonitorUnderCursor());
         foreach (Window card in _cards.ToList())
         {
             Present(card);
+            if (area is MonitorArea target)
+            {
+                // After Show: the handlers MonitorPlacement.Center added move the card to its old monitor when it opens.
+                MonitorPlacement.Recenter(card, target);
+            }
         }
     }
 

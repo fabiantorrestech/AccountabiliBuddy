@@ -37,18 +37,19 @@ public static class MonitorPlacement
     {
         window.Position = new PixelPoint(area.WorkArea.Left + CornerMarginPixels, area.WorkArea.Top + CornerMarginPixels);
 
-        void MoveToCenter()
-        {
-            double scaling = window.DesktopScaling;
-            int widthPixels = (int)Math.Ceiling(window.Bounds.Width * scaling);
-            int heightPixels = (int)Math.Ceiling(window.Bounds.Height * scaling);
-            window.Position = new PixelPoint(
-                area.WorkArea.Left + ((area.WorkArea.Width - widthPixels) / 2),
-                area.WorkArea.Top + ((area.WorkArea.Height - heightPixels) / 2));
-        }
+        window.SizeChanged += (_, _) => Recenter(window, area);
+        window.Opened += (_, _) => Recenter(window, area);
+    }
 
-        window.SizeChanged += (_, _) => MoveToCenter();
-        window.Opened += (_, _) => MoveToCenter();
+    /// <summary>Moves the window to the centre of the monitor's work area once, by its current size (no handlers are added).</summary>
+    public static void Recenter(Window window, MonitorArea area)
+    {
+        double scaling = window.DesktopScaling;
+        int widthPixels = (int)Math.Ceiling(window.Bounds.Width * scaling);
+        int heightPixels = (int)Math.Ceiling(window.Bounds.Height * scaling);
+        window.Position = new PixelPoint(
+            area.WorkArea.Left + ((area.WorkArea.Width - widthPixels) / 2),
+            area.WorkArea.Top + ((area.WorkArea.Height - heightPixels) / 2));
     }
 
     /// <summary>Covers the whole monitor, including the taskbar.</summary>
