@@ -1192,6 +1192,7 @@ public partial class App : Application
         _shutdown.WorkEnded = workEnded;
         _dayBar.WorkEnded = workEnded;
         timelineDay.WorkEnded = workEnded;
+        _headphones!.WorkEnded = workEnded;
         _workEnded.WorkIn = (range, now) => DayWorkWindows.WorkWindows(effectivePlan.Current, range, now, countedFocus, nightFallback, _workEnded.Windows)
             .Select(focus => focus.Window)
             .ToList();
@@ -2132,10 +2133,17 @@ public partial class App : Application
         {
             // The cards stay hidden and registered while the services re-check: one that closes its card removes it, one that
             // opens a card only registers it. A full tick handles the session's sleep gap first, then every service checks again.
-            _sessions!.TickNow();
-
-            // Closes that the services posted (Pick's Dismiss, say) run before this: only then is what is left shown.
-            Dispatcher.UIThread.Post(() => _frontCards.Resume(monitors), DispatcherPriority.Background);
+            int suspendCount = _frontCards.SuspendCount;
+            try
+            {
+                _sessions!.TickNow();
+            }
+            finally
+            {
+                // Closes that the services posted (Pick's Dismiss, say) run before this: only then is what is left shown. If the
+                // computer goes to sleep again before it runs, it is stale and does nothing.
+                Dispatcher.UIThread.Post(() => _frontCards.Resume(monitors, suspendCount), DispatcherPriority.Background);
+            }
         };
     }
 
@@ -2745,7 +2753,12 @@ public partial class App : Application
             return false;
         }
 
-        await _workEnded!.EndAsync(viewModel.AlsoEndLater, viewModel.Reason);
+        // The block the dialog showed is the one ended; if it is over by now, nothing is ended.
+        if (!await _workEnded!.EndAsync(proposal, viewModel.AlsoEndLater, viewModel.Reason))
+        {
+            _presenter?.ShowNotice("Nothing ended", "That work block was already over, so nothing was ended.");
+        }
+
         return true;
     }
 

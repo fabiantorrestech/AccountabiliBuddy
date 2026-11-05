@@ -411,8 +411,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away, IReadOnlyList<LocalWindow> Distracted)> actual = ActualSessions(now, span);
 
-        // The ended stretch still shows (lighter), so the bar keeps room for it.
-        IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window)).Concat(ended.Where(window => DayTimeline.Clip(window, span) is not null));
+        // The ended stretch still shows (lighter), so the bar keeps room for it: the pieces of it that lie in work, not the whole window.
+        IReadOnlyList<LocalWindow> endedInWork = ended.Count == 0
+            ? []
+            : DayWorkWindows.WorkWindows(PlanInForce, span, now, FocusedOn, NightFallback)
+                .SelectMany(focus => ended.Select(window => DayTimeline.Clip(window, focus.Window)))
+                .OfType<LocalWindow>()
+                .ToList();
+        IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window)).Concat(endedInWork);
         if (_sleep.Current.Enabled)
         {
             // The calendar dates also hold tomorrow's early parts; only parts touching this waking day stretch it.

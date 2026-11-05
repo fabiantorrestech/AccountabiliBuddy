@@ -29,11 +29,15 @@ public sealed class WorkEndedService
     private WorkEndedState _state = new();
     private IReadOnlyList<LocalWindow> _windows = [];
 
+    // Another PC's change that came during a session here: nothing changes during a session, so it waits until none runs.
+    private SyncWorkEnded? _heldReceived;
+
     public WorkEndedService(SessionController sessions, SqliteJsonDocumentStore store, IDataProtector protector)
     {
         _sessions = sessions;
         _store = store;
         _protector = protector;
+        _sessions.Ticked += (_, _) => ApplyHeldReceived();
     }
 
     /// <summary>
@@ -95,20 +99,22 @@ public sealed class WorkEndedService
     }
 
     /// <summary>
-    /// Ends work now, after the wait and the reason (the caller's dialog checked both): the rest of the current block from this moment,
-    /// plus the later blocks when <paramref name="alsoLater"/>. Read again at the moment of confirming, so a block that ended during the
-    /// wait isn't ended twice.
+    /// Ends work now, after the wait and the reason (the caller's dialog checked both): the rest of the block the dialog showed
+    /// (<paramref name="proposal"/>) from this moment, plus its later blocks when <paramref name="alsoLater"/>. If that block is over
+    /// by now (it ended during the wait), nothing is ended.
     /// </summary>
-    /// <returns>False when no work part runs any more (nothing was ended).</returns>
-    public async Task<bool> EndAsync(bool alsoLater, string reason)
+    /// <returns>False when the block the dialog showed no longer runs (nothing was ended).</returns>
+    public async Task<bool> EndAsync(WorkEndProposal proposal, bool alsoLater, string reason)
     {
-        if (Propose() is not WorkEndProposal proposal)
+        DateTime localNow = LocalNow();
+        if (localNow >= proposal.Current.End)
         {
             return false;
         }
 
         DateTimeOffset now = _sessions.Now;
-        IEnumerable<LocalWindow> ended = alsoLater ? [proposal.Current, .. proposal.Later] : [proposal.Current];
+        var current = new LocalWindow(localNow > proposal.Current.Start ? localNow : proposal.Current.Start, proposal.Current.End);
+        IEnumerable<LocalWindow> ended = alsoLater ? [current, .. proposal.Later] : [current];
         WorkEndedDay day = DayOf(proposal.PlanDate) ?? new WorkEndedDay(proposal.PlanDate, [], now);
         var sealedReason = new WorkEndedReason(now, Convert.ToBase64String(_protector.Protect(reason.Trim())));
         day = day with
@@ -156,10 +162,23 @@ public sealed class WorkEndedService
             : null;
     }
 
-    /// <summary>Takes another PC's work ended early when it is for today's plan date and its edit is newer than ours.</summary>
+    /// <summary>
+    /// Takes another PC's work ended early when it is for today's plan date and its edit is newer than ours. During a session here
+    /// it is held (the newest one) and taken once no session runs.
+    /// </summary>
     /// <returns>True when it was taken.</returns>
     public bool Receive(SyncWorkEnded received)
     {
+        if (_sessions.State.IsActive)
+        {
+            if (_heldReceived is null || received.EditedAt > _heldReceived.EditedAt)
+            {
+                _heldReceived = received;
+            }
+
+            return false;
+        }
+
         DateTimeOffset now = _sessions.Now;
         if (received.Date != PlanDateOf(LocalNow()) || received.EditedAt > now + TimeSpan.FromMinutes(2))
         {
@@ -179,6 +198,17 @@ public sealed class WorkEndedService
         var day = new WorkEndedDay(received.Date, windows, received.EditedAt, ours?.Reasons);
         _ = SaveAsync(WithDay(day, now));
         return true;
+    }
+
+    private void ApplyHeldReceived()
+    {
+        if (_heldReceived is not SyncWorkEnded held || _sessions.State.IsActive)
+        {
+            return;
+        }
+
+        _heldReceived = null;
+        Receive(held);
     }
 
     private WorkEndedDay? DayOf(DateOnly date)

@@ -139,7 +139,13 @@ public static class DayWorkWindows
         }
 
         // Unmet windows, whatever was focused: the time still on offer is what lies ahead of now.
-        TimeSpan available = DayTimeline.Subtract(BudgetWindows(plan, ViewOf(plan), date, null, now, nightFallback), endedWork ?? [])
+        IReadOnlyList<LocalWindow> windows = BudgetWindows(plan, ViewOf(plan), date, null, now, nightFallback);
+        if (endedWork is { Count: > 0 })
+        {
+            windows = DayTimeline.Subtract(windows, endedWork);
+        }
+
+        TimeSpan available = windows
             .Select(window => DayTimeline.Clip(window, new LocalWindow(now, DateTime.MaxValue)))
             .OfType<LocalWindow>()
             .Aggregate(TimeSpan.Zero, (sum, window) => sum + (window.End - window.Start));
