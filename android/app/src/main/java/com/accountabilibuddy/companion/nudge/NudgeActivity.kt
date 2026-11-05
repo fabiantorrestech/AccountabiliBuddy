@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.ui.CompanionTheme
+import com.accountabilibuddy.shared.WorkStart
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -43,11 +44,13 @@ import java.time.ZoneId
  * or Home only hide it for about a second ([Takeover.watchUnanswered]): one of them it is.
  */
 class NudgeActivity : ComponentActivity() {
-    // Lunch (from any device) is a break: an open card closes, as the PC's does.
-    private val lunchCheck: Runnable = object : Runnable {
+    // An open card closes as soon as it no longer applies (the PC's does the same): lunch, a pause, a day off or emergency time
+    // (nothing may nudge), a session on any device, or the work stretch is over. Checked at once on resume, so a card left behind
+    // the lock screen never greets the next unlock, then every 5 s while it is up.
+    private val stillDueCheck: Runnable = object : Runnable {
         override fun run() {
-            if ((application as com.accountabilibuddy.companion.CompanionApp).lunch.isOnLunch(java.time.Instant.now())) {
-                finish()
+            if (!isStillDue()) {
+                closeNoLongerDue()
                 return
             }
 
@@ -56,15 +59,31 @@ class NudgeActivity : ComponentActivity() {
         }
     }
 
+    private fun isStillDue(): Boolean {
+        val app = application as CompanionApp
+        val focus = Takeover.nudgeFocus(app) ?: return false
+        if (focus.running != null) return false
+        return WorkStart.current(focus, Instant.now()) != null
+    }
+
+    // Not answered by the user, so the card is no longer owed: clear the flag so the return watch (and onStop) don't bring it back.
+    private fun closeNoLongerDue() {
+        val app = application as CompanionApp
+        NudgeStore(this).update { it.copy(unanswered = false) }
+        Takeover.stopWatchingUnanswered()
+        finish()
+        app.refreshSoon()
+    }
+
     override fun onResume() {
         super.onResume()
         (application as CompanionApp).nudgeOnScreen = true
         Takeover.stopWatchingUnanswered()
-        lunchCheck.run()
+        stillDueCheck.run()
     }
 
     override fun onPause() {
-        window.decorView.removeCallbacks(lunchCheck)
+        window.decorView.removeCallbacks(stillDueCheck)
         super.onPause()
     }
 

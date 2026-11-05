@@ -9,6 +9,7 @@ import com.accountabilibuddy.companion.MainActivity
 import com.accountabilibuddy.companion.R
 import com.accountabilibuddy.shared.WatchSnapshot
 import com.accountabilibuddy.shared.WorkStart
+import java.time.Duration
 import java.time.Instant
 
 /**
@@ -50,6 +51,13 @@ object WorkStartNudge {
             return
         }
 
+        // No work stretch now (it ended, or none today): an old nudge goes.
+        val stretchEnd = WorkStart.currentEnd(focus, now)
+        if (stretchEnd == null) {
+            NotificationManagerCompat.from(context).cancel(ID)
+            return
+        }
+
         val repeat = com.accountabilibuddy.companion.nudge.GoalBonus.repeatMinutes(focus, repeatMinutes(context), now)
         if (!WorkStart.nudgeDue(focus, now, lastNudge(context), repeat) || !TimelineNotifier.canPost(context)) {
             return
@@ -76,6 +84,8 @@ object WorkStartNudge {
             }
             .setStyle(NotificationCompat.BigTextStyle())
             .setAutoCancel(true)
+            // Android removes it by itself when the stretch ends, even if the app is not running then.
+            .setTimeoutAfter(Duration.between(now, stretchEnd).toMillis().coerceAtLeast(1L))
             .setContentIntent(open)
             .setColor(0xFF2A9D8F.toInt())
             .build()
