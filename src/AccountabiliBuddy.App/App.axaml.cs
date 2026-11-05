@@ -2077,7 +2077,11 @@ public partial class App : Application
     private void WatchPowerTransitions(IMonitorLocator monitors)
     {
         _power = new PowerTransitions(_sessions!);
-        _power.Suspending += (_, _) => _frontCards.Suspend();
+        _power.Suspending += (_, _) =>
+        {
+            _frontCards.Suspend();
+            _presenter?.CloseReminders(); // 20 s reminder toasts would be stale on waking.
+        };
         _power.Resumed += (_, _) =>
         {
             // The cards stay hidden and registered while the services re-check: one that closes its card removes it, one that
