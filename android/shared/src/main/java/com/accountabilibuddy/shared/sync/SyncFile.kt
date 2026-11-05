@@ -96,11 +96,32 @@ data class SyncFile(
      * Null from a PC, from a QR file and from an app that predates it. Optional in the JSON, so older apps ignore it.
      */
     val steps: SyncSteps? = null,
+    /**
+     * A PC's work ended early by Start shutdown (ADR 65): today's ended windows and when they were last edited. Times only, never the
+     * reason. Null from a phone, a QR file and a PC that predates it. Optional in the JSON, so older apps ignore it (and keep nudging).
+     */
+    val workEnded: SyncWorkEnded? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
     }
 }
+
+/**
+ * Work ended early on a PC (ADR 65): on [date] (its plan date), the [windows] of work parts ended early, each from the moment it was
+ * confirmed to the part's planned end. An empty list with a newer [editedAt] is an undo ("Back to work"). Across devices the newest
+ * [editedAt] for a date wins, as with [SyncLunch].
+ */
+data class SyncWorkEnded(val date: java.time.LocalDate, val windows: List<SyncWorkEndedWindow>, val editedAt: Instant) {
+    companion object {
+        /** The newest edit for [date] among [files]; null when none of them says anything about that date. */
+        fun newestFor(files: List<SyncFile>, date: java.time.LocalDate): SyncWorkEnded? =
+            files.mapNotNull { it.workEnded }.filter { it.date == date }.maxByOrNull { it.editedAt }
+    }
+}
+
+/** One stretch of work ended early: [start] (when it was confirmed) to [end] (the part's planned end). */
+data class SyncWorkEndedWindow(val start: Instant, val end: Instant)
 
 /**
  * One of a device's task categories as its sync file lists them (the PC's SyncCategory): the name and the colour only, since a

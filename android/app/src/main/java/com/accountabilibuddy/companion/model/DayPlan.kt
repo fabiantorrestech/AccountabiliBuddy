@@ -189,6 +189,11 @@ data class DayPlan(
     val templates: List<PlanTemplate>,
     val cycle: PlanCycle,
     val oneOffDays: List<OneOffDay> = emptyList(),
+    /**
+     * Work ended early by Start shutdown on a PC (ADR 65), as local windows: the work-window engine leaves them out of the work
+     * parts. Never stored or sent: only the plan the guards read carries it ([com.accountabilibuddy.companion.CompanionApp.effectivePlan]).
+     */
+    val endedWork: List<LocalWindow> = emptyList(),
 ) {
     /** The "Workday" template as stored (the classic two-template view, until the editors know named templates); empty when removed. */
     val workday: DayTemplate get() = templateById(WORKDAY_TEMPLATE_ID) ?: DayTemplate()

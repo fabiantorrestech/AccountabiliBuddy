@@ -23,6 +23,8 @@ data class SnapshotInput(
     val sources: List<DataSource> = emptyList(),
     /** Today's flexible lunch on the phone, for the watch's Lunch page; null when the sender has none to give. */
     val lunch: WatchLunch? = null,
+    /** Work ended early (ADR 65): the pieces cut out of [parts]' work parts. */
+    val endedParts: List<FocusPart> = emptyList(),
 )
 
 /**
@@ -62,7 +64,9 @@ object SnapshotBuilder {
         }
 
         val parts = input.parts.filter { it.end.isAfter(dayStart) && it.start.isBefore(dayEnd) }
-        val planned = WatchSnapshot.minutes(parts.filter { it.kind == "watch" }.map { TimeWindow(maxOf(it.start, dayStart), minOf(it.end, dayEnd)) })
+        val endedParts = input.endedParts.filter { it.end.isAfter(dayStart) && it.start.isBefore(dayEnd) }
+        // Planned work stays what was planned: work ended early still counts in it (ADR 65 changes nothing about the totals).
+        val planned = WatchSnapshot.minutes((parts + endedParts).filter { it.kind == "watch" }.map { TimeWindow(maxOf(it.start, dayStart), minOf(it.end, dayEnd)) })
 
         val snapshot = WatchSnapshot(
             createdAt = input.now,
@@ -81,6 +85,7 @@ object SnapshotBuilder {
             // The goal is a setting, not today's data: an older focus day's goal still holds.
             goalMinutes = input.focusDay?.goalMinutes,
             lunch = input.lunch,
+            endedParts = endedParts,
         )
 
         // The PC's totals for the days before today (dated, so an older focus day still counts), and today live.

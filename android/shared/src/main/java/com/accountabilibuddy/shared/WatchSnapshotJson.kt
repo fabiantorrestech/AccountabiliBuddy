@@ -19,6 +19,8 @@ object WatchSnapshotJson {
         snapshot.pcName?.let { put("pcName", it) }
         put("date", snapshot.date.toString())
         put("parts", buildJsonArray { snapshot.parts.forEach { add(FocusDayJson.writePart(it)) } })
+        // Optional (ADR 65): an older watch ignores it.
+        if (snapshot.endedParts.isNotEmpty()) put("endedParts", buildJsonArray { snapshot.endedParts.forEach { add(FocusDayJson.writePart(it)) } })
         put("sessions", buildJsonArray { snapshot.sessions.forEach { add(FocusDayJson.writeSession(it)) } })
         put("drift", buildJsonArray { snapshot.drift.forEach { add(FocusDayJson.writeWindow(it)) } })
         put("plannedMinutes", snapshot.plannedMinutes)
@@ -91,6 +93,8 @@ object WatchSnapshotJson {
             goalMinutes = json.int("goalMinutes")?.takeIf { it > 0 },
             // Snapshots from an older phone have no lunch: no Lunch page.
             lunch = (json["lunch"] as? JsonObject)?.let(::lunch),
+            // Snapshots from an older phone have none.
+            endedParts = json.objects("endedParts").mapNotNull(FocusDayJson::readPart),
         )
     }
 

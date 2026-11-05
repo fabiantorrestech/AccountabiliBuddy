@@ -95,6 +95,11 @@ data class WatchSnapshot(
     val goalMinutes: Int? = null,
     /** Today's flexible lunch for the Lunch page (from the phone only); null from an older phone. */
     val lunch: WatchLunch? = null,
+    /**
+     * Work ended early by Start shutdown on a PC (ADR 65): the cut pieces of [parts]' work, in their parts' colours, drawn lighter.
+     * Times and the plan's own names only. Empty from an older phone, and an older watch ignores them.
+     */
+    val endedParts: List<FocusPart> = emptyList(),
 ) {
     /** Today's focus as a share of the goal (ADR 29), 0 to 1; null without a goal. */
     fun goalFraction(now: Instant, zone: ZoneId): Float? =

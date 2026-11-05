@@ -44,6 +44,8 @@ object PhoneSnapshot {
             linked = linked,
             pcName = pcName,
             parts = todayParts(plan, today, zone, state.sleep),
+            // ADR 65: work a PC ended early, for the watch to draw lighter.
+            endedParts = endedTodayParts(plan, today, zone, state.sleep),
             // The parts and planned minutes come from the imported plan (ADR 42).
             focusDay = FocusDayCombine.combine(totals, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone, state.sleep) }),
             sources = received.map { (name, file) -> DataSource(name, file.device.writtenAt) },
@@ -57,16 +59,24 @@ object PhoneSnapshot {
     fun todayParts(plan: DayPlan, date: LocalDate, zone: ZoneId, sleep: com.accountabilibuddy.companion.model.SleepSettings? = null): List<FocusPart> {
         val start = date.atStartOfDay()
         // Through the work-window engine: a Budget day goes out as its guarded windows in "watch" parts, a Free day without work.
-        return DayWorkWindows.partsIn(plan, LocalWindow(start, start.plusDays(1)), start, nightFallback = sleep?.let { it::fallbackNightBefore }).map { part ->
-            val kind = when (part.category.behavior) {
-                CategoryBehavior.Watch, CategoryBehavior.Comms -> "watch"
-                CategoryBehavior.Sleep -> "sleep"
-                CategoryBehavior.Rest -> "rest"
-                CategoryBehavior.PreWork -> "prework"
-            }
-            FocusPart(part.name, part.category.name, part.category.color, kind,
-                part.window.start.atZone(zone).toInstant(), part.window.end.atZone(zone).toInstant())
+        return DayWorkWindows.partsIn(plan, LocalWindow(start, start.plusDays(1)), start, nightFallback = sleep?.let { it::fallbackNightBefore }).map { focusPart(it, zone) }
+    }
+
+    /** The pieces of [date]'s work parts ended early on a PC (ADR 65), in the same shape as [todayParts]; empty when none were. */
+    fun endedTodayParts(plan: DayPlan, date: LocalDate, zone: ZoneId, sleep: com.accountabilibuddy.companion.model.SleepSettings? = null): List<FocusPart> {
+        val start = date.atStartOfDay()
+        return DayWorkWindows.endedPartsIn(plan, LocalWindow(start, start.plusDays(1)), start, nightFallback = sleep?.let { it::fallbackNightBefore }).map { focusPart(it, zone) }
+    }
+
+    private fun focusPart(part: com.accountabilibuddy.companion.model.PlannedPart, zone: ZoneId): FocusPart {
+        val kind = when (part.category.behavior) {
+            CategoryBehavior.Watch, CategoryBehavior.Comms -> "watch"
+            CategoryBehavior.Sleep -> "sleep"
+            CategoryBehavior.Rest -> "rest"
+            CategoryBehavior.PreWork -> "prework"
         }
+        return FocusPart(part.name, part.category.name, part.category.color, kind,
+            part.window.start.atZone(zone).toInstant(), part.window.end.atZone(zone).toInstant())
     }
 
     /**

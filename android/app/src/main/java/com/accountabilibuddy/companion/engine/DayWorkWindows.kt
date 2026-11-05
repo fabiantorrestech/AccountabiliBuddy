@@ -30,6 +30,8 @@ data class BudgetPace(val budgetLeft: Duration, val availableLeft: Duration, val
  * - Free: none, and no Comms or Pre-Work parts either.
  * "Counted focus" is passed in as `focusedOn` (what the day bar and the goal count); without it nothing is counted and a
  * Budget day shows all its available time. Local wall-clock times.
+ * Work ended early (ADR 65, the plan's [DayPlan.endedWork]) is cut out of every work part here, so every guard reads the same
+ * answer; [endedPartsIn] gives the cut pieces for the timelines, which draw them lighter. Pre-Work, Sleep and Rest are not touched.
  */
 object DayWorkWindows {
     /** Id of the stand-in part a Budget window is returned as, the PC's same one. */
@@ -44,6 +46,29 @@ object DayWorkWindows {
      * windows as parts of the first Watch category, clipped to the range, in order.
      */
     fun partsIn(plan: DayPlan, range: LocalWindow, now: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null, nightFallback: ((LocalDate) -> SleepTimes?)? = null): List<PlannedPart> {
+        val planned = plannedPartsIn(plan, range, now, focusedOn, nightFallback)
+        if (plan.endedWork.isEmpty()) return planned
+
+        return planned.flatMap { part ->
+            if (!part.category.behavior.isWork) return@flatMap listOf(part)
+            DayTimeline.subtract(listOf(part.window), plan.endedWork).map { left -> part.copy(window = left) }
+        }
+    }
+
+    /**
+     * The pieces of work parts touching [range] that were ended early (ADR 65), in their parts' categories, earliest first; empty when
+     * nothing was. The timelines draw these lighter where the part would have been.
+     */
+    fun endedPartsIn(plan: DayPlan, range: LocalWindow, now: LocalDateTime, focusedOn: ((LocalDate) -> Duration)? = null, nightFallback: ((LocalDate) -> SleepTimes?)? = null): List<PlannedPart> {
+        if (plan.endedWork.isEmpty()) return emptyList()
+
+        return plannedPartsIn(plan, range, now, focusedOn, nightFallback)
+            .filter { it.category.behavior.isWork }
+            .flatMap { part -> plan.endedWork.mapNotNull { ended -> DayTimeline.clip(part.window, ended) }.map { piece -> part.copy(window = piece) } }
+    }
+
+    // The parts as planned, before work ended early is cut out.
+    private fun plannedPartsIn(plan: DayPlan, range: LocalWindow, now: LocalDateTime, focusedOn: ((LocalDate) -> Duration)?, nightFallback: ((LocalDate) -> SleepTimes?)?): List<PlannedPart> {
         val view = viewOf(plan)
         val parts = view.partsIn(range).toMutableList()
         val hasBudgetDay = plan.templates.any { it.template.mode == DayMode.Budget } || plan.oneOffDays.any { it.template.mode == DayMode.Budget }
@@ -107,7 +132,8 @@ object DayWorkWindows {
         // A calendar Work event's credit (ADR 58) counts like focus here, though it is never focus time.
         val left = Duration.ofMinutes(minutes.toLong()).minus(focusedSoFar).minus(template.budgetCredit).let { if (it.isNegative) Duration.ZERO else it }
         val ahead = LocalWindow(now, LATEST)
-        val available = budgetWindows(plan, viewOf(plan), date, null, now, nightFallback)
+        // Work ended early (ADR 65) is no longer available.
+        val available = DayTimeline.subtract(budgetWindows(plan, viewOf(plan), date, null, now, nightFallback), plan.endedWork)
             .mapNotNull { DayTimeline.clip(it, ahead) }
             .fold(Duration.ZERO) { sum, window -> sum.plus(Duration.between(window.start, window.end)) }
         return BudgetPace(left, available, !left.isZero && available < left)

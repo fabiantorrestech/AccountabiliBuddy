@@ -25,6 +25,7 @@ object PlanTimelineBuilder {
     // Parts closer than this run into one work row.
     private val BRIDGE: Duration = Duration.ofMinutes(15)
     private val SHORTEST_STRETCH: Duration = Duration.ofMinutes(15)
+    private const val ENDED_ALPHA: Long = 0x4D000000L
 
     /**
      * @param events every calendar event the phone has; the ones on [date] are used.
@@ -45,6 +46,8 @@ object PlanTimelineBuilder {
         val day = LocalWindow(dayStart, dayStart.plusDays(1))
         val isToday = now.toLocalDate() == date
         val parts = DayWorkWindows.partsIn(plan, day, now, { other -> if (other == date) focused else Duration.ZERO }, nightFallback)
+        // Work ended early on a PC (ADR 65): a faint row of its own where the part would have gone on.
+        val endedEarly = DayWorkWindows.endedPartsIn(plan, day, now, { other -> if (other == date) focused else Duration.ZERO }, nightFallback)
         val template = plan.templateFor(date)
         val budget = template.budgetMinutes?.takeIf { template.mode == DayMode.Budget && it > 0 }?.let { Duration.ofMinutes(it.toLong()) }
 
@@ -77,7 +80,15 @@ object PlanTimelineBuilder {
             trailing.clear()
         }
 
-        for (part in parts) {
+        val entries = (parts.map { it to false } + endedEarly.map { it to true })
+            .sortedWith(compareBy({ it.first.window.start }, { it.first.window.end }))
+        for ((part, isEnded) in entries) {
+            if (isEnded) {
+                flush()
+                rows += endedRow(part, clock)
+                continue
+            }
+
             val behavior = part.category.behavior
             val current = group
             if (behavior.isWork) {
@@ -112,7 +123,7 @@ object PlanTimelineBuilder {
             if (index < 0) rows += row else rows.add(index, row)
         }
 
-        return PlanDayTimeline(rows, hasWork = parts.any { it.category.behavior.isWork })
+        return PlanDayTimeline(rows, hasWork = parts.any { it.category.behavior.isWork } || endedEarly.isNotEmpty())
     }
 
     /** "2h", "1h 10m" or "45m"; rounded to the nearest minute, as the PC does. */
@@ -185,6 +196,15 @@ object PlanTimelineBuilder {
             else -> until
         }
         return PlanTimelineRow(time = clock.time(span.start), title = first.name, sub = sub, argb = first.category.argb, subRows = ordered)
+    }
+
+    // Work ended early (ADR 65): the part's colour, faint, and what it would have run to.
+    private fun endedRow(part: PlannedPart, clock: ClockFormat): PlanTimelineRow {
+        val length = Duration.between(part.window.start, part.window.end)
+        return PlanTimelineRow(
+            time = clock.time(part.window.start), title = "${part.name} · ended early",
+            sub = "Was until ${clock.time(part.window.end)} · ${span(length)}", argb = (part.category.argb and 0x00FFFFFFL) or ENDED_ALPHA,
+        )
     }
 
     // A part that isn't work: a break, a pre-work window.

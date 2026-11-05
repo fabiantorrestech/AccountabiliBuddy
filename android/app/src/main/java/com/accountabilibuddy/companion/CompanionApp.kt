@@ -132,11 +132,31 @@ class CompanionApp : Application() {
     }
 
     /**
-     * The day plan the guards and displays read (ADR 58): the stored plan with classified calendar events over it. Plan editors, sync and
-     * backup keep using `document.dayPlan`. The same instance comes back while the feature is off.
+     * The day plan the guards and displays read (ADR 58): the stored plan with classified calendar events over it, and the work a PC
+     * ended early today (ADR 65). Plan editors, sync and backup keep using `document.dayPlan`. The same instance comes back while
+     * neither applies.
      */
-    fun effectivePlan(state: com.accountabilibuddy.companion.data.CompanionState = store.state.value): com.accountabilibuddy.companion.model.DayPlan =
-        calendarOverlay.effective(state.document.dayPlan, state.sleep::fallbackNightBefore)
+    fun effectivePlan(state: com.accountabilibuddy.companion.data.CompanionState = store.state.value): com.accountabilibuddy.companion.model.DayPlan {
+        val plan = calendarOverlay.effective(state.document.dayPlan, state.sleep::fallbackNightBefore)
+        val ended = workEndedToday()
+        return if (ended.isEmpty()) plan else plan.copy(endedWork = ended)
+    }
+
+    /**
+     * Today's work ended early by Start shutdown on a PC (ADR 65), as local windows: the newest edit for today among the received
+     * files wins (an undo leaves none). Empty before sync starts, or when no PC sent any.
+     */
+    fun workEndedToday(now: java.time.Instant = java.time.Instant.now()): List<com.accountabilibuddy.companion.model.LocalWindow> {
+        if (!::sync.isInitialized) return emptyList()
+        val zone = java.time.ZoneId.systemDefault()
+        val today = now.atZone(zone).toLocalDate()
+        val newest = com.accountabilibuddy.shared.sync.SyncWorkEnded.newestFor(sync.received.value.map { it.file }, today) ?: return emptyList()
+        return newest.windows.map { window ->
+            com.accountabilibuddy.companion.model.LocalWindow(
+                java.time.LocalDateTime.ofInstant(window.start, zone), java.time.LocalDateTime.ofInstant(window.end, zone),
+            )
+        }
+    }
 
     private var calendarObserver: android.database.ContentObserver? = null
 

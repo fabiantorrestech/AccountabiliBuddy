@@ -47,6 +47,7 @@ object DayBarPainter {
 
     // Plan parts at 85% like on the PC; on the notification's teal card a light edge keeps teal parts visible.
     private const val PART_ALPHA = 0xD9000000.toInt()
+    private const val ENDED_ALPHA = 0x40000000
     private const val PART_EDGE_ON_ACCENT = 0x80FFFFFF.toInt()
     private const val MIN_PART_WIDTH_FOR_NAME_DP = 28f
     private const val PART_TEXT_SP = 10f
@@ -227,7 +228,15 @@ object DayBarPainter {
             block(model.events, dp(top), dp(sizes.calendar), dp(1f), { if (eink) paper else gray(it.color ?: EVENT) })
         }
         tops[BarRow.Plan]?.let { top ->
-            block(model.planned, dp(top), dp(sizes.plan), dp(4f), { if (eink) paper else gray(it.color ?: FOCUS) })
+            // Work ended early (ADR 65): left unfilled on e-ink, a faint gray elsewhere.
+            block(model.planned, dp(top), dp(sizes.plan), dp(4f), {
+                when {
+                    it.ended && eink -> 0
+                    it.ended -> (gray(it.color ?: FOCUS) and 0x00FFFFFF) or ENDED_ALPHA
+                    eink -> paper
+                    else -> gray(it.color ?: FOCUS)
+                }
+            })
             if (!compact) {
                 val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = PART_TEXT_SP * density }
                 val padding = 3f * density
@@ -314,6 +323,13 @@ object DayBarPainter {
 
             val rect = RectF(left, top, right, top + height)
             paint.style = Paint.Style.FILL
+            if (span.ended) {
+                // Work ended early (ADR 65): the part's own hue, faint.
+                paint.color = ((span.color ?: fallback) and 0x00FFFFFF) or ENDED_ALPHA
+                canvas.drawRoundRect(rect, radius, radius, paint)
+                continue
+            }
+
             if (span.overlap) {
                 // Pre-Work over Sleep: a faint fill with stripes in its colour, the night showing through.
                 val color = span.color ?: fallback
