@@ -40,6 +40,9 @@ public sealed class HeadphoneAutoPlayService : IDisposable
     /// <summary>The night before a date from the sleep settings. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>Work ended early (ADR 65), never a plan window for auto-play. Set by the app.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
+
     /// <summary>The plan's categories, for the settings picker.</summary>
     public IReadOnlyList<DayCategory> PlanCategories => (PlanProvider?.Invoke() ?? DayPlan.Default).Categories;
 
@@ -119,6 +122,6 @@ public sealed class HeadphoneAutoPlayService : IDisposable
         DayPlan plan = PlanProvider?.Invoke() ?? DayPlan.Default;
         // The app's time (trusted clock, its time zone), never the system's DateTime.Now.
         DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
-        return HeadphoneSchedule.AllowsNow(Current, plan, now, FocusedOn, NightFallback);
+        return HeadphoneSchedule.AllowsNow(Current, plan, now, FocusedOn, NightFallback, WorkEnded?.Invoke());
     }
 }

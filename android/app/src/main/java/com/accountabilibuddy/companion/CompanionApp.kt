@@ -132,11 +132,32 @@ class CompanionApp : Application() {
     }
 
     /**
-     * The day plan the guards and displays read (ADR 58): the stored plan with classified calendar events over it. Plan editors, sync and
-     * backup keep using `document.dayPlan`. The same instance comes back while the feature is off.
+     * The day plan the guards and displays read (ADR 58): the stored plan with classified calendar events over it, and the work a PC
+     * ended early today (ADR 65). Plan editors, sync and backup keep using `document.dayPlan`. The same instance comes back while
+     * neither applies.
      */
-    fun effectivePlan(state: com.accountabilibuddy.companion.data.CompanionState = store.state.value): com.accountabilibuddy.companion.model.DayPlan =
-        calendarOverlay.effective(state.document.dayPlan, state.sleep::fallbackNightBefore)
+    fun effectivePlan(state: com.accountabilibuddy.companion.data.CompanionState = store.state.value): com.accountabilibuddy.companion.model.DayPlan {
+        val plan = calendarOverlay.effective(state.document.dayPlan, state.sleep::fallbackNightBefore)
+        val ended = workEndedToday()
+        return if (ended.isEmpty()) plan else plan.copy(endedWork = ended)
+    }
+
+    /**
+     * Today's work ended early by Start shutdown on a PC (ADR 65), as local windows: the newest edit for today among the received
+     * files wins (an undo leaves none). Empty before sync starts, or when no PC sent any. "Today" is the PC's plan date, which runs
+     * until 4:00 AM (ShutdownService.PlanDateOf).
+     */
+    fun workEndedToday(now: java.time.Instant = java.time.Instant.now()): List<com.accountabilibuddy.companion.model.LocalWindow> {
+        if (!::sync.isInitialized) return emptyList()
+        val zone = java.time.ZoneId.systemDefault()
+        val today = now.atZone(zone).minusHours(4).toLocalDate()
+        val newest = com.accountabilibuddy.shared.sync.SyncWorkEnded.newestFor(sync.received.value.map { it.file }, today, now) ?: return emptyList()
+        return newest.windows.map { window ->
+            com.accountabilibuddy.companion.model.LocalWindow(
+                java.time.LocalDateTime.ofInstant(window.start, zone), java.time.LocalDateTime.ofInstant(window.end, zone),
+            )
+        }
+    }
 
     private var calendarObserver: android.database.ContentObserver? = null
 
@@ -590,6 +611,7 @@ class CompanionApp : Application() {
                 .collect { Refresher.refresh(this@CompanionApp) }
         }
         Refresher.start(this)
+        refreshOnScreenOn()
         // Timers and alarms set again at every start: a force stop or a battery manager drops the app's alarms.
         runCatching { com.accountabilibuddy.companion.timers.TimerScheduler.restore(this) }
     }
@@ -715,6 +737,9 @@ class CompanionApp : Application() {
     /** How long before a planned lunch window the phone starts listening for a lunch started elsewhere. */
     private val LUNCH_LEAD: java.time.Duration = java.time.Duration.ofHours(1)
 
+    /** Screen on and an unlock this close together refresh once. */
+    private val SCREEN_REFRESH_GAP_MS = 2_000L
+
     // "Play when headphones connect" → "Only at certain times": true when the schedule allows auto-play right now.
     private fun headphoneScheduleAllowsNow(): Boolean {
         val state = store.state.value
@@ -756,6 +781,31 @@ class CompanionApp : Application() {
         // The guards' own view of the day (a Budget day's windows included), not the plan's raw parts.
         return com.accountabilibuddy.companion.engine.DayWorkWindows
             .partAt(effectivePlan(state), local, nightFallback = state.sleep::fallbackNightBefore)?.category?.behavior?.isWork == true
+    }
+
+    /**
+     * The screen coming on or an unlock redraws the notices (Pre-Work, Work time) and cards at once, so one left from a
+     * part that ended while the phone slept is gone before it's seen. The pinned timeline service already does this
+     * while it runs, so this one stands aside then (the refresher's lock keeps them one at a time anyway). Screen on and an unlock
+     * usually come together: one within [SCREEN_REFRESH_GAP_MS] of the last is skipped.
+     */
+    private fun refreshOnScreenOn() {
+        val receiver = object : android.content.BroadcastReceiver() {
+            private var lastAt = 0L
+
+            override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning) return
+                val at = android.os.SystemClock.elapsedRealtime()
+                if (lastAt != 0L && at - lastAt < SCREEN_REFRESH_GAP_MS) return
+                lastAt = at
+                refreshSoon()
+            }
+        }
+        val filter = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON).apply {
+            addAction(android.content.Intent.ACTION_USER_PRESENT)
+        }
+        // Exported: SystemUI sends USER_PRESENT and isn't the system user (as in the pinned service). Both are protected broadcasts.
+        androidx.core.content.ContextCompat.registerReceiver(this, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
     }
 
     private var lastUnlockSyncAt = java.time.Instant.EPOCH

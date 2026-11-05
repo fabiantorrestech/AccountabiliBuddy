@@ -32,6 +32,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.ui.CompanionTheme
+import com.accountabilibuddy.shared.WorkStart
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -43,28 +50,73 @@ import java.time.ZoneId
  * or Home only hide it for about a second ([Takeover.watchUnanswered]): one of them it is.
  */
 class NudgeActivity : ComponentActivity() {
-    // Lunch (from any device) is a break: an open card closes, as the PC's does.
-    private val lunchCheck: Runnable = object : Runnable {
-        override fun run() {
-            if ((application as com.accountabilibuddy.companion.CompanionApp).lunch.isOnLunch(java.time.Instant.now())) {
-                finish()
-                return
-            }
+    // An open card closes as soon as it no longer applies (the PC's does the same): lunch, a pause, a day off or emergency time
+    // (nothing may nudge), a session on any device, or the work stretch is over. Checked at once on resume, so a card left behind
+    // the lock screen never greets the next unlock (on the main thread, before the card is drawn), then every 5 s while it is up
+    // (worked out off the main thread, since it builds a full snapshot).
+    private var stillDueWatch: kotlinx.coroutines.Job? = null
 
-            window.decorView.removeCallbacks(this)
-            window.decorView.postDelayed(this, 5_000L)
+    // Closes the card when it no longer applies; true while it is still due.
+    private fun act(due: Due): Boolean = when (due) {
+        Due.STILL_DUE -> true
+        Due.QUIET -> {
+            closeForNow()
+            false
         }
+        Due.OVER -> {
+            closeNoLongerDue()
+            false
+        }
+    }
+
+    private fun watchStillDue() {
+        stillDueWatch?.cancel()
+        stillDueWatch = lifecycleScope.launch {
+            while (isActive) {
+                delay(5_000L)
+                val due = withContext(Dispatchers.Default) { dueState() }
+                if (!act(due)) return@launch
+            }
+        }
+    }
+
+    private enum class Due { STILL_DUE, QUIET, OVER }
+
+    // QUIET: lunch, a pause, a day off or emergency time; the card is still owed once that ends. OVER: a session runs or the
+    // work stretch is over, so it is not owed any more.
+    private fun dueState(): Due {
+        val app = application as CompanionApp
+        val focus = Takeover.nudgeFocus(app) ?: return Due.QUIET
+        if (focus.running != null) return Due.OVER
+        return if (WorkStart.current(focus, Instant.now()) != null) Due.STILL_DUE else Due.OVER
+    }
+
+    // Hidden while nothing may nudge, still unanswered: the return watch and maybeShow stop while nudgeFocus is null, and the
+    // next refresh after lunch (or the pause, emergency time) brings it back, even with repeat "once".
+    private fun closeForNow() {
+        Takeover.stopWatchingUnanswered()
+        finish()
+    }
+
+    // Not answered by the user, so the card is no longer owed: clear the flag so the return watch (and onStop) don't bring it back.
+    private fun closeNoLongerDue() {
+        val app = application as CompanionApp
+        NudgeStore(this).update { it.copy(unanswered = false) }
+        Takeover.stopWatchingUnanswered()
+        finish()
+        app.refreshSoon()
     }
 
     override fun onResume() {
         super.onResume()
         (application as CompanionApp).nudgeOnScreen = true
         Takeover.stopWatchingUnanswered()
-        lunchCheck.run()
+        if (act(dueState())) watchStillDue()
     }
 
     override fun onPause() {
-        window.decorView.removeCallbacks(lunchCheck)
+        stillDueWatch?.cancel()
+        stillDueWatch = null
         super.onPause()
     }
 

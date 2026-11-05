@@ -45,6 +45,19 @@ object WorkStart {
         return starts(snapshot.parts).lastOrNull { it <= now }
     }
 
+    /** When the work stretch [now] is in ends (touching work parts are one stretch), while no session runs; null outside work or during a session. */
+    fun currentEnd(snapshot: WatchSnapshot, now: Instant): Instant? {
+        val start = current(snapshot, now) ?: return null
+        var end = start
+        for (part in snapshot.parts.filter { it.kind == "watch" }.sortedBy { it.start }) {
+            if (part.start <= end && part.end > end) {
+                end = part.end
+            }
+        }
+
+        return end
+    }
+
     /**
      * The phone's nudge is due: in a work stretch with no session, never nudged in this stretch yet, or [repeatMinutes]
      * (5, 10 or 15; 0 = once) since the last one ([lastNudge]).

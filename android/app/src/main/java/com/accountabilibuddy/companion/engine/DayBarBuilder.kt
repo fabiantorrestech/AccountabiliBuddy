@@ -48,7 +48,9 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
         val focusedOn = DayWorkWindows.focusedToday(focus, now, java.time.ZoneId.systemDefault())
         val planned = DayWorkWindows.workWindows(plan, span, now, focusedOn, sleep::fallbackNightBefore)
 
-        var content: List<LocalWindow> = planned.map { it.window }
+        // Work ended early (ADR 65): still drawn (lighter), so the bar still fits it.
+        val ended = DayWorkWindows.endedPartsIn(plan, LocalWindow(span.start.minusDays(1), span.end.plusDays(1)), now, focusedOn, sleep::fallbackNightBefore)
+        var content: List<LocalWindow> = planned.map { it.window } + ended.mapNotNull { DayTimeline.clip(it.window, span) }
         if (sleep.enabled) {
             // The calendar dates also hold tomorrow's early parts; only parts touching this waking day stretch it.
             content = content.filter { DayTimeline.clip(it, day) != null }
@@ -77,6 +79,12 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             awake.map { toSpan(it, range, plain.label).copy(color = plain.color, name = part.name) } +
                 over.map { toSpan(it, range, "${plain.label} (over Sleep)").copy(color = plain.color, overlap = true) }
         }
+        // Work ended early (ADR 65): where the part would have been, in its colour but lighter, and without its name.
+        val endedSpans = ended.mapNotNull { part ->
+            DayTimeline.clip(part.window, range)?.let { shown ->
+                toSpan(shown, range, "${part.name} · ended early · ${times(part.window)}").copy(color = part.category.argb.toInt(), ended = true)
+            }
+        }
         val lunchSpans = listOfNotNull(lunch?.let { taken ->
             DayTimeline.clip(taken, range)?.let { toSpan(it, range, "Lunch · ${times(taken)}").copy(color = plan.flexibleBreakOn(taken.start.toLocalDate())?.color?.toInt() ?: 0xFFCA8A04.toInt(), name = "Lunch") }
         })
@@ -95,7 +103,7 @@ class DayBarBuilder(private val clock: ClockFormat, locale: Locale = Locale.getD
             statusText = header?.status ?: status(now, range, planned, document),
             statusCompact = header?.compactStatus,
             summaryText = header?.summary ?: summary(range, planned),
-            planned = plannedSpans + lunchSpans,
+            planned = plannedSpans + endedSpans + lunchSpans,
             actual = actualSpans,
             events = eventSpans(events.filter { it.calendarId !in settings.calendarsOff }, range),
             night = night,

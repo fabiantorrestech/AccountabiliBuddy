@@ -28,6 +28,9 @@ public sealed class EnforcementPresenter
     private readonly Dictionary<string, MonitorPresentation> _presentationByMonitor = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastActionByTarget = new(StringComparer.Ordinal);
 
+    // The reminder toasts still up (ShowReminder, ShowReminderWithAction, ShowWithLater, ShowSessionDone), so sleep can close them.
+    private readonly List<NudgeToast> _reminders = new();
+
     private ClassifyPrompt? _prompt;
 
     // The stacked prompt (what was opened while planning); while it's open the single prompt waits.
@@ -112,7 +115,7 @@ public sealed class EnforcementPresenter
         viewModel.Expired += (_, _) => ReminderExpired?.Invoke();
         var toast = new NudgeToast { DataContext = viewModel };
         PlaceReminder(toast, area);
-        toast.Show();
+        ShowTracked(toast);
     }
 
     /// <summary>The session-done toast (5s): a Met dot, what was done and the goal, 5 seconds, bottom right of the monitor under the cursor.</summary>
@@ -127,7 +130,7 @@ public sealed class EnforcementPresenter
         var viewModel = new NudgeToastViewModel(title, message, null, null, staysOpen: false, Services.OverlayBrushes.Get("Met"), onLater: null, lifeTime: TimeSpan.FromSeconds(5));
         var toast = new NudgeToast { DataContext = viewModel };
         MonitorPlacement.PlaceInCorner(toast, area, MonitorPlacement.Corner.BottomRight);
-        toast.Show();
+        ShowTracked(toast);
     }
 
     /// <summary>Shows a one-off toast on the monitor under the mouse cursor (e.g. "session resumed").</summary>
@@ -191,7 +194,7 @@ public sealed class EnforcementPresenter
         viewModel.Expired += (_, _) => ReminderExpired?.Invoke();
         var toast = new NudgeToast { DataContext = viewModel };
         PlaceReminder(toast, area);
-        toast.Show();
+        ShowTracked(toast);
     }
 
     /// <summary>
@@ -209,6 +212,27 @@ public sealed class EnforcementPresenter
         var viewModel = new NudgeToastViewModel(title, message, actionLabel, onAction, staysOpen: false, accent: null, onLater: null, lifeTime: ReminderLife);
         var toast = new NudgeToast { DataContext = viewModel };
         PlaceReminder(toast, area);
+        ShowTracked(toast);
+    }
+
+    /// <summary>
+    /// Closes the reminder toasts still up (they show for 20 s, so one can be left on screen when the computer sleeps and wakes
+    /// stale). Each counts as unanswered, as if it had timed out, so the ones that leave a dot on the overlay still do. The
+    /// enforcement toasts and the drift overlay belong to the engine and are left alone.
+    /// </summary>
+    public void CloseReminders()
+    {
+        foreach (NudgeToast toast in _reminders.ToList())
+        {
+            (toast.DataContext as NudgeToastViewModel)?.RaiseExpired();
+            toast.Close();
+        }
+    }
+
+    private void ShowTracked(NudgeToast toast)
+    {
+        _reminders.Add(toast);
+        toast.Closed += (_, _) => _reminders.Remove(toast);
         toast.Show();
     }
 

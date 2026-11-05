@@ -34,8 +34,9 @@ class ReminderRelay(private val context: Context, private val links: StateFlow<W
     // Actions already applied here (by night, reminder, action and time), so each is applied once.
     private val applied = mutableSetOf<String>()
 
-    fun toWatch(night: String, due: BedtimeReminderTimes.Due, label: String, text: String) {
-        val message = ReminderMessages.Ring(night, due.number, due.count, label, text, due.reminder.alarm)
+    /** @param until when [text] stops being true (the watch drops the reminder then); null for no end. */
+    fun toWatch(night: String, due: BedtimeReminderTimes.Due, label: String, text: String, until: Instant? = null) {
+        val message = ReminderMessages.Ring(night, due.number, due.count, label, text, due.reminder.alarm, until)
         scope.launch { sendToWatch(WatchPaths.REMINDER, ReminderMessages.write(message)) }
     }
 

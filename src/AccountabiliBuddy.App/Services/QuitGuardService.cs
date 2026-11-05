@@ -67,6 +67,9 @@ public sealed class QuitGuardService
 
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>Work ended early (ADR 65), cut out of the work windows: that time counts as not work. Set by the app; null = none.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
+
     public event EventHandler? Changed;
 
     public DayPlan Plan => _plan();
@@ -105,7 +108,7 @@ public sealed class QuitGuardService
     {
         DayPlan plan = _plan();
         DateTime now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), _time.LocalTimeZone).DateTime;
-        return QuitGuard.Check(Current, InFocusSession, plan, now, at => DayWorkWindows.PartAt(plan, at, FocusedOn, NightFallback));
+        return QuitGuard.Check(Current, InFocusSession, plan, now, at => DayWorkWindows.PartAt(plan, at, FocusedOn, NightFallback, WorkEnded?.Invoke()));
     }
 
     /// <summary>The notice for a refused Quit.</summary>

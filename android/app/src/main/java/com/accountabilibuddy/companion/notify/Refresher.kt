@@ -40,6 +40,9 @@ object Refresher {
     // When the start nudge could come again: the next redraw comes then if that's sooner.
     @Volatile
     private var nudgeAt: java.time.Instant? = null
+    // When the current Pre-Work part or work stretch ends: its notice, card and the header follow then, not up to 5 minutes later.
+    @Volatile
+    private var planEdgeAt: java.time.Instant? = null
     // Tonight's bedtime, when a LockMyPhone-Extended profile is set for the night: the refresher runs then to start it.
     private var bedtimeAt: java.time.Instant? = null
 
@@ -121,8 +124,10 @@ object Refresher {
             ParkedNotice.check(context, running, pickups, clock)
             // Phase 11b: the placement detector follows the session (starts, breaks, ends).
             PinnedTimelineService.checkPlacement()
-            val preWork = PreWorkNotice.part(focus, java.time.Instant.now())
-            PreWorkNotice.check(context, preWork, preWork?.let { app.sync.unlocksSince(it.start)?.size }, clock)
+            val checkedAt = java.time.Instant.now()
+            val preWork = PreWorkNotice.part(focus, checkedAt)
+            PreWorkNotice.check(context, preWork, preWork?.let { app.sync.unlocksSince(it.start)?.size }, clock, checkedAt)
+            planEdgeAt = listOfNotNull(preWork?.end, focus?.let { com.accountabilibuddy.shared.WorkStart.currentEnd(it, checkedAt) }).minOrNull()
             schedule(context)
         }
     }
@@ -149,8 +154,16 @@ object Refresher {
         // Lunch's end: the session's lock is asked for again then.
         val untilLunchEnd = (context.applicationContext as CompanionApp).lunch.today()?.end
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        // A pause's end and emergency time's end: a work card closed for now (still owed) comes back then.
+        val pauseState = (context.applicationContext as CompanionApp).pause.state.value
+        val untilPauseEnd = pauseState.pausedAt
+            ?.let { com.accountabilibuddy.companion.pause.PauseRules.until(pauseState, it, java.time.ZoneId.systemDefault()) }
+            ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        val untilEmergencyEnd = (context.applicationContext as CompanionApp).emergency.active()?.end
+            ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        val untilPlanEdge = planEdgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilPauseEnd, untilEmergencyEnd, untilPlanEdge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

@@ -10,6 +10,8 @@ namespace AccountabiliBuddy.App.Services;
 /// and takes the focus back (<see cref="CardBackdrop"/>, <see cref="CardKeeper"/>). There is one dim and one keeper however many
 /// cards are up: the newest card is the one kept in front, older ones stay above the dim under it. The dim goes with the last card.
 /// A card's own ways out (its buttons) are not touched.
+/// While the computer sleeps the cards and dims are hidden (<see cref="Suspend"/>), never closed, so no service sees a close; cards
+/// asked for meanwhile wait, and <see cref="Resume"/> shows the ones still registered.
 /// </summary>
 public sealed class FrontCardHost
 {
@@ -19,6 +21,8 @@ public sealed class FrontCardHost
     private readonly List<Window> _cards = new();
     private CardBackdrop? _backdrop;
     private CardKeeper? _keeper;
+    private bool _suspended;
+    private int _suspendCount;
 
     public FrontCardHost(IVirtualDesktops desktops, IForegroundFocus focus, IOverlayWindowControl windowControl)
     {
@@ -36,6 +40,75 @@ public sealed class FrontCardHost
             card.Closed += OnCardClosed;
         }
 
+        if (_suspended)
+        {
+            return; // Registered, shown by Resume if it is still wanted then.
+        }
+
+        Present(card);
+    }
+
+    /// <summary>
+    /// The computer is going to sleep: hides every card and the dims so none is on screen when it wakes. Nothing is closed or
+    /// answered, and cards asked for until <see cref="Resume"/> are only registered.
+    /// </summary>
+    public void Suspend()
+    {
+        _suspendCount++; // Also when already suspended: a wake whose Resume is still queued is then stale.
+        if (_suspended)
+        {
+            return;
+        }
+
+        _suspended = true;
+        foreach (Window card in _cards)
+        {
+            card.Hide();
+        }
+
+        _keeper?.Dispose();
+        _keeper = null;
+        _backdrop?.Dispose(); // Closes the dims; the cards stay, hidden.
+        _backdrop = null;
+    }
+
+    /// <summary>Counts the suspends; a wake reads it before re-checking and hands it to <see cref="Resume"/>.</summary>
+    public int SuspendCount => _suspendCount;
+
+    /// <summary>
+    /// The computer woke up: shows the cards still registered (a service that has since closed its card already removed it) with
+    /// a fresh dim, each centred again on the monitor under the cursor (the one it was on may have been unplugged meanwhile).
+    /// The caller re-checks the services first, so only cards still due are left. <paramref name="suspendCount"/> is
+    /// <see cref="SuspendCount"/> as it was at the wake: if the computer went to sleep again since, this Resume is stale and does nothing.
+    /// </summary>
+    public void Resume(IMonitorLocator monitors, int suspendCount)
+    {
+        if (!_suspended || suspendCount != _suspendCount)
+        {
+            return;
+        }
+
+        _suspended = false;
+        MonitorArea? area = monitors.Find(monitors.FindMonitorUnderCursor());
+        foreach (Window card in _cards.ToList())
+        {
+            // Showing one card can close another, and a closed window can't be shown again.
+            if (!_cards.Contains(card) || card.TryGetPlatformHandle() is null)
+            {
+                continue;
+            }
+
+            Present(card);
+            if (area is MonitorArea target)
+            {
+                // After Show: the handlers MonitorPlacement.Center added move the card to its old monitor when it opens.
+                MonitorPlacement.Recenter(card, target);
+            }
+        }
+    }
+
+    private void Present(Window card)
+    {
         _backdrop ??= new CardBackdrop(_windowControl);
         _backdrop.SetCards(_cards);
         _backdrop.Maintain(); // The dim first, so the card opens on top of it.
@@ -54,7 +127,7 @@ public sealed class FrontCardHost
     /// </summary>
     public void Raise(Window card)
     {
-        if (_backdrop is null || !_cards.Contains(card))
+        if (_suspended || _backdrop is null || !_cards.Contains(card))
         {
             return;
         }
@@ -84,7 +157,7 @@ public sealed class FrontCardHost
 
     private void ReleaseIfEmpty()
     {
-        if (_cards.Count > 0)
+        if (_cards.Count > 0 || _suspended)
         {
             return;
         }

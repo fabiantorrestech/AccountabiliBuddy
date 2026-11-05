@@ -35,6 +35,9 @@ object ReminderAlert {
     private var buzzing: String? = null
 
     fun show(context: Context, ring: ReminderMessages.Ring) {
+        // Arrived after its moment (the watch out of reach or asleep): its text isn't true any more, so it isn't shown.
+        val left = ring.until?.let { java.time.Duration.between(Instant.now(), it).toMillis() }
+        if (left != null && left <= 0) return
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, "Bedtime reminders", NotificationManager.IMPORTANCE_HIGH))
         fun action(action: String, request: Int) = PendingIntent.getBroadcast(
@@ -48,6 +51,8 @@ object ReminderAlert {
             .setContentText(ring.text)
             .setAutoCancel(!ring.alarm)
             .setCategory(if (ring.alarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
+        // Taken away at its moment's end even if nothing else runs on the watch then.
+        if (left != null) builder.setTimeoutAfter(left)
         if (ring.alarm) {
             builder.setOngoing(true)
                 .addAction(0, "Snooze 5 min", action(ACTION_SNOOZE, 10 + ring.number))
@@ -67,6 +72,7 @@ object ReminderAlert {
         val buzz = object : Runnable {
             override fun run() {
                 if (buzzing != key || System.currentTimeMillis() - started > MAX_BUZZ_MS) return
+                if (ring.until != null && !Instant.now().isBefore(ring.until)) return
                 vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 500, 200, 500), -1))
                 handler.postDelayed(this, 3_000)
             }

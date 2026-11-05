@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0065](0065-let-start-shutdown-end-the-work-block-early.md) | Let Start shutdown end the work block early | Accepted | — |
 | [0064](0064-classify-events-from-the-timeline-and-let-a-hand-choice-lift-pre-work.md) | Classify events from the timeline, and let a hand choice lift Pre-Work | Accepted | — |
 | [0063](0063-let-day-plan-parts-overlap-with-the-weaker-rules-winning.md) | Let day plan parts overlap, with the weaker rules winning | Accepted | — |
 | [0062](0062-let-the-newest-task-category-colour-win-on-every-device.md) | Let the newest task category colour win on every device | Accepted | — |

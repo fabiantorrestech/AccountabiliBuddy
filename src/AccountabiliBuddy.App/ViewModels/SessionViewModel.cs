@@ -116,6 +116,22 @@ public sealed partial class SessionViewModel : ObservableObject
         StartShutdownHandler?.Invoke();
     }
 
+    /// <summary>"Back to work" shows (ADR 65): work was ended early and the ended part's planned time still runs. Set by the app.</summary>
+    [ObservableProperty]
+    public partial bool CanGoBackToWork { get; set; }
+
+    /// <summary>"Back to work" (set by the app): the ended work is work again at once, with no wait (stricter).</summary>
+    public Func<Task>? BackToWorkHandler { get; set; }
+
+    [RelayCommand]
+    private async Task BackToWork()
+    {
+        if (BackToWorkHandler is not null)
+        {
+            await BackToWorkHandler();
+        }
+    }
+
     /// <summary>The shutdown card takes the main card's place, unless a session runs (started from a hotkey, the tray or the popup).</summary>
     public bool ShowsShutdown => Shutdown is not null && !IsSessionActive;
 

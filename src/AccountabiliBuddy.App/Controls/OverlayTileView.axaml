@@ -6,12 +6,10 @@
              x:Class="AccountabiliBuddy.App.Controls.OverlayTileView"
              x:DataType="vm:TaskbarOverlayViewModel">
     <UserControl.Styles>
-        <!-- The clock: with its time or date kept solid it has a solid backing and a date in Ink, readable over any window. -->
+        <!-- The clock: with its time or date kept solid only the text stays solid (the date in Ink); what's behind it is the tile's own
+             fill at the overlay's opacity, like the rest of the tile. -->
         <Style Selector="Border.clockBack">
             <Setter Property="CornerRadius" Value="6" />
-        </Style>
-        <Style Selector="Border.clockBack.solid">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
         </Style>
         <Style Selector="TextBlock.clockDate">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />

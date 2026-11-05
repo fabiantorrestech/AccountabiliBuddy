@@ -9,6 +9,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Focused">Time focused today, for the Focus row's label.</param>
 /// <param name="Unfocused">Work time (the plan's Watch parts, up to now) with no focus session.</param>
 /// <param name="TaskMarks">Guided sessions' ticked tasks (ADR 24), as marks at their tick times.</param>
+/// <param name="Ended">Work ended early (ADR 65): drawn lighter where it covers a work part on the Plan row.</param>
 public sealed record TimelineDay(
     LocalWindow Range,
     IReadOnlyList<PlannedPart> Parts,
@@ -19,4 +20,5 @@ public sealed record TimelineDay(
     TimeSpan Focused,
     IReadOnlyList<LocalWindow>? Unfocused = null,
     IReadOnlyList<TimelineItem>? TaskMarks = null,
-    IReadOnlyList<TimelineItem>? Breaks = null);
+    IReadOnlyList<TimelineItem>? Breaks = null,
+    IReadOnlyList<LocalWindow>? Ended = null);

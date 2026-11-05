@@ -272,7 +272,9 @@ public sealed class SyncCoordinator
                 // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
                 PastKeys = PastKeys?.ForFile(),
                 // This PC's task categories, always listed (empty when it has none), sealed like everything else.
-                Categories = Categories?.Invoke() };
+                Categories = Categories?.Invoke(),
+                // ADR 65: today's work ended early, times only (never the reason).
+                WorkEnded = WorkEnded?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -383,6 +385,9 @@ public sealed class SyncCoordinator
 
     /// <summary>Today's flexible lunch once started on this PC or taken from another device (schema v8); set by the app.</summary>
     public Func<SyncLunch?>? Lunch { get; set; }
+
+    /// <summary>Today's work ended early (ADR 65), ended here or taken from another PC; times only. Set by the app.</summary>
+    public Func<SyncWorkEnded?>? WorkEnded { get; set; }
 
     private async Task<string?> AcceptOnUiThreadAsync(byte[] sealedBytes, string method)
     {

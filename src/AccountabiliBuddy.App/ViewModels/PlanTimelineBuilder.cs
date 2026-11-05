@@ -22,6 +22,7 @@ public static class PlanTimelineBuilder
     /// <param name="focused">Counted focus today, shared out over the deep-work stretches that have started.</param>
     /// <param name="goal">The deep-work goal, shown under the first work row; zero hides it.</param>
     /// <param name="openEvent">What a click on a timed calendar event row does (ADR 58: pick its category).</param>
+    /// <param name="ended">Work ended early (ADR 65): out of the deep-work stretches, listed as a lighter "Ended early" line; null = none.</param>
     public static IReadOnlyList<PlanTimelineRowViewModel> Build(
         DayPlan plan,
         DateOnly date,
@@ -31,7 +32,8 @@ public static class PlanTimelineBuilder
         TimeSpan goal,
         Func<DateOnly, SleepTimes?>? nightFallback,
         Action<PlanTimelineRowViewModel> open,
-        Action<CalendarEvent> openEvent)
+        Action<CalendarEvent> openEvent,
+        IReadOnlyList<LocalWindow>? ended = null)
     {
         DateTime dayStart = date.ToDateTime(TimeOnly.MinValue);
         var day = new LocalWindow(dayStart, dayStart.AddDays(1));
@@ -69,7 +71,7 @@ public static class PlanTimelineBuilder
         {
             if (group is not null)
             {
-                rows.Add(WorkRow(group, goalShown ? TimeSpan.Zero : goal, timed, isToday, now, focused, open, openEvent));
+                rows.Add(WorkRow(group, goalShown ? TimeSpan.Zero : goal, timed, isToday, now, focused, open, openEvent, ended ?? []));
                 goalShown = true;
                 group = null;
             }
@@ -174,7 +176,8 @@ public static class PlanTimelineBuilder
         DateTime now,
         TimeSpan focused,
         Action<PlanTimelineRowViewModel> open,
-        Action<CalendarEvent> openEvent)
+        Action<CalendarEvent> openEvent,
+        IReadOnlyList<LocalWindow> ended)
     {
         PlannedPart first = group.FirstOrDefault(part => part.Category.Behavior == CategoryBehavior.Watch) ?? group[0];
         var span = new LocalWindow(group[0].Window.Start, group[^1].Window.End);
@@ -183,10 +186,13 @@ public static class PlanTimelineBuilder
             .Where(pair => pair.Window.End > span.Start && pair.Window.Start < span.End)
             .ToList();
 
-        // Deep work: the Watch parts minus breaks, comms windows and events.
+        // Work ended early (ADR 65) inside this row: its own lighter line.
+        IReadOnlyList<LocalWindow> stopped = DayTimeline.Subtract([span], DayTimeline.Subtract([span], ended));
+
+        // Deep work: the Watch parts minus breaks, comms windows, events and work ended early.
         List<LocalWindow> stretches = DayTimeline.Subtract(
                 group.Where(part => part.Category.Behavior == CategoryBehavior.Watch).Select(part => part.Window),
-                others.Concat(events.Select(pair => pair.Window)))
+                others.Concat(events.Select(pair => pair.Window)).Concat(stopped))
             .Where(window => window.End - window.Start >= ShortestStretch)
             .ToList();
 
@@ -212,6 +218,17 @@ public static class PlanTimelineBuilder
                 TimeText = Clock(part.Window.Start),
                 Title = part.Name,
                 RightText = Span(part.Window.End - part.Window.Start),
+            }));
+        }
+
+        foreach (LocalWindow window in stopped)
+        {
+            subRows.Add((window.Start, new PlanSubRowViewModel
+            {
+                TimeText = Clock(window.Start),
+                Title = "Ended early",
+                RightText = $"Until {Clock(window.End)}",
+                IsEnded = true,
             }));
         }
 

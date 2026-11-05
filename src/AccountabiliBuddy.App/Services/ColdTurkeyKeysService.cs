@@ -87,6 +87,9 @@ public sealed class ColdTurkeyKeysService : IDisposable
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>Work ended early (ADR 65), cut out of the work windows: that time counts as not work. Set by the app; null = none.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
+
     /// <summary>The blocks the user assigned, and where.</summary>
     public IReadOnlyList<HeldBlock> Held => _state.Blocks;
 
@@ -723,7 +726,7 @@ public sealed class ColdTurkeyKeysService : IDisposable
         IReadOnlyCollection<string> sessionBlocks = focus && session.ProfileId is Guid profile
             ? _coldTurkey.ExpectedFor(profile).ToList()
             : Array.Empty<string>();
-        IReadOnlyCollection<Guid> categories = DayWorkWindows.PartAt(_plan(), now, FocusedOn, NightFallback) is PlannedPart part ? new[] { part.Category.Id } : Array.Empty<Guid>();
+        IReadOnlyCollection<Guid> categories = DayWorkWindows.PartAt(_plan(), now, FocusedOn, NightFallback, WorkEnded?.Invoke()) is PlannedPart part ? new[] { part.Category.Id } : Array.Empty<Guid>();
         return new HoldWindows(focus, sessionBlocks, _preWork(), _workHours(), categories);
     }
 

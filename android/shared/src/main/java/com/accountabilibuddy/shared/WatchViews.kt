@@ -13,6 +13,9 @@ const val FOCUS_COLOR: Long = 0xFF14B8A6L
 /** The ring colour of the PC's planning stage (periwinkle blue), the same as the bar on the PC. */
 const val PLANNING_COLOR: Long = 0xFF7C9EF2L
 
+/** The alpha of work ended early on the plan ring (ADR 65): the part's own hue, faint. */
+private const val ENDED_ALPHA: Long = 0x4D000000L
+
 /** A stretch on a 24-hour ring, in minutes after midnight on the watch (an end of 1440 is midnight at the end). */
 data class RingArc(val startMinute: Int, val endMinute: Int, val color: Long, val name: String, val bright: Boolean = false)
 
@@ -42,7 +45,9 @@ data class TodayView(
                 return TodayView(emptyList(), emptyList(), emptyList(), nowMinute, "No data for today", "", null, updated)
             }
 
-            val plan = snapshot.parts.map { RingArc(minuteOf(it.start), minuteOf(it.end), argb(it.color), it.name) }
+            // Work ended early on a PC (ADR 65): where the part would have been, in its hue but faint (the Tile's ring too).
+            val ended = snapshot.endedParts.map { RingArc(minuteOf(it.start), minuteOf(it.end), (argb(it.color) and 0x00FFFFFFL) or ENDED_ALPHA, it.name) }
+            val plan = snapshot.parts.map { RingArc(minuteOf(it.start), minuteOf(it.end), argb(it.color), it.name) } + ended
             val focus = snapshot.sessions.mapNotNull { session ->
                 val end = session.end ?: snapshot.openUntil(now)
                 if (!end.isAfter(session.start)) null else RingArc(minuteOf(session.start), minuteOf(end), FOCUS_COLOR, session.profile ?: "Added", bright = session.end == null)

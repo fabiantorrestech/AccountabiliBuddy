@@ -195,6 +195,8 @@ object SyncFileJson {
         file.categories?.let { put("categories", writeCategories(it)) }
         // Optional: a phone's daily step counts; older apps ignore them.
         file.steps?.let { put("steps", writeSteps(it)) }
+        // Optional (ADR 65): a PC's work ended early today; older apps ignore it.
+        file.workEnded?.let { put("workEnded", writeWorkEnded(it)) }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -359,7 +361,35 @@ object SyncFileJson {
             readPastKeys(json["pastKeys"]),
             readCategories(json["categories"]),
             readSteps(json["steps"]),
+            readWorkEnded(json["workEnded"]),
         )
+    }
+
+    /** Work ended early in the PC's shape: {date: "yyyy-MM-dd", windows: [{start, end}], editedAt}. */
+    fun writeWorkEnded(ended: SyncWorkEnded): JsonObject = buildJsonObject {
+        put("date", ended.date.toString())
+        put("windows", JsonArray(ended.windows.map { window ->
+            buildJsonObject {
+                put("start", writeTime(window.start))
+                put("end", writeTime(window.end))
+            }
+        }))
+        put("editedAt", writeTime(ended.editedAt))
+    }
+
+    /** Work ended early, leniently: a missing date or edit time leaves it out; a window that can't be read or has no length is dropped. */
+    fun readWorkEnded(value: JsonElement?): SyncWorkEnded? {
+        val ended = value as? JsonObject ?: return null
+        return runCatching {
+            val date = java.time.LocalDate.parse(ended.requiredString("date"))
+            val editedAt = ended.requiredTime("editedAt")
+            val windows = (ended["windows"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val window = element as? JsonObject ?: return@mapNotNull null
+                runCatching { SyncWorkEndedWindow(window.requiredTime("start"), window.requiredTime("end")) }.getOrNull()
+                    ?.takeIf { it.end.isAfter(it.start) }
+            }
+            SyncWorkEnded(date, windows, editedAt)
+        }.getOrNull()
     }
 
     /** A phone's step counts in the PC's shape: {goal, readAt, days: [{date: "yyyy-MM-dd", count}]}. */

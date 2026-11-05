@@ -132,7 +132,9 @@ object BedtimeReminders {
         val text = if (left.toMinutes() <= 0) "It's bedtime (${clock.time(tonight.bedtime)})." else "Bedtime in ${DayBarBuilder.duration(left)} (${clock.time(tonight.bedtime)})."
         // The watch gets its own (it buzzes; an alarm buzzes until dismissed).
         if (BedtimeReminder.WATCH in due.reminder.devices) {
-            (context.applicationContext as CompanionApp).reminderRelay.toWatch(tonight.night, due, label, text)
+            // "Bedtime in 20 min" is wrong once bedtime passes: the watch takes it away then.
+            val until = if (left.toMinutes() > 0) tonight.bedtime.atZone(java.time.ZoneId.systemDefault()).toInstant() else null
+            (context.applicationContext as CompanionApp).reminderRelay.toWatch(tonight.night, due, label, text, until)
         }
         if (BedtimeReminder.PHONE !in due.reminder.devices || !TimelineNotifier.canPost(context)) return
         if (due.reminder.alarm) {

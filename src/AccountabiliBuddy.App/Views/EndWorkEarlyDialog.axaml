@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.EndWorkEarlyDialog"
+        x:DataType="vm:EndWorkEarlyDialogViewModel"
+        Title="End work early?"
+        Icon="/Assets/app-icon.png"
+        Width="460" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner" Topmost="True">
+    <StackPanel Margin="20" Spacing="12">
+        <TextBlock Text="End work early?" FontSize="18" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Opacity="0.85" />
+        <TextBlock Text="{Binding ReasonHint}" TextWrapping="Wrap" />
+        <TextBox Text="{Binding Reason}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" />
+        <CheckBox IsVisible="{Binding HasLater}" IsChecked="{Binding AlsoEndLater}">
+            <TextBlock Text="{Binding LaterText}" TextWrapping="Wrap" />
+        </CheckBox>
+        <TextBlock Text="{Binding StatusText}" Opacity="0.85" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Keep working" Command="{Binding CancelCommand}" Classes="accent" IsDefault="True" />
+            <Button Content="End work" Command="{Binding ConfirmCommand}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

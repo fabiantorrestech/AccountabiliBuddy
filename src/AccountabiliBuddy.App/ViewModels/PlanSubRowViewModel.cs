@@ -44,6 +44,11 @@ public sealed partial class PlanSubRowViewModel
     /// <summary>A calendar event (its title is drawn in ink; the rest are Muted).</summary>
     public bool IsEvent { get; init; }
 
+    /// <summary>Work ended early (ADR 65): drawn lighter.</summary>
+    public bool IsEnded { get; init; }
+
+    public double RowOpacity => IsEnded ? 0.45 : 1;
+
     /// <summary>The row is the "Now · 1:38 PM" rule, not a part.</summary>
     public bool IsNowLine { get; init; }
 

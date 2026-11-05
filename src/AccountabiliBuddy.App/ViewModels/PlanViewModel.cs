@@ -209,8 +209,15 @@ public sealed partial class PlanViewModel : ObservableObject
     private IReadOnlyList<PlanTimelineRowViewModel> BuildRows()
     {
         return PlanTimelineBuilder.Build(
-            _overlay.Of(_configuration.Editing.DayPlan), SelectedDate, LocalNow, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart, OpenEventPicker);
+            _overlay.Of(_configuration.Editing.DayPlan), SelectedDate, LocalNow, _calendars.EventsOn(SelectedDate), _focusedOn(SelectedDate), _goal(), _nightFallback, OpenPart, OpenEventPicker,
+            WorkEnded?.Invoke());
     }
+
+    /// <summary>Work ended early (ADR 65), shown lighter on the timeline. Set by the app; null = none.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
+
+    /// <summary>Work was ended early or brought back: the rows follow.</summary>
+    public void NotifyWorkEndedChanged() => Refresh();
 
     private void OnOverlayChanged()
     {

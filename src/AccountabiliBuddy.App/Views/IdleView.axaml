@@ -115,6 +115,14 @@
                     <TextBlock Text="Start shutdown" />
                 </StackPanel>
             </Button>
+            <!-- Work ended early (ADR 65): undo it while the ended part is still planned; no wait, since it is stricter. -->
+            <Button Classes="quiet pill" Command="{Binding BackToWorkCommand}" IsVisible="{Binding CanGoBackToWork}" AutomationProperties.Name="Back to work"
+                    ToolTip.Tip="Work ended early: make the rest of the planned work block work again">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <mi:MaterialIcon Kind="BriefcaseOutline" Width="16" Height="16" VerticalAlignment="Center" />
+                    <TextBlock Text="Back to work" />
+                </StackPanel>
+            </Button>
           </WrapPanel>
 
             <!-- The length of the next session as a numeral; it opens the length picker (and the profile and break under it). -->

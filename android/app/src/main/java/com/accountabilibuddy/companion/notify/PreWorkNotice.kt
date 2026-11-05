@@ -26,7 +26,7 @@ object PreWorkNotice {
         focus?.takeIf { it.running == null }?.parts?.firstOrNull { it.kind == "prework" && it.start <= now && now < it.end }
 
     /** @param pickups unlocks since the part began; null without Usage access. */
-    fun check(context: Context, part: FocusPart?, pickups: Int?, clock: ClockFormat) {
+    fun check(context: Context, part: FocusPart?, pickups: Int?, clock: ClockFormat, now: Instant = Instant.now()) {
         val manager = NotificationManagerCompat.from(context)
         if (part == null || !TimelineNotifier.canPost(context)) {
             manager.cancel(ID)
@@ -55,6 +55,8 @@ object PreWorkNotice {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentIntent(open)
             .setColor(0xFFD97706.toInt())
+            // Android takes it away at the part's end itself, even if no refresh runs then (the phone asleep).
+            .setTimeoutAfter(java.time.Duration.between(now, part.end).toMillis().coerceAtLeast(1L))
             .build()
         try {
             manager.notify(ID, notification)

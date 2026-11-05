@@ -60,6 +60,9 @@ public sealed class QrSyncService : IDisposable
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>Work ended early (ADR 65), cut out of the work windows: that time counts as not work. Set by the app; null = none.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
+
     /// <summary>
     /// True while another end-of-day prompt (the shutdown routine's card) is open or due: the reminder holds back, without being used up,
     /// and comes at the next check after that is answered. Set by the app; null = never holds back.
@@ -136,7 +139,7 @@ public sealed class QrSyncService : IDisposable
             return new DateTimeOffset(local, zone.GetUtcOffset(local));
         }
 
-        DateTime? lastWorkEnd = DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(day, day.AddDays(1)), TimeZoneInfo.ConvertTime(now, zone).DateTime, FocusedOn, NightFallback)
+        DateTime? lastWorkEnd = DayWorkWindows.WorkWindows(_configuration.Current.DayPlan, new LocalWindow(day, day.AddDays(1)), TimeZoneInfo.ConvertTime(now, zone).DateTime, FocusedOn, NightFallback, WorkEnded?.Invoke())
             .Select(focus => (DateTime?)focus.Window.End)
             .Max();
         return lastWorkEnd is DateTime end ? new DateTimeOffset(end, zone.GetUtcOffset(end)) : null;

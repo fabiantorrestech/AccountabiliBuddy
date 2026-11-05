@@ -6,15 +6,20 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>Whether headphone auto-play is allowed right now under the "Only at certain times" settings.</summary>
 public static class HeadphoneSchedule
 {
-    /// <summary>True with the switch off, or when any checked option matches <paramref name="now"/> (local time).</summary>
-    public static bool AllowsNow(HeadphoneSettings settings, DayPlan plan, DateTime now, Func<DateOnly, TimeSpan>? focusedOn, Func<DateOnly, SleepTimes?>? nightFallback)
+    /// <summary>
+    /// True with the switch off, or when any checked option matches <paramref name="now"/> (local time). Work ended early
+    /// (<paramref name="endedWork"/>, ADR 65) is not a plan window.
+    /// </summary>
+    public static bool AllowsNow(
+        HeadphoneSettings settings, DayPlan plan, DateTime now, Func<DateOnly, TimeSpan>? focusedOn, Func<DateOnly, SleepTimes?>? nightFallback,
+        IReadOnlyList<LocalWindow>? endedWork = null)
     {
         if (!settings.OnlyAtTimes)
         {
             return true;
         }
 
-        return (settings.DuringPlanWindow && InPlanWindow(settings, plan, now, focusedOn, nightFallback))
+        return (settings.DuringPlanWindow && InPlanWindow(settings, plan, now, focusedOn, nightFallback, endedWork))
             || (settings.OnDaysAndHours && InDaysAndHours(settings, now));
     }
 
@@ -30,10 +35,12 @@ public static class HeadphoneSchedule
         return work is null ? [] : [work.Id];
     }
 
-    private static bool InPlanWindow(HeadphoneSettings settings, DayPlan plan, DateTime now, Func<DateOnly, TimeSpan>? focusedOn, Func<DateOnly, SleepTimes?>? nightFallback)
+    private static bool InPlanWindow(
+        HeadphoneSettings settings, DayPlan plan, DateTime now, Func<DateOnly, TimeSpan>? focusedOn, Func<DateOnly, SleepTimes?>? nightFallback,
+        IReadOnlyList<LocalWindow>? endedWork)
     {
         IReadOnlyList<Guid> chosen = ChosenCategoryIds(settings, plan);
-        return DayWorkWindows.PartsIn(plan, new LocalWindow(now, now.AddMinutes(1)), now, focusedOn, nightFallback)
+        return DayWorkWindows.PartsIn(plan, new LocalWindow(now, now.AddMinutes(1)), now, focusedOn, nightFallback, endedWork)
             .Any(part => part.Window.Contains(now) && chosen.Contains(part.Category.Id));
     }
 

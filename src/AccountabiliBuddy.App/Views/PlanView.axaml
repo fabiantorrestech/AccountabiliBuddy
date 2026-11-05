@@ -183,7 +183,8 @@
                                     <DataTemplate x:DataType="vm:PlanSubRowViewModel">
                                         <Panel>
                                             <!-- A part inside the work row. -->
-                                            <Border IsVisible="{Binding IsPlainRow}" IsHitTestVisible="False" Background="{DynamicResource Ab.Surface2}" CornerRadius="12" Padding="14,10">
+                                            <Border IsVisible="{Binding IsPlainRow}" IsHitTestVisible="False" Background="{DynamicResource Ab.Surface2}" CornerRadius="12" Padding="14,10"
+                                                    Opacity="{Binding RowOpacity}">
                                                 <Grid ColumnDefinitions="76,*,Auto">
                                                     <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="13" VerticalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="15" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"

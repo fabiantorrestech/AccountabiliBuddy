@@ -142,6 +142,9 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// <summary>The night before a date from the sleep settings, for a Budget day whose plan has no Sleep part. Set by the app.</summary>
     public Func<DateOnly, SleepTimes?>? NightFallback { get; set; }
 
+    /// <summary>Work ended early (ADR 65): not work for the totals and the status, drawn lighter on the Plan row. Set by the app; null = none.</summary>
+    public Func<IReadOnlyList<LocalWindow>>? WorkEnded { get; set; }
+
     /// <summary>The day plan the guards read: the stored plan with calendar events laid over it (ADR 58). Set by the app; null = the stored plan.</summary>
     public Func<DayPlan>? GuardedPlan { get; set; }
 
@@ -397,7 +400,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         DateTime now = LocalNow();
         (LocalWindow day, LocalWindow span) = CurrentDay();
-        IReadOnlyList<PlannedFocus> planned = DayWorkWindows.WorkWindows(PlanInForce, span, now, FocusedOn, NightFallback);
+        IReadOnlyList<LocalWindow> ended = WorkEnded?.Invoke() ?? [];
+        IReadOnlyList<PlannedFocus> planned = DayWorkWindows.WorkWindows(PlanInForce, span, now, FocusedOn, NightFallback, ended);
         // A lunch taken (flexible break, schema v8) isn't work: it comes out of the planned work it lies in.
         TimelineItem? lunch = TakenLunch();
         if (lunch is not null)
@@ -407,7 +411,14 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
 
         List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away, IReadOnlyList<LocalWindow> Distracted)> actual = ActualSessions(now, span);
 
-        IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window));
+        // The ended stretch still shows (lighter), so the bar keeps room for it: the pieces of it that lie in work, not the whole window.
+        IReadOnlyList<LocalWindow> endedInWork = ended.Count == 0
+            ? []
+            : DayWorkWindows.WorkWindows(PlanInForce, span, now, FocusedOn, NightFallback)
+                .SelectMany(focus => ended.Select(window => DayTimeline.Clip(window, focus.Window)))
+                .OfType<LocalWindow>()
+                .ToList();
+        IEnumerable<LocalWindow> content = planned.Select(focus => focus.Window).Concat(actual.Select(item => item.Window)).Concat(endedInWork);
         if (_sleep.Current.Enabled)
         {
             // The calendar dates also hold tomorrow's early parts; only parts touching this waking day stretch it.
@@ -446,7 +457,8 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             focused,
             unfocused,
             taskMarks.Concat(phoneFree).ToList(),
-            lunch is null ? null : [lunch]);
+            lunch is null ? null : [lunch],
+            ended);
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
         IReadOnlyList<TimelineRowChoice> rows = settings.RowsInOrder();
