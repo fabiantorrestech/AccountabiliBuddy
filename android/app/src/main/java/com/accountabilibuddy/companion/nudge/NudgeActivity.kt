@@ -49,9 +49,16 @@ class NudgeActivity : ComponentActivity() {
     // the lock screen never greets the next unlock, then every 5 s while it is up.
     private val stillDueCheck: Runnable = object : Runnable {
         override fun run() {
-            if (!isStillDue()) {
-                closeNoLongerDue()
-                return
+            when (dueState()) {
+                Due.STILL_DUE -> Unit
+                Due.QUIET -> {
+                    closeForNow()
+                    return
+                }
+                Due.OVER -> {
+                    closeNoLongerDue()
+                    return
+                }
             }
 
             window.decorView.removeCallbacks(this)
@@ -59,11 +66,22 @@ class NudgeActivity : ComponentActivity() {
         }
     }
 
-    private fun isStillDue(): Boolean {
+    private enum class Due { STILL_DUE, QUIET, OVER }
+
+    // QUIET: lunch, a pause, a day off or emergency time; the card is still owed once that ends. OVER: a session runs or the
+    // work stretch is over, so it is not owed any more.
+    private fun dueState(): Due {
         val app = application as CompanionApp
-        val focus = Takeover.nudgeFocus(app) ?: return false
-        if (focus.running != null) return false
-        return WorkStart.current(focus, Instant.now()) != null
+        val focus = Takeover.nudgeFocus(app) ?: return Due.QUIET
+        if (focus.running != null) return Due.OVER
+        return if (WorkStart.current(focus, Instant.now()) != null) Due.STILL_DUE else Due.OVER
+    }
+
+    // Hidden while nothing may nudge, still unanswered: the return watch and maybeShow stop while nudgeFocus is null, and the
+    // next refresh after lunch (or the pause, emergency time) brings it back, even with repeat "once".
+    private fun closeForNow() {
+        Takeover.stopWatchingUnanswered()
+        finish()
     }
 
     // Not answered by the user, so the card is no longer owed: clear the flag so the return watch (and onStop) don't bring it back.

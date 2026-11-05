@@ -590,6 +590,7 @@ class CompanionApp : Application() {
                 .collect { Refresher.refresh(this@CompanionApp) }
         }
         Refresher.start(this)
+        refreshOnScreenOn()
         // Timers and alarms set again at every start: a force stop or a battery manager drops the app's alarms.
         runCatching { com.accountabilibuddy.companion.timers.TimerScheduler.restore(this) }
     }
@@ -756,6 +757,25 @@ class CompanionApp : Application() {
         // The guards' own view of the day (a Budget day's windows included), not the plan's raw parts.
         return com.accountabilibuddy.companion.engine.DayWorkWindows
             .partAt(effectivePlan(state), local, nightFallback = state.sleep::fallbackNightBefore)?.category?.behavior?.isWork == true
+    }
+
+    /**
+     * The screen coming on or an unlock redraws the notices (Pre-Work, Work time) and cards at once, so one left from a
+     * part that ended while the phone slept is gone before it's seen. The pinned timeline service already does this
+     * while it runs, so this one stands aside then (the refresher's lock keeps them one at a time anyway).
+     */
+    private fun refreshOnScreenOn() {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
+                if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning) return
+                refreshSoon()
+            }
+        }
+        val filter = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON).apply {
+            addAction(android.content.Intent.ACTION_USER_PRESENT)
+        }
+        // Exported: SystemUI sends USER_PRESENT and isn't the system user (as in the pinned service). Both are protected broadcasts.
+        androidx.core.content.ContextCompat.registerReceiver(this, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
     }
 
     private var lastUnlockSyncAt = java.time.Instant.EPOCH

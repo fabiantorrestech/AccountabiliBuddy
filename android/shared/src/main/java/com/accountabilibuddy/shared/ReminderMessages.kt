@@ -18,8 +18,11 @@ object ReminderMessages {
     const val DISMISS = "dismiss"
     const val SNOOZE = "snooze"
 
-    /** Ring reminder [number] of [count] tonight ([night] = its evening, "2026-10-25"); [alarm] = until dismissed. */
-    data class Ring(val night: String, val number: Int, val count: Int, val label: String, val text: String, val alarm: Boolean)
+    /**
+     * Ring reminder [number] of [count] tonight ([night] = its evening, "2026-10-25"); [alarm] = until dismissed.
+     * [until]: when its text stops being true ("Bedtime in 20 min" at bedtime); the watch drops it then. Null from an older phone.
+     */
+    data class Ring(val night: String, val number: Int, val count: Int, val label: String, val text: String, val alarm: Boolean, val until: Instant? = null)
 
     /** Reminder [number] of [night] was dismissed or snoozed at [at] (a snooze rings again at [until]). */
     data class Action(val night: String, val number: Int, val action: String, val at: Instant, val until: Instant? = null) {
@@ -33,6 +36,7 @@ object ReminderMessages {
         put("label", ring.label)
         put("text", ring.text)
         put("alarm", ring.alarm)
+        ring.until?.let { put("until", it.toString()) }
     }.toString().toByteArray()
 
     fun readRing(bytes: ByteArray): Ring? = runCatching {
@@ -40,6 +44,7 @@ object ReminderMessages {
         Ring(
             (o["night"] as JsonPrimitive).content, (o["number"] as JsonPrimitive).intOrNull ?: 0, (o["count"] as JsonPrimitive).intOrNull ?: 0,
             (o["label"] as JsonPrimitive).content, (o["text"] as JsonPrimitive).content, (o["alarm"] as? JsonPrimitive)?.booleanOrNull ?: false,
+            (o["until"] as? JsonPrimitive)?.content?.let { runCatching { Instant.parse(it) }.getOrNull() },
         )
     }.getOrNull()
 
