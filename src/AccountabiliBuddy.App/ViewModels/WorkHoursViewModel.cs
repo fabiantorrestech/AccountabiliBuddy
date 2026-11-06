@@ -1,4 +1,5 @@
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.Core.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -16,12 +17,14 @@ public sealed partial class WorkHoursViewModel : ObservableObject
 
     private readonly WorkHoursGuard _guard;
     private readonly SessionController _sessions;
+    private readonly ArmedEndService _armedEnds;
     private DateTimeOffset? _stopAskedAt;
 
-    public WorkHoursViewModel(WorkHoursGuard guard, SessionController sessions)
+    public WorkHoursViewModel(WorkHoursGuard guard, SessionController sessions, ArmedEndService armedEnds)
     {
         _guard = guard;
         _sessions = sessions;
+        _armedEnds = armedEnds;
         AppsText = string.Join(", ", guard.Settings.Apps);
         StopReason = string.Empty;
         _guard.Changed += (_, _) => Refresh();
@@ -60,6 +63,15 @@ public sealed partial class WorkHoursViewModel : ObservableObject
     /// <summary>E.g. "Wait 0:42" or "You can stop now".</summary>
     [ObservableProperty]
     public partial string StopWaitText { get; set; } = string.Empty;
+
+    /// <summary>The wait still runs and the reason is long enough: "Confirm" arms the stop (ADR 66) instead of waiting here.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ArmStopCommand))]
+    public partial bool CanArmStop { get; set; }
+
+    /// <summary>"Confirm · stops in 0:42".</summary>
+    [ObservableProperty]
+    public partial string ArmStopText { get; set; } = string.Empty;
 
     [RelayCommand]
     private async Task TurnOnAsync()
@@ -124,6 +136,22 @@ public sealed partial class WorkHoursViewModel : ObservableObject
         }
     }
 
+    /// <summary>Confirmed during the wait (ADR 66): the guard stops by itself when the wait is over; Today and the tile show it, with Cancel.</summary>
+    [RelayCommand(CanExecute = nameof(CanArmStop))]
+    private void ArmStop()
+    {
+        if (_stopAskedAt is not DateTimeOffset asked
+            || _armedEnds.Arm(ArmedEndKind.StopForToday, asked, _guard.StopWait, StopReason) is null)
+        {
+            return;
+        }
+
+        IsStopping = false;
+        _stopAskedAt = null;
+        StopReason = string.Empty;
+        Message = "Confirmed: the guard stops for today when the wait is over. Cancel it on Today until then.";
+    }
+
     [RelayCommand]
     private void CancelStop()
     {
@@ -141,6 +169,11 @@ public sealed partial class WorkHoursViewModel : ObservableObject
             : "On: guards during your plan's work parts (not now)";
     }
 
+    partial void OnStopReasonChanged(string value)
+    {
+        RefreshStopWait();
+    }
+
     private void RefreshStopWait()
     {
         HasWorkLeftToday = _guard.HasWorkLeftToday;
@@ -148,6 +181,12 @@ public sealed partial class WorkHoursViewModel : ObservableObject
         {
             TimeSpan left = _guard.WaitLeft(asked);
             StopWaitText = left > TimeSpan.Zero ? $"Wait {(int)left.TotalMinutes}:{left.Seconds:00}" : "You can stop now";
+            ArmStopText = $"Confirm · stops in {(int)left.TotalMinutes}:{left.Seconds:00}";
+            CanArmStop = left > TimeSpan.Zero && StopReason.Trim().Length >= _guard.StopMinReasonLength;
+        }
+        else
+        {
+            CanArmStop = false;
         }
     }
 }

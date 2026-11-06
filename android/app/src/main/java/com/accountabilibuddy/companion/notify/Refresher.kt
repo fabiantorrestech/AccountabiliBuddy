@@ -66,10 +66,13 @@ object Refresher {
                 val focus = HeaderSource.focus(app, now)
                 val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder), focus)
                 val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }), plan = app.effectivePlan(state))
-                countdownEnd = model.countdownTo
+                // ADR 66: a wait running in the background takes the header's countdown (with Cancel on the card); the redraw comes at its end.
+                val wait = RunningWaits.current(app).firstOrNull()
+                val shown = if (wait != null) model.copy(countdownTo = wait.readyAt, countdownFormat = "${wait.label} in %s") else model
+                countdownEnd = shown.countdownTo
                 minutely = header?.refreshMinutely == true || runCatching { BedtimeReminders.countdownActive(context) }.getOrDefault(false)
                 if (state.timelineNotificationOn) {
-                    TimelineNotifier.show(context, model)
+                    TimelineNotifier.show(context, shown, wait)
                     if (!PinnedTimelineService.isRunning && TimelineNotifier.canPost(context)) {
                         // Fails quietly from the background; the card stays up unpinned until the next chance.
                         PinnedTimelineService.tryStart(context)

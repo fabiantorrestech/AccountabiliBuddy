@@ -41,7 +41,8 @@ object TimelineNotifier {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    fun show(context: Context, model: DayBarModel) {
+    /** [wait]: a wait running in the background (ADR 66); its countdown is already in [model]'s, and the card gets its Cancel. */
+    fun show(context: Context, model: DayBarModel, wait: RunningWaits.Wait? = null) {
         if (!canPost(context)) {
             return
         }
@@ -76,6 +77,7 @@ object TimelineNotifier {
             // The bar is narrower by the noise button when it shows.
             setBar(this, model, if (noise != null) width - (NOISE_BUTTON_DP * metrics.density).toInt() else width, metrics.density, night, compact = true)
             showNoise(this, noise, text)
+            showCancel(context, this, wait, text)
         }
         val expanded = RemoteViews(context.packageName, R.layout.notification_timeline_expanded).apply {
             val counting = setCountdown(this, model, text)
@@ -84,6 +86,7 @@ object TimelineNotifier {
             setViewVisibility(R.id.timeline_title, if (counting) View.GONE else View.VISIBLE)
             setTextColor(R.id.timeline_title, text)
             showNoise(this, noise, text)
+            showCancel(context, this, wait, text)
             val status = listOf(model.dateText, model.summaryText)
             setTextViewText(R.id.timeline_status, status.filter { it.isNotEmpty() }.joinToString(" · "))
             setTextColor(R.id.timeline_status, subtle)
@@ -171,6 +174,21 @@ object TimelineNotifier {
         views.setTextViewText(R.id.timeline_noise, noise.first)
         views.setTextColor(R.id.timeline_noise, color)
         views.setOnClickPendingIntent(R.id.timeline_noise, noise.second)
+    }
+
+    // Cancel for a wait running in the background (ADR 66); "Cancelling…" once a PC was asked and hasn't answered yet.
+    private fun showCancel(context: Context, views: RemoteViews, wait: RunningWaits.Wait?, color: Int) {
+        if (wait == null) {
+            views.setViewVisibility(R.id.timeline_cancel, View.GONE)
+            return
+        }
+
+        views.setViewVisibility(R.id.timeline_cancel, View.VISIBLE)
+        views.setTextViewText(R.id.timeline_cancel, if (wait.cancelling) "Cancelling…" else "Cancel")
+        views.setTextColor(R.id.timeline_cancel, color)
+        if (!wait.cancelling) {
+            views.setOnClickPendingIntent(R.id.timeline_cancel, RunningWaits.cancelIntent(context, wait))
+        }
     }
 
     private fun setCountdown(views: RemoteViews, model: DayBarModel, color: Int): Boolean {

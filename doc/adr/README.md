@@ -5,6 +5,8 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0067](0067-let-the-phone-finish-work-for-the-day-with-a-tag-or-a-wait.md) | Let the phone finish work for the day with a tag or a wait | Accepted | — |
+| [0066](0066-let-a-waited-end-run-in-the-background-once-confirmed.md) | Let a waited end run in the background once confirmed | Accepted | — |
 | [0065](0065-let-start-shutdown-end-the-work-block-early.md) | Let Start shutdown end the work block early | Accepted | — |
 | [0064](0064-classify-events-from-the-timeline-and-let-a-hand-choice-lift-pre-work.md) | Classify events from the timeline, and let a hand choice lift Pre-Work | Accepted | — |
 | [0063](0063-let-day-plan-parts-overlap-with-the-weaker-rules-winning.md) | Let day plan parts overlap, with the weaker rules winning | Accepted | — |

@@ -50,4 +50,10 @@ public sealed record SyncAction(Guid Id, string Kind, Guid Target, Guid? Item, s
 
     /// <summary>Classify one of the PC's calendar events, or make a keyword rule from it (ADR 64); taken only within a day.</summary>
     public const string KindClassifyEvent = "classifyEvent";
+
+    /// <summary>
+    /// Cancel a wait running in the background on the PC (ADR 66): <see cref="Item"/> is the armed end's id. Stricter, so applied at
+    /// once while it is still armed, whenever it arrives; answered as already applied otherwise.
+    /// </summary>
+    public const string KindArmedCancel = "armedCancel";
 }

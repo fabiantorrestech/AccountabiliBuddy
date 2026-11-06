@@ -32,12 +32,20 @@ public sealed class WorkEndedService
     // Another PC's change that came during a session here: nothing changes during a session, so it waits until none runs.
     private SyncWorkEnded? _heldReceived;
 
+    // ADR 67: a phone's finished work waiting out this PC's looser-change delay, and that delay.
+    private SyncWorkEnded? _heldFromPhone;
+    private TimeSpan _phoneDelay;
+
     public WorkEndedService(SessionController sessions, SqliteJsonDocumentStore store, IDataProtector protector)
     {
         _sessions = sessions;
         _store = store;
         _protector = protector;
-        _sessions.Ticked += (_, _) => ApplyHeldReceived();
+        _sessions.Ticked += (_, _) =>
+        {
+            ApplyHeldReceived();
+            ApplyHeldFromPhone();
+        };
     }
 
     /// <summary>
@@ -198,6 +206,47 @@ public sealed class WorkEndedService
         var day = new WorkEndedDay(received.Date, windows, received.EditedAt, ours?.Reasons);
         _ = SaveAsync(WithDay(day, now));
         return true;
+    }
+
+    /// <summary>
+    /// ADR 67: a phone's "I've finished work for the day". Ending work is looser, so it is taken only once
+    /// <paramref name="looserDelay"/> has passed since the phone's edit (a stamp counts at most 2 minutes ahead), and never during a
+    /// session (<see cref="Receive"/> holds it then); until then the newest one waits here and is tried again every tick. An undo (no
+    /// windows) is stricter and is taken at once.
+    /// </summary>
+    /// <returns>True when it was taken now.</returns>
+    public bool ReceiveFromPhone(SyncWorkEnded received, TimeSpan looserDelay)
+    {
+        DateTimeOffset now = _sessions.Now;
+        DateTimeOffset stamp = received.EditedAt < now + TimeSpan.FromMinutes(2) ? received.EditedAt : now + TimeSpan.FromMinutes(2);
+        if (received.Windows.Count > 0 && now < stamp + looserDelay)
+        {
+            if (_heldFromPhone is null || received.EditedAt > _heldFromPhone.EditedAt)
+            {
+                _heldFromPhone = received;
+                _phoneDelay = looserDelay;
+            }
+
+            return false;
+        }
+
+        if (_heldFromPhone is not null && received.EditedAt >= _heldFromPhone.EditedAt)
+        {
+            _heldFromPhone = null;
+        }
+
+        return Receive(received);
+    }
+
+    private void ApplyHeldFromPhone()
+    {
+        if (_heldFromPhone is not SyncWorkEnded held)
+        {
+            return;
+        }
+
+        _heldFromPhone = null;
+        ReceiveFromPhone(held, _phoneDelay);
     }
 
     private void ApplyHeldReceived()

@@ -18,7 +18,9 @@
         <TextBlock Text="{Binding StatusText}" Opacity="0.85" TextWrapping="Wrap" />
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <Button Content="Keep working" Command="{Binding CancelCommand}" Classes="accent" IsDefault="True" />
-            <Button Content="End work" Command="{Binding ConfirmCommand}" />
+            <Button Content="{Binding ArmText}" Command="{Binding ArmCommand}" IsVisible="{Binding IsWaiting}"
+                    ToolTip.Tip="Keep going: work ends by itself when the wait is over, then the shutdown routine opens on Today. Cancel any time from Today or the on-screen tile." />
+            <Button Content="End work" Command="{Binding ConfirmCommand}" IsVisible="{Binding !IsWaiting}" />
         </StackPanel>
     </StackPanel>
 </Window>

@@ -647,6 +647,13 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         pcRemote.cancelEndEarly()
     }
 
+    /** "Confirm" during the PC's wait (ADR 66): the dialog closes; the phone sends the end by itself when the wait is over. */
+    fun armEndEarly(reason: String) {
+        val error = pcRemote.armEndEarly(reason)
+        endEarlyTerms.value = null
+        message.value = error ?: "Confirmed: it ends by itself when the wait is over. Cancel from Today or the notification."
+    }
+
     fun finishEndEarly(reason: String) {
         // Only the reason's length goes to the PC (ADR 42); the dialog closes with its answer.
         pcRemote.endEarly(reason)?.let { error ->

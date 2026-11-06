@@ -27,6 +27,9 @@ object TokenVault {
 
     /** The key that seals the group's past keys (ADR 56), a separate key from the sync code's. */
     const val PAST_KEYS_ALIAS = "accountabilibuddy-sync-past-keys"
+
+    /** The key that seals the finished-work tag's secret (ADR 67), a separate key from the sync code's. */
+    const val WORK_TAG_ALIAS = "accountabilibuddy-work-tag"
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val IV_BYTES = 12
     private const val TAG_BITS = 128

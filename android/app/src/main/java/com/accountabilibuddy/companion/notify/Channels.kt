@@ -28,6 +28,9 @@ object Channels {
     /** "Blocks come back on in 5 min" before the block rules turn blocks back on (ADR 37). */
     const val BLOCKS = "blocks"
 
+    /** Developer switch: "Sync reached <device>" (sync receipts), quiet. */
+    const val SYNC_RECEIPTS = "sync_receipts"
+
     fun create(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         // High importance (silenced, alerting once) ranks the timeline above other apps' default-importance pinned
@@ -42,6 +45,7 @@ object Channels {
         // The alarm screen plays its own sound and vibration.
         manager.createNotificationChannel(silent(BEDTIME_ALARM, "Bedtime alarm", "A bedtime reminder that rings", NotificationManager.IMPORTANCE_HIGH))
         manager.createNotificationChannel(silent(NOISE, "Noise player", "While a sound plays", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(silent(SYNC_RECEIPTS, "Sync receipts (testing)", "When sync reaches each of your devices", NotificationManager.IMPORTANCE_LOW))
         manager.createNotificationChannel(
             NotificationChannel(BLOCKS, "Blocks coming back on", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "A heads-up before your day plan turns blocks back on"

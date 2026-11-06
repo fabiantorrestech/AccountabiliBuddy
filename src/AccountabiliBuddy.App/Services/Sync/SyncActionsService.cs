@@ -53,6 +53,9 @@ public sealed class SyncActionsService
     /// <summary>What classifies an event a phone asked about (ADR 64); set by the app once the calendars and lists exist.</summary>
     public CalendarEventActions? EventActions { get; set; }
 
+    /// <summary>Cancels an armed end by id (ADR 66); false when it is no longer armed. Set by the app.</summary>
+    public Func<Guid, bool>? CancelArmed { get; set; }
+
     // When this PC first saw each action still in a file (its file's arrival). In memory: applied ones are kept by id.
     private readonly Dictionary<Guid, DateTimeOffset> _firstSeen = [];
     private List<AppliedAction> _applied = [];
@@ -276,9 +279,22 @@ public sealed class SyncActionsService
                 return await ChangeTasksAsync(action, now);
             case SyncAction.KindClassifyEvent:
                 return ClassifyEvent(action, now);
+            case SyncAction.KindArmedCancel:
+                return CancelArmedEnd(action);
             default:
                 return Unsupported(action);
         }
+    }
+
+    // Stricter, so never too late: a cancel that arrives after the end applied is answered as such (ADR 66).
+    private SyncActionResult CancelArmedEnd(SyncAction action)
+    {
+        if (CancelArmed is null || action.Item is not Guid id)
+        {
+            return Invalid(action, "The PC couldn't read this request.");
+        }
+
+        return CancelArmed(id) ? Ok(action, "Cancelled on the PC.") : Refused(action, "Too late: it already applied on the PC, or was cancelled there.");
     }
 
     // Through the same provider as the event menu, so a session refuses it and a looser change waits (ADR 64).

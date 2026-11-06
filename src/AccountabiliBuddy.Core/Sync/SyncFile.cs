@@ -56,6 +56,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// A PC's work ended early today (ADR 65): the plan date, the ended windows and when they were last edited, times only. Null when
 /// nothing was ended or undone today, and from an app that predates it, which ignore it (an older phone keeps nudging: the stricter side).
 /// </param>
+/// <param name="ArmedEnds">
+/// A PC's waits running in the background (ADR 66): each armed end's id, kind and ready time, times only (never the reason). Null
+/// when none runs, and from an app that predates it, which ignore it (it is then cancelled only on the PC).
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -90,7 +94,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastKey>? PastKeys = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncCategoriesConverter))] IReadOnlyList<SyncCategory>? Categories = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncSteps? Steps = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncWorkEnded? WorkEnded = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncWorkEnded? WorkEnded = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncArmedEnd>? ArmedEnds = null)
 {
     public const int CurrentFormatVersion = 1;
 }

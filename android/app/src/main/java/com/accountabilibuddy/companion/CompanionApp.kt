@@ -151,7 +151,10 @@ class CompanionApp : Application() {
         if (!::sync.isInitialized) return emptyList()
         val zone = java.time.ZoneId.systemDefault()
         val today = now.atZone(zone).minusHours(4).toLocalDate()
-        val newest = com.accountabilibuddy.shared.sync.SyncWorkEnded.newestFor(sync.received.value.map { it.file }, today, now) ?: return emptyList()
+        val received = com.accountabilibuddy.shared.sync.SyncWorkEnded.newestFor(sync.received.value.map { it.file }, today, now)
+        // ADR 67: work finished on this phone counts here at once; the newest edit for today wins, as with a PC's.
+        val own = phoneWorkEnded.forDate(today)
+        val newest = listOfNotNull(received, own).maxByOrNull { it.editedAt } ?: return emptyList()
         return newest.windows.map { window ->
             com.accountabilibuddy.companion.model.LocalWindow(
                 java.time.LocalDateTime.ofInstant(window.start, zone), java.time.LocalDateTime.ofInstant(window.end, zone),
@@ -271,6 +274,12 @@ class CompanionApp : Application() {
     /** What the user did here for a PC (ADR 26), until that PC acknowledges it. */
     val actions by lazy { com.accountabilibuddy.companion.sync.ActionStore(this) }
 
+    /** Developer switch: a notification when sync reaches each device (off by default). */
+    val syncReceipts by lazy { com.accountabilibuddy.companion.sync.SyncReceipts(this) }
+
+    /** Work finished on this phone (ADR 67), written into its sync file for the PCs. */
+    val phoneWorkEnded by lazy { com.accountabilibuddy.companion.sync.PhoneWorkEndedStore(this) }
+
     /** The shared next-session tasks and come-backs (ADR 48): items with edit times, merged with the other devices' lists. */
     val sharedLists by lazy { com.accountabilibuddy.companion.sync.SharedListsStore(this) }
 
@@ -365,6 +374,33 @@ class CompanionApp : Application() {
         }
         // ADR 42: starting and ending the PC's sessions and sending plan edits go through the sync files.
         pcRemote = PcFileRemote(this, actions, sync.received)
+        // ADR 66: the phone's own armed end of a PC session is sent by itself when the PC's wait allows it (an alarm wakes the app),
+        // and the pinned notification counts every running wait down with Cancel.
+        pcRemote.onArmedChanged = {
+            com.accountabilibuddy.companion.notify.RunningWaits.scheduleSend(this, pcRemote.armed.value?.sendAt)
+            appScope.launch { runCatching { Refresher.refresh(this@CompanionApp) } }
+        }
+        pcRemote.sendArmedIfDue()
+        com.accountabilibuddy.companion.notify.RunningWaits.scheduleSend(this, pcRemote.armed.value?.sendAt)
+        appScope.launch {
+            pcRemote.armed.collectLatest { armed ->
+                if (armed != null) {
+                    delay(java.time.Duration.between(java.time.Instant.now(), armed.sendAt).toMillis().coerceAtLeast(0))
+                    pcRemote.sendArmedIfDue()
+                }
+            }
+        }
+        // Sync receipts (developer switch): each received file says which of this phone's files that device holds.
+        appScope.launch {
+            sync.received.collect { devices -> runCatching { syncReceipts.check(sync.deviceId, devices) } }
+        }
+        // A PC's waits (armedEnds in its file) changed: the notification's countdown follows at once.
+        appScope.launch {
+            sync.received
+                .map { devices -> devices.flatMap { it.file.armedEnds.orEmpty() }.map { it.id to it.readyAt }.toSet() }
+                .distinctUntilChanged()
+                .collect { runCatching { Refresher.refresh(this@CompanionApp) } }
+        }
         planFileSync = DayPlanFileSync(store, actions, pcRemote, sync.received, appScope).also { it.start() }
         // ADR 42, 36: the watch's Noise page controls a PC's noise player through the same files.
         val pcNoise = PcNoiseRemote(actions, sync.received, appScope)
@@ -450,6 +486,16 @@ class CompanionApp : Application() {
             appScope.launch {
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
+            }
+        }
+        // ADR 67: "I've finished work for the day" goes out in this phone's file at once (the PCs apply it after their own delay).
+        sync.workEnded = { phoneWorkEnded.latest() }
+        phoneWorkEnded.onChanged = {
+            relaySoon()
+            appScope.launch {
+                runCatching { Refresher.refresh(this@CompanionApp) }
+                runCatching { folderSource.syncNow() }
+                driveSource.syncNow()
             }
         }
         lunch.onChanged = {

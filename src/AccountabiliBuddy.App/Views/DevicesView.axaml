@@ -504,6 +504,18 @@
             <TextBlock Classes="sHint" Margin="4,-4,0,0"
                        Text="A device shows 'no battery info' until it reports a level; its boxes unlock then. Nothing is sent anywhere for this." />
 
+            <!-- For testing (developer): sync receipts from the device cards' "seen", off by default. -->
+            <Border Classes="sRow" DataContext="{Binding Receipts}" x:DataType="vm:SyncReceiptsViewModel" IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Classes="sTitle" Text="For testing: tell me when sync reaches each device" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                   Text="A quiet notice when another device's file shows it has this PC's latest file, and which devices don't yet. Works for every way of syncing; a watch can't confirm. It comes once that device's own file arrives back here." />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Classes="rowSwitch" IsChecked="{Binding IsOn}" AutomationProperties.Name="Tell me when sync reaches each device" />
+                </Grid>
+            </Border>
+
             <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="4,0,0,0"
                        IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </StackPanel>

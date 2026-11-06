@@ -426,6 +426,8 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
         DateTimeOffset? changeAt = Actions.PendingChangeAt();
         HasChangeWaiting = changeAt is not null;
         string waiting = changeAt is DateTimeOffset at ? $"Change waiting · applies {TimeZoneInfo.ConvertTime(at, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}" : string.Empty;
+        // A wait running in the background (ADR 66) comes before a waiting change: it ends something soon.
+        waiting = Actions.RunningWaitText() ?? waiting;
 
         string accent = "Accent";
         string border = "Line";

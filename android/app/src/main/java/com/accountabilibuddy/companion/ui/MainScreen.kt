@@ -378,7 +378,11 @@ fun MainScreen(
                         ),
                         // On a tablet the sync light lives in the sidebar, on every place.
                         syncLight = if (wide) ({}) else syncLightSlot,
-                        banner = { WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ }) },
+                        banner = {
+                            // ADR 66: waits running in the background (this phone's armed end, a PC's), each with Cancel.
+                            RunningWaitLines()
+                            WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ })
+                        },
                     )
                 }
                 AppDestination.Tasks -> TasksScreen(controlPc = controlPc, snackbar = snackbar)
@@ -549,6 +553,7 @@ fun MainScreen(
         EndEarlyDialog(
             terms, onEnd = viewModel::finishEndEarly, onCancel = viewModel::cancelEndEarly,
             sending = pcWaiting?.kind == SyncAction.END_EARLY,
+            onArm = viewModel::armEndEarly,
         )
     }
 

@@ -196,6 +196,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The quiet "Overlay hidden" line and the "Overlay turned off from the panel" card on Today.</summary>
     public OverlayStatusViewModel? OverlayStatus { get; init; }
 
+    /// <summary>Waits running in the background, with Cancel (ADR 66): Today's banner.</summary>
+    public RunningWaitsViewModel? RunningWaits { get; init; }
+
     /// <summary>Today's plan, for the "next scheduled" line.</summary>
     public DayBarViewModel? Day
     {

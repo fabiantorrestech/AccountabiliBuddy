@@ -44,6 +44,19 @@
         android:contentDescription="@string/timeline_description" />
 </LinearLayout>
 
+    <!-- ADR 66: Cancel for a wait running in the background (its countdown is in the header). -->
+    <TextView
+        android:id="@+id/timeline_cancel"
+        style="@style/TextAppearance.Compat.Notification.Title"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_gravity="center_vertical"
+        android:gravity="center"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
     <!-- The noise player's play/pause (when a sound folder is chosen). -->
     <TextView
         android:id="@+id/timeline_noise"

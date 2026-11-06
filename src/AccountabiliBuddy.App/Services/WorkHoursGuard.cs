@@ -119,6 +119,9 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>How long stopping for today waits (the end-early wait).</summary>
     public TimeSpan StopWait => _configuration.Current.Bypass.WaitDuration;
 
+    /// <summary>The shortest reason stopping for today takes (the end-early reason).</summary>
+    public int StopMinReasonLength => _configuration.Current.Bypass.MinReasonLength;
+
     /// <summary>True while the listed apps wait.</summary>
     public bool IsGuarding => GuardingUntil() is not null;
 

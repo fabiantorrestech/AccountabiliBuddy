@@ -136,6 +136,24 @@
                         <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
                     </Border>
 
+                    <!-- Waits running in the background (ADR 66): an armed end, an unlock or a new spare key, each with Cancel. -->
+                    <Border Classes="inner" DataContext="{Binding RunningWaits}" x:DataType="vm:RunningWaitsViewModel"
+                            IsVisible="{Binding HasWaits, FallbackValue=False}">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                            <mi:MaterialIcon Kind="TimerSand" Width="20" Height="20" VerticalAlignment="Top" Margin="0,4,0,0" Foreground="{DynamicResource Ab.InfoInk}" />
+                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Rows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RunningWaitRowViewModel">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2">
+                                            <TextBlock Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                            <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Border>
+
                     <!-- The overlay was turned off with the Ctrl+Alt panel's Disable: Turn on here, or the switch in Settings. -->
                     <Border Classes="inner" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
                             IsVisible="{Binding IsOffFromPanel, FallbackValue=False}">

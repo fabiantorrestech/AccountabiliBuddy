@@ -39,6 +39,14 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     /** The PC's end-early offer while the phone counts it down; null when none is open. */
     val offer: StateFlow<OpenOffer?> = _offer.asStateFlow()
 
+    private val _armed = MutableStateFlow(loadArmed())
+
+    /** The phone's own armed end of a PC session (ADR 66), sent by itself once the PC's wait allows it; null when none. */
+    val armed: StateFlow<ArmedPcEnd?> = _armed.asStateFlow()
+
+    /** Called when [armed] changes: the notification and its send alarm follow. Set by the app. */
+    var onArmedChanged: () -> Unit = {}
+
     /**
      * Asks the PC to classify one of the events in its file (ADR 64), named by title and times since its keys stay on the PC. The PC applies its own rules: a session
      * refuses it and a looser change waits. Null when sent, else why not.
@@ -207,6 +215,58 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         return null
     }
 
+    /**
+     * "Confirm" during the PC's wait (ADR 66): the end is sent by itself at the offer's allowed-from time plus the clocks' skew,
+     * with only [reason]'s length. Null when armed (or sent at once, the wait being over); else why not.
+     */
+    fun armEndEarly(reason: String): String? {
+        val open = _offer.value ?: return "Ask to end the session first."
+        val now = Instant.now()
+        if (open.offer.expired(now)) {
+            _offer.value = null
+            return TOO_LATE
+        }
+
+        val sendAt = open.offer.allowedFrom.plusSeconds(SEND_SKEW_SECONDS)
+        if (!sendAt.isAfter(now)) {
+            return endEarly(reason)
+        }
+
+        saveArmed(ArmedPcEnd(open.pcId, open.pcName, open.offer.requestId, reason.trim().length, sendAt))
+        _offer.value = null
+        return null
+    }
+
+    /** Cancels the phone's own armed end before it is sent (always allowed: nothing has left the phone). */
+    fun cancelArmed() {
+        saveArmed(null)
+    }
+
+    /** Sends the armed end once it is due; true when it was sent now. */
+    fun sendArmedIfDue(now: Instant = Instant.now()): Boolean {
+        val armed = _armed.value ?: return false
+        if (now.isBefore(armed.sendAt)) {
+            return false
+        }
+
+        saveArmed(null)
+        actions.add(SyncAction.END_EARLY, armed.pcId, item = armed.requestId, text = armed.reasonLength.toString())
+        return true
+    }
+
+    /** Asks [pcId] to cancel one of its armed ends (ADR 66): stricter, so it takes it whenever it arrives while still armed. */
+    fun cancelPcArmed(pcId: UUID, armedId: String) {
+        if (cancelsSent().contains(armedId)) {
+            return
+        }
+
+        actions.add(SyncAction.ARMED_CANCEL, pcId, item = armedId)
+    }
+
+    /** A PC's armed ends this phone asked to cancel and the PC hasn't answered yet: shown as cancelling. */
+    fun cancelsSent(): Set<String> =
+        actions.pending.value.filter { it.kind == SyncAction.ARMED_CANCEL }.mapNotNull { it.item }.toSet()
+
     /** "Keep going": the offer is dropped here (the PC's runs out by itself). */
     fun cancelEndEarly() {
         _offer.value = null
@@ -223,6 +283,7 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
      * much later; an open offer that ran out closes.
      */
     fun expire(now: Instant = Instant.now()) {
+        sendArmedIfDue(now)
         val gone = actions.pending.value.filter {
             (it.kind in SyncAction.CONTROL_KINDS || it.kind in SyncAction.TASK_KINDS) && Duration.between(it.at, now) > GIVE_UP_AFTER
         }
@@ -238,6 +299,16 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
     fun answered(action: SyncAction, result: SyncActionResult?, pc: ReceivedDevice) {
         if (action.kind in SyncAction.TASK_KINDS) {
             answeredTask(result, pc)
+            return
+        }
+
+        if (action.kind == SyncAction.ARMED_CANCEL) {
+            val name = pc.file.device.name
+            _news.value = when {
+                result == null || result.status == SyncActionResult.STATUS_UNSUPPORTED -> "Update AccountabiliBuddy on $name to cancel its waits from here."
+                result.ok -> "Cancelled on $name."
+                else -> result.message ?: "$name didn't cancel it."
+            }
             return
         }
 
@@ -324,6 +395,33 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
 
     private fun nameOf(pcId: UUID): String = received.value.firstOrNull { it.file.device.deviceId == pcId }?.file?.device?.name ?: "The PC"
 
+    private fun saveArmed(armed: ArmedPcEnd?) {
+        prefs.edit().apply {
+            if (armed == null) {
+                remove(KEY_ARMED_PC).remove(KEY_ARMED_NAME).remove(KEY_ARMED_REQUEST).remove(KEY_ARMED_LENGTH).remove(KEY_ARMED_SEND_AT)
+            } else {
+                putString(KEY_ARMED_PC, armed.pcId.toString())
+                putString(KEY_ARMED_NAME, armed.pcName)
+                putString(KEY_ARMED_REQUEST, armed.requestId)
+                putInt(KEY_ARMED_LENGTH, armed.reasonLength)
+                putLong(KEY_ARMED_SEND_AT, armed.sendAt.toEpochMilli())
+            }
+        }.apply()
+        _armed.value = armed
+        onArmedChanged()
+    }
+
+    // Kept across a restart, so the wait is neither reset nor skipped.
+    private fun loadArmed(): ArmedPcEnd? = runCatching {
+        ArmedPcEnd(
+            UUID.fromString(prefs.getString(KEY_ARMED_PC, null) ?: return null),
+            prefs.getString(KEY_ARMED_NAME, null) ?: "The PC",
+            prefs.getString(KEY_ARMED_REQUEST, null) ?: return null,
+            prefs.getInt(KEY_ARMED_LENGTH, 0),
+            Instant.ofEpochMilli(prefs.getLong(KEY_ARMED_SEND_AT, 0L)),
+        )
+    }.getOrNull()
+
     /** One step in [editTask]'s new list: [id] is a step's id from the PC's file, null for a new one. */
     data class TaskStep(val id: String?, val title: String)
 
@@ -348,6 +446,14 @@ class PcFileRemote(context: Context, private val actions: ActionStore, private v
         private val EVENT_TIME: java.time.format.DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
 
         private const val KEY_CHOSEN = "chosen"
+        private const val KEY_ARMED_PC = "armedPc"
+        private const val KEY_ARMED_NAME = "armedName"
+        private const val KEY_ARMED_REQUEST = "armedRequest"
+        private const val KEY_ARMED_LENGTH = "armedLength"
+        private const val KEY_ARMED_SEND_AT = "armedSendAt"
+
+        /** Seconds after the PC's allowed-from time the armed end is sent: the clocks may differ a little (ADR 42). */
+        const val SEND_SKEW_SECONDS = 3L
         private const val TOO_LATE = "Too late — ask to end it again."
         /** How long a request to a PC is worth answering. */
         val GIVE_UP_AFTER: Duration = Duration.ofMinutes(10)

@@ -49,4 +49,8 @@ fun StartNudgeControls(actions: PauseActions) = GuardsScope {
     if (actions.takeoverOn && !actions.takeoverAllowed) {
         GuardTonalButton("Allow \"Display over other apps\"", onClick = actions.onAllowTakeover)
     }
+    // ADR 67: the work card's "I've finished work for the day" ends work at once with this tag.
+    if (actions.takeoverOn) {
+        WorkTagControls()
+    }
 }

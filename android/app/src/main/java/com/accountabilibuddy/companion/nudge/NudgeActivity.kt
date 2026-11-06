@@ -107,8 +107,21 @@ class NudgeActivity : ComponentActivity() {
         app.refreshSoon()
     }
 
+    // ADR 67: the finished-work tag is read only while the card's "finished work" screen asks for it (reader mode, this activity in front).
+    private var tagReader: ((android.nfc.Tag) -> Unit)? = null
+
+    private fun setTagReader(onTag: ((android.nfc.Tag) -> Unit)?) {
+        tagReader = onTag
+        if (onTag == null) {
+            com.accountabilibuddy.companion.nfc.WorkTag.disable(this)
+        } else if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+            com.accountabilibuddy.companion.nfc.WorkTag.enable(this, onTag)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        tagReader?.let { com.accountabilibuddy.companion.nfc.WorkTag.enable(this, it) }
         (application as CompanionApp).nudgeOnScreen = true
         Takeover.stopWatchingUnanswered()
         if (act(dueState())) watchStillDue()
@@ -134,7 +147,13 @@ class NudgeActivity : ComponentActivity() {
         }
         setContent {
             CompanionTheme(systemBarIconsFollowTheme = false) {
-                NudgeCard(store, app.emergency, untilText, parked, bonus, onEssentials = {
+                NudgeCard(store, app.emergency, untilText, parked, bonus, finishing = FinishingWork(
+                    tagSet = com.accountabilibuddy.companion.nfc.WorkTagStore(this).isSet,
+                    nfcOn = com.accountabilibuddy.companion.nfc.WorkTag.isOn(this),
+                    matches = { tag -> com.accountabilibuddy.companion.nfc.WorkTagStore(this).matches(com.accountabilibuddy.companion.nfc.WorkTag.read(tag)) },
+                    setReader = ::setTagReader,
+                    finish = { FinishedWork.finish(app) },
+                ), onEssentials = {
                     startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.intent(this))
                 }, onDone = {
                     store.update { it.copy(unanswered = false) }
@@ -173,8 +192,8 @@ class NudgeActivity : ComponentActivity() {
 
 @Composable
 private fun NudgeCard(
-    store: NudgeStore, emergency: EmergencyStore, untilText: String?, parked: List<String>, bonus: GoalBonus?, onDone: () -> Unit,
-    onEssentials: () -> Unit,
+    store: NudgeStore, emergency: EmergencyStore, untilText: String?, parked: List<String>, bonus: GoalBonus?, finishing: FinishingWork,
+    onDone: () -> Unit, onEssentials: () -> Unit,
 ) {
     // "Not working today" opens a choice: a day off, or the phone for a bit (emergency).
     var menu by remember { mutableStateOf<String?>(null) }
@@ -191,6 +210,8 @@ private fun NudgeCard(
     }
     val today = LocalDate.now(zone)
     val dayOffLeft = NudgeRules.dayOffLeft(state, now, today, zone)
+    val finishedLeft = NudgeRules.finishedLeft(state, now, today, zone)
+    var tagMessage by remember { mutableStateOf<String?>(null) }
     fun save(next: NudgeState) {
         state = next
         store.save(next)
@@ -228,6 +249,60 @@ private fun NudgeCard(
                 parked.take(3).forEach { Text("• $it", color = Color(0xCCFFFFFF), style = MaterialTheme.typography.bodyMedium) }
             }
 
+            // ADR 67: the tag ends work at once on the "finished work" screen and during its wait; nowhere else.
+            val readingTag = finishing.tagSet && finishing.nfcOn && (menu == MENU_FINISHED || finishedLeft != null)
+            androidx.compose.runtime.DisposableEffect(readingTag) {
+                finishing.setReader(if (readingTag) { tag ->
+                    if (finishing.matches(tag)) {
+                        finishing.finish()
+                        save(store.load().copy(finishedAskedAt = null))
+                        onDone()
+                    } else {
+                        tagMessage = "That isn't your finished-work tag."
+                    }
+                } else null)
+                onDispose { finishing.setReader(null) }
+            }
+
+            if (finishedLeft != null) {
+                val seconds = finishedLeft.seconds
+                Text(
+                    if (seconds > 0) "Finished for the day: work ends in %d:%02d, here and on your PCs (they follow after their own wait).".format(seconds / 60, seconds % 60)
+                    else "Done. Work is over for today.",
+                    color = Color(0xFFF4A261), style = MaterialTheme.typography.bodyLarge,
+                )
+                if (seconds > 0 && readingTag) {
+                    Text("Or tap your finished-work tag to end it now.", color = Color(0xCCFFFFFF), style = MaterialTheme.typography.bodyMedium)
+                }
+                tagMessage?.let { Text(it, color = Color(0xFFF4A261), style = MaterialTheme.typography.bodyMedium) }
+                if (seconds <= 0) {
+                    Button(onClick = { finishing.finish(); save(state.copy(finishedAskedAt = null)); onDone() }, modifier = Modifier.fillMaxWidth()) { Text("Close") }
+                }
+                // Tapped by mistake: back to the card's choices (being stricter needs no wait).
+                OutlinedButton(onClick = { save(state.copy(finishedAskedAt = null)) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel: I am still working")
+                }
+                return@Column
+            }
+
+            if (menu == MENU_FINISHED) {
+                Text("Finished work for the day?", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    when {
+                        !finishing.tagSet -> "Tap your finished-work tag to end work now. No tag is set up yet: Settings › Guards › Work-start nudge. Or wait 10 minutes."
+                        !finishing.nfcOn -> "NFC is off in Android's settings, so the tag can't be read. Turn it on, or wait 10 minutes."
+                        else -> "Hold the phone to your finished-work tag now: work ends here at once, and on your PCs after their own wait. Or wait 10 minutes."
+                    },
+                    color = Color(0xCCFFFFFF), style = MaterialTheme.typography.bodyLarge,
+                )
+                tagMessage?.let { Text(it, color = Color(0xFFF4A261), style = MaterialTheme.typography.bodyMedium) }
+                OutlinedButton(onClick = { menu = null; save(state.copy(finishedAskedAt = now)) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Wait 10 minutes instead", color = Color.White)
+                }
+                TextButton(onClick = { tagMessage = null; menu = MENU_CHOOSE }, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Color(0x99FFFFFF)) }
+                return@Column
+            }
+
             if (dayOffLeft != null) {
                 val seconds = dayOffLeft.seconds
                 Text(
@@ -248,6 +323,9 @@ private fun NudgeCard(
             if (menu == MENU_CHOOSE) {
                 Text("Not working today?", color = Color.White, style = MaterialTheme.typography.titleLarge)
                 Button(onClick = { menu = MENU_EMERGENCY }, modifier = Modifier.fillMaxWidth()) { Text("I need my phone for a bit") }
+                OutlinedButton(onClick = { menu = MENU_FINISHED }, modifier = Modifier.fillMaxWidth()) {
+                    Text("I've finished work for the day", color = Color.White)
+                }
                 OutlinedButton(onClick = { menu = null; save(state.copy(dayOffAskedAt = now)) }, modifier = Modifier.fillMaxWidth()) {
                     Text("A day off (10-minute wait)", color = Color.White)
                 }
@@ -310,3 +388,16 @@ private fun NudgeCard(
 
 private const val MENU_CHOOSE = "choose"
 private const val MENU_EMERGENCY = "emergency"
+private const val MENU_FINISHED = "finished"
+
+/**
+ * What the card's "I've finished work for the day" needs (ADR 67): whether a tag is set up and NFC is on, the tag check, the reader
+ * switch (null stops it) and the finish itself.
+ */
+private class FinishingWork(
+    val tagSet: Boolean,
+    val nfcOn: Boolean,
+    val matches: (android.nfc.Tag) -> Boolean,
+    val setReader: (((android.nfc.Tag) -> Unit)?) -> Unit,
+    val finish: () -> Unit,
+)

@@ -197,6 +197,16 @@ object SyncFileJson {
         file.steps?.let { put("steps", writeSteps(it)) }
         // Optional (ADR 65): a PC's work ended early today; older apps ignore it.
         file.workEnded?.let { put("workEnded", writeWorkEnded(it)) }
+        // Optional (ADR 66): a PC's waits running in the background; older apps ignore them.
+        file.armedEnds?.let { ends ->
+            put("armedEnds", JsonArray(ends.map { end ->
+                buildJsonObject {
+                    put("id", end.id)
+                    put("kind", end.kind)
+                    put("readyAt", writeTime(end.readyAt))
+                }
+            }))
+        }
         file.lunch?.let { lunch ->
             put("lunch", buildJsonObject {
                 put("start", writeTime(lunch.start))
@@ -362,7 +372,17 @@ object SyncFileJson {
             readCategories(json["categories"]),
             readSteps(json["steps"]),
             readWorkEnded(json["workEnded"]),
+            readArmedEnds(json["armedEnds"]),
         )
+    }
+
+    /** A PC's armed ends, leniently: an entry without an id, a kind or a ready time is dropped; a value that isn't a list reads as none. */
+    fun readArmedEnds(value: JsonElement?): List<SyncArmedEnd>? {
+        val list = value as? JsonArray ?: return null
+        return list.mapNotNull { element ->
+            val end = element as? JsonObject ?: return@mapNotNull null
+            runCatching { SyncArmedEnd(end.requiredString("id"), end.requiredString("kind"), end.requiredTime("readyAt")) }.getOrNull()
+        }
     }
 
     /** Work ended early in the PC's shape: {date: "yyyy-MM-dd", windows: [{start, end}], editedAt}. */

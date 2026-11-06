@@ -43,7 +43,7 @@ object PhoneBackup {
     private val SKIPPED_KEYS = mapOf(
         // The After sunset place is private (ADR 49): sealed to this phone's Keystore, never in a backup file.
         "ui" to setOf("place"),
-        "takeover" to setOf("lastShown", "snoozedUntil", "startingUntil", "snoozeDay", "snoozes", "dayOffAskedAt", "dayOff", "unanswered"),
+        "takeover" to setOf("lastShown", "snoozedUntil", "startingUntil", "snoozeDay", "snoozes", "dayOffAskedAt", "dayOff", "unanswered", "finishedAskedAt"),
         "nudges" to setOf("lastNudge"),
         "emergency" to setOf("uses"),
     )

@@ -48,6 +48,7 @@ object SettingsAnchors {
     const val FOLDER = "folder"
     const val RELAY = "relay"
     const val BY_HAND = "by-hand"
+    const val SYNC_RECEIPTS = "sync-receipts"
     const val LINK = "link"
     const val RESTORE = "restore"
     const val WATCH = "watch"

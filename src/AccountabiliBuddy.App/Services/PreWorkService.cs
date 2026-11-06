@@ -67,6 +67,23 @@ public sealed class PreWorkService
     /// <summary>The question or the day-off wait, while it shows; null otherwise.</summary>
     public PreWorkPromptViewModel? Prompt { get; private set; }
 
+    /// <summary>
+    /// Arms the day off (ADR 66) from when it was asked, with the planned lines (kept sealed); true when armed. Set by the app.
+    /// </summary>
+    public Func<DateTimeOffset, string, bool> ArmDayOffHandler { get; set; } = (_, _) => false;
+
+    /// <summary>A day off is armed: the card stays closed and the hold stays until it starts. Set by the app.</summary>
+    public Func<bool> DayOffArmed { get; set; } = () => false;
+
+    /// <summary>"Confirm" during the day-off wait (ADR 66): armed, the card closes; the hold stays until the day off starts.</summary>
+    public void ArmDayOff(DateTimeOffset askedAt, string plans)
+    {
+        if (ArmDayOffHandler(askedAt, plans))
+        {
+            Close();
+        }
+    }
+
     /// <summary>Raised when <see cref="Prompt"/> opens or closes.</summary>
     public event EventHandler? Changed;
 
@@ -75,6 +92,9 @@ public sealed class PreWorkService
 
     /// <summary>Today is a day off on this computer.</summary>
     public bool IsDayOff => _state.DayOffOn == Today();
+
+    /// <summary>"No, a day off" was asked today and not undone (its wait counts from then).</summary>
+    public bool IsDayOffAskedToday => _state.DayOffAskedAt is DateTimeOffset asked && DateOnly.FromDateTime(Local(asked)) == Today();
 
     /// <summary>True while work tools and distractions are held back.</summary>
     public bool IsGuarding => CurrentPart() is not null && _state.WorkDayOn == Today() && Holds();
@@ -105,7 +125,7 @@ public sealed class PreWorkService
             _ = SaveAsync(_state with { EndedOn = today });
         }
 
-        bool asking = part is not null && !_sessions.State.IsRealSession && _state.WorkDayOn != today && !IsDayOff && Holds()
+        bool asking = part is not null && !_sessions.State.IsRealSession && _state.WorkDayOn != today && !IsDayOff && Holds() && !DayOffArmed()
             && (Prompt is not null || _idle.GetIdleTime() < ActiveWithin);
         if (asking && Prompt is null)
         {
@@ -118,7 +138,7 @@ public sealed class PreWorkService
         }
 
         Prompt?.Refresh(_sessions.Now, UnlocksThisWeek);
-        bool guarding = IsGuarding || Prompt is not null;
+        bool guarding = IsHolding;
         if (guarding && !_wasGuarding)
         {
             // Guarding just began: what's already on screen waits too.
@@ -134,7 +154,7 @@ public sealed class PreWorkService
     /// <summary>A window came to the front: work tools and distractions wait while guarding (and while the question shows).</summary>
     public void OnActivity(ActivitySnapshot snapshot)
     {
-        if (!(IsGuarding || Prompt is not null) || snapshot.IsEmptyDesktop || IsOwnApp(snapshot))
+        if (!IsHolding || snapshot.IsEmptyDesktop || IsOwnApp(snapshot))
         {
             return;
         }
@@ -250,6 +270,10 @@ public sealed class PreWorkService
         Prompt = null;
         Changed?.Invoke(this, EventArgs.Empty);
     }
+
+    // Guarding, the question showing, or a day off armed and not started yet (ADR 66: the hold stays through the wait).
+    private bool IsHolding =>
+        IsGuarding || Prompt is not null || (DayOffArmed() && !_sessions.State.IsRealSession && CurrentPart() is not null && Holds());
 
     // Not ended by a session, not a day off, not unlocked.
     private bool Holds()

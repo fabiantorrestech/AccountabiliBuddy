@@ -33,7 +33,11 @@
                     <TextBlock Text="{Binding WaitText}" VerticalAlignment="Center" Opacity="0.75" TextWrapping="Wrap" />
                     <Button Grid.Column="1" Content="Start my day off" Command="{Binding TakeDayOffCommand}" Classes="accent" />
                 </Grid>
-                <Button Content="Cancel: I am working today" Command="{Binding CancelDayOffCommand}" HorizontalAlignment="Left" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="{Binding ArmDayOffText}" Command="{Binding ArmDayOffCommand}" IsVisible="{Binding CanArmDayOff}"
+                            ToolTip.Tip="Close this card: your day off starts by itself when the wait is over, with these plans under Come back to. Work tools and distractions still wait until then. Cancel any time from Today." />
+                    <Button Content="Cancel: I am working today" Command="{Binding CancelDayOffCommand}" />
+                </StackPanel>
             </StackPanel>
 
             <!-- Emergency unlock: rare and deliberately slow. -->

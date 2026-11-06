@@ -255,6 +255,9 @@ class SyncCoordinator(
     /** This phone's daily step counts; null while "Track daily steps" is off or before the first read. */
     var steps: () -> com.accountabilibuddy.shared.sync.SyncSteps? = { null }
 
+    /** Work finished on this phone (ADR 67), in the PC's `workEnded` shape, times only; set by the app. */
+    var workEnded: () -> com.accountabilibuddy.shared.sync.SyncWorkEnded? = { null }
+
     /** The next session's task list with its tombstones (ADR 48); null before the app sets it. */
     var nextTasks: () -> List<com.accountabilibuddy.shared.sync.SyncNextTask>? = { null }
 
@@ -823,6 +826,7 @@ class SyncCoordinator(
         // Only the categories made or recoloured here (TaskCategoriesStore); the PCs list theirs.
         categories = runCatching { categories() }.getOrNull(),
         steps = runCatching { steps() }.getOrNull(),
+        workEnded = runCatching { workEnded() }.getOrNull(),
     )
 
     /**

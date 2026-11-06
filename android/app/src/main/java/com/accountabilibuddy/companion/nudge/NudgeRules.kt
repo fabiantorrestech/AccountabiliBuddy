@@ -25,6 +25,8 @@ data class NudgeState(
     val dayOffAskedAt: Instant? = null,
     val dayOff: LocalDate? = null,
     val unanswered: Boolean = false,
+    /** "I've finished work for the day" without the tag (ADR 67): its 10-minute wait counts from here. */
+    val finishedAskedAt: Instant? = null,
 )
 
 /** The card's rules, plain Kotlin so the checks run them. */
@@ -32,6 +34,9 @@ object NudgeRules {
     val SNOOZE: Duration = Duration.ofMinutes(5)
     val STARTING: Duration = Duration.ofMinutes(10)
     val DAY_OFF_WAIT: Duration = Duration.ofMinutes(10)
+
+    /** "I've finished work for the day" without the tag (ADR 67): the same wait as a day off. */
+    val FINISHED_WAIT: Duration = Duration.ofMinutes(10)
 
     /** How soon a card left without an answer (the app switcher, Home) comes back. */
     val UNANSWERED_RETURN: Duration = Duration.ofMillis(300)
@@ -64,6 +69,12 @@ object NudgeRules {
         state.copy(snoozedUntil = now.plus(SNOOZE), snoozeDay = today, snoozes = snoozesToday(state, today) + 1)
 
     fun starting(state: NudgeState, now: Instant): NudgeState = state.copy(startingUntil = now.plus(STARTING))
+
+    /** Time left on the "I've finished work for the day" wait; null when not asked today. */
+    fun finishedLeft(state: NudgeState, now: Instant, today: LocalDate, zone: java.time.ZoneId): Duration? {
+        val asked = state.finishedAskedAt?.takeIf { it.atZone(zone).toLocalDate() == today } ?: return null
+        return Duration.between(now, asked.plus(FINISHED_WAIT)).coerceAtLeast(Duration.ZERO)
+    }
 
     /** Time left on the "Not working today" wait; null when not asked today. */
     fun dayOffLeft(state: NudgeState, now: Instant, today: LocalDate, zone: java.time.ZoneId): Duration? {

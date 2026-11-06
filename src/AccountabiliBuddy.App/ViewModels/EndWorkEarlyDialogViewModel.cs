@@ -11,7 +11,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// "End work early?" (ADR 65), before Start shutdown opens the routine during a work part: the same wait and reason as ending a
 /// session early (<see cref="BypassPolicy"/>), and, when more work comes later the same day, "Also end later work today" (off by
-/// default). The countdown starts when the dialog opens.
+/// default). The countdown starts when the dialog opens. With the reason typed, "Confirm" during the wait arms the end (ADR 66):
+/// the dialog closes and work ends by itself when the wait is over.
 /// </summary>
 public sealed partial class EndWorkEarlyDialogViewModel : ObservableObject, IDisposable
 {
@@ -56,6 +57,27 @@ public sealed partial class EndWorkEarlyDialogViewModel : ObservableObject, IDis
     [NotifyCanExecuteChangedFor(nameof(ConfirmCommand))]
     public partial bool CanConfirm { get; set; }
 
+    /// <summary>The reason is long enough and the wait still runs: "Confirm" arms the end instead of waiting here.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ArmCommand))]
+    public partial bool CanArm { get; set; }
+
+    /// <summary>True while the wait runs: the arm button shows instead of End work.</summary>
+    [ObservableProperty]
+    public partial bool IsWaiting { get; set; }
+
+    /// <summary>"Confirm · ends in 0:42".</summary>
+    [ObservableProperty]
+    public partial string ArmText { get; set; } = string.Empty;
+
+    /// <summary>True when the dialog closed through "Confirm" during the wait: the caller arms the end.</summary>
+    public bool Armed { get; private set; }
+
+    /// <summary>When the dialog opened: the wait counts from here, armed or not.</summary>
+    public DateTimeOffset RequestedAt => _requestedAt;
+
+    public TimeSpan Wait => _settings.WaitDuration;
+
     /// <summary>"Also end later work today": off by default, so only the current block ends.</summary>
     [ObservableProperty]
     public partial bool AlsoEndLater { get; set; }
@@ -71,6 +93,13 @@ public sealed partial class EndWorkEarlyDialogViewModel : ObservableObject, IDis
     [RelayCommand(CanExecute = nameof(CanConfirm))]
     private void Confirm()
     {
+        CloseRequested?.Invoke(this, true);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanArm))]
+    private void Arm()
+    {
+        Armed = true;
         CloseRequested?.Invoke(this, true);
     }
 
@@ -104,6 +133,13 @@ public sealed partial class EndWorkEarlyDialogViewModel : ObservableObject, IDis
         };
 
         CanConfirm = result == BypassCheckResult.Allowed;
+        IsWaiting = remaining > TimeSpan.Zero;
+        CanArm = IsWaiting && Reason.Trim().Length >= _settings.MinReasonLength;
+        ArmText = $"Confirm · ends in {FormatRemaining(remaining)}";
+        if (IsWaiting && CanArm)
+        {
+            StatusText = $"Confirm to keep going: work ends by itself in {FormatRemaining(remaining)}, and you can cancel until then.";
+        }
     }
 
     private static string FormatRemaining(TimeSpan remaining)

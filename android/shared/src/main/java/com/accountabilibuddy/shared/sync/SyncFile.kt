@@ -101,6 +101,11 @@ data class SyncFile(
      * reason. Null from a phone, a QR file and a PC that predates it. Optional in the JSON, so older apps ignore it (and keep nudging).
      */
     val workEnded: SyncWorkEnded? = null,
+    /**
+     * A PC's waits running in the background (ADR 66): each armed end's id, kind and ready time, times only (never the reason). Null
+     * from a phone, a QR file, a PC with none running and a PC that predates it. Optional in the JSON, so older apps ignore it.
+     */
+    val armedEnds: List<SyncArmedEnd>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -127,6 +132,29 @@ data class SyncWorkEnded(val date: java.time.LocalDate, val windows: List<SyncWo
 
 /** One stretch of work ended early: [start] (when it was confirmed) to [end] (the part's planned end). */
 data class SyncWorkEndedWindow(val start: Instant, val end: Instant)
+
+/**
+ * A wait running in the background on a PC (ADR 66): an end confirmed early that applies itself at [readyAt]. The phone shows it
+ * with Cancel, which reaches the PC as a [SyncAction.ARMED_CANCEL] naming [id].
+ */
+data class SyncArmedEnd(val id: String, val kind: String, val readyAt: Instant) {
+    /** "Session ends", "Work ends"…; a kind this app doesn't know reads "Ends". */
+    val label: String
+        get() = when (kind) {
+            END_SESSION -> "Session ends"
+            END_WORK_EARLY -> "Work ends"
+            STOP_FOR_TODAY -> "Work-hours guard stops"
+            PRE_WORK_DAY_OFF -> "Day off starts"
+            else -> "Ends"
+        }
+
+    companion object {
+        const val END_SESSION = "endSession"
+        const val END_WORK_EARLY = "endWorkEarly"
+        const val STOP_FOR_TODAY = "stopForToday"
+        const val PRE_WORK_DAY_OFF = "preWorkDayOff"
+    }
+}
 
 /**
  * One of a device's task categories as its sync file lists them (the PC's SyncCategory): the name and the colour only, since a
@@ -392,6 +420,12 @@ data class SyncAction(
          * `{ "title", "start", "end", "scope": "this|series|keyword", "choice": "category|dontClassify|automatic", "categoryId"?, "keyword"? }`; a PC takes it only within a day.
          */
         const val CLASSIFY_EVENT = "classifyEvent"
+
+        /**
+         * Cancel a wait running in the background on a PC (ADR 66): [item] is the armed end's id ([SyncArmedEnd.id]). Stricter, so
+         * the PC takes it whenever it arrives while still armed, and answers "too late" once it applied.
+         */
+        const val ARMED_CANCEL = "armedCancel"
 
         /** The kinds that change a PC's running session's tasks (a PC answers them in its results). */
         val TASK_KINDS: Set<String> = setOf(TASK_ADD, TASK_EDIT, TASK_REORDER)

@@ -23,6 +23,9 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <!-- ADR 67: the finished-work tag, read only in reader mode while the work card or its set-up page asks for it; no intent filter. -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Holding the timeline notification pinned at the top (see PinnedTimelineService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -223,6 +226,11 @@
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- ADR 66: the pinned notification's Cancel for a running wait, and the alarm that sends the phone's armed end. -->
+        <receiver
+            android:name=".notify.RunningWaitReceiver"
+            android:exported="false" />
 
         <!-- The next alarm changed (ADR 23): a broadcast Android still sends to apps' manifest receivers. -->
         <receiver

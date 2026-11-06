@@ -87,6 +87,8 @@ public sealed partial class PreWorkPromptViewModel : ObservableObject
 
         TimeSpan left = asked + PreWorkService.DayOffWait - now;
         CanTakeDayOff = left <= TimeSpan.Zero;
+        CanArmDayOff = !CanTakeDayOff;
+        ArmDayOffText = $"Confirm · day off in {(int)Math.Max(0, left.TotalMinutes)}:{Math.Max(0, left.Seconds):00}";
         WaitText = CanTakeDayOff ? "Done planning? Your day off starts when you press it." : $"Day off in {(int)left.TotalMinutes}:{Math.Max(0, left.Seconds):00} · plan your day meanwhile";
     }
 
@@ -103,6 +105,24 @@ public sealed partial class PreWorkPromptViewModel : ObservableObject
         await _service.CancelDayOffAsync();
         _dayOffAskedAt = null;
         IsWaiting = false;
+    }
+
+    /// <summary>The day-off wait still runs: "Confirm" arms the day off (ADR 66) and the card closes; the hold stays until it starts.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ArmDayOffCommand))]
+    public partial bool CanArmDayOff { get; set; }
+
+    /// <summary>"Confirm · day off in 7:42".</summary>
+    [ObservableProperty]
+    public partial string ArmDayOffText { get; set; } = string.Empty;
+
+    [RelayCommand(CanExecute = nameof(CanArmDayOff))]
+    private void ArmDayOff()
+    {
+        if (_dayOffAskedAt is DateTimeOffset asked)
+        {
+            _service.ArmDayOff(asked, Plans);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanTakeDayOff))]

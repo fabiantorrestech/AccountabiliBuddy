@@ -274,7 +274,9 @@ public sealed class SyncCoordinator
                 // This PC's task categories, always listed (empty when it has none), sealed like everything else.
                 Categories = Categories?.Invoke(),
                 // ADR 65: today's work ended early, times only (never the reason).
-                WorkEnded = WorkEnded?.Invoke() };
+                WorkEnded = WorkEnded?.Invoke(),
+                // ADR 66: the waits running in the background here, times only (never the reason), for the phone's countdown and Cancel.
+                ArmedEnds = ArmedEnds?.Invoke() is { Count: > 0 } armed ? armed : null };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -388,6 +390,9 @@ public sealed class SyncCoordinator
 
     /// <summary>Today's work ended early (ADR 65), ended here or taken from another PC; times only. Set by the app.</summary>
     public Func<SyncWorkEnded?>? WorkEnded { get; set; }
+
+    /// <summary>The armed ends running here (ADR 66), times only; set by the app.</summary>
+    public Func<IReadOnlyList<SyncArmedEnd>>? ArmedEnds { get; set; }
 
     private async Task<string?> AcceptOnUiThreadAsync(byte[] sealedBytes, string method)
     {

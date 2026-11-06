@@ -45,6 +45,9 @@ public sealed class OverlayActions
     /// <summary>"Applies at 1:48 PM": when a looser change that is waiting takes effect; null when none waits.</summary>
     public Func<DateTimeOffset?> PendingChangeAt { get; set; } = () => null;
 
+    /// <summary>"Session ends in 0:42": the first wait running in the background (ADR 66); null when none runs.</summary>
+    public Func<string?> RunningWaitText { get; set; } = () => null;
+
     /// <summary>The tray's ⌃ (when the overlay covers the tray): opens Windows' tray overflow.</summary>
     public Action OpenTrayOverflow { get; set; } = () => { };
 

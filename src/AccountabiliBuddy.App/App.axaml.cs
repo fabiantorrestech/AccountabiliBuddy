@@ -63,6 +63,8 @@ public partial class App : Application
     private AppTheme? _appearance;
     private WatchedBrowsersService? _watchedBrowsers;
     private UnlockService? _unlocks;
+    private ArmedEndService? _armedEnds;
+    private RunningWaitsService? _runningWaits;
     private SessionOverlayService? _sessionOverlay;
     private AccountabiliBuddy.Platform.Windows.Taskbar.Win32TaskbarGeometry? _taskbarGeometry;
     private AccountabiliBuddy.Platform.Windows.Power.WinRtBatteryReader? _batteryReader;
@@ -304,7 +306,18 @@ public partial class App : Application
         // Guided sessions (ADR 24, 25): the next or running session's checklist.
         var sessionTasks = new SessionTasksService(documents, new DpapiDataProtector(), _sessions, time);
         sessionTasks.LoadBlocking();
-        _endFlow = new SessionEndFlow(_sessions);
+        // ADR 66: waited ends confirmed early apply themselves when their wait is over; the notice shows where the cursor is.
+        _armedEnds = new ArmedEndService(_sessions, documents, new DpapiDataProtector(), (title, message) => _presenter?.ShowNotice(title, message));
+        _armedEnds.Register(new SessionArmedEndHandler(_sessions));
+        // A session that ended some other way (completed, ended from the phone, unlocked) takes its armed end with it.
+        _sessions.SessionEnded += (_, _) => _armedEnds.Drop(ArmedEndKind.EndSession);
+        _endFlow = new SessionEndFlow(_sessions, _armedEnds);
+        // Every wait running in the background, for the tile, Today and the tray (ADR 66).
+        _runningWaits = new RunningWaitsService(_sessions);
+        ArmedEndService armedEnds = _armedEnds;
+        _runningWaits.AddSource(() => armedEnds.Current.Select(end => new RunningWait(
+            $"armed:{end.Id}", armedEnds.Label(end), end.ReadyAt, () => { armedEnds.Cancel(end.Id); return Task.CompletedTask; })));
+        armedEnds.Changed += (_, _) => _runningWaits.NotifyChanged();
 
         var startupRegistrar = new RunKeyStartupRegistrar(AppPaths.LaunchPath, StartupOptions.MinimizedArgument);
 
@@ -315,6 +328,11 @@ public partial class App : Application
         // Loaded before the sessions start, so an unlock in effect is known at launch.
         _unlocks = new UnlockService(_sessions, documents);
         _unlocks.LoadBlocking();
+        UnlockService unlocks = _unlocks;
+        _runningWaits.AddSource(() => unlocks.Current is { } unlock && unlocks.Status == UnlockStatus.Waiting
+            ? [new RunningWait("unlock", $"Unlock ({unlock.OptionName})", unlock.ReadyAt, () => { unlocks.Cancel(); return Task.CompletedTask; })]
+            : []);
+        unlocks.Changed += (_, _) => _runningWaits.NotifyChanged();
         _watchedBrowsers = new WatchedBrowsersService(_browserSource, documents);
         _watchedBrowsers.LoadBlocking();
         _privateAccess = new PrivateWindowAccessMonitor(new WindowsPrivateWindowAccessReader(), _browserSource, _watchedBrowsers, time);
@@ -436,6 +454,7 @@ public partial class App : Application
         _sessionOverlay = new SessionOverlayService(
             _sessions, _configuration, overlaySettings, new Win32OverlayWindowControl(), _taskbarGeometry, _batteryReader,
             batteryVisibility, _ctrlAltWatcher, _panelKeys, _overlayStickyHotkey, _overlayHideHotkey, timelineDay, _sessionCues);
+        _sessionOverlay.Actions.RunningWaitText = _runningWaits.Line;
         _dayBar = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time);
         // ADR 35: this PC's alarm, when Settings → Sleep takes the wake time from it.
@@ -524,6 +543,7 @@ public partial class App : Application
         // ADR 27: work hours on this computer (off unless turned on in Settings).
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
         _workHours.LoadBlocking();
+        _armedEnds.Register(new StopForTodayArmedEndHandler(_workHours));
         // Hyperfocus guard: one quiet reminder after 90 minutes of unbroken focus.
         _hyperfocus = new HyperfocusGuard(_sessions, documents, (title, message) =>
             presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F"))));
@@ -591,6 +611,11 @@ public partial class App : Application
         _preWork.LoadBlocking();
         _preWork.Changed += (_, _) => ShowPreWork(monitorLocator);
         _preWork.DayOffTaken += (_, _) => _ = _workHours.TakeDayOffAsync();
+        // ADR 66: the day-off wait confirmed early; the planned lines travel sealed as the armed end's reason.
+        _armedEnds.Register(new PreWorkDayOffArmedEndHandler(_preWork, _sessions, text => _comebacks!.AddAsync(text)));
+        _preWork.DayOffArmed = () => _armedEnds.Find(ArmedEndKind.PreWorkDayOff) is not null;
+        _preWork.ArmDayOffHandler = (askedAt, plans) =>
+            _armedEnds.Arm(ArmedEndKind.PreWorkDayOff, askedAt, PreWorkService.DayOffWait, plans) is not null;
         // Nothing steers on a day off or during lunch.
         _startNudge!.IsDayOff = () => _preWork.IsDayOff || _lunch!.IsOnLunch;
         _startNudge.IsWorkOver = () => _shutdown?.IsWorkOver ?? false;
@@ -992,9 +1017,14 @@ public partial class App : Application
         // The sync light's setting and which batteries show where (both this PC only, documents "syncLight" and "batteryVisibility").
         var syncLightSetting = new SyncLightSettingService(documents);
         syncLightSetting.LoadBlocking();
+        // Sync receipts (developer switch, off by default): a notice when another device's file shows it has this PC's newer file.
+        var syncReceipts = new AccountabiliBuddy.App.Services.Sync.SyncReceiptsService(receivedDevices, syncIdentity, documents, time, presenter.ShowNotice);
+        syncReceipts.LoadBlocking();
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => syncReceipts.Check());
         var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
         {
             SyncLightSetting = syncLightSetting,
+            Receipts = new SyncReceiptsViewModel(syncReceipts),
             Batteries = batteryVisibility,
             Removal = _syncRemoval,
             PastKeys = pastKeys,
@@ -1010,6 +1040,7 @@ public partial class App : Application
         {
             TimerToggle = new TimerToggleViewModel(_sessionOverlay),
             OverlayStatus = new OverlayStatusViewModel(overlaySettings, _sessionOverlay),
+            RunningWaits = new RunningWaitsViewModel(_runningWaits!, _sessions),
             Day = timelineDay,
             ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
         };
@@ -1107,6 +1138,7 @@ public partial class App : Application
         _shutdown.LoadBlocking();
         // Work ended early (ADR 65): Start shutdown during a work part ends the block after the end-early wait and reason (StartShutdownFromUi).
         _workEnded = new WorkEndedService(_sessions, documents, new DpapiDataProtector());
+        _armedEnds!.Register(new WorkEndArmedEndHandler(_workEnded, _sessions, () => _shutdown?.StartByHand() ?? false));
         _workEnded.LoadBlocking();
         sessionViewModel.StartShutdownHandler = () =>
         {
@@ -1118,11 +1150,26 @@ public partial class App : Application
         _sessions.Ticked += (_, _) => sessionViewModel.CanGoBackToWork = _workEnded.CanGoBack;
         // Times only in this PC's sync file (never the reason); another PC's newer edit for today is taken, like lunch.
         syncCoordinator.WorkEnded = _workEnded.ForSync;
+        // ADR 66: armed ends go out times only; a cancel from the phone comes back as an action. A change writes the file soon.
+        syncCoordinator.ArmedEnds = () => _armedEnds!.Current.Select(end => new AccountabiliBuddy.Core.Sync.SyncArmedEnd(end.Id, SyncKindOf(end.Kind), end.ReadyAt)).ToList();
+        _armedEnds!.Changed += (_, _) =>
+        {
+            syncCoordinator.NotifyHistoryChanged();
+            _syncFolder?.WriteSoon();
+        };
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
         {
-            foreach (AccountabiliBuddy.Core.Sync.SyncWorkEnded received in receivedDevices.Active.Select(device => device.File.WorkEnded).OfType<AccountabiliBuddy.Core.Sync.SyncWorkEnded>())
+            foreach (var device in receivedDevices.Active.Where(device => device.File.WorkEnded is not null))
             {
-                _workEnded.Receive(received);
+                // ADR 67: a phone's finished work is a looser change from another device: it waits this PC's looser-change delay.
+                if (device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone)
+                {
+                    _workEnded.ReceiveFromPhone(device.File.WorkEnded!, _configuration.Current.Locks.LooseningDelay);
+                }
+                else
+                {
+                    _workEnded.Receive(device.File.WorkEnded!);
+                }
             }
         });
         _workEnded.Changed += (_, _) =>
@@ -1320,7 +1367,7 @@ public partial class App : Application
             {
                 StepAway = _stepAway,
                 OpenStartOver = openStartOver,
-                WorkHours = new WorkHoursViewModel(_workHours!, _sessions),
+                WorkHours = new WorkHoursViewModel(_workHours!, _sessions, _armedEnds!),
                 Hyperfocus = new HyperfocusViewModel(_hyperfocus!, _configuration),
                 StartNudge = new StartNudgeViewModel(_startNudge!),
                 Lunch = new LunchSettingsViewModel(_lunch!),
@@ -1360,6 +1407,7 @@ public partial class App : Application
         _dayBar.EventMenu = eventMenu;
         timelineDay.EventMenu = eventMenu; // Today's timeline is this bar.
         syncActions.EventActions = eventActions;
+        syncActions.CancelArmed = id => _armedEnds!.Cancel(id);
         exceptionsViewModel.PickEventCategory = planViewModel.OpenEventPicker;
         exceptionsViewModel.OpenConnections = () =>
         {
@@ -1487,6 +1535,9 @@ public partial class App : Application
         coldTurkeyKeys.WorkEnded = _workHours.WorkEnded;
         _workEnded!.Changed += (_, _) => coldTurkeyKeys.CheckSoon();
         _coldTurkeyKeys = coldTurkeyKeys;
+        _runningWaits!.AddSource(() => coldTurkeyKeys.NewKeyReadyAt is DateTimeOffset keyAt
+            ? [new RunningWait("spareKey", "New spare key", keyAt, coldTurkeyKeys.CancelNewKeyAsync)]
+            : []);
         coldTurkeyKeys.Notice += (_, notice) => presenter.ShowNotice(notice.Title, notice.Text);
         // A new key comes from a timer, a check or a session ending, never straight from a click: shown without taking focus.
         coldTurkeyKeys.SpareKeyNeeded += (_, _) => ShowColdTurkeyKey(ColdTurkeyKeyMode.SpareKey, quiet: true);
@@ -1715,6 +1766,8 @@ public partial class App : Application
 
         _recorder.Start();
         _sessions.Start(savedSession);
+        // After the saved session is back, so an armed end of it is kept rather than dropped as gone.
+        _armedEnds.LoadBlocking();
         // Until now the saved session wasn't put back, so the calendar overlay treated a session as running (nothing loosens).
         effectivePlan.MarkSessionStateKnown();
         // An erase the last run could not finish (a focus session was running) is done now, after a crashed session is resumed so
@@ -2440,6 +2493,11 @@ public partial class App : Application
         string tip = state.IsActive
             ? $"AccountabiliBuddy · {SessionStatusFormatter.Title(state, profileName)} · {SessionStatusFormatter.Detail(state, _sessions.Now)}"
             : "AccountabiliBuddy · no session running";
+        if (_runningWaits?.Line() is string waitLine)
+        {
+            tip = $"{tip} · {waitLine}";
+        }
+
         if (_trayIcon.ToolTipText != tip)
         {
             _trayIcon.ToolTipText = tip;
@@ -2690,6 +2748,15 @@ public partial class App : Application
         }
     }
 
+    // The sync file's name for an armed end's kind (ADR 66).
+    private static string SyncKindOf(ArmedEndKind kind) => kind switch
+    {
+        ArmedEndKind.EndSession => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindEndSession,
+        ArmedEndKind.EndWorkEarly => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindEndWorkEarly,
+        ArmedEndKind.StopForToday => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindStopForToday,
+        _ => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindPreWorkDayOff,
+    };
+
     private void StartShutdownFromUi() => _ = StartShutdownFromUiAsync();
 
     // "Start shutdown" from Today, the tray or the reminder: the routine opens on Today. During a session it doesn't open; it says so.
@@ -2699,6 +2766,13 @@ public partial class App : Application
     {
         if (_shutdown is null || _sessions is null)
         {
+            return;
+        }
+
+        // Already confirmed and counting down (ADR 66): Today and the tile show it, with Cancel.
+        if (_armedEnds?.Find(ArmedEndKind.EndWorkEarly) is not null)
+        {
+            ShowMainWindow();
             return;
         }
 
@@ -2749,6 +2823,14 @@ public partial class App : Application
 
         // Never during a session: one started while the dialog was up keeps the work block as it is.
         if (!confirmed || _sessions.State.IsActive)
+        {
+            return false;
+        }
+
+        // Confirmed during the wait (ADR 66): work ends by itself when the wait is over, then the routine opens; nothing opens now.
+        if (viewModel.Armed && _armedEnds!.Arm(
+                ArmedEndKind.EndWorkEarly, viewModel.RequestedAt, viewModel.Wait, viewModel.Reason,
+                workEnd: new ArmedWorkEnd(proposal.PlanDate, proposal.Current, proposal.Later, viewModel.AlsoEndLater)) is not null)
         {
             return false;
         }
@@ -3074,6 +3156,7 @@ public partial class App : Application
         _qrSync?.Dispose();
         _clockAnchors?.Dispose();
         _unlocks?.Dispose();
+        _armedEnds?.Dispose();
         _calendarSync?.Dispose();
         _beeminder?.Dispose();
         _calendarNetwork?.Dispose();

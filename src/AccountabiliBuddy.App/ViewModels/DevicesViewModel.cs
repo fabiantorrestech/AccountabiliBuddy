@@ -102,6 +102,9 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     /// <summary>Opens the "Remove this device" dialog for the device with this id; set by the app.</summary>
     public Action<Guid>? OpenRemoveDialog { get; set; }
 
+    /// <summary>For testing: the sync receipts switch (developer, off by default).</summary>
+    public SyncReceiptsViewModel? Receipts { get; init; }
+
     /// <summary>The three choices shown while this PC is unlinked (add it again, continue unsynced, start from scratch); set by the app.</summary>
     public UnlinkedViewModel? UnlinkedPanel { get; init; }
 

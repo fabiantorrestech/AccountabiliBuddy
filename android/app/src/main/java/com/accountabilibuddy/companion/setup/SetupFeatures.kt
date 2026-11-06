@@ -29,6 +29,7 @@ object SetupFeatures {
     const val CALENDAR_EVENTS = "calendar.events"
     const val DAILY_STEPS = "steps.daily"
     const val AUTOSYNC_NUDGE = "sync.autosyncNudge"
+    const val FINISHED_WORK_TAG = "nudge.finishedWorkTag"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -96,6 +97,15 @@ object SetupFeatures {
             // Only for a phone that syncs through the shared folder; set up once seen in the assistant, or the switch is on.
             relevant = { (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).sync.settings.value.folderOn },
             setUp = { done(it, AUTOSYNC_NUDGE) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).autosyncNudger.isReady() },
+        ),
+        SetupFeature(
+            FINISHED_WORK_TAG, "0.1.77", "Finished work for the day: tap an NFC tag in your car to end today's work, or wait 10 minutes",
+            // Only with the full-screen work card on and NFC on the phone; set up once seen in the assistant, or a tag is registered.
+            relevant = {
+                com.accountabilibuddy.companion.nudge.NudgeStore(it).load().takeoverOn &&
+                    android.nfc.NfcAdapter.getDefaultAdapter(it) != null
+            },
+            setUp = { done(it, FINISHED_WORK_TAG) || com.accountabilibuddy.companion.nfc.WorkTagStore(it).isSet },
         ),
     )
 

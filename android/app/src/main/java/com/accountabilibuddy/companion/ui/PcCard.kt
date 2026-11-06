@@ -70,9 +70,13 @@ internal fun StartOnPcDialog(state: PcState, pcName: String, onStart: (String?, 
     }
 }
 
-/** The PC's own friction: its wait counts down here (from when the PC answered), then the reason unlocks End. */
+/**
+ * The PC's own friction: its wait counts down here (from when the PC answered), and the reason can be typed meanwhile. During the
+ * wait "Confirm" arms the end (ADR 66, [onArm]): the dialog closes and the phone sends it by itself when the wait is over; after
+ * it, End sends it at once.
+ */
 @Composable
-fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -> Unit, sending: Boolean = false) {
+fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -> Unit, sending: Boolean = false, onArm: ((String) -> Unit)? = null) {
     // One extra second, so the phone never asks before the PC's own clock says the wait is over. Through the sync files
     // the wait ends at the PC's allowed-from time, plus 3 seconds for the clocks' skew (ADR 42).
     fun secondsLeft(): Int = terms.allowedFrom?.let { allowed ->
@@ -94,20 +98,33 @@ fun EndEarlyDialog(terms: EndEarlyTerms, onEnd: (String) -> Unit, onCancel: () -
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 terms.note?.let { Text(it, style = androidx.compose.material3.MaterialTheme.typography.bodySmall) }
-                Text(if (left > 0) "Wait ${left / 60}:${"%02d".format(left % 60)}, the PC's own wait." else "You can end it now.")
+                Text(
+                    when {
+                        left == 0 -> "You can end it now."
+                        onArm != null -> "Wait ${left / 60}:${"%02d".format(left % 60)}, the PC's own wait. Confirm to keep going: it ends by itself then."
+                        else -> "Wait ${left / 60}:${"%02d".format(left % 60)}, the PC's own wait."
+                    },
+                )
                 if (terms.minReasonLength > 0) {
                     OutlinedTextField(
                         value = reason,
                         onValueChange = { reason = it },
                         label = { Text("Why? (at least ${terms.minReasonLength} characters)") },
-                        enabled = left == 0,
+                        enabled = left == 0 || onArm != null,
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onEnd(reason.trim()) }, enabled = !sending && left == 0 && reason.trim().length >= terms.minReasonLength) {
-                Text(if (sending) "Sending…" else "End session")
+            val reasonOk = reason.trim().length >= terms.minReasonLength
+            if (left > 0 && onArm != null) {
+                TextButton(onClick = { onArm(reason.trim()) }, enabled = !sending && reasonOk) {
+                    Text("Confirm · ends in ${left / 60}:${"%02d".format(left % 60)}")
+                }
+            } else {
+                TextButton(onClick = { onEnd(reason.trim()) }, enabled = !sending && left == 0 && reasonOk) {
+                    Text(if (sending) "Sending…" else "End session")
+                }
             }
         },
         dismissButton = { TextButton(onClick = onCancel) { Text("Keep going") } },
