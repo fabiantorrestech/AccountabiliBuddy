@@ -50,6 +50,22 @@ public sealed class SqliteJsonDocumentStore
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Every saved key (the device-settings registry's check, ADR 71).</summary>
+    public async Task<IReadOnlyList<string>> ListKeysAsync(CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "SELECT key FROM documents ORDER BY key;";
+        var keys = new List<string>();
+        await using SqliteDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            keys.Add(reader.GetString(0));
+        }
+
+        return keys;
+    }
+
     /// <summary>Removes the document; a key that was never saved is not an error.</summary>
     public async Task DeleteAsync(string key, CancellationToken cancellationToken = default)
     {

@@ -43,6 +43,9 @@ public sealed class BedtimeReminderService : IDisposable
     /// <summary>This PC's sync device id (for reminders addressed to it); set by the app.</summary>
     public Func<Guid?> DeviceId { get; set; } = () => null;
 
+    /// <summary>ProductaBuddy is in effect (ADR 68): no bedtime reminders, ringing or not. Set by the app.</summary>
+    public Func<bool> IsCompanion { get; set; } = () => false;
+
     /// <summary>A notification reminder: its title and message.</summary>
     public event EventHandler<(string Title, string Message)>? ReminderDue;
 
@@ -79,6 +82,24 @@ public sealed class BedtimeReminderService : IDisposable
     }
 
     /// <summary>Stops reminder <paramref name="number"/> tonight; <paramref name="here"/> = done on this PC (tell the others).</summary>
+    /// <summary>
+    /// ProductaBuddy took effect (ADR 68): a reminder ringing here stops and tonight's snoozes are dropped. Nothing is sent: every
+    /// device stops its own when the mode reaches it.
+    /// </summary>
+    public void StopAllForCompanion()
+    {
+        foreach (int number in _state.Fired.Concat(_state.Snoozes.Keys).Distinct().ToList())
+        {
+            StopRinging?.Invoke(this, number);
+        }
+
+        if (_state.Snoozes.Count > 0)
+        {
+            _state.Snoozes.Clear();
+            Save();
+        }
+    }
+
     public void Dismiss(int number, bool here = true)
     {
         _state.Snoozes.Remove(number);
@@ -116,7 +137,7 @@ public sealed class BedtimeReminderService : IDisposable
     {
         SleepSettings settings = _sleep.Current;
         Guid? device = DeviceId();
-        if (!settings.Enabled || device is not Guid me)
+        if (!settings.Enabled || device is not Guid me || IsCompanion())
         {
             return;
         }

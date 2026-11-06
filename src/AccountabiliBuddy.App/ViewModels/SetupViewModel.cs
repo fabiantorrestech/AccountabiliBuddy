@@ -17,6 +17,10 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public sealed partial class SetupViewModel : ObservableObject
 {
+    /// <summary>ProductaBuddy is in effect (ADR 69): screen reading is AccountabiliBuddy-only and hidden. Set by the app.</summary>
+    [ObservableProperty]
+    public partial bool IsCompanion { get; set; }
+
     private readonly IStartupRegistrar _startup;
     private readonly IQuickLaunchShortcut _quickLaunch;
     private readonly IBrowserActivitySource _browsers;

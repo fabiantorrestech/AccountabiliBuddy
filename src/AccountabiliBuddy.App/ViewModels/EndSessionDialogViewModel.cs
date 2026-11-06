@@ -20,10 +20,12 @@ public sealed partial class EndSessionDialogViewModel : ObservableObject, IDispo
     private readonly DispatcherTimer _timer;
 
     /// <param name="note">Shown above the reason when the wait is longer than usual; null for none.</param>
-    public EndSessionDialogViewModel(BypassSettings settings, TimeProvider timeProvider, string? note = null)
+    /// <param name="wording">The dialog's words; null for ending a session (<see cref="EndDialogWording.EndSession"/>).</param>
+    public EndSessionDialogViewModel(BypassSettings settings, TimeProvider timeProvider, string? note = null, EndDialogWording? wording = null)
     {
         _settings = settings;
         Note = note;
+        Wording = wording ?? EndDialogWording.EndSession;
         _policy = new BypassPolicy(settings);
         _timeProvider = timeProvider;
         _requestedAt = timeProvider.GetUtcNow();
@@ -75,7 +77,9 @@ public sealed partial class EndSessionDialogViewModel : ObservableObject, IDispo
 
     public bool HasNote => Note is not null;
 
-    public string ReasonHint => $"Why are you ending this focus session early? (at least {_settings.MinReasonLength} characters)";
+    public EndDialogWording Wording { get; }
+
+    public string ReasonHint => Wording.ReasonQuestion.Replace("{min}", _settings.MinReasonLength.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     [RelayCommand(CanExecute = nameof(CanConfirm))]
     private void Confirm()
@@ -112,20 +116,21 @@ public sealed partial class EndSessionDialogViewModel : ObservableObject, IDispo
         BypassCheckResult result = _policy.Check(_requestedAt, now, Reason);
         TimeSpan remaining = _policy.RemainingWait(_requestedAt, now);
 
+        string left = FormatRemaining(remaining);
         StatusText = result switch
         {
-            BypassCheckResult.WaitNotElapsed => $"Take a breath. You can end the session in {FormatRemaining(remaining)}.",
+            BypassCheckResult.WaitNotElapsed => Wording.Waiting.Replace("{time}", left),
             BypassCheckResult.ReasonTooShort => $"Write at least {_settings.MinReasonLength} characters about why.",
-            _ => "You can end the session now.",
+            _ => Wording.Ready,
         };
 
         CanConfirm = result == BypassCheckResult.Allowed;
         IsWaiting = remaining > TimeSpan.Zero;
         CanArm = IsWaiting && Reason.Trim().Length >= _settings.MinReasonLength;
-        ArmText = $"Confirm · ends in {FormatRemaining(remaining)}";
+        ArmText = Wording.ArmButton.Replace("{time}", left);
         if (IsWaiting && CanArm)
         {
-            StatusText = $"Confirm to keep working: the session ends by itself in {FormatRemaining(remaining)}, and you can cancel until then.";
+            StatusText = Wording.Armable.Replace("{time}", left);
         }
     }
 

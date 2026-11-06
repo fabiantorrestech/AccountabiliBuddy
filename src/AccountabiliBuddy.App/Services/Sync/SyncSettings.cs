@@ -33,7 +33,8 @@ public sealed record SyncSettings(
     string? RelayAdmissionProtected = null,
     bool HostRelayOn = false,
     int HostRelayPort = 8743,
-    bool HostRelayPublic = true)
+    bool HostRelayPublic = true,
+    bool ShareTaskLists = true)
 {
     public static SyncSettings Default { get; } = new();
 }

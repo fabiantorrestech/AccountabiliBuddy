@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services;
 using Avalonia.Threading;
 using AccountabiliBuddy.App.DevTools;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -193,13 +194,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public event EventHandler? HideRequested;
 
     /// <summary>
-    /// False (and the prompt opens) when leaving Settings would drop unsaved changes; the view then stays on Settings.
+    /// Settings save on change: leaving saves what is still waiting. False (and the prompt opens) only when the last save found a
+    /// mistake, which leaving would drop; the view then stays on Settings.
     /// </summary>
     /// <param name="to">The tab being opened, or null when the window is being closed.</param>
     public bool MayLeaveTab(int from, int? to)
     {
         if (from != SettingsTab || to == SettingsTab || !Settings.HasUnsavedChanges)
         {
+            return true;
+        }
+
+        if (!Settings.HasUnsavableChanges)
+        {
+            _ = Settings.FlushAsync();
             return true;
         }
 
@@ -430,7 +438,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             : size.TotalDays < 1 ? $"{(int)size.TotalHours} h {size.Minutes} min"
             : $"{(int)size.TotalDays} d {size.Hours} h";
         string direction = offset > TimeSpan.Zero ? "ahead" : "behind";
-        ClockNotice = $"The Windows clock was changed and is {amount} {direction}. AccountabiliBuddy keeps real time, "
+        ClockNotice = $"The Windows clock was changed and is {amount} {direction}. {AppBrand.Name} keeps real time, "
                       + "so sessions, waits and countdowns aren't affected. Setting the clock back clears this.";
     }
 }

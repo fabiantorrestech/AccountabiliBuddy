@@ -4,7 +4,9 @@ import com.accountabilibuddy.companion.data.JsonValues.int
 import com.accountabilibuddy.companion.data.JsonValues.string
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import java.util.Base64
 import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
@@ -48,6 +50,49 @@ object BackupFile {
             else -> throw ImportException("The backup's protection isn't recognised.")
         }
     }
+
+    /**
+     * A backup file around [content] (ADR 71), as the PC writes it: readable without a password, or AES-GCM with a key from [password]
+     * (PBKDF2-SHA256, 600,000 rounds), so the PC opens what the phone writes and the other way round.
+     */
+    fun seal(content: JsonObject, password: String? = null): String {
+        if (password.isNullOrEmpty()) {
+            return buildJsonObject {
+                put("format", FORMAT)
+                put("version", VERSION)
+                put("protection", "None")
+                put("content", content)
+            }.toString()
+        }
+
+        val random = java.security.SecureRandom()
+        val salt = ByteArray(SALT_BYTES).also(random::nextBytes)
+        val nonce = ByteArray(NONCE_BYTES).also(random::nextBytes)
+        val key = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_BITS)).encoded
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
+        cipher.updateAAD(associatedData)
+        // Java puts the tag after the ciphertext; the file keeps them apart, as .NET does.
+        val sealed = cipher.doFinal(content.toString().toByteArray(Charsets.UTF_8))
+        val data = sealed.copyOfRange(0, sealed.size - TAG_BITS / 8)
+        val tag = sealed.copyOfRange(sealed.size - TAG_BITS / 8, sealed.size)
+        val base64 = Base64.getEncoder()
+        return buildJsonObject {
+            put("format", FORMAT)
+            put("version", VERSION)
+            put("protection", "Password")
+            put("kdf", "PBKDF2-SHA256")
+            put("iterations", ITERATIONS)
+            put("salt", base64.encodeToString(salt))
+            put("nonce", base64.encodeToString(nonce))
+            put("tag", base64.encodeToString(tag))
+            put("data", base64.encodeToString(data))
+        }.toString()
+    }
+
+    private const val ITERATIONS = 600_000
+    private const val SALT_BYTES = 16
+    private const val NONCE_BYTES = 12
 
     private fun envelope(text: String): JsonObject {
         val envelope = try {

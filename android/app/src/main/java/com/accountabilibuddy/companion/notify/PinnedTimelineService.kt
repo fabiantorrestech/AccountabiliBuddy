@@ -109,7 +109,7 @@ class PinnedTimelineService : Service() {
     private fun placeholder(): Notification =
         NotificationCompat.Builder(this, Channels.TIMELINE)
             .setSmallIcon(R.drawable.ic_stat_timeline)
-            .setContentTitle(getString(R.string.app_name))
+            .setContentTitle(com.accountabilibuddy.companion.guidance.AppBrand.name(this))
             .setOngoing(true)
             .setSilent(true)
             .build()

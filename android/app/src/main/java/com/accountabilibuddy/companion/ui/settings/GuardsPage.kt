@@ -242,7 +242,8 @@ private fun PhoneGuardPage(
     val rows = buildList {
         // While a focus session runs these are view-only (the guard lock); the banner says until when.
         guardsLock?.let { lock -> add(PageRow("rest") { GuardsRestBanner(lock) }) }
-        if (pause != null) {
+        // ADR 69: the phone guard's pause is AccountabiliBuddy-only (ProductaBuddy has nothing to pause).
+        if (pause != null && !com.accountabilibuddy.companion.guidance.isCompanionMode()) {
             add(PageRow(SettingsAnchors.PHONE_GUARD) {
                 // Ticks the wait down while it's shown.
                 // 1 s while the wait runs, 15 s while paused (when it ends), and not at all when the guard is simply on.
@@ -264,7 +265,8 @@ private fun PhoneGuardPage(
         add(PageRow(SettingsAnchors.EMERGENCY) { EmergencySection() })
         add(PageRow(SettingsAnchors.ADVANCED) {
             Section("Advanced", summary = "Car pause · takeover screen · nudge repeat · Curbox and LockMyPhone", startOpen = anchor == SettingsAnchors.ADVANCED) {
-                if (pause != null) PauseAdvancedControls(pause, pauseActions)
+                // ADR 69: car pause, the takeover screen and the nudge repeat are AccountabiliBuddy-only.
+                if (pause != null && !com.accountabilibuddy.companion.guidance.isCompanionMode()) PauseAdvancedControls(pause, pauseActions)
                 AbListRow(
                     "Curbox setup",
                     icon = Icons.Outlined.PhoneAndroid,

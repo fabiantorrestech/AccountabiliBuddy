@@ -63,8 +63,10 @@ class TasksModel(
             now: Instant,
             zone: ZoneId = ZoneId.systemDefault(),
             ownCategories: List<SyncCategory> = emptyList(),
+            /** ADR 71: false while this phone doesn't share its task lists: the other devices' categories stay out. */
+            shareCategories: Boolean = true,
         ): TasksModel {
-            val colors = TaskCategoryColors(ownCategories, received, now)
+            val colors = TaskCategoryColors(ownCategories, if (shareCategories) received else emptyList(), now)
             val today = now.atZone(zone).toLocalDate()
             val filter = TaskFilter(category, search)
             fun stepTitles(steps: List<SessionTaskItem>?) = steps.orEmpty().map { it.title }.toTypedArray()

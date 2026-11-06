@@ -25,6 +25,7 @@ public sealed class WorkHoursGuard : IDisposable
     private readonly Action<string, string> _notify;
     private DateTimeOffset _lastNotice = DateTimeOffset.MinValue;
     private bool _wasGuarding;
+    private bool _wasSweeping;
     private DateOnly? _goalToldOn;
 
     /// <param name="currentWindows">The window in front on each monitor (swept when work hours start).</param>
@@ -54,6 +55,12 @@ public sealed class WorkHoursGuard : IDisposable
     /// <see cref="WorkGateService"/>.
     /// </summary>
     public Func<bool>? OpenGate { get; set; }
+
+    /// <summary>
+    /// ProductaBuddy is in effect (ADR 68): no window waits and no notice. <see cref="IsGuarding"/> keeps its meaning, since the Cold
+    /// Turkey blocks held during work hours stay. Set by the app.
+    /// </summary>
+    public Func<bool> IsCompanion { get; set; } = () => false;
 
     /// <summary>
     /// Today's deep work against the goal, across the user's devices (earned time, design K): once met, this computer is
@@ -202,7 +209,7 @@ public sealed class WorkHoursGuard : IDisposable
     /// <summary>A window came to the front: a listed app waits while guarding.</summary>
     public void OnActivity(ActivitySnapshot snapshot)
     {
-        if (!IsGuarding || snapshot.IsEmptyDesktop || !Settings.Apps.Contains(snapshot.ProcessName.ToLowerInvariant()))
+        if (!IsGuarding || IsCompanion() || snapshot.IsEmptyDesktop || !Settings.Apps.Contains(snapshot.ProcessName.ToLowerInvariant()))
         {
             return;
         }
@@ -226,13 +233,10 @@ public sealed class WorkHoursGuard : IDisposable
     {
         TellGoalMet();
         bool guarding = IsGuarding;
-        if (guarding == _wasGuarding)
-        {
-            return;
-        }
-
-        _wasGuarding = guarding;
-        if (guarding)
+        // The windows in front wait as soon as listed apps do: when guarding starts, and when AccountabiliBuddy comes back
+        // during work hours (ADR 68: ProductaBuddy lets them be).
+        bool sweeping = guarding && !IsCompanion();
+        if (sweeping && !_wasSweeping)
         {
             foreach (ActivitySnapshot snapshot in _currentWindows())
             {
@@ -240,6 +244,20 @@ public sealed class WorkHoursGuard : IDisposable
             }
         }
 
+        _wasSweeping = sweeping;
+        if (guarding == _wasGuarding)
+        {
+            return;
+        }
+
+        _wasGuarding = guarding;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>The guidance mode changed (ADR 68): the status line follows, and a return to AccountabiliBuddy sweeps at once.</summary>
+    public void OnModeChanged()
+    {
+        CheckNow();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

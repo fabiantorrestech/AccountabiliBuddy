@@ -165,6 +165,7 @@ public sealed partial class WorkHoursViewModel : ObservableObject
         IsGuarding = _guard.IsGuarding;
         HasWorkLeftToday = _guard.HasWorkLeftToday;
         StatusText = !IsOn ? "Off"
+            : IsGuarding && _guard.IsCompanion() ? $"Quiet in {AppBrand.CompanionName} ({_guard.UntilText}; Cold Turkey blocks still hold)"
             : IsGuarding ? $"Guarding: {_guard.UntilText}"
             : "On: guards during your plan's work parts (not now)";
     }

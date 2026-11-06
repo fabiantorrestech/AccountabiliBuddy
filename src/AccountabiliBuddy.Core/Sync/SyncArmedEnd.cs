@@ -12,4 +12,5 @@ public sealed record SyncArmedEnd(Guid Id, string Kind, DateTimeOffset ReadyAt)
     public const string KindEndWorkEarly = "endWorkEarly";
     public const string KindStopForToday = "stopForToday";
     public const string KindPreWorkDayOff = "preWorkDayOff";
+    public const string KindCompanion = "companion";
 }

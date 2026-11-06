@@ -114,6 +114,6 @@ internal fun PhoneGuardCards(guards: List<PhoneGuard>, pcName: String?) {
                 guard.details.forEach { Note(it) }
             }
         }
-        Note("AccountabiliBuddy doesn't block anything on the phone; these are what does." + (pcName?.let { " $it's profiles guard the PC." } ?: ""))
+        Note("${com.accountabilibuddy.companion.guidance.appBrandName()} doesn't block anything on the phone; these are what does." + (pcName?.let { " $it's profiles guard the PC." } ?: ""))
     }
 }

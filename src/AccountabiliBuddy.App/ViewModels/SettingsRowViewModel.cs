@@ -24,8 +24,9 @@ public sealed partial class SettingsRowViewModel : ObservableObject
 
     public MaterialIconKind Icon { get; }
 
-    /// <summary>The Muted line under the page's title.</summary>
-    public string Summary { get; }
+    /// <summary>The Muted line under the page's title (redone when it names the app and the mode's name changes).</summary>
+    [ObservableProperty]
+    public partial string Summary { get; set; }
 
     /// <summary>A little air above it: the rows under the gap are App &amp; data, Setup and About.</summary>
     public bool GapBefore { get; }

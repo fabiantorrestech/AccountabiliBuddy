@@ -212,7 +212,7 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
             } else {
                 ToggleRow(
                     "Use LockMyPhone-Extended",
-                    "Off: AccountabiliBuddy never starts its profiles or keeps its \"$syncedName\" profiles in step",
+                    "Off: ${com.accountabilibuddy.companion.guidance.appBrandName()} never starts its profiles or keeps its \"$syncedName\" profiles in step",
                     useLmp,
                 ) {
                     store.useLockMyPhone = it; useLmp = it

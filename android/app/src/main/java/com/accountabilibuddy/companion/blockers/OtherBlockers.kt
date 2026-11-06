@@ -23,8 +23,8 @@ object OtherBlockers {
     }
 
     /** E.g. "Detected: AppBlock 6.2.1 — not controlled by AccountabiliBuddy". */
-    fun line(blocker: OtherBlocker): String {
+    fun line(blocker: OtherBlocker, brand: String = "AccountabiliBuddy"): String {
         val name = if (blocker.version.isNullOrBlank()) blocker.name else "${blocker.name} ${blocker.version}"
-        return "Detected: $name — not controlled by AccountabiliBuddy"
+        return "Detected: $name — not controlled by $brand"
     }
 }

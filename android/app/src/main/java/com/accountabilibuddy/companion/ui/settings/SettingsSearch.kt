@@ -41,6 +41,7 @@ object SettingsSearch {
         SearchEntry("Session length, breaks and Pomodoro", FocusSessions, A.SESSION_LENGTHS, listOf("length", "break", "breaks", "pomodoro", "set on the pc", "timer")),
 
         // Guards
+        SearchEntry("App mode (AccountabiliBuddy or ProductaBuddy)", AppAndData, A.GUIDANCE, listOf("productabuddy", "accountabilibuddy", "companion", "companion only", "mode", "guarding", "guards you", "quiet", "no nudges")),
         SearchEntry("Phone guard (AccountabiliBuddy on this phone)", Guards, A.PHONE_GUARD, listOf("master switch", "turn off", "pause", "wait", "guard", "paused", "on this phone", "keep it on")),
         SearchEntry("Phone down on unlock", Guards, A.PHONE_DOWN, listOf("unlock", "put it away", "need it for work", "emergency", "unlock friction", "pocket", "phone-free credit", "penalty", "penalties", "phone down")),
         SearchEntry("Essentials", Guards, A.ESSENTIALS, listOf("allowed apps", "focus essentials", "essentials screen", "app icons", "folders", "add an app", "hide", "parts")),
@@ -63,6 +64,7 @@ object SettingsSearch {
         SearchEntry("Shared folder", Devices, A.FOLDER, listOf("folder", "syncthing", "nextcloud", "autosync", "nas", "onedrive", "dropbox", "sync folder")),
         SearchEntry("Own relay", Devices, A.RELAY, listOf("relay", "server", "https", "pin", "certificate", "admission key", "sync")),
         SearchEntry("QR codes and sync files", Devices, A.BY_HAND, listOf("qr", "scan", "picture", "sync file", "absync", "share", "by hand")),
+        SearchEntry("Sync task lists with my other devices", Devices, A.TASK_LISTS_SYNC, listOf("task lists", "tasks", "later", "come-backs", "categories", "share", "sync")),
         SearchEntry("Show the sync light", Devices, A.SYNC_LIGHT, listOf("sync light", "light", "dot", "indicator", "only when something's wrong", "hide")),
         SearchEntry("PC this phone controls", Devices, A.PC_CONTROL, listOf("pc", "control", "start", "end early", "several pcs")),
         SearchEntry("Link this phone", Devices, A.LINK, listOf("link code", "join", "leave group", "add a device", "code")),

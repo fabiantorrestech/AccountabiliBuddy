@@ -141,6 +141,9 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// <summary>The quit safeguard's card, for its page (ADR 59).</summary>
     public QuitGuardViewModel? QuitGuard { get; init; }
 
+    /// <summary>"How AB helps" (ADR 68), for its page; its choice applies at once, with the same rules as Settings.</summary>
+    public GuidanceModeViewModel? Guidance { get; init; }
+
     /// <summary>Cold Turkey's blocks, for the keys page.</summary>
     public ColdTurkeyService? ColdTurkey { get; init; }
 
@@ -343,7 +346,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsRestore), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsQuitSafeguard), nameof(IsShutdownRoutine), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsQuitSafeguard), nameof(IsShutdownRoutine), nameof(IsGuidance), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -618,6 +621,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public bool IsShutdownRoutine => Step == AssistantStep.ShutdownRoutine;
 
+    public bool IsGuidance => Step == AssistantStep.Guidance;
+
     public bool IsPanelCtrlAlt => Step == AssistantStep.PanelCtrlAlt;
 
     public bool IsCalendarRules => Step == AssistantStep.CalendarRules;
@@ -630,7 +635,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     public string StepTitle => Step switch
     {
-        AssistantStep.Welcome => "Welcome to AccountabiliBuddy",
+        AssistantStep.Welcome => $"Welcome to {AppBrand.Name}",
         AssistantStep.LinkFirst => "Link to your other devices?",
         AssistantStep.Restore => "Restore from an older device",
         AssistantStep.ComputerType => "What kind of computer is this?",
@@ -640,7 +645,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.Browsers => "Browsers",
         AssistantStep.Basics => "Basics",
         AssistantStep.Workdays => "Your workdays",
-        AssistantStep.ColdTurkeyKeys => "Cold Turkey: let AccountabiliBuddy hold the keys",
+        AssistantStep.ColdTurkeyKeys => $"Cold Turkey: let {AppBrand.Name} hold the keys",
         AssistantStep.SpareKey => "Your spare key",
         AssistantStep.OwnRelay => "Own relay: sync through your own server",
         AssistantStep.DpAssistant => "Setup DP Assistant: your day plan, step by step",
@@ -650,6 +655,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.OverlayTaskbar => "The overlay moved onto the taskbar",
         AssistantStep.QuitSafeguard => "Quit safeguard",
         AssistantStep.ShutdownRoutine => "Shutdown routine",
+        AssistantStep.Guidance => "How should AB help?",
         AssistantStep.PanelCtrlAlt => "The Ctrl+Alt panel",
         AssistantStep.CalendarRules => "Calendar events can shape your guarded windows",
         AssistantStep.Appearance => "Appearance: three themes, light and dark on a schedule",
@@ -672,10 +678,12 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.Restore => HasRestored ? "Next" : "Not now",
         AssistantStep.Review => PlannedProfiles.Any(row => row.IsIncluded) ? "Import" : "Skip import",
         AssistantStep.Basics => "Next",
-        AssistantStep.Workdays when HasColdTurkey && _whatsNew is null => "Next",
+        AssistantStep.Workdays when (HasColdTurkey || LastStep() == AssistantStep.Guidance) && _whatsNew is null => "Next",
         AssistantStep.Workdays => "Finish",
         AssistantStep.ColdTurkeyKeys when Keys is { HasSpareKey: false } && ColdTurkeyRows.Any(row => row.IsUsed) => "Next",
+        AssistantStep.ColdTurkeyKeys when LastStep() == AssistantStep.Guidance => "Next",
         AssistantStep.ColdTurkeyKeys => "Finish",
+        AssistantStep.Guidance => IsLastPage(AssistantStep.Guidance) ? "Finish" : "Next",
         AssistantStep.SpareKey => "I wrote it down",
         AssistantStep.OwnRelay => "Finish",
         AssistantStep.DpAssistant => "Finish",
@@ -839,7 +847,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 }
                 else
                 {
-                    Step = AssistantStep.Done;
+                    Step = LastStep();
                 }
 
                 StatusMessage = Workdays.Message;
@@ -853,14 +861,14 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 }
                 else
                 {
-                    Step = AssistantStep.Done;
+                    Step = LastStep();
                 }
 
                 break;
             case AssistantStep.SpareKey:
                 if (Keys is not null && await Keys.ConfirmSpareKeyAsync(TypedSpareKey))
                 {
-                    Step = AssistantStep.Done;
+                    Step = LastStep();
                 }
                 else
                 {
@@ -875,6 +883,15 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.PlanHelper:
             case AssistantStep.OverlayTaskbar:
             case AssistantStep.QuitSafeguard:
+            case AssistantStep.Guidance:
+                // ADR 68: answered with the mode shown counts as set up (a change was already applied by the card itself).
+                if (Guidance is not null)
+                {
+                    await Guidance.MarkAskedAsync();
+                }
+
+                GoToNextQuickStep();
+                break;
             case AssistantStep.ShutdownRoutine:
             case AssistantStep.PanelCtrlAlt:
             case AssistantStep.CalendarRules:
@@ -949,6 +966,18 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         List<AssistantStep> steps = VisibleSteps();
         int index = steps.IndexOf(Step);
         Step = index >= 0 && index + 1 < steps.Count ? steps[index + 1] : AssistantStep.Done;
+    }
+
+    // ADR 68: the full setup ends on the mode page; the migration assistant ends as before (its mode page, if any, came first).
+    private AssistantStep LastStep() =>
+        _whatsNew is null && !IsQuick && VisibleSteps().Contains(AssistantStep.Guidance) ? AssistantStep.Guidance : AssistantStep.Done;
+
+    // Only Done follows this page.
+    private bool IsLastPage(AssistantStep step)
+    {
+        List<AssistantStep> steps = VisibleSteps();
+        int index = steps.IndexOf(step);
+        return index < 0 || index + 1 >= steps.Count || steps[index + 1] == AssistantStep.Done;
     }
 
     private static string GoalText(int minutes)
@@ -1060,7 +1089,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
             OtherBlockersNote = others.Count == 0
                 ? null
-                : $"Also on this PC: {string.Join(", ", others.Select(other => other.Name))}. AccountabiliBuddy can't read "
+                : $"Also on this PC: {string.Join(", ", others.Select(other => other.Name))}. {AppBrand.Name} can't read "
                     + (others.Count == 1 ? "its lists" : "their lists") + "; copy them from there and paste them below.";
 
             await LoadSuggestionsAsync();

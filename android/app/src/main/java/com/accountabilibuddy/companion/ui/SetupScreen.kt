@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -62,7 +63,10 @@ fun SetupScreen(
             return@Column
         }
 
-        Text("Set up AccountabiliBuddy", style = MaterialTheme.typography.headlineSmall)
+        val mode by (context.applicationContext as com.accountabilibuddy.companion.CompanionApp).guidance.state.collectAsState()
+        Text("Set up ${com.accountabilibuddy.companion.guidance.AppBrand.of(mode.mode)}", style = MaterialTheme.typography.headlineSmall)
+        // ADR 68: ProductaBuddy is preselected on a fresh install; a phone that joins linked devices follows their choice.
+        GuidanceSection()
         Text(
             "Allow what you want the phone to do. Each one opens Android's own screen; come back here afterwards. " +
                 "You can change any of them later in Settings › Setup.",

@@ -26,6 +26,12 @@ object SettingsAnchors {
 
     // Guards: the list, then the Phone guard page (PHONE_GUARD to ADVANCED and what is inside it), Essentials and Curbox setup
     const val PHONE_GUARD = "phone-guard"
+
+    /** ADR 68, 69: App mode (AccountabiliBuddy or ProductaBuddy), first on App & data, with the differences between the modes. */
+    const val GUIDANCE = "guidance"
+
+    /** ADR 69: AccountabiliBuddy-only rows, hidden from every page while ProductaBuddy is in effect. */
+    val AB_ONLY: Set<String> by lazy { setOf(BEDTIME_REMINDERS, BEDTIME_ESSENTIALS, START_NUDGE, EMERGENCY) }
     const val PHONE_DOWN = "phone-down"
     const val ESSENTIALS = "essentials"
     const val PLACEMENT = "placement"
@@ -53,6 +59,9 @@ object SettingsAnchors {
     const val RESTORE = "restore"
     const val WATCH = "watch"
     const val SYNC_LIGHT = "sync-light"
+
+    /** ADR 71: share this phone's task lists. */
+    const val TASK_LISTS_SYNC = "task-lists-sync"
 
     // Connections
     const val BEEMINDER = "beeminder"

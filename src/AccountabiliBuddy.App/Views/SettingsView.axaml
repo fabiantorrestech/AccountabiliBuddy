@@ -21,7 +21,7 @@
                     <TextBlock Classes="sGroup" Text="Steer me to start" />
                     <Border Classes="sPanel" DataContext="{Binding StartNudge}" x:DataType="vm:StartNudgeViewModel">
                         <StackPanel Margin="0,0,0,-1">
-                            <Border Classes="sRow">
+                            <Border Classes="sRow" IsVisible="{Binding !IsCompanion}">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="During work parts with no session, open Today with the task box ready when I arrive" VerticalAlignment="Center" />
                                     <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Center"
@@ -31,17 +31,17 @@
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="On my first arrival of a workday, ask how many hours I hope to get done, what's first, then start (start-of-day assistant)" VerticalAlignment="Center" />
-                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding IsAssistantOn}" IsEnabled="{Binding IsOn}" VerticalAlignment="Center"
+                                    <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding IsAssistantOn}" IsEnabled="{Binding CanSetAssistant}" VerticalAlignment="Center"
                                               AutomationProperties.Name="Start-of-day assistant" />
                                 </Grid>
                             </Border>
-                            <Border Classes="sRow">
+                            <Border Classes="sRow" IsVisible="{Binding !IsCompanion}">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Ask again every" VerticalAlignment="Center" />
                                     <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:StartNudgeViewModel.RepeatNames}" SelectedIndex="{Binding RepeatIndex}" MinWidth="140" />
                                 </Grid>
                             </Border>
-                            <Border Classes="sRow">
+                            <Border Classes="sRow" IsVisible="{Binding !IsCompanion}">
                                 <TextBlock Classes="sHint"
                                            Text="It starts when you arrive: your first input in a work part, or after 10 minutes away. 5 minutes later with still no session, a card in front of everything asks you to start, or to say why not now (kept sealed on this computer for 14 days), and comes back until a session starts. Never during a session, a calendar event, a day off or once today's goal is met. The first arrival of a workday (before work starts too, never on a free day) opens the start-of-day assistant in front of everything instead, once a day: your hours for today (raising applies at once, lowering waits like any looser change), up to 3 first tasks, then Start with your remembered length. Not now works the same: a reason, then it asks again." />
                             </Border>
@@ -150,7 +150,7 @@
                 </StackPanel>
 
                 <!-- ADR 27: a personal computer can hold dev tools during the plan's work parts. -->
-                <StackPanel Spacing="6" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding HasWorkHours}">
+                <StackPanel Spacing="6" search:SearchArea.Name="Work hours on this computer" IsVisible="{Binding ShowsWorkHours}">
                     <TextBlock Classes="sGroup" Text="Work hours on this computer" />
                     <Border Classes="sPanel" DataContext="{Binding WorkHours}" x:DataType="vm:WorkHoursViewModel">
                         <StackPanel Margin="0,0,0,-1">
@@ -305,7 +305,7 @@
                                         <TextBlock Classes="sHint"
                                                    Text="5 minutes or more. Links are also checked when you press Refresh calendars and when the window opens. Google accounts check for changes every 30 seconds." />
                                     </StackPanel>
-                                    <TextBox Grid.Column="1" Text="{Binding CalendarRefreshMinutes}" Width="90" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding CalendarRefreshMinutes, UpdateSourceTrigger=LostFocus}" Width="90" VerticalAlignment="Center" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">
@@ -328,8 +328,8 @@
                             </Border>
                             <Border Classes="sRow">
                                 <StackPanel Spacing="8">
-                                    <TextBox Text="{Binding GoogleClientId}" PlaceholderText="Client ID (…apps.googleusercontent.com)" />
-                                    <TextBox Text="{Binding GoogleClientSecret}" PasswordChar="•" PlaceholderText="{Binding GoogleClientSecretHint}" />
+                                    <TextBox Text="{Binding GoogleClientId, UpdateSourceTrigger=LostFocus}" PlaceholderText="Client ID (…apps.googleusercontent.com)" />
+                                    <TextBox Text="{Binding GoogleClientSecret, UpdateSourceTrigger=LostFocus}" PasswordChar="•" PlaceholderText="{Binding GoogleClientSecretHint}" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -407,9 +407,10 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ADR 38: the bedtime reminders, shared with the phone. -->
-                <TextBlock Classes="sGroup" Text="Bedtime reminders" />
-                <Border Classes="sPanel" DataContext="{Binding Reminders}" x:DataType="vm:BedtimeRemindersViewModel">
+                <!-- ADR 38: the bedtime reminders, shared with the phone. AccountabiliBuddy-only (ADR 69). -->
+                <TextBlock Classes="sGroup" Text="Bedtime reminders" IsVisible="{Binding !IsCompanion}" />
+                <Border Classes="sPanel" DataContext="{Binding Reminders}" x:DataType="vm:BedtimeRemindersViewModel"
+                        IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).IsCompanion, Converter={x:Static BoolConverters.Not}}">
                     <StackPanel Margin="0,0,0,-1">
                         <Border Classes="sRow">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
@@ -632,51 +633,51 @@
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Focus (minutes)" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding FocusMinutes}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding FocusMinutes, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Short break (minutes)" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding ShortBreakMinutes}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding ShortBreakMinutes, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Long break (minutes)" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding LongBreakMinutes}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding LongBreakMinutes, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Long break every N cycles" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding CyclesBeforeLongBreak}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding CyclesBeforeLongBreak, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                         </StackPanel>
                     </Border>
                 </StackPanel>
 
-                <StackPanel Spacing="6" search:SearchArea.Name="Escalation">
+                <StackPanel Spacing="6" search:SearchArea.Name="Escalation" IsVisible="{Binding !IsCompanion}">
                     <TextBlock Classes="sGroup" Text="Escalation (seconds of continuous distraction)" />
                     <Border Classes="sPanel">
                         <StackPanel Margin="0,0,0,-1" IsEnabled="{Binding !IsLocked}">
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Notification after" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding NudgeSeconds}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding NudgeSeconds, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Screen overlay after" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding OverlaySeconds}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding OverlaySeconds, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Minimize / block after" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding EnforceSeconds}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding EnforceSeconds, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                             <!-- The computer types' "notice and overlay only" (ADR 22), e.g. on a work computer. -->
@@ -698,13 +699,13 @@
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Wait before you can end (seconds)" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding BypassWaitSeconds}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding BypassWaitSeconds, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                             <Border Classes="sRow">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Minimum reason length (characters)" VerticalAlignment="Center" />
-                                    <TextBox Grid.Column="1" Text="{Binding MinReasonLength}" Width="90" />
+                                    <TextBox Grid.Column="1" Text="{Binding MinReasonLength, UpdateSourceTrigger=LostFocus}" Width="90" />
                                 </Grid>
                             </Border>
                         </StackPanel>
@@ -722,7 +723,7 @@
                                         <TextBlock Classes="sHint"
                                                    Text="Removing a block rule, adding an allow rule or an unlock option, or lowering any wait counts down this long first, and never takes effect during a session. Stricter changes apply at once. Shortening this wait counts down too." />
                                     </StackPanel>
-                                    <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes}" Width="90" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1" Text="{Binding LooseningDelayMinutes, UpdateSourceTrigger=LostFocus}" Width="90" VerticalAlignment="Center" />
                                 </Grid>
                             </Border>
                         </StackPanel>
@@ -1081,6 +1082,8 @@
             <!-- App & data -->
             <StackPanel Spacing="12" IsVisible="{Binding Rows[8].IsSelected}"
                         search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="8">
+                <!-- ADR 68, 69: the app mode on all devices, and where the two modes' own settings differ. -->
+                <views:GuidanceModeSwitch DataContext="{Binding GuidancePage}" />
                 <StackPanel Spacing="6" search:SearchArea.Name="Computer type">
                     <TextBlock Classes="sGroup" Text="Computer type" />
                     <Border Classes="sPanel">
@@ -1110,7 +1113,21 @@
                     <TextBlock Classes="sGroup" Text="Backup" />
                     <Border Classes="sPanel" Padding="18,14">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="Save your profiles, settings, calendars and history to a file, or restore them from one, e.g. on a new PC." Classes="sHint" />
+                            <ItemsControl ItemsSource="{Binding BackupCards}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="18" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:BackupKindCardViewModel">
+                                        <views:BackupKindCard />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Separator Margin="0,6" />
+                            <TextBlock Text="Full backup and history" Classes="sTitle" />
+                            <TextBlock Text="Everything in one file, including the activity history (export and import only; it isn't backed up automatically)." Classes="sHint" TextWrapping="Wrap" />
                             <views:BackupPanel DataContext="{Binding Backup}" />
                         </StackPanel>
                     </Border>
@@ -1127,7 +1144,7 @@
                                 </StackPanel>
                             </Border>
                             <!-- Off: History keeps only times, apps, sites and their sections (ADR 22, the Work computer type). -->
-                            <Border Classes="sRow">
+                            <Border Classes="sRow" IsVisible="{Binding !IsCompanion}">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                     <TextBlock Classes="sTitle" Text="Keep window titles, full addresses and screen text in History (encrypted). Off: only times, apps, sites and their sections" VerticalAlignment="Center" />
                                     <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding KeepTitlesAndAddresses}" VerticalAlignment="Center"

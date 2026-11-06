@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.GuidanceModeCard"
+             x:DataType="vm:GuidanceModeViewModel">
+    <!-- How AB helps (ADR 68): AccountabiliBuddy or ProductaBuddy, one choice for every linked device. -->
+    <StackPanel Spacing="6" search:SearchArea.Name="How AB helps">
+        <TextBlock Classes="sGroup" Text="How AB helps" />
+        <Border Classes="sPanel">
+            <StackPanel Margin="0,0,0,-1">
+                <Border Classes="sRow">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Classes="sTitle" Text="Mode, on all your devices" />
+                                <TextBlock Classes="sHint" TextWrapping="Wrap" Text="{Binding Explanation}" />
+                            </StackPanel>
+                            <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:GuidanceModeViewModel.ChoiceNames}" SelectedIndex="{Binding ChoiceIndex}"
+                                      VerticalAlignment="Center" AutomationProperties.Name="How AB helps" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" IsVisible="{Binding HasPending}">
+                            <TextBlock Classes="sHint" Text="{Binding PendingText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                        <Button Content="Switch now instead…" Command="{Binding SwitchNowCommand}" IsVisible="{Binding CanSwitchNow}" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap" IsVisible="{Binding InFocus}"
+                                   Text="A focus session is running: ProductaBuddy asks whether to take effect after it ends, or now at what ending it early costs. Back to AccountabiliBuddy works any time." />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap" IsVisible="{Binding IsDefault}"
+                                   Text="This is this device's starting choice: left as it is, it follows your linked devices. Keep makes it your choice, and your other devices follow it." />
+                        <Button Content="{Binding KeepText}" Command="{Binding KeepCommand}" IsVisible="{Binding CanKeep}" HorizontalAlignment="Left" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                   Text="Switching to ProductaBuddy waits like any looser change; going back to AccountabiliBuddy is at once. Your other devices follow after their own wait." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

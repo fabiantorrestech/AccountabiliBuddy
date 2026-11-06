@@ -14,4 +14,7 @@ public enum ArmedEndKind
 
     /// <summary>Pre-Work's "No, day off": today becomes a day off on this computer.</summary>
     PreWorkDayOff,
+
+    /// <summary>ADR 68: ProductaBuddy "now" during a session; its looser-change wait starts once this end-early wait is over.</summary>
+    Companion,
 }

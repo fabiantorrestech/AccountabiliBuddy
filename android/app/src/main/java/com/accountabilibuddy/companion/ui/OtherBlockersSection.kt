@@ -28,11 +28,11 @@ fun OtherBlockersSection() {
 
     Section("Other blockers", summary = if (found.isEmpty()) "None found" else found.joinToString(", ") { it.name }) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Note("AppBlock, StayFocused and Freedom, if installed. AccountabiliBuddy only notices them: their lists and blocks are theirs.")
+            Note("AppBlock, StayFocused and Freedom, if installed. ${com.accountabilibuddy.companion.guidance.appBrandName()} only notices them: their lists and blocks are theirs.")
             if (found.isEmpty()) {
                 Text("None found on this phone.", style = Ab.type.bodyMedium, color = Ab.colors.ink)
             } else {
-                found.forEach { Text(OtherBlockers.line(it), style = Ab.type.bodyMedium, color = Ab.colors.ink) }
+                found.forEach { Text(OtherBlockers.line(it, com.accountabilibuddy.companion.guidance.appBrandName()), style = Ab.type.bodyMedium, color = Ab.colors.ink) }
             }
         }
     }

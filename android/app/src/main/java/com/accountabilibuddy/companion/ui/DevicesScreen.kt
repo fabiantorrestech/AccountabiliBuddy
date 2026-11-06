@@ -254,6 +254,18 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
             }
         })
 
+        // ADR 71: whether this phone shares its task lists with the other devices.
+        add(PageRow(SettingsAnchors.TASK_LISTS_SYNC) {
+            AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+                ToggleRow(
+                    "Sync task lists with my other devices",
+                    "Tasks, Later, come-backs and task categories. Off: this phone keeps its own lists and doesn't take the others'; back them up " +
+                        "and import them in Settings › App & data › Backup. Turned back on, the lists merge; anything deleted elsewhere meanwhile stays deleted.",
+                    settings.shareTaskLists,
+                ) { actions.onSettings(settings.copy(shareTaskLists = it)) }
+            }
+        })
+
         add(PageRow(SettingsAnchors.SYNC_LIGHT) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AbSectionLabel("Show the sync light", Modifier.padding(horizontal = 4.dp))
@@ -347,7 +359,7 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
         DevicesDialog.Scan -> InfoSheet(
             "Scan the PC's codes",
             "On the PC, open the codes (\"Sync phone\" by the search box, or QR in the on-screen window's Ctrl+Alt details), then " +
-                "point this phone's camera at each one. Each opens AccountabiliBuddy, which adds them up.",
+                "point this phone's camera at each one. Each opens ${com.accountabilibuddy.companion.guidance.appBrandName()}, which adds them up.",
         ) { dialog = null }
         DevicesDialog.Picture -> QrSheet(
             "This phone's sync file",

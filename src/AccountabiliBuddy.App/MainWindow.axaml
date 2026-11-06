@@ -7,7 +7,7 @@
         xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="AccountabiliBuddy.App.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="AccountabiliBuddy"
+        Title="{DynamicResource Ab.BrandName}"
         Icon="/Assets/app-icon.png"
         Width="1180" Height="780" MinWidth="900" MinHeight="560"
         WindowStartupLocation="CenterScreen"
@@ -147,7 +147,7 @@
                  drags the window and a double click maximizes it. -->
             <Grid x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
                   chrome:WindowDecorationProperties.ElementRole="TitleBar">
-                <TextBlock Text="AccountabiliBuddy" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                <TextBlock Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
                            Margin="18,0,0,0" IsHitTestVisible="False" />
                 <!-- Only with another device linked: a dot and one glyph per device. Hover or click for each device's last sync. -->
                 <Button x:Name="SyncLightButton" Grid.Column="1" Classes="quiet titleIcon" Padding="10,0" Margin="0,0,2,0"

@@ -33,11 +33,18 @@ public sealed class HyperfocusGuard : IDisposable
 
     public HyperfocusSettings Settings { get; private set; } = HyperfocusSettings.Default;
 
+    /// <summary>ADR 69: the hyperfocus reminder is kept per mode. Set by the app before loading; null = one copy.</summary>
+    public ModeSettings? Modes { get; init; }
+
+    /// <summary>The mode switched or the compare view changed a value (ADR 69): reads the active mode's copy again.</summary>
+    public void ReloadForMode() => LoadBlocking();
+
     public void LoadBlocking()
     {
         try
         {
-            HyperfocusSettings? loaded = Task.Run(() => _store.LoadAsync<HyperfocusSettings>(DocumentKey)).GetAwaiter().GetResult();
+            string key = Modes?.ReadKeyBlocking(DocumentKey, HyperfocusSettings.Default) ?? DocumentKey;
+            HyperfocusSettings? loaded = Task.Run(() => _store.LoadAsync<HyperfocusSettings>(key)).GetAwaiter().GetResult();
             Settings = loaded is null ? HyperfocusSettings.Default : loaded with { OffForProfiles = loaded.OffForProfiles ?? Array.Empty<Guid>() };
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
@@ -49,7 +56,7 @@ public sealed class HyperfocusGuard : IDisposable
     public async Task SaveAsync(HyperfocusSettings settings)
     {
         Settings = settings with { IntervalMinutes = Math.Max(0, settings.IntervalMinutes) };
-        await _store.SaveAsync(DocumentKey, Settings);
+        await _store.SaveAsync(Modes?.Key(DocumentKey) ?? DocumentKey, Settings);
     }
 
     /// <summary>Reminds once the stretch is long enough. Runs every second.</summary>

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -64,6 +65,46 @@ public sealed class CalendarNetwork : IDisposable
             Timeout = TimeSpan.FromSeconds(30),
             MaxResponseContentBufferSize = MaxResponseBytes,
         };
+    }
+
+    /// <summary>The public time servers asked for network time (ADR 70), in order.</summary>
+    public static IReadOnlyList<string> TimeServers { get; } = ["time.google.com", "time.cloudflare.com"];
+
+    private static readonly TimeSpan TimeServerTimeout = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Asks the time servers for network time over SNTP (UDP 123, ADR 70): the standard 48-byte request and nothing else. Returns how
+    /// far network time is ahead of <paramref name="clock"/>, from the first server that answers in time with a trustworthy packet;
+    /// null when none does (offline, UDP blocked).
+    /// </summary>
+    public async Task<TimeSpan?> QueryNetworkTimeOffsetAsync(Func<DateTimeOffset> clock, CancellationToken cancellationToken)
+    {
+        foreach (string server in TimeServers)
+        {
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeServerTimeout);
+                IPAddress[] addresses = await Dns.GetHostAddressesAsync(server, timeout.Token);
+                IPAddress address = addresses.FirstOrDefault(candidate => candidate.AddressFamily == AddressFamily.InterNetwork) ?? addresses[0];
+                using var udp = new UdpClient(address.AddressFamily);
+                udp.Connect(address, 123);
+                DateTimeOffset sentAt = clock();
+                await udp.SendAsync(Core.Engine.SntpPacket.Request(), timeout.Token);
+                UdpReceiveResult answer = await udp.ReceiveAsync(timeout.Token);
+                DateTimeOffset receivedAt = clock();
+                if (Core.Engine.SntpPacket.Offset(answer.Buffer, sentAt, receivedAt) is TimeSpan offset)
+                {
+                    return offset;
+                }
+            }
+            catch (Exception ex) when (ex is SocketException or OperationCanceledException or IndexOutOfRangeException && !cancellationToken.IsCancellationRequested)
+            {
+                // Try the next server.
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Downloads an .ics file, asking the server to skip it when unchanged.</summary>

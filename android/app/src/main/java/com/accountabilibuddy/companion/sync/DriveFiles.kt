@@ -112,6 +112,41 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
         return upload(token, fileName, content, existing, device)
     }
 
+    /**
+     * ADR 71: a sealed settings backup into `Settings backups/[kind]/[deviceFolder]/` in the app's folder (the PC's layout); only the
+     * newest [keep] files there stay.
+     */
+    fun uploadSettingsBackup(token: String, kind: String, deviceFolder: String, fileName: String, content: ByteArray, keep: Int) {
+        val root = childFolder(token, folder(token), SETTINGS_BACKUPS_FOLDER_NAME, create = true)!!
+        val kindFolder = childFolder(token, root, kind, create = true)!!
+        val device = childFolder(token, kindFolder, deviceFolder, create = true)!!
+        upload(token, fileName, content, null, device)
+        pages(token, "'$device' in parents and trashed=false and mimeType!='$FOLDER_MIME'", "nextPageToken,files(id,name,modifiedTime)")
+            .sortedByDescending { it.getValue("modifiedTime").jsonPrimitive.content }
+            .drop(keep)
+            .forEach { delete(token, it.getValue("id").jsonPrimitive.content) }
+    }
+
+    /** ADR 71: every device's sealed settings backups of [kind], newest first; empty when there is none. */
+    fun listSettingsBackups(token: String, kind: String): List<DriveBackupInfo> {
+        val root = childFolder(token, folder(token), SETTINGS_BACKUPS_FOLDER_NAME, create = false) ?: return emptyList()
+        val kindFolder = childFolder(token, root, kind, create = false) ?: return emptyList()
+        val found = mutableListOf<DriveBackupInfo>()
+        for (device in pages(token, "'$kindFolder' in parents and trashed=false and mimeType='$FOLDER_MIME'", "nextPageToken,files(id,name)")) {
+            val deviceName = device.getValue("name").jsonPrimitive.content
+            val deviceId = device.getValue("id").jsonPrimitive.content
+            for (file in pages(token, "'$deviceId' in parents and trashed=false and mimeType!='$FOLDER_MIME'", "nextPageToken,files(id,name,modifiedTime,size)")) {
+                found += DriveBackupInfo(
+                    file.getValue("id").jsonPrimitive.content, deviceName, file.getValue("name").jsonPrimitive.content,
+                    Instant.parse(file.getValue("modifiedTime").jsonPrimitive.content),
+                    file["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+                )
+            }
+        }
+
+        return found.sortedByDescending { it.modifiedAt }
+    }
+
     /** The backups under `Backups/` in the app's folder (every device's folder, every `.absync` file); empty when there is none. */
     fun listBackups(token: String): List<DriveBackupInfo> {
         val backups = childFolder(token, folder(token), BACKUPS_FOLDER_NAME, create = false) ?: return emptyList()
@@ -223,6 +258,9 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
 
         /** The folder inside the app's folder that holds the removed devices' backups, one folder per device (ADR 55), as on the PC. */
         const val BACKUPS_FOLDER_NAME = "Backups"
+
+        /** ADR 71: the folder of the sealed settings backups, apart from the removed devices' [BACKUPS_FOLDER_NAME]. */
+        const val SETTINGS_BACKUPS_FOLDER_NAME = "Settings backups"
         private const val MIME = "application/octet-stream"
         private const val API = "https://www.googleapis.com/drive/v3/"
         private const val UPLOAD = "https://www.googleapis.com/upload/drive/v3/"

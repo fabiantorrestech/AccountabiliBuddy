@@ -59,6 +59,9 @@ public partial class App : Application
     private SessionEndFlow? _endFlow;
     private SessionCheckpointService? _checkpoints;
     private ClockAnchorService? _clockAnchors;
+    private NetworkTimeService? _networkTime;
+    private AccountabiliBuddy.App.Services.Backup.AutoBackupService? _autoBackup;
+    private bool _appUpdated;
     private ThemeService? _themes;
     private AppTheme? _appearance;
     private WatchedBrowsersService? _watchedBrowsers;
@@ -151,6 +154,9 @@ public partial class App : Application
     private DeepWorkService? _deepWork;
     private ShutdownService? _shutdown;
     private WorkEndedService? _workEnded;
+    private GuidanceModeService? _guidance;
+    private GuidanceModeViewModel? _guidanceViewModel;
+    private ModeSettings? _modeSettings;
     private EndWorkEarlyDialog? _endWorkDialog;
     private ComebackStore? _comebacks;
     private LaterStore? _later;
@@ -289,7 +295,8 @@ public partial class App : Application
 
         var documents = new SqliteJsonDocumentStore(database, time);
         // First launch of a new version: keep a copy of the data before anything migrates it.
-        UpgradeSafety.BackupIfNewVersionBlocking(database, documents, BackupService.AppVersion, time);
+        // A database copy when this version runs for the first time; then auto-backup writes every kind too (ADR 71).
+        _appUpdated = UpgradeSafety.BackupIfNewVersionBlocking(database, documents, BackupService.AppVersion, time) is not null;
         _clockAnchors = new ClockAnchorService(time, documents);
         _clockAnchors.RestoreBlocking();
         _configuration = new ConfigurationService(new SqliteProfileStore(database, time), documents, time);
@@ -386,6 +393,19 @@ public partial class App : Application
         enforcementLimit.LoadBlocking();
         var enforcementEngine = new EnforcementEngine(new RuleEvaluator(new RuleMatcher())) { MaxLevel = enforcementLimit.MaxLevel };
         enforcementLimit.Changed += (_, level) => enforcementEngine.MaxLevel = level;
+        // ADR 68: AccountabiliBuddy (guarding) or ProductaBuddy (companion only), one synced choice; the brand name follows it.
+        var guidance = new GuidanceModeService(documents, _sessions!, () => _configuration!.Current.Locks.LooseningDelay, new DpapiDataProtector());
+        guidance.LoadBlocking();
+        _guidance = guidance;
+        // ADR 68: "ProductaBuddy now" during a session waits what ending it early waits, in the background once confirmed (ADR 66).
+        _armedEnds.Register(new CompanionArmedEndHandler(guidance));
+        // ADR 69: some settings are kept per mode; their services read the active mode's copy.
+        var modeSettings = new ModeSettings(documents, guidance);
+        _modeSettings = modeSettings;
+        _runningWaits!.AddSource(() => guidance.State.Pending is GuidancePending pending
+                && (pending.DuringSession || !_sessions!.State.IsActive || pending.ApplyAt > _sessions.Now)
+            ? [new RunningWait("guidance", AppBrand.CompanionName, pending.ApplyAt, guidance.ChooseGuardingAsync)]
+            : []);
         _enforcement = new EnforcementCoordinator(
             _activityWatcher,
             _browserSource,
@@ -400,12 +420,13 @@ public partial class App : Application
             _privateAccess)
         {
             GuardedPlan = () => effectivePlan.Current,
+            IsCompanion = () => guidance.IsCompanion,
         };
 
         var pendingChanges = new PendingChangesViewModel(_configuration, _sessions);
         var dayBarSettings = new DayBarSettingsService(documents);
         dayBarSettings.LoadBlocking();
-        var overlaySettings = new OverlaySettingsService(documents);
+        var overlaySettings = new OverlaySettingsService(documents) { Modes = modeSettings };
         overlaySettings.LoadBlocking();
         var sleepSettings = new SleepSettingsService(documents, time, _sessions!, () => _configuration!.Current.Locks.LooseningDelay);
         sleepSettings.LoadBlocking();
@@ -439,7 +460,7 @@ public partial class App : Application
         var timelineDay = new DayBarViewModel(
             _configuration, _sessions, calendars, activityLog, dayBarSettings, sleepSettings, omittedSessions, _coldTurkey, deletedUsage, time,
             ignoresShowSetting: true);
-        var soundSettings = new SessionSoundSettingsService(documents);
+        var soundSettings = new SessionSoundSettingsService(documents) { Modes = modeSettings };
         soundSettings.LoadBlocking();
         _soundPlayer = new Win32SoundPlayer();
         _sessionCues = new SessionCueService(_sessions, soundSettings, _soundPlayer);
@@ -478,7 +499,7 @@ public partial class App : Application
         _noise = new NoisePlayerService(
             () => new AccountabiliBuddy.Platform.Windows.Audio.WindowsNoisePlayer(), _noiseSettings, () => new Win32GlobalHotkey(), headphoneWatcher);
         _noise.Start();
-        _headphones = new HeadphoneAutoPlayService(documents, headphoneWatcher, _noise, time);
+        _headphones = new HeadphoneAutoPlayService(documents, headphoneWatcher, _noise, time) { Modes = modeSettings };
         _headphones.PlanProvider = () => effectivePlan.Current;
         _headphones.LoadBlocking();
         var noisePlayer = new NoisePlayerViewModel(_noise);
@@ -546,11 +567,17 @@ public partial class App : Application
         _armedEnds.Register(new StopForTodayArmedEndHandler(_workHours));
         // Hyperfocus guard: one quiet reminder after 90 minutes of unbroken focus.
         _hyperfocus = new HyperfocusGuard(_sessions, documents, (title, message) =>
-            presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F"))));
+            presenter.ShowReminder(title, message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A9D8F"))))
+        {
+            Modes = modeSettings,
+        };
         _hyperfocus.LoadBlocking();
         // Steer toward starting: Today with the task box ready when the user arrives in a work part, then the card.
         _startNudge = new StartNudgeService(_sessions, _configuration, new Win32UserIdleDetector(), documents,
-            new StartNudgeCardLog(documents, new DpapiDataProtector()));
+            new StartNudgeCardLog(documents, new DpapiDataProtector()))
+        {
+            Modes = modeSettings,
+        };
         _startNudge.LoadBlocking();
         // After a session the nudge only flashes the taskbar button (never takes focus).
         _windowAttention = new WindowsWindowAttention();
@@ -569,8 +596,18 @@ public partial class App : Application
         _motion = new Motion(documents);
         _motion.LoadBlocking();
         // The look (ADR 49): theme, light or dark (set times or sunset) and colour; the place for sunset is stored encrypted.
-        var appTheme = new AppTheme(documents, _themes!, time, new DpapiDataProtector(), new WindowsLocationProvider());
+        var appTheme = new AppTheme(documents, _themes!, time, new DpapiDataProtector(), new WindowsLocationProvider()) { Modes = modeSettings };
         appTheme.LoadBlocking();
+        // ADR 69: on a mode switch (or a compare-view change) every per-mode service reads the active mode's copy again.
+        modeSettings.Reload += (_, _) =>
+        {
+            overlaySettings.ReloadForMode();
+            soundSettings.ReloadForMode();
+            _headphones.ReloadForMode();
+            _hyperfocus.ReloadForMode();
+            _startNudge.ReloadForMode();
+            appTheme.ReloadForMode();
+        };
         _appearance = appTheme;
         _motion.Apply();
         // ADR 28: while it guards, a day plan change that frees some of today's work waits like a looser change.
@@ -710,6 +747,8 @@ public partial class App : Application
         syncCoordinator.Comebacks = () => _comebacks!.Open.Select(comeback => new AccountabiliBuddy.Core.Sync.SyncComeback(comeback.Id, comeback.Text, comeback.CreatedAt)).ToList();
         // Shared lists (ADR 48): the next session's tasks and the come-backs go in this PC's sync file with their tombstones, and
         // another device's lists merge in item by item (the stores' own change events write the file again when they changed).
+        // ADR 71: per PC, on by default; off, this PC's lists stay here and the others' don't come in.
+        syncCoordinator.ShareTaskLists = () => syncSettings.Current.ShareTaskLists;
         syncCoordinator.NextTasks = sessionTasks.NextTasksForSync;
         syncCoordinator.Parked = _comebacks.ForSync;
         syncCoordinator.MergeNextTasks = sessionTasks.MergeNextTasksAsync;
@@ -909,7 +948,7 @@ public partial class App : Application
         // devices' by name (a removed device's are gone: Active). The pickers look again when a device's list or the group changes.
         syncCoordinator.Categories = () => sessionTasks.Categories.Select(category => new AccountabiliBuddy.Core.Sync.SyncCategory(category.Name, category.Color, category.ColorEditedAt)).ToList();
         sessionTasks.OtherDeviceCategories = () => receivedDevices.Active
-            .Where(device => device.File.Categories is { Count: > 0 })
+            .Where(device => syncSettings.Current.ShareTaskLists && device.File.Categories is { Count: > 0 })
             .OrderBy(device => device.File.Device.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(device => new DeviceCategories(device.File.Device.DeviceId, device.File.Device.Name, device.File.Categories!))
             .ToList();
@@ -930,7 +969,11 @@ public partial class App : Application
             new PrivacySetupViewModel(privacy, _recorder, ocrReader.IsAvailable),
             _sessions,
             _watchedBrowsers,
-            _privateAccess);
+            _privateAccess)
+        {
+            IsCompanion = guidance.IsCompanion,
+        };
+        modeSettings.Reload += (_, _) => setupViewModel.IsCompanion = guidance.IsCompanion;
         _setupAssistant = new SetupAssistantService(documents, time);
         _setupAssistant.LoadBlocking();
         _ = learnMode.BeginIfFirstRunAsync(_setupAssistant.HasBeenShown);
@@ -939,7 +982,28 @@ public partial class App : Application
         var blockerLocator = new WindowsBlockerSourceLocator();
         ConfigurationService configuration = _configuration;
         SessionController sessions = _sessions;
-        var backups = new BackupService(_configuration, documents, activityLog, new DpapiDataProtector(), time, dataDirectory);
+        var backups = new BackupService(_configuration, documents, activityLog, new DpapiDataProtector(), time, dataDirectory)
+        {
+            // ADR 71: synced settings and task lists back up and restore through their own services.
+            Synced = AccountabiliBuddy.App.Services.Backup.BackupAccess.Synced(sleepSettings, dayBarSettings, goal, guidance),
+            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time),
+            ShareTaskLists = () => syncSettings.Current.ShareTaskLists,
+        };
+        // ADR 71: auto-backup of the synced settings, this PC's settings and (unshared) task lists, local and sealed on Drive.
+        _autoBackup = new AccountabiliBuddy.App.Services.Backup.AutoBackupService(
+            backups, documents, driveFiles, syncIdentity, syncSettings, () => driveAccount.IsSignedIn, time);
+        _autoBackup.LoadBlocking();
+#if DEBUG
+        // ADR 71: every stored document must belong to a backup list or the state list; name any that don't.
+        _ = Task.Run(async () =>
+        {
+            IReadOnlyList<string> unclassified = await backups.UnclassifiedKeysAsync();
+            if (unclassified.Count > 0)
+            {
+                System.Diagnostics.Debug.WriteLine("Backup registry: unclassified documents: " + string.Join(", ", unclassified));
+            }
+        });
+#endif
         // The computer types (ADR 22): the assistant applies one; Settings shows it and can apply one again.
         var computerTypes = new AccountabiliBuddy.App.Services.Setup.ComputerTypeService(documents, privacy, enforcementLimit, syncSettings, _updates);
         _computerTypes = computerTypes;
@@ -965,6 +1029,7 @@ public partial class App : Application
             WorkHours = _workHours,
             Keys = _coldTurkeyKeys,
             QuitGuard = _quitGuardViewModel,
+            Guidance = _guidanceViewModel,
             ColdTurkey = _coldTurkey,
             OtherBlockers = new WindowsOtherBlockerDetector(),
             OpenDpAssistant = () => _showDpAssistant?.Invoke(),
@@ -1150,6 +1215,19 @@ public partial class App : Application
         _sessions.Ticked += (_, _) => sessionViewModel.CanGoBackToWork = _workEnded.CanGoBack;
         // Times only in this PC's sync file (never the reason); another PC's newer edit for today is taken, like lunch.
         syncCoordinator.WorkEnded = _workEnded.ForSync;
+        // ADR 68: the chosen mode and its time; another device's newer choice is taken (ProductaBuddy after this PC's delay).
+        syncCoordinator.Guidance = guidance.ForSync;
+        guidance.Changed += (_, _) =>
+        {
+            _enforcement?.Refresh();
+            _startNudge?.CheckNow();
+            _preWork?.CheckNow();
+            _workHours?.OnModeChanged();
+            _runningWaits!.NotifyChanged();
+            UpdateTray();
+            syncCoordinator.NotifyHistoryChanged();
+            _syncFolder?.WriteSoon();
+        };
         // ADR 66: armed ends go out times only; a cancel from the phone comes back as an action. A change writes the file soon.
         syncCoordinator.ArmedEnds = () => _armedEnds!.Current.Select(end => new AccountabiliBuddy.Core.Sync.SyncArmedEnd(end.Id, SyncKindOf(end.Kind), end.ReadyAt)).ToList();
         _armedEnds!.Changed += (_, _) =>
@@ -1159,6 +1237,11 @@ public partial class App : Application
         };
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
         {
+            foreach (var device in receivedDevices.Active.Where(device => device.File.Guidance is not null))
+            {
+                guidance.Receive(device.File.Guidance!);
+            }
+
             foreach (var device in receivedDevices.Active.Where(device => device.File.WorkEnded is not null))
             {
                 // ADR 67: a phone's finished work is a looser change from another device: it waits this PC's looser-change delay.
@@ -1244,6 +1327,12 @@ public partial class App : Application
             .Select(focus => focus.Window)
             .ToList();
         _workHours.GuardedPlan = guardedPlan;
+        // ADR 68: in ProductaBuddy these stay quiet (their Cold Turkey holds don't change).
+        Func<bool> isCompanion = () => guidance.IsCompanion;
+        _workHours.IsCompanion = isCompanion;
+        _startNudge.IsCompanion = isCompanion;
+        _preWork.IsCompanion = isCompanion;
+        _bedtimeReminder!.IsCompanion = isCompanion;
         _startNudge.GuardedPlan = guardedPlan;
         _shutdown.GuardedPlan = guardedPlan;
         _preWork.GuardedPlan = guardedPlan;
@@ -1377,6 +1466,11 @@ public partial class App : Application
                 Headphones = new HeadphoneSettingsViewModel(_headphones!),
                 LightsOut = new LightsOutViewModel(_lightsOut!),
                 Backup = new BackupViewModel(backups, _sessions, RestartApp, showExport: true),
+                BackupCards = _autoBackup is null
+                    ? []
+                    : new[] { BackupKind.SyncedSettings, BackupKind.DeviceSettings, BackupKind.TaskLists }
+                        .Select(kind => new BackupKindCardViewModel(kind, backups, _autoBackup, driveFiles, syncIdentity, syncSettings, _sessions, RestartApp, time))
+                        .ToList(),
                 Updates = new UpdatesViewModel(_updates),
                 EnforcementLimit = enforcementLimit,
                 ComputerTypes = computerTypes,
@@ -1559,6 +1653,35 @@ public partial class App : Application
                 }
             });
         quitGuard.LoadBlocking();
+        // ADR 71: restoring this PC's settings changes the quit guard and PC-off through their services, so an old backup can't
+        // loosen them at once (a looser part waits; leaving "All the time" needs the spare key).
+        backups.DeviceRestorers["quit.guard"] = async value =>
+        {
+            if (System.Text.Json.JsonSerializer.Deserialize<QuitGuardSettings>(value, AccountabiliBuddy.Core.Sync.SyncJson.Options) is not { } wanted)
+            {
+                return null;
+            }
+
+            return await quitGuard.ChangeAsync(wanted) switch
+            {
+                QuitGuardChange.Waiting => "The quit guard's looser parts take effect after the countdown.",
+                QuitGuardChange.NeedsSpareKey or QuitGuardChange.WrongKey => "The quit guard wasn't restored: leaving \"All the time\" needs your spare key. Change it in Settings.",
+                QuitGuardChange.NeedsSpareKeySetup => "The quit guard wasn't restored: \"All the time\" needs a spare key first. Set it up in Settings.",
+                QuitGuardChange.RefusedInFocus => "The quit guard wasn't restored during a focus session.",
+                _ => null,
+            };
+        };
+        backups.DeviceRestorers["session.pcOff"] = async value =>
+        {
+            if (System.Text.Json.JsonSerializer.Deserialize<PcOffSettings>(value, AccountabiliBuddy.Core.Sync.SyncJson.Options) is not { } wanted)
+            {
+                return null;
+            }
+
+            await pcOff.SetTellMeAsync(wanted.TellMe);
+            await pcOff.SetKeepOriginalEndAsync(wanted.KeepOriginalEnd);
+            return pcOff.KeepEndPendingAt is not null ? "Keeping the planned end when the PC goes off takes effect after the countdown." : null;
+        };
         quitGuard.FocusedOn = _workHours!.FocusedOn;
         quitGuard.NightFallback = _workHours.NightFallback;
         quitGuard.WorkEnded = _workHours.WorkEnded;
@@ -1569,11 +1692,32 @@ public partial class App : Application
         _configuration!.Changed += (_, _) => _quitGuardViewModel.Refresh();
         mainViewModel.QuitGuard = _quitGuardViewModel;
         mainViewModel.Settings.PcOffPage = new PcOffSettingsViewModel(_pcOff!, _sessions!);
+        var guidanceSwitch = new GuidanceSwitchFlow(
+            _guidance!, _sessions!, _armedEnds!, () => _configuration!.Current.Locks.LooseningDelay, () => _mainWindow);
+        _guidanceViewModel = new GuidanceModeViewModel(_guidance!, _sessions!) { SwitchToCompanion = guidanceSwitch.SwitchToCompanionAsync };
+        mainViewModel.Settings.GuidancePage = _guidanceViewModel;
+        // ADR 69: Settings shows the active mode's per-mode values, and hides AccountabiliBuddy-only rows in ProductaBuddy.
+        mainViewModel.Settings.IsCompanionNow = () => _guidance!.IsCompanion;
+        modeSettings.Reload += (_, _) => mainViewModel.Settings.ReloadForMode();
+        mainViewModel.Settings.ReloadForMode();
+        if (_modeSettings is not null)
+        {
+            _guidanceViewModel.Compare = new ModeCompareViewModel(_modeSettings, _guidance!);
+            _ = _guidanceViewModel.Compare.LoadAsync();
+        }
+        _guidanceViewModel.ArmedSwitchAt = () => _armedEnds?.Find(ArmedEndKind.Companion)?.ReadyAt;
+        _guidanceViewModel.CancelArmedSwitch = () =>
+        {
+            if (_armedEnds?.Find(ArmedEndKind.Companion) is ArmedEnd armed)
+            {
+                _armedEnds.Cancel(armed.Id);
+            }
+        };
         quitGuard.Start();
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!, _guidance!), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -1581,6 +1725,7 @@ public partial class App : Application
         sessionTasks.Changed += (_, _) => setupFeatures.Refresh();
         syncSettings.Changed += (_, _) => setupFeatures.Refresh();
         quitGuard.Changed += (_, _) => setupFeatures.Refresh();
+        _guidance!.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
         // The store raises this on any thread, inside a lock: only post.
         calendarOverlay.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
@@ -1762,6 +1907,9 @@ public partial class App : Application
             WriteSessionHeartbeat();
         };
         _sessions.StateChanged += (_, _) => _ = pcOff.ApplyPendingIfDueAsync();
+        // ADR 68: a switch to ProductaBuddy applies once its wait is over and no session runs.
+        _sessions.Ticked += (_, _) => _ = _guidance!.TickAsync();
+        _sessions.StateChanged += (_, _) => _ = _guidance!.TickAsync();
         _sessions.SessionGapHandled += (_, report) => ShowSessionGap(report, presenter);
 
         _recorder.Start();
@@ -1781,6 +1929,10 @@ public partial class App : Application
         _browserSource.Start();
         _calendarSync.Start();
         _clockAnchors.Start();
+        // ADR 70: network time anchors the trusted clock (start, every 6 hours, on waking).
+        _networkTime = new NetworkTimeService(time, _calendarNetwork!);
+        _networkTime.Start();
+        _autoBackup?.Start(_appUpdated);
         _sessionCues.Start();
         // What the overlay and its Ctrl+Alt panel ask the app: the same commands and gates as the Today page.
         _sessions!.SessionCompleted += (_, finished) =>
@@ -1830,6 +1982,15 @@ public partial class App : Application
             presenter.ShowReminder(reminder.Title, reminder.Message, new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6366F1")));
         // ADR 38: a reminder that rings opens the alarm window; this PC's sync id says which reminders are its own.
         _ = new BedtimeAlarmRinger(_bedtimeReminder, _sessionCues, () => _sessionOverlay.Glow());
+        // ADR 68: when ProductaBuddy takes effect, bedtime reminders ringing or shown here stop (wake-up alarms and timers don't).
+        modeSettings.Reload += (_, _) =>
+        {
+            if (_guidance!.IsCompanion)
+            {
+                _bedtimeReminder.StopAllForCompanion();
+                presenter.CloseReminders();
+            }
+        };
         _bedtimeReminder.Start();
         _coldTurkey.ExpectedBlocksOff += (_, names) => presenter.ShowNotice("Cold Turkey block off", ColdTurkeyService.Describe(names));
         _coldTurkey.Start();
@@ -2018,7 +2179,7 @@ public partial class App : Application
     {
         var window = new Window
         {
-            Title = "AccountabiliBuddy",
+            Title = AppBrand.Name,
             Width = 560,
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
@@ -2082,7 +2243,8 @@ public partial class App : Application
         var quickItem = new NativeMenuItem($"Quick session…  ({_quickSession!.Preferences.Hotkey})");
         quickItem.Click += (_, _) => _quickSession.Show();
 
-        var openItem = new NativeMenuItem("Open AccountabiliBuddy");
+        var openItem = new NativeMenuItem($"Open {AppBrand.Name}");
+        AppBrand.Changed += (_, _) => openItem.Header = $"Open {AppBrand.Name}";
         openItem.Click += (_, _) => ShowMainWindow();
 
         // Allowed during focus (Settings isn't): only redraws what would show anyway.
@@ -2121,7 +2283,7 @@ public partial class App : Application
         _trayIcon = new TrayIcon
         {
             Icon = new WindowIcon(AssetLoader.Open(IconUri)),
-            ToolTipText = "AccountabiliBuddy",
+            ToolTipText = AppBrand.Name,
             Menu = menu,
         };
         _trayIcon.Clicked += (_, _) => ShowMainWindow();
@@ -2184,6 +2346,7 @@ public partial class App : Application
         };
         _power.Resumed += (_, _) =>
         {
+            _ = _networkTime?.CheckAsync();
             // The cards stay hidden and registered while the services re-check: one that closes its card removes it, one that
             // opens a card only registers it. A full tick handles the session's sleep gap first, then every service checks again.
             int suspendCount = _frontCards.SuspendCount;
@@ -2491,8 +2654,8 @@ public partial class App : Application
 
         // Written only when the text changed: with no session it never does, and Windows is not asked to redraw a tooltip every second.
         string tip = state.IsActive
-            ? $"AccountabiliBuddy · {SessionStatusFormatter.Title(state, profileName)} · {SessionStatusFormatter.Detail(state, _sessions.Now)}"
-            : "AccountabiliBuddy · no session running";
+            ? $"{AppBrand.Name} · {SessionStatusFormatter.Title(state, profileName)} · {SessionStatusFormatter.Detail(state, _sessions.Now)}"
+            : $"{AppBrand.Name} · no session running";
         if (_runningWaits?.Line() is string waitLine)
         {
             tip = $"{tip} · {waitLine}";
@@ -2524,7 +2687,8 @@ public partial class App : Application
     /// <summary>Shows the "allow in private windows" reminder unless it is already open; closing it snoozes it.</summary>
     private void ShowPrivateWindowsNag(PrivateWindowAccessMonitor monitor, IBrowserSetup browserSetup)
     {
-        if (_privateWindowsNag is not null)
+        // ADR 68: ProductaBuddy watches no windows, private ones included.
+        if (_privateWindowsNag is not null || _guidance?.IsCompanion == true)
         {
             return;
         }
@@ -2754,6 +2918,7 @@ public partial class App : Application
         ArmedEndKind.EndSession => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindEndSession,
         ArmedEndKind.EndWorkEarly => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindEndWorkEarly,
         ArmedEndKind.StopForToday => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindStopForToday,
+        ArmedEndKind.Companion => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindCompanion,
         _ => AccountabiliBuddy.Core.Sync.SyncArmedEnd.KindPreWorkDayOff,
     };
 
@@ -3004,7 +3169,7 @@ public partial class App : Application
 
         if (saved.BootId is not null && saved.BootId == new RegistryBootIdProvider().GetBootId())
         {
-            return " (AccountabiliBuddy was closed)";
+            return $" ({AppBrand.Name} was closed)";
         }
 
         Core.Domain.ShutdownCause cause = new AccountabiliBuddy.Platform.Windows.Power.EventLogShutdownCauseReader().Read(saved.LastAliveAt - TimeSpan.FromMinutes(1));
@@ -3155,6 +3320,8 @@ public partial class App : Application
         _relayHost?.Dispose();
         _qrSync?.Dispose();
         _clockAnchors?.Dispose();
+        _networkTime?.Dispose();
+        _autoBackup?.Dispose();
         _unlocks?.Dispose();
         _armedEnds?.Dispose();
         _calendarSync?.Dispose();

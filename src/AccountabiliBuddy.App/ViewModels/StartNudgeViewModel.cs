@@ -16,6 +16,15 @@ public sealed partial class StartNudgeViewModel : ObservableObject
         RepeatIndex = Math.Max(0, Array.IndexOf(RepeatChoices, nudge.Settings.RepeatMinutes));
     }
 
+    /// <summary>The mode switched (ADR 69): shows the active mode's switches.</summary>
+    public void ReloadForMode(bool companion)
+    {
+        IsCompanion = companion;
+        IsOn = _nudge.Settings.On;
+        IsAssistantOn = _nudge.Settings.AssistantOn;
+        RepeatIndex = Math.Max(0, Array.IndexOf(RepeatChoices, _nudge.Settings.RepeatMinutes));
+    }
+
     /// <summary>"Ask again every": 5, 10 or 15 minutes, or one card only (0).</summary>
     public static int[] RepeatChoices { get; } = [5, 10, 15, 0];
 
@@ -30,7 +39,16 @@ public sealed partial class StartNudgeViewModel : ObservableObject
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSetAssistant))]
     public partial bool IsOn { get; set; }
+
+    /// <summary>ProductaBuddy is in effect (ADR 68, 69): only the start-of-day assistant's switch shows, and it works on its own.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSetAssistant))]
+    public partial bool IsCompanion { get; set; }
+
+    /// <summary>The assistant needs the nudge on in AccountabiliBuddy; in ProductaBuddy it stands alone.</summary>
+    public bool CanSetAssistant => IsOn || IsCompanion;
 
     partial void OnIsOnChanged(bool value)
     {

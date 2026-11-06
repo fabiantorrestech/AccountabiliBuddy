@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.GuidanceDuringSessionDialog"
+        x:DataType="vm:GuidanceDuringSessionViewModel"
+        Title="{x:Static vm:GuidanceDuringSessionViewModel.Heading}"
+        Icon="/Assets/app-icon.png"
+        Width="480" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner" Topmost="True">
+    <!-- ADR 68: switching to ProductaBuddy during a focus session. -->
+    <StackPanel Margin="20" Spacing="12">
+        <TextBlock Text="{x:Static vm:GuidanceDuringSessionViewModel.Heading}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.85"
+                   Text="A focus session is running. It keeps its locks either way; what changes is that nothing watches your screens or nudges you." />
+        <StackPanel Spacing="4">
+            <RadioButton GroupName="when" IsChecked="{Binding AfterSessionChosen}">
+                <TextBlock Text="{Binding AfterText}" TextWrapping="Wrap" />
+            </RadioButton>
+            <TextBlock Text="{Binding NoSetEndNote}" IsVisible="{Binding NoSetEnd}" TextWrapping="Wrap" Margin="28,0,0,0"
+                       Foreground="{DynamicResource Ab.Waiting}" />
+        </StackPanel>
+        <RadioButton GroupName="when" IsChecked="{Binding NowChosen}">
+            <TextBlock Text="{Binding NowText}" TextWrapping="Wrap" />
+        </RadioButton>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Classes="accent" IsDefault="True" />
+            <Button Content="Proceed" Command="{Binding ProceedCommand}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

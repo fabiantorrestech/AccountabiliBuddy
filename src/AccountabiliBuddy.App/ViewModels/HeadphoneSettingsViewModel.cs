@@ -108,6 +108,22 @@ public sealed partial class HeadphoneSettingsViewModel : ObservableObject
         ShowStatus();
     }
 
+    /// <summary>The mode switched (ADR 69): shows the active mode's choices.</summary>
+    public void ReloadForMode()
+    {
+        _loading = true;
+        Wired = _service.Current.Wired;
+        Bluetooth = _service.Current.Bluetooth;
+        LoadSchedule(_service.Current);
+        Devices.Clear();
+        ShowChosen(_service.Current.Devices);
+        _loading = false;
+        if (Bluetooth)
+        {
+            _ = RefreshDevicesAsync();
+        }
+    }
+
     private void ShowChosen(IReadOnlyList<BluetoothAudioDevice> chosen)
     {
         foreach (BluetoothAudioDevice device in chosen)

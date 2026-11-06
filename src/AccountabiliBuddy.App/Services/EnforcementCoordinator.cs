@@ -65,6 +65,15 @@ public sealed class EnforcementCoordinator : IDisposable
 
     private DayPlan PlanInForce => GuardedPlan?.Invoke() ?? _configuration.Current.DayPlan;
 
+    /// <summary>ProductaBuddy is in effect (ADR 68): nothing is watched, judged, shown or recorded. Set by the app; null = guarding.</summary>
+    public Func<bool>? IsCompanion { get; set; }
+
+    // Companion mode was in effect at the last evaluation: what was shown is already closed.
+    private bool _wasQuiet;
+
+    /// <summary>Evaluates again now (the guidance mode changed).</summary>
+    public void Refresh() => Reevaluate();
+
     public EnforcementCoordinator(
         IActivityWatcher watcher,
         IBrowserActivitySource browsers,
@@ -215,6 +224,13 @@ public sealed class EnforcementCoordinator : IDisposable
     private void Reevaluate()
     {
         SessionState state = _sessions.State;
+        if (IsCompanion?.Invoke() == true)
+        {
+            BeQuiet(state);
+            return;
+        }
+
+        _wasQuiet = false;
         if (state.PausesEnforcement)
         {
             // Stepped away: everything stays as it was (what was blocked stays blocked, an open prompt stays open, the
@@ -272,6 +288,26 @@ public sealed class EnforcementCoordinator : IDisposable
         {
             ReadNextUnknownScreen(decisions, now);
         }
+    }
+
+    // ADR 68: no decisions, no screen reading, no activity segments. The first time, whatever was shown closes, the open segments
+    // end and each monitor's escalation starts over, so guarding later begins from a clean slate.
+    private void BeQuiet(SessionState state)
+    {
+        if (_wasQuiet)
+        {
+            return;
+        }
+
+        _wasQuiet = true;
+        _presenter.CloseAll();
+        foreach (string monitorId in _latestByMonitor.Keys)
+        {
+            _engine.ForgetMonitor(monitorId);
+        }
+
+        _lastDecisions = Array.Empty<MonitorEnforcement>();
+        _recorder.Observe(_lastDecisions, state, _sessions.Now);
     }
 
     private bool ShouldReadScreens(SessionState state, FocusProfile? profile)

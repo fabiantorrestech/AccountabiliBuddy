@@ -37,6 +37,9 @@ public static class AssistantFlow
                 steps.Add(AssistantStep.Restore);
             }
 
+            // ADR 68: always asked. Left as shown, a device that joined a group follows the mode its devices chose; a choice made
+            // here goes to them (ProductaBuddy after their wait).
+            steps.Add(AssistantStep.Guidance);
             steps.Add(AssistantStep.Goal);
             steps.Add(AssistantStep.Done);
             return steps;
@@ -54,6 +57,7 @@ public static class AssistantFlow
             .Where(step => step != AssistantStep.PanelCtrlAlt)
             .Where(step => step != AssistantStep.CalendarRules)
             .Where(step => step != AssistantStep.ShutdownRoutine)
+            .Where(step => step != AssistantStep.QuitSafeguard)
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
             .Where(step => step != AssistantStep.Restore || hasRestore)

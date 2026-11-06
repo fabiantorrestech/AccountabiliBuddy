@@ -63,7 +63,7 @@ private fun CurboxSetupBody(onConnectCurbox: () -> Unit, onReenableTime: (Boolea
             Text("Curbox", style = Ab.type.section, color = Ab.colors.ink)
             GuardsRestNote()
             Note(
-                "Curbox blocks apps, keywords and reels on this phone. AccountabiliBuddy turns blocks you switched off back on, " +
+                "Curbox blocks apps, keywords and reels on this phone. ${com.accountabilibuddy.companion.guidance.appBrandName()} turns blocks you switched off back on, " +
                     "and can start a Curbox focus you can't exit during sessions on your other devices.",
             )
             AbSectionLabel("In Curbox")

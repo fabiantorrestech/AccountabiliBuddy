@@ -1,6 +1,7 @@
 <Application xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="using:System"
              x:Class="AccountabiliBuddy.App.App"
              RequestedThemeVariant="Default">
     <Application.Resources>
@@ -8,6 +9,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://AccountabiliBuddy.App/Themes/FluentOverrides.axaml" />
             </ResourceDictionary.MergedDictionaries>
+            <!-- ADR 68: the name the app shows for itself; AppBrand sets ProductaBuddy in companion mode. -->
+            <sys:String x:Key="Ab.BrandName">AccountabiliBuddy</sys:String>
         </ResourceDictionary>
     </Application.Resources>
     <Application.Styles>

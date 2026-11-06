@@ -64,6 +64,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Export and import of backups (the Backup section).</summary>
     public BackupViewModel? Backup { get; init; }
 
+    /// <summary>ADR 71: synced settings, this PC's settings, task lists: each with export, import and auto-backup.</summary>
+    public IReadOnlyList<BackupKindCardViewModel> BackupCards { get; init; } = [];
+
     /// <summary>The Updates section.</summary>
     public UpdatesViewModel? Updates { get; init; }
 
@@ -124,6 +127,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         string databasePath,
         NoisePlayerService? noise = null)
     {
+        _autosave.Tick += (_, _) => _ = AutosaveAsync();
         _noise = noise;
         // The plan's Sleep parts change the times; the on/off switch stays as edited.
         sleep.Changed += (_, _) => ShowSleepTimes();
@@ -264,7 +268,42 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         HasUnsavedChanges = unsaved;
+        // Settings save on change: an edit saves half a second later (a burst of edits, one save). A save's own reloads don't start
+        // another, so a section that can't be saved yet (a mistake, a session) waits for the next edit instead of retrying.
+        if (unsaved && !_autosaving)
+        {
+            _autosave.Stop();
+            _autosave.Start();
+        }
     }
+
+    private readonly Avalonia.Threading.DispatcherTimer _autosave = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private bool _autosaving;
+
+    private async Task AutosaveAsync()
+    {
+        _autosave.Stop();
+        if (_autosaving)
+        {
+            return;
+        }
+
+        _autosaving = true;
+        try
+        {
+            await SaveAllAsync();
+        }
+        finally
+        {
+            _autosaving = false;
+        }
+    }
+
+    /// <summary>The last save left something it couldn't save (a mistake in a value): leaving Settings would drop it.</summary>
+    public bool HasUnsavableChanges => HasUnsavedChanges && SaveStatus?.StartsWith("Not saved", StringComparison.Ordinal) == true;
+
+    /// <summary>Saves what is still waiting for the half-second timer (leaving Settings, closing the window).</summary>
+    public Task FlushAsync() => HasUnsavedChanges ? AutosaveAsync() : Task.CompletedTask;
 
     /// <summary>Saves every changed section, after checking them all; nothing is saved when one has a mistake.</summary>
     /// <returns>True when nothing is left unsaved (except profile-wide settings held back by a focus session).</returns>
@@ -352,7 +391,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         RefreshUnsaved();
-        SaveStatus = notes.Count == 0 ? "Saved." : string.Join(" ", notes.Prepend("Saved."));
+        // Saved on change: nothing to say when it simply saved; a note (a wait, a refused key) stays in view.
+        SaveStatus = notes.Count == 0 ? null : string.Join(" ", notes);
         // Profile-wide changes held back by a focus session don't keep you on the tab.
         return !(HotkeyChanged || CountUpChanged || DayBarChanged || SleepChanged || SoundsChanged || NoiseChanged || StepAwayChanged || TimerChanged || (ConfigChanged && !IsLocked));
     }
@@ -796,6 +836,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool HasWorkHours => WorkHours is not null;
 
+    /// <summary>The work-hours guard's settings: AccountabiliBuddy-only (ADR 69).</summary>
+    public bool ShowsWorkHours => HasWorkHours && !IsCompanion;
+
     /// <summary>The hyperfocus reminder card; null hides it.</summary>
     public HyperfocusViewModel? Hyperfocus { get; init; }
 
@@ -921,6 +964,29 @@ public sealed partial class SettingsViewModel : ObservableObject
         ShowNoiseFolder();
     }
 
+    /// <summary>The mode switched (ADR 69): every per-mode setting shown here reads the active mode's copy.</summary>
+    public void ReloadForMode()
+    {
+        LoadSoundSettings();
+        Hyperfocus?.ReloadForMode();
+        StartNudge?.ReloadForMode(IsCompanionNow());
+        Headphones?.ReloadForMode();
+        OnPropertyChanged(nameof(IsCompanion));
+        OnPropertyChanged(nameof(ShowsWorkHours));
+        // ADR 68: the rows that name the app follow the mode's name.
+        foreach (SettingsRowViewModel row in Rows.Where(row => row.Section == SettingsSection.Setup))
+        {
+            row.Summary = SetupSummary();
+        }
+    }
+
+    private static string SetupSummary() => $"Everything {AppBrand.Name} is allowed to do on this computer.";
+
+    /// <summary>ProductaBuddy is in effect: AccountabiliBuddy-only settings are hidden. Set by the app.</summary>
+    public Func<bool> IsCompanionNow { get; set; } = () => false;
+
+    public bool IsCompanion => IsCompanionNow();
+
     [MemberNotNull(nameof(SoundChoices))]
     private void LoadSoundSettings()
     {
@@ -963,8 +1029,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         new SettingsRowViewModel(SettingsSection.DevicesAndSync, "Devices & sync", Material.Icons.MaterialIconKind.Devices, "Everything stays on your devices and your own Google Drive."),
         new SettingsRowViewModel(SettingsSection.Connections, "Connections", Material.Icons.MaterialIconKind.PuzzleOutline, "Calendars, Beeminder and the other blockers you use."),
         new SettingsRowViewModel(SettingsSection.Appearance, "Appearance", Material.Icons.MaterialIconKind.PaletteOutline, "Theme, light or dark, and how much colour."),
-        new SettingsRowViewModel(SettingsSection.AppAndData, "App & data", Material.Icons.MaterialIconKind.DatabaseOutline, "Computer type, backups and where your data lives.", gapBefore: true),
-        new SettingsRowViewModel(SettingsSection.Setup, "Setup", Material.Icons.MaterialIconKind.Wrench, "Everything AccountabiliBuddy is allowed to do on this computer."),
+        new SettingsRowViewModel(SettingsSection.AppAndData, "App & data", Material.Icons.MaterialIconKind.DatabaseOutline, "App mode, computer type, backups and where your data lives.", gapBefore: true),
+        new SettingsRowViewModel(SettingsSection.Setup, "Setup", Material.Icons.MaterialIconKind.Wrench, SetupSummary()),
         new SettingsRowViewModel(SettingsSection.About, "About", Material.Icons.MaterialIconKind.InformationOutline, "Version, updates and what this is for."),
     };
 
@@ -1077,6 +1143,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(ShowsLockedBanner));
+        // A section that waited for the session to end saves now.
+        if (!value)
+        {
+            RefreshUnsaved();
+        }
     }
 
     /// <summary>The timeline's rows top to bottom, each shown or not.</summary>
@@ -1248,6 +1319,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The "When this PC goes off" settings (ADR 60), on the Focus sessions page; set once they have loaded.</summary>
     [ObservableProperty]
     public partial PcOffSettingsViewModel? PcOffPage { get; set; }
+
+    /// <summary>"How AB helps" (ADR 68), first on the Focus sessions page. Set by the app.</summary>
+    [ObservableProperty]
+    public partial GuidanceModeViewModel? GuidancePage { get; set; }
 
     [ObservableProperty]
     public partial string EnforceSeconds { get; set; }

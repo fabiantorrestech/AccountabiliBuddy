@@ -10,8 +10,7 @@
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16" IsEnabled="{Binding CanEdit}">
                 <StackPanel Spacing="2" VerticalAlignment="Center">
                     <TextBlock Classes="sTitle" Text="Quit safeguard" />
-                    <TextBlock Classes="sHint" TextWrapping="Wrap"
-                               Text="Refuses the tray's Quit at the times below, and brings AccountabiliBuddy back if it's ended from Task Manager then. Windows shutdown, sign-out and updates still work. It's friction, not a lock: it can still be got around." />
+                    <TextBlock Classes="sHint" TextWrapping="Wrap"><Run Text="Refuses the tray's Quit at the times below, and brings " /><Run Text="{DynamicResource Ab.BrandName}" /><Run Text=" back if it's ended from Task Manager then. Windows shutdown, sign-out and updates still work. It's friction, not a lock: it can still be got around." /></TextBlock>
                 </StackPanel>
                 <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Center" AutomationProperties.Name="Quit safeguard" />
             </Grid>

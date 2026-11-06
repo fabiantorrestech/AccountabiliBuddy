@@ -18,5 +18,14 @@ public enum BackupParts
     /// <summary>The activity history: segments, classify answers and session events.</summary>
     History = 8,
 
+    /// <summary>ADR 71: the settings every device shares besides the profiles: sleep (bedtime reminders too), the day bar, the goal, the mode.</summary>
+    SyncedSettings = 16,
+
+    /// <summary>ADR 71: every device-local setting in the registry (<see cref="DeviceSettingsRegistry"/>), both modes' copies.</summary>
+    DeviceSettings = 32,
+
+    /// <summary>ADR 71: the task lists: tasks, Later, come-backs, task categories (with their deletions).</summary>
+    TaskLists = 64,
+
     All = Profiles | Settings | Calendars | History,
 }

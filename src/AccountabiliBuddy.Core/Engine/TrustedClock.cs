@@ -82,6 +82,43 @@ public sealed class TrustedClock : TimeProvider
         }
     }
 
+    /// <summary>
+    /// Takes network time as the truth (ADR 70) when it differs from the trusted time by more than <see cref="JumpTolerance"/>:
+    /// a clock moved before the app started, or nudged a little at a time, is then ignored too. Smaller differences are left to
+    /// the slow drift. Raises <see cref="SystemClockOffsetChanged"/> when that starts or stops the system clock being ignored.
+    /// </summary>
+    /// <param name="networkUtc">The network time now (this clock's time plus the measured offset).</param>
+    /// <returns>True when the trusted time moved.</returns>
+    public bool CorrectTo(DateTimeOffset networkUtc)
+    {
+        bool changed;
+        TimeSpan offset;
+        lock (_gate)
+        {
+            long elapsed = _elapsedMilliseconds();
+            DateTimeOffset expected = _anchorTrusted + TimeSpan.FromMilliseconds(Math.Max(0, elapsed - _anchorElapsed));
+            if ((networkUtc - expected).Duration() <= JumpTolerance)
+            {
+                return false;
+            }
+
+            _anchorTrusted = networkUtc;
+            _anchorElapsed = elapsed;
+            bool wasIgnoring = _isIgnoringSystemClock;
+            TimeSpan gap = _system.GetUtcNow() - networkUtc;
+            _isIgnoringSystemClock = gap.Duration() > JumpTolerance;
+            offset = _isIgnoringSystemClock ? gap : TimeSpan.Zero;
+            changed = wasIgnoring != _isIgnoringSystemClock;
+        }
+
+        if (changed)
+        {
+            SystemClockOffsetChanged?.Invoke(this, offset);
+        }
+
+        return true;
+    }
+
     /// <returns>An anchor to save, or null if the boot is unknown.</returns>
     public ClockAnchor? CreateAnchor()
     {

@@ -22,11 +22,25 @@ public sealed class OverlaySettingsService
     /// <summary>The user picked a placement on the overlay page; false until then (a migrated or default placement doesn't count).</summary>
     public bool HasChosenPlacement => Current.PlacementChosen;
 
+    /// <summary>ADR 69: the on-screen window's settings are kept per mode. Set by the app before loading; null = one copy.</summary>
+    public ModeSettings? Modes { get; init; }
+
+    // The active mode's copy (ADR 69).
+    private string ActiveKey => Modes?.Key(DocumentKey) ?? DocumentKey;
+
+    /// <summary>The mode switched or the compare view changed a value (ADR 69): reads the active mode's copy again.</summary>
+    public void ReloadForMode()
+    {
+        LoadBlocking();
+        Changed?.Invoke(this, Current);
+    }
+
     public void LoadBlocking()
     {
         try
         {
-            OverlaySettings? loaded = Task.Run(() => _store.LoadAsync<OverlaySettings>(DocumentKey)).GetAwaiter().GetResult();
+            string key = Modes?.ReadKeyBlocking(DocumentKey, OverlaySettings.Default) ?? DocumentKey;
+            OverlaySettings? loaded = Task.Run(() => _store.LoadAsync<OverlaySettings>(key)).GetAwaiter().GetResult();
             Current = loaded is null
                 ? WithoutSavedDocument()
                 : WithPlacement(WithDefaultTimer(loaded with
@@ -41,7 +55,7 @@ public sealed class OverlaySettingsService
             {
                 // Once, here: the list is replaced by its migrated form and saved, so a later change of Progress cannot migrate it again.
                 Current = Current with { ContentOrder = OverlayContentOrder.Complete(loaded.ContentOrder, loaded.Progress) };
-                Task.Run(() => _store.SaveAsync(DocumentKey, Current)).GetAwaiter().GetResult();
+                Task.Run(() => _store.SaveAsync(ActiveKey, Current)).GetAwaiter().GetResult();
             }
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
@@ -64,7 +78,7 @@ public sealed class OverlaySettingsService
             return OverlaySettings.Default with { DefaultTimer = ProfileOverlay.Off };
         }
 
-        Task.Run(() => _store.SaveAsync(DocumentKey, OverlaySettings.Default)).GetAwaiter().GetResult();
+        Task.Run(() => _store.SaveAsync(ActiveKey, OverlaySettings.Default)).GetAwaiter().GetResult();
         return OverlaySettings.Default;
     }
 
@@ -185,6 +199,6 @@ public sealed class OverlaySettingsService
     {
         Current = settings;
         Changed?.Invoke(this, settings);
-        await _store.SaveAsync(DocumentKey, settings);
+        await _store.SaveAsync(ActiveKey, settings);
     }
 }

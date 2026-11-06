@@ -94,6 +94,9 @@ public sealed class StartNudgeService
     /// <summary>True while the work-hours gate shows; the card waits until it's closed. Set by the app.</summary>
     public Func<bool> IsGateOpen { get; set; } = () => false;
 
+    /// <summary>ProductaBuddy is in effect (ADR 68): no start nudge and no ordinary card; only the start-of-day assistant (ADR 69). Set by the app.</summary>
+    public Func<bool> IsCompanion { get; set; } = () => false;
+
     /// <summary>The start-of-day assistant (hours, first tasks, Start). Set by the app.</summary>
     public StartOfDayAssistant? Assistant { get; set; }
 
@@ -115,17 +118,31 @@ public sealed class StartNudgeService
     /// <summary>Raised when <see cref="Card"/> opens or closes (the app shows or closes the window).</summary>
     public event EventHandler? CardChanged;
 
+    /// <summary>
+    /// ADR 69: kept per mode. In ProductaBuddy only the start-of-day assistant's switch is used (off to begin with); the nudge and
+    /// its card are AccountabiliBuddy's. Set by the app before loading; null = one copy.
+    /// </summary>
+    public ModeSettings? Modes { get; init; }
+
+    /// <summary>The mode switched or the compare view changed a value (ADR 69): reads the active mode's copy again.</summary>
+    public void ReloadForMode()
+    {
+        LoadBlocking();
+        CheckNow();
+    }
+
     public void LoadBlocking()
     {
         try
         {
-            StartNudgeSettings? stored = Task.Run(() => _store.LoadAsync<StartNudgeSettings>(DocumentKey)).GetAwaiter().GetResult();
+            string key = Modes?.ReadKeyBlocking(DocumentKey, StartNudgeSettings.Default, settings => settings with { AssistantOn = false }) ?? DocumentKey;
+            StartNudgeSettings? stored = Task.Run(() => _store.LoadAsync<StartNudgeSettings>(key)).GetAwaiter().GetResult();
             Settings = stored ?? StartNudgeSettings.Default;
             if (stored is not null && stored.Version < StartNudgeSettings.CurrentVersion)
             {
                 // The repeat used to flash the taskbar; now it brings the card in front, so an older choice becomes 15 once.
                 Settings = stored with { RepeatMinutes = 15, Version = StartNudgeSettings.CurrentVersion };
-                Task.Run(() => _store.SaveAsync(DocumentKey, Settings)).GetAwaiter().GetResult();
+                Task.Run(() => _store.SaveAsync(key, Settings)).GetAwaiter().GetResult();
             }
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
@@ -139,7 +156,7 @@ public sealed class StartNudgeService
     public async Task SaveAsync(StartNudgeSettings settings)
     {
         Settings = settings;
-        await _store.SaveAsync(DocumentKey, settings);
+        await _store.SaveAsync(Modes?.Key(DocumentKey) ?? DocumentKey, settings);
     }
 
     /// <summary>The card's window was closed some other way (no Start, no reason): it opens again at the next check.</summary>
@@ -197,13 +214,21 @@ public sealed class StartNudgeService
         }
 
         // Before the day's first window the assistant already waits for the user (the ordinary nudge does not).
-        LocalWindow? part = Settings.On && !sessionRunning && !suppressed
+        // ADR 68, 69: in ProductaBuddy only the start-of-day assistant runs, when its switch is on there.
+        bool on = IsCompanion() ? Settings.AssistantOn && Assistant is not null : Settings.On;
+        LocalWindow? part = on && !sessionRunning && !suppressed
             ? CurrentWorkPart() ?? UpcomingWindowForAssistant()
             : null;
         if (part is not LocalWindow workPart)
         {
             Reset();
             return;
+        }
+
+        // ADR 68: an ordinary card open when ProductaBuddy took effect closes; only the start-of-day assistant stays.
+        if (IsCompanion() && Card is not null)
+        {
+            CloseCard(scheduleNext: false);
         }
 
         Card?.Refresh(_sessions.Now);
@@ -274,7 +299,7 @@ public sealed class StartNudgeService
             {
                 OpenAssistantCard();
             }
-            else if (workPart.Start <= TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime)
+            else if (!IsCompanion() && workPart.Start <= TimeZoneInfo.ConvertTime(_sessions.Now, _sessions.TimeProvider.LocalTimeZone).DateTime)
             {
                 OpenCard(workPart); // Not before the window starts: only the assistant comes early.
             }
@@ -425,6 +450,11 @@ public sealed class StartNudgeService
 
     private void Nudge(StartNudgeReason reason)
     {
+        if (IsCompanion())
+        {
+            return; // ADR 68: no "open Today" nudge in ProductaBuddy; only the assistant may greet.
+        }
+
         if (_assistantFlow && reason is not (StartNudgeReason.SessionEnded or StartNudgeReason.Resumed))
         {
             return; // The assistant is the greeting: no Today window behind it.

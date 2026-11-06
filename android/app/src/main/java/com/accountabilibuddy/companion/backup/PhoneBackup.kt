@@ -34,6 +34,8 @@ object PhoneBackup {
     val PREFS = listOf(
         "ui", "emergency", "essentials", "bedtimeEssentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime", "lunchSettings", "stepsSettings",
         "timers", "curbox", "blockGuard", "lunchLockLift", "phoneDown",
+        // ADR 69: the other mode's copies of the per-mode settings, and which mode the live values belong to.
+        com.accountabilibuddy.companion.guidance.PhoneModeSettings.PREFS,
     )
 
     /** The preference files whose changes start an auto-backup. Not the ones the app writes on its own while running. */
@@ -46,6 +48,8 @@ object PhoneBackup {
         "takeover" to setOf("lastShown", "snoozedUntil", "startingUntil", "snoozeDay", "snoozes", "dayOffAskedAt", "dayOff", "unanswered", "finishedAskedAt"),
         "nudges" to setOf("lastNudge"),
         "emergency" to setOf("uses"),
+        // A switch caught half-way is this phone's running state; the next start finishes it.
+        com.accountabilibuddy.companion.guidance.PhoneModeSettings.PREFS to setOf(com.accountabilibuddy.companion.guidance.PhoneModeSettings.KEY_SWITCHING),
     )
 
     // Files where only these keys are settings; the rest is the app's running state or sealed.
@@ -62,10 +66,12 @@ object PhoneBackup {
     /** Settings files under files/companion backed up (the phone's own; the PC's data and secrets aren't). */
     val FILES = listOf("phone.json", "sleep.json", "sync-settings.json", "watch.json")
     private const val SYNC_SETTINGS = "sync-settings.json"
+    private val SYNCED_FILES = setOf("sleep.json")
     private const val HISTORY = "history"
     private const val NOT_A_BACKUP = "That isn't an AccountabiliBuddy phone settings file."
 
-    fun export(context: Context, appVersion: String): String {
+    /** @param forDeviceKind ADR 71's "This phone's settings": sleep is left out (it is in the synced settings backup). */
+    fun export(context: Context, appVersion: String, forDeviceKind: Boolean = false): String {
         val json = buildJsonObject {
             put("format", FORMAT)
             put("app", "AccountabiliBuddy phone settings")
@@ -80,7 +86,7 @@ object PhoneBackup {
                 }
             })
             put("files", buildJsonObject {
-                FILES.forEach { name ->
+                FILES.filterNot { forDeviceKind && it in SYNCED_FILES }.forEach { name ->
                     val file = File(context.filesDir, "companion/$name")
                     if (file.exists()) {
                         runCatching { Json.parseToJsonElement(file.readText()) }.getOrNull()?.let { put(name, it) }

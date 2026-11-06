@@ -197,6 +197,13 @@ object SyncFileJson {
         file.steps?.let { put("steps", writeSteps(it)) }
         // Optional (ADR 65): a PC's work ended early today; older apps ignore it.
         file.workEnded?.let { put("workEnded", writeWorkEnded(it)) }
+        // Optional (ADR 68): the guidance mode this device chose; older apps ignore it.
+        file.guidance?.let { guidance ->
+            put("guidance", buildJsonObject {
+                put("mode", guidance.mode)
+                put("editedAt", writeTime(guidance.editedAt))
+            })
+        }
         // Optional (ADR 66): a PC's waits running in the background; older apps ignore them.
         file.armedEnds?.let { ends ->
             put("armedEnds", JsonArray(ends.map { end ->
@@ -373,7 +380,14 @@ object SyncFileJson {
             readSteps(json["steps"]),
             readWorkEnded(json["workEnded"]),
             readArmedEnds(json["armedEnds"]),
+            readGuidance(json["guidance"]),
         )
+    }
+
+    /** The guidance mode (ADR 68), leniently: a value without a mode or a time reads as none. */
+    fun readGuidance(value: JsonElement?): SyncGuidance? {
+        val guidance = value as? JsonObject ?: return null
+        return runCatching { SyncGuidance(guidance.requiredString("mode"), guidance.requiredTime("editedAt")) }.getOrNull()
     }
 
     /** A PC's armed ends, leniently: an entry without an id, a kind or a ready time is dropped; a value that isn't a list reads as none. */

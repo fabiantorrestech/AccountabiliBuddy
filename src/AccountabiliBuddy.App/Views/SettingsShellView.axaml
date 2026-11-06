@@ -180,35 +180,9 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- One Save for the whole of Settings' pages; shown while there is something to save or to say. -->
-                <Border DockPanel.Dock="Top" Margin="0,0,16,10" Padding="14,8" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}">
-                    <Border.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                            <Binding Path="Settings.HasUnsavedChanges" />
-                            <Binding Path="Settings.SaveStatus" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
-                        </MultiBinding>
-                    </Border.IsVisible>
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <Ellipse Width="8" Height="8" Fill="{DynamicResource Ab.Waiting}" IsVisible="{Binding Settings.HasUnsavedChanges}" VerticalAlignment="Center" />
-                            <TextBlock Text="Unsaved changes" IsVisible="{Binding Settings.HasUnsavedChanges}" VerticalAlignment="Center" />
-                            <TextBlock Classes="muted" Text="{Binding Settings.SaveStatus}" TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="460"
-                                       IsVisible="{Binding !Settings.HasUnsavedChanges}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                            <Button Content="Revert" Command="{Binding Settings.RevertCommand}" IsEnabled="{Binding Settings.HasUnsavedChanges}" />
-                            <Button Classes="primary" Content="Save" Command="{Binding Settings.SaveCommand}" IsEnabled="{Binding Settings.HasUnsavedChanges}" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
-                <!-- Why a save didn't go through stays visible while the changes are still unsaved. -->
-                <Border DockPanel.Dock="Top" Classes="sInfo" Margin="0,0,16,10" Padding="14,8">
-                    <Border.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.And}">
-                            <Binding Path="Settings.HasUnsavedChanges" />
-                            <Binding Path="Settings.SaveStatus" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
-                        </MultiBinding>
-                    </Border.IsVisible>
+                <!-- Settings save on change: this line only says what a save couldn't do or what it waits for (a mistake, a wait). -->
+                <Border DockPanel.Dock="Top" Classes="sInfo" Margin="0,0,16,10" Padding="14,8"
+                        IsVisible="{Binding Settings.SaveStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                     <TextBlock Text="{Binding Settings.SaveStatus}" TextWrapping="Wrap" />
                 </Border>
                 <!-- Guard settings are view-only while a session runs (as before); the banner shows on the pages that hold them. -->

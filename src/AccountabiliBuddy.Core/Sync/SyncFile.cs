@@ -60,6 +60,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// A PC's waits running in the background (ADR 66): each armed end's id, kind and ready time, times only (never the reason). Null
 /// when none runs, and from an app that predates it, which ignore it (it is then cancelled only on the PC).
 /// </param>
+/// <param name="Guidance">
+/// The guidance mode this device chose (ADR 68), mode and time only. Null for a default nobody chose and from an app that predates
+/// it, which ignore it (an older device keeps guarding: the stricter side).
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -95,7 +99,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncCategoriesConverter))] IReadOnlyList<SyncCategory>? Categories = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncSteps? Steps = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncWorkEnded? WorkEnded = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncArmedEnd>? ArmedEnds = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncArmedEnd>? ArmedEnds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncGuidance? Guidance = null)
 {
     public const int CurrentFormatVersion = 1;
 }

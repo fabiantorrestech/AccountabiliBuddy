@@ -53,7 +53,8 @@ public sealed class WorkGateService : IDisposable
     /// <summary>Arms the gate (work hours starting, or a pause), counts its wait down, closes it when work ends. Runs every second.</summary>
     public void CheckNow()
     {
-        bool guarding = _guard.IsGuarding;
+        // ADR 68: ProductaBuddy counts as not guarding here, so a gate open when it takes effect closes (keeping what was typed).
+        bool guarding = _guard.IsGuarding && !_guard.IsCompanion();
         if (guarding && !_wasGuarding)
         {
             _armed = true; // Work hours just started.

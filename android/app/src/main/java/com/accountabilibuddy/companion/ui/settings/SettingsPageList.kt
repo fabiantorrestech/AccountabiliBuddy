@@ -20,6 +20,10 @@ const val REST_BANNER = "rest"
  */
 @Composable
 fun SettingsPageList(rows: List<PageRow>, anchor: String?, modifier: Modifier = Modifier, scrollAgain: Int = 0) {
+    // ADR 69: ProductaBuddy hides AccountabiliBuddy-only rows.
+    val companion = com.accountabilibuddy.companion.guidance.isCompanionMode()
+    @Suppress("NAME_SHADOWING")
+    val rows = if (companion) rows.filterNot { it.key in SettingsAnchors.AB_ONLY } else rows
     val state = rememberLazyListState()
     LazyColumn(modifier, state = state, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         items(rows, key = { it.key }) { row -> row.content() }

@@ -398,7 +398,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun turnPauseOff() {
         pause.turnOn()
-        message.value = "AccountabiliBuddy is on."
+        message.value = "${com.accountabilibuddy.companion.guidance.AppBrand.name(getApplication())} is on."
         refreshSoon()
     }
 

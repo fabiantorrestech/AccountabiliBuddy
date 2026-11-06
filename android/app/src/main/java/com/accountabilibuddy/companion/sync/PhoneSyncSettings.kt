@@ -43,6 +43,8 @@ data class PhoneSyncSettings(
      * sealed by [TokenVault]; here it is the plain key.
      */
     val relayAdmission: String? = null,
+    /** ADR 71: share this phone's task lists (tasks, Later, come-backs, task categories) with the other devices; on by default. */
+    val shareTaskLists: Boolean = true,
 ) {
     /**
      * Whether [next] takes something away from how this phone shares: a way of syncing that is on goes off, or one that stays on is pointed
@@ -76,6 +78,7 @@ class PhoneSyncSettingsStore(private val file: File) {
             settings.relayUrl?.let { put("relayUrl", it) }
             settings.relayPin?.let { put("relayPin", it) }
             settings.relayAdmission?.let { put("relayAdmissionSealed", TokenVault.seal(it)) }
+            put("shareTaskLists", settings.shareTaskLists)
         }
         file.parentFile?.mkdirs()
         val temporary = File(file.parentFile, "${file.name}.tmp")
@@ -100,6 +103,7 @@ class PhoneSyncSettingsStore(private val file: File) {
             json.string("folderUri"), json.int("folderMinutes") ?: 15, json.bool("alarmOn", true), json.string("alarmApp"),
             json.bool("driveOn", false), json.bool("relayOn", false), json.string("relayUrl"), json.string("relayPin"),
             json.string("relayAdmissionSealed")?.let(TokenVault::open),
+            shareTaskLists = json.bool("shareTaskLists", true),
         )
     }
 }

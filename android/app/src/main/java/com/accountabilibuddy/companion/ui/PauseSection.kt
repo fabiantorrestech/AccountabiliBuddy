@@ -76,7 +76,7 @@ private fun PauseSectionBody(state: PauseState, now: Instant, clock: ClockFormat
         is PauseStatus.Paused -> status.until?.let { "Off until ${clock.time(LocalDateTime.ofInstant(it, zone))}" } ?: "Off until you turn it on"
     }
     AbCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp), verticalSpacing = 8.dp) {
-        IconTitle("AccountabiliBuddy on this phone", style = Ab.type.body, fontWeight = FontWeight.SemiBold)
+        IconTitle("${com.accountabilibuddy.companion.guidance.appBrandName()} on this phone", style = Ab.type.body, icon = SectionIcons.of("AccountabiliBuddy on this phone"), fontWeight = FontWeight.SemiBold)
         GuardsRestNote()
         // Off or waiting to be off is the waiting tone: it is a state to notice, not an error.
         Text(summary, style = Ab.type.section, color = if (status == PauseStatus.On) Ab.colors.ink else Ab.colors.waiting)
@@ -111,7 +111,7 @@ private fun TurnOffDialog(onDismiss: () -> Unit, onPlanOffDays: () -> Unit, onCo
     var time by remember { mutableStateOf(LocalTime.of(2, 0)) }
     var wait by remember { mutableIntStateOf(PauseRules.WAITS.first()) }
     AbDialog(
-        title = "Turn AccountabiliBuddy off?",
+        title = "Turn ${com.accountabilibuddy.companion.guidance.appBrandName()} off?",
         onDismiss = onDismiss,
         confirmText = "Start the wait",
         onConfirm = { onConfirm(length, wait, time) },

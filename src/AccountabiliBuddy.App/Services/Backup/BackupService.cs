@@ -60,6 +60,43 @@ public sealed class BackupService
         _backupFolder = Path.Combine(dataDirectory, "backups");
     }
 
+    /// <summary>ADR 71: the synced settings besides the profiles, read and restored through their services. Set by the app.</summary>
+    public SyncedSettingsAccess? Synced { get; set; }
+
+    /// <summary>ADR 71: the task lists in their sync form. Set by the app.</summary>
+    public TaskListsAccess? Tasks { get; set; }
+
+    /// <summary>
+    /// ADR 71: device settings with a looser-change wait of their own (quit guard, PC-off), restored through their services so an
+    /// old backup can't loosen them at once. Each returns a note to show, or null. Set by the app.
+    /// </summary>
+    public Dictionary<string, Func<JsonElement, Task<string?>>> DeviceRestorers { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>ADR 71: this PC shares its task lists, so synced settings backups carry them. Set by the app.</summary>
+    public Func<bool> ShareTaskLists { get; set; } = () => true;
+
+    /// <summary>
+    /// ADR 71: exports one kind of backup. With a password the file is encrypted and holds secrets (calendar links, Google sign-ins);
+    /// without one it holds none.
+    /// </summary>
+    public async Task ExportKindAsync(BackupKind kind, string path, string? password)
+    {
+        string json = await CreateKindJsonAsync(kind, includeSecrets: password is not null);
+        string file = BackupEnvelope.Seal(json, password is not null ? BackupProtection.Password : BackupProtection.None, password);
+        await File.WriteAllTextAsync(path, file);
+    }
+
+    /// <summary>ADR 71: one kind's content as JSON (what an export or an auto-backup writes).</summary>
+    public async Task<string> CreateKindJsonAsync(BackupKind kind, bool includeSecrets = false)
+    {
+        BackupContent content = await CreateContentAsync(BackupKinds.Parts(kind, ShareTaskLists()), includeSecrets);
+        content = content with { Kind = BackupKinds.Name(kind), Platform = BackupKinds.PlatformPc };
+        return JsonSerializer.Serialize(content, SerializerOptions);
+    }
+
+    /// <summary>Stored documents that belong to no list of <see cref="DeviceSettingsRegistry"/> (a dev-build check).</summary>
+    public async Task<IReadOnlyList<string>> UnclassifiedKeysAsync() => DeviceSettingsRegistry.Unclassified(await _documents.ListKeysAsync());
+
     public static string AppVersion =>
         Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
         ?? "unknown";
@@ -91,6 +128,20 @@ public sealed class BackupService
         {
             return JsonSerializer.Deserialize<BackupContent>(json, SerializerOptions)
                    ?? throw new FormatException("The backup is empty.");
+        }
+        catch (JsonException ex)
+        {
+            throw new FormatException("The backup's content is damaged.", ex);
+        }
+    }
+
+    /// <summary>ADR 71: a backup's content JSON as it comes out of a sealed Drive copy.</summary>
+    /// <exception cref="FormatException">Not a backup's content.</exception>
+    public static BackupContent ReadContent(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<BackupContent>(json, SerializerOptions) ?? throw new FormatException("The backup is empty.");
         }
         catch (JsonException ex)
         {
@@ -169,6 +220,32 @@ public sealed class BackupService
             summary.Add($"History restored ({added} entries added).");
         }
 
+        // ADR 71: the synced settings go through their services: an ordinary edit that syncs out (a looser part waits).
+        if (parts.HasFlag(BackupParts.SyncedSettings) && content.Synced is not null && Synced is not null)
+        {
+            summary.AddRange(await RestoreSyncedAsync(content.Synced));
+        }
+
+        if (parts.HasFlag(BackupParts.DeviceSettings) && content.Device is not null)
+        {
+            if (content.Platform is string platform && platform != BackupKinds.PlatformPc)
+            {
+                summary.Add("This PC's settings weren't restored: the backup is from a phone.");
+            }
+            else
+            {
+                (int written, IReadOnlyList<string> notes) = await RestoreDeviceAsync(content, overwrite);
+                needsRestart |= written > 0;
+                summary.Add($"This PC's settings restored ({written} kept from the backup).");
+                summary.AddRange(notes);
+            }
+        }
+
+        if (parts.HasFlag(BackupParts.TaskLists) && content.Tasks is JsonElement tasks && Tasks is not null)
+        {
+            summary.Add(await Tasks.Import(tasks, overwrite));
+        }
+
         return new RestoreResult(needsRestart, safetyBackup, summary);
     }
 
@@ -213,7 +290,114 @@ public sealed class BackupService
             ? await _activityLog.ExportHistoryAsync(includeProtected: includeSecrets)
             : null;
 
-        return new BackupContent(_time.GetUtcNow(), AppVersion, includeSecrets, profiles, settings, googleClientSecret, sources, events, history);
+        Dictionary<string, JsonElement>? synced = parts.HasFlag(BackupParts.SyncedSettings) && Synced is not null
+            ? new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+            {
+                ["sleep"] = Synced.Sleep(),
+                ["daybar"] = Synced.DayBar(),
+                ["goal"] = Synced.Goal(),
+                ["guidance"] = Synced.Mode(),
+            }
+            : null;
+
+        Dictionary<string, JsonElement>? device = null;
+        if (parts.HasFlag(BackupParts.DeviceSettings))
+        {
+            device = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+            foreach (string key in (await _documents.ListKeysAsync()).Where(DeviceSettingsRegistry.IsDevice))
+            {
+                if (await _documents.LoadAsync<JsonElement?>(key) is JsonElement value)
+                {
+                    (device[key], string? secret) = WithoutSealedFields(key, value, includeSecrets);
+                    googleClientSecret ??= secret;
+                }
+            }
+        }
+
+        JsonElement? tasks = parts.HasFlag(BackupParts.TaskLists) && Tasks is not null ? Tasks.Export() : null;
+
+        return new BackupContent(_time.GetUtcNow(), AppVersion, includeSecrets, profiles, settings, googleClientSecret, sources, events, history,
+            Synced: synced, Device: device, Tasks: tasks);
+    }
+
+    // Fields sealed to this PC (DPAPI) don't travel: the Google client secret goes in plain text only with a password (as in the
+    // Settings part), and the After sunset place never (ADR 49).
+    private (JsonElement Value, string? GoogleClientSecret) WithoutSealedFields(string key, JsonElement value, bool includeSecrets)
+    {
+        if (key == CalendarSettingsKey && value.Deserialize<CalendarSettings>(SerializerOptions) is { } calendar)
+        {
+            string? secret = includeSecrets ? Unprotect(calendar.ProtectedGoogleClientSecret) : null;
+            return (JsonSerializer.SerializeToElement(calendar with { ProtectedGoogleClientSecret = null }, SerializerOptions), secret);
+        }
+
+        if ((key == PerModeSettings.ThemeKey || key == PerModeSettings.ThemeKey + ModeSettings.CompanionSuffix)
+            && System.Text.Json.Nodes.JsonNode.Parse(value.GetRawText()) is System.Text.Json.Nodes.JsonObject theme)
+        {
+            theme.Remove("protectedLocation");
+            theme.Remove("ProtectedLocation");
+            return (JsonSerializer.SerializeToElement(theme, SerializerOptions), null);
+        }
+
+        return (value, null);
+    }
+
+    private async Task<IEnumerable<string>> RestoreSyncedAsync(IReadOnlyDictionary<string, JsonElement> synced)
+    {
+        var notes = new List<string> { "Synced settings restored; your other devices get them at the next sync." };
+        var parts = new (string Key, Func<JsonElement, Task<string?>> Restore)[]
+        {
+            ("sleep", Synced!.RestoreSleep),
+            ("daybar", Synced.RestoreDayBar),
+            ("goal", Synced.RestoreGoal),
+            ("guidance", Synced.RestoreMode),
+        };
+        foreach ((string key, Func<JsonElement, Task<string?>> restore) in parts)
+        {
+            if (synced.TryGetValue(key, out JsonElement value) && await restore(value) is string note)
+            {
+                notes.Add(note);
+            }
+        }
+
+        return notes;
+    }
+
+    private async Task<(int Written, IReadOnlyList<string> Notes)> RestoreDeviceAsync(BackupContent content, bool overwrite)
+    {
+        int written = 0;
+        var notes = new List<string>();
+        // Only this PC's device settings are written, whatever else the file contains.
+        foreach ((string key, JsonElement value) in content.Device!.Where(entry => DeviceSettingsRegistry.IsDevice(entry.Key)))
+        {
+            if (!overwrite && await _documents.LoadAsync<JsonElement?>(key) is not null)
+            {
+                continue;
+            }
+
+            if (DeviceRestorers.TryGetValue(key, out Func<JsonElement, Task<string?>>? restore))
+            {
+                if (await restore(value) is string note)
+                {
+                    notes.Add(note);
+                }
+
+                continue;
+            }
+
+            if (key == CalendarSettingsKey)
+            {
+                CalendarSettings settings = value.Deserialize<CalendarSettings>(SerializerOptions) ?? CalendarSettings.Default;
+                await _documents.SaveAsync(key, settings with { ProtectedGoogleClientSecret = Protect(content.GoogleClientSecret) });
+            }
+            else
+            {
+                await _documents.SaveAsync(key, value);
+            }
+
+            written++;
+        }
+
+        return (written, notes);
     }
 
     /// <summary>

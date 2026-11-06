@@ -19,11 +19,15 @@ public sealed class SessionSoundSettingsService
 
     public event EventHandler<SessionSoundSettings>? Changed;
 
+    /// <summary>ADR 69: the sounds are kept per mode. Set by the app before loading; null = one copy.</summary>
+    public ModeSettings? Modes { get; init; }
+
     public void LoadBlocking()
     {
         try
         {
-            SessionSoundSettings? loaded = Task.Run(() => _store.LoadAsync<SessionSoundSettings>(DocumentKey)).GetAwaiter().GetResult();
+            string key = Modes?.ReadKeyBlocking(DocumentKey, SessionSoundSettings.Default) ?? DocumentKey;
+            SessionSoundSettings? loaded = Task.Run(() => _store.LoadAsync<SessionSoundSettings>(key)).GetAwaiter().GetResult();
             Current = loaded is null ? SessionSoundSettings.Default : Clamped(loaded);
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
@@ -36,7 +40,14 @@ public sealed class SessionSoundSettingsService
     {
         Current = Clamped(settings);
         Changed?.Invoke(this, Current);
-        await _store.SaveAsync(DocumentKey, Current);
+        await _store.SaveAsync(Modes?.Key(DocumentKey) ?? DocumentKey, Current);
+    }
+
+    /// <summary>The mode switched or the compare view changed a value (ADR 69): reads the active mode's copy again.</summary>
+    public void ReloadForMode()
+    {
+        LoadBlocking();
+        Changed?.Invoke(this, Current);
     }
 
     private static SessionSoundSettings Clamped(SessionSoundSettings settings)

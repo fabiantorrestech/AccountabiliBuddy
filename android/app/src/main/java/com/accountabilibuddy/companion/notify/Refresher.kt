@@ -84,8 +84,9 @@ object Refresher {
                 runCatching { TimelineWidget().updateAll(context) }
             }
 
-            // The master switch (and the car): while quiet, nothing nudges, parks or reminds.
-            val quiet = app.pause.isQuiet
+            // The master switch (and the car), and ProductaBuddy (ADR 68): while quiet, nothing nudges, parks or reminds.
+            app.guidance.advance()
+            val quiet = app.pause.isQuiet || app.guidance.isCompanion
             com.accountabilibuddy.companion.pause.PauseReminder.check(context, app.pause)
             if (!quiet) {
                 // ADR 38: tonight's reminders follow bedtime; the countdown redraws every minute.
@@ -111,13 +112,15 @@ object Refresher {
             nudgeAt = WorkStartNudge.nextAt(context, nudgeFocus)
             val running = focus?.running
             // Hardcore: a session started on another device (or the phone's test session) asks LockMyPhone-Extended
-            // for the chosen profile.
-            val testRunning = !quiet && app.testSession.running() != null
-            if (running != null || testRunning) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
+            // for the chosen profile. ADR 68: sessions keep their lock in ProductaBuddy, so only the pause stops it.
+            val sessionRunning = if (app.guidance.isCompanion && !app.pause.isQuiet) HeaderSource.focus(app, now)?.running else running
+            val testRunning = !app.pause.isQuiet && app.testSession.running() != null
+            if (sessionRunning != null || testRunning) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
             // Lunch lifts the session's LockMyPhone-Extended lock and brings it back after.
             runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(context) }
             // The night's lock: LockMyPhone-Extended's profile from bedtime until the wake time.
-            com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
+            // ADR 68: not in ProductaBuddy (a session's lock above still runs).
+            if (!app.guidance.isCompanion) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
             bedtimeAt = app.bedtimeEssentials.hardcoreProfile?.let {
                 com.accountabilibuddy.companion.essentials.BedtimeNight.nextStart(app)?.atZone(java.time.ZoneId.systemDefault())?.toInstant()
             }
@@ -164,9 +167,12 @@ object Refresher {
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilEmergencyEnd = (context.applicationContext as CompanionApp).emergency.active()?.end
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        // ADR 68: a switch to ProductaBuddy applies on time, not at the next ordinary refresh.
+        val untilGuidance = (context.applicationContext as CompanionApp).guidance.state.value.pending?.applyAt
+            ?.let { java.time.Duration.between(com.accountabilibuddy.companion.guidance.TrustedTime.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilPlanEdge = planEdgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilPauseEnd, untilEmergencyEnd, untilPlanEdge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilPauseEnd, untilEmergencyEnd, untilGuidance, untilPlanEdge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

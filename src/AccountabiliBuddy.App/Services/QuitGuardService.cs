@@ -116,7 +116,7 @@ public sealed class QuitGuardService
     {
         return quitLock.Reason switch
         {
-            QuitLockReason.AllTheTime => "\"All the time\" is on, so AccountabiliBuddy keeps running. Turning it off takes your spare key and a wait, in Settings › Guards.",
+            QuitLockReason.AllTheTime => $"\"All the time\" is on, so {AppBrand.Name} keeps running. Turning it off takes your spare key and a wait, in Settings › Guards.",
             QuitLockReason.Session => "A focus session is running. End the session first, then you can quit.",
             _ => quitLock.Until is DateTime until
                 ? $"Quit is locked during {quitLock.CategoryName}, until {until:t}."

@@ -106,6 +106,11 @@ data class SyncFile(
      * from a phone, a QR file, a PC with none running and a PC that predates it. Optional in the JSON, so older apps ignore it.
      */
     val armedEnds: List<SyncArmedEnd>? = null,
+    /**
+     * The guidance mode this device chose (ADR 68): AccountabiliBuddy (guarding) or ProductaBuddy (companion only), mode and time only.
+     * Null for a default nobody chose and from an app that predates it. Optional in the JSON, so older apps ignore it (and keep guarding).
+     */
+    val guidance: SyncGuidance? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1
@@ -130,6 +135,18 @@ data class SyncWorkEnded(val date: java.time.LocalDate, val windows: List<SyncWo
     }
 }
 
+/**
+ * The guidance mode a device chose (ADR 68): [mode] is [GUARDING] or [COMPANION] (a reader ignores one it doesn't know), [editedAt]
+ * when it was chosen. The newest edit wins on every device; [COMPANION] is looser, so it applies only after the receiver's own
+ * looser-change delay from [editedAt], and never during a session there.
+ */
+data class SyncGuidance(val mode: String, val editedAt: Instant) {
+    companion object {
+        const val GUARDING = "guarding"
+        const val COMPANION = "companion"
+    }
+}
+
 /** One stretch of work ended early: [start] (when it was confirmed) to [end] (the part's planned end). */
 data class SyncWorkEndedWindow(val start: Instant, val end: Instant)
 
@@ -145,6 +162,7 @@ data class SyncArmedEnd(val id: String, val kind: String, val readyAt: Instant) 
             END_WORK_EARLY -> "Work ends"
             STOP_FOR_TODAY -> "Work-hours guard stops"
             PRE_WORK_DAY_OFF -> "Day off starts"
+            COMPANION -> "Switch to ProductaBuddy"
             else -> "Ends"
         }
 
@@ -153,6 +171,7 @@ data class SyncArmedEnd(val id: String, val kind: String, val readyAt: Instant) 
         const val END_WORK_EARLY = "endWorkEarly"
         const val STOP_FOR_TODAY = "stopForToday"
         const val PRE_WORK_DAY_OFF = "preWorkDayOff"
+        const val COMPANION = "companion"
     }
 }
 

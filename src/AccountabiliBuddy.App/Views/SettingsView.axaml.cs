@@ -11,6 +11,15 @@ public partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
+        // Settings save on change: a typed field commits when it loses focus, and Enter ends the edit the same way.
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Avalonia.Input.Key.Enter && e.Source is TextBox { AcceptsReturn: false } box)
+            {
+                Avalonia.Data.BindingOperations.GetBindingExpressionBase(box, TextBox.TextProperty)?.UpdateSource();
+                e.Handled = true;
+            }
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is SettingsViewModel viewModel)

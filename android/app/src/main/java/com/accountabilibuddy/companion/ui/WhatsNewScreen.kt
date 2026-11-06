@@ -59,6 +59,7 @@ fun WhatsNewScreen(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.t
                 SetupFeatures.DAILY_STEPS -> DailyStepsSetupPage()
                 SetupFeatures.AUTOSYNC_NUDGE -> AutosyncSetupPage()
                 SetupFeatures.FINISHED_WORK_TAG -> FinishedWorkTagSetupPage()
+                SetupFeatures.GUIDANCE -> GuidanceSetupPage()
             }
         }
         Button(onClick = {

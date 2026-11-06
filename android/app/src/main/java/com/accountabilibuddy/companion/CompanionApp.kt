@@ -101,6 +101,12 @@ class CompanionApp : Application() {
     /** The phone's master switch and car pause. */
     val pause by lazy { com.accountabilibuddy.companion.pause.PauseStore(this) }
 
+    /** ADR 68: AccountabiliBuddy (guarding) or ProductaBuddy (companion only), one synced choice for every device. */
+    val guidance by lazy { com.accountabilibuddy.companion.guidance.GuidanceStore(this) }
+
+    /** ADR 69: the settings the phone keeps per mode; they follow the mode as it switches. */
+    val modeSettings by lazy { com.accountabilibuddy.companion.guidance.PhoneModeSettings(this) }
+
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
@@ -251,7 +257,7 @@ class CompanionApp : Application() {
     val smartBedtime by lazy { com.accountabilibuddy.companion.engine.SmartBedtimeService(this) }
 
     /** Auto-backup of this phone's settings to a chosen folder. */
-    val autoBackup by lazy { com.accountabilibuddy.companion.backup.AutoBackup(this, appVersion()) }
+    val autoBackup by lazy { com.accountabilibuddy.companion.backup.AutoBackup(this) }
 
     /** This app's version, e.g. "0.1.99". */
     fun versionName(): String = appVersion()
@@ -474,14 +480,16 @@ class CompanionApp : Application() {
         sync.categories = { taskCategories.forSync() }
         // Something moved between lists takes its category's current colour with it, so an old colour isn't stamped anew (ADR 62).
         sharedLists.colorOf = { name, stored ->
-            com.accountabilibuddy.companion.sync.TaskCategoryColors(taskCategories.categories.value, sync.received.value, java.time.Instant.now()).of(name, stored)
+            com.accountabilibuddy.companion.sync.TaskCategoryColors(taskCategories.categories.value, if (sync.sharesTaskLists()) sync.received.value else emptyList(), java.time.Instant.now()).of(name, stored)
         }
         taskCategories.onChanged = {
+            autoBackup.soon()
             relaySoon()
             appScope.launch { driveSource.syncNow() }
         }
         sync.onSharedLists = { nextTasks, parked, later, knowsDetails -> sharedLists.receive(nextTasks, parked, later, knowsDetails) }
         sharedLists.onChanged = {
+            autoBackup.soon()
             relaySoon()
             appScope.launch {
                 driveSource.syncNow()
@@ -615,6 +623,29 @@ class CompanionApp : Application() {
         }
         // The guard settings rest during a focus session: a "turn off" whose wait runs out then waits for the session to end.
         pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null }
+        // ADR 68: the same for a switch to ProductaBuddy. The chosen mode goes out in this phone's file at once; another device's newer one
+        // is taken (ProductaBuddy after this phone's own wait).
+        guidance.sessionRunning = pause.sessionRunning
+        sync.guidance = { guidance.forSync() }
+        // ADR 69: the per-mode settings follow the mode in effect (UiPrefs is loaded above).
+        modeSettings.resumeInterrupted()
+        modeSettings.follow(guidance.state.value.mode)
+        guidance.onChanged = {
+            autoBackup.soon()
+            val mode = guidance.state.value.mode
+            val switched = runCatching { modeSettings.follow(mode) }.getOrDefault(false)
+            // ADR 68: bedtime reminders ringing or shown stop here and on the watch when ProductaBuddy takes effect.
+            if (switched && mode == com.accountabilibuddy.companion.guidance.GuidanceMode.Companion) {
+                runCatching { com.accountabilibuddy.companion.notify.BedtimeReminders.stopAllForCompanion(this) }
+            }
+            runCatching { relaySoon() }
+            appScope.launch {
+                runCatching { Refresher.refresh(this@CompanionApp) }
+                runCatching { folderSource.syncNow() }
+                runCatching { driveSource.syncNow() }
+            }
+        }
+        appScope.launch { sync.received.collect { devices -> guidance.receive(devices.map { it.file }) } }
         // An erase that could not be finished last run (a PC session was running) is retried now, and every minute while one still runs.
         // Posted, so it runs after onCreate: the session check reads services that are made further down.
         android.os.Handler(mainLooper).post { sync.applyPendingErases() }

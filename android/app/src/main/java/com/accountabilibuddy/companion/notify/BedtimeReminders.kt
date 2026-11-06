@@ -88,6 +88,8 @@ object BedtimeReminders {
 
     /** The alarm went off: fires what's due (a reminder or a snooze), then sets the next. */
     fun fire(context: Context, clock: ClockFormat, now: LocalDateTime = LocalDateTime.now()) {
+        // ADR 68: an alarm set before ProductaBuddy took effect rings nothing (not here, not on the watch) and sets no next one.
+        if ((context.applicationContext as com.accountabilibuddy.companion.CompanionApp).guidance.isCompanion) return
         val tonight = tonight(context, now)
         val prefs = prefs(context, tonight?.night)
         val fired = prefs.getStringSet(KEY_FIRED, emptySet()).orEmpty().toMutableSet()
@@ -104,6 +106,19 @@ object BedtimeReminders {
             }
         prefs.edit().putStringSet(KEY_FIRED, fired).apply()
         refresh(context, clock, now)
+    }
+
+    /**
+     * ProductaBuddy took effect (ADR 68): tonight's reminders shown or ringing here stop, on the watch too (through the relay, as a
+     * dismiss), snoozes are dropped, and the next reminder alarm and the bedtime countdown go. Wake-up alarms and timers are not touched.
+     */
+    fun stopAllForCompanion(context: Context) {
+        val tonight = tonight(context) ?: lastNight(context)
+        val fired = prefs(context, tonight?.night).getStringSet(KEY_FIRED, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }
+        (fired + snoozes(context).keys).distinct().forEach { number -> dismiss(context, number, fromHere = true) }
+        context.getSystemService(AlarmManager::class.java).cancel(firePending(context))
+        NotificationManagerCompat.from(context).cancel(ALARM_ID)
+        NotificationManagerCompat.from(context).cancel(COUNTDOWN_ID)
     }
 
     /** Stops reminder [number] tonight on this phone (from here, the watch or a PC). */

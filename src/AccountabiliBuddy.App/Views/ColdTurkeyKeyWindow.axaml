@@ -11,21 +11,18 @@
         <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" />
 
         <StackPanel Spacing="10" IsVisible="{Binding IsSpareKey}">
-            <TextBlock TextWrapping="Wrap"
-                       Text="This key unlocks your Cold Turkey blocks if AccountabiliBuddy ever can't. Write it on paper now and keep it somewhere annoying to reach, or with someone you trust. It's shown only this once." />
+            <TextBlock TextWrapping="Wrap"><Run Text="This key unlocks your Cold Turkey blocks if " /><Run Text="{DynamicResource Ab.BrandName}" /><Run Text=" ever can't. Write it on paper now and keep it somewhere annoying to reach, or with someone you trust. It's shown only this once." /></TextBlock>
             <Border Background="#1A6366F1" CornerRadius="8" Padding="16" HorizontalAlignment="Center">
                 <SelectableTextBlock Text="{Binding Key}" FontFamily="Consolas,Courier New,monospace" FontSize="28" FontWeight="SemiBold" />
             </Border>
-            <TextBlock TextWrapping="Wrap" Opacity="0.8"
-                       Text="In an emergency: AccountabiliBuddy's tray menu → Emergency release, and type it there. If the app is broken, open Cold Turkey, stop the block and type the key (capital letters and dashes as written). Timed locks end by themselves within 10 minutes of the app stopping." />
+            <TextBlock TextWrapping="Wrap" Opacity="0.8"><Run Text="In an emergency: " /><Run Text="{DynamicResource Ab.BrandName}" /><Run Text="'s tray menu → Emergency release, and type it there. If the app is broken, open Cold Turkey, stop the block and type the key (capital letters and dashes as written). Timed locks end by themselves within 10 minutes of the app stopping." /></TextBlock>
             <TextBlock Text="Type the key from your paper to confirm you wrote it down:" />
             <TextBox x:Name="SpareBox" Text="{Binding TypedKey}" FontFamily="Consolas,Courier New,monospace" />
             <Button Content="I wrote it down" Command="{Binding ConfirmCommand}" Classes="accent" HorizontalAlignment="Right" />
         </StackPanel>
 
         <StackPanel Spacing="10" IsVisible="{Binding IsEmergency}">
-            <TextBlock TextWrapping="Wrap"
-                       Text="Releases every Cold Turkey block AccountabiliBuddy holds, for the rest of today. Password locks end at once; timed locks end within 10 minutes. You'll get a new spare key to write down." />
+            <TextBlock TextWrapping="Wrap"><Run Text="Releases every Cold Turkey block " /><Run Text="{DynamicResource Ab.BrandName}" /><Run Text=" holds, for the rest of today. Password locks end at once; timed locks end within 10 minutes. You'll get a new spare key to write down." /></TextBlock>
             <TextBlock Text="Type your spare key from your paper:" />
             <TextBox x:Name="EmergencyBox" Text="{Binding TypedKey}" FontFamily="Consolas,Courier New,monospace" />
             <Button Content="Release for today" Command="{Binding ReleaseCommand}" HorizontalAlignment="Right" />

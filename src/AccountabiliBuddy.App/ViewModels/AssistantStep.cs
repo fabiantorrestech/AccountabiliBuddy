@@ -61,6 +61,12 @@ public enum AssistantStep
     /// <summary>Step 13: the shutdown routine, an optional end-of-day flow on Today, set in Settings › Your day (only as a new feature, not in the first run).</summary>
     ShutdownRoutine,
 
+    /// <summary>
+    /// ADR 68: AccountabiliBuddy or ProductaBuddy, in the first run (ProductaBuddy preselected on a fresh install), as the full
+    /// setup's last page, and as a new feature for upgraded installs.
+    /// </summary>
+    Guidance,
+
     /// <summary>The first run's last question: how much focus a day (redesign phase 2).</summary>
     Goal,
     Done,

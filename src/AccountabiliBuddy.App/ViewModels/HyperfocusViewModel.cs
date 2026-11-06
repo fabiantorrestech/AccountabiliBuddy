@@ -24,6 +24,14 @@ public sealed partial class HyperfocusViewModel : ObservableObject
         _configuration.Changed += (_, _) => LoadProfiles();
     }
 
+    /// <summary>The mode switched (ADR 69): shows the active mode's reminder settings.</summary>
+    public void ReloadForMode()
+    {
+        IsOn = _guard.Settings.IntervalMinutes > 0;
+        IntervalMinutes = _guard.Settings.IntervalMinutes > 0 ? _guard.Settings.IntervalMinutes : HyperfocusSettings.Default.IntervalMinutes;
+        LoadProfiles();
+    }
+
     [ObservableProperty]
     public partial bool IsOn { get; set; }
 

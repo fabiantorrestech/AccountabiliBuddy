@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:sync="using:AccountabiliBuddy.App.Services.Sync"
+             x:Class="AccountabiliBuddy.App.Views.BackupKindCard"
+             x:DataType="vm:BackupKindCardViewModel">
+    <!-- One kind of backup (ADR 71): export, import, auto-backup and the sealed copies on Google Drive. -->
+    <StackPanel Spacing="8">
+        <TextBlock Text="{Binding Title}" Classes="sTitle" />
+        <TextBlock Text="{Binding Description}" Classes="sHint" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsAutoAndImport}">
+            <ToggleSwitch IsChecked="{Binding AutoOn}" OnContent="Auto-backup on" OffContent="Auto-backup off" />
+            <TextBlock Text="{Binding LastText}" Classes="sHint" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <TextBox Text="{Binding Password}" PasswordChar="●" MaxWidth="360" HorizontalAlignment="Left"
+                 PlaceholderText="Password (optional: encrypts it and keeps calendar links and sign-ins)" />
+
+        <WrapPanel>
+            <Button Content="Export…" Command="{Binding ExportCommand}" Margin="0,0,8,6" />
+            <Button Content="Import…" Command="{Binding ImportCommand}" Margin="0,0,8,6" IsVisible="{Binding ShowsAutoAndImport}" />
+            <Button Content="Back up now" Command="{Binding BackUpNowCommand}" Margin="0,0,8,6" IsVisible="{Binding AutoOn}" />
+            <Button Content="Open folder" Command="{Binding OpenFolderCommand}" Margin="0,0,8,6" IsVisible="{Binding ShowsAutoAndImport}" />
+            <Button Content="From Google Drive…" Command="{Binding LoadDriveBackupsCommand}" Margin="0,0,8,6" IsVisible="{Binding ShowsAutoAndImport}" />
+        </WrapPanel>
+
+        <Button Content="Open" Command="{Binding OpenWithPasswordCommand}" IsVisible="{Binding NeedsPassword}" HorizontalAlignment="Left" />
+
+        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasDriveBackups}">
+            <ComboBox ItemsSource="{Binding DriveBackups}" SelectedItem="{Binding SelectedDriveBackup}" MinWidth="320">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="sync:DriveBackupInfo">
+                        <TextBlock>
+                            <Run Text="{Binding DeviceName}" />
+                            <Run Text=" · " />
+                            <Run Text="{Binding FileName}" />
+                        </TextBlock>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Content="Open" Command="{Binding OpenDriveBackupCommand}" AutomationProperties.Name="Open Drive backup" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsOpened}">
+            <Button Content="Replace" Command="{Binding ReplaceCommand}" Classes="primary" />
+            <Button Content="Merge" Command="{Binding MergeCommand}" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+        </StackPanel>
+
+        <TextBlock Text="{Binding Status}" Classes="sHint" TextWrapping="Wrap" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <Button Content="Restart now" Command="{Binding RestartCommand}" IsVisible="{Binding NeedsRestart}" HorizontalAlignment="Left" />
+    </StackPanel>
+</UserControl>

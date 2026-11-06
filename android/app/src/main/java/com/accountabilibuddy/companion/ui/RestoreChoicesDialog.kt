@@ -40,8 +40,19 @@ internal fun rememberBackupRestore(onMessage: (String) -> Unit): () -> Unit {
     var text by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
-            text = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
-            if (text == null) onMessage("Couldn't read that file.")
+            val read = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+            // ADR 71: a "This phone's settings" file (.abdevice) holds the phone's settings inside a backup file; older files are them bare.
+            text = if (read != null && com.accountabilibuddy.companion.data.BackupFile.isBackup(read)) {
+                runCatching {
+                    val content = com.accountabilibuddy.companion.data.BackupFile.open(read)
+                    val app = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                    com.accountabilibuddy.companion.backup.PhoneKindBackup.problem(app, content, com.accountabilibuddy.companion.backup.PhoneKindBackup.Kind.Device)
+                        ?.let { throw com.accountabilibuddy.companion.data.ImportException(it) }
+                    content["device"]?.toString() ?: throw com.accountabilibuddy.companion.data.ImportException("The backup has no settings.")
+                }.getOrElse { onMessage(it.message ?: "Couldn't open it."); null }
+            } else {
+                read.also { if (it == null) onMessage("Couldn't read that file.") }
+            }
         }
     }
 

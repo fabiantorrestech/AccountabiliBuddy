@@ -17,6 +17,8 @@ import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 fun AppAndDataPage(anchor: String?, state: CompanionState, importing: Boolean, onImport: () -> Unit, onClearImport: () -> Unit) {
     SettingsPageList(
         listOf(
+            // ADR 68, 69: the app mode on all devices, and where the two modes' own settings differ.
+            PageRow(SettingsAnchors.GUIDANCE) { com.accountabilibuddy.companion.ui.GuidanceSection(inSettings = true) },
             PageRow(SettingsAnchors.STARTUP) { StartupSection() },
             PageRow(SettingsAnchors.BACKUP) { BackupSection() },
             PageRow(SettingsAnchors.PROFILES_FROM_PC) {

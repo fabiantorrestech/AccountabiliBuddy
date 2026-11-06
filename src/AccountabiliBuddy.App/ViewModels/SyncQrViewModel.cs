@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services;
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services.Sync;
 using Avalonia.Media.Imaging;
@@ -57,7 +58,7 @@ public sealed partial class SyncQrViewModel : ObservableObject
         }
 
         Text = pictures.Count == 1
-            ? "Scan the code with your phone's camera: AccountabiliBuddy opens and takes in today."
-            : $"Scan all {pictures.Count} codes with your phone's camera, in any order: AccountabiliBuddy opens and adds them up.";
+            ? $"Scan the code with your phone's camera: {AppBrand.Name} opens and takes in today."
+            : $"Scan all {pictures.Count} codes with your phone's camera, in any order: {AppBrand.Name} opens and adds them up.";
     }
 }

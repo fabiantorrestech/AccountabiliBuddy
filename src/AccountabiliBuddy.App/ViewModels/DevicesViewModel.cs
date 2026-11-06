@@ -331,6 +331,12 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool DriveOn { get; set; }
 
+    /// <summary>ADR 71: share this PC's task lists (tasks, Later, come-backs, task categories) with the other devices.</summary>
+    [ObservableProperty]
+    public partial bool ShareTaskLists { get; set; }
+
+    partial void OnShareTaskListsChanged(bool value) => _ = ApplyAsync(settings => settings with { ShareTaskLists = value });
+
     /// <summary>"Signed in to Google Drive", or what's missing before Drive can be used.</summary>
     [ObservableProperty]
     public partial string DriveStatusText { get; set; }
@@ -425,6 +431,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         QrOn = settings.QrOn;
         FileShareOn = settings.FileShareOn;
         DriveOn = settings.DriveOn;
+        ShareTaskLists = settings.ShareTaskLists;
         RelayOn = settings.RelayOn;
         string? admission = _settings.ReadRelayAdmission();
         if (settings.RelayUrl != _loadedRelayUrl || settings.RelayPin != _loadedRelayPin || admission != _loadedRelayAdmission)

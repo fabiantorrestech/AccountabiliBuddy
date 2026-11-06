@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Import;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -59,7 +60,7 @@ public sealed partial class ColdTurkeySetupRow : ObservableObject
         var todo = new List<string>();
         if (block.OtherLock is not null || (block.PasswordLocked && !block.IsSwitchedOn))
         {
-            todo.Add("set its lock to None in Cold Turkey (AccountabiliBuddy does the locking)");
+            todo.Add($"set its lock to None in Cold Turkey ({AppBrand.Name} does the locking)");
         }
 
         if (block.UnblocksWhenLockEnds)

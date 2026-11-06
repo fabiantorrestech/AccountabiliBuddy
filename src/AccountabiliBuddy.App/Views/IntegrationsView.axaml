@@ -153,8 +153,7 @@
                     <Border Classes="sRow">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                             <StackPanel Spacing="4" VerticalAlignment="Center">
-                                <TextBlock Classes="sHint"
-                                           Text="Freedom and PluckEye, if installed. AccountabiliBuddy only notices them: their lists aren't read and their blocks aren't changed. Copy a list from one and use Import a list below." />
+                                <TextBlock Classes="sHint"><Run Text="Freedom and PluckEye, if installed. " /><Run Text="{DynamicResource Ab.BrandName}" /><Run Text=" only notices them: their lists aren't read and their blocks aren't changed. Copy a list from one and use Import a list below." /></TextBlock>
                                 <TextBlock Text="None found on this PC." Classes="sHint" IsVisible="{Binding HasNoOtherBlockers}" />
                                 <ItemsControl ItemsSource="{Binding OtherBlockers}">
                                     <ItemsControl.ItemTemplate>

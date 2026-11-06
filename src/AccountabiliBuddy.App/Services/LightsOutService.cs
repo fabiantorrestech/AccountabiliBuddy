@@ -75,7 +75,8 @@ public sealed class LightsOutService : IDisposable
     /// <summary>Locks when a work part starts and after each 3-minute idle gap. Runs every second.</summary>
     public void CheckNow()
     {
-        bool active = Settings.On && CanUse && _guard.IsGuarding && !_sessions.State.IsRealSession && !_inCalendarEvent();
+        // ADR 68: never in ProductaBuddy (the guard's IsGuarding keeps its meaning for Cold Turkey's work-hours hold).
+        bool active = Settings.On && CanUse && _guard.IsGuarding && !_guard.IsCompanion() && !_sessions.State.IsRealSession && !_inCalendarEvent();
         bool started = active && _wasActive == false;
         // The first check after launch only learns the state: opening the app mid-work isn't a work part starting.
         _wasActive = active;

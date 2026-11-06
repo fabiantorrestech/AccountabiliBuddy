@@ -112,7 +112,7 @@ private fun Choices(lockedReason: String?, onChoose: (UnlinkedMode) -> Unit, onC
     )
     Choice(
         "Start from scratch",
-        "Clear everything AccountabiliBuddy keeps on this phone and set it up again as new.",
+        "Clear everything ${com.accountabilibuddy.companion.guidance.appBrandName()} keeps on this phone and set it up again as new.",
         enabled = lockedReason == null,
     ) { onChoose(UnlinkedMode.StartOver) }
     lockedReason?.let {
@@ -164,7 +164,7 @@ private fun AddAgain(lockedReason: String?, onJoin: (String) -> Boolean, onJoinL
 private fun StartOverPage(lockedReason: String?, onStartFromScratch: (String) -> Unit, onBack: () -> Unit) {
     var typed by rememberSaveable { mutableStateOf("") }
 
-    Text("This clears everything AccountabiliBuddy keeps on this phone: settings, timers, the link to your other devices and what it received from them. Setup then opens as on a first run.")
+    Text("This clears everything ${com.accountabilibuddy.companion.guidance.appBrandName()} keeps on this phone: settings, timers, the link to your other devices and what it received from them. Setup then opens as on a first run.")
     Text(
         "A copy of the app's files is kept first, in the app's own private storage on this phone (the three newest copies stay; " +
             "uninstalling the app removes them). It is never sent anywhere.",

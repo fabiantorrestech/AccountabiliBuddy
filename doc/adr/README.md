@@ -5,6 +5,10 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0071](0071-back-up-settings-by-kind-and-let-a-device-stop-syncing-task-lists.md) | Back up settings by kind, and let a device stop syncing its task lists | Accepted | — |
+| [0070](0070-read-network-time-to-guard-waits.md) | Read network time to guard waits | Accepted | — |
+| [0069](0069-keep-separate-settings-per-mode.md) | Keep separate settings per mode | Accepted | — |
+| [0068](0068-add-a-synced-companion-mode-that-quiets-guarding.md) | Add a synced Companion mode that quiets guarding | Accepted | — |
 | [0067](0067-let-the-phone-finish-work-for-the-day-with-a-tag-or-a-wait.md) | Let the phone finish work for the day with a tag or a wait | Accepted | — |
 | [0066](0066-let-a-waited-end-run-in-the-background-once-confirmed.md) | Let a waited end run in the background once confirmed | Accepted | — |
 | [0065](0065-let-start-shutdown-end-the-work-block-early.md) | Let Start shutdown end the work block early | Accepted | — |

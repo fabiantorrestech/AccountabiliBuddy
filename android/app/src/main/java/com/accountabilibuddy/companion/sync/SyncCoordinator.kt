@@ -65,6 +65,9 @@ class SyncCoordinator(
     /** The phone's method switches (the Devices tab). */
     val settings: StateFlow<PhoneSyncSettings> = settingsStore.settings
 
+    /** ADR 71: this phone shares its task lists (on by default). */
+    fun sharesTaskLists(): Boolean = settings.value.shareTaskLists
+
     /** The devices removed from the group (ADR 54); their files are refused and never carried. */
     val removedDevices: StateFlow<List<RemovedDevice>> = removedStore.devices
 
@@ -203,6 +206,26 @@ class SyncCoordinator(
     /** The group's link code (to show so another device joins); null outside a group. */
     fun linkCode(): String? = identity.code()
 
+    /**
+     * ADR 71: a settings backup's JSON sealed with the group's key for Google Drive (the backup as the one document of a sync file, as
+     * the PC writes it), with this phone's Drive folder name; null outside a group.
+     */
+    fun sealSettingsBackup(kind: String, json: String): Pair<String, ByteArray>? {
+        val key = identity.key.value ?: return null
+        val card = ownFile().device
+        val file = com.accountabilibuddy.shared.sync.SyncFile(
+            com.accountabilibuddy.shared.sync.SyncFile.CURRENT_FORMAT_VERSION, card, emptyList(), emptyList(), null,
+            listOf(com.accountabilibuddy.shared.sync.SyncDocument("backup.$kind", json, now())),
+        )
+        return DeviceBackups.folderNameFor(card) to com.accountabilibuddy.shared.sync.SyncFileCodec.seal(file, key)
+    }
+
+    /** ADR 71: a sealed settings backup's JSON; null when this group's key doesn't open it. */
+    fun openSettingsBackup(bytes: ByteArray): String? {
+        val key = identity.key.value ?: return null
+        return com.accountabilibuddy.shared.sync.SyncFileCodec.open(bytes, key)?.documents?.firstOrNull { it.key.startsWith("backup.") }?.json
+    }
+
     /** This phone's own file as QR code links, for "Show as picture" (a PC without a camera reads a screenshot). */
     fun ownQrLinks(): List<String> {
         val key = identity.key.value ?: return emptyList()
@@ -257,6 +280,9 @@ class SyncCoordinator(
 
     /** Work finished on this phone (ADR 67), in the PC's `workEnded` shape, times only; set by the app. */
     var workEnded: () -> com.accountabilibuddy.shared.sync.SyncWorkEnded? = { null }
+
+    /** The guidance mode chosen on this phone or taken from another device (ADR 68), mode and time only; set by the app. */
+    var guidance: () -> com.accountabilibuddy.shared.sync.SyncGuidance? = { null }
 
     /** The next session's task list with its tombstones (ADR 48); null before the app sets it. */
     var nextTasks: () -> List<com.accountabilibuddy.shared.sync.SyncNextTask>? = { null }
@@ -755,7 +781,8 @@ class SyncCoordinator(
         // An erase that waited for a focus session to end (ADR 55) is done at the next file after it.
         applyPendingErases()
         // Not from a device whose clock runs more than a minute ahead; a later file from it, once the clocks agree, is taken.
-        if ((file.nextTasks != null || file.parked != null || file.later != null) && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
+        // ADR 71: nor are the others' lists taken while this phone doesn't share its own.
+        if (sharesTaskLists() && (file.nextTasks != null || file.parked != null || file.later != null) && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
             // A file with a "later" list (even empty) comes from a writer that knows ADR 50's fields; one without, from an older app.
             onSharedLists(file.nextTasks, file.parked, file.later, file.later != null)
         }
@@ -818,15 +845,17 @@ class SyncCoordinator(
         blockers = runCatching { blockers() }.getOrNull(),
         wakeEstimate = runCatching { wakeEstimate() }.getOrNull(),
         placement = runCatching { placement() }.getOrNull(),
-        nextTasks = runCatching { nextTasks() }.getOrNull(),
-        parked = runCatching { parked() }.getOrNull(),
-        later = runCatching { later() }.getOrNull(),
+        // ADR 71: a phone that doesn't share its task lists sends none (read by the others as "keeps no shared lists").
+        nextTasks = if (sharesTaskLists()) runCatching { nextTasks() }.getOrNull() else null,
+        parked = if (sharesTaskLists()) runCatching { parked() }.getOrNull() else null,
+        later = if (sharesTaskLists()) runCatching { later() }.getOrNull() else null,
         // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
         pastKeys = pastKeys.forFile(),
         // Only the categories made or recoloured here (TaskCategoriesStore); the PCs list theirs.
-        categories = runCatching { categories() }.getOrNull(),
+        categories = if (sharesTaskLists()) runCatching { categories() }.getOrNull() else null,
         steps = runCatching { steps() }.getOrNull(),
         workEnded = runCatching { workEnded() }.getOrNull(),
+        guidance = runCatching { guidance() }.getOrNull(),
     )
 
     /**

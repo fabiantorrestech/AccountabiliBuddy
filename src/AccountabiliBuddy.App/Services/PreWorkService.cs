@@ -75,6 +75,9 @@ public sealed class PreWorkService
     /// <summary>A day off is armed: the card stays closed and the hold stays until it starts. Set by the app.</summary>
     public Func<bool> DayOffArmed { get; set; } = () => false;
 
+    /// <summary>ProductaBuddy is in effect (ADR 68): no "Is today a work day?" and nothing waits. Set by the app.</summary>
+    public Func<bool> IsCompanion { get; set; } = () => false;
+
     /// <summary>"Confirm" during the day-off wait (ADR 66): armed, the card closes; the hold stays until the day off starts.</summary>
     public void ArmDayOff(DateTimeOffset askedAt, string plans)
     {
@@ -125,7 +128,7 @@ public sealed class PreWorkService
             _ = SaveAsync(_state with { EndedOn = today });
         }
 
-        bool asking = part is not null && !_sessions.State.IsRealSession && _state.WorkDayOn != today && !IsDayOff && Holds() && !DayOffArmed()
+        bool asking = part is not null && !IsCompanion() && !_sessions.State.IsRealSession && _state.WorkDayOn != today && !IsDayOff && Holds() && !DayOffArmed()
             && (Prompt is not null || _idle.GetIdleTime() < ActiveWithin);
         if (asking && Prompt is null)
         {
@@ -138,7 +141,8 @@ public sealed class PreWorkService
         }
 
         Prompt?.Refresh(_sessions.Now, UnlocksThisWeek);
-        bool guarding = IsHolding;
+        // ADR 68: ProductaBuddy lets things be; a return to AccountabiliBuddy during Pre-Work sweeps like guarding beginning.
+        bool guarding = IsHolding && !IsCompanion();
         if (guarding && !_wasGuarding)
         {
             // Guarding just began: what's already on screen waits too.
@@ -154,7 +158,7 @@ public sealed class PreWorkService
     /// <summary>A window came to the front: work tools and distractions wait while guarding (and while the question shows).</summary>
     public void OnActivity(ActivitySnapshot snapshot)
     {
-        if (!IsHolding || snapshot.IsEmptyDesktop || IsOwnApp(snapshot))
+        if (!IsHolding || IsCompanion() || snapshot.IsEmptyDesktop || IsOwnApp(snapshot))
         {
             return;
         }

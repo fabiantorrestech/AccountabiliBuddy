@@ -27,4 +27,13 @@ public interface IDriveFiles
     /// <summary>The backups under <c>Backups/</c> (every device's folder); empty when there are none.</summary>
     /// <exception cref="HttpRequestException">Network error, or Drive refused (e.g. signed out).</exception>
     Task<IReadOnlyList<DriveBackupInfo>> ListBackupsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// ADR 71: a sealed settings backup into <c>Settings backups/&lt;kind&gt;/&lt;device&gt;/</c> in the app's folder; only the newest
+    /// <paramref name="keep"/> files there stay.
+    /// </summary>
+    Task UploadSettingsBackupAsync(string kind, string deviceFolder, string fileName, byte[] content, int keep, CancellationToken cancellationToken);
+
+    /// <summary>ADR 71: every device's sealed settings backups of one kind (the device in <see cref="DriveBackupInfo"/>'s name).</summary>
+    Task<IReadOnlyList<DriveBackupInfo>> ListSettingsBackupsAsync(string kind, CancellationToken cancellationToken);
 }

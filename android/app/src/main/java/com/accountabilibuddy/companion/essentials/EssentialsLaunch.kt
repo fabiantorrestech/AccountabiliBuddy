@@ -43,7 +43,8 @@ object EssentialsLaunch {
         // Lunch is a break from the session: no essentials screen (and no lock) until it ends.
         val onLunch = app.lunch.isOnLunch(now)
         val session = runningSessionStart(app, now) != null && !onLunch
-        val night = if (runningSessionStart(app, now) != null) null else BedtimeNight.current(app)
+        // ADR 68: ProductaBuddy keeps no night: no bedtime essentials screen and no night lock (a session's still run).
+        val night = if (runningSessionStart(app, now) != null || app.guidance.isCompanion) null else BedtimeNight.current(app)
         if (night != null) maybeStartBedtimeHardcore(context, now)
         val kind = when {
             // A work use ("Need it for work") lets the phone be unlocked and used for its minutes.
@@ -71,6 +72,8 @@ object EssentialsLaunch {
     fun maybeStartBedtimeHardcore(context: Context, now: Instant = Instant.now()) {
         val app = context.applicationContext as CompanionApp
         if (!app.essentials.useLockMyPhone) return
+        // ADR 68: the night's lock is AccountabiliBuddy-only.
+        if (app.guidance.isCompanion) return
         val profile = app.bedtimeEssentials.hardcoreProfile ?: return
         if (runningSessionStart(app, now) != null) return
         val night = BedtimeNight.current(app) ?: return

@@ -133,12 +133,23 @@ public sealed class AppTheme : IDisposable
     /// <summary>True when the app should look dark right now (only meaningful for the set times and sunset).</summary>
     public bool IsDarkNow => _isDark;
 
+    /// <summary>ADR 69: the theme, light or dark and colour are kept per mode. Set by the app before loading; null = one copy.</summary>
+    public ModeSettings? Modes { get; init; }
+
+    /// <summary>The mode switched or the compare view changed a value (ADR 69): reads and applies the active mode's copy.</summary>
+    public void ReloadForMode()
+    {
+        LoadBlocking();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public void LoadBlocking()
     {
         StoredAppearance stored;
         try
         {
-            stored = Task.Run(() => _store.LoadAsync<StoredAppearance>(DocumentKey)).GetAwaiter().GetResult() ?? new StoredAppearance();
+            string key = Modes?.ReadKeyBlocking(DocumentKey, new StoredAppearance()) ?? DocumentKey;
+            stored = Task.Run(() => _store.LoadAsync<StoredAppearance>(key)).GetAwaiter().GetResult() ?? new StoredAppearance();
         }
         catch (Exception ex) when (ex is SqliteException or JsonException)
         {
@@ -406,7 +417,7 @@ public sealed class AppTheme : IDisposable
                 LocationAskedOn = _askedOn,
                 Colour = (int)Colour,
             };
-            await _store.SaveAsync(DocumentKey, stored);
+            await _store.SaveAsync(Modes?.Key(DocumentKey) ?? DocumentKey, stored);
         }
         catch (Exception ex) when (ex is SqliteException or CryptographicFailureException)
         {

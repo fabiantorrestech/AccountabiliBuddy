@@ -30,10 +30,17 @@ object SetupFeatures {
     const val DAILY_STEPS = "steps.daily"
     const val AUTOSYNC_NUDGE = "sync.autosyncNudge"
     const val FINISHED_WORK_TAG = "nudge.finishedWorkTag"
+    const val GUIDANCE = "guidance.mode"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            GUIDANCE, "0.1.77", "ProductaBuddy: a companion without the guarding, on all your devices",
+            relevant = { true },
+            // Set up once chosen here or on another device (a waiting switch counts).
+            setUp = { done(it, GUIDANCE) || (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).guidance.state.value.let { state -> state.isChosen || state.pending != null } },
+        ),
         SetupFeature(
             CURBOX, "0.1.58", "Curbox: guided setup, when blocks come back on, hard mode",
             relevant = { CurboxClient(it).findPackage() != null },

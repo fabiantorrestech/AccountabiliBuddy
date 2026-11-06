@@ -149,7 +149,7 @@ private fun settingsSummaries(inputs: SettingsListInputs, appearance: String, pe
         SettingsCategory.Devices to inputs.devicesSummary,
         SettingsCategory.Connections to listOfNotNull("Beeminder", "Curbox".takeIf { inputs.curbox.granted }, "other blockers").joinToString(", "),
         SettingsCategory.Appearance to appearance,
-        SettingsCategory.AppAndData to "Startup · backup · import",
+        SettingsCategory.AppAndData to "App mode · startup · backup",
         SettingsCategory.Setup to permissions,
         SettingsCategory.About to "Version ${inputs.appVersion}",
     )

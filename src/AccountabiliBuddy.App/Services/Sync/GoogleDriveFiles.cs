@@ -161,6 +161,59 @@ public sealed class GoogleDriveFiles : IDriveFiles
         return found;
     }
 
+    /// <summary>ADR 71: the folder in the app's Drive folder that holds settings backups (apart from the removed devices' backups).</summary>
+    public const string SettingsBackupsFolderName = "Settings backups";
+
+    public async Task UploadSettingsBackupAsync(string kind, string deviceFolder, string fileName, byte[] content, int keep, CancellationToken cancellationToken)
+    {
+        string token = await _accessToken(cancellationToken);
+        string app = await FolderAsync(token, cancellationToken);
+        string root = (await ChildFolderAsync(token, app, SettingsBackupsFolderName, create: true, cancellationToken))!;
+        string kindFolder = (await ChildFolderAsync(token, root, kind, create: true, cancellationToken))!;
+        string device = (await ChildFolderAsync(token, kindFolder, deviceFolder, create: true, cancellationToken))!;
+
+        string metadata = JsonSerializer.Serialize(new { name = fileName, parents = new[] { device } });
+        using var multipart = new MultipartContent("related");
+        var meta = new StringContent(metadata, Encoding.UTF8, "application/json");
+        var file = new ByteArrayContent(content);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        multipart.Add(meta);
+        multipart.Add(file);
+        using JsonDocument created = await _network.SendJsonAsync(HttpMethod.Post, UploadUri("files", "multipart"), token, multipart, cancellationToken);
+
+        // The newest [keep] stay.
+        IReadOnlyList<DriveFileInfo> files = await ChildrenAsync(token, device, cancellationToken);
+        foreach (DriveFileInfo old in files.OrderByDescending(entry => entry.ModifiedAt).Skip(keep))
+        {
+            await DeleteAsync(old.Id, cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<DriveBackupInfo>> ListSettingsBackupsAsync(string kind, CancellationToken cancellationToken)
+    {
+        string token = await _accessToken(cancellationToken);
+        string app = await FolderAsync(token, cancellationToken);
+        string? root = await ChildFolderAsync(token, app, SettingsBackupsFolderName, create: false, cancellationToken);
+        string? kindFolder = root is null ? null : await ChildFolderAsync(token, root, kind, create: false, cancellationToken);
+        if (kindFolder is null)
+        {
+            return [];
+        }
+
+        var found = new List<DriveBackupInfo>();
+        foreach (JsonElement folder in await ChildFoldersAsync(token, kindFolder, cancellationToken))
+        {
+            string folderId = folder.GetProperty("id").GetString()!;
+            string deviceName = folder.GetProperty("name").GetString()!;
+            foreach (DriveFileInfo file in await ChildrenAsync(token, folderId, cancellationToken))
+            {
+                found.Add(new DriveBackupInfo(file.Id, deviceName, file.Name, file.ModifiedAt, file.Size));
+            }
+        }
+
+        return found.OrderByDescending(entry => entry.ModifiedAt).ToList();
+    }
+
     // A folder directly inside [parent], by name; made when [create] and it isn't there (null when it isn't there and [create] is false).
     private async Task<string?> ChildFolderAsync(string token, string parent, string name, bool create, CancellationToken cancellationToken)
     {

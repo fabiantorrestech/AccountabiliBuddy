@@ -48,11 +48,18 @@ public sealed class HeadphoneAutoPlayService : IDisposable
 
     public HeadphoneSettings Current { get; private set; } = HeadphoneSettings.Default;
 
+    /// <summary>ADR 69: "play when headphones connect" is kept per mode. Set by the app before loading; null = one copy.</summary>
+    public ModeSettings? Modes { get; init; }
+
+    /// <summary>The mode switched or the compare view changed a value (ADR 69): reads the active mode's copy again.</summary>
+    public void ReloadForMode() => LoadBlocking();
+
     public void LoadBlocking()
     {
         try
         {
-            HeadphoneSettings? loaded = Task.Run(() => _store.LoadAsync<HeadphoneSettings>(DocumentKey)).GetAwaiter().GetResult();
+            string key = Modes?.ReadKeyBlocking(DocumentKey, HeadphoneSettings.Default) ?? DocumentKey;
+            HeadphoneSettings? loaded = Task.Run(() => _store.LoadAsync<HeadphoneSettings>(key)).GetAwaiter().GetResult();
             Current = loaded is null ? HeadphoneSettings.Default : loaded with { Devices = loaded.Devices ?? [] };
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
@@ -69,7 +76,7 @@ public sealed class HeadphoneAutoPlayService : IDisposable
         WatchIfOn();
         try
         {
-            await _store.SaveAsync(DocumentKey, settings);
+            await _store.SaveAsync(Modes?.Key(DocumentKey) ?? DocumentKey, settings);
         }
         catch (SqliteException)
         {

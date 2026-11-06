@@ -257,8 +257,7 @@
                     <Border Classes="sRow" IsVisible="{Binding RelayHost, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <StackPanel Spacing="8">
                             <TextBlock Text="Run a relay on this PC" Classes="sTitle" />
-                            <TextBlock Classes="sHint"
-                                       Text="No other computer needed: this PC runs the relay while AccountabiliBuddy runs, so your phone and tablet can sync through it on any network. Everything on it is sealed, and the connection is HTTPS pinned to its own certificate." />
+                            <TextBlock Classes="sHint"><Run Text="No other computer needed: this PC runs the relay while " /><Run Text="{DynamicResource Ab.BrandName}" /><Run Text=" runs, so your phone and tablet can sync through it on any network. Everything on it is sealed, and the connection is HTTPS pinned to its own certificate." /></TextBlock>
                             <Button Content="Run a relay on this PC…" Command="{Binding RelayHost.BeginTurnOnCommand}" HorizontalAlignment="Left" IsVisible="{Binding !RelayHost.HostOn}" />
 
                             <!-- Said before Windows' permission prompt. -->
@@ -431,6 +430,22 @@
                         </Grid>
                     </Border>
                 </StackPanel>
+            </Border>
+
+            <!-- ADR 71: whether this PC shares its task lists with the other devices. -->
+            <TextBlock Classes="sGroup" Text="Task lists" />
+            <Border Classes="sPanel">
+                <Border Classes="sRow" BorderThickness="0">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                        <StackPanel Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Classes="sTitle" Text="Sync task lists with my other devices" />
+                            <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                       Text="Tasks, Later, come-backs and task categories. Off: this PC keeps its own lists and doesn't take the others'; back up and import them in App &amp; data › Backup. Turned back on, the lists merge; anything deleted elsewhere meanwhile stays deleted." />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding ShareTaskLists}" VerticalAlignment="Center"
+                                  AutomationProperties.Name="Sync task lists with my other devices" />
+                    </Grid>
+                </Border>
             </Border>
 
             <!-- The title bar's sync light (display only). -->

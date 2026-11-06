@@ -258,7 +258,7 @@ public sealed class SyncCoordinator
         SyncNoise? noise = Noise is null ? null : await Noise();
         return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
             _sessions.State.IsRealSession, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf,
-            _sessions.State.IsPlanning ? _sessions.State.PhaseEndsAt : null) with { Comebacks = Comebacks?.Invoke(), Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
+            _sessions.State.IsPlanning ? _sessions.State.PhaseEndsAt : null) with { Comebacks = ShareTaskLists() ? Comebacks?.Invoke() : null, Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
                 ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null,
                 Blockers = Blockers?.Invoke(), Beeminder = Beeminder?.Invoke(),
@@ -268,15 +268,20 @@ public sealed class SyncCoordinator
                 ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
                 DefaultProfileId = CountUpProfileId?.Invoke(), Noise = noise,
                 // ADR 48, 50: the shared lists, each with its tombstones; sealed like everything in the file.
-                NextTasks = NextTasks?.Invoke(), Parked = Parked?.Invoke(), Later = Later?.Invoke(),
+                // ADR 71: a PC that doesn't share its task lists sends none (read by the others as "keeps no shared lists").
+                NextTasks = ShareTaskLists() ? NextTasks?.Invoke() : null,
+                Parked = ShareTaskLists() ? Parked?.Invoke() : null,
+                Later = ShareTaskLists() ? Later?.Invoke() : null,
                 // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
                 PastKeys = PastKeys?.ForFile(),
                 // This PC's task categories, always listed (empty when it has none), sealed like everything else.
-                Categories = Categories?.Invoke(),
+                Categories = ShareTaskLists() ? Categories?.Invoke() : null,
                 // ADR 65: today's work ended early, times only (never the reason).
                 WorkEnded = WorkEnded?.Invoke(),
                 // ADR 66: the waits running in the background here, times only (never the reason), for the phone's countdown and Cancel.
-                ArmedEnds = ArmedEnds?.Invoke() is { Count: > 0 } armed ? armed : null };
+                ArmedEnds = ArmedEnds?.Invoke() is { Count: > 0 } armed ? armed : null,
+                // ADR 68: the guidance mode this PC chose, mode and time only; null for a default nobody chose.
+                Guidance = Guidance?.Invoke() };
     }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
@@ -391,6 +396,15 @@ public sealed class SyncCoordinator
     /// <summary>Today's work ended early (ADR 65), ended here or taken from another PC; times only. Set by the app.</summary>
     public Func<SyncWorkEnded?>? WorkEnded { get; set; }
 
+    /// <summary>
+    /// ADR 71: this PC shares its task lists (tasks, Later, come-backs, task categories) with the other devices; set by the app. Off,
+    /// none are sent or taken.
+    /// </summary>
+    public Func<bool> ShareTaskLists { get; set; } = () => true;
+
+    /// <summary>The guidance mode chosen here or taken from another device (ADR 68), mode and time only; set by the app.</summary>
+    public Func<SyncGuidance?>? Guidance { get; set; }
+
     /// <summary>The armed ends running here (ADR 66), times only; set by the app.</summary>
     public Func<IReadOnlyList<SyncArmedEnd>>? ArmedEnds { get; set; }
 
@@ -470,7 +484,8 @@ public sealed class SyncCoordinator
     // later file from it, once the clocks agree, is. Item times past 2 minutes ahead are clamped by the merge itself.
     private async Task ReceiveSharedListsAsync(SyncFile file)
     {
-        if (file.Device.WrittenAt > _sessions.Now + FutureWrittenAtLimit)
+        // ADR 71: a PC that doesn't share its task lists doesn't take the others' either.
+        if (!ShareTaskLists() || file.Device.WrittenAt > _sessions.Now + FutureWrittenAtLimit)
         {
             return;
         }

@@ -262,7 +262,7 @@
 
                 <!-- 7. Review: how the buddy behaves through each kind of day, then Save or Back -->
                 <StackPanel IsVisible="{Binding IsReview}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
-                    <TextBlock Classes="body" TextWrapping="Wrap" Text="Here is how AccountabiliBuddy will behave through each kind of day with these settings. Save to apply them, or Back to change something." />
+                    <TextBlock Classes="body" TextWrapping="Wrap"><Run Text="Here is how " /><Run Text="{DynamicResource Ab.BrandName}" /><Run Text=" will behave through each kind of day with these settings. Save to apply them, or Back to change something." /></TextBlock>
                     <ItemsControl ItemsSource="{Binding ReviewNotes}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="x:String">

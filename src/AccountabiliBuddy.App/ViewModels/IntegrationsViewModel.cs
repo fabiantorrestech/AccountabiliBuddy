@@ -51,6 +51,12 @@ public sealed partial class IntegrationsViewModel : ObservableObject
         RefreshSightings();
         DetectColdTurkey();
         DetectOtherBlockers();
+        // ADR 68: lines that name the app follow the mode's name.
+        AppBrand.Changed += (_, _) =>
+        {
+            DetectColdTurkey();
+            DetectOtherBlockers();
+        };
     }
 
     public ObservableCollection<ProfileOption> ProfileOptions { get; } = new();
@@ -135,7 +141,7 @@ public sealed partial class IntegrationsViewModel : ObservableObject
         ColdTurkeyDetails = string.Join(Environment.NewLine,
             $"Installed in {status.InstallFolder}; its browser extension host is registered for {browsers}.",
             "Coexistence is automatic: Cold Turkey's block pages (and any other extension's pages) never count as distracting, "
-                + "and AccountabiliBuddy never redirects a tab Cold Turkey already blocked.",
+                + $"and {AppBrand.Name} never redirects a tab Cold Turkey already blocked.",
             "Cold Turkey's own settings are never read or changed.");
     }
 
@@ -146,7 +152,7 @@ public sealed partial class IntegrationsViewModel : ObservableObject
         foreach (OtherBlocker blocker in _otherBlockers.Detect())
         {
             string name = blocker.Version is { Length: > 0 } version ? $"{blocker.Name} {version}" : blocker.Name;
-            OtherBlockers.Add($"Detected: {name} — not controlled by AccountabiliBuddy");
+            OtherBlockers.Add($"Detected: {name} — not controlled by {AppBrand.Name}");
         }
 
         HasNoOtherBlockers = OtherBlockers.Count == 0;
