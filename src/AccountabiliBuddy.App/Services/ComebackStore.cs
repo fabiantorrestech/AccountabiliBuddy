@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
@@ -44,6 +45,9 @@ public sealed class ComebackStore
 
     public event EventHandler? Changed;
 
+    /// <summary>This device's id in its sync group (ADR 72's keeper rule); null while it isn't in one. Set by the app.</summary>
+    public Func<Guid?> SelfId { get; set; } = () => null;
+
     public void LoadBlocking()
     {
         try
@@ -59,9 +63,12 @@ public sealed class ComebackStore
     }
 
     /// <summary>Adds one, in a category (its name and colour) or none; a blank line adds nothing.</summary>
-    public Task AddAsync(string text, string? category = null, string? categoryColor = null)
+    public Task AddAsync(string text, string? category = null, string? categoryColor = null, IReadOnlyList<string>? labels = null)
     {
-        string trimmed = text.Trim();
+        // ADR 72: "##word" in the typed text is a label.
+        (string typedText, IReadOnlyList<string>? typedLabels) = TaskLabels.Parse(text.Trim());
+        string trimmed = typedText.Trim();
+        labels = TaskLabels.With(labels, typedLabels ?? []);
         if (trimmed.Length == 0)
         {
             return Task.CompletedTask;
@@ -72,7 +79,88 @@ public sealed class ComebackStore
         string? name = CleanCategory(category);
         _all.Add(new Comeback(
             Guid.NewGuid(), trimmed, now, EditedAt: now, Position: SharedListMerge.PositionBetween(last, null),
-            Category: name, CategoryColor: name is null ? null : categoryColor));
+            Category: name, CategoryColor: name is null ? null : categoryColor, Labels: labels));
+        return SaveAsync();
+    }
+
+    /// <summary>The list for a task-list backup (ADR 71): as <see cref="ForSync"/>, but the local come-backs kept here keep their text (ADR 72).</summary>
+    public IReadOnlyList<SyncParked> ForBackup()
+    {
+        DateTimeOffset from = _time.GetUtcNow() - SharedListMerge.TombstonesKept;
+        return _all
+            .Where(comeback => comeback.DeletedAt is DateTimeOffset deletedAt ? deletedAt > from || comeback.LocalTo is not null : comeback.DoneAt is not DateTimeOffset doneAt || doneAt > from)
+            .Select(ToShared)
+            .OrderBy(item => item.Position)
+            .ToList();
+    }
+
+    /// <summary>The come-back <paramref name="id"/> while it is shown here; null otherwise.</summary>
+    public Comeback? Find(Guid id)
+    {
+        return _all.FirstOrDefault(comeback => comeback.Id == id && comeback.DeletedAt is null);
+    }
+
+    /// <summary>Sets the labels of come-back <paramref name="id"/> (ADR 72; null or none clears them).</summary>
+    public Task SetLabelsAsync(Guid id, IReadOnlyList<string>? labels)
+    {
+        int index = IndexOfLive(id);
+        if (index < 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        _all[index] = _all[index] with { Labels = TaskLabels.Clean(labels), EditedAt = EditStamp(_time.GetUtcNow(), _all[index]) };
+        return SaveAsync();
+    }
+
+    /// <summary>Renames (blank <paramref name="to"/>: deletes) label <paramref name="from"/> on every come-back that has it.</summary>
+    public Task RenameLabelAsync(string from, string to)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        bool changed = false;
+        for (int index = 0; index < _all.Count; index++)
+        {
+            Comeback held = _all[index];
+            if (held.DeletedAt is null && TaskLabels.Has(held.Labels, from))
+            {
+                _all[index] = held with { Labels = TaskLabels.Renamed(held.Labels, from, to), EditedAt = EditStamp(now, held) };
+                changed = true;
+            }
+        }
+
+        return changed ? SaveAsync() : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Makes come-back <paramref name="id"/> local to <paramref name="keeper"/> (ADR 72), or synced again with null; kept on
+    /// another device, only its stub stays here (the caller hands the item over first).
+    /// </summary>
+    /// <returns>The come-back as it now is, for the handover; null when it isn't shown here.</returns>
+    public async Task<SyncParked?> SetLocalAsync(Guid id, Guid? keeper, Guid? self)
+    {
+        int index = IndexOfLive(id);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        Comeback changed = _all[index] with { LocalTo = keeper, EditedAt = EditStamp(_time.GetUtcNow(), _all[index]) };
+        SyncParked shared = ToShared(changed);
+        _all[index] = keeper is Guid other && other != self ? FromShared((SyncParked)shared.AsLocalStub()) : changed;
+        await SaveAsync();
+        return shared;
+    }
+
+    /// <summary>Takes in a come-back handed over to this device to keep (ADR 72): it replaces any stub or older copy.</summary>
+    public Task AdoptAsync(SyncParked item)
+    {
+        Comeback? held = _all.FirstOrDefault(comeback => comeback.Id == item.Id);
+        if (held is not null && held.DeletedAt is null && held.EditedAt > item.EditedAt)
+        {
+            return Task.CompletedTask;
+        }
+
+        _all = _all.Where(comeback => comeback.Id != item.Id).Append(FromShared(item with { DeletedAt = null })).ToList();
         return SaveAsync();
     }
 
@@ -215,7 +303,7 @@ public sealed class ComebackStore
         }
 
         DateTimeOffset stamp = EditStamp(_time.GetUtcNow(), _all[index]);
-        _all[index] = _all[index] with { Text = string.Empty, DoneAt = null, Category = null, CategoryColor = null, EditedAt = stamp, DeletedAt = stamp };
+        _all[index] = _all[index] with { Text = string.Empty, DoneAt = null, Category = null, CategoryColor = null, Labels = null, LocalTo = null, EditedAt = stamp, DeletedAt = stamp };
         return SaveAsync();
     }
 
@@ -235,9 +323,10 @@ public sealed class ComebackStore
         DateTimeOffset from = _time.GetUtcNow() - SharedListMerge.TombstonesKept;
         return _all
             .Where(comeback => comeback.DeletedAt is DateTimeOffset deletedAt
-                ? deletedAt > from
+                ? deletedAt > from || comeback.LocalTo is not null
                 : comeback.DoneAt is not DateTimeOffset doneAt || doneAt > from)
-            .Select(ToShared)
+            .Select(comeback => ToShared(comeback))
+            .Select(item => item.LocalTo is not null && item.DeletedAt is null ? (SyncParked)item.AsLocalStub() : item)
             .OrderBy(item => item.Position)
             .ToList();
     }
@@ -250,8 +339,8 @@ public sealed class ComebackStore
     public async Task<bool> MergeAsync(IReadOnlyList<SyncParked> incoming)
     {
         List<SyncParked> local = _all.Select(ToShared).ToList();
-        List<SyncParked> merged = SharedListMerge.Merge(local, incoming, _time.GetUtcNow());
-        List<SyncParked> before = SharedListMerge.Merge(local, [], _time.GetUtcNow());
+        List<SyncParked> merged = SharedListMerge.Merge(local, incoming, _time.GetUtcNow(), SelfId());
+        List<SyncParked> before = SharedListMerge.Merge(local, [], _time.GetUtcNow(), SelfId());
         if (merged.SequenceEqual(before))
         {
             return false;
@@ -287,7 +376,7 @@ public sealed class ComebackStore
     {
         return new SyncParked(
             comeback.Id, comeback.Text, comeback.CreatedAt, comeback.DoneAt, comeback.EditedAt, comeback.DeletedAt, comeback.Position,
-            comeback.Category, comeback.CategoryColor);
+            comeback.Category, comeback.CategoryColor, TaskLabels.Clean(comeback.Labels), comeback.LocalTo);
     }
 
     private static Comeback FromShared(SyncParked item)
@@ -295,7 +384,7 @@ public sealed class ComebackStore
         // A malformed file's null text becomes empty rather than throwing.
         return new Comeback(
             item.Id, item.Text ?? string.Empty, item.CreatedAt, item.DoneAt, item.EditedAt, item.DeletedAt, item.Position,
-            item.Category, item.CategoryColor);
+            item.Category, item.CategoryColor, TaskLabels.Clean(item.Labels), item.LocalTo);
     }
 
     private Task SaveAsync()
@@ -305,7 +394,7 @@ public sealed class ComebackStore
         DateTimeOffset tombstonesFrom = now - SharedListMerge.TombstonesKept;
         _all = _all
             .Where(comeback => comeback.DeletedAt is DateTimeOffset deletedAt
-                ? deletedAt > tombstonesFrom
+                ? deletedAt > tombstonesFrom || comeback.LocalTo is not null
                 : comeback.DoneAt is null || comeback.DoneAt > cutoff)
             .ToList();
         Changed?.Invoke(this, EventArgs.Empty);

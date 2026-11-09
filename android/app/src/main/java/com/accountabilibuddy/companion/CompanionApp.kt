@@ -477,6 +477,17 @@ class CompanionApp : Application() {
         sync.nextTasks = { sharedLists.nextTasksForSync() }
         sync.parked = { sharedLists.parkedForSync() }
         sync.later = { sharedLists.laterForSync() }
+        // ADR 72: every task list syncs: settle records, Auto-saved, handover receipts out; the PCs' history and the rest in.
+        sync.pastSettled = { sharedLists.pastSettledForSync() }
+        sync.autoSaved = { sharedLists.autoSavedForSync() }
+        sync.handoverAcks = { sharedLists.receiptsForSync() }
+        sharedLists.selfId = { if (sync.isJoined) sync.deviceId.toString() else null }
+        sync.onTaskExtras = { file ->
+            val card = file.device
+            if (sharedLists.receiveExtras(card.deviceId.toString(), card.name, card.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC, file.taskHistory, file.pastSettled, file.autoSaved, file.handovers)) {
+                sharedLists.onChanged()
+            }
+        }
         sync.categories = { taskCategories.forSync() }
         // Something moved between lists takes its category's current colour with it, so an old colour isn't stamped anew (ADR 62).
         sharedLists.colorOf = { name, stored ->

@@ -71,6 +71,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         Archive.Host = this;
+        Archive.IsShown = () => ShowsArchive;
         Archive.Refresh();
         Refresh();
     }
@@ -226,13 +227,18 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>The view should put the keyboard in a box of the detail card: "title" or "step".</summary>
     public event EventHandler<string>? FocusRequested;
 
-    partial void OnIsArchiveOpenChanged(bool value) => OnPropertyChanged(nameof(ShowsArchive));
+    partial void OnIsArchiveOpenChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowsArchive));
+        Archive.ShowIfStale();
+    }
 
     partial void OnSearchTextChanged(string value)
     {
         Archive.Search = value;
         OnPropertyChanged(nameof(IsSearching));
         OnPropertyChanged(nameof(ShowsArchive));
+        Archive.ShowIfStale();
         Refresh();
     }
 
@@ -418,7 +424,15 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         string name = NewCategoryName.Trim();
         Func<Guid?, Task>? apply = _applyNewCategory;
+        Func<string, Task>? applyLabel = _applyNewLabel;
         CancelNewCategory();
+        if (applyLabel is not null)
+        {
+            _applyNewLabel = applyLabel;
+            await SaveNewLabelAsync(name);
+            return;
+        }
+
         if (name.Length == 0 || apply is null)
         {
             return;
@@ -435,6 +449,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private void CancelNewCategory()
     {
         _applyNewCategory = null;
+        _applyNewLabel = null;
+        OnPropertyChanged(nameof(NamePrompt));
         NewCategoryName = string.Empty;
         IsNamingCategory = false;
     }
@@ -733,13 +749,26 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>An Auto-saved row's ⋯ menu: Add to Today (the three-task rule applies), Later, Delete.</summary>
     private IReadOnlyList<TaskMenuEntry> AutoSavedMenu(Guid id, string title)
     {
-        return
-        [
+        var key = new TaskRowKey(TaskRowKind.AutoSaved, id);
+        var entries = new List<TaskMenuEntry>
+        {
             TaskMenuEntry.Async("Add to Today", () => AddAutoSavedToTodayAsync(id, title), MaterialIconKind.CalendarToday),
             TaskMenuEntry.Async("Later", () => MoveAutoSavedToLaterAsync(id, title), MaterialIconKind.ClockOutline),
-            TaskMenuEntry.Separator,
-            TaskMenuEntry.Async("Delete", () => _tasks.DeleteAutoSavedAsync(id), MaterialIconKind.DeleteOutline),
-        ];
+        };
+        // ADR 72: labels and where it is kept, like every other row.
+        if (LabelsEntries(key) is { } labels)
+        {
+            entries.Add(TaskMenuEntry.Group("Labels", labels, MaterialIconKind.TagMultipleOutline));
+        }
+
+        if (KeepOnEntries(key) is { } keepOn)
+        {
+            entries.Add(TaskMenuEntry.Group("Keep on…", keepOn, MaterialIconKind.Devices));
+        }
+
+        entries.Add(TaskMenuEntry.Separator);
+        entries.Add(TaskMenuEntry.Async("Delete", () => _tasks.DeleteAutoSavedAsync(id), MaterialIconKind.DeleteOutline));
+        return entries;
     }
 
     private async Task MoveAutoSavedToLaterAsync(Guid id, string title)
@@ -855,7 +884,17 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step")), MaterialIconKind.PlaylistPlus));
         }
 
-        entries.Add(TaskMenuEntry.Group("Label", LabelEntries(key), MaterialIconKind.TagMultipleOutline));
+        entries.Add(TaskMenuEntry.Group("Category", LabelEntries(key), MaterialIconKind.ShapeOutline));
+        // ADR 72: labels (several, plain names) and where the item is kept.
+        if (LabelsEntries(key) is { } labels)
+        {
+            entries.Add(TaskMenuEntry.Group("Labels", labels, MaterialIconKind.TagMultipleOutline));
+        }
+
+        if (KeepOnEntries(key) is { } keepOn)
+        {
+            entries.Add(TaskMenuEntry.Group("Keep on…", keepOn, MaterialIconKind.Devices));
+        }
 
         List<TaskMenuEntry> moves = MoveEntries(key);
         if (moves.Count > 0)
@@ -1083,9 +1122,28 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     // Three tasks (more only where the session was allowed them), never in a test session: the same rule as adding one on Today.
     private bool SessionIsFull => _tasks.IsAtTaskLimit && _tasks.Current.Tasks.Count >= _tasks.TaskAllowance;
 
+    // A tick changes several stores one after another (the record, then the list): the page is rebuilt once, after the tick has
+    // drawn, not once per store. Background priority lets the check box and the input go first.
+    private bool _refreshQueued;
+
     private void OnStoreChanged(object? sender, EventArgs e)
     {
-        Refresh();
+        QueueRefresh();
+    }
+
+    private void QueueRefresh()
+    {
+        if (_refreshQueued)
+        {
+            return;
+        }
+
+        _refreshQueued = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _refreshQueued = false;
+            Refresh();
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private void OnFilterChanged(object? sender, EventArgs e)
@@ -1132,6 +1190,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _refreshing = true;
         try
         {
+            using IDisposable timing = TickDiag.Measure("tasks page rebuild");
             RebuildLists();
             ShowSelected();
         }
@@ -1215,7 +1274,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             Guid id = item.Task.Id;
             (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_tasks.Categories, item.Task.CategoryId, item.Task.Category, item.Task.CategoryColor);
             otherRows.Add(MakeRow(
-                new TaskRowKey(TaskRowKind.Past, id), item.Task.Title, $"Session of {When(item.SessionStart, today)}",
+                new TaskRowKey(TaskRowKind.Past, id), item.Task.Title, item.From is string pcName ? $"Session of {When(item.SessionStart, today)} · from {pcName}" : $"Session of {When(item.SessionStart, today)}",
                 categoryName, categoryColor, categoryId: item.Task.CategoryId,
                 toggle: () => _tasks.SetTickedAsync(id, true), statusTag: "Unfinished", sortTime: item.SessionStart));
         }
@@ -1295,6 +1354,19 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Action<TaskListRowViewModel> select = selectable ? SelectRow : _ => { };
         // Every kind of row but Auto-saved can have a category: its chip, or the quiet "+ category" spot, opens the picker.
         Func<IReadOnlyList<TaskMenuEntry>>? labelMenu = key.Kind == TaskRowKind.AutoSaved ? null : () => LabelEntries(key);
+        // ADR 72: the row's labels and, for an item kept on this PC only, a quiet mark, after its own line.
+        string labels = LabelsText(LabelsOf(key));
+        string kept = LocalToOf(key) is Guid keeper && keeper == SelfId?.Invoke() ? "only on this PC" : string.Empty;
+        subText = string.Join(" · ", new[] { subText, labels, kept }.Where(part => part.Length > 0));
+        // DIAG (slow tick, remove): the whole tick, from the click to the last store change it awaited.
+        Func<Task>? original = toggle;
+        Func<Task>? timedToggle = original is null ? null : async () =>
+        {
+            TickDiag.Mark($"tick {key.Kind}");
+            using IDisposable timing = TickDiag.Measure("tick total");
+            await original();
+        };
+        toggle = timedToggle;
         return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)), labelMenu)
         {
             IsPicked = IsPickedKey(key),
@@ -1309,12 +1381,57 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         };
     }
 
+    // Only what changed goes through to the screen: a row that shows the same as before keeps its object (and so its drawn
+    // control), rows are moved, inserted or removed one by one, never the whole list cleared and drawn again.
     private static void Replace(ObservableCollection<TaskListRowViewModel> target, IReadOnlyList<TaskListRowViewModel> rows)
     {
-        target.Clear();
+        var held = target.ToDictionary(row => row.Key);
+        var wanted = new List<TaskListRowViewModel>(rows.Count);
         foreach (TaskListRowViewModel row in rows)
         {
-            target.Add(row);
+            if (held.TryGetValue(row.Key, out TaskListRowViewModel? old) && old.ShowsSameAs(row))
+            {
+                old.InSelectMode = row.InSelectMode;
+                old.IsPicked = row.IsPicked;
+                wanted.Add(old);
+            }
+            else
+            {
+                wanted.Add(row);
+            }
+        }
+
+        for (int index = 0; index < wanted.Count; index++)
+        {
+            TaskListRowViewModel row = wanted[index];
+            if (index < target.Count && ReferenceEquals(target[index], row))
+            {
+                continue;
+            }
+
+            int at = -1;
+            for (int search = index + 1; search < target.Count; search++)
+            {
+                if (ReferenceEquals(target[search], row))
+                {
+                    at = search;
+                    break;
+                }
+            }
+
+            if (at >= 0)
+            {
+                target.Move(at, index);
+            }
+            else
+            {
+                target.Insert(index, row);
+            }
+        }
+
+        while (target.Count > wanted.Count)
+        {
+            target.RemoveAt(target.Count - 1);
         }
     }
 

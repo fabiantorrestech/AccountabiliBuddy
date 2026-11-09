@@ -21,6 +21,8 @@ data class SyncParked(
     override val position: Double,
     val category: String? = null,
     val categoryColor: String? = null,
+    val labels: List<String>? = null,
+    override val localTo: String? = null,
 ) : SharedItem {
     // The category joins the tie-break only when there is one (as on the PC): a come-back without it breaks ties exactly as before,
     // and a copy that kept its category beats the same come-back passed on by an app that dropped it.
@@ -28,11 +30,13 @@ data class SyncParked(
         get() {
             val base = listOf(text, createdAt.ticks().toString(), doneAt?.ticks()?.toString() ?: "")
             val parts = if (category == null && categoryColor == null) base else base + listOf(category ?: "", categoryColor ?: "")
-            return parts.joinToString("\u0001")
+            return (parts + TaskLabels.tieExtras(labels, localTo)).joinToString("\u0001")
         }
 
     override fun withStamps(editedAt: Instant, deletedAt: Instant?): SyncParked = copy(editedAt = editedAt, deletedAt = deletedAt)
 
+    override fun asLocalStub(): SyncParked = copy(text = "", doneAt = null, category = null, categoryColor = null, labels = null, deletedAt = editedAt)
+
     /** The come-back as a tombstone: its text is gone, and it is deleted at [at]. */
-    fun deleted(at: Instant): SyncParked = copy(text = "", doneAt = null, category = null, categoryColor = null, editedAt = at, deletedAt = at)
+    fun deleted(at: Instant): SyncParked = copy(text = "", doneAt = null, category = null, categoryColor = null, labels = null, localTo = null, editedAt = at, deletedAt = at)
 }

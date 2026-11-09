@@ -571,7 +571,7 @@
                 <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding IsNamingCategory}">
                     <Grid ColumnDefinitions="*,Auto">
-                        <TextBox x:Name="NewCategoryBox" Classes="rowEntry" FontSize="14" Text="{Binding NewCategoryName}" PlaceholderText="New category name (Enter)"
+                        <TextBox x:Name="NewCategoryBox" Classes="rowEntry" FontSize="14" Text="{Binding NewCategoryName}" PlaceholderText="{Binding NamePrompt}"
                                  AutomationProperties.Name="New category name">
                             <TextBox.KeyBindings>
                                 <KeyBinding Gesture="Enter" Command="{Binding SaveNewCategoryCommand}" />

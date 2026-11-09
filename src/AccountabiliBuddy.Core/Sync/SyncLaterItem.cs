@@ -31,7 +31,9 @@ public sealed record SyncLaterItem(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt,
     double Position,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DoneAt = null) : ISharedItem
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DoneAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Labels = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? LocalTo = null) : ISharedItem
 {
     /// <summary>Whether it is ticked off.</summary>
     [JsonIgnore]
@@ -50,7 +52,13 @@ public sealed record SyncLaterItem(
             EstimateMinutes?.ToString() ?? string.Empty, Note ?? string.Empty,
             DueOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
             PlannedFor?.TieText ?? string.Empty,
-        }.Concat(DoneAt is DateTimeOffset done ? [done.UtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture)] : []));
+        }.Concat(DoneAt is DateTimeOffset done ? [done.UtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture)] : [])
+         .Concat(SharedItemTie.Extra(Labels, LocalTo)));
+
+    public ISharedItem AsLocalStub()
+    {
+        return Deleted(EditedAt) with { LocalTo = LocalTo };
+    }
 
     public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
     {
@@ -63,7 +71,7 @@ public sealed record SyncLaterItem(
         return this with
         {
             Title = string.Empty, Subtasks = null, Category = null, CategoryColor = null, EstimateMinutes = null, Note = null,
-            DueOn = null, PlannedFor = null, DoneAt = null, EditedAt = at, DeletedAt = at,
+            DueOn = null, PlannedFor = null, DoneAt = null, Labels = null, LocalTo = null, EditedAt = at, DeletedAt = at,
         };
     }
 }

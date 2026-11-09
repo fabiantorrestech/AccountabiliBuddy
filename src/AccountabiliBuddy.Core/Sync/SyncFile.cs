@@ -64,6 +64,11 @@ namespace AccountabiliBuddy.Core.Sync;
 /// The guidance mode this device chose (ADR 68), mode and time only. Null for a default nobody chose and from an app that predates
 /// it, which ignore it (an older device keeps guarding: the stricter side).
 /// </param>
+/// <param name="TaskHistory">ADR 72: a PC's own 90-day task history (never a session note or reason); null from a phone, while task lists aren't shared, in a QR file and from an older app.</param>
+/// <param name="PastSettled">ADR 72: the shared record of what was done with past sessions' open tasks.</param>
+/// <param name="AutoSaved">ADR 72: the shared Auto-saved list.</param>
+/// <param name="Handovers">ADR 72: items on their way to the device the user chose to keep them; never in a QR file.</param>
+/// <param name="HandoverAcks">ADR 72: this device's receipts for the handovers it took in; never in a QR file.</param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -100,7 +105,12 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncSteps? Steps = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncWorkEnded? WorkEnded = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncArmedEnd>? ArmedEnds = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncGuidance? Guidance = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncGuidance? Guidance = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskHistoryEntry>? TaskHistory = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastSettled>? PastSettled = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncAutoSavedItem>? AutoSaved = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncHandover>? Handovers = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncHandoverAck>? HandoverAcks = null)
 {
     public const int CurrentFormatVersion = 1;
 }

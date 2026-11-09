@@ -63,9 +63,9 @@ public static class BackupAccess
         return new TaskListsAccess(
             Export: () => JsonSerializer.SerializeToElement(
                 new TaskListsExport(
-                    tasks.NextTasksForSync(),
-                    comebacks.ForSync(),
-                    later.ForSync(),
+                    tasks.NextTasksForBackup(),
+                    comebacks.ForBackup(),
+                    later.ForBackup(),
                     tasks.Categories.Select(category => new SyncCategory(category.Name, category.Color, category.ColorEditedAt)).ToList()),
                 SyncJson.Options),
             Import: async (value, restore) =>

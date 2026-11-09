@@ -293,6 +293,14 @@ class SyncCoordinator(
     /** The Later list with its tombstones (ADR 50); null before the app sets it. */
     var later: () -> List<com.accountabilibuddy.shared.sync.SyncLaterItem>? = { null }
 
+    /** ADR 72: the shared settle records, Auto-saved list and handover receipts for this phone's file; set by the app. */
+    var pastSettled: () -> List<com.accountabilibuddy.shared.sync.SyncPastSettled>? = { null }
+    var autoSaved: () -> List<com.accountabilibuddy.shared.sync.SyncAutoSavedItem>? = { null }
+    var handoverAcks: () -> List<com.accountabilibuddy.shared.sync.SyncHandoverAck>? = { null }
+
+    /** ADR 72: another device's history, settle records, Auto-saved list and handovers arrived; set by the app. */
+    var onTaskExtras: (file: com.accountabilibuddy.shared.sync.SyncFile) -> Unit = {}
+
     /**
      * This phone's own task categories, name, colour and when it was chosen, for its file so the PCs can offer them and take a newer
      * colour (ADR 62). Null only in a file from before the phone had a list; the field and its JSON
@@ -771,7 +779,7 @@ class SyncCoordinator(
         val mark = if (file.parked != null || held?.file?.parked != null) emptyList<com.accountabilibuddy.shared.sync.SyncParked>() else null
         // A QR file never carries steps, which reads the same as "switched off": it keeps the stored counts rather than wiping them.
         val steps = if (method == SyncDeviceCard.METHOD_QR) file.steps ?: held?.file?.steps else file.steps
-        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark, later = null, pastKeys = null, steps = steps), bytes, method, identity.deviceId, now())
+        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark, later = null, pastKeys = null, steps = steps, taskHistory = null, pastSettled = null, autoSaved = null, handovers = null, handoverAcks = null), bytes, method, identity.deviceId, now())
         if (outcome.error != null) {
             return outcome.error
         }
@@ -785,6 +793,11 @@ class SyncCoordinator(
         if (sharesTaskLists() && (file.nextTasks != null || file.parked != null || file.later != null) && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
             // A file with a "later" list (even empty) comes from a writer that knows ADR 50's fields; one without, from an older app.
             onSharedLists(file.nextTasks, file.parked, file.later, file.later != null)
+        }
+
+        // ADR 72: the rest of the task lists, under the same rules (not while this phone keeps its lists to itself, nor from a fast clock).
+        if (sharesTaskLists() && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
+            onTaskExtras(file)
         }
 
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
@@ -849,6 +862,10 @@ class SyncCoordinator(
         nextTasks = if (sharesTaskLists()) runCatching { nextTasks() }.getOrNull() else null,
         parked = if (sharesTaskLists()) runCatching { parked() }.getOrNull() else null,
         later = if (sharesTaskLists()) runCatching { later() }.getOrNull() else null,
+        // ADR 72: the settle records, the Auto-saved list and this phone's handover receipts (a phone has no task history of its own).
+        pastSettled = if (sharesTaskLists()) runCatching { pastSettled() }.getOrNull() else null,
+        autoSaved = if (sharesTaskLists()) runCatching { autoSaved() }.getOrNull() else null,
+        handoverAcks = if (sharesTaskLists()) runCatching { handoverAcks() }.getOrNull()?.ifEmpty { null } else null,
         // ADR 56: the past keys, for opening backups; sealed with the current key like everything else.
         pastKeys = pastKeys.forFile(),
         // Only the categories made or recoloured here (TaskCategoriesStore); the PCs list theirs.

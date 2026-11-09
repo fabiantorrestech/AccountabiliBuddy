@@ -160,6 +160,13 @@ fun TasksPane(
                     )
                 }
             }
+            // ADR 72: what your PCs' past sessions left open, and the shutdown cards' Auto-saved tasks, from every device.
+            if (model.unfinished.isNotEmpty()) {
+                item { SimpleGroup("Unfinished from past sessions · ${model.unfinished.size}", model.unfinished, actions) }
+            }
+            if (model.autoSaved.isNotEmpty()) {
+                item { SimpleGroup("Auto-saved · ${model.autoSaved.size}", model.autoSaved, actions) }
+            }
             if (model.doneToday.isNotEmpty()) {
                 item { DoneTodayGroup(model.doneToday, model.doneAllToday, expanded = doneOpen, onToggle = { onDoneOpen(!doneOpen) }, actions = actions) }
             }

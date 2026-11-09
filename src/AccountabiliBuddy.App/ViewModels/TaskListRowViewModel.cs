@@ -149,4 +149,16 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     {
         return _menu?.Invoke() ?? [];
     }
+
+    /// <summary>
+    /// Whether <paramref name="other"/> (the same row built again) would draw the same: then the page keeps this row's object and its
+    /// control instead of drawing a new one. Its commands act on the same item, so they may be kept too.
+    /// </summary>
+    public bool ShowsSameAs(TaskListRowViewModel other)
+    {
+        return Key == other.Key && Title == other.Title && SubText == other.SubText && Number == other.Number && IsNow == other.IsNow
+            && IsTicked == other.IsTicked && CategoryId == other.CategoryId && CategoryName == other.CategoryName
+            && CategoryColor == other.CategoryColor && StatusTag == other.StatusTag && DueOn == other.DueOn && SortTime == other.SortTime
+            && HasToggle == other.HasToggle && CanLabel == other.CanLabel;
+    }
 }

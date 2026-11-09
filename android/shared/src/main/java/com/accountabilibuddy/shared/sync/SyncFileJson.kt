@@ -197,6 +197,12 @@ object SyncFileJson {
         file.steps?.let { put("steps", writeSteps(it)) }
         // Optional (ADR 65): a PC's work ended early today; older apps ignore it.
         file.workEnded?.let { put("workEnded", writeWorkEnded(it)) }
+        // Optional (ADR 72): history, settle records, Auto-saved, handovers and receipts; older apps ignore them.
+        file.taskHistory?.let { put("taskHistory", writeTaskHistory(it)) }
+        file.pastSettled?.let { put("pastSettled", writePastSettled(it)) }
+        file.autoSaved?.let { put("autoSaved", writeAutoSaved(it)) }
+        file.handovers?.let { put("handovers", writeHandovers(it)) }
+        file.handoverAcks?.let { acks -> put("handoverAcks", JsonArray(acks.map { ack -> buildJsonObject { put("id", ack.id); put("editedAt", writeTime(ack.editedAt)) } })) }
         // Optional (ADR 68): the guidance mode this device chose; older apps ignore it.
         file.guidance?.let { guidance ->
             put("guidance", buildJsonObject {
@@ -381,6 +387,11 @@ object SyncFileJson {
             readWorkEnded(json["workEnded"]),
             readArmedEnds(json["armedEnds"]),
             readGuidance(json["guidance"]),
+            readTaskHistory(json["taskHistory"]),
+            readPastSettled(json["pastSettled"]),
+            readAutoSaved(json["autoSaved"]),
+            readHandovers(json["handovers"]),
+            readHandoverAcks(json["handoverAcks"]),
         )
     }
 
@@ -473,6 +484,8 @@ object SyncFileJson {
             task.estimateMinutes?.let { put("estimateMinutes", it) }
             task.note?.let { put("note", it) }
             task.plannedFor?.let { put("plannedFor", writePlannedFor(it)) }
+            task.labels?.let { put("labels", writeLabels(it)) }
+            task.localTo?.let { put("localTo", it) }
         }
     })
 
@@ -495,6 +508,8 @@ object SyncFileJson {
                     item.optionalInt("estimateMinutes"),
                     item.optionalString("note"),
                     readPlannedFor(item["plannedFor"]),
+                    readLabels(item["labels"]),
+                    item.optionalString("localTo"),
                 )
             }.getOrNull()
         }
@@ -516,6 +531,8 @@ object SyncFileJson {
             put("position", item.position)
             item.plannedFor?.let { put("plannedFor", writePlannedFor(it)) }
             item.doneAt?.let { put("doneAt", writeTime(it)) }
+            item.labels?.let { put("labels", writeLabels(it)) }
+            item.localTo?.let { put("localTo", it) }
         }
     })
 
@@ -588,6 +605,8 @@ object SyncFileJson {
                     item.position(),
                     readPlannedFor(item["plannedFor"]),
                     item.optionalTime("doneAt"),
+                    readLabels(item["labels"]),
+                    item.optionalString("localTo"),
                 )
             }.getOrNull()
         }
@@ -617,6 +636,8 @@ object SyncFileJson {
             put("position", parked.position)
             parked.category?.let { put("category", it) }
             parked.categoryColor?.let { put("categoryColor", it) }
+            parked.labels?.let { put("labels", writeLabels(it)) }
+            parked.localTo?.let { put("localTo", it) }
         }
     })
 
@@ -636,6 +657,8 @@ object SyncFileJson {
                     item.position(),
                     item.optionalString("category"),
                     item.optionalString("categoryColor"),
+                    readLabels(item["labels"]),
+                    item.optionalString("localTo"),
                 )
             }.getOrNull()
         }
@@ -903,6 +926,163 @@ object SyncFileJson {
         requiredArray(name).map { it as? JsonObject ?: throw NotASyncFileException() }
 
     private fun JsonObject.requiredStrings(name: String): List<String> = requiredArray(name).map(::stringOf)
+
+    // ---- ADR 72: labels, history, settle records, Auto-saved, handovers ----
+
+    private fun writeLabels(labels: List<String>): JsonArray = JsonArray(labels.map { JsonPrimitive(it) })
+
+    private fun readLabels(value: JsonElement?): List<String>? =
+        TaskLabels.clean((value as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { primitive -> primitive.isString }?.content })
+
+    private fun writeHistoryTask(task: SyncHistoryTask): JsonObject = buildJsonObject {
+        put("id", task.id)
+        put("title", task.title)
+        put("doneAt", task.doneAt?.let(::writeTime))
+        put("subtasks", SessionTaskItem.write(task.subtasks, ::writeTime))
+        task.category?.let { put("category", it) }
+        task.categoryColor?.let { put("categoryColor", it) }
+        task.estimateMinutes?.let { put("estimateMinutes", it) }
+        task.note?.let { put("note", it) }
+        task.labels?.let { put("labels", writeLabels(it)) }
+        task.localTo?.let { put("localTo", it) }
+    }
+
+    private fun readHistoryTask(json: JsonObject): SyncHistoryTask? = runCatching {
+        SyncHistoryTask(
+            json.requiredId("id"),
+            json.optionalString("title") ?: "",
+            json.optionalTime("doneAt"),
+            SessionTaskItem.read(json["subtasks"] as? JsonArray),
+            json.optionalString("category"),
+            json.optionalString("categoryColor"),
+            json.optionalInt("estimateMinutes"),
+            json.optionalString("note"),
+            readLabels(json["labels"]),
+            json.optionalString("localTo"),
+        )
+    }.getOrNull()
+
+    fun writeTaskHistory(list: List<SyncTaskHistoryEntry>): JsonArray = JsonArray(list.map { entry ->
+        buildJsonObject {
+            entry.sessionStart?.let { put("sessionStart", writeTime(it)) }
+            put("tasks", JsonArray(entry.tasks.map(::writeHistoryTask)))
+            if (entry.outside) put("outside", true)
+        }
+    })
+
+    fun readTaskHistory(value: JsonElement?): List<SyncTaskHistoryEntry>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val entry = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncTaskHistoryEntry(
+                    entry.optionalTime("sessionStart"),
+                    (entry["tasks"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::readHistoryTask) },
+                    (entry["outside"] as? JsonPrimitive)?.booleanOrNull == true,
+                )
+            }.getOrNull()
+        }
+    }
+
+    fun writePastSettled(list: List<SyncPastSettled>): JsonArray = JsonArray(list.map { record ->
+        buildJsonObject {
+            put("id", record.id)
+            put("state", record.state)
+            put("editedAt", writeTime(record.editedAt))
+            record.deletedAt?.let { put("deletedAt", writeTime(it)) }
+            put("position", record.position)
+            record.localTo?.let { put("localTo", it) }
+        }
+    })
+
+    fun readPastSettled(value: JsonElement?): List<SyncPastSettled>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncPastSettled(item.requiredId("id"), item.requiredString("state"), item.requiredTime("editedAt"), item.optionalTime("deletedAt"), item.position(), item.optionalString("localTo"))
+            }.getOrNull()
+        }
+    }
+
+    fun writeAutoSaved(list: List<SyncAutoSavedItem>): JsonArray = JsonArray(list.map(::writeAutoSavedItem))
+
+    private fun writeAutoSavedItem(item: SyncAutoSavedItem): JsonObject = buildJsonObject {
+        put("id", item.id)
+        put("title", item.title)
+        put("wrapUpOf", item.wrapUpOf)
+        put("savedAt", writeTime(item.savedAt))
+        put("editedAt", writeTime(item.editedAt))
+        item.deletedAt?.let { put("deletedAt", writeTime(it)) }
+        put("position", item.position)
+        item.category?.let { put("category", it) }
+        item.categoryColor?.let { put("categoryColor", it) }
+        item.labels?.let { put("labels", writeLabels(it)) }
+        item.localTo?.let { put("localTo", it) }
+    }
+
+    private fun readAutoSavedItem(item: JsonObject): SyncAutoSavedItem? = runCatching {
+        SyncAutoSavedItem(
+            item.requiredId("id"), item.optionalString("title") ?: "", item.optionalString("wrapUpOf") ?: "", item.requiredTime("savedAt"),
+            item.requiredTime("editedAt"), item.optionalTime("deletedAt"), item.position(), item.optionalString("category"),
+            item.optionalString("categoryColor"), readLabels(item["labels"]), item.optionalString("localTo"),
+        )
+    }.getOrNull()
+
+    fun readAutoSaved(value: JsonElement?): List<SyncAutoSavedItem>? =
+        (value as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let(::readAutoSavedItem) }
+
+    fun writeHandovers(list: List<SyncHandover>): JsonArray = JsonArray(list.map { handover ->
+        buildJsonObject {
+            put("to", handover.to)
+            put("id", handover.id)
+            put("list", handover.list)
+            put("editedAt", writeTime(handover.editedAt))
+            put("sentAt", writeTime(handover.sentAt))
+            handover.nextTask?.let { put("nextTask", writeNextTasks(listOf(it))[0]) }
+            handover.laterItem?.let { put("laterItem", writeLater(listOf(it))[0]) }
+            handover.parkedItem?.let { put("parkedItem", writeParked(listOf(it))[0]) }
+            handover.autoSavedItem?.let { put("autoSavedItem", writeAutoSavedItem(it)) }
+            handover.pastTask?.let { past ->
+                put("pastTask", buildJsonObject {
+                    put("sourceDeviceId", past.sourceDeviceId)
+                    put("sourceName", past.sourceName)
+                    past.sessionStart?.let { put("sessionStart", writeTime(it)) }
+                    put("task", writeHistoryTask(past.task))
+                    put("editedAt", writeTime(past.editedAt))
+                })
+            }
+        }
+    })
+
+    fun readHandovers(value: JsonElement?): List<SyncHandover>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                val past = (item["pastTask"] as? JsonObject)?.let { json ->
+                    val task = (json["task"] as? JsonObject)?.let(::readHistoryTask)
+                    task?.let { SyncKeptPast(json.requiredId("sourceDeviceId"), json.optionalString("sourceName") ?: "", json.optionalTime("sessionStart"), it, json.requiredTime("editedAt")) }
+                }
+                SyncHandover(
+                    item.requiredId("to"), item.requiredId("id"), item.requiredString("list"), item.requiredTime("editedAt"), item.requiredTime("sentAt"),
+                    readNextTasks(item["nextTask"]?.let { JsonArray(listOf(it)) })?.firstOrNull(),
+                    readLater(item["laterItem"]?.let { JsonArray(listOf(it)) })?.firstOrNull(),
+                    readParked(item["parkedItem"]?.let { JsonArray(listOf(it)) })?.firstOrNull(),
+                    (item["autoSavedItem"] as? JsonObject)?.let(::readAutoSavedItem),
+                    past,
+                )
+            }.getOrNull()
+        }
+    }
+
+    fun readHandoverAcks(value: JsonElement?): List<SyncHandoverAck>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching { SyncHandoverAck(item.requiredId("id"), item.requiredTime("editedAt")) }.getOrNull()
+        }
+    }
 
     /** Thrown inside [read] at the first thing that can't be read; [read] turns it into null. */
     private class NotASyncFileException : Exception()

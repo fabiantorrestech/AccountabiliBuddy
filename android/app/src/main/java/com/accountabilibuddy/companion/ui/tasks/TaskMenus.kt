@@ -60,6 +60,15 @@ internal object TaskMenus {
                 items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
             }
             TaskKind.DoneRunning -> Unit
+            TaskKind.Unfinished -> {
+                items += TaskMenuItem("Mark done", Icons.Outlined.Check) { actions.onTick(row) }
+                items += TaskMenuItem("Move to Later", Icons.Outlined.Schedule) { actions.onMoveToLater(row) }
+                items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
+            }
+            TaskKind.AutoSaved -> {
+                items += TaskMenuItem("Move to Later", Icons.Outlined.Schedule) { actions.onMoveToLater(row) }
+                items += TaskMenuItem("Delete", Icons.Outlined.Delete) { actions.onDelete(row) }
+            }
         }
         return items
     }

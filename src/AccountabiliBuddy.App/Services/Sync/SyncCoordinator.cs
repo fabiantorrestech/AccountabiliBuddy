@@ -227,6 +227,7 @@ public sealed class SyncCoordinator
 
     private async Task<SyncFile> BuildOwnFileOnUiThreadAsync()
     {
+        using IDisposable timing = AccountabiliBuddy.App.Services.TickDiag.Measure("sync file build");
         TimeZoneInfo zone = _sessions.TimeProvider.LocalTimeZone;
         DateTimeOffset now = _sessions.Now;
         bool historyOff = !_privacy.Current.ActivityLogEnabled;
@@ -256,7 +257,7 @@ public sealed class SyncCoordinator
 
         IReadOnlyList<FocusProfile> profiles = _configuration.Current.Profiles;
         SyncNoise? noise = Noise is null ? null : await Noise();
-        return SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
+        SyncFile built = SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
             _sessions.State.IsRealSession, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf,
             _sessions.State.IsPlanning ? _sessions.State.PhaseEndsAt : null) with { Comebacks = ShareTaskLists() ? Comebacks?.Invoke() : null, Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
@@ -282,7 +283,15 @@ public sealed class SyncCoordinator
                 ArmedEnds = ArmedEnds?.Invoke() is { Count: > 0 } armed ? armed : null,
                 // ADR 68: the guidance mode this PC chose, mode and time only; null for a default nobody chose.
                 Guidance = Guidance?.Invoke() };
+        // ADR 72: the task history, settle records, Auto-saved list and handovers, while task lists are shared (ADR 71).
+        return ShareTaskLists() && DecorateTaskLists is { } decorate ? decorate(built) : built;
     }
+
+    /// <summary>ADR 72: adds the task history, settle records, Auto-saved list and handovers to this PC's file. Set by the app.</summary>
+    public Func<SyncFile, SyncFile>? DecorateTaskLists { get; set; }
+
+    /// <summary>ADR 72: takes those parts in from another device's file (only while task lists are shared). Set by the app.</summary>
+    public Func<SyncFile, Task>? ReceiveTaskLists { get; set; }
 
     /// <summary>Distracted stretches marked in History, folded into the records; read again when they change. Set by the app.</summary>
     public SessionGapsService? Gaps
@@ -505,6 +514,11 @@ public sealed class SyncCoordinator
         if (file.Later is { } later && MergeLater is not null)
         {
             await MergeLater(CleanLater(later));
+        }
+
+        if (ReceiveTaskLists is { } receive)
+        {
+            await receive(file);
         }
     }
 

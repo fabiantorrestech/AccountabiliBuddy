@@ -32,6 +32,8 @@ data class SyncLaterItem(
     override val position: Double,
     val plannedFor: TaskPlannedFor? = null,
     val doneAt: Instant? = null,
+    val labels: List<String>? = null,
+    override val localTo: String? = null,
 ) : SharedItem {
     val isDone: Boolean get() = doneAt != null
 
@@ -48,14 +50,16 @@ data class SyncLaterItem(
                 dueOn ?: "",
                 plannedFor?.tieText ?: "",
             )
-            return (if (doneAt == null) parts else parts + doneAt.ticks().toString()).joinToString("\u0001")
+            return ((if (doneAt == null) parts else parts + doneAt.ticks().toString()) + TaskLabels.tieExtras(labels, localTo)).joinToString("\u0001")
         }
 
     override fun withStamps(editedAt: Instant, deletedAt: Instant?): SyncLaterItem = copy(editedAt = editedAt, deletedAt = deletedAt)
 
+    override fun asLocalStub(): SyncLaterItem = deleted(editedAt).copy(localTo = localTo)
+
     /** The item as a tombstone: its text is gone, and it is deleted at [at]. */
     fun deleted(at: Instant): SyncLaterItem = copy(
         title = "", subtasks = null, category = null, categoryColor = null, estimateMinutes = null, note = null,
-        dueOn = null, plannedFor = null, doneAt = null, editedAt = at, deletedAt = at,
+        dueOn = null, plannedFor = null, doneAt = null, labels = null, localTo = null, editedAt = at, deletedAt = at,
     )
 }

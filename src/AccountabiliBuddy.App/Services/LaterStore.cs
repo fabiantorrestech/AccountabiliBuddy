@@ -68,9 +68,12 @@ public sealed class LaterStore
     /// <summary>Adds an item at the end of the list; a blank title adds nothing. Returns it (null when nothing was added).</summary>
     public async Task<SyncLaterItem?> AddAsync(
         string title, IReadOnlyList<SessionSubtask>? steps, string? category, string? categoryColor, int? estimateMinutes, string? note,
-        DateOnly? dueOn, PlannedSlot? plannedFor = null)
+        DateOnly? dueOn, PlannedSlot? plannedFor = null, IReadOnlyList<string>? labels = null)
     {
-        string trimmed = title.Trim();
+        // ADR 72: "##word" in a typed title is a label.
+        (string typed, IReadOnlyList<string>? typedLabels) = TaskLabels.Parse(title.Trim());
+        string trimmed = typed.Trim();
+        labels = TaskLabels.With(labels, typedLabels ?? []);
         if (trimmed.Length == 0)
         {
             return null;
@@ -81,7 +84,7 @@ public sealed class LaterStore
         var item = new SyncLaterItem(
             Guid.NewGuid(), trimmed, steps is { Count: > 0 } ? steps : null, category, categoryColor,
             SessionChecklist.CleanEstimate(estimateMinutes), SessionChecklist.CleanNote(note), dueOn,
-            now, null, SharedListMerge.PositionBetween(last, null), plannedFor);
+            now, null, SharedListMerge.PositionBetween(last, null), plannedFor, Labels: labels);
         _all.Add(item);
         await SaveAsync();
         return item;
@@ -223,9 +226,76 @@ public sealed class LaterStore
     {
         DateTimeOffset from = _time.GetUtcNow() - SharedListMerge.TombstonesKept;
         return _all
-            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > from)
+            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > from || item.LocalTo is not null)
             .OrderBy(item => item.Position)
+            .Select(item => item.LocalTo is not null && item.DeletedAt is null ? (SyncLaterItem)item.AsLocalStub() : item)
             .ToList();
+    }
+
+    /// <summary>This device's id in its sync group (ADR 72's keeper rule); null while it isn't in one. Set by the app.</summary>
+    public Func<Guid?> SelfId { get; set; } = () => null;
+
+    /// <summary>The list for a task-list backup (ADR 71): as <see cref="ForSync"/>, but the local items kept here keep their text (ADR 72).</summary>
+    public IReadOnlyList<SyncLaterItem> ForBackup()
+    {
+        DateTimeOffset from = _time.GetUtcNow() - SharedListMerge.TombstonesKept;
+        return _all.Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > from || item.LocalTo is not null).OrderBy(item => item.Position).ToList();
+    }
+
+    /// <summary>The item <paramref name="id"/> while it is shown here; null otherwise.</summary>
+    public SyncLaterItem? Find(Guid id)
+    {
+        return _all.FirstOrDefault(item => item.Id == id && item.DeletedAt is null);
+    }
+
+    /// <summary>Renames (blank <paramref name="to"/>: deletes) label <paramref name="from"/> on every item that has it (ADR 72).</summary>
+    public Task RenameLabelAsync(string from, string to)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        bool changed = false;
+        for (int index = 0; index < _all.Count; index++)
+        {
+            SyncLaterItem held = _all[index];
+            if (held.DeletedAt is null && TaskLabels.Has(held.Labels, from))
+            {
+                _all[index] = held with { Labels = TaskLabels.Renamed(held.Labels, from, to), EditedAt = SharedListMerge.NextStamp(now, held) };
+                changed = true;
+            }
+        }
+
+        return changed ? SaveAsync() : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Makes item <paramref name="id"/> local to <paramref name="keeper"/> (ADR 72), or synced again with null; kept on another
+    /// device, only its stub stays here (the caller hands the item over first).
+    /// </summary>
+    /// <returns>The item as it now is, for the handover; null when it isn't shown here.</returns>
+    public async Task<SyncLaterItem?> SetLocalAsync(Guid id, Guid? keeper)
+    {
+        int index = _all.FindIndex(item => item.Id == id && item.DeletedAt is null);
+        if (index < 0)
+        {
+            return null;
+        }
+
+        SyncLaterItem changed = _all[index] with { LocalTo = keeper, EditedAt = SharedListMerge.NextStamp(_time.GetUtcNow(), _all[index]) };
+        _all[index] = keeper is Guid other && other != SelfId() ? (SyncLaterItem)changed.AsLocalStub() : changed;
+        await SaveAsync();
+        return changed;
+    }
+
+    /// <summary>Takes in an item handed over to this device to keep (ADR 72): it replaces any stub or older copy.</summary>
+    public Task AdoptAsync(SyncLaterItem item)
+    {
+        SyncLaterItem? held = _all.FirstOrDefault(candidate => candidate.Id == item.Id);
+        if (held is not null && held.DeletedAt is null && held.EditedAt > item.EditedAt)
+        {
+            return Task.CompletedTask;
+        }
+
+        _all = _all.Where(candidate => candidate.Id != item.Id).Append(item with { DeletedAt = null }).ToList();
+        return SaveAsync();
     }
 
     /// <summary>
@@ -236,8 +306,8 @@ public sealed class LaterStore
     public async Task<bool> MergeAsync(IReadOnlyList<SyncLaterItem> incoming)
     {
         DateTimeOffset now = _time.GetUtcNow();
-        List<SyncLaterItem> merged = SharedListMerge.Merge(_all, incoming, now);
-        List<SyncLaterItem> before = SharedListMerge.Merge(_all, [], now);
+        List<SyncLaterItem> merged = SharedListMerge.Merge(_all, incoming, now, SelfId());
+        List<SyncLaterItem> before = SharedListMerge.Merge(_all, [], now, SelfId());
         if (merged.SequenceEqual(before, new ItemComparer()))
         {
             return false;
@@ -264,7 +334,7 @@ public sealed class LaterStore
         DateTimeOffset now = _time.GetUtcNow();
         _all = _all
             .Select(item => item.DeletedAt is null && item.DoneAt is DateTimeOffset doneAt && doneAt < now - DoneKept ? item.Deleted(SharedListMerge.NextStamp(now, item)) : item)
-            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > tombstonesFrom)
+            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > tombstonesFrom || item.LocalTo is not null)
             .ToList();
         Changed?.Invoke(this, EventArgs.Empty);
         string sealedList = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_all, JsonOptions)));

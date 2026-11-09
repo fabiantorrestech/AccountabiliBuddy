@@ -37,6 +37,10 @@ class TasksModel(
     val categories: List<Choice>,
     val sessionTotal: Int,
     val doneAllToday: Boolean,
+    /** ADR 72: the PCs' tasks their past sessions left open, and the ones kept on this phone. */
+    val unfinished: List<TaskRowModel> = emptyList(),
+    /** ADR 72: the shared Auto-saved list. */
+    val autoSaved: List<TaskRowModel> = emptyList(),
 ) {
     companion object {
         /**
@@ -65,6 +69,10 @@ class TasksModel(
             ownCategories: List<SyncCategory> = emptyList(),
             /** ADR 71: false while this phone doesn't share its task lists: the other devices' categories stay out. */
             shareCategories: Boolean = true,
+            /** ADR 72: other PCs' unfinished past tasks and the ones kept here. */
+            unfinished: List<com.accountabilibuddy.companion.sync.PastTaskRow> = emptyList(),
+            /** ADR 72: the shared Auto-saved list (live items). */
+            autoSaved: List<com.accountabilibuddy.shared.sync.SyncAutoSavedItem> = emptyList(),
         ): TasksModel {
             val colors = TaskCategoryColors(ownCategories, if (shareCategories) received else emptyList(), now)
             val today = now.atZone(zone).toLocalDate()
@@ -105,7 +113,7 @@ class TasksModel(
                     if (!filter.allows(task.category, task.title, task.note, *stepTitles(task.subtasks))) return@forEachIndexed
                     session += TaskRowModel(
                         TaskRef(TaskKind.Next, task.id), task.title,
-                        TaskText.line(TaskText.stepsLeft(task.subtasks), task.estimateMinutes?.let(TaskText::estimate), TaskText.planned(task.plannedFor, today)),
+                        TaskText.line(TaskText.stepsLeft(task.subtasks), task.estimateMinutes?.let(TaskText::estimate), TaskText.planned(task.plannedFor, today), com.accountabilibuddy.shared.sync.TaskLabels.text(task.labels).ifEmpty { null }),
                         task.category, colors.of(task.category, task.categoryColor), number = index + 1,
                     )
                 }
@@ -126,7 +134,7 @@ class TasksModel(
             }.map { item ->
                 val sending = item.id in waiting
                 TaskRowModel(
-                    TaskRef(TaskKind.Later, item.id), item.title, TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, laterLine(item, today)),
+                    TaskRef(TaskKind.Later, item.id), item.title, TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, laterLine(item, today), com.accountabilibuddy.shared.sync.TaskLabels.text(item.labels).ifEmpty { null }),
                     item.category, colors.of(item.category, item.categoryColor), sending = sending,
                 )
             }
@@ -156,6 +164,21 @@ class TasksModel(
                 categories = categories,
                 sessionTotal = sessionTotal,
                 doneAllToday = done.all { isToday(it.first) },
+                unfinished = unfinished.filter { filter.allows(it.task.category, it.task.title, it.task.note.orEmpty()) }.map { row ->
+                    val kept = if (row.keptHere) "kept on this phone" else null
+                    TaskRowModel(
+                        TaskRef(TaskKind.Unfinished, row.task.id), row.task.title,
+                        TaskText.line("Session of ${TaskText.whenText(row.sessionStart, today, zone)} · from ${row.from}", kept, com.accountabilibuddy.shared.sync.TaskLabels.text(row.task.labels).ifEmpty { null }),
+                        row.task.category, colors.of(row.task.category, row.task.categoryColor),
+                    )
+                },
+                autoSaved = autoSaved.filter { filter.allows(it.category, it.title) }.map { item ->
+                    TaskRowModel(
+                        TaskRef(TaskKind.AutoSaved, item.id), item.title,
+                        TaskText.line("Saved ${TaskText.whenText(item.savedAt, today, zone)}", com.accountabilibuddy.shared.sync.TaskLabels.text(item.labels).ifEmpty { null }),
+                        item.category, colors.of(item.category, item.categoryColor),
+                    )
+                },
             )
         }
 
@@ -195,7 +218,7 @@ class TasksModel(
                 val sending = item.id in waiting
                 TaskRowModel(
                     TaskRef(TaskKind.ComeBack, item.id), item.text,
-                    TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, "Parked ${TaskText.whenText(item.createdAt, today, zone)}"),
+                    TaskText.line(if (sending) "sent to the PC, waiting for its answer" else null, "Parked ${TaskText.whenText(item.createdAt, today, zone)}", com.accountabilibuddy.shared.sync.TaskLabels.text(item.labels).ifEmpty { null }),
                     item.category, colors.of(item.category, item.categoryColor), sending = sending,
                 )
             }

@@ -87,7 +87,7 @@ public sealed record SessionChecklist(
     /// A task (no <paramref name="parentId"/>) in <paramref name="categoryId"/> (null: no category), or a subtask of that
     /// task; a blank title adds nothing.
     /// </summary>
-    public SessionChecklist Add(string title, Guid? parentId, Guid? categoryId = null)
+    public SessionChecklist Add(string title, Guid? parentId, Guid? categoryId = null, IReadOnlyList<string>? labels = null)
     {
         string trimmed = title.Trim();
         if (trimmed.Length == 0)
@@ -97,7 +97,14 @@ public sealed record SessionChecklist(
 
         if (parentId is not Guid parent)
         {
-            return this with { Tasks = [.. Tasks, new SessionTask(Guid.NewGuid(), trimmed, null, [], categoryId)] };
+            // ADR 72: "##word" in a typed task's title is a label.
+            (string text, IReadOnlyList<string>? typed) = TaskLabels.Parse(trimmed);
+            if (text.Trim().Length == 0)
+            {
+                return this;
+            }
+
+            return this with { Tasks = [.. Tasks, new SessionTask(Guid.NewGuid(), text.Trim(), null, [], categoryId, Labels: TaskLabels.With(labels, typed ?? []))] };
         }
 
         // A new open subtask reopens a task that was done.
@@ -110,7 +117,8 @@ public sealed record SessionChecklist(
     /// title adds nothing.
     /// </summary>
     public SessionChecklist AddWithId(
-        Guid id, string title, Guid? categoryId, IReadOnlyList<string>? steps = null, int? estimateMinutes = null, string? note = null)
+        Guid id, string title, Guid? categoryId, IReadOnlyList<string>? steps = null, int? estimateMinutes = null, string? note = null,
+        IReadOnlyList<string>? labels = null)
     {
         string trimmed = title.Trim();
         if (trimmed.Length == 0)
@@ -125,7 +133,7 @@ public sealed record SessionChecklist(
             .Where(step => step.Length > 0)
             .Select(step => new SessionSubtask(Guid.NewGuid(), step, null))
             .ToList();
-        return this with { Tasks = [.. Tasks, new SessionTask(taskId, trimmed, null, subtasks, categoryId, EstimateMinutes: CleanEstimate(estimateMinutes), Note: CleanNote(note))] };
+        return this with { Tasks = [.. Tasks, new SessionTask(taskId, trimmed, null, subtasks, categoryId, EstimateMinutes: CleanEstimate(estimateMinutes), Note: CleanNote(note), Labels: TaskLabels.Clean(labels))] };
     }
 
     /// <summary>
@@ -312,7 +320,31 @@ public sealed record SessionChecklist(
         }
 
         Guid? categoryId = Tasks.FirstOrDefault(task => !task.IsDone)?.CategoryId;
-        return this with { Tasks = [new SessionTask(Guid.NewGuid(), trimmed, null, [], categoryId), .. Tasks] };
+        (string text, IReadOnlyList<string>? labels) = TaskLabels.Parse(trimmed);
+        if (text.Trim().Length == 0)
+        {
+            return this;
+        }
+
+        return this with { Tasks = [new SessionTask(Guid.NewGuid(), text.Trim(), null, [], categoryId, Labels: labels), .. Tasks] };
+    }
+
+    /// <summary>The task <paramref name="taskId"/> with <paramref name="labels"/> (ADR 72; null or none clears them).</summary>
+    public SessionChecklist SetLabels(Guid taskId, IReadOnlyList<string>? labels)
+    {
+        return WithTask(taskId, task => task with { Labels = TaskLabels.Clean(labels) });
+    }
+
+    /// <summary>Label <paramref name="from"/> renamed to <paramref name="to"/> (blank: deleted) on every task that has it (ADR 72).</summary>
+    public SessionChecklist RenameLabel(string from, string to)
+    {
+        return this with { Tasks = Tasks.Select(task => TaskLabels.Has(task.Labels, from) ? task with { Labels = TaskLabels.Renamed(task.Labels, from, to) } : task).ToList() };
+    }
+
+    /// <summary>The task <paramref name="taskId"/> kept on <paramref name="keeper"/> as a local item (ADR 72), or synced again with null.</summary>
+    public SessionChecklist SetLocal(Guid taskId, Guid? keeper)
+    {
+        return WithTask(taskId, task => task with { LocalTo = keeper });
     }
 
     /// <summary>Puts the task <paramref name="taskId"/> in <paramref name="categoryId"/> (null: no category).</summary>

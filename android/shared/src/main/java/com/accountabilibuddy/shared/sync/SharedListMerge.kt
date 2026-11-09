@@ -24,20 +24,21 @@ object SharedListMerge {
     /**
      * The merged list, tombstones included, ordered by position and then id; the same whichever list is [first].
      */
-    fun <T : SharedItem> merge(first: List<T>, second: List<T>, now: Instant): List<T> {
+    fun <T : SharedItem> merge(first: List<T>, second: List<T>, now: Instant, self: String? = null): List<T> {
         val limit = now.plus(FUTURE_LIMIT)
         val winners = LinkedHashMap<String, T>()
         for (item in (first + second).map { clamped(it, limit) }) {
             val key = item.id.lowercase()
             val held = winners[key]
-            if (held == null || compare(item, held) > 0) {
+            if (held == null || wins(item, held, self)) {
                 winners[key] = item
             }
         }
 
         val keptFrom = now.minus(TOMBSTONES_KEPT)
         return winners.values
-            .filter { item -> item.deletedAt?.let { it.ticks() > keptFrom.ticks() } ?: true }
+            // A local item's stub (ADR 72) is kept past the tombstones' 30 days: while it lives, an old copy can't come back.
+            .filter { item -> item.deletedAt?.let { it.ticks() > keptFrom.ticks() || item.localTo != null } ?: true }
             .sortedWith(compareBy<T> { it.position }.thenBy { it.id.lowercase() })
     }
 
@@ -78,6 +79,30 @@ object SharedListMerge {
         val edited = if (item.editedAt.ticks() > limit.ticks()) limit else item.editedAt
         val clampedDeleted = if (deleted != null && deleted.ticks() > limit.ticks()) limit else deleted
         return item.withStamps(edited, clampedDeleted) as T
+    }
+
+    /** The items as this device writes them into its own file (ADR 72): every local item is its stub. Items that sync are unchanged. */
+    @Suppress("UNCHECKED_CAST")
+    fun <T : SharedItem> forFile(items: List<T>): List<T> = items.map { if (it.localTo != null && it.deletedAt == null) it.asLocalStub() as T else it }
+
+    // The keeper's rule (ADR 72): its full copy of a local item stays over the item's stub of the same or an older time.
+    private fun wins(candidate: SharedItem, held: SharedItem, self: String?): Boolean {
+        if (self != null) {
+            val me = self.lowercase()
+            val candidateIsMyFull = candidate.deletedAt == null && candidate.localTo?.lowercase() == me
+            val heldIsMyFull = held.deletedAt == null && held.localTo?.lowercase() == me
+            val candidateIsMyStub = candidate.deletedAt != null && candidate.localTo?.lowercase() == me
+            val heldIsMyStub = held.deletedAt != null && held.localTo?.lowercase() == me
+            if (heldIsMyFull && candidateIsMyStub && stampOf(candidate).ticks() <= held.editedAt.ticks()) {
+                return false
+            }
+
+            if (candidateIsMyFull && heldIsMyStub && stampOf(held).ticks() <= candidate.editedAt.ticks()) {
+                return true
+            }
+        }
+
+        return compare(candidate, held) > 0
     }
 
     // More than 0 when [candidate] is the version to keep over [held].

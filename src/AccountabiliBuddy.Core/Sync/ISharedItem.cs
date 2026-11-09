@@ -25,4 +25,14 @@ public interface ISharedItem
 
     /// <summary>The same item with other edit and deletion times (<see cref="SharedListMerge"/> uses it to clamp a far-future stamp).</summary>
     ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt);
+
+    /// <summary>
+    /// The device that keeps this item as a local one (ADR 72); null = it syncs. Every device writes a local item as a stub
+    /// (<see cref="DeletedAt"/> set, no text, this field kept), so an app that predates it drops the item as deleted; only the
+    /// keeper holds the text.
+    /// </summary>
+    Guid? LocalTo => null;
+
+    /// <summary>The item as the stub every device writes for a local item: no text, deleted at its own edit time, <see cref="LocalTo"/> kept.</summary>
+    ISharedItem AsLocalStub() => this;
 }

@@ -6,7 +6,12 @@ namespace AccountabiliBuddy.App;
 
 public static class Program
 {
+#if DEBUG
+    // A dev build runs beside the installed app (it keeps its data in the "-Dev" folder too), so it must not hand over to it.
+    public const string InstanceName = "AccountabiliBuddy-Dev";
+#else
     public const string InstanceName = "AccountabiliBuddy";
+#endif
 
     // After restoring a backup the app restarts itself; the new copy waits this long for the old one to exit.
     private static readonly TimeSpan RestartWait = TimeSpan.FromSeconds(20);

@@ -26,4 +26,8 @@ enum class TaskKind {
 
     /** A Later item ticked off on this phone today. */
     DoneLater,
+    /** ADR 72: a task a PC's past session left open (from that PC's history), or one kept on this phone. */
+    Unfinished,
+    /** ADR 72: an Auto-saved item (a shutdown card's tomorrow task), shared by every device. */
+    AutoSaved,
 }

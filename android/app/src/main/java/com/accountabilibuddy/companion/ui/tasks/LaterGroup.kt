@@ -14,6 +14,8 @@ import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -65,6 +67,16 @@ fun LaterGroup(
 fun DoneTodayGroup(rows: List<TaskRowModel>, allToday: Boolean, expanded: Boolean, onToggle: () -> Unit, actions: TasksPaneActions) {
     AbCard(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
         FoldHeader("${if (allToday) "Done today" else "Done"} · ${rows.size}", null, expanded, onToggle)
+        if (expanded) TaskRows(rows, actions, pc = null, reorder = false, modifier = Modifier.padding(bottom = 6.dp))
+    }
+}
+
+/** ADR 72: a group that folds open on tap, for Unfinished and Auto-saved; closed at first so the lists above stay in view. */
+@Composable
+fun SimpleGroup(title: String, rows: List<TaskRowModel>, actions: TasksPaneActions) {
+    var expanded by androidx.compose.runtime.saveable.rememberSaveable(title.substringBefore(" · ")) { androidx.compose.runtime.mutableStateOf(false) }
+    AbCard(contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
+        FoldHeader(title, null, expanded) { expanded = !expanded }
         if (expanded) TaskRows(rows, actions, pc = null, reorder = false, modifier = Modifier.padding(bottom = 6.dp))
     }
 }

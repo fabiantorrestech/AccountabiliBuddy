@@ -23,22 +23,27 @@ public static class SharedListMerge
     /// The merged list, tombstones included, ordered by <see cref="ISharedItem.Position"/> and then id; the same whichever
     /// list is <paramref name="first"/>.
     /// </returns>
-    public static List<T> Merge<T>(IEnumerable<T> first, IEnumerable<T> second, DateTimeOffset now)
+    /// <param name="self">
+    /// This device's id (ADR 72): a stub of an item this device keeps as a local one never replaces its own full copy of the
+    /// same or a newer time. Null where local items play no part.
+    /// </param>
+    public static List<T> Merge<T>(IEnumerable<T> first, IEnumerable<T> second, DateTimeOffset now, Guid? self = null)
         where T : ISharedItem
     {
         var winners = new Dictionary<Guid, T>();
         DateTimeOffset limit = now + FutureLimit;
         foreach (T item in first.Concat(second).Select(item => Clamped(item, limit)))
         {
-            if (!winners.TryGetValue(item.Id, out T? held) || Compare(item, held) > 0)
+            if (!winners.TryGetValue(item.Id, out T? held) || Wins(item, held, self))
             {
                 winners[item.Id] = item;
             }
         }
 
+        // A local item's stub (ADR 72) is kept past the tombstones' 30 days: while it lives, an old copy can't come back.
         DateTimeOffset keptFrom = now - TombstonesKept;
         return winners.Values
-            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom)
+            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom || item.LocalTo is not null)
             .OrderBy(item => item.Position)
             .ThenBy(item => IdText(item), StringComparer.Ordinal)
             .ToList();
@@ -69,6 +74,47 @@ public static class SharedListMerge
             (null, double high) => high - 1,
             _ => 1,
         };
+    }
+
+    /// <summary>
+    /// The items as this device writes them into its own file (ADR 72): every local item is its stub, so the text stays with the
+    /// keeper. Items that sync are unchanged.
+    /// </summary>
+    public static List<T> ForFile<T>(IEnumerable<T> items)
+        where T : ISharedItem
+    {
+        return items.Select(item => item.LocalTo is not null && item.DeletedAt is null ? (T)item.AsLocalStub() : item).ToList();
+    }
+
+    /// <summary>Whether <paramref name="item"/> is shown: neither a tombstone nor a stub.</summary>
+    public static bool IsLive(ISharedItem item)
+    {
+        return item.DeletedAt is null;
+    }
+
+    // The keeper's rule (ADR 72): its full copy of a local item stays over the item's stub (which every device, the keeper too,
+    // writes) of the same or an older time; otherwise the usual order decides.
+    private static bool Wins<T>(T candidate, T held, Guid? self)
+        where T : ISharedItem
+    {
+        if (self is Guid me)
+        {
+            bool candidateIsMyFull = candidate.DeletedAt is null && candidate.LocalTo == me;
+            bool heldIsMyFull = held.DeletedAt is null && held.LocalTo == me;
+            bool candidateIsMyStub = candidate.DeletedAt is not null && candidate.LocalTo == me;
+            bool heldIsMyStub = held.DeletedAt is not null && held.LocalTo == me;
+            if (heldIsMyFull && candidateIsMyStub && Stamp(candidate) <= held.EditedAt)
+            {
+                return false;
+            }
+
+            if (candidateIsMyFull && heldIsMyStub && Stamp(held) <= candidate.EditedAt)
+            {
+                return true;
+            }
+        }
+
+        return Compare(candidate, held) > 0;
     }
 
     /// <returns>More than 0 when <paramref name="candidate"/> is the version to keep over <paramref name="held"/>.</returns>

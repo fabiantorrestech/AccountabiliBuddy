@@ -58,8 +58,7 @@ public sealed partial class SessionTasksService : IDisposable
     // The shared next-session list (ADR 48), tombstones included; the draft shows its live items.
     private List<SyncNextTask> _nextTasks = [];
 
-    // Tasks of ended sessions that were moved to Later: the session's record stays as it was, and they're left out of
-    // "Unfinished from past sessions". Only ids and when (no text); kept as long as history is.
+    // The device-local list of older versions (ADR 72 made it the shared PastSettled store); read once at startup and handed over.
     private List<MovedEntry> _movedToLater = [];
 
     public SessionTasksService(SqliteJsonDocumentStore store, IDataProtector protector, SessionController sessions, TimeProvider time)
@@ -93,6 +92,15 @@ public sealed partial class SessionTasksService : IDisposable
     /// checklist hides ⚑).
     /// </summary>
     public ComebackStore? Comebacks { get; set; }
+
+    /// <summary>
+    /// What was done with past sessions' open tasks on any device (ADR 72), shared; set once the store exists. Null: only this
+    /// device's own moves count (nothing is recorded).
+    /// </summary>
+    public PastSettledStore? PastSettled { get; set; }
+
+    /// <summary>This device's id in its sync group (ADR 72's keeper rule); null while it isn't in one. Set by the app.</summary>
+    public Func<Guid?> SelfId { get; set; } = () => null;
 
     /// <summary>
     /// The Later list (ADR 50) a task is moved to and brought back from; set once the store exists. Its changes raise
@@ -674,7 +682,7 @@ public sealed partial class SessionTasksService : IDisposable
         }
 
         SessionTask? labelled = Labelled(Current).FirstOrDefault(candidate => candidate.Id == taskId);
-        await Comebacks.AddAsync(text, labelled?.Category, labelled?.CategoryColor);
+        await Comebacks.AddAsync(text, labelled?.Category, labelled?.CategoryColor, labelled?.Labels);
         await SetAsync(Current.Parked(taskId));
     }
 
@@ -747,17 +755,22 @@ public sealed partial class SessionTasksService : IDisposable
     /// <summary>The task was moved off an ended session's record (to Later, Today or Come back to), so it is no longer left open.</summary>
     public bool WasMoved(Guid taskId)
     {
-        return _movedToLater.Any(entry => entry.Id == taskId);
+        return PastSettled?.Hides(taskId) == true;
     }
 
     /// <summary>The open tasks of ended sessions (newest session first), for the Tasks page's "Unfinished from past sessions".</summary>
     public IReadOnlyList<PastTask> PastUnfinished()
     {
-        HashSet<Guid> moved = _movedToLater.Select(entry => entry.Id).ToHashSet();
+        Guid? self = SelfId();
+        // A task kept on another device (ADR 72) is a stub here; one kept here still shows.
         return _history
             .Where(checklist => checklist.SessionStart is not null)
             .OrderByDescending(checklist => checklist.SessionStart)
-            .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone && !moved.Contains(task.Id)).Select(task => new PastTask(task, checklist.SessionStart!.Value)))
+            .SelectMany(checklist => checklist.Tasks
+                .Where(task => !task.IsDone && task.Title.Length > 0 && (task.LocalTo is null || task.LocalTo == self) && !WasMovedOff(task.Id))
+                .Select(task => new PastTask(task, checklist.SessionStart!.Value)))
+            .Concat(OtherPastUnfinished?.Invoke() ?? [])
+            .OrderByDescending(item => item.SessionStart)
             .ToList();
     }
 
@@ -779,24 +792,25 @@ public sealed partial class SessionTasksService : IDisposable
         {
             SessionTask task = past.Task;
             IReadOnlyList<SessionSubtask> openSteps = task.Subtasks.Where(step => !step.IsDone).ToList();
-            // Remembered before the Later item is added, so the page that redraws on its change already leaves the task out.
-            _movedToLater.Add(new MovedEntry(task.Id, _time.GetUtcNow()));
+            // Recorded before the Later item is added, so the page that redraws on its change already leaves the task out.
+            if (PastSettled is not null)
+            {
+                await PastSettled.SetAsync(task.Id, SyncPastSettled.Moved);
+            }
+
             (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_categories, task.CategoryId, task.Category, task.CategoryColor);
-            if (await Later.AddAsync(task.Title, openSteps, categoryName, categoryColor, task.EstimateMinutes, task.Note, null) is not null)
+            if (await Later.AddAsync(task.Title, openSteps, categoryName, categoryColor, task.EstimateMinutes, task.Note, null, labels: task.Labels) is not null)
             {
                 moved++;
             }
-            else
+            else if (PastSettled is not null)
             {
-                _movedToLater.RemoveAt(_movedToLater.Count - 1);
+                await PastSettled.SetAsync(task.Id, SyncPastSettled.Open);
             }
         }
 
         if (moved > 0)
         {
-            DateTimeOffset keptFrom = _time.GetUtcNow() - HistoryKept;
-            _movedToLater = _movedToLater.Where(entry => entry.At >= keptFrom).ToList();
-            await _store.SaveAsync(MovedToLaterKey, _movedToLater);
             Changed?.Invoke(this, EventArgs.Empty);
         }
 
@@ -857,7 +871,7 @@ public sealed partial class SessionTasksService : IDisposable
                     : task).ToList(),
             }
             : checklist).ToList();
-        await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
+        await _store.SaveAsync(HistoryKey, _history.Select(Sealed).ToList());
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -1050,9 +1064,19 @@ public sealed partial class SessionTasksService : IDisposable
     /// </summary>
     public async Task EditHistoryAsync(Guid id, string? title)
     {
+        if (title is null && await DeleteForeignPastAsync(id))
+        {
+            return;
+        }
+
         if (title is null)
         {
             await RecordHistoryDeletionAsync(id);
+            // ADR 72: a past session's task deleted here is deleted on every device that lists it.
+            if (PastSettled is not null && _history.Any(checklist => !checklist.OutsideSession && checklist.Tasks.Any(task => task.Id == id)))
+            {
+                await PastSettled.SetAsync(id, SyncPastSettled.Deleted);
+            }
             // A ticked Later item has the record's id: deleting the record deletes the item too, so nothing brings the record back.
             if (Later is not null && Later.DoneItems.Any(item => item.Id == id))
             {
@@ -1068,14 +1092,17 @@ public sealed partial class SessionTasksService : IDisposable
                 .ToList(),
         };
 
-        _history = _history.Select(checklist => checklist with
-        {
-            Tasks = checklist.Tasks
-                .Where(task => task.Id != id || title is not null)
-                .Select(task => task.Id == id ? task with { Title = title! } : Apply(task, id, title))
-                .ToList(),
-        }).ToList();
-        await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
+        // Only the checklist that holds the task or step is made again (the others keep their sealed copy).
+        _history = _history.Select(checklist => !checklist.Tasks.Any(task => task.Id == id || task.Subtasks.Any(step => step.Id == id))
+            ? checklist
+            : checklist with
+            {
+                Tasks = checklist.Tasks
+                    .Where(task => task.Id != id || title is not null)
+                    .Select(task => task.Id == id ? task with { Title = title! } : Apply(task, id, title))
+                    .ToList(),
+            }).ToList();
+        await _store.SaveAsync(HistoryKey, _history.Select(Sealed).ToList());
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -1087,7 +1114,7 @@ public sealed partial class SessionTasksService : IDisposable
             // History keeps each task's category name and colour as they were, so deleting a category later loses nothing.
             SessionChecklist labelled = Current with { Tasks = Labelled(Current) };
             _history = [.. _history.Where(item => KeptInHistory(item, cutoff)), labelled];
-            await _store.SaveAsync(HistoryKey, _history.Select(item => new StoredHistory(Seal(item))).ToList());
+            await _store.SaveAsync(HistoryKey, _history.Select(Sealed).ToList());
         }
 
         // The next session's list: empty, unless another device added tasks to it while this session ran (ADR 48); a task of
@@ -1121,10 +1148,10 @@ public sealed partial class SessionTasksService : IDisposable
     public IReadOnlyList<SyncNextTask> NextTasksForSync()
     {
         DateTimeOffset keptFrom = _time.GetUtcNow() - SharedListMerge.TombstonesKept;
-        return _nextTasks
-            .Where(task => task.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom)
-            .OrderBy(task => task.Position)
-            .ToList();
+        // ADR 72: a local item goes out as its stub, kept while it is local.
+        return SharedListMerge.ForFile(_nextTasks
+            .Where(task => task.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom || task.LocalTo is not null)
+            .OrderBy(task => task.Position));
     }
 
     /// <summary>
@@ -1154,8 +1181,8 @@ public sealed partial class SessionTasksService : IDisposable
                 : task).ToList();
         }
 
-        List<SyncNextTask> merged = SharedListMerge.Merge(_nextTasks, incoming, now);
-        bool changed = !merged.SequenceEqual(SharedListMerge.Merge(_nextTasks, [], now), new NextTaskComparer());
+        List<SyncNextTask> merged = SharedListMerge.Merge(_nextTasks, incoming, now, SelfId());
+        bool changed = !merged.SequenceEqual(SharedListMerge.Merge(_nextTasks, [], now, SelfId()), new NextTaskComparer());
         List<SyncNextTask> result = TombstoneConsumed(merged, now, out bool tombstoned);
         if (!changed && !tombstoned)
         {
@@ -1228,7 +1255,7 @@ public sealed partial class SessionTasksService : IDisposable
             .Select(task => new SessionTask(
                 task.Id, task.Title ?? string.Empty, task.DoneAt, task.Subtasks ?? [],
                 task.Category is string name ? _categories.FirstOrDefault(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase))?.Id : null,
-                EstimateMinutes: task.EstimateMinutes, Note: task.Note, PlannedFor: task.PlannedFor))
+                EstimateMinutes: task.EstimateMinutes, Note: task.Note, PlannedFor: task.PlannedFor, Labels: task.Labels, LocalTo: task.LocalTo))
             .ToList();
         return new SessionChecklist(null, false, tasks, tasks.Any(task => !task.IsDone && task.Id == currentId) ? currentId : null);
     }
@@ -1312,6 +1339,8 @@ public sealed partial class SessionTasksService : IDisposable
                 && live.EstimateMinutes == task.EstimateMinutes
                 && string.Equals(live.Note, task.Note, StringComparison.Ordinal)
                 && live.PlannedFor == task.PlannedFor
+                && TaskLabels.TieText(live.Labels) == TaskLabels.TieText(task.Labels)
+                && live.LocalTo == task.LocalTo
                 && live.Position == position;
             if (same)
             {
@@ -1320,7 +1349,7 @@ public sealed partial class SessionTasksService : IDisposable
 
             items[task.Id] = new SyncNextTask(
                 task.Id, task.Title, task.DoneAt, task.Category, task.CategoryColor, task.Subtasks.Count > 0 ? task.Subtasks : null,
-                SharedListMerge.NextStamp(now, held), null, position, task.EstimateMinutes, task.Note, task.PlannedFor);
+                SharedListMerge.NextStamp(now, held), null, position, task.EstimateMinutes, task.Note, task.PlannedFor, TaskLabels.Clean(task.Labels), task.LocalTo);
             changed = true;
         }
 
@@ -1425,7 +1454,7 @@ public sealed partial class SessionTasksService : IDisposable
     {
         DateTimeOffset keptFrom = now - SharedListMerge.TombstonesKept;
         return items
-            .Where(task => task.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom)
+            .Where(task => task.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom || task.LocalTo is not null)
             .OrderBy(task => task.Position)
             .ToList();
     }

@@ -23,7 +23,8 @@ public static class DeviceSettingsRegistry
 
     /// <summary>The task lists' own documents (their kind exports them in their sync form).</summary>
     public static IReadOnlyList<string> TaskKeys { get; } =
-        ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted"];
+        ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted",
+         "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast"];
 
     /// <summary>The calendars part (sources with their secrets, in-app events).</summary>
     public static IReadOnlyList<string> CalendarKeys { get; } = ["calendar.sources", "calendar.events"];
@@ -35,7 +36,7 @@ public static class DeviceSettingsRegistry
         "dev.syncReceipts", "googleSetup", "guidance.asked", "guidance.reasons", "history.appPaths", "history.deleted", "history.gaps",
         "history.notReal", "integrations.coldTurkey.sightings", "learn.firstSession", "lunch", "pickups.pc", "prework",
         "quit.guard.pending", "review.ignored", "review.promoted", "session", "session.overLimit", "session.pcOff.pending",
-        "session.taskHistory", "session.tasks", "setup.assistant", "setup.features", "shutdown.autoSaved", "shutdown.reviews",
+        "session.taskHistory", "session.tasks", "setup.assistant", "setup.features", "shutdown.autoSaved", "shutdown.reviews", "tasks.receivedHistory", "tasks.handovers",
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
     ];
 

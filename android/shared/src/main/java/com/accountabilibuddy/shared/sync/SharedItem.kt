@@ -27,6 +27,15 @@ interface SharedItem {
 
     /** The same item with other edit and deletion times ([SharedListMerge] uses it to clamp a far-future stamp). */
     fun withStamps(editedAt: Instant, deletedAt: Instant?): SharedItem
+
+    /**
+     * The device that keeps this item as a local one (ADR 72); null = it syncs. Every device writes a local item as a stub
+     * ([deletedAt] set, no text, this field kept), so an app that predates it drops the item as deleted; only the keeper holds the text.
+     */
+    val localTo: String? get() = null
+
+    /** The item as the stub every device writes for a local item: no text, deleted at its own edit time, [localTo] kept. */
+    fun asLocalStub(): SharedItem = this
 }
 
 /** Time as .NET counts it (100 ns ticks since 0001-01-01 UTC), so times compare as they do on the PC. */

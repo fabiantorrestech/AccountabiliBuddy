@@ -111,6 +111,16 @@ data class SyncFile(
      * Null for a default nobody chose and from an app that predates it. Optional in the JSON, so older apps ignore it (and keep guarding).
      */
     val guidance: SyncGuidance? = null,
+    /** ADR 72: a PC's own 90-day task history (never a session note or reason). */
+    val taskHistory: List<SyncTaskHistoryEntry>? = null,
+    /** ADR 72: the shared record of what was done with past sessions' open tasks. */
+    val pastSettled: List<SyncPastSettled>? = null,
+    /** ADR 72: the shared Auto-saved list. */
+    val autoSaved: List<SyncAutoSavedItem>? = null,
+    /** ADR 72: items on their way to the device chosen to keep them. */
+    val handovers: List<SyncHandover>? = null,
+    /** ADR 72: this device's receipts for the handovers it took in. */
+    val handoverAcks: List<SyncHandoverAck>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

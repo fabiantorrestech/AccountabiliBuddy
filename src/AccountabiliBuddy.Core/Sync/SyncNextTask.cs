@@ -27,14 +27,26 @@ public sealed record SyncNextTask(
     double Position,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? EstimateMinutes = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Note = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null) : ISharedItem
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Labels = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? LocalTo = null) : ISharedItem
 {
+    // Labels and the keeper join the tie-break only when there are some (ADR 72), so a task without them breaks ties exactly as
+    // before, and a copy that kept them wins an equal-stamp tie against the same task passed on by an app that dropped them.
     [JsonIgnore]
     public string TieBreak => string.Join(
         "\u0001",
-        Title, DoneAt?.UtcTicks.ToString() ?? string.Empty, Category ?? string.Empty, CategoryColor ?? string.Empty,
-        string.Join("\u0002", (Subtasks ?? []).Select(step => $"{step.Id:D}\u0003{step.Title}\u0003{step.DoneAt?.UtcTicks}")),
-        EstimateMinutes?.ToString() ?? string.Empty, Note ?? string.Empty, PlannedFor?.TieText ?? string.Empty);
+        new[]
+        {
+            Title, DoneAt?.UtcTicks.ToString() ?? string.Empty, Category ?? string.Empty, CategoryColor ?? string.Empty,
+            string.Join("\u0002", (Subtasks ?? []).Select(step => $"{step.Id:D}\u0003{step.Title}\u0003{step.DoneAt?.UtcTicks}")),
+            EstimateMinutes?.ToString() ?? string.Empty, Note ?? string.Empty, PlannedFor?.TieText ?? string.Empty,
+        }.Concat(SharedItemTie.Extra(Labels, LocalTo)));
+
+    public ISharedItem AsLocalStub()
+    {
+        return Deleted(EditedAt) with { LocalTo = LocalTo };
+    }
 
     public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
     {
@@ -44,6 +56,6 @@ public sealed record SyncNextTask(
     /// <summary>The task as a tombstone: its text is gone, and it is deleted at <paramref name="at"/>.</summary>
     public SyncNextTask Deleted(DateTimeOffset at)
     {
-        return this with { Title = string.Empty, DoneAt = null, Category = null, CategoryColor = null, Subtasks = null, EstimateMinutes = null, Note = null, PlannedFor = null, EditedAt = at, DeletedAt = at };
+        return this with { Title = string.Empty, DoneAt = null, Category = null, CategoryColor = null, Subtasks = null, EstimateMinutes = null, Note = null, PlannedFor = null, Labels = null, LocalTo = null, EditedAt = at, DeletedAt = at };
     }
 }

@@ -65,6 +65,9 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
     val nextTasks by app.sharedLists.nextTasks.collectAsState()
     val parked by app.sharedLists.parked.collectAsState()
     val later by app.sharedLists.later.collectAsState()
+    // ADR 72: other PCs' unfinished past tasks and the shared Auto-saved list.
+    val unfinished by app.sharedLists.unfinished.collectAsState()
+    val autoSaved by app.sharedLists.autoSaved.collectAsState()
     val ownCategories by app.taskCategories.categories.collectAsState()
     val savedFilters by app.taskFilterPresets.presets.collectAsState()
     val received by app.sync.received.collectAsState()
@@ -96,7 +99,7 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
     val comebacks = OpenComebacks.of(parked, received, now)
     // Items whose "Add to Today" waits for a PC's answer: shown as sent, and not sent again.
     val waiting = app.todayHandoff.waitingIds(pending)
-    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now, ownCategories = ownCategories, shareCategories = app.sync.sharesTaskLists())
+    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now, ownCategories = ownCategories, shareCategories = app.sync.sharesTaskLists(), unfinished = unfinished, autoSaved = autoSaved)
     val chip = newTaskCategory?.let { name -> model.categories.firstOrNull { it.name.equals(name, ignoreCase = true) } }
 
     val controller = remember(app, snackbar) {

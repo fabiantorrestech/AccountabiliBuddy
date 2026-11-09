@@ -160,6 +160,11 @@ public partial class App : Application
     private EndWorkEarlyDialog? _endWorkDialog;
     private ComebackStore? _comebacks;
     private LaterStore? _later;
+    // ADR 72: every task list syncs (history, settle records, Auto-saved, local items).
+    private AccountabiliBuddy.App.Services.Sync.TaskListSync? _taskListSync;
+    private ReceivedTaskHistoryStore? _receivedHistory;
+    private KeptPastStore? _keptPast;
+    private PastSettledStore? _pastSettled;
     private AccountabiliBuddy.App.Services.Beeminder.BeeminderService? _beeminder;
     private SessionNotesStore? _sessionNotes;
     private CaptureService? _capture;
@@ -1196,6 +1201,46 @@ public partial class App : Application
         var autoSaved = new AutoSavedTaskStore(documents, new DpapiDataProtector(), time);
         autoSaved.LoadBlocking();
         sessionTasks.AutoSaved = autoSaved;
+        // ADR 72: every task list syncs. The history of past sessions, the shared record of what was done with their open tasks,
+        // Auto-saved, and local items handed to the one device that keeps them; other PCs' history kept sealed here.
+        Func<Guid?> selfId = () => syncIdentity.DeviceId == Guid.Empty ? null : syncIdentity.DeviceId;
+        sessionTasks.SelfId = selfId;
+        _later!.SelfId = selfId;
+        _comebacks!.SelfId = selfId;
+        autoSaved.SelfId = selfId;
+        var pastSettled = new PastSettledStore(documents, time);
+        pastSettled.LoadBlocking();
+        sessionTasks.PastSettled = pastSettled;
+        _ = pastSettled.ImportMovedAsync(sessionTasks.LegacyMovedEntries());
+        var receivedHistory = new ReceivedTaskHistoryStore(documents, new DpapiDataProtector(), time);
+        receivedHistory.LoadBlocking();
+        var handovers = new HandoverOutbox(documents, new DpapiDataProtector(), time);
+        handovers.LoadBlocking();
+        var keptPast = new KeptPastStore(documents, new DpapiDataProtector(), time);
+        keptPast.LoadBlocking();
+        _taskListSync = new AccountabiliBuddy.App.Services.Sync.TaskListSync(
+            sessionTasks, pastSettled, autoSaved, receivedHistory, handovers, keptPast, _later, _comebacks, selfId, () => syncIdentity.DeviceName, time);
+        _receivedHistory = receivedHistory;
+        _keptPast = keptPast;
+        _pastSettled = pastSettled;
+        sessionTasks.Kept = keptPast;
+        sessionTasks.ForeignTaskOf = id => keptPast.Find(id)?.Task ?? receivedHistory.Find(id)?.Task;
+        sessionTasks.OtherPastUnfinished = () =>
+        {
+            DateTimeOffset since = time.GetUtcNow() - TimeSpan.FromDays(14);
+            return receivedHistory.Unfinished(since, pastSettled.Hides)
+                .Select(item => new PastTask(item.Task, item.SessionStart!.Value, item.DeviceName))
+                .Concat(keptPast.Items.Where(item => !item.Task.IsDone && item.SessionStart is not null).Select(item => new PastTask(item.Task, item.SessionStart!.Value, item.SourceName)))
+                .ToList();
+        };
+        receivedHistory.Changed += (_, _) => sessionTasks.NotifyListsChanged();
+        keptPast.Changed += (_, _) => sessionTasks.NotifyListsChanged();
+        pastSettled.Changed += (_, _) => sessionTasks.NotifyListsChanged();
+        syncCoordinator.DecorateTaskLists = _taskListSync.Decorate;
+        syncCoordinator.ReceiveTaskLists = _taskListSync.ReceiveAsync;
+        autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        pastSettled.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        handovers.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         // "How did today go" (a feeling and a line): sealed on this PC, 90 days, shown over time in Stats.
         var shutdownReviews = new ShutdownReviewStore(documents, new DpapiDataProtector(), time);
         shutdownReviews.LoadBlocking();
@@ -1485,7 +1530,17 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents), new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector())),
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents), new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector()))
+            {
+                // ADR 72: "Keep on…" offers this PC and the group's other PCs and phones (never the watch).
+                SelfId = selfId,
+                SetLocal = _taskListSync!.SetLocalAsync,
+                KeepOnDevices = () => receivedDevices.Active
+                    .Where(device => device.File.Device.Kind is AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPc or AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone)
+                    .Where(device => device.File.Device.DeviceId != syncIdentity.DeviceId)
+                    .Select(device => (device.File.Device.DeviceId, device.File.Device.Name))
+                    .ToList(),
+            },
             Plan = planViewModel,
             Stats = statsViewModel,
             DayBar = _dayBar,

@@ -89,6 +89,9 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
             }
             TaskKind.DoneLater -> lists.untickLater(id)
             TaskKind.DoneRunning -> Unit
+            // ADR 72: settled on every device (the PC whose history holds it ticks it there too).
+            TaskKind.Unfinished -> lists.tickPast(id)
+            TaskKind.AutoSaved -> Unit
         }
     }
 
@@ -192,6 +195,8 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
         val moved = when (ref.kind) {
             TaskKind.Next -> lists.moveNextToLater(ref.id)
             TaskKind.ComeBack -> lists.moveParkedToLater(ref.id)
+            TaskKind.Unfinished -> lists.movePastToLater(ref.id).let { Unit }
+            TaskKind.AutoSaved -> lists.autoSavedToLater(ref.id).let { Unit }
             else -> null
         }
         if (moved != null) say("Moved to Later.", null)
@@ -216,6 +221,8 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
             TaskKind.ComeBack -> lists.deleteParked(ref.id)
             TaskKind.Later, TaskKind.DoneLater -> lists.deleteLater(ref.id)?.let { item -> say("Deleted from Later.") { lists.restoreLater(item) } }
             TaskKind.Running, TaskKind.DoneRunning -> Unit
+            TaskKind.Unfinished -> lists.deletePast(ref.id)
+            TaskKind.AutoSaved -> lists.deleteAutoSaved(ref.id)
         }
     }
 

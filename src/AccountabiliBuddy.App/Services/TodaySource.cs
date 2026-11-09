@@ -4,7 +4,7 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// What a task brought to Today carries from where it was (Later, a come-back, an ended session's record): its title, steps
-/// (they come back open), category (by name and colour, as the Later list and history keep them), estimate and note. Private text.
+/// (they come back open), category (by name and colour, as the Later list and history keep them), estimate, note and labels (ADR 72). Private text.
 /// </summary>
 public sealed record TodaySource(
     string Title,
@@ -12,4 +12,5 @@ public sealed record TodaySource(
     string? Category = null,
     string? CategoryColor = null,
     int? EstimateMinutes = null,
-    string? Note = null);
+    string? Note = null,
+    IReadOnlyList<string>? Labels = null);

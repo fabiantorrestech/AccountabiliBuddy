@@ -28,15 +28,56 @@ public sealed partial class NotebookViewModel : ObservableObject
         _notes = notes;
         _tasks = tasks;
         _time = time;
-        _comebacks.Changed += (_, _) => Refresh();
-        _notes.Changed += (_, _) => Refresh();
-        _tasks.Changed += (_, _) => Refresh();
+        _comebacks.Changed += (_, _) => OnStoreChanged();
+        _notes.Changed += (_, _) => OnStoreChanged();
+        _tasks.Changed += (_, _) => OnStoreChanged();
         if (_tasks.Deleted is not null)
         {
-            _tasks.Deleted.Changed += (_, _) => Refresh();
+            _tasks.Deleted.Changed += (_, _) => OnStoreChanged();
         }
 
         Refresh();
+    }
+
+    /// <summary>
+    /// Whether the Archive shows now (on the Tasks page: open, or a search running). While it doesn't, a change only marks it
+    /// stale and <see cref="ShowIfStale"/> rebuilds it when it opens. Null (shown on its own): it always rebuilds. Set by the page.
+    /// </summary>
+    internal Func<bool>? IsShown { get; set; }
+
+    private bool _stale;
+    private bool _refreshQueued;
+
+    /// <summary>Rebuilds the Archive if something changed while it was folded.</summary>
+    internal void ShowIfStale()
+    {
+        if (_stale && IsShown?.Invoke() != false)
+        {
+            _stale = false;
+            Refresh();
+        }
+    }
+
+    // The changes of one tick merge into one rebuild after the tick has drawn; none at all while the Archive is folded.
+    private void OnStoreChanged()
+    {
+        if (IsShown?.Invoke() == false)
+        {
+            _stale = true;
+            return;
+        }
+
+        if (_refreshQueued)
+        {
+            return;
+        }
+
+        _refreshQueued = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _refreshQueued = false;
+            Refresh();
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     /// <summary>The Tasks page the Archive lives on: its ⋯ menus move, label and delete through it. Set by the page.</summary>
@@ -86,6 +127,7 @@ public sealed partial class NotebookViewModel : ObservableObject
     /// <summary>Builds the list again from the stores.</summary>
     public void Refresh()
     {
+        using IDisposable timing = Services.TickDiag.Measure("archive rebuild");
         List<NotebookItemViewModel> all = [.. Comebacks(), .. Notes(), .. Tasks()];
         int open = _comebacks.All.Count(comeback => comeback.DoneAt is null);
         SummaryText = $"{open} open come-backs · {_notes.All.Count} notes · {all.Count(item => item.Kind == UnfinishedKind)} unfinished · {all.Count(item => item.Kind == DoneKind)} done";

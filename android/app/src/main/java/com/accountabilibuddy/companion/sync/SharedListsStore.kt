@@ -8,6 +8,16 @@ import com.accountabilibuddy.shared.sync.SyncFileJson
 import com.accountabilibuddy.shared.sync.SyncLaterItem
 import com.accountabilibuddy.shared.sync.SyncNextTask
 import com.accountabilibuddy.shared.sync.SyncParked
+import com.accountabilibuddy.shared.sync.SyncAutoSavedItem
+import com.accountabilibuddy.shared.sync.SyncPastSettled
+import com.accountabilibuddy.shared.sync.SyncTaskHistoryEntry
+import com.accountabilibuddy.shared.sync.SyncHistoryTask
+import com.accountabilibuddy.shared.sync.SyncHandover
+import com.accountabilibuddy.shared.sync.SyncHandoverAck
+import com.accountabilibuddy.shared.sync.SyncKeptPast
+import com.accountabilibuddy.shared.sync.TaskLabels
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +50,17 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private val _nextTasks = MutableStateFlow(liveNextTasks())
     private val _parked = MutableStateFlow(liveParked())
     private val _later = MutableStateFlow(liveLater())
+    private val _autoSaved = MutableStateFlow(liveAutoSaved())
+    private val _unfinished = MutableStateFlow(unfinishedNow())
+
+    /** ADR 72: the shared Auto-saved list, live items, newest first. */
+    val autoSaved: StateFlow<List<SyncAutoSavedItem>> = _autoSaved.asStateFlow()
+
+    /** ADR 72: the PCs' tasks their past sessions left open (last two weeks), not settled, and the ones kept here; newest first. */
+    val unfinished: StateFlow<List<PastTaskRow>> = _unfinished.asStateFlow()
+
+    /** This phone's id in its sync group (ADR 72's keeper rule); null while it isn't in one. Set by the app. */
+    var selfId: () -> String? = { null }
 
     /** The next session's tasks, in list order. */
     val nextTasks: StateFlow<List<SyncNextTask>> = _nextTasks.asStateFlow()
@@ -82,21 +103,21 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     @Synchronized
     fun nextTasksForSync(): List<SyncNextTask> {
         val keptFrom = now().minus(SharedListMerge.TOMBSTONES_KEPT)
-        return all.nextTasks.filter { it.deletedAt?.isAfter(keptFrom) ?: true }
+        return SharedListMerge.forFile(all.nextTasks.filter { it.deletedAt?.isAfter(keptFrom) ?: true || it.localTo != null })
     }
 
     /** The Later list for this phone's sync file (ADR 50): its items and the tombstones of the last 30 days. */
     @Synchronized
     fun laterForSync(): List<SyncLaterItem> {
         val keptFrom = now().minus(SharedListMerge.TOMBSTONES_KEPT)
-        return all.later.filter { it.deletedAt?.isAfter(keptFrom) ?: true }
+        return SharedListMerge.forFile(all.later.filter { it.deletedAt?.isAfter(keptFrom) ?: true || it.localTo != null })
     }
 
     /** The come-backs for this phone's sync file: the open and recently ticked ones, and the tombstones of the last 30 days. */
     @Synchronized
     fun parkedForSync(): List<SyncParked> {
         val keptFrom = now().minus(SharedListMerge.TOMBSTONES_KEPT)
-        return all.parked.filter { item -> item.deletedAt?.isAfter(keptFrom) ?: item.doneAt?.isAfter(keptFrom) ?: true }
+        return SharedListMerge.forFile(all.parked.filter { item -> (item.deletedAt?.isAfter(keptFrom) ?: item.doneAt?.isAfter(keptFrom) ?: true) || item.localTo != null })
     }
 
     /**
@@ -124,12 +145,13 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
                 )
             }
         }
-        val mergedTasks = incoming?.let { SharedListMerge.merge(all.nextTasks, it, time) } ?: all.nextTasks
-        val mergedParked = parked?.let { SharedListMerge.merge(all.parked, it, time) } ?: all.parked
-        val mergedLater = later?.let { SharedListMerge.merge(all.later, it, time) } ?: all.later
-        if (mergedTasks == SharedListMerge.merge(all.nextTasks, emptyList(), time) &&
-            mergedParked == SharedListMerge.merge(all.parked, emptyList(), time) &&
-            mergedLater == SharedListMerge.merge(all.later, emptyList(), time)
+        val me = selfId()
+        val mergedTasks = incoming?.let { SharedListMerge.merge(all.nextTasks, it, time, me) } ?: all.nextTasks
+        val mergedParked = parked?.let { SharedListMerge.merge(all.parked, it, time, me) } ?: all.parked
+        val mergedLater = later?.let { SharedListMerge.merge(all.later, it, time, me) } ?: all.later
+        if (mergedTasks == SharedListMerge.merge(all.nextTasks, emptyList(), time, me) &&
+            mergedParked == SharedListMerge.merge(all.parked, emptyList(), time, me) &&
+            mergedLater == SharedListMerge.merge(all.later, emptyList(), time, me)
         ) {
             return false
         }
@@ -140,14 +162,16 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** Adds a come-back at the end of the list; a blank line adds nothing. */
     fun addParked(text: String) {
-        val trimmed = text.trim()
+        // ADR 72: "##word" in the typed text is a label.
+        val (typed, labels) = TaskLabels.parse(text.trim())
+        val trimmed = typed.trim()
         if (trimmed.isEmpty()) {
             return
         }
 
         edit { lists, time ->
             val last = lists.parked.maxOfOrNull { it.position }
-            lists.copy(parked = lists.parked + SyncParked(newId(), trimmed, time, null, time, null, SharedListMerge.positionBetween(last, null)))
+            lists.copy(parked = lists.parked + SyncParked(newId(), trimmed, time, null, time, null, SharedListMerge.positionBetween(last, null), labels = labels))
         }
     }
 
@@ -167,7 +191,8 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** Adds a task to the end of its category's tasks; a blank title adds nothing. The three-tasks prompt is the screen's. */
     fun addNextTask(title: String, category: String? = null, categoryColor: String? = null): String? {
-        val trimmed = title.trim()
+        val (typed, labels) = TaskLabels.parse(title.trim())
+        val trimmed = typed.trim()
         if (trimmed.isEmpty()) {
             return null
         }
@@ -175,7 +200,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         val id = newId()
         edit { lists, time ->
             val last = lists.nextTasks.filter { it.deletedAt == null && it.category == category }.maxOfOrNull { it.position }
-            lists.copy(nextTasks = lists.nextTasks + SyncNextTask(id, trimmed, null, category, categoryColor, null, time, null, SharedListMerge.positionBetween(last, null)))
+            lists.copy(nextTasks = lists.nextTasks + SyncNextTask(id, trimmed, null, category, categoryColor, null, time, null, SharedListMerge.positionBetween(last, null), labels = labels))
         }
         return id
     }
@@ -295,7 +320,8 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** Adds an item at the end of the Later list; a blank title adds nothing. Returns its id. */
     fun addLater(title: String, category: String? = null, categoryColor: String? = null, dueOn: String? = null): String? {
-        val trimmed = title.trim()
+        val (typed, labels) = TaskLabels.parse(title.trim())
+        val trimmed = typed.trim()
         if (trimmed.isEmpty()) {
             return null
         }
@@ -304,7 +330,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         edit { lists, time ->
             val last = lists.later.filter { it.deletedAt == null }.maxOfOrNull { it.position }
             lists.copy(later = lists.later + SyncLaterItem(
-                id, trimmed, null, category, categoryColor, null, null, dueOn, time, null, SharedListMerge.positionBetween(last, null),
+                id, trimmed, null, category, categoryColor, null, null, dueOn, time, null, SharedListMerge.positionBetween(last, null), labels = labels,
             ))
         }
         return id
@@ -444,6 +470,124 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     private fun Lists.replace(old: SyncNextTask, new: SyncNextTask) = copy(nextTasks = nextTasks.map { if (it === old) new else it })
 
+    // ---- ADR 72: every task list syncs ----
+
+    /**
+     * Takes ADR 72's parts in from another device's file: a PC's task history (replacing its older copy), the settle records,
+     * the Auto-saved list, and the items handed to this phone to keep (their receipts go out in this phone's file).
+     * @return True when something changed.
+     */
+    @Synchronized
+    fun receiveExtras(
+        deviceId: String, name: String, isPc: Boolean, history: List<SyncTaskHistoryEntry>?, settled: List<SyncPastSettled>?,
+        autoSaved: List<SyncAutoSavedItem>?, handovers: List<SyncHandover>?,
+    ): Boolean {
+        val time = now()
+        val me = selfId()
+        var lists = all
+        if (isPc && history != null) {
+            lists = lists.copy(history = lists.history.filterNot { it.deviceId.equals(deviceId, ignoreCase = true) } + DeviceHistory(deviceId, name, history))
+        }
+
+        settled?.let { lists = lists.copy(pastSettled = SharedListMerge.merge(lists.pastSettled, it, time)) }
+        autoSaved?.let { lists = lists.copy(autoSaved = SharedListMerge.merge(lists.autoSaved, it, time, me)) }
+        if (me != null) {
+            for (handover in handovers.orEmpty().filter { it.to.equals(me, ignoreCase = true) }) {
+                if (lists.receipts.any { it.id.equals(handover.id, ignoreCase = true) && !it.editedAt.isBefore(handover.editedAt) }) continue
+                lists = adopt(lists, handover, me)
+                lists = lists.copy(receipts = lists.receipts.filterNot { it.id.equals(handover.id, ignoreCase = true) } + SyncHandoverAck(handover.id, handover.editedAt))
+            }
+        }
+
+        if (lists == all) {
+            return false
+        }
+
+        save(lists, time)
+        return true
+    }
+
+    /** The settle records for this phone's file. */
+    @Synchronized
+    fun pastSettledForSync(): List<SyncPastSettled> = all.pastSettled
+
+    /** The Auto-saved list for this phone's file: tombstones included, local items as stubs. */
+    @Synchronized
+    fun autoSavedForSync(): List<SyncAutoSavedItem> = SharedListMerge.forFile(all.autoSaved)
+
+    /** This phone's receipts for the handovers it took in (30 days). */
+    @Synchronized
+    fun receiptsForSync(): List<SyncHandoverAck> = all.receipts
+
+    /** Ticks a past task (another PC's, settled on every device; one kept here, here only). */
+    fun tickPast(id: String) = edit { lists, time ->
+        val kept = lists.kept.firstOrNull { it.task.id.equals(id, ignoreCase = true) }
+        if (kept != null) {
+            lists.copy(kept = lists.kept.map { if (it === kept) it.copy(task = it.task.copy(doneAt = time), editedAt = time) else it })
+        } else {
+            settle(lists, id, SyncPastSettled.DONE, time)
+        }
+    }
+
+    /** Moves a past task to Later (its open steps, category, estimate, note and labels): it leaves Unfinished on every device. */
+    fun movePastToLater(id: String) = edit { lists, time ->
+        val row = unfinishedNow().firstOrNull { it.task.id.equals(id, ignoreCase = true) } ?: return@edit lists
+        val task = row.task
+        val last = lists.later.maxOfOrNull { it.position }
+        val item = SyncLaterItem(
+            newId(), task.title, task.subtasks.filter { !it.isDone }.ifEmpty { null }, task.category, task.categoryColor, task.estimateMinutes, task.note, null,
+            time, null, SharedListMerge.positionBetween(last, null), labels = task.labels,
+        )
+        val withItem = lists.copy(later = lists.later + item)
+        if (row.keptHere) withItem.copy(kept = withItem.kept.filterNot { it.task.id.equals(id, ignoreCase = true) }) else settle(withItem, id, SyncPastSettled.MOVED, time)
+    }
+
+    /** Deletes a past task (another PC's: on every device, into its PC's Recently deleted; one kept here: here only). */
+    fun deletePast(id: String) = edit { lists, time ->
+        if (lists.kept.any { it.task.id.equals(id, ignoreCase = true) }) lists.copy(kept = lists.kept.filterNot { it.task.id.equals(id, ignoreCase = true) })
+        else settle(lists, id, SyncPastSettled.DELETED, time)
+    }
+
+    /** Moves an Auto-saved item to Later; it leaves Auto-saved on every device. */
+    fun autoSavedToLater(id: String) = edit { lists, time ->
+        val held = lists.autoSaved.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
+        val last = lists.later.maxOfOrNull { it.position }
+        val item = SyncLaterItem(newId(), held.title, null, held.category, held.categoryColor, null, null, null, time, null, SharedListMerge.positionBetween(last, null), labels = held.labels)
+        lists.copy(later = lists.later + item, autoSaved = lists.autoSaved.map { if (it === held) it.deleted(SharedListMerge.nextStamp(time, it)) else it })
+    }
+
+    /** Deletes an Auto-saved item on every device. */
+    fun deleteAutoSaved(id: String) = edit { lists, time ->
+        lists.copy(autoSaved = lists.autoSaved.map { if (it.id == id && it.deletedAt == null) it.deleted(SharedListMerge.nextStamp(time, it)) else it })
+    }
+
+    /** The title of an Auto-saved item, for Add to Today (the caller adds the task, then deletes the item). */
+    @Synchronized
+    fun autoSavedTitle(id: String): String? = all.autoSaved.firstOrNull { it.id == id && it.deletedAt == null }?.title
+
+    /** Every label on this phone's lists (ADR 72). */
+    @Synchronized
+    fun allLabels(): List<String> = TaskLabels.allOf(
+        all.nextTasks.filter { it.deletedAt == null }.map { it.labels } + all.later.filter { it.deletedAt == null }.map { it.labels } +
+            all.parked.filter { it.deletedAt == null }.map { it.labels } + all.autoSaved.filter { it.deletedAt == null }.map { it.labels },
+    )
+
+    private fun settle(lists: Lists, id: String, state: String, time: Instant): Lists {
+        val held = lists.pastSettled.firstOrNull { it.id.equals(id, ignoreCase = true) }
+        val record = SyncPastSettled(id, state, SharedListMerge.nextStamp(time, held))
+        return lists.copy(pastSettled = lists.pastSettled.filterNot { it.id.equals(id, ignoreCase = true) } + record)
+    }
+
+    // An item handed to this phone to keep: it replaces any stub or older copy; a past task joins the kept ones.
+    private fun adopt(lists: Lists, handover: SyncHandover, me: String): Lists = when (handover.list) {
+        SyncHandover.NEXT_TASKS -> handover.nextTask?.let { item -> lists.copy(nextTasks = lists.nextTasks.filterNot { it.id.equals(item.id, ignoreCase = true) } + item.copy(deletedAt = null, localTo = me)) } ?: lists
+        SyncHandover.LATER -> handover.laterItem?.let { item -> lists.copy(later = lists.later.filterNot { it.id.equals(item.id, ignoreCase = true) } + item.copy(deletedAt = null, localTo = me)) } ?: lists
+        SyncHandover.PARKED -> handover.parkedItem?.let { item -> lists.copy(parked = lists.parked.filterNot { it.id.equals(item.id, ignoreCase = true) } + item.copy(deletedAt = null, localTo = me)) } ?: lists
+        SyncHandover.AUTO_SAVED -> handover.autoSavedItem?.let { item -> lists.copy(autoSaved = lists.autoSaved.filterNot { it.id.equals(item.id, ignoreCase = true) } + item.copy(deletedAt = null, localTo = me)) } ?: lists
+        SyncHandover.HISTORY -> handover.pastTask?.let { past -> lists.copy(kept = lists.kept.filterNot { it.task.id.equals(past.task.id, ignoreCase = true) } + past.copy(task = past.task.copy(localTo = me))) } ?: lists
+        else -> lists
+    }
+
     // The clock is read once per change, so everything one change touches is stamped from the same moment.
     private fun edit(change: (Lists, Instant) -> Lists) {
         val changed = synchronized(this) {
@@ -466,17 +610,24 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         val tombstonesFrom = time.minus(SharedListMerge.TOMBSTONES_KEPT)
         val doneFrom = time.minus(java.time.Duration.ofDays(90))
         all = Lists(
-            lists.nextTasks.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
-            lists.parked.filter { item -> item.deletedAt?.isAfter(tombstonesFrom) ?: item.doneAt?.isAfter(doneFrom) ?: true }.sortedBy { it.position },
+            lists.nextTasks.filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true || it.localTo != null }.sortedBy { it.position },
+            lists.parked.filter { item -> (item.deletedAt?.isAfter(tombstonesFrom) ?: item.doneAt?.isAfter(doneFrom) ?: true) || item.localTo != null }.sortedBy { it.position },
             // A ticked Later item older than the PC's records of done tasks goes the normal way: a tombstone with no text.
             lists.later
                 .map { item -> if (item.deletedAt == null && item.doneAt?.isBefore(doneFrom) == true) item.deleted(SharedListMerge.nextStamp(time, item)) else item }
-                .filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true }.sortedBy { it.position },
+                .filter { it.deletedAt?.isAfter(tombstonesFrom) ?: true || it.localTo != null }.sortedBy { it.position },
+            lists.autoSaved.filter { item -> if (item.deletedAt != null) item.deletedAt!!.isAfter(tombstonesFrom) || item.localTo != null else !item.isExpired(time) }.sortedBy { it.position },
+            lists.pastSettled.filter { it.editedAt.isAfter(time.minus(SyncPastSettled.KEPT)) },
+            lists.history.map { device -> device.copy(entries = device.entries.filter { entry -> entry.at?.isAfter(time.minus(SyncPastSettled.KEPT)) ?: false }) },
+            lists.kept.filter { (it.sessionStart ?: it.editedAt).isAfter(time.minus(SyncPastSettled.KEPT)) },
+            lists.receipts.filter { it.editedAt.isAfter(time.minus(SyncHandover.KEPT)) },
         )
         prefs.edit().putString(KEY, TokenVault.seal(write(all).toString(), ALIAS)).apply()
         _nextTasks.value = liveNextTasks()
         _parked.value = liveParked()
         _later.value = liveLater()
+        _autoSaved.value = liveAutoSaved()
+        _unfinished.value = unfinishedNow()
     }
 
     private fun liveNextTasks() = all.nextTasks.filter { it.deletedAt == null }
@@ -485,12 +636,32 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     private fun liveLater() = all.later.filter { it.deletedAt == null }
 
+    private fun liveAutoSaved() = all.autoSaved.filter { it.deletedAt == null && !it.isExpired(now()) }.sortedByDescending { it.savedAt }
+
+    private fun unfinishedNow(): List<PastTaskRow> {
+        val since = now().minus(java.time.Duration.ofDays(14))
+        val settled = all.pastSettled.filter { it.deletedAt == null && it.hidesTask }.map { it.id.lowercase() }.toSet()
+        val fromPcs = all.history.flatMap { device ->
+            device.entries.filter { !it.outside && it.sessionStart?.isAfter(since) == true }.flatMap { entry ->
+                entry.tasks.filter { !it.isDone && it.title.isNotEmpty() && it.localTo == null && it.id.lowercase() !in settled }
+                    .map { PastTaskRow(it, entry.sessionStart!!, device.name, keptHere = false) }
+            }
+        }
+        val kept = all.kept.filter { !it.task.isDone && it.sessionStart != null }.map { PastTaskRow(it.task, it.sessionStart!!, it.sourceName, keptHere = true) }
+        return (fromPcs + kept).sortedByDescending { it.sessionStart }
+    }
+
     private fun newId(): String = UUID.randomUUID().toString()
 
     private fun write(lists: Lists): JsonObject = buildJsonObject {
         put("nextTasks", SyncFileJson.writeNextTasks(lists.nextTasks))
         put("parked", SyncFileJson.writeParked(lists.parked))
         put("later", SyncFileJson.writeLater(lists.later))
+        put("autoSaved", SyncFileJson.writeAutoSaved(lists.autoSaved))
+        put("pastSettled", SyncFileJson.writePastSettled(lists.pastSettled))
+        put("history", JsonArray(lists.history.map { device -> buildJsonObject { put("deviceId", device.deviceId); put("name", device.name); put("entries", SyncFileJson.writeTaskHistory(device.entries)) } }))
+        put("kept", SyncFileJson.writeHandovers(lists.kept.map { SyncHandover("00000000-0000-0000-0000-000000000000", it.task.id, SyncHandover.HISTORY, it.editedAt, it.editedAt, pastTask = it) }))
+        put("receipts", JsonArray(lists.receipts.map { buildJsonObject { put("id", it.id); put("editedAt", it.editedAt.toString()) } }))
     }
 
     // Empty when nothing is stored or it can't be opened (the key goes with the app's data).
@@ -501,10 +672,34 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             SyncFileJson.readNextTasks(json["nextTasks"] as? JsonArray).orEmpty(),
             SyncFileJson.readParked(json["parked"] as? JsonArray).orEmpty(),
             SyncFileJson.readLater(json["later"] as? JsonArray).orEmpty(),
+            SyncFileJson.readAutoSaved(json["autoSaved"] as? JsonArray).orEmpty(),
+            SyncFileJson.readPastSettled(json["pastSettled"] as? JsonArray).orEmpty(),
+            (json["history"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val device = element as? JsonObject ?: return@mapNotNull null
+                val id = device["deviceId"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                DeviceHistory(id, device["name"]?.jsonPrimitive?.contentOrNull ?: "", SyncFileJson.readTaskHistory(device["entries"]).orEmpty())
+            },
+            SyncFileJson.readHandovers(json["kept"]).orEmpty().mapNotNull { it.pastTask },
+            (json["receipts"] as? JsonArray).orEmpty().mapNotNull { element ->
+                val receipt = element as? JsonObject ?: return@mapNotNull null
+                runCatching { SyncHandoverAck(receipt["id"]!!.jsonPrimitive.content, Instant.parse(receipt["editedAt"]!!.jsonPrimitive.content)) }.getOrNull()
+            },
         )
     }
 
-    private data class Lists(val nextTasks: List<SyncNextTask>, val parked: List<SyncParked>, val later: List<SyncLaterItem>)
+    private data class Lists(
+        val nextTasks: List<SyncNextTask>,
+        val parked: List<SyncParked>,
+        val later: List<SyncLaterItem>,
+        val autoSaved: List<SyncAutoSavedItem> = emptyList(),
+        val pastSettled: List<SyncPastSettled> = emptyList(),
+        val history: List<DeviceHistory> = emptyList(),
+        val kept: List<SyncKeptPast> = emptyList(),
+        val receipts: List<SyncHandoverAck> = emptyList(),
+    )
+
+    /** One PC's task history as its last file carried it (ADR 72). */
+    private data class DeviceHistory(val deviceId: String, val name: String, val entries: List<SyncTaskHistoryEntry>)
 
     companion object {
         private const val KEY = "lists"
