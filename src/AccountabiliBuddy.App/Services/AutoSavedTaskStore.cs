@@ -1,8 +1,10 @@
 using System.Text.Json;
+using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
+using AccountabiliBuddy.Core.Tasks;
 using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services;
@@ -13,6 +15,8 @@ namespace AccountabiliBuddy.App.Services;
 /// like ADR 48's lists, tombstones included. Kept as one DPAPI-encrypted list (document "tasks.autoSaved"; the device-local
 /// "shutdown.autoSaved" of older versions is taken in once); never logged, since titles are private text. An item goes for good
 /// 30 days after it was saved, on every device. Use from the UI thread only.
+/// Since ADR 76 (<see cref="UseTaskStore"/>) the list is a view of the one task list (the open To sort tasks that came from Auto-saved,
+/// within its 30 days): every change goes there as an edit; "tasks.autoSaved" stays as it was, the way back.
 /// </summary>
 public sealed class AutoSavedTaskStore
 {
@@ -27,6 +31,10 @@ public sealed class AutoSavedTaskStore
 
     // Saves run one after another, so an older list never overwrites a newer one.
     private Task _saving = Task.CompletedTask;
+
+    // ADR 76: the task list this list is a view of (null before the migration), and the items as last read from it.
+    private TaskStore? _tasks;
+    private Dictionary<Guid, string> _shown = [];
 
     public AutoSavedTaskStore(SqliteJsonDocumentStore store, IDataProtector protector, TimeProvider time)
     {
@@ -98,6 +106,51 @@ public sealed class AutoSavedTaskStore
             // Items older than 30 days, and tombstones past theirs, go for good.
             _ = SaveAsync();
         }
+    }
+
+    /// <summary>Every item kept (tombstones and local items included), for the task migration (ADR 76).</summary>
+    public IReadOnlyList<SyncAutoSavedItem> StoredItems => _all.ToList();
+
+    /// <summary>
+    /// From now on the list is a view of <paramref name="tasks"/> (ADR 76): read from it, its changes sent to it, its other changes
+    /// (another device, another list) shown as they come.
+    /// </summary>
+    public void UseTaskStore(TaskStore tasks)
+    {
+        _tasks = tasks;
+        ReadFromTasks();
+        tasks.Changed += OnTasksChanged;
+    }
+
+    private void OnTasksChanged(object? sender, TaskStoreChangedEventArgs e)
+    {
+        if (e.Source == this)
+        {
+            return;
+        }
+
+        string before = string.Join("\n", _shown.OrderBy(pair => pair.Key).Select(pair => pair.Value));
+        ReadFromTasks();
+        if (string.Join("\n", _shown.OrderBy(pair => pair.Key).Select(pair => pair.Value)) != before)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void ReadFromTasks()
+    {
+        _all = TaskFacadeLists.AutoSaved(_tasks!.Lists, _time.GetUtcNow());
+        _shown = _all.ToDictionary(item => item.Id, item => item.TieBreak);
+    }
+
+    // The items this list changed since it last read the task list (tombstones for the ones it deleted), sent there as edits.
+    private Task SendToTasks()
+    {
+        List<SyncAutoSavedItem> changed = _all.Where(item => !_shown.TryGetValue(item.Id, out string? shown) || shown != item.TieBreak).ToList();
+        Task saved = _tasks!.ApplyLocal(this, OldTaskFields.Empty with { AutoSaved = changed });
+        ReadFromTasks();
+        Changed?.Invoke(this, EventArgs.Empty);
+        return saved;
     }
 
     /// <summary>Keeps <paramref name="title"/> from the shutdown card of <paramref name="wrapUpOf"/>; a blank title adds nothing. "##word" adds a label.</summary>
@@ -271,6 +324,11 @@ public sealed class AutoSavedTaskStore
 
     private Task SaveAsync()
     {
+        if (_tasks is not null)
+        {
+            return SendToTasks();
+        }
+
         _all = Kept(_all);
         Changed?.Invoke(this, EventArgs.Empty);
         string sealedList = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_all, JsonOptions)));

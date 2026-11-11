@@ -1,8 +1,10 @@
 using System.Text.Json;
+using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
+using AccountabiliBuddy.Core.Tasks;
 using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services;
@@ -13,6 +15,8 @@ namespace AccountabiliBuddy.App.Services;
 /// list is shared with the user's other devices through the sealed sync files (ADR 30, 48): each item has an edit time and
 /// a deleted one stays as a tombstone for 30 days, so <see cref="MergeAsync"/> can take another device's list item by item.
 /// Only the sealed files carry it between devices; at rest here it stays encrypted. Use from the UI thread only.
+/// Since ADR 76 (<see cref="UseTaskStore"/>) the list is a view of the one task list (To sort, except Auto-saved's, with History's
+/// finished ones ticked): every change goes there as an edit; "capture.comebacks" stays as it was, the way back.
 /// </summary>
 public sealed class ComebackStore
 {
@@ -29,6 +33,10 @@ public sealed class ComebackStore
 
     // Saves run one after another, so an older list never overwrites a newer one.
     private Task _saving = Task.CompletedTask;
+
+    // ADR 76: the task list this list is a view of (null before the migration), and the items as last read from it.
+    private TaskStore? _tasks;
+    private Dictionary<Guid, string> _shown = [];
 
     public ComebackStore(SqliteJsonDocumentStore store, IDataProtector protector, TimeProvider time)
     {
@@ -60,6 +68,51 @@ public sealed class ComebackStore
         {
             _all = [];
         }
+    }
+
+    /// <summary>Every come-back kept (tombstones, ticked and local ones included) in its shared form, for the task migration (ADR 76).</summary>
+    public IReadOnlyList<SyncParked> StoredItems => _all.Select(ToShared).ToList();
+
+    /// <summary>
+    /// From now on the list is a view of <paramref name="tasks"/> (ADR 76): read from it, its changes sent to it, its other changes
+    /// (another device, another list) shown as they come.
+    /// </summary>
+    public void UseTaskStore(TaskStore tasks)
+    {
+        _tasks = tasks;
+        ReadFromTasks();
+        tasks.Changed += OnTasksChanged;
+    }
+
+    private void OnTasksChanged(object? sender, TaskStoreChangedEventArgs e)
+    {
+        if (e.Source == this)
+        {
+            return;
+        }
+
+        string before = string.Join("\n", _shown.OrderBy(pair => pair.Key).Select(pair => pair.Value));
+        ReadFromTasks();
+        if (string.Join("\n", _shown.OrderBy(pair => pair.Key).Select(pair => pair.Value)) != before)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void ReadFromTasks()
+    {
+        _all = TaskFacadeLists.Parked(_tasks!.Lists, _time.GetUtcNow()).Select(FromShared).ToList();
+        _shown = _all.ToDictionary(comeback => comeback.Id, comeback => ToShared(comeback).TieBreak);
+    }
+
+    // The come-backs this list changed since it last read the task list (tombstones for the ones it deleted), sent there as edits.
+    private Task SendToTasks()
+    {
+        List<SyncParked> changed = _all.Select(ToShared).Where(item => !_shown.TryGetValue(item.Id, out string? shown) || shown != item.TieBreak).ToList();
+        Task saved = _tasks!.ApplyLocal(this, OldTaskFields.Empty with { Parked = changed });
+        ReadFromTasks();
+        Changed?.Invoke(this, EventArgs.Empty);
+        return saved;
     }
 
     /// <summary>Adds one, in a category (its name and colour) or none; a blank line adds nothing.</summary>
@@ -389,6 +442,11 @@ public sealed class ComebackStore
 
     private Task SaveAsync()
     {
+        if (_tasks is not null)
+        {
+            return SendToTasks();
+        }
+
         DateTimeOffset now = _time.GetUtcNow();
         DateTimeOffset cutoff = now.AddDays(-KeepDoneDays);
         DateTimeOffset tombstonesFrom = now - SharedListMerge.TombstonesKept;

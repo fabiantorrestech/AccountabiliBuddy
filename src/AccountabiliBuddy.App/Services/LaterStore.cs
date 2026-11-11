@@ -1,8 +1,10 @@
 using System.Text.Json;
+using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
+using AccountabiliBuddy.Core.Tasks;
 using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services;
@@ -14,6 +16,8 @@ namespace AccountabiliBuddy.App.Services;
 /// (ADR 22, 48): each item has an edit time and a deleted one stays as a tombstone for 30 days, so <see cref="MergeAsync"/>
 /// can take another device's list item by item. Titles, steps and notes are private text: only the sealed files carry them
 /// between devices, at rest they stay encrypted, and they are never logged. Use from the UI thread only.
+/// Since ADR 76 (<see cref="UseTaskStore"/>) the list is a view of the one task list (Next and Later, with History's finished ones
+/// ticked): every change goes there as an edit and the list is read back from it; "session.later" stays as it was, the way back.
 /// </summary>
 public sealed class LaterStore
 {
@@ -29,6 +33,10 @@ public sealed class LaterStore
 
     // Saves run one after another, so an older list never overwrites a newer one.
     private Task _saving = Task.CompletedTask;
+
+    // ADR 76: the task list this list is a view of (null before the migration), and the items as last read from it.
+    private TaskStore? _tasks;
+    private Dictionary<Guid, string> _shown = [];
 
     public LaterStore(SqliteJsonDocumentStore store, IDataProtector protector, TimeProvider time)
     {
@@ -63,6 +71,64 @@ public sealed class LaterStore
         {
             _all = [];
         }
+    }
+
+    /// <summary>Every item kept (tombstones and local items included), for the task migration (ADR 76).</summary>
+    public IReadOnlyList<SyncLaterItem> StoredItems => _all.ToList();
+
+    /// <summary>
+    /// From now on the list is a view of <paramref name="tasks"/> (ADR 76): read from it, its changes sent to it, its other changes
+    /// (another device, another list) shown as they come.
+    /// </summary>
+    public void UseTaskStore(TaskStore tasks)
+    {
+        _tasks = tasks;
+        ReadFromTasks();
+        tasks.Changed += OnTasksChanged;
+    }
+
+    private void OnTasksChanged(object? sender, TaskStoreChangedEventArgs e)
+    {
+        if (e.Source == this)
+        {
+            return;
+        }
+
+        HashSet<Guid> doneBefore = DoneItems.Select(item => item.Id).ToHashSet();
+        string before = string.Join("\n", _shown.OrderBy(pair => pair.Key).Select(pair => pair.Value));
+        ReadFromTasks();
+        if (string.Join("\n", _shown.OrderBy(pair => pair.Key).Select(pair => pair.Value)) == before)
+        {
+            return;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        if (e.FromOtherDevice)
+        {
+            // Which items another device ticked off or opened again, found by comparing before and after (as a merge did).
+            List<SyncLaterItem> newlyDone = DoneItems.Where(item => !doneBefore.Contains(item.Id)).ToList();
+            List<Guid> reopened = Items.Where(item => doneBefore.Contains(item.Id)).Select(item => item.Id).ToList();
+            if (newlyDone.Count > 0 || reopened.Count > 0)
+            {
+                DoneChanged?.Invoke(this, new LaterDoneChange(newlyDone, reopened));
+            }
+        }
+    }
+
+    private void ReadFromTasks()
+    {
+        _all = TaskFacadeLists.Later(_tasks!.Lists, _time.GetUtcNow());
+        _shown = _all.ToDictionary(item => item.Id, item => item.TieBreak);
+    }
+
+    // The items this list changed since it last read the task list (tombstones for the ones it deleted), sent there as edits.
+    private Task SendToTasks()
+    {
+        List<SyncLaterItem> changed = _all.Where(item => !_shown.TryGetValue(item.Id, out string? shown) || shown != item.TieBreak).ToList();
+        Task saved = _tasks!.ApplyLocal(this, OldTaskFields.Empty with { Later = changed });
+        ReadFromTasks();
+        Changed?.Invoke(this, EventArgs.Empty);
+        return saved;
     }
 
     /// <summary>Adds an item at the end of the list; a blank title adds nothing. Returns it (null when nothing was added).</summary>
@@ -329,6 +395,11 @@ public sealed class LaterStore
 
     private Task SaveAsync()
     {
+        if (_tasks is not null)
+        {
+            return SendToTasks();
+        }
+
         DateTimeOffset tombstonesFrom = _time.GetUtcNow() - SharedListMerge.TombstonesKept;
         // A ticked item older than the records of done tasks goes the normal way: a tombstone with no text, then gone after 30 days.
         DateTimeOffset now = _time.GetUtcNow();

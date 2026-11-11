@@ -284,8 +284,22 @@ public sealed class SyncCoordinator
                 // ADR 68: the guidance mode this PC chose, mode and time only; null for a default nobody chose.
                 Guidance = Guidance?.Invoke() };
         // ADR 72: the task history, settle records, Auto-saved list and handovers, while task lists are shared (ADR 71).
-        return ShareTaskLists() && DecorateTaskLists is { } decorate ? decorate(built) : built;
+        SyncFile decorated = ShareTaskLists() && DecorateTaskLists is { } decorate ? decorate(built) : built;
+        // ADR 76: the one task list's parts, and the old fields rebuilt from it for older apps (they replace the lists' own).
+        return ShareTaskLists() && TaskModelParts is { } parts ? parts(decorated) : decorated;
     }
+
+    /// <summary>
+    /// ADR 76: adds the task list's parts (tasks, labels, views, History) and the old task fields rebuilt from it to this PC's file.
+    /// Set by the app once the task list is the source; null before.
+    /// </summary>
+    public Func<SyncFile, SyncFile>? TaskModelParts { get; set; }
+
+    /// <summary>
+    /// ADR 76: reads another device's file into the task list (its task parts, or its old fields), in place of the old lists'
+    /// merges. Set by the app once the task list is the source; null before.
+    /// </summary>
+    public Func<SyncFile, Task<bool>>? MergeTaskModel { get; set; }
 
     /// <summary>ADR 72: adds the task history, settle records, Auto-saved list and handovers to this PC's file. Set by the app.</summary>
     public Func<SyncFile, SyncFile>? DecorateTaskLists { get; set; }
@@ -469,7 +483,10 @@ public sealed class SyncCoordinator
         // The past keys (ADR 56) are merged into their own encrypted store and left out of the copy kept here too.
         // A QR file never carries steps, which reads the same as "switched off": it keeps the stored counts rather than wiping them.
         SyncSteps? steps = method == SyncDeviceCard.MethodQr ? file.Steps ?? stored?.File.Steps : file.Steps;
-        await _received.AcceptAsync(file with { NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps }, method, sealedBytes);
+        await _received.AcceptAsync(
+            file with { NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps, Tasks = null, Labels = null, Views = null, TaskLog = null },
+            method,
+            sealedBytes);
         if (PastKeys is not null)
         {
             await PastKeys.MergeAsync(file.PastKeys);
@@ -499,19 +516,29 @@ public sealed class SyncCoordinator
             return;
         }
 
-        if (file.NextTasks is { } nextTasks && MergeNextTasks is not null)
+        if (MergeTaskModel is { } mergeModel)
+        {
+            // ADR 76: one file at a time into the task list (an older app's moves pair within one file).
+            await mergeModel(file with
+            {
+                NextTasks = file.NextTasks is { } next ? CleanNextTasks(next) : null,
+                Parked = file.Parked is { } parkedItems ? CleanParked(parkedItems) : null,
+                Later = file.Later is { } laterItems ? CleanLater(laterItems) : null,
+            });
+        }
+        else if (file.NextTasks is { } nextTasks && MergeNextTasks is not null)
         {
             // A file with a "later" list (even an empty one) comes from a writer that knows ADR 50's fields; one without comes
             // from an older app, whose tasks inherit what this PC holds for them.
             await MergeNextTasks(CleanNextTasks(nextTasks), file.Later is not null);
         }
 
-        if (file.Parked is { } parked && MergeParked is not null)
+        if (MergeTaskModel is null && file.Parked is { } parked && MergeParked is not null)
         {
             await MergeParked(CleanParked(parked));
         }
 
-        if (file.Later is { } later && MergeLater is not null)
+        if (MergeTaskModel is null && file.Later is { } later && MergeLater is not null)
         {
             await MergeLater(CleanLater(later));
         }

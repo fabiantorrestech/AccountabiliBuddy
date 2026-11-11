@@ -43,6 +43,12 @@ public sealed class TaskListSync
         _outbox.Expired += (_, handover) => _ = TakeBackAsync(handover);
     }
 
+    /// <summary>
+    /// ADR 76: the one task list is the source (the migration ran). Auto-saved then travels and comes in with the task list's parts
+    /// (its old field is rebuilt from the task list), so it is no longer added or merged here. Set by the app.
+    /// </summary>
+    public Func<bool> UsesTaskStore { get; set; } = () => false;
+
     /// <summary>A handover nobody took in 30 days came back here (the page tells the user once). Raised with the item's title.</summary>
     public event EventHandler<string>? CameBack;
 
@@ -55,7 +61,7 @@ public sealed class TaskListSync
         {
             TaskHistory = _tasks.TaskHistoryForSync(),
             PastSettled = _settled.ForSync(),
-            AutoSaved = _autoSaved.ForSync(),
+            AutoSaved = UsesTaskStore() ? file.AutoSaved : _autoSaved.ForSync(),
             Handovers = handovers.Count > 0 ? handovers : null,
             HandoverAcks = acks.Count > 0 ? acks : null,
         };
@@ -80,7 +86,7 @@ public sealed class TaskListSync
             await _settled.MergeAsync(settled.OfType<SyncPastSettled>().ToList());
         }
 
-        if (file.AutoSaved is { } autoSaved)
+        if (file.AutoSaved is { } autoSaved && !UsesTaskStore())
         {
             await _autoSaved.MergeAsync(autoSaved.OfType<SyncAutoSavedItem>().Select(item => item with { Title = item.Title ?? string.Empty }).ToList());
         }

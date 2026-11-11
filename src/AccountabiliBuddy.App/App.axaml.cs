@@ -318,6 +318,8 @@ public partial class App : Application
         // Guided sessions (ADR 24, 25): the next or running session's checklist.
         var sessionTasks = new SessionTasksService(documents, new DpapiDataProtector(), _sessions, time);
         sessionTasks.LoadBlocking();
+        // ADR 76: the one task list; it becomes the source once every list is loaded (TaskModelMigration, below).
+        var taskStore = new AccountabiliBuddy.App.Services.Tasks.TaskStore(documents, new DpapiDataProtector(), time);
         // ADR 66: waited ends confirmed early apply themselves when their wait is over; the notice shows where the cursor is.
         _armedEnds = new ArmedEndService(_sessions, documents, new DpapiDataProtector(), (title, message) => _presenter?.ShowNotice(title, message));
         _armedEnds.Register(new SessionArmedEndHandler(_sessions));
@@ -991,7 +993,7 @@ public partial class App : Application
         {
             // ADR 71: synced settings and task lists back up and restore through their own services.
             Synced = AccountabiliBuddy.App.Services.Backup.BackupAccess.Synced(sleepSettings, dayBarSettings, goal, guidance),
-            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time),
+            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore),
             ShareTaskLists = () => syncSettings.Current.ShareTaskLists,
         };
         // ADR 71: auto-backup of the synced settings, this PC's settings and (unshared) task lists, local and sealed on Drive.
@@ -1238,6 +1240,26 @@ public partial class App : Application
         pastSettled.Changed += (_, _) => sessionTasks.NotifyListsChanged();
         syncCoordinator.DecorateTaskLists = _taskListSync.Decorate;
         syncCoordinator.ReceiveTaskLists = _taskListSync.ReceiveAsync;
+        // ADR 76: one task list for everything. Once (backup first, marker last) the old lists move into it; from then on the next
+        // session's list, Later, come-backs, Auto-saved and categories are views of it, and sync reads and writes it (with the old
+        // fields rebuilt from it for older apps). A failed or unbalanced migration leaves everything on the old lists.
+        taskStore.SelfId = selfId;
+        taskStore.OtherDevices = () => receivedDevices.Active.Select(device => (device.File.Device.DeviceId, device.File.Device.Kind)).ToList();
+        taskStore.RunningChecklist = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
+        bool usesTaskStore = AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.RunBlocking(
+            database, taskStore, sessionTasks, _later!, _comebacks!, autoSaved,
+            new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector()), new TaskViewStore(documents), time, dataDirectory);
+        if (usesTaskStore)
+        {
+            sessionTasks.UseTaskStore(taskStore);
+            _later!.UseTaskStore(taskStore);
+            _comebacks!.UseTaskStore(taskStore);
+            autoSaved.UseTaskStore(taskStore);
+            _taskListSync.UsesTaskStore = () => true;
+            syncCoordinator.TaskModelParts = taskStore.WithParts;
+            syncCoordinator.MergeTaskModel = taskStore.MergeFileAsync;
+            taskStore.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        }
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         pastSettled.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         handovers.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();

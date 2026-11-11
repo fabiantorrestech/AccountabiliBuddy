@@ -16,6 +16,7 @@ public static class DeviceSettingsRegistry
         "session.pcOff", "stepAway", "shutdown", "batteryVisibility", "syncLight", "motion", "timers", "tasks.filterPresets", "tasks.view",
         "stats.view", "history.hidden", "history.hiddenDistractions", "history.names", "dailySteps", "enforcement.limit",
         "setup.computerType", "classify.exemptionProfiles", "dpAssistant", "planHelperDismissed", "updates", "backup.auto.settings",
+        "tasks.viewSearches", "tasks.categoryIds",
     ];
 
     /// <summary>Restored through their services in synced settings, so the edit reaches the other devices.</summary>
@@ -24,7 +25,7 @@ public static class DeviceSettingsRegistry
     /// <summary>The task lists' own documents (their kind exports them in their sync form).</summary>
     public static IReadOnlyList<string> TaskKeys { get; } =
         ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted",
-         "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast"];
+         "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast", "tasks.items", "tasks.labels", "tasks.views", "tasks.log"];
 
     /// <summary>The calendars part (sources with their secrets, in-app events).</summary>
     public static IReadOnlyList<string> CalendarKeys { get; } = ["calendar.sources", "calendar.events"];
@@ -38,6 +39,7 @@ public static class DeviceSettingsRegistry
         "quit.guard.pending", "review.ignored", "review.promoted", "session", "session.overLimit", "session.pcOff.pending",
         "session.taskHistory", "session.tasks", "setup.assistant", "setup.features", "shutdown.autoSaved", "shutdown.reviews", "tasks.receivedHistory", "tasks.handovers",
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
+        "tasks.model",
     ];
 
     // Whole families of state: the sync machinery (identity, keys, received files, settings), dev switches.

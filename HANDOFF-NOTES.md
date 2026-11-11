@@ -8,7 +8,7 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 
 - [x] Phase 0 Orientation (this file)
 - [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
-- [ ] Phase 2 PC services (store, session cap, reminders, undo, history, tidy-up, views; calendar export BLOCKED, see Calendar)
+- [ ] Phase 2 PC services (store DONE (M2.1); session cap, reminders, undo, history, tidy-up, views; calendar export BLOCKED, see Calendar)
 - [ ] Phase 3 PC UI (3.1 title bar, 3.2 layout, 3.3 rows/open task, 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
 - [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix)
 - Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
@@ -21,7 +21,17 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 - Docs: ADR 0076, `doc/hard-rules.md` ADR 76 bullet, questions 16-28.
 - Verified by an out-of-repo check program (56 checks, all pass): migration counts/fields, idempotency, merge symmetry, conflicts, old-field round trip, numbering, codec.
 
-## M2 must wire (nothing below exists yet)
+## M2 task 1 done (task store wired; screens unchanged)
+
+- [x] Task store `Services/Tasks/TaskStore.cs` (docs `tasks.items`/`labels`/`views`/`log` sealed, `tasks.viewSearches`, `tasks.categoryIds`, marker `tasks.model`=1), change events with source + "from other device".
+- [x] Startup migration `Services/Tasks/TaskModelMigration.cs` (App.axaml.cs after `_taskListSync`): `BackupAsync("tasks-model")`, `TaskMigration.Run`, switch only if `IsBalanced`, marker last; counts-only log `<data>/tasks-model.log`; any exception: no marker, old stores stay. Verified on the dev DB (balanced, switched; second start takes the load path).
+- [x] Old stores are views (`UseTaskStore`): `SessionTasksService` draft + categories (`SessionTasksService.TaskStore.cs`), `LaterStore`, `ComebackStore`, `AutoSavedTaskStore`. Their mutation code is unchanged; `SaveAsync` sends only changed items to `TaskStore.ApplyLocal` and reads back from `TaskFacadeLists`. Old docs no longer written.
+- [x] Sync: `SyncCoordinator.TaskModelParts` (new parts + `OldTaskFieldsWriter` old fields, after `Decorate`) and `MergeTaskModel` (per file: `Tasks` -> `TaskFieldMerge`, else `OldTaskFieldsReader`); AutoSaved dropped from `TaskListSync.Decorate/ReceiveAsync` (`UsesTaskStore`); received copy strips the new parts. Numbers: `TaskNumbering` with lowest-DeviceId PC (unlinked PC = numbering).
+- [x] Backups: `TaskListsExport` + `BackupAccess` carry/restore the new parts (older backups: old fields read as this PC's edits); `DeviceSettingsRegistry` classifies the new docs.
+- [x] Pure logic in Core: `TaskLists`, `TaskListRules` (ApplyLocal, MergeFile/MergeLists, Normalize = settle finished Shelf tasks to History + numbers + prune 90 d/30 d, WithParts), `TaskFacadeLists`, `TaskCategoryEdits`. Check program: 114/114 PASS (M1's + M2 facades, local edits, phone and PC<->PC round trips).
+- Next task (M2.2): cap by actions; the session bin as stored tasks while a session runs (today: `TaskStore.SessionBin()` view, Q32).
+
+## M2 must wire (done in M2 task 1, see above; kept for reference)
 
 1. Task store (new doc, e.g. `tasks.items` + `tasks.labels` + `tasks.views` + `tasks.history`, DPAPI-sealed like the old lists) holding `SyncTaskItem`/`SyncTaskLabel`/`SyncTaskView`/`SyncTaskLogItem`; every local change through `TaskEdits.Edit` (title/note bases depend on it).
 2. Startup migration: `LocalDatabase.BackupAsync("tasks-model")`, then `TaskMigration.Run` once behind marker `tasks.model` = 1; App maps `Comeback` -> `SyncParked` (ComebackStore.ForBackup shape, local items with text), `TaskFilterPreset`/`TaskViewPreferences` -> `LegacyTaskFilter`; store `ViewSearches` in a device-local document; log `Counts` (numbers only) and refuse to switch over unless `Counts.IsBalanced`. `IsNumberingDevice` from `TaskNumbering.NumberingDevice(ReceivedDevicesService.Active + self)`; `FirstNumber` = 1 on a fresh model.

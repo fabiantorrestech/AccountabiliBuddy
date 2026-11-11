@@ -17,7 +17,7 @@ namespace AccountabiliBuddy.App.Services;
 /// with edit times and tombstones ("session.nextTasks", DPAPI-encrypted) that <see cref="MergeNextTasksAsync"/> merges.
 /// The running session's checklist is never merged: it belongs to this PC. A task also has an optional estimate, note and
 /// planned day part (ADR 50) that travel with it, and "Move to Later" hands it to the <see cref="LaterStore"/>. Use from the
-/// UI thread only.
+/// UI thread only. Since ADR 76 the next session's list and the categories are views of the one task list (<see cref="UseTaskStore"/>).
 /// </summary>
 public sealed partial class SessionTasksService : IDisposable
 {
@@ -1461,6 +1461,11 @@ public sealed partial class SessionTasksService : IDisposable
 
     private Task SaveNextTasksAsync()
     {
+        if (_taskStore is not null)
+        {
+            return SendNextTasksToTaskStore();
+        }
+
         string data = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_nextTasks, JsonOptions)));
         return _store.SaveAsync(NextTasksKey, new StoredCategories(data));
     }
@@ -1517,6 +1522,11 @@ public sealed partial class SessionTasksService : IDisposable
 
     private Task SaveCategoriesAsync()
     {
+        if (_taskStore is not null)
+        {
+            return SendCategoriesToTaskStore();
+        }
+
         string data = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(_categories, JsonOptions)));
         return _store.SaveAsync(CategoriesKey, new StoredCategories(data));
     }
