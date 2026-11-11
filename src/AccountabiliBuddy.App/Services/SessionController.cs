@@ -183,11 +183,20 @@ public sealed class SessionController : IDisposable
         return _engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true, planning: PlanningLength());
     }
 
-    /// <summary>The user steps away: the countdown pauses until <see cref="Return"/> (see <see cref="StepAwayService"/>).</summary>
+    /// <summary>
+    /// The user steps away until <see cref="Return"/> (see <see cref="StepAwayService"/>): with <paramref name="keepTimerRunning"/> the
+    /// countdown keeps going and enforcement stays on (ADR 77), otherwise the countdown pauses (lunch always pauses it).
+    /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StepAway(AwayKind kind)
+    public bool StepAway(AwayKind kind, bool keepTimerRunning = false)
     {
-        return _engine.StepAway(kind);
+        return _engine.StepAway(kind, keepTimerRunning);
+    }
+
+    /// <summary>Lunch starts while stepped away with the timer running: the away becomes lunch's (see <see cref="SessionEngine.HoldAwayForLunch"/>).</summary>
+    public bool HoldAwayForLunch()
+    {
+        return _engine.HoldAwayForLunch();
     }
 
     /// <summary>

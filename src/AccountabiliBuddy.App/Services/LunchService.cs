@@ -138,10 +138,15 @@ public sealed class LunchService
     {
         DateTimeOffset now = _sessions.Now;
         await SaveAsync(_state with { Start = now, End = now + length, OverTold = false, EditedAt = now });
-        // Lunch takes the place of a break; during focus it pauses the session as a step away.
+        // Lunch takes the place of a break; during focus it pauses the session as a step away (always the paused kind, ADR 77), and a
+        // step away with the timer running becomes lunch's.
         if (!_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
         {
             _sessions.StepAway(AwayKind.Break);
+        }
+        else if (_sessions.State.AwayTimerRuns)
+        {
+            _sessions.HoldAwayForLunch();
         }
     }
 
@@ -240,6 +245,10 @@ public sealed class LunchService
         if (IsOnLunch && !wasOnLunch && !_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
         {
             _sessions.StepAway(AwayKind.Break);
+        }
+        else if (IsOnLunch && !wasOnLunch && _sessions.State.AwayTimerRuns)
+        {
+            _sessions.HoldAwayForLunch();
         }
 
         return true;

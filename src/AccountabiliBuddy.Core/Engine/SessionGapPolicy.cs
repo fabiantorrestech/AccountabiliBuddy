@@ -26,7 +26,7 @@ public static class SessionGapPolicy
         if (settings.KeepOriginalEnd)
         {
             // A Pomodoro catches up through its phases; a step away or planning has no end running out.
-            bool passed = session is { Mode: SessionMode.Manual, IsAway: false, IsPlanning: false } && session.PhaseEndsAt is DateTimeOffset end && now >= end;
+            bool passed = session is { Mode: SessionMode.Manual, CountdownFrozen: false, IsPlanning: false } && session.PhaseEndsAt is DateTimeOffset end && now >= end;
             if (passed)
             {
                 return SessionGapOutcome.EndPassed;

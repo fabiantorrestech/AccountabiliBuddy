@@ -465,9 +465,9 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
             {
                 state = OverlayState.Away;
                 accent = "Muted";
-                MinutesText = session.Away == AwayKind.SideTask ? "Side task" : "Paused";
+                MinutesText = session.AwayTimerRuns ? minutes : session.Away == AwayKind.SideTask ? "Side task" : "Paused";
                 TaskText = StepAway?.AwayText ?? string.Empty;
-                Line2 = "the countdown waits";
+                Line2 = session.AwayTimerRuns ? "the timer keeps running" : "the countdown waits";
             }
             else if (session.IsPlanning)
             {

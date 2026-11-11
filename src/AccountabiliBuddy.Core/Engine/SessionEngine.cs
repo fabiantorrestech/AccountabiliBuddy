@@ -252,18 +252,37 @@ public sealed class SessionEngine
     }
 
     /// <summary>
-    /// The user steps away (a break or an interruption): the countdown pauses until <see cref="Return"/>.
-    /// It never shortens a wait or ends the session.
+    /// The user steps away (a break or an interruption). With <paramref name="keepTimerRunning"/> (the setting's default, only for a
+    /// break or an interruption) the countdown keeps going, phases end on time and enforcement stays on (<see cref="SessionState.AwayTimerRuns"/>);
+    /// otherwise the countdown pauses until <see cref="Return"/>, which moves the phase on by the time away. Either way it never
+    /// shortens a wait or unlocks anything, and the stretch is logged as stepped away.
     /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StepAway(AwayKind kind)
+    public bool StepAway(AwayKind kind, bool keepTimerRunning = false)
     {
         if (!State.IsActive || State.IsAway)
         {
             return false;
         }
 
-        SetState(State with { Away = kind, AwaySince = Now });
+        bool timerRuns = keepTimerRunning && kind is AwayKind.Break or AwayKind.Interrupted;
+        SetState(State with { Away = kind, AwaySince = Now, AwayTimerRuns = timerRuns });
+        return true;
+    }
+
+    /// <summary>
+    /// Lunch starts while the user is stepped away with the timer running: the away becomes lunch's (the countdown pauses from now and
+    /// enforcement holds as lunch always did), so lunch keeps its own rules whatever the step-away setting.
+    /// </summary>
+    /// <returns>False when not stepped away with the timer running.</returns>
+    public bool HoldAwayForLunch()
+    {
+        if (!State.AwayTimerRuns)
+        {
+            return false;
+        }
+
+        SetState(State with { Away = AwayKind.Break, AwaySince = Now, AwayTimerRuns = false, AwayAtDesk = false });
         return true;
     }
 
@@ -327,8 +346,8 @@ public sealed class SessionEngine
     /// <returns>False when not away on a break or interruption, or nothing changed.</returns>
     public bool SetAwayAtDesk(bool atDesk)
     {
-        // A side task and a paused timer enforce as in focus already: there is nothing to hold or lift.
-        if (!State.IsAway || State.Away is AwayKind.SideTask or AwayKind.Paused || State.AwayAtDesk == atDesk)
+        // A side task, a paused timer and a step away with the timer running enforce as in focus already: nothing to hold or lift.
+        if (!State.IsAway || State.AwayTimerRuns || State.Away is AwayKind.SideTask or AwayKind.Paused || State.AwayAtDesk == atDesk)
         {
             return false;
         }
@@ -353,6 +372,13 @@ public sealed class SessionEngine
         if (away < TimeSpan.Zero)
         {
             away = TimeSpan.Zero;
+        }
+
+        if (State.AwayTimerRuns)
+        {
+            // The timer ran meanwhile: nothing moves.
+            SetState(State with { Away = null, AwaySince = null, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0, AwayTimerRuns = false });
+            return away;
         }
 
         SetState(State with
@@ -391,7 +417,7 @@ public sealed class SessionEngine
             return true;
         }
 
-        SetState(next with { Away = AwayKind.Break, AwaySince = now, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0 });
+        SetState(next with { Away = AwayKind.Break, AwaySince = now, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0, AwayTimerRuns = false });
         return true;
     }
 
@@ -401,7 +427,7 @@ public sealed class SessionEngine
     /// </summary>
     public void MoveOnBy(TimeSpan gap)
     {
-        if (!State.IsActive || State.IsAway || gap <= TimeSpan.Zero)
+        if (!State.IsActive || State.CountdownFrozen || gap <= TimeSpan.Zero)
         {
             return;
         }
@@ -457,11 +483,14 @@ public sealed class SessionEngine
         return true;
     }
 
-    /// <summary>Advances phases that have run out. Nothing runs out while the user is away or planning.</summary>
+    /// <summary>
+    /// Advances phases that have run out. Nothing runs out while the countdown is frozen (away, except a step away with the timer
+    /// running) or planning.
+    /// </summary>
     public void Tick()
     {
         // Planning has no end of its own: it lasts until the user answers (Ready, a ticked task, Start on the card).
-        if (State.IsAway || State.IsPlanning)
+        if (State.CountdownFrozen || State.IsPlanning)
         {
             return;
         }

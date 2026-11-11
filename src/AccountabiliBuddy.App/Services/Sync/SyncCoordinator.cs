@@ -367,7 +367,8 @@ public sealed class SyncCoordinator
         DateTimeOffset? planningStartedAt = state.IsPlanning ? started : null;
         DateTimeOffset? planningEndsAt = state.IsPlanning ? state.PhaseEndsAt : null;
         return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), state.FocusStartsAt(_sessions.Now) ?? started, state.FocusEndsAt(_sessions.Now),
-            state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwaySince,
+            // ADR 77: a step away with the timer running goes out as no away, so an older phone keeps counting down to the real end.
+            state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwayTimerRuns ? null : state.AwaySince,
             CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt, GoingOffAt);
     }
 

@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0077](0077-step-away-keeps-the-timer-running-with-blocking-on.md) | Step away keeps the timer running with blocking on | Accepted | — |
 | [0076](0076-one-task-list-with-bins-labels-and-tags.md) | One task list with bins, labels and tags | Accepted | — |
 | [0072](0072-sync-every-task-list-with-labels-and-local-items-kept-on-a-chosen-device.md) | Sync every task list, with labels, and keep local items on a chosen device | Accepted | — |
 | [0071](0071-back-up-settings-by-kind-and-let-a-device-stop-syncing-task-lists.md) | Back up settings by kind, and let a device stop syncing its task lists | Accepted | — |

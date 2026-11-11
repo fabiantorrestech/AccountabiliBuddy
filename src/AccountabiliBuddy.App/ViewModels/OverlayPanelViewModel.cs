@@ -169,7 +169,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     {
         SessionState state = _sessions.State;
         InSession = state.IsActive;
-        HeaderSub = Model.IsSession ? $"{(state.IsAway ? "paused" : "left")} · {Model.EndsText}" : Model.Line2;
+        HeaderSub = Model.IsSession ? $"{(state.CountdownFrozen ? "paused" : "left")} · {Model.EndsText}" : Model.Line2;
         ShowsExtend = state.CanExtendFocus;
         PauseText = state.IsAway ? "Resume" : "Pause";
         TasksHeader = state.IsActive ? "This session" : "Start focus on";

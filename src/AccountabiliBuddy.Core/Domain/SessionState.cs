@@ -10,6 +10,11 @@ namespace AccountabiliBuddy.Core.Domain;
 /// can't reset the wait the next +5 min needs).</param>
 /// <param name="IsTest">A test session (Today, More options): it enforces and cues like a real one, but it is never counted,
 /// logged, synced, shown to linked devices or saved for a restart, and it ends on command.</param>
+/// <param name="AwayTimerRuns">
+/// Step away with the timer running (the default since 2026-11-11, setting "When I step away"): the countdown keeps going and phases
+/// end on time, enforcement stays on (<see cref="PausesEnforcement"/> false) and nothing asks "Back to the task?". The stretch is still
+/// logged as stepped away and never counted as focus. False for every other away (the old step away, lunch, side task, pause).
+/// </param>
 /// <param name="FocusLengthAfterPlanning">While <see cref="SessionPhase.Planning"/>: how long the focus phase runs once planning ends
 /// (<see cref="PhaseStartedAt"/> and <see cref="PhaseEndsAt"/> are then the planning stage's own); null for a session with no set end.
 /// Kept in the checkpoint, so a restart resumes planning and still knows the focus length.</param>
@@ -26,7 +31,8 @@ public sealed record SessionState(
     DateTimeOffset? AwayEndsAt = null,
     bool AwayAtDesk = false,
     int SideTaskExtensions = 0,
-    TimeSpan? FocusLengthAfterPlanning = null)
+    TimeSpan? FocusLengthAfterPlanning = null,
+    bool AwayTimerRuns = false)
 {
     public static SessionState Idle { get; } = new(null, SessionPhase.Idle, null, null, null, 0);
 
@@ -78,8 +84,14 @@ public sealed record SessionState(
     /// nothing blocked is lifted. From the first input (<see cref="AwayAtDesk"/>), through a side task and while the timer is
     /// paused (<see cref="AwayKind.Paused"/>), enforcement runs as in focus; only the focus clock stays paused.
     /// </summary>
-    public bool PausesEnforcement => IsAway && Away is not (AwayKind.SideTask or AwayKind.Paused) && !AwayAtDesk;
+    public bool PausesEnforcement => IsAway && !AwayTimerRuns && Away is not (AwayKind.SideTask or AwayKind.Paused) && !AwayAtDesk;
 
-    /// <summary>The time countdowns read: frozen at <see cref="AwaySince"/> while away, else <paramref name="now"/>.</summary>
-    public DateTimeOffset CountdownTime(DateTimeOffset now) => AwaySince is DateTimeOffset since && since < now ? since : now;
+    /// <summary>
+    /// The time countdowns read: frozen at <see cref="AwaySince"/> while away, else <paramref name="now"/>. A step away with the timer
+    /// running (<see cref="AwayTimerRuns"/>) doesn't freeze it.
+    /// </summary>
+    public DateTimeOffset CountdownTime(DateTimeOffset now) => !AwayTimerRuns && AwaySince is DateTimeOffset since && since < now ? since : now;
+
+    /// <summary>Away with the countdown frozen (every away except a step away with the timer running): nothing runs out meanwhile.</summary>
+    public bool CountdownFrozen => IsAway && !AwayTimerRuns;
 }

@@ -374,6 +374,8 @@ public partial class App : Application
         // Step away: the countdown pauses until "Back on track" (the card the first input brings up), the shortcut again or "I'm back".
         _stepAwayHotkey = new Win32GlobalHotkey();
         _stepAway = new StepAwayService(_sessions, new Win32UserIdleDetector(), new Win32CursorPosition(), _stepAwayHotkey, documents, time);
+        // ADR 77: "When I step away" (keep the timer running by default), never looser than at the running session's start.
+        _stepAway.StepAwaySetting = () => _taskSettings?.StepAwayNow ?? AccountabiliBuddy.Core.Engine.StepAwayTimerPolicy.Default;
         _stepAway.LoadBlocking();
         // M6 screen reading and M7 activity history.
         var privacy = new PrivacySettingsService(documents);
@@ -418,6 +420,8 @@ public partial class App : Application
         // ADR 69: some settings are kept per mode; their services read the active mode's copy.
         var modeSettings = new ModeSettings(documents, guidance);
         _modeSettings = modeSettings;
+        // ADR 69, 77: the Tasks settings (actions per session, when I step away) are kept per mode, same defaults in both.
+        _taskSettings?.UseModes(modeSettings);
         _runningWaits!.AddSource(() => guidance.State.Pending is GuidancePending pending
                 && (pending.DuringSession || !_sessions!.State.IsActive || pending.ApplyAt > _sessions.Now)
             ? [new RunningWait("guidance", AppBrand.CompanionName, pending.ApplyAt, guidance.ChooseGuardingAsync)]
@@ -1779,25 +1783,20 @@ public partial class App : Application
         };
         // ADR 76: the Tasks settings go through their service too: more actions per session than now waits like any looser change
         // (refused during a focus session), and a waiting change in the backup is never taken over.
-        backups.DeviceRestorers[AccountabiliBuddy.App.Services.Tasks.TaskSettingsService.DocumentKey] = async value =>
+        foreach (GuidanceMode tasksMode in new[] { GuidanceMode.Guarding, GuidanceMode.Companion })
         {
-            if (_taskSettings is null
-                || System.Text.Json.JsonSerializer.Deserialize<AccountabiliBuddy.App.Services.Tasks.TaskSettings>(value, AccountabiliBuddy.Core.Sync.SyncJson.Options) is not { } wanted)
+            backups.DeviceRestorers[ModeSettings.KeyFor(AccountabiliBuddy.App.Services.Tasks.TaskSettingsService.DocumentKey, tasksMode)] = async value =>
             {
-                return null;
-            }
+                if (_taskSettings is null
+                    || System.Text.Json.JsonSerializer.Deserialize<AccountabiliBuddy.App.Services.Tasks.TaskSettings>(value, AccountabiliBuddy.Core.Sync.SyncJson.Options) is not { } wanted)
+                {
+                    return null;
+                }
 
-            int before = _taskSettings.SessionActions;
-            await _taskSettings.SetNextStepTakesSlotAsync(wanted.NextStepTakesSlot);
-            if (!await _taskSettings.SetSessionActionsAsync(wanted.SessionActions))
-            {
-                return "The number of actions per session wasn't restored during a focus session.";
-            }
+                return await _taskSettings.RestoreAsync(wanted, tasksMode);
+            };
+        }
 
-            return _taskSettings.SessionActions == before && wanted.SessionActions > before
-                ? "More actions per session take effect after the countdown."
-                : null;
-        };
         backups.DeviceRestorers["session.pcOff"] = async value =>
         {
             if (System.Text.Json.JsonSerializer.Deserialize<PcOffSettings>(value, AccountabiliBuddy.Core.Sync.SyncJson.Options) is not { } wanted)

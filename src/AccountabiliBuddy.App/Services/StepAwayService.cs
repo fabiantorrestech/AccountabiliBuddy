@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using Avalonia.Threading;
@@ -103,6 +104,15 @@ public sealed class StepAwayService : IDisposable
     /// </summary>
     public Func<bool> HoldsAway { get; set; } = () => false;
 
+    /// <summary>
+    /// "When I step away" for a step away now (ADR 77; the stricter of the setting at the session's start and now). Set by the app;
+    /// the default keeps the timer running.
+    /// </summary>
+    public Func<StepAwayTimer> StepAwaySetting { get; set; } = () => StepAwayTimerPolicy.Default;
+
+    /// <summary>True while stepped away with the timer running (ADR 77): blocking stays on and nothing asks "Back to the task?".</summary>
+    public bool TimerRunsWhileAway => _sessions.State.AwayTimerRuns;
+
     /// <summary>True while the timer is paused ("Pause timer", ADR 76): Resume is <see cref="Return"/>.</summary>
     public bool IsPaused => _sessions.State.IsPaused;
 
@@ -111,7 +121,7 @@ public sealed class StepAwayService : IDisposable
 
     /// <summary>"Away · 4:12" while away, "Side task · 6:12" during a side task, "Paused · 1:05" while the timer is paused, else empty.</summary>
     public string AwayText => _sessions.State.AwaySince is DateTimeOffset since
-        ? $"{(IsSideTask ? "Side task" : IsPaused ? "Paused" : "Away")} · {Clock(_time.GetUtcNow() - since)}"
+        ? $"{(IsSideTask ? "Side task" : IsPaused ? "Paused" : "Away")} · {Clock(_time.GetUtcNow() - since)}{(TimerRunsWhileAway ? " · timer running" : string.Empty)}"
         : string.Empty;
 
     /// <summary>Raised when the user steps away or is back, and every second while away (for <see cref="AwayText"/>).</summary>
@@ -153,7 +163,8 @@ public sealed class StepAwayService : IDisposable
     /// <returns>False with no session running or when already away.</returns>
     public bool StepAway(AwayKind kind)
     {
-        return _sessions.StepAway(kind);
+        // ADR 77: a break or an interruption follows "When I step away" (keep the timer running by default).
+        return _sessions.StepAway(kind, StepAwayTimerPolicy.KeepsTimerRunning(StepAwaySetting(), kind));
     }
 
     public void Return()
@@ -238,8 +249,9 @@ public sealed class StepAwayService : IDisposable
 
         if (state.AwaySince is DateTimeOffset since)
         {
-            // A paused timer is not an away: input is expected, enforcement runs as in focus, and only Resume ends it.
-            if (state.Away == AwayKind.Paused)
+            // A paused timer, or a step away with the timer running (ADR 77): enforcement runs as in focus and input never asks
+            // "Back to the task?"; only Resume / I'm back ends it.
+            if (state.Away == AwayKind.Paused || state.AwayTimerRuns)
             {
                 return;
             }
