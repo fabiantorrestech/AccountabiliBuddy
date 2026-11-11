@@ -3,10 +3,11 @@ using AccountabiliBuddy.Core.Domain;
 namespace AccountabiliBuddy.Core.Engine;
 
 /// <summary>
-/// The rules of the "When I step away" setting (ADR 77). Keeping the timer running keeps blocking on while away, so it is the stricter
-/// choice: switching to it applies at once; switching to pausing the timer (blocking held while away) is looser, so it waits like any
-/// looser change and is refused during a session. Only a plain step away (a break or an interruption) follows the setting: lunch, a
-/// side task and "Pause timer" keep their own rules.
+/// The rules of the "When I step away" and "When I start a side task" settings (ADR 77). Keeping the timer running keeps the session's
+/// end where it is (and, for a step away, blocking on while away), so it is the stricter choice: switching to it applies at once;
+/// switching to pausing the timer (the session ends later) is looser, so it waits like any looser change and is refused during a
+/// session. A plain step away (a break or an interruption) follows "When I step away", a side task "When I start a side task"; lunch
+/// and "Pause timer" keep their own rules.
 /// </summary>
 public static class StepAwayTimerPolicy
 {
@@ -32,6 +33,16 @@ public static class StepAwayTimerPolicy
     public static StepAwayTimer ForStepAway(SessionState state, StepAwayTimer setting)
     {
         return state.IsActive ? Stricter(state.StepAwayAtStart ?? StepAwayTimer.KeepTimerRunning, setting) : setting;
+    }
+
+    /// <summary>
+    /// The setting a side task uses now, as <see cref="ForStepAway"/> does for a step away: during a session the stricter of the one it
+    /// started with (<see cref="SessionState.SideTaskAtStart"/>; keep-running when unknown) and <paramref name="setting"/>, the active
+    /// mode's "When I start a side task" now; outside a session the setting.
+    /// </summary>
+    public static StepAwayTimer ForSideTask(SessionState state, StepAwayTimer setting)
+    {
+        return state.IsActive ? Stricter(state.SideTaskAtStart ?? StepAwayTimer.KeepTimerRunning, setting) : setting;
     }
 
     /// <summary>Whether a step away of <paramref name="kind"/> keeps the timer running under <paramref name="setting"/>.</summary>

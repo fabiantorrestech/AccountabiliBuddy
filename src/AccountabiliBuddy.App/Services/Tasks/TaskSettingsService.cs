@@ -9,12 +9,12 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// Loads and saves <see cref="TaskSettings"/> (document "tasks.settings", this PC only), kept per mode (ADR 69): AccountabiliBuddy and
 /// ProductaBuddy each have their own copy with the same defaults, and the active mode's is <see cref="Current"/>. Stricter changes apply
-/// at once; looser ones (more actions per session, pausing the timer when stepping away) are refused while a session runs and otherwise
+/// at once; looser ones (more actions per session, pausing the timer when stepping away or on a side task) are refused while a session runs and otherwise
 /// wait the looser-change wait (<see cref="LockSettings.LooseningDelay"/>, counted by the trusted clock and kept in the document so a
 /// restart doesn't skip it), taking effect only while no session runs; the same rules hold for either mode's copy (a backup restores
 /// both through here). A running session never gets looser from a change or a mode switch: it keeps the number of actions it started
-/// with (<see cref="SessionChecklist.ActionCap"/>), and a step away takes the stricter of the setting at the session's start and now
-/// (<see cref="StepAwayTimerPolicy.Stricter"/>). Use from the UI thread only.
+/// with (<see cref="SessionChecklist.ActionCap"/>), and a step away or a side task takes the stricter of its setting at the session's
+/// start and now (<see cref="StepAwayTimerPolicy.Stricter"/>). Use from the UI thread only.
 /// </summary>
 public sealed class TaskSettingsService
 {
@@ -50,6 +50,12 @@ public sealed class TaskSettingsService
     /// mode switch nor a restart loosens it.
     /// </summary>
     public StepAwayTimer StepAwayNow => StepAwayTimerPolicy.ForStepAway(_sessions.State, Current.StepAway);
+
+    /// <summary>
+    /// "When I start a side task" for a side task now (<see cref="StepAwayTimerPolicy.ForSideTask"/>): the stricter of the setting the
+    /// running session started with (kept in its state and checkpoint) and the active mode's now, as <see cref="StepAwayNow"/>.
+    /// </summary>
+    public StepAwayTimer SideTaskNow => StepAwayTimerPolicy.ForSideTask(_sessions.State, Current.SideTask);
 
     private GuidanceMode ActiveMode => _modes?.Mode ?? GuidanceMode.Guarding;
 
@@ -141,6 +147,36 @@ public sealed class TaskSettingsService
         return true;
     }
 
+    /// <summary>
+    /// "When I start a side task" (ADR 77), in <paramref name="mode"/>'s copy, with the rules of <see cref="SetStepAwayAsync"/>: keeping
+    /// the timer running applies at once (and drops a waiting pause); pausing it is looser (the session ends later): it waits the
+    /// looser-change wait and is refused while a session runs.
+    /// </summary>
+    /// <returns>False when it was refused (pausing while a session runs).</returns>
+    public async Task<bool> SetSideTaskAsync(StepAwayTimer wanted, GuidanceMode? mode = null)
+    {
+        GuidanceMode target = mode ?? ActiveMode;
+        TaskSettings settings = await LoadForAsync(target);
+        if (!StepAwayTimerPolicy.IsLooser(settings.SideTask, wanted))
+        {
+            await SaveForAsync(target, settings with { SideTask = wanted, PendingSideTask = null, PendingSideTaskFrom = null });
+            return true;
+        }
+
+        if (_sessions.State.IsActive)
+        {
+            return false;
+        }
+
+        if (settings.PendingSideTask == wanted && settings.PendingSideTaskFrom is not null)
+        {
+            return true;
+        }
+
+        await SaveForAsync(target, settings with { PendingSideTask = wanted, PendingSideTaskFrom = _time.GetUtcNow() + _looserWait() });
+        return true;
+    }
+
     /// <summary>"The next step takes the slot" (on by default). Either way it loosens nothing: it only says which step is in focus.</summary>
     public async Task SetNextStepTakesSlotAsync(bool on, GuidanceMode? mode = null)
     {
@@ -215,15 +251,19 @@ public sealed class TaskSettingsService
             mode);
         bool actionsTaken = await SetSessionActionsAsync(wanted.SessionActions, mode);
         bool stepAwayTaken = await SetStepAwayAsync(wanted.StepAway, mode);
-        if (!actionsTaken || !stepAwayTaken)
+        bool sideTaskTaken = await SetSideTaskAsync(wanted.SideTask, mode);
+        if (!actionsTaken || !stepAwayTaken || !sideTaskTaken)
         {
             return "Some Tasks settings weren't restored during a session (they would loosen it).";
         }
 
         TaskSettings after = await LoadForAsync(mode);
         bool waiting = (after.PendingSessionActions is not null && after.PendingSessionActions != before.PendingSessionActions)
-            || (after.PendingStepAway is not null && after.PendingStepAway != before.PendingStepAway);
-        return waiting ? "Looser Tasks settings (more actions per session, pausing the timer when stepping away) take effect after the countdown." : null;
+            || (after.PendingStepAway is not null && after.PendingStepAway != before.PendingStepAway)
+            || (after.PendingSideTask is not null && after.PendingSideTask != before.PendingSideTask);
+        return waiting
+            ? "Looser Tasks settings (more actions per session, pausing the timer when stepping away or on a side task) take effect after the countdown."
+            : null;
     }
 
     // Looser changes that waited long enough take effect, in the active mode's copy, only while no session runs.
@@ -245,6 +285,11 @@ public sealed class TaskSettingsService
         if (settings.PendingStepAway is StepAwayTimer waiting && settings.PendingStepAwayFrom is DateTimeOffset stepFrom && now >= stepFrom)
         {
             applied = applied with { StepAway = waiting, PendingStepAway = null, PendingStepAwayFrom = null };
+        }
+
+        if (settings.PendingSideTask is StepAwayTimer sideWaiting && settings.PendingSideTaskFrom is DateTimeOffset sideFrom && now >= sideFrom)
+        {
+            applied = applied with { SideTask = sideWaiting, PendingSideTask = null, PendingSideTaskFrom = null };
         }
 
         if (applied != settings)

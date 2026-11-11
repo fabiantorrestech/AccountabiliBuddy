@@ -139,12 +139,16 @@ public sealed class SessionController : IDisposable
     /// <summary>"When I step away" in effect now (ADR 77): kept with each session as it starts. Set by the app.</summary>
     public Func<StepAwayTimer> StepAwaySetting { get; set; } = () => StepAwayTimerPolicy.Default;
 
-    // A session that just started keeps the step-away setting it started with (in its state and checkpoint).
+    /// <summary>"When I start a side task" in effect now (ADR 77): kept with each session as it starts. Set by the app.</summary>
+    public Func<StepAwayTimer> SideTaskSetting { get; set; } = () => StepAwayTimerPolicy.Default;
+
+    // A session that just started keeps the step-away and side-task settings it started with (in its state and checkpoint).
     private bool Started(bool started)
     {
         if (started)
         {
             _engine.RememberStepAway(StepAwaySetting());
+            _engine.RememberSideTask(SideTaskSetting());
         }
 
         return started;
@@ -224,11 +228,14 @@ public sealed class SessionController : IDisposable
         return _engine.PauseTimer();
     }
 
-    /// <summary>A side task: the countdown pauses like a step away, enforcement keeps running (see <see cref="StepAwayService"/>).</summary>
+    /// <summary>
+    /// A side task (see <see cref="StepAwayService"/>): enforcement keeps running; with <paramref name="keepTimerRunning"/> the countdown
+    /// keeps going (ADR 77), otherwise it pauses like a step away (never in a break, see <see cref="SessionEngine.StartSideTask"/>).
+    /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StartSideTask(TimeSpan length)
+    public bool StartSideTask(TimeSpan length, bool keepTimerRunning = false)
     {
-        return _engine.StartSideTask(length);
+        return _engine.StartSideTask(length, keepTimerRunning);
     }
 
     /// <summary>+5 minutes on the running side task; <paramref name="reason"/> is what the user typed for it (logged, sealed).</summary>

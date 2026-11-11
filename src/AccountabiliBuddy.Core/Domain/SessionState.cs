@@ -11,9 +11,10 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="IsTest">A test session (Today, More options): it enforces and cues like a real one, but it is never counted,
 /// logged, synced, shown to linked devices or saved for a restart, and it ends on command.</param>
 /// <param name="AwayTimerRuns">
-/// Step away with the timer running (the default since 2026-11-11, setting "When I step away"): the countdown keeps going and phases
-/// end on time, enforcement stays on (<see cref="PausesEnforcement"/> false) and nothing asks "Back to the task?". The stretch is still
-/// logged as stepped away and never counted as focus. False for every other away (the old step away, lunch, side task, pause).
+/// Step away or side task with the timer running (the default since 2026-11-11, settings "When I step away" and "When I start a side
+/// task"): the countdown keeps going and phases end on time, enforcement stays on (<see cref="PausesEnforcement"/> false) and nothing
+/// asks "Back to the task?" (a side task's own length still asks when it is up). The stretch is still logged as stepped away (or side
+/// task) and never counted as focus. False for every other away (the old step away, lunch, a side task with the timer paused, pause).
 /// </param>
 /// <param name="StepAwayAtStart">
 /// "When I step away" as the session started (ADR 77), kept with the session (and its checkpoint, so a restart keeps it): a step away
@@ -21,9 +22,14 @@ namespace AccountabiliBuddy.Core.Domain;
 /// for a session saved before it was kept (read as keeping the timer running).
 /// </param>
 /// <param name="AwayPausesInFocus">
-/// A step away begun in a break (<see cref="IsEnforcing"/> false) whose setting pauses the timer: a break never freezes, so the timer
-/// runs (<see cref="AwayTimerRuns"/>) and the break ends on time; if focus starts while the user is still away, the countdown freezes
-/// from that moment as a paused step away in focus would (ADR 77). False otherwise.
+/// A step away or side task begun in a break (<see cref="IsEnforcing"/> false) whose setting pauses the timer: a break never freezes, so
+/// the timer runs (<see cref="AwayTimerRuns"/>) and the break ends on time; if focus starts while it is still on, the countdown freezes
+/// from that moment as a paused one in focus would (ADR 77). False otherwise.
+/// </param>
+/// <param name="SideTaskAtStart">
+/// "When I start a side task" as the session started (ADR 77), kept like <paramref name="StepAwayAtStart"/>: a side task takes the
+/// stricter of this and the setting now (<see cref="Engine.StepAwayTimerPolicy.ForSideTask"/>). Null outside a session, and for a session
+/// saved before it was kept (read as keeping the timer running).
 /// </param>
 /// <param name="FocusLengthAfterPlanning">While <see cref="SessionPhase.Planning"/>: how long the focus phase runs once planning ends
 /// (<see cref="PhaseStartedAt"/> and <see cref="PhaseEndsAt"/> are then the planning stage's own); null for a session with no set end.
@@ -44,7 +50,8 @@ public sealed record SessionState(
     TimeSpan? FocusLengthAfterPlanning = null,
     bool AwayTimerRuns = false,
     StepAwayTimer? StepAwayAtStart = null,
-    bool AwayPausesInFocus = false)
+    bool AwayPausesInFocus = false,
+    StepAwayTimer? SideTaskAtStart = null)
 {
     public static SessionState Idle { get; } = new(null, SessionPhase.Idle, null, null, null, 0);
 
@@ -99,11 +106,11 @@ public sealed record SessionState(
     public bool PausesEnforcement => IsAway && !AwayTimerRuns && Away is not (AwayKind.SideTask or AwayKind.Paused) && !AwayAtDesk;
 
     /// <summary>
-    /// The time countdowns read: frozen at <see cref="AwaySince"/> while away, else <paramref name="now"/>. A step away with the timer
-    /// running (<see cref="AwayTimerRuns"/>) doesn't freeze it.
+    /// The time countdowns read: frozen at <see cref="AwaySince"/> while away, else <paramref name="now"/>. A step away or side task with
+    /// the timer running (<see cref="AwayTimerRuns"/>) doesn't freeze it.
     /// </summary>
     public DateTimeOffset CountdownTime(DateTimeOffset now) => !AwayTimerRuns && AwaySince is DateTimeOffset since && since < now ? since : now;
 
-    /// <summary>Away with the countdown frozen (every away except a step away with the timer running): nothing runs out meanwhile.</summary>
+    /// <summary>Away with the countdown frozen (every away except a step away or side task with the timer running): nothing runs out meanwhile.</summary>
     public bool CountdownFrozen => IsAway && !AwayTimerRuns;
 }

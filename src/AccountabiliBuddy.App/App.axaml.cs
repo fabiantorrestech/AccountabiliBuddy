@@ -339,6 +339,7 @@ public partial class App : Application
         _taskSettings = taskSettings;
         // ADR 77: each session keeps the step-away setting it started with (in its checkpoint too).
         _sessions.StepAwaySetting = () => taskSettings.Current.StepAway;
+        _sessions.SideTaskSetting = () => taskSettings.Current.SideTask;
         // ADR 66: waited ends confirmed early apply themselves when their wait is over; the notice shows where the cursor is.
         _armedEnds = new ArmedEndService(_sessions, documents, new DpapiDataProtector(), (title, message) => _presenter?.ShowNotice(title, message));
         _armedEnds.Register(new SessionArmedEndHandler(_sessions));
@@ -386,6 +387,7 @@ public partial class App : Application
         _stepAway = new StepAwayService(_sessions, new Win32UserIdleDetector(), new Win32CursorPosition(), _stepAwayHotkey, documents, time);
         // ADR 77: "When I step away" (keep the timer running by default), never looser than at the running session's start.
         _stepAway.StepAwaySetting = () => _taskSettings?.StepAwayNow ?? AccountabiliBuddy.Core.Engine.StepAwayTimerPolicy.Default;
+        _stepAway.SideTaskSetting = () => _taskSettings?.SideTaskNow ?? AccountabiliBuddy.Core.Engine.StepAwayTimerPolicy.Default;
         _stepAway.LoadBlocking();
         // M6 screen reading and M7 activity history.
         var privacy = new PrivacySettingsService(documents);

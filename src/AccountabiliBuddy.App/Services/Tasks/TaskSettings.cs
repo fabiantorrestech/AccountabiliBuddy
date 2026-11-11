@@ -22,6 +22,9 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="PinHighlights">New views pin highlighted tasks to the top (on by default; each view can change it).</param>
 /// <param name="DefaultViewId">The view the Shelf opens with; null for the built-in Default (device-local, see HANDOFF-QUESTIONS).</param>
 /// <param name="CustomMarkers">Project markers the user taught (device-local, see HANDOFF-QUESTIONS); null for none.</param>
+/// <param name="SideTask">"When I start a side task" (ADR 77): keep the timer running (default) or pause it.</param>
+/// <param name="PendingSideTask">Pausing the timer for side tasks, waiting for the looser-change wait to end; null when nothing waits.</param>
+/// <param name="PendingSideTaskFrom">When <paramref name="PendingSideTask"/> takes effect, unless a session runs then.</param>
 public sealed record TaskSettings(
     int SessionActions,
     bool NextStepTakesSlot,
@@ -35,7 +38,10 @@ public sealed record TaskSettings(
     DayOfWeek TidyUpDay = DayOfWeek.Monday,
     bool PinHighlights = true,
     Guid? DefaultViewId = null,
-    IReadOnlyList<ProjectMarkerPattern>? CustomMarkers = null)
+    IReadOnlyList<ProjectMarkerPattern>? CustomMarkers = null,
+    StepAwayTimer SideTask = StepAwayTimer.KeepTimerRunning,
+    StepAwayTimer? PendingSideTask = null,
+    DateTimeOffset? PendingSideTaskFrom = null)
 {
-    public static TaskSettings Default { get; } = new(Core.Tasks.SessionActions.DefaultCap, true, StepAway: StepAwayTimerPolicy.Default);
+    public static TaskSettings Default { get; } = new(Core.Tasks.SessionActions.DefaultCap, true, StepAway: StepAwayTimerPolicy.Default, SideTask: StepAwayTimerPolicy.Default);
 }

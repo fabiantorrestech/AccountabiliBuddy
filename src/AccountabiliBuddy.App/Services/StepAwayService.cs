@@ -110,6 +110,12 @@ public sealed class StepAwayService : IDisposable
     /// </summary>
     public Func<StepAwayTimer> StepAwaySetting { get; set; } = () => StepAwayTimerPolicy.Default;
 
+    /// <summary>
+    /// "When I start a side task" for a side task now (ADR 77; the stricter of the setting at the session's start and now). Set by the
+    /// app; the default keeps the timer running.
+    /// </summary>
+    public Func<StepAwayTimer> SideTaskSetting { get; set; } = () => StepAwayTimerPolicy.Default;
+
     /// <summary>True while stepped away with the timer running (ADR 77): blocking stays on and nothing asks "Back to the task?".</summary>
     public bool TimerRunsWhileAway => _sessions.State.AwayTimerRuns;
 
@@ -214,7 +220,11 @@ public sealed class StepAwayService : IDisposable
             return;
         }
 
-        OpenCard(AwayCardKind.SideTaskLength, "How long? The focus clock pauses; blocking and nudges keep running.");
+        // A break never freezes (ADR 77), so the clock pauses only in focus or planning with "When I start a side task" = Pause timer.
+        bool clockPauses = state.IsEnforcing && SideTaskSetting() == StepAwayTimer.PauseTimer;
+        OpenCard(AwayCardKind.SideTaskLength, clockPauses
+            ? "How long? The focus clock pauses; blocking and nudges keep running."
+            : "How long? The session timer keeps running, and so do blocking and nudges.");
     }
 
     /// <summary>Starts a side task of 5, 10 or 15 minutes.</summary>
@@ -228,7 +238,8 @@ public sealed class StepAwayService : IDisposable
 
         CloseCard();
         _chimedFor = null;
-        return _sessions.StartSideTask(TimeSpan.FromMinutes(minutes));
+        // ADR 77: "When I start a side task" (keep the timer running by default).
+        return _sessions.StartSideTask(TimeSpan.FromMinutes(minutes), SideTaskSetting() == StepAwayTimer.KeepTimerRunning);
     }
 
     /// <summary>
@@ -249,16 +260,17 @@ public sealed class StepAwayService : IDisposable
 
         if (state.AwaySince is DateTimeOffset since)
         {
+            // A side task asks when its own length is up, whether the timer runs or not (ADR 77).
+            if (state.Away == AwayKind.SideTask)
+            {
+                CheckSideTask(state, since, now);
+                return;
+            }
+
             // A paused timer, or a step away with the timer running (ADR 77): enforcement runs as in focus and input never asks
             // "Back to the task?"; only Resume / I'm back ends it.
             if (state.Away == AwayKind.Paused || state.AwayTimerRuns)
             {
-                return;
-            }
-
-            if (state.Away == AwayKind.SideTask)
-            {
-                CheckSideTask(state, since, now);
                 return;
             }
 

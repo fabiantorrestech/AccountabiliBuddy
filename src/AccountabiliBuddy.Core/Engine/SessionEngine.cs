@@ -274,11 +274,11 @@ public sealed class SessionEngine
     }
 
     /// <summary>
-    /// Lunch starts while the user is stepped away with the timer running: that away ends here and lunch's begins (the countdown pauses
-    /// from now and enforcement holds as lunch always did), so lunch keeps its own rules whatever the step-away setting, and the two
-    /// are logged as two stretches (the first keeps its own kind, lunch's is a break).
+    /// Lunch starts while the user is stepped away (or on a side task) with the timer running: that away ends here and lunch's begins
+    /// (the countdown pauses from now and enforcement holds as lunch always did), so lunch keeps its own rules whatever the step-away or
+    /// side-task setting, and the two are logged as two stretches (the first keeps its own kind, lunch's is a break).
     /// </summary>
-    /// <returns>False when not stepped away with the timer running.</returns>
+    /// <returns>False when not away with the timer running.</returns>
     public bool HoldAwayForLunch()
     {
         if (!State.AwayTimerRuns)
@@ -307,6 +307,22 @@ public sealed class SessionEngine
     }
 
     /// <summary>
+    /// "When I start a side task" as the running session started (<see cref="SessionState.SideTaskAtStart"/>), kept with it and its
+    /// checkpoint. Set once per session; a session resumed after a restart keeps what it had.
+    /// </summary>
+    /// <returns>False with no session running or when it is set already.</returns>
+    public bool RememberSideTask(StepAwayTimer mode)
+    {
+        if (!State.IsActive || State.SideTaskAtStart is not null)
+        {
+            return false;
+        }
+
+        SetState(State with { SideTaskAtStart = mode });
+        return true;
+    }
+
+    /// <summary>
     /// "Pause timer" (<see cref="AwayKind.Paused"/>): the countdown freezes until <see cref="Return"/> (Resume), which moves the phase's
     /// end later by the time paused, while enforcement keeps running as in focus. Logged apart from stepping away. It never shortens a
     /// wait, ends the session or unlocks anything.
@@ -323,12 +339,15 @@ public sealed class SessionEngine
     }
 
     /// <summary>
-    /// The user starts a side task of <paramref name="length"/>: the countdown pauses like a step away, but enforcement keeps
-    /// running (<see cref="SessionState.PausesEnforcement"/>). The length only says when the user is asked if they are back:
-    /// nothing ends and nothing is shortened when it is up.
+    /// The user starts a side task of <paramref name="length"/>; enforcement keeps running either way (<see cref="SessionState.PausesEnforcement"/>).
+    /// With <paramref name="keepTimerRunning"/> (the setting's default, ADR 77) the countdown keeps going and phases end on time
+    /// (<see cref="SessionState.AwayTimerRuns"/>); otherwise it pauses until <see cref="Return"/>, which moves the phase on by the time
+    /// away. A break (outside focus and planning) never freezes, whatever the setting: its countdown keeps going and it ends on time, and
+    /// when focus starts with the side task still on, a pausing one freezes the countdown from then (<see cref="SessionState.AwayPausesInFocus"/>).
+    /// The length only says when the user is asked if they are back: nothing ends and nothing is shortened when it is up.
     /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StartSideTask(TimeSpan length)
+    public bool StartSideTask(TimeSpan length, bool keepTimerRunning = false)
     {
         if (length <= TimeSpan.Zero)
         {
@@ -341,7 +360,15 @@ public sealed class SessionEngine
         }
 
         DateTimeOffset now = Now;
-        SetState(State with { Away = AwayKind.SideTask, AwaySince = now, AwayEndsAt = now + length });
+        bool pausesInFocus = !keepTimerRunning && !State.IsEnforcing;
+        SetState(State with
+        {
+            Away = AwayKind.SideTask,
+            AwaySince = now,
+            AwayEndsAt = now + length,
+            AwayTimerRuns = keepTimerRunning || pausesInFocus,
+            AwayPausesInFocus = pausesInFocus,
+        });
         return true;
     }
 
@@ -562,8 +589,8 @@ public sealed class SessionEngine
         SetState(state);
     }
 
-    // Focus starts while a step away begun in the break is still on, and its setting pauses the timer: from here it is a paused step
-    // away in focus, frozen from the focus's start (AwaySince moves there; the stretch stays logged from when the user stepped away),
+    // Focus starts while a step away or side task begun in the break is still on, and its setting pauses the timer: from here it is a
+    // paused one in focus, frozen from the focus's start (AwaySince moves there; the stretch stays logged from when the user stepped away),
     // so Return gives the focus its full length.
     private static SessionState FrozenIfAwayAtFocus(SessionState state)
     {
