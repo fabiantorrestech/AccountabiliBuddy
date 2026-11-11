@@ -12,18 +12,20 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <param name="Parked">To sort, with History's recently finished ones ticked.</param>
 /// <param name="Comebacks">The open To sort tasks, for the oldest phones.</param>
 /// <param name="Categories">The labels as categories: name and opaque colour.</param>
+/// <param name="AutoSaved">Open To sort tasks that came from Auto-saved, within its 30 days (<see cref="Domain.TaskItem.AutoSavedFor"/>); they are in no other old list.</param>
 public sealed record OldTaskFields(
     IReadOnlyList<SyncNextTask> NextTasks,
     IReadOnlyList<SyncLaterItem> Later,
     IReadOnlyList<SyncParked> Parked,
     IReadOnlyList<SyncComeback> Comebacks,
-    IReadOnlyList<SyncCategory> Categories)
+    IReadOnlyList<SyncCategory> Categories,
+    IReadOnlyList<SyncAutoSavedItem> AutoSaved)
 {
-    public static OldTaskFields Empty { get; } = new([], [], [], [], []);
+    public static OldTaskFields Empty { get; } = new([], [], [], [], [], []);
 
     /// <summary>The old fields a sync file carries (a missing part reads as empty).</summary>
     public static OldTaskFields Of(SyncFile file)
     {
-        return new OldTaskFields(file.NextTasks ?? [], file.Later ?? [], file.Parked ?? [], file.Parked is null ? file.Comebacks ?? [] : [], file.Categories ?? []);
+        return new OldTaskFields(file.NextTasks ?? [], file.Later ?? [], file.Parked ?? [], file.Parked is null ? file.Comebacks ?? [] : [], file.Categories ?? [], file.AutoSaved ?? []);
     }
 }

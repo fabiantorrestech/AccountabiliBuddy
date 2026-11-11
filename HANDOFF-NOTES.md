@@ -25,10 +25,10 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 
 1. Task store (new doc, e.g. `tasks.items` + `tasks.labels` + `tasks.views` + `tasks.history`, DPAPI-sealed like the old lists) holding `SyncTaskItem`/`SyncTaskLabel`/`SyncTaskView`/`SyncTaskLogItem`; every local change through `TaskEdits.Edit` (title/note bases depend on it).
 2. Startup migration: `LocalDatabase.BackupAsync("tasks-model")`, then `TaskMigration.Run` once behind marker `tasks.model` = 1; App maps `Comeback` -> `SyncParked` (ComebackStore.ForBackup shape, local items with text), `TaskFilterPreset`/`TaskViewPreferences` -> `LegacyTaskFilter`; store `ViewSearches` in a device-local document; log `Counts` (numbers only) and refuse to switch over unless `Counts.IsBalanced`. `IsNumberingDevice` from `TaskNumbering.NumberingDevice(ReceivedDevicesService.Active + self)`; `FirstNumber` = 1 on a fresh model.
-3. SyncCoordinator write: `Tasks`/`Labels`/`Views`/`TaskLog` (through `SharedListMerge.ForFile`) plus `OldTaskFieldsWriter.Write(...)` for the old fields (replaces `NextTasks`/`Parked`/`Later`/`Categories`/`Comebacks` functions); `Later` always written (even empty).
-4. SyncCoordinator read: file with `Tasks` -> `TaskFieldMerge.Merge` (+ `SharedListMerge.Merge` for labels/views/taskLog); without -> `OldTaskFieldsReader.ReadFile`; then `TaskNumbering.AssignFinal` on the numbering PC.
+3. SyncCoordinator write: `Tasks`/`Labels`/`Views`/`TaskLog` (through `SharedListMerge.ForFile`) plus `OldTaskFieldsWriter.Write(...)` for the old fields (replaces `NextTasks`/`Parked`/`Later`/`Categories`/`Comebacks` functions **and `AutoSaved` from `TaskListSync.Decorate`**); `Later` always written (even empty).
+4. SyncCoordinator read: file with `Tasks` -> `TaskFieldMerge.Merge` (+ `SharedListMerge.Merge` for labels/views/taskLog); without -> `OldTaskFieldsReader.ReadFile` (it reads `AutoSaved` too, so `TaskListSync.ReceiveAsync` must stop merging `AutoSaved` into `AutoSavedTaskStore`); then `TaskNumbering.AssignFinal` on the numbering PC. Read one file at a time: move pairing only looks inside one file.
 5. Old stores (`SessionTasksService` draft, `LaterStore`, `ComebackStore`, `AutoSavedTaskStore`) become views/facades of the task store; running checklist via `TaskSessionMapper` (old category ids in a running checklist are not label ids: keep the label, see mapper).
-6. History pruning: see question 22 before pruning migrated entries.
+6. History pruning: keep entries `TaskHistoryEntry.Kept` (90 d) after `When` (UI may list 30 d); see questions 22 and 31.
 
 ## Findings that shape the plan (read first)
 
@@ -137,7 +137,8 @@ Run once, behind `LocalDatabase.BackupAsync("tasks-model")` (Core/Storage; whole
 | `Categories` `IReadOnlyList<SyncCategory>?` (name+colour) | `syncCoordinator.Categories` (`App.axaml.cs` 954) | labels (name, opaque colour) | via `AdoptCategoryAsync(name,color)`; `TaskCategoryColors.TakeNewer` |
 | `Actions` `IReadOnlyList<SyncAction>?` (`taskAdd`/`taskEdit`/`taskReorder`/`tickTask`/`park`/`tickComeback`, `SyncTaskRequest`) | phone | n/a | handled by `SessionTasksService.AddRemoteAsync/EditRemoteAsync/ReorderRemoteAsync` + `SyncActionsService`; cap enforced here (actions, not tasks) |
 | `Running`/`SyncSession.Tasks` `IReadOnlyList<SessionTask>?` | `TasksOf` | focused steps as before | read-only on phone |
-| `TaskHistory` `IReadOnlyList<SyncTaskHistoryEntry>?`, `PastSettled`, `AutoSaved`, `Handovers`, `HandoverAcks` | `TaskListSync.Decorate` | unchanged | unchanged |
+| `AutoSaved` `IReadOnlyList<SyncAutoSavedItem>?` | today `TaskListSync.Decorate` from `AutoSavedTaskStore`; **from M2 `OldTaskFieldsWriter` only** (drop it from `Decorate`, or the phone sees items twice) | open `sort` tasks with `AutoSavedFor` within 30 d of `CreatedAt` (they are then in no other old list; after 30 d they move to `parked`) | `OldTaskFieldsReader`: edits and tombstones by id; delete + new Later id = a move (paired) |
+| `TaskHistory` `IReadOnlyList<SyncTaskHistoryEntry>?`, `PastSettled`, `Handovers`, `HandoverAcks` | `TaskListSync.Decorate` | unchanged | unchanged |
 | **new, optional** `Tasks`, `Labels`, `Views` | PC (new builds) | full model, field stamps | new builds read these first, fall back to old fields |
 
 Rules for the dual path: (1) old fields are always rebuilt from the task store on write, never stored separately; (2) on read, a file with `Tasks` is authoritative for that device; a file without it is mapped item by item with field-level "unchanged by old writer" inheritance; (3) tombstones: old `DeletedAt` → task tombstone; (4) never delete a new-model field because an old item lacks it.

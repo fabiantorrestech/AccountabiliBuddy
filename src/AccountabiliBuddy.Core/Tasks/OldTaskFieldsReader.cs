@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Sync;
 
@@ -21,11 +22,23 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <item>An old tombstone newer than the task deletes it; a local item's stub (ADR 72) makes it kept on that device; a newer
 /// old item brings back a deleted task, or a finished one from History with all it had. Unknown items become tasks.</item>
 /// <item>Old categories become labels by name; a newer colour choice is taken (ADR 62).</item>
+/// <item>An older app moves a task between its lists as a delete (or, Come back to into the next list, a tick) plus a new item
+/// with a new id. Within one file, such a departure of a task this device has is paired with a new item of the same title (or the
+/// title plus " (+N steps)") made within <see cref="MoveWindow"/> of it, in another list: the task moves to the new id with
+/// everything it had (number, reminders, highlight, due time, can't miss, calendar, origin, step focus, History). Each departure
+/// pairs at most once, closest time first; an unpaired one stays a plain delete or tick.</item>
+/// <item>A ticked old item this device knows nothing of (no task, tombstone or History entry) is never added: it is an old
+/// finished task this device already let go of. An Auto-saved item past its 30 days is never added either.</item>
 /// </list>
 /// </summary>
 public static class OldTaskFieldsReader
 {
     private static readonly DateTimeOffset UnstampedAt = GuidanceState.UpgradeStamp;
+
+    /// <summary>How close a move's delete and its new item must be (both are stamped with the same moment on the older app).</summary>
+    public static readonly TimeSpan MoveWindow = TimeSpan.FromMinutes(2);
+
+    private static readonly Regex StepsSuffix = new(@" \(\+\d+ steps?\)$", RegexOptions.CultureInvariant);
 
     /// <summary>The file's old fields read in; null when the file carries <see cref="SyncFile.Tasks"/> (merge those instead).</summary>
     public static OldTaskReadResult? ReadFile(SyncFile file, OldTaskReadInput input)
@@ -51,6 +64,9 @@ public static class OldTaskFieldsReader
         private int _deleted;
         private int _revived;
         private int _moved;
+        private int _paired;
+        private readonly Dictionary<Guid, DateTimeOffset> _departures = new();
+        private readonly Dictionary<Guid, TaskItem> _arrivals = new();
 
         public Reading(OldTaskReadInput input)
         {
@@ -70,12 +86,20 @@ public static class OldTaskFieldsReader
                 .Concat(incoming.Later.Select(OldTaskShape.Of))
                 .Concat(incoming.Parked.Select(OldTaskShape.Of))
                 .Concat(incoming.Comebacks.Select(OldTaskShape.Of))
+                .Concat(incoming.AutoSaved.Select(OldTaskShape.Of))
                 .Where(shape => shape.Id != Guid.Empty)
                 .Select(Clamped);
 
-            foreach (IGrouping<Guid, OldTaskShape> group in shapes.GroupBy(shape => shape.Id).OrderBy(group => group.Key.ToString("D"), StringComparer.Ordinal))
+            List<List<OldTaskShape>> groups = shapes.GroupBy(shape => shape.Id)
+                .OrderBy(group => group.Key.ToString("D"), StringComparer.Ordinal)
+                .Select(group => group.ToList())
+                .ToList();
+            FindMoves(groups);
+
+            // Departures first, so a moved task no longer holds its place in This session when its new copy looks for room.
+            foreach (List<OldTaskShape> copies in groups.OrderBy(copies => _departures.ContainsKey(copies[0].Id) ? 0 : 1))
             {
-                Handle(group.ToList());
+                Handle(copies);
             }
 
             return new OldTaskReadResult(
@@ -86,7 +110,87 @@ public static class OldTaskFieldsReader
                 _added,
                 _deleted,
                 _revived,
-                _moved);
+                _moved,
+                _paired);
+        }
+
+        private sealed record Departure(Guid Id, TaskItem Task, DateTimeOffset At, OldTaskList List, bool IsTick);
+
+        // Pairs an older app's delete-plus-add (or tick-plus-add) moves; see the class summary.
+        private void FindMoves(List<List<OldTaskShape>> groups)
+        {
+            var departures = new List<Departure>();
+            var arrivals = new List<OldTaskShape>();
+            foreach (List<OldTaskShape> copies in groups)
+            {
+                Guid id = copies[0].Id;
+                (OldTaskShape? newestLive, OldTaskShape? newestDead, bool deadWins) = Winner(copies);
+                SyncTaskItem? held = _tasks.FirstOrDefault(item => item.Id == id);
+                bool inHistory = _history.Any(item => item.Id == id && item.Entry.IsLive);
+                if (held is { Task.IsLive: true })
+                {
+                    TaskItem task = held.Task;
+                    if (deadWins && !newestDead!.IsStub && newestDead.DeletedAt > task.EditedAt)
+                    {
+                        departures.Add(new Departure(id, task, newestDead.DeletedAt!.Value, newestDead.List, IsTick: false));
+                    }
+                    else if (!deadWins && newestLive is { List: OldTaskList.Parked, DoneAt: not null } && task.DoneAt is null
+                        && task.Bin == TaskBin.Sort && newestLive.EditedAt > (held.Stamps.Bin?.At ?? task.CreatedAt))
+                    {
+                        departures.Add(new Departure(id, task, newestLive.EditedAt, OldTaskList.Parked, IsTick: true));
+                    }
+                }
+                else if (held is null && !inHistory && !deadWins && newestLive is { DoneAt: null, IsLegacyComeback: false })
+                {
+                    arrivals.Add(newestLive);
+                }
+            }
+
+            var taken = new HashSet<Guid>();
+            foreach (Departure departure in departures.OrderBy(item => item.At.UtcTicks).ThenBy(item => item.Id.ToString("D"), StringComparer.Ordinal))
+            {
+                OldTaskShape? match = arrivals
+                    .Where(arrival => !taken.Contains(arrival.Id)
+                        && !OldTaskFieldsWriter.SameHome(arrival.List, departure.List)
+                        && (!departure.IsTick || arrival.List == OldTaskList.NextTasks)
+                        && TitleMatches(departure.Task.Title, arrival.Title)
+                        && IsNear(departure, arrival.EditedAt))
+                    .OrderBy(arrival => Math.Abs((arrival.EditedAt - departure.At).Ticks))
+                    .ThenBy(arrival => arrival.Id.ToString("D"), StringComparer.Ordinal)
+                    .FirstOrDefault();
+                if (match is null)
+                {
+                    continue;
+                }
+
+                taken.Add(match.Id);
+                _departures[departure.Id] = departure.At;
+                _arrivals[match.Id] = departure.Task;
+            }
+        }
+
+        private static bool IsNear(Departure departure, DateTimeOffset madeAt)
+        {
+            // The older app stamps the delete "now, or one tick past the item's own stamp when that is later".
+            return (departure.At - madeAt).Duration() <= MoveWindow
+                || (departure.At == departure.Task.EditedAt.AddTicks(1) && madeAt <= departure.At);
+        }
+
+        private static bool TitleMatches(string kept, string arrived)
+        {
+            string trimmed = arrived.Trim();
+            return string.Equals(kept.Trim(), trimmed, StringComparison.Ordinal)
+                || (StepsSuffix.IsMatch(trimmed) && string.Equals(kept.Trim(), StepsSuffix.Replace(trimmed, string.Empty), StringComparison.Ordinal));
+        }
+
+        private static (OldTaskShape? NewestLive, OldTaskShape? NewestDead, bool DeadWins) Winner(List<OldTaskShape> copies)
+        {
+            OldTaskShape? newestLive = copies.Where(copy => copy.IsLive && !copy.IsLegacyComeback)
+                .OrderByDescending(copy => copy.EditedAt.UtcTicks).ThenBy(copy => copy.List).FirstOrDefault();
+            OldTaskShape? newestDead = copies.Where(copy => !copy.IsLive)
+                .OrderByDescending(copy => copy.DeletedAt!.Value.UtcTicks).FirstOrDefault();
+            bool deadWins = newestDead is not null && (newestLive is null || newestDead.DeletedAt > newestLive.EditedAt);
+            return (newestLive, newestDead, deadWins);
         }
 
         private void AdoptCategories()
@@ -124,6 +228,31 @@ public static class OldTaskFieldsReader
             int taskIndex = _tasks.FindIndex(item => item.Id == id);
             int historyIndex = _history.FindIndex(item => item.Id == id && item.Entry.IsLive);
 
+            if (_departures.TryGetValue(id, out DateTimeOffset leftAt))
+            {
+                SyncTaskItem held = _tasks[taskIndex];
+                DateTimeOffset at = leftAt > held.Task.EditedAt ? leftAt : held.Task.EditedAt.AddTicks(1);
+                _tasks[taskIndex] = held.Deleted(at);
+                _moved++;
+                return;
+            }
+
+            if (_arrivals.TryGetValue(id, out TaskItem? movedTask))
+            {
+                OldTaskShape arrived = live.First();
+                _tasks.Add(FromMove(arrived, movedTask));
+                int movedHistory = _history.FindIndex(item => item.Id == movedTask.Id && item.Entry.IsLive);
+                if (movedHistory >= 0)
+                {
+                    TaskHistoryEntry entry = _history[movedHistory].Entry;
+                    CloseHistory(movedHistory, arrived.EditedAt);
+                    _history.Add(new SyncTaskLogItem(entry with { Id = id, Task = entry.Task with { Id = id }, EditedAt = arrived.EditedAt }));
+                }
+
+                _paired++;
+                return;
+            }
+
             if (newestDead is not null && (newestLive is null || newestDead.DeletedAt > newestLive.EditedAt))
             {
                 HandleDeleted(newestDead, taskIndex);
@@ -145,7 +274,8 @@ public static class OldTaskFieldsReader
             if (taskIndex >= 0 && _tasks[taskIndex].Task.IsLive)
             {
                 TaskItem task = _tasks[taskIndex].Task;
-                OldTaskShape binSource = live.FirstOrDefault(copy => copy.List == OldTaskFieldsWriter.ListOf(task.Bin)) ?? newestLive;
+                OldTaskList home = OldTaskFieldsWriter.ListOf(task, _input.Now);
+                OldTaskShape binSource = live.FirstOrDefault(copy => OldTaskFieldsWriter.SameHome(copy.List, home)) ?? newestLive;
                 Apply(taskIndex, newestLive, binSource);
                 return;
             }
@@ -179,8 +309,60 @@ public static class OldTaskFieldsReader
                 return;
             }
 
+            if (newestLive.DoneAt is not null)
+            {
+                // Ticked, and this device has no trace of it: an old finished task already let go of here (History ages out).
+                return;
+            }
+
+            if (newestLive.List == OldTaskList.AutoSaved && newestLive.CreatedAt is DateTimeOffset savedAt && _input.Now - savedAt >= SyncAutoSavedItem.Kept)
+            {
+                return;
+            }
+
             _tasks.Add(FromOld(newestLive, null));
             _added++;
+        }
+
+        // The moved task under its new id, with everything it had; the new item's values win where it has any.
+        private SyncTaskItem FromMove(OldTaskShape arrived, TaskItem kept)
+        {
+            DateTimeOffset at = arrived.EditedAt;
+            TaskBin bin = DefaultBin(arrived.List, arrived.BinMarker, countsInSession: true);
+            IReadOnlyList<string>? tags = TaskLabels.Clean(arrived.Labels);
+            TaskItem task = kept with
+            {
+                Id = arrived.Id,
+                Bin = bin,
+                PrevBin = null,
+                DoneAt = null,
+                Position = EndOf(bin),
+                LabelId = string.IsNullOrWhiteSpace(arrived.Category) ? kept.LabelId : _book.IdForName(arrived.Category, arrived.CategoryColor, at),
+                Tags = tags ?? kept.Tags,
+                AutoSavedFor = null,
+                EditedAt = at,
+                TouchedAt = at > kept.TouchedAt ? at : kept.TouchedAt,
+                DeletedAt = null,
+            };
+
+            if (arrived.HasDetails)
+            {
+                bool sameSteps = (arrived.Subtasks ?? []).All(subtask => (kept.Steps ?? []).Any(step => step.Id == subtask.Id));
+                task = task with
+                {
+                    Steps = sameSteps ? kept.Steps : TaskSessionMapper.StepsFrom(arrived.Subtasks, kept.Steps),
+                    EstimateMinutes = arrived.EstimateMinutes ?? kept.EstimateMinutes,
+                    Note = arrived.Note ?? kept.Note,
+                    PlannedFor = arrived.PlannedFor ?? kept.PlannedFor,
+                };
+            }
+
+            if (arrived.HasDueDate && arrived.DueOn is DateOnly dueOn)
+            {
+                task = task with { DueOn = dueOn, DueAt = dueOn == kept.DueOn ? kept.DueAt : null };
+            }
+
+            return new SyncTaskItem(task, TaskFieldStamps.AllAt(new TaskFieldStamp(at, _input.SenderId)));
         }
 
         private void HandleDeleted(OldTaskShape dead, int taskIndex)
@@ -309,10 +491,11 @@ public static class OldTaskFieldsReader
         // The bin part an old item asks for, or null when it asks for nothing new.
         private TaskItem? BinChange(TaskItem task, OldTaskShape old)
         {
-            OldTaskList currentList = OldTaskFieldsWriter.ListOf(task.Bin);
+            OldTaskList currentList = OldTaskFieldsWriter.ListOf(task, _input.Now);
+            bool sameHome = OldTaskFieldsWriter.SameHome(currentList, old.List);
             if (old.DoneAt is DateTimeOffset doneAt && task.DoneAt is null)
             {
-                TaskBin before = currentList == old.List ? task.Bin : DefaultBin(old.List, old.BinMarker, countsInSession: false);
+                TaskBin before = sameHome ? task.Bin : DefaultBin(old.List, old.BinMarker, countsInSession: false);
                 return task with { Bin = TaskBin.Done, PrevBin = before, DoneAt = doneAt, Position = EndOf(TaskBin.Done) };
             }
 
@@ -328,7 +511,7 @@ public static class OldTaskFieldsReader
                 return task with { Bin = back, PrevBin = null, DoneAt = null, Position = EndOf(back) };
             }
 
-            if (currentList != old.List && task.Bin != TaskBin.Done)
+            if (!sameHome && task.Bin != TaskBin.Done)
             {
                 TaskBin target = DefaultBin(old.List, old.BinMarker, countsInSession: true);
                 return old.DoneAt is DateTimeOffset alsoDone
@@ -336,7 +519,7 @@ public static class OldTaskFieldsReader
                     : task with { Bin = target, PrevBin = null, Position = EndOf(target) };
             }
 
-            if (currentList == old.List && (old.DoneAt is null) == (task.DoneAt is null))
+            if (sameHome && (old.DoneAt is null) == (task.DoneAt is null))
             {
                 double position = OldTaskFieldsWriter.NewPosition(task.Bin, old.Position);
                 return position != task.Position ? task with { Position = position } : null;
@@ -364,6 +547,7 @@ public static class OldTaskFieldsReader
                 LabelId = _book.IdForName(old.Category, old.CategoryColor, at),
                 Tags = TaskLabels.Clean(old.Labels),
                 Devices = old.LocalTo is Guid keeper ? [keeper] : kept?.Devices,
+                AutoSavedFor = old.List == OldTaskList.AutoSaved ? old.AutoSavedFor : kept?.AutoSavedFor,
                 Origin = kept?.Origin ?? OriginOf(old),
                 EditedAt = at,
                 TouchedAt = at,

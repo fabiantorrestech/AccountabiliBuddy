@@ -34,6 +34,10 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="PlannedFor">The day part it was put in the plan for (ADR 50, "Put in plan"); kept so the day-part rule still works.</param>
 /// <param name="DeletedAt">Set on a tombstone: when it was deleted. A tombstone keeps no text.</param>
 /// <param name="Conflicts">"Changed on both devices" versions waiting for the user's pick; null for none.</param>
+/// <param name="AutoSavedFor">
+/// For a To sort task that came from Auto-saved (ADR 72): the plan day its shutdown card wrapped up. While it is open and within
+/// Auto-saved's 30 days it travels to older apps in the old <c>autoSaved</c> field (not <c>parked</c>), so it shows once there.
+/// </param>
 public sealed record TaskItem(
     Guid Id,
     string Title,
@@ -62,7 +66,8 @@ public sealed record TaskItem(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Calendar = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TaskConflict>? Conflicts = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TaskConflict>? Conflicts = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? AutoSavedFor = null)
 {
     /// <summary>Neither a tombstone nor a local item's stub.</summary>
     [JsonIgnore]
@@ -90,11 +95,11 @@ public sealed record TaskItem(
     }
 
     /// <summary>
-    /// The task as a tombstone: every text and user field gone, deleted at <paramref name="at"/>. It keeps its bin (so an old
-    /// sync field knows which list to delete it from), its creation time and its devices.
+    /// The task as a tombstone: every text and user field gone, deleted at <paramref name="at"/>. It keeps its bin and
+    /// <see cref="AutoSavedFor"/> (so an old sync field knows which list to delete it from), its creation time and its devices.
     /// </summary>
     public TaskItem Deleted(DateTimeOffset at)
     {
-        return new TaskItem(Id, string.Empty, Bin, Position, CreatedAt, at, at, PrevBin: PrevBin, Devices: Devices, DeletedAt: at);
+        return new TaskItem(Id, string.Empty, Bin, Position, CreatedAt, at, at, PrevBin: PrevBin, Devices: Devices, DeletedAt: at, AutoSavedFor: AutoSavedFor);
     }
 }

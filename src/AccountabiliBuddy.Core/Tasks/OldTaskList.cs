@@ -11,4 +11,7 @@ public enum OldTaskList
 
     /// <summary><c>parked</c> (and the legacy <c>comebacks</c>): To sort.</summary>
     Parked,
+
+    /// <summary><c>autoSaved</c> (ADR 72): open To sort tasks that came from Auto-saved, within its 30 days.</summary>
+    AutoSaved,
 }

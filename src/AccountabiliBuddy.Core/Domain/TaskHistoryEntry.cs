@@ -4,7 +4,8 @@ namespace AccountabiliBuddy.Core.Domain;
 
 /// <summary>
 /// A task in History (ADR 76): finished, archived or deleted, with the task as it was, for <see cref="Kept"/>. Its id is the
-/// task's, so a task has at most one entry and "Bring back" revives the same task. Separate from the session records of
+/// task's, so a task has at most one entry and "Bring back" revives the same task. Kept 90 days, as long as older apps show a
+/// finished task ticked (the UI may list fewer), so their ticked copies always find it. Separate from the session records of
 /// ADR 72 (<c>taskHistory</c>), which stay as they are.
 /// </summary>
 /// <param name="When">When it was finished, archived or deleted.</param>
@@ -20,7 +21,7 @@ public sealed record TaskHistoryEntry(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null)
 {
     /// <summary>How long an entry is kept after <see cref="When"/>.</summary>
-    public static readonly TimeSpan Kept = TimeSpan.FromDays(30);
+    public static readonly TimeSpan Kept = TimeSpan.FromDays(90);
 
     [JsonIgnore]
     public bool IsLive => DeletedAt is null;

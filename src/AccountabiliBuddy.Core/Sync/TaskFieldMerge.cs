@@ -54,6 +54,7 @@ public static class TaskFieldMerge
             EditedAt = a.EditedAt >= b.EditedAt ? a.EditedAt : b.EditedAt,
             TouchedAt = a.TouchedAt >= b.TouchedAt ? a.TouchedAt : b.TouchedAt,
             Origin = OriginOf(a, b),
+            AutoSavedFor = a.AutoSavedFor is DateOnly dayA && b.AutoSavedFor is DateOnly dayB ? (dayA <= dayB ? dayA : dayB) : a.AutoSavedFor ?? b.AutoSavedFor,
             Effort = null,
         };
 

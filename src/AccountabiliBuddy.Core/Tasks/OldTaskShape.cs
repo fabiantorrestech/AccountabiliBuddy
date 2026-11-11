@@ -28,7 +28,8 @@ internal sealed record OldTaskShape(
     string? BinMarker,
     bool HasDetails,
     bool HasDueDate,
-    bool IsLegacyComeback = false)
+    bool IsLegacyComeback = false,
+    DateOnly? AutoSavedFor = null)
 {
     public bool IsLive => DeletedAt is null;
 
@@ -59,6 +60,14 @@ internal sealed record OldTaskShape(
             item.Position, item.CreatedAt, null, HasDetails: false, HasDueDate: false);
     }
 
+    public static OldTaskShape Of(SyncAutoSavedItem item)
+    {
+        return new OldTaskShape(
+            OldTaskList.AutoSaved, item.Id, item.Title ?? string.Empty, null, item.Category, item.CategoryColor, null,
+            null, null, null, null, item.Labels, item.LocalTo, item.EditedAt, item.DeletedAt,
+            item.Position, item.SavedAt, null, HasDetails: false, HasDueDate: false, AutoSavedFor: item.WrapUpOf);
+    }
+
     /// <summary>A legacy open come-back: text and creation time only; it never changes a task this device has.</summary>
     public static OldTaskShape Of(SyncComeback item)
     {
@@ -75,6 +84,7 @@ internal sealed record OldTaskShape(
         {
             OldTaskList.NextTasks => Of(OldTaskFieldsWriter.ToNextTask(task, labels)),
             OldTaskList.Later => Of(OldTaskFieldsWriter.ToLaterItem(task, labels)),
+            OldTaskList.AutoSaved => Of(OldTaskFieldsWriter.ToAutoSaved(task, labels)),
             _ => Of(OldTaskFieldsWriter.ToParked(task, labels)),
         };
     }

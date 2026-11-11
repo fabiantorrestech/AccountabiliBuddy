@@ -9,6 +9,7 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// tombstone there. A task that changed bins in the last 30 days also leaves a tombstone in the other old lists, so an older app
 /// takes it out of the list it was in. Next goes into <c>later</c> with the <see cref="SyncLaterItem.NextBin"/> marker. Positions
 /// keep each bin's tasks together in the shared old list (<see cref="OldPosition"/>). Labels go as categories with an opaque colour.
+/// An open To sort task from Auto-saved goes in <c>autoSaved</c> for its 30 days, then in <c>parked</c>, never in both.
 /// </summary>
 public static class OldTaskFieldsWriter
 {
@@ -17,6 +18,23 @@ public static class OldTaskFieldsWriter
 
     /// <summary>How long History's finished tasks still show ticked in <c>later</c> and <c>parked</c>, as ticked Later items did.</summary>
     public static readonly TimeSpan FinishedShown = TimeSpan.FromDays(90);
+
+    /// <summary>
+    /// The old list a task travels in at <paramref name="now"/>: its bin's, except an open To sort task that came from Auto-saved and
+    /// is within Auto-saved's 30 days, which travels in <c>autoSaved</c> (and only there).
+    /// </summary>
+    public static OldTaskList ListOf(TaskItem task, DateTimeOffset now)
+    {
+        bool autoSavedHome = task.Bin == TaskBin.Sort && task.AutoSavedFor is not null && task.DoneAt is null
+            && now - task.CreatedAt < SyncAutoSavedItem.Kept;
+        return autoSavedHome ? OldTaskList.AutoSaved : ListOf(task.Bin);
+    }
+
+    /// <summary>Whether two old lists are the same bin's (<c>parked</c> and <c>autoSaved</c> both hold To sort).</summary>
+    public static bool SameHome(OldTaskList first, OldTaskList second)
+    {
+        return first == second || (IsSortList(first) && IsSortList(second));
+    }
 
     public static OldTaskList ListOf(TaskBin bin)
     {
@@ -64,14 +82,21 @@ public static class OldTaskFieldsWriter
         var next = new ListBuilder<SyncNextTask>();
         var later = new ListBuilder<SyncLaterItem>();
         var parked = new ListBuilder<SyncParked>();
+        var autoSaved = new ListBuilder<SyncAutoSavedItem>();
 
         foreach (SyncTaskItem item in tasks)
         {
             TaskItem task = item.Task;
-            OldTaskList list = ListOf(task.Bin);
+            OldTaskList list = task.IsLive ? ListOf(task, now) : ListOf(task.Bin);
             if (!task.IsLive)
             {
                 AddTombstone(list, task.Id, task.DeletedAt ?? task.EditedAt, task.LocalTo, task.CreatedAt);
+                if (task.Bin == TaskBin.Sort && task.AutoSavedFor is not null)
+                {
+                    // An older app may still hold it under Auto-saved.
+                    AddTombstone(OldTaskList.AutoSaved, task.Id, task.DeletedAt ?? task.EditedAt, task.LocalTo, task.CreatedAt);
+                }
+
                 continue;
             }
 
@@ -88,6 +113,9 @@ public static class OldTaskFieldsWriter
                     break;
                 case OldTaskList.Later:
                     later.Add(ToLaterItem(task, labelList));
+                    break;
+                case OldTaskList.AutoSaved:
+                    autoSaved.Add(ToAutoSaved(task, labelList));
                     break;
                 default:
                     parked.Add(ToParked(task, labelList));
@@ -124,7 +152,7 @@ public static class OldTaskFieldsWriter
 
         List<SyncComeback> comebacks = tasks
             .Select(item => item.Task)
-            .Where(task => task.IsLive && task.Bin == TaskBin.Sort && task.DoneAt is null && task.Devices is null)
+            .Where(task => task.IsLive && ListOf(task, now) == OldTaskList.Parked && task.DoneAt is null && task.Devices is null)
             .OrderBy(task => task.Position)
             .Select(task => new SyncComeback(task.Id, task.Title, task.CreatedAt))
             .ToList();
@@ -139,7 +167,8 @@ public static class OldTaskFieldsWriter
             Finish(later.Items, stubLocalItems),
             Finish(parked.Items, stubLocalItems),
             comebacks,
-            categories);
+            categories,
+            Finish(autoSaved.Items, stubLocalItems));
 
         void AddTombstone(OldTaskList list, Guid id, DateTimeOffset at, Guid? localTo, DateTimeOffset createdAt)
         {
@@ -150,6 +179,9 @@ public static class OldTaskFieldsWriter
                     break;
                 case OldTaskList.Later:
                     later.Add(new SyncLaterItem(id, string.Empty, null, null, null, null, null, null, at, at, 0, LocalTo: localTo));
+                    break;
+                case OldTaskList.AutoSaved:
+                    autoSaved.Add(new SyncAutoSavedItem(id, string.Empty, DateOnly.FromDateTime(createdAt.UtcDateTime), createdAt, at, at, 0, LocalTo: localTo));
                     break;
                 default:
                     parked.Add(new SyncParked(id, string.Empty, createdAt, null, at, at, 0, LocalTo: localTo));
@@ -215,6 +247,29 @@ public static class OldTaskFieldsWriter
             label is null ? null : TaskLabelColors.Opaque(label.Color),
             TaskLabels.Clean(task.Tags),
             task.LocalTo);
+    }
+
+    /// <summary>The task as an Auto-saved item: saved at its creation, for its plan day.</summary>
+    public static SyncAutoSavedItem ToAutoSaved(TaskItem task, IReadOnlyList<TaskLabel> labels)
+    {
+        TaskLabel? label = LabelOf(task, labels);
+        return new SyncAutoSavedItem(
+            task.Id,
+            task.Title,
+            task.AutoSavedFor ?? DateOnly.FromDateTime(task.CreatedAt.UtcDateTime),
+            task.CreatedAt,
+            task.EditedAt,
+            null,
+            OldPosition(task.Bin, task.Position),
+            label?.Name,
+            label is null ? null : TaskLabelColors.Opaque(label.Color),
+            TaskLabels.Clean(task.Tags),
+            task.LocalTo);
+    }
+
+    private static bool IsSortList(OldTaskList list)
+    {
+        return list is OldTaskList.Parked or OldTaskList.AutoSaved;
     }
 
     private static IReadOnlyList<SessionSubtask>? SubtasksOf(TaskItem task)

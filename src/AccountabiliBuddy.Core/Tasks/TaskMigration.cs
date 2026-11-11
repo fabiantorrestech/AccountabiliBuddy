@@ -313,7 +313,8 @@ public static class TaskMigration
             LabelId: book.IdForName(item.Category, item.CategoryColor, item.EditedAt),
             Tags: TaskLabels.Clean(item.Labels),
             Origin: TaskOrigins.AutoSaved(item.WrapUpOf),
-            Devices: DevicesOf(item.LocalTo));
+            Devices: DevicesOf(item.LocalTo),
+            AutoSavedFor: item.WrapUpOf);
     }
 
     private static TaskItem Tombstone(Guid id, TaskBin bin, double position, DateTimeOffset editedAt, DateTimeOffset deletedAt, Guid? localTo)
