@@ -354,6 +354,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>The search box in the flyout under the title bar; null hides it.</summary>
     public SearchViewModel? Search { get; init; }
 
+    /// <summary>The title bar's session control (Start session, the ring timer, Away, Ended); null hides it. Set by the app.</summary>
+    public SessionControlViewModel? SessionControl { get; init; }
+
     private readonly DevicesViewModel? _devices;
 
     /// <summary>The Devices &amp; sync page (ADR 22): this PC and the user's other devices.</summary>

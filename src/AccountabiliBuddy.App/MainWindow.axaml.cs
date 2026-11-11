@@ -311,6 +311,16 @@ public partial class MainWindow : Window
             Search.FocusBox();
             e.Handled = true;
         }
+        else if (e.Key == Key.S && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
+        {
+            // The title bar's "Start session": the app's start controls, only with no session running.
+            if (viewModel.SessionControl is { } control && (control.IsIdle || control.IsEnded))
+            {
+                control.StartCommand.Execute(null);
+            }
+
+            e.Handled = true;
+        }
         else if (e.Key == Key.R && e.KeyModifiers == KeyModifiers.Control)
         {
             // The same as the title bar's sync button.

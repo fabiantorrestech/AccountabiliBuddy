@@ -83,7 +83,12 @@ public sealed partial class SyncLightViewModel : ObservableObject
             bool isThisPc = row.Kind == "This PC";
             bool dim = isThisPc ? problem is not null : IsBehind(row) || row.Age is null;
             string ago = isThisPc ? "this PC" : row.Age is TimeSpan age ? DevicesViewModel.Ago(age) : "not yet";
-            Devices.Add(new SyncLightDeviceViewModel(row.Name, IconFor(row.Kind), ago, dim));
+            bool synced = isThisPc ? problem is null : row.State == DeviceSyncState.UpToDate;
+            bool failing = isThisPc ? problem is not null : IsBehind(row);
+            Devices.Add(new SyncLightDeviceViewModel(row.Name, IconFor(row.Kind), ago, dim, synced, failing)
+            {
+                FailingIcon = isThisPc ? MaterialIconKind.CloudAlertOutline : MaterialIconKind.CloudOffOutline,
+            });
         }
 
         IsOffline = problem is not null;
@@ -97,6 +102,28 @@ public sealed partial class SyncLightViewModel : ObservableObject
         int behindForAnHour = rows.Skip(1).Count(row => IsBehind(row) && row.Age is TimeSpan age && age > SeveralBehindAge);
         IsSeveralBehind = problem is null && behindForAnHour >= 2;
         SummaryText = problem ?? (IsSeveralBehind ? $"{behindForAnHour} devices are behind: nothing from them for over an hour" : Summary(rows));
+        TipText = Tip(problem, rows);
+    }
+
+    /// <summary>The light's tip: "Synced · Pixel 8, Home desktop", "Behind · Pixel 8", or this PC's sync problem.</summary>
+    [ObservableProperty]
+    public partial string TipText { get; set; } = string.Empty;
+
+    private static string Tip(string? problem, IReadOnlyList<DeviceRowViewModel> rows)
+    {
+        if (problem is not null)
+        {
+            return $"Sync problem · {problem}";
+        }
+
+        List<string> behind = rows.Skip(1).Where(IsBehind).Select(row => row.Name).ToList();
+        if (behind.Count > 0)
+        {
+            return $"Behind · {string.Join(", ", behind)}";
+        }
+
+        List<string> synced = rows.Skip(1).Where(row => row.State == DeviceSyncState.UpToDate).Select(row => row.Name).ToList();
+        return synced.Count > 0 ? $"Synced · {string.Join(", ", synced)}" : "Waiting for your other devices";
     }
 
     private static bool IsBehind(DeviceRowViewModel row)

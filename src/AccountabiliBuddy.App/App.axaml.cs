@@ -105,6 +105,9 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Tasks.TaskSettingsService? _taskSettings;
     private AccountabiliBuddy.App.Services.TaskFilterPresetStore? _filterPresets;
     private AccountabiliBuddy.App.Services.Tasks.TaskActionsService? _taskActions;
+
+    // Which layout Tasks shows around a session ("Ended · switches next time"); read by the title bar's session control.
+    private AccountabiliBuddy.App.Services.Tasks.SessionLayoutService? _sessionLayout;
     private AccountabiliBuddy.App.Services.Tasks.TaskViewService? _taskViews;
     private AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService? _taskTidyUp;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
@@ -1608,6 +1611,8 @@ public partial class App : Application
             IReadOnlyList<DriftStretch> visits = DriftMarks.Merge(await activityLog.GetDriftAsync(from, to, leftOut, deletedUsage.Parts), TimeSpan.FromMinutes(2));
             return visits.Aggregate(TimeSpan.Zero, (sum, visit) => sum + (visit.End - visit.Start));
         };
+        var sessionLayout = new AccountabiliBuddy.App.Services.Tasks.SessionLayoutService(_sessions!, time);
+        _sessionLayout = sessionLayout;
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
@@ -1667,6 +1672,18 @@ public partial class App : Application
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,
+            // The title bar's session control: Start opens the usual start controls (the quick-session popup, as the global
+            // shortcut does); End is the end-early flow with its wait and reason.
+            SessionControl = new SessionControlViewModel(
+                _sessions!, _stepAway!, sessionLayout, () => _quickSession!.Show(), () => _endFlow!.TryEndSessionAsync(VisibleMainWindow())),
+        };
+        // "Ended · switches next time": opening Tasks again switches it back to planning.
+        mainViewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab) && mainViewModel.SelectedTab == (int)MainTab.Tasks)
+            {
+                sessionLayout.TasksOpened();
+            }
         };
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
         planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;

@@ -1,0 +1,250 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.SessionControlView"
+             x:DataType="vm:SessionControlViewModel">
+    <UserControl.Styles>
+        <!-- Idle: the accent "Start session" pill, 34 tall, with the Ctrl+Shift+S chip. -->
+        <Style Selector="Button.sessionStart">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="12,0,8,0" />
+            <Setter Property="CornerRadius" Value="17" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sessionStart /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.sessionStart:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Opacity" Value="0.92" />
+        </Style>
+        <Style Selector="Button.sessionStart:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Opacity" Value="0.8" />
+        </Style>
+        <Style Selector="Button.sessionStart:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRingOnAccent}" />
+        </Style>
+
+        <!-- The halves of the [Step away | ⌄] pill inside the running pill: quiet, on Surface. -->
+        <Style Selector="Button.sessionHalf">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sessionHalf /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.sessionHalf:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.sessionHalf:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.sessionHalf:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+
+        <!-- Hover or keyboard focus (or away) opens the extras to the left of the ring; nothing else moves (the title bar's
+             empty middle takes the width). -->
+        <Style Selector="Border#Extras">
+            <Setter Property="MaxWidth" Value="0" />
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="Border#Pill.open Border#Extras">
+            <Setter Property="MaxWidth" Value="360" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Border#Pill">
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border#Pill.open">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+
+        <!-- The ring: accent arc on the line colour; a break uses the sleep colour (as on Today). -->
+        <Style Selector="controls|ProgressRing.titleRing">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Thickness" Value="4" />
+            <Setter Property="TrackBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="controls|ProgressRing.titleRing.break">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Sleep}" />
+        </Style>
+
+        <!-- Ended: the target fades in and out (only while motion is on; the view sets .fade). -->
+        <Style Selector="mi|MaterialIcon.endedTarget.fade">
+            <Style.Animations>
+                <Animation Duration="0:0:2.4" IterationCount="Infinite" Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="1" />
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="0.25" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <Style Selector="Button.sessionEnded">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="10,0,13,0" />
+            <Setter Property="CornerRadius" Value="17" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sessionEnded /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.sessionEnded:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+
+        <Style Selector="TextBlock.menuSub">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel VerticalAlignment="Center" HorizontalAlignment="Right">
+        <!-- Idle: the app's usual start controls open (the quick-session popup), the same as the global shortcut. -->
+        <Button x:Name="StartButton" Classes="sessionStart" IsVisible="{Binding IsIdle, FallbackValue=False}" Command="{Binding StartCommand}"
+                ToolTip.Tip="Start a session (Ctrl+Shift+S)" AutomationProperties.Name="Start session">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <mi:MaterialIcon Kind="Play" Width="17" Height="17" VerticalAlignment="Center" />
+                <TextBlock Text="Start session" VerticalAlignment="Center" />
+                <Panel VerticalAlignment="Center">
+                    <Border CornerRadius="5" Background="{DynamicResource Ab.OnAccent}" Opacity="0.18" />
+                    <TextBlock Classes="numeral" Text="Ctrl+Shift+S" FontSize="10.5" Margin="6,2" VerticalAlignment="Center" />
+                </Panel>
+            </StackPanel>
+        </Button>
+
+        <!-- Running, paused or away: [extras] ring  32 min left. -->
+        <Border x:Name="Pill" IsVisible="{Binding IsRunningOrAway, FallbackValue=False}" Height="34" CornerRadius="17" Padding="4,0,13,0"
+                Background="{DynamicResource Ab.Surface2}" BorderThickness="1">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Border x:Name="Extras" ClipToBounds="True" VerticalAlignment="Center">
+                    <Border.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="MaxWidth" Duration="0:0:0.28" Easing="CubicEaseOut" />
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                        </Transitions>
+                    </Border.Transitions>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Height="28" CornerRadius="14" Background="{DynamicResource Ab.Surface}" ClipToBounds="True">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Classes="sessionHalf" Padding="11,0,8,0" Command="{Binding MainActionCommand}"
+                                        AutomationProperties.Name="{Binding MainActionText}">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <mi:MaterialIcon Kind="{Binding MainActionIcon}" Width="15" Height="15" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding MainActionText}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Border Width="1" Margin="0,6" Background="{DynamicResource Ab.Line}" />
+                                <Button x:Name="MoreButton" Classes="sessionHalf" Width="26" Padding="0" HorizontalContentAlignment="Center"
+                                        Foreground="{DynamicResource Ab.Muted}" AutomationProperties.Name="More session options"
+                                        ToolTip.Tip="More session options">
+                                    <mi:MaterialIcon Kind="ChevronDown" Width="16" Height="16" />
+                                    <Button.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuItem Command="{Binding MainActionCommand}">
+                                                <MenuItem.Icon>
+                                                    <mi:MaterialIcon Kind="{Binding MainActionIcon}" />
+                                                </MenuItem.Icon>
+                                                <MenuItem.Header>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding MainActionText}" />
+                                                        <TextBlock Classes="menuSub" Text="{Binding MainActionSubText}" IsVisible="{Binding HasMainActionSub}" />
+                                                    </StackPanel>
+                                                </MenuItem.Header>
+                                            </MenuItem>
+                                            <MenuItem Command="{Binding PauseTimerCommand}" IsVisible="{Binding CanPause}">
+                                                <MenuItem.Icon>
+                                                    <mi:MaterialIcon Kind="Pause" />
+                                                </MenuItem.Icon>
+                                                <MenuItem.Header>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Pause timer" />
+                                                        <TextBlock Classes="menuSub" Text="Freezes the countdown until Resume" />
+                                                    </StackPanel>
+                                                </MenuItem.Header>
+                                            </MenuItem>
+                                            <MenuItem Command="{Binding SideTaskCommand}" IsVisible="{Binding CanSideTask}">
+                                                <MenuItem.Icon>
+                                                    <mi:MaterialIcon Kind="CoffeeOutline" />
+                                                </MenuItem.Icon>
+                                                <MenuItem.Header>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Side task…" />
+                                                        <TextBlock Classes="menuSub" Text="A small errand at the desk · 5, 10 or 15 min" />
+                                                    </StackPanel>
+                                                </MenuItem.Header>
+                                            </MenuItem>
+                                            <MenuItem Header="Add 10 minutes" Command="{Binding ExtendFocusCommand}" IsVisible="{Binding CanExtend}">
+                                                <MenuItem.Icon>
+                                                    <mi:MaterialIcon Kind="TimerPlusOutline" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                            <Separator />
+                                            <MenuItem Command="{Binding EndSessionCommand}" Foreground="{DynamicResource Ab.Drift}">
+                                                <MenuItem.Icon>
+                                                    <mi:MaterialIcon Kind="StopCircleOutline" Foreground="{DynamicResource Ab.Drift}" />
+                                                </MenuItem.Icon>
+                                                <MenuItem.Header>
+                                                    <TextBlock Text="{Binding EndSessionText}" Foreground="{DynamicResource Ab.Drift}" />
+                                                </MenuItem.Header>
+                                            </MenuItem>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="{Binding EndsText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium"
+                                   Margin="10,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+                <Panel Width="20" Height="20" VerticalAlignment="Center">
+                    <controls:ProgressRing Classes="titleRing" Classes.break="{Binding IsBreak}" Value="{Binding RingValue}"
+                                           IsVisible="{Binding HasRing}" Opacity="{Binding RingOpacity}"
+                                           AutomationProperties.Name="Share of this phase left" />
+                    <Ellipse IsVisible="{Binding IsCountUp}" Margin="1.5" Stroke="{DynamicResource Ab.Accent}" StrokeThickness="3"
+                             StrokeDashArray="1,1" AutomationProperties.Name="Counting up" />
+                    <mi:MaterialIcon Kind="Pause" Width="10" Height="10" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding IsPaused}"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Panel>
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Classes="numeral" Text="{Binding PrimaryText}" FontSize="13" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SecondaryText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Ended: "◌ Ended · switches next time"; a click switches Tasks back now. -->
+        <Button x:Name="EndedButton" Classes="sessionEnded" IsVisible="{Binding IsEnded, FallbackValue=False}" Command="{Binding ClearEndedCommand}"
+                ToolTip.Tip="{Binding EndedTip}" AutomationProperties.Name="Session ended. Switch Tasks back now">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <mi:MaterialIcon x:Name="EndedTarget" Classes="endedTarget" Kind="Target" Width="19" Height="19"
+                                 Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                <TextBlock Classes="numeral" Text="{Binding PrimaryText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding SecondaryText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </Button>
+    </Panel>
+</UserControl>

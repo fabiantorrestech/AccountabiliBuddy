@@ -9,7 +9,7 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 - [x] Phase 0 Orientation (this file)
 - [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
 - [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); undo, history, tidy-up, views, search, title help, bulk DONE (M2.3); reminders engine DONE (M3); calendar export BLOCKED, see Calendar)
-- [ ] Phase 3 PC UI (3.1 title bar, 3.2 layout, 3.3 rows/open task, 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
+- [ ] Phase 3 PC UI (3.1 title bar DONE (M4.1), 3.2 layout, 3.3 rows/open task, 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
 - [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix)
 - Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
 
@@ -297,3 +297,13 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Export: missing client secret / unreadable sign-in shows its cause, no backoff retry; a 403 in AB Reminders keeps the records and re-claims it next run (only a refused claim starts over, then replans).
 - ADR 78: reading-side sentence; Consequences line on "Sync task lists" off. Item 4 (Can't miss hold) is M6.
 - Checks: CalendarExportChecks 112/112, AccountSettingsChecks 47/47, AppChecks 20/20, Program 458/458. The ringer's volume rule has no check (it needs the reminder window).
+
+## M4 task 1 done (title-bar session control + sync light; rail sizes)
+
+- [x] Title bar 40 DIP (`ExtendClientAreaTitleBarHeightHint`, row, caption and title buttons), brand 12 muted at 16; right cluster: session control, sync light, sync button, search, window buttons. Search flyout moved to 44.
+- [x] Session control: new `Views/SessionControlView.axaml(.cs)`, `ViewModels/SessionControlViewModel.cs`, `SessionControlState.cs`; `MainWindowViewModel.SessionControl`. Idle "Start session" + Ctrl+Shift+S chip -> `QuickSessionService.Show()` (Q89; Ctrl+Shift+S in `MainWindow.OnKeyDown`). Running: ring (`ProgressRing`, share left; dashed `Ellipse` when counting up; Sleep colour in a break; faded + pause sign while paused) + "32 min left"; hover/keyboard focus opens [Step away | ⌄] + "ends 1:23 AM" (MaxWidth/opacity transition, Motion-gated). Menu: Step away/I'm back/Resume, Pause timer, Side task…, Add 10 minutes, End session… (Q91). Away: "Away 6 min" + I'm back, kept open (Q92). Ended: target (fading) "Ended · switches next time", click = Switch now (Q90).
+- [x] Services used: `StepAwayService.StepAway/Return/PauseTimer/AskSideTaskLength`, `SessionController.ExtendFocus`, `SessionEndFlow.TryEndSessionAsync` (wait + reason; nothing around it), `SessionLayoutService` now created in `App` (`_sessionLayout`), `TasksOpened()` on a switch to the Tasks tab; user ends switch back at once (`OnSessionEnded`, Q90). Times from the session's trusted clock, 12-hour.
+- [x] Sync light: tip "Synced · Pixel 8, Home desktop" / "Behind · …" / "Sync problem · …" (`SyncLightViewModel.TipText`); popover rows get a green check / red cloud sign (`SyncLightDeviceViewModel.IsSynced/IsFailing/FailingIcon`) (Q94). All existing behaviour kept.
+- [x] Rail: 72 column, 60-wide items, 44 × 30 pill, icon 20, label 11.5 (Q95). No pages added or removed.
+- [x] `doc/hard-rules.md`: the title-bar control is listed with the step-away surfaces (End = the same end-early flow). Questions 89-97.
+- Left for later: "End and mark the rest unfinished" (3.6, with the session-task end rule); the "Session ended at 12:52 AM" strip, `NoticeSeen`/`DismissNotice` and the Tasks session layout (3.6, `SessionLayoutService.InSessionLayout`); 3-themes × light/dark visual pass of the running/away/ended states (built from tokens only; idle checked in the dev app, Instrument dark); the conflict/sync line in the open task (3.3/G).

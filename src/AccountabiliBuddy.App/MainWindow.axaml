@@ -14,22 +14,22 @@
         Background="{DynamicResource Ab.Bg}"
         WindowDecorations="BorderOnly"
         ExtendClientAreaToDecorationsHint="True"
-        ExtendClientAreaTitleBarHeightHint="34"
+        ExtendClientAreaTitleBarHeightHint="40"
         DragDrop.AllowDrop="True">
     <Window.Styles>
-        <!-- The rail's items (design 5x/6d): a Material icon over a label. Muted; the chosen one is Ink and SemiBold on a
-             56 x 32 Surface2 pill; hover is Surface2. Never the accent. -->
+        <!-- The rail's items (Tasks redesign 03 §A): 60 wide, a Material icon on a 44 x 30 pill over an 11.5 label. Muted; the
+             chosen one is Ink and SemiBold on a Surface2 pill; hover is Surface2. Never the accent. -->
         <Style Selector="controls|RailButton">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-            <Setter Property="FontSize" Value="11" />
-            <Setter Property="Width" Value="76" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Width" Value="60" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="0" />
+            <Setter Property="Padding" Value="0,6" />
             <Setter Property="Template">
                 <ControlTemplate>
-                    <StackPanel Background="Transparent" Spacing="4" HorizontalAlignment="Center">
-                        <Border x:Name="Pill" Width="56" Height="32" CornerRadius="16" Background="Transparent" HorizontalAlignment="Center">
-                            <mi:MaterialIcon Kind="{TemplateBinding Icon}" Width="22" Height="22" Foreground="{TemplateBinding Foreground}"
+                    <StackPanel Background="Transparent" Spacing="3" HorizontalAlignment="Center" Margin="{TemplateBinding Padding}">
+                        <Border x:Name="Pill" Width="44" Height="30" CornerRadius="15" Background="Transparent" HorizontalAlignment="Center">
+                            <mi:MaterialIcon Kind="{TemplateBinding Icon}" Width="20" Height="20" Foreground="{TemplateBinding Foreground}"
                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <TextBlock Text="{TemplateBinding Label}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}"
@@ -64,7 +64,7 @@
 
         <!-- The title bar's buttons: quiet, muted icons. -->
         <Style Selector="Button.titleIcon">
-            <Setter Property="Height" Value="34" />
+            <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
@@ -72,13 +72,13 @@
         <Style Selector="Button.titleIcon:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
-        <!-- The window's own caption buttons, 46 x 34 (design 5x). Their roles make Windows treat them as the real ones
+        <!-- The window's own caption buttons, 46 x 40 (Tasks redesign 03 §A). Their roles make Windows treat them as the real ones
              (minimize, maximize with snap layouts, close); a click is the system's, not a command of ours. -->
         <Style Selector="Button.caption">
             <Setter Property="Focusable" Value="False" />
             <Setter Property="IsTabStop" Value="False" />
             <Setter Property="Width" Value="46" />
-            <Setter Property="Height" Value="34" />
+            <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
@@ -141,19 +141,23 @@
         </Style>
     </Window.Styles>
     <Panel>
-        <Grid RowDefinitions="34,Auto,*">
-            <!-- Title bar, 34 tall (design 5x): the app name, the sync light, the sync button and the search magnifier; the
-                 system's own minimize / maximize / close buttons stay at the right (snap layouts and all). The empty part
-                 drags the window and a double click maximizes it. -->
-            <Grid x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+        <Grid RowDefinitions="40,Auto,*">
+            <!-- Title bar, 40 tall (Tasks redesign 03 §A): the app name, then at the right the session control, the sync light, the
+                 sync button and the search magnifier; the system's own minimize / maximize / close buttons stay at the right (snap
+                 layouts and all). The empty part drags the window and a double click maximizes it. The session control grows to the
+                 left into that empty part, so nothing else moves when it changes. -->
+            <Grid x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
                   chrome:WindowDecorationProperties.ElementRole="TitleBar">
                 <TextBlock Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
-                           Margin="18,0,0,0" IsHitTestVisible="False" />
+                           Margin="16,0,0,0" IsHitTestVisible="False" />
+                <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts). -->
+                <views:SessionControlView x:Name="SessionControl" Grid.Column="1" Margin="0,0,6,0" DataContext="{Binding SessionControl}"
+                                          chrome:WindowDecorationProperties.ElementRole="User" />
                 <!-- Only with another device linked: a dot and one glyph per device. Hover or click for each device's last sync. -->
-                <Button x:Name="SyncLightButton" Grid.Column="1" Classes="quiet titleIcon" Padding="10,0" Margin="0,0,2,0"
+                <Button x:Name="SyncLightButton" Grid.Column="2" Classes="quiet titleIcon" Padding="10,0" Margin="0,0,2,0"
                         chrome:WindowDecorationProperties.ElementRole="User"
                         IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" AutomationProperties.Name="Sync status"
-                        ToolTip.Tip="Sync status: hover or click for each device">
+                        ToolTip.Tip="{Binding SyncLight.TipText, FallbackValue='Sync status'}">
                     <FlyoutBase.AttachedFlyout>
                         <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Standard" FlyoutPresenterClasses="syncPopover">
                             <StackPanel x:Name="SyncPopover" Spacing="10" x:DataType="vm:MainWindowViewModel">
@@ -168,10 +172,15 @@
                                 <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
-                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="0,5">
+                                            <!-- Green check = in step; red = this PC can't sync, or the device is behind (offline or failing). -->
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Margin="0,5">
                                                 <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="18" Height="18" />
                                                 <TextBlock Grid.Column="1" Classes="deviceName" Classes.dim="{Binding IsDim}" Text="{Binding Name}" Foreground="{DynamicResource Ab.Ink}" />
                                                 <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="{Binding AgoText}" VerticalAlignment="Center" />
+                                                <Panel Grid.Column="3" Width="16" Height="16" VerticalAlignment="Center" AutomationProperties.Name="{Binding StatusName}">
+                                                    <mi:MaterialIcon Kind="Check" Width="16" Height="16" Foreground="{DynamicResource Ab.Met}" IsVisible="{Binding IsSynced}" />
+                                                    <mi:MaterialIcon Kind="{Binding FailingIcon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsFailing}" />
+                                                </Panel>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -212,9 +221,9 @@
                 </Button>
                 <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R). The divider sits at the left edge of the
                      button's own cell; centred, it drew a line through the icon. -->
-                <Border Grid.Column="2" Width="1" Height="16" Background="{DynamicResource Ab.Line}" HorizontalAlignment="Left" VerticalAlignment="Center"
+                <Border Grid.Column="3" Width="1" Height="16" Background="{DynamicResource Ab.Line}" HorizontalAlignment="Left" VerticalAlignment="Center"
                         IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" />
-                <Button Grid.Column="2" Classes="quiet titleIcon" Width="44" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}"
+                <Button Grid.Column="3" Classes="quiet titleIcon" Width="44" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}"
                         chrome:WindowDecorationProperties.ElementRole="User"
                         AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">
                     <mi:MaterialIcon Kind="Sync" Width="15" Height="15" RenderTransformOrigin="50%,50%">
@@ -223,12 +232,12 @@
                         </mi:MaterialIcon.RenderTransform>
                     </mi:MaterialIcon>
                 </Button>
-                <Button x:Name="SearchButton" Grid.Column="3" Classes="quiet titleIcon" Width="44" Command="{Binding OpenSearchCommand}"
+                <Button x:Name="SearchButton" Grid.Column="4" Classes="quiet titleIcon" Width="44" Command="{Binding OpenSearchCommand}"
                         chrome:WindowDecorationProperties.ElementRole="User"
                         ToolTip.Tip="Search (Ctrl+F)" AutomationProperties.Name="Search">
                     <mi:MaterialIcon Kind="Magnify" Width="17" Height="17" />
                 </Button>
-                <StackPanel Grid.Column="4" Orientation="Horizontal">
+                <StackPanel Grid.Column="5" Orientation="Horizontal">
                     <Button x:Name="MinimizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
                             AutomationProperties.Name="Minimize">
                         <mi:MaterialIcon Kind="Minus" Width="16" Height="16" />
@@ -260,11 +269,11 @@
                 </Panel>
             </StackPanel>
 
-            <Grid Grid.Row="2" ColumnDefinitions="76,*">
-                <!-- The rail, 76 wide: Today, Tasks, Plan, Stats at the top; "N resting" (while a session runs) and Settings at the
+            <Grid Grid.Row="2" ColumnDefinitions="72,*">
+                <!-- The rail, 72 wide (60-wide items): Today, Tasks, Plan, Stats at the top; "N resting" (while a session runs) and Settings at the
                      bottom. Every item shows in a session too: the locks stay where they were. -->
                 <Grid Background="{DynamicResource Ab.Bg}" RowDefinitions="Auto,*,Auto" Margin="0,10,0,20">
-                    <StackPanel Spacing="14">
+                    <StackPanel Spacing="6">
                         <controls:RailButton Label="Today" Icon="CalendarToday" IsSelected="{Binding IsTodaySelected}" AutomationProperties.Name="Today"
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Today}" />
                         <controls:RailButton Label="Tasks" Icon="FormatListChecks" IsSelected="{Binding IsTasksSelected}" AutomationProperties.Name="Tasks"
@@ -274,7 +283,7 @@
                         <controls:RailButton Label="Stats" Icon="ChartTimelineVariant" IsSelected="{Binding IsStatsSelected}" AutomationProperties.Name="Stats"
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Stats}" />
                     </StackPanel>
-                    <StackPanel Grid.Row="2" Spacing="14" VerticalAlignment="Bottom">
+                    <StackPanel Grid.Row="2" Spacing="6" VerticalAlignment="Bottom">
                         <controls:RailButton Classes="resting" Label="{Binding RestingText}" Icon="LockOutline" IsVisible="{Binding ShowsResting}"
                                              AutomationProperties.Name="Resting while you focus" Command="{Binding OpenGuardsCommand}"
                                              ToolTip.Tip="Guards that are view-only while you focus; open them" />
@@ -306,7 +315,7 @@
         </Grid>
 
         <!-- Search: opened by Ctrl+F or the title bar's magnifier, under the title bar and over the page; Esc closes it. -->
-        <Border x:Name="SearchFlyout" IsVisible="{Binding IsSearchOpen}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,38,20,0"
+        <Border x:Name="SearchFlyout" IsVisible="{Binding IsSearchOpen}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,44,20,0"
                 Padding="10" CornerRadius="{DynamicResource Ab.CardRadius}" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" ZIndex="20">
             <views:SearchBox x:Name="Search" DataContext="{Binding Search}" />
         </Border>

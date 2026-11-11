@@ -23,6 +23,7 @@ public sealed class SessionLayoutService
         _time = time;
         _wasRunning = sessions.State.IsRealSession;
         _sessions.StateChanged += OnStateChanged;
+        _sessions.SessionEnded += OnSessionEnded;
     }
 
     /// <summary>When the last real session ended while its layout is still showing; null once Tasks switched back (or none ended).</summary>
@@ -79,6 +80,16 @@ public sealed class SessionLayoutService
         {
             _noticeDismissed = true;
             Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    // Ended by hand (End session, an armed end when its wait is over): back to planning at once, as the prototype's End does ("Session
+    // ended · Tasks is back to planning"). A session closed for the time the PC was off (At set) or one that ran out keeps "switches next time".
+    private void OnSessionEnded(object? sender, SessionEnd end)
+    {
+        if (end.At is null && end.Ended.IsRealSession)
+        {
+            SwitchNow();
         }
     }
 
