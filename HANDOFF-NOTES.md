@@ -7,11 +7,28 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 ## Phase status
 
 - [x] Phase 0 Orientation (this file)
-- [ ] Phase 1 Shared model, migration, merge (Core; Kotlin mirror is NOT in this run)
+- [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
 - [ ] Phase 2 PC services (store, session cap, reminders, undo, history, tidy-up, views; calendar export BLOCKED, see Calendar)
 - [ ] Phase 3 PC UI (3.1 title bar, 3.2 layout, 3.3 rows/open task, 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
 - [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix)
 - Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
+
+## M1 done (Core only, app behaves as before)
+
+- Domain: `TaskItem`, `TaskBin`, `TaskStep`, `TaskStepLetters`, `TaskNumber`, `TaskLabel` (+ `IdFor(name)`), `TaskLabelColors` (12-colour set, rgba/#RRGGBBAA, `Opaque`), `TaskReminder` (+ `TaskReminderOccurrence`, `TaskReminderStatus`), `TaskConflict`, `TaskView` (+ `TaskViewConfig`, `TaskViewFilter`, built-ins with fixed ids), `TaskHistoryEntry` (+ `TaskHistoryKind`).
+- Sync: `SyncTaskItem` (task + `TaskFieldStamps`), `SyncTaskLabel`, `SyncTaskView`, `SyncTaskLogItem`; `TaskField`, `TaskFieldStamp` (`bases`), `TaskFieldValues`, `TaskFieldMerge`, `TaskEdits` (the ONLY way stores should stamp a change); `SyncFile` optional `Tasks`/`Labels`/`Views`/`TaskLog` (lenient `SyncLenientListConverter`, cleaned in `SyncFileCodec`); `SyncLaterItem.Bin` marker (`NextBin`).
+- Tasks (`Core/Tasks/`): `TaskMigration` (+ `TaskMigrationInput`, `TaskMigrationResult`, `TaskMigrationCounts`, `LegacyTaskFilter`), `TaskNumbering`, `TaskSessionMapper`, `OldTaskFieldsWriter`, `OldTaskFieldsReader` (+ `OldTaskFields`, `OldTaskReadInput`, `OldTaskReadResult`, `OldTaskList`), `TaskOrigins`.
+- Docs: ADR 0076, `doc/hard-rules.md` ADR 76 bullet, questions 16-28.
+- Verified by an out-of-repo check program (56 checks, all pass): migration counts/fields, idempotency, merge symmetry, conflicts, old-field round trip, numbering, codec.
+
+## M2 must wire (nothing below exists yet)
+
+1. Task store (new doc, e.g. `tasks.items` + `tasks.labels` + `tasks.views` + `tasks.history`, DPAPI-sealed like the old lists) holding `SyncTaskItem`/`SyncTaskLabel`/`SyncTaskView`/`SyncTaskLogItem`; every local change through `TaskEdits.Edit` (title/note bases depend on it).
+2. Startup migration: `LocalDatabase.BackupAsync("tasks-model")`, then `TaskMigration.Run` once behind marker `tasks.model` = 1; App maps `Comeback` -> `SyncParked` (ComebackStore.ForBackup shape, local items with text), `TaskFilterPreset`/`TaskViewPreferences` -> `LegacyTaskFilter`; store `ViewSearches` in a device-local document; log `Counts` (numbers only) and refuse to switch over unless `Counts.IsBalanced`. `IsNumberingDevice` from `TaskNumbering.NumberingDevice(ReceivedDevicesService.Active + self)`; `FirstNumber` = 1 on a fresh model.
+3. SyncCoordinator write: `Tasks`/`Labels`/`Views`/`TaskLog` (through `SharedListMerge.ForFile`) plus `OldTaskFieldsWriter.Write(...)` for the old fields (replaces `NextTasks`/`Parked`/`Later`/`Categories`/`Comebacks` functions); `Later` always written (even empty).
+4. SyncCoordinator read: file with `Tasks` -> `TaskFieldMerge.Merge` (+ `SharedListMerge.Merge` for labels/views/taskLog); without -> `OldTaskFieldsReader.ReadFile`; then `TaskNumbering.AssignFinal` on the numbering PC.
+5. Old stores (`SessionTasksService` draft, `LaterStore`, `ComebackStore`, `AutoSavedTaskStore`) become views/facades of the task store; running checklist via `TaskSessionMapper` (old category ids in a running checklist are not label ids: keep the label, see mapper).
+6. History pruning: see question 22 before pruning migrated entries.
 
 ## Findings that shape the plan (read first)
 

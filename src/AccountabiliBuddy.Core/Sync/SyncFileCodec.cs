@@ -99,7 +99,7 @@ public static class SyncFileCodec
             return null;
         }
 
-        return file is not null && IsComplete(file) ? WithCleanCategories(file) : null;
+        return file is not null && IsComplete(file) ? WithCleanTaskParts(WithCleanCategories(file)) : null;
     }
 
     /// <summary>
@@ -119,6 +119,37 @@ public static class SyncFileCodec
             .Take(MaxCategories)
             .ToList();
         return file with { Categories = clean };
+    }
+
+    /// <summary>
+    /// ADR 76's optional parts, with every entry that lacks what the merge needs left out (no id, no task, no title on a live task,
+    /// no name, no view settings, no snapshot); a label colour that can't be read becomes the set's first. Leaving an entry out
+    /// never deletes it: the merge keeps what it has.
+    /// </summary>
+    private static SyncFile WithCleanTaskParts(SyncFile file)
+    {
+        return file with
+        {
+            Tasks = file.Tasks?
+                .Where(item => item is { Task: not null } && IsUsableTask(item.Task))
+                .Select(item => item.Stamps is null ? item with { Stamps = TaskFieldStamps.None } : item)
+                .ToList(),
+            Labels = file.Labels?
+                .Where(item => item is { Label: { Name: not null } } && item.Label.Id != Guid.Empty)
+                .Select(item => TaskLabelColors.IsValid(item.Label.Color) ? item : item with { Label = item.Label with { Color = TaskLabelColors.Set[0] } })
+                .ToList(),
+            Views = file.Views?
+                .Where(item => item is { View: { Name: not null, Config: { Only: not null } } } && item.View.Id != Guid.Empty)
+                .ToList(),
+            TaskLog = file.TaskLog?
+                .Where(item => item is { Entry: { Task: not null } } && item.Entry.Id != Guid.Empty && IsUsableTask(item.Entry.Task))
+                .ToList(),
+        };
+    }
+
+    private static bool IsUsableTask(TaskItem task)
+    {
+        return task.Id != Guid.Empty && (task.DeletedAt is not null || task.Title is not null);
     }
 
     private static bool IsHexColor(string? color)

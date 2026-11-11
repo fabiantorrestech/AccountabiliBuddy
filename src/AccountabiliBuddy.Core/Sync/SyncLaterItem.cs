@@ -18,6 +18,10 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="PlannedFor">The day part it was put in the plan for; null for none. When that part starts, the task moves to the next session's list.</param>
 /// <param name="DoneAt">When it was ticked off; null while it is open. A ticked item keeps its text and shows as done on every device; an app
 /// that predates the field ignores it and passes the item on without it (a newer edit there brings it back as open). It ages out after 90 days.</param>
+/// <param name="Bin">
+/// ADR 76: <see cref="NextBin"/> when the task sits in Shelf, Next (which older apps show as Later); null for Later. Written by new PCs
+/// for older apps only; an app that predates it drops it when it passes the item on, so a reader never takes its absence as a move.
+/// </param>
 public sealed record SyncLaterItem(
     Guid Id,
     string Title,
@@ -33,8 +37,12 @@ public sealed record SyncLaterItem(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DoneAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Labels = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? LocalTo = null) : ISharedItem
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? LocalTo = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Bin = null) : ISharedItem
 {
+    /// <summary>The <see cref="Bin"/> marker of a task in Shelf, Next.</summary>
+    public const string NextBin = "next";
+
     /// <summary>Whether it is ticked off.</summary>
     [JsonIgnore]
     public bool IsDone => DoneAt is not null;
@@ -53,7 +61,8 @@ public sealed record SyncLaterItem(
             DueOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
             PlannedFor?.TieText ?? string.Empty,
         }.Concat(DoneAt is DateTimeOffset done ? [done.UtcTicks.ToString(System.Globalization.CultureInfo.InvariantCulture)] : [])
-         .Concat(SharedItemTie.Extra(Labels, LocalTo)));
+         .Concat(SharedItemTie.Extra(Labels, LocalTo))
+         .Concat(Bin is null ? [] : [Bin]));
 
     public ISharedItem AsLocalStub()
     {
@@ -71,7 +80,7 @@ public sealed record SyncLaterItem(
         return this with
         {
             Title = string.Empty, Subtasks = null, Category = null, CategoryColor = null, EstimateMinutes = null, Note = null,
-            DueOn = null, PlannedFor = null, DoneAt = null, Labels = null, LocalTo = null, EditedAt = at, DeletedAt = at,
+            DueOn = null, PlannedFor = null, DoneAt = null, Labels = null, LocalTo = null, Bin = null, EditedAt = at, DeletedAt = at,
         };
     }
 }

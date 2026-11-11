@@ -69,6 +69,16 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="AutoSaved">ADR 72: the shared Auto-saved list.</param>
 /// <param name="Handovers">ADR 72: items on their way to the device the user chose to keep them; never in a QR file.</param>
 /// <param name="HandoverAcks">ADR 72: this device's receipts for the handovers it took in; never in a QR file.</param>
+/// <param name="Tasks">
+/// ADR 76: the one shared task list (every bin) with per-field stamps and tombstones, merged by <see cref="TaskFieldMerge"/>. Null from
+/// an app that predates it, in a QR file and while task lists aren't shared; a file that carries it is the truth for that device's
+/// tasks, and its old fields (<paramref name="NextTasks"/>, <paramref name="Later"/>, <paramref name="Parked"/>,
+/// <paramref name="Comebacks"/>, <paramref name="Categories"/>) are then only for older apps. Read leniently
+/// (<see cref="SyncLenientListConverter{T}"/>).
+/// </param>
+/// <param name="Labels">ADR 76: the labels (id, name, colour with opacity, rings on, position), merged item by item; null as <paramref name="Tasks"/>.</param>
+/// <param name="Views">ADR 76: the saved views (never search words), merged item by item; null as <paramref name="Tasks"/>.</param>
+/// <param name="TaskLog">ADR 76: History (finished, archived, deleted tasks with their snapshot, 30 days), merged item by item; null as <paramref name="Tasks"/>. Not <paramref name="TaskHistory"/>.</param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -110,7 +120,11 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncPastSettled>? PastSettled = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncAutoSavedItem>? AutoSaved = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncHandover>? Handovers = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncHandoverAck>? HandoverAcks = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncHandoverAck>? HandoverAcks = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskItem>))] IReadOnlyList<SyncTaskItem>? Tasks = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLabel>))] IReadOnlyList<SyncTaskLabel>? Labels = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskView>))] IReadOnlyList<SyncTaskView>? Views = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLogItem>))] IReadOnlyList<SyncTaskLogItem>? TaskLog = null)
 {
     public const int CurrentFormatVersion = 1;
 }
