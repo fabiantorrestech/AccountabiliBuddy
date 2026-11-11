@@ -42,6 +42,18 @@ public static class TaskCalendarMapping
     }
 
     /// <summary>
+    /// Whether a Google event id has the form of <see cref="EventId"/> ("ab" and 32 lower-case hex digits): a task event the app wrote,
+    /// in whatever calendar. The reading side leaves such events out, so a task never comes back as a calendar event (no day plan
+    /// category, no second copy).
+    /// </summary>
+    public static bool IsTaskEventId(string eventId)
+    {
+        return eventId.Length == 34
+               && eventId.StartsWith("ab", StringComparison.Ordinal)
+               && eventId.AsSpan(2).IndexOfAnyExcept("0123456789abcdef") < 0;
+    }
+
+    /// <summary>
     /// Whether the task is exported at all: live, open, not in Done, its "Add to Google Calendar" switch on, and kept on this device
     /// (<paramref name="self"/>; a task kept on other devices only is left to them).
     /// </summary>

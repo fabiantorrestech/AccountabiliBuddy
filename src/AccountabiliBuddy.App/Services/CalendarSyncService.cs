@@ -308,6 +308,8 @@ public sealed class CalendarSyncService : IDisposable
             string googleId = calendar.Id[(source.Id.Length + 1)..];
             GoogleEventChanges changes = await _google.ListEventsAsync(
                 accessToken, googleId, calendar.Id, from, to, since, zone, CancellationToken.None);
+            // ADR 78: the app's own task events (in AB Reminders or a picked calendar) are tasks, not calendar events.
+            changes = changes with { Events = changes.Events.Where(item => !AccountabiliBuddy.Core.Tasks.TaskCalendarMapping.IsTaskEventId(item.Id)).ToList() };
             if (full)
             {
                 _calendars.SetEvents(calendar.Id, changes.Events);

@@ -1314,6 +1314,9 @@ public partial class App : Application
                 "Moving them to the new task list didn't work, so nothing was changed. A copy of everything was kept first."));
         }
 
+        // A ring that was cut off by a crash left the output raised: put the user's level back on every start, whatever the task model.
+        var volumeGuard = new AccountabiliBuddy.App.Services.Tasks.MasterVolumeGuard(new AccountabiliBuddy.Platform.Windows.Audio.WindowsMasterVolume(), documents);
+        volumeGuard.RestoreLeftoverBlocking();
         if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.TaskList)
         {
             sessionTasks.UseTaskStore(taskStore);
@@ -1333,8 +1336,6 @@ public partial class App : Application
             var reminderSettings = new AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService(documents);
             reminderSettings.LoadBlocking();
             _taskReminderSettings = reminderSettings;
-            var volumeGuard = new AccountabiliBuddy.App.Services.Tasks.MasterVolumeGuard(new AccountabiliBuddy.Platform.Windows.Audio.WindowsMasterVolume(), documents);
-            volumeGuard.RestoreLeftoverBlocking();
             _taskReminders = new AccountabiliBuddy.App.Services.Tasks.TaskReminderService(taskStore, reminderSettings, documents, time) { Actions = _taskActions };
             _taskReminders.LoadBlocking();
             _taskReminderRinger = new AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger(

@@ -34,6 +34,9 @@ public sealed class TaskReminderRinger : IDisposable
     private DateTimeOffset _frontSince;
     private DateTimeOffset _lastSound;
     private bool _soundedInSession;
+
+    // The level the output is raised to for the ring now ("Ring even when the PC is muted"); null while not raised.
+    private int? _raisedTo;
     private bool _busy;
     private bool _disposed;
 
@@ -80,10 +83,10 @@ public sealed class TaskReminderRinger : IDisposable
             _front = front;
             _frontSince = _reminders.Now;
             _lastSound = DateTimeOffset.MinValue;
-            if (_window is not null && _settings.Current.RingEvenWhenMuted && front.CantMiss)
+            if (_window is not null)
             {
-                // A Can't miss that reaches the front later needs the louder output too.
-                _guard.RaiseFor(100);
+                // A Can't miss that reaches the front later needs the louder output too; a quiet one none.
+                FollowVolume(front);
             }
         }
 
@@ -101,10 +104,7 @@ public sealed class TaskReminderRinger : IDisposable
     {
         bool inSession = _sessionRunning();
         _soundedInSession = false;
-        if (_settings.Current.RingEvenWhenMuted)
-        {
-            _guard.RaiseFor(front.CantMiss ? 100 : _settings.Current.Volume);
-        }
+        FollowVolume(front);
 
         _glow();
         _viewModel = new TaskReminderRingViewModel(
@@ -184,7 +184,26 @@ public sealed class TaskReminderRinger : IDisposable
         }
 
         UpdateButtons();
+        FollowVolume(front);
         PlaySoundIfDue(front, now, shown, policy);
+    }
+
+    // "Ring even when the PC is muted": the output is raised only while the front reminder rings out loud. A normal reminder during a
+    // session (one quiet bell) gets no raise, and the raise is put back when the front becomes quiet; Core Audio is touched only on a change.
+    private void FollowVolume(TaskReminderEntry front)
+    {
+        bool loud = _settings.Current.RingEvenWhenMuted && !(_sessionRunning() && !front.CantMiss);
+        int level = front.CantMiss ? 100 : _settings.Current.Volume;
+        if (loud && (_raisedTo is null || level > _raisedTo))
+        {
+            _guard.RaiseFor(level);
+            _raisedTo = level;
+        }
+        else if (!loud && _raisedTo is not null)
+        {
+            _guard.Restore();
+            _raisedTo = null;
+        }
     }
 
     private void PlaySoundIfDue(TaskReminderEntry front, DateTimeOffset now, TimeSpan shown, TaskReminderRingPolicy policy)
@@ -246,6 +265,7 @@ public sealed class TaskReminderRinger : IDisposable
         _front = null;
         CloseWindow();
         _guard.Restore();
+        _raisedTo = null;
     }
 
     private void CloseWindow()

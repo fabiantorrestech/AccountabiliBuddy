@@ -287,3 +287,13 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Pick safety: `TaskAccountSettingsService.PickedCalendarChosen` (adopted stamp is not "elsewhere"); `TaskCalendarExportService.SharesTaskLists` (set from `SyncSettings.ShareTaskLists`; off = another device's pick ignored). `TaskAccountSettingsEdits.IsChosen`: same value over an adopted stamp is restamped.
 - `DeviceSettingsRegistry`: `tasks.reminderSettings` device (restorer in App goes through `TaskReminderSettingsService`, legacy pick to the account); `tasks.reminderMissed`, `tasks.volumeRestore`, `tasks.calendarExport` state.
 - Checks: CalendarExportChecks 101/101, AccountSettingsChecks 47/47, AppChecks 20/20, Program 454/454.
+
+## M3 milestone review fixes (Tier 2, 6ccfe2a3..466ce416)
+
+- Reading: `CalendarSyncService` drops events with `TaskCalendarMapping.IsTaskEventId` (`ab` + 32 hex) in every Google calendar.
+- Confirmations of another device's pick: per-task wait 10 min doubling to 6 h (`_confirmWaits`); the scheduled retry waits for the earliest one (budget kept).
+- Ringer: `FollowVolume` raises only while the front reminder rings out loud (no raise for a quiet in-session one; put back when it turns quiet).
+- `App`: `MasterVolumeGuard.RestoreLeftoverBlocking` runs on every start, before the task-model branch.
+- Export: missing client secret / unreadable sign-in shows its cause, no backoff retry; a 403 in AB Reminders keeps the records and re-claims it next run (only a refused claim starts over, then replans).
+- ADR 78: reading-side sentence; Consequences line on "Sync task lists" off. Item 4 (Can't miss hold) is M6.
+- Checks: CalendarExportChecks 112/112, AccountSettingsChecks 47/47, AppChecks 20/20, Program 458/458. The ringer's volume rule has no check (it needs the reminder window).

@@ -74,6 +74,15 @@ public sealed class TaskCalendarExportService : IDisposable
 
     // Set by a run that left an AB Reminders delete waiting for the picked calendar's event to show up; the times of the retries made.
     private bool _confirmPending;
+
+    // Per task: when the next read may check that another device wrote its event in the picked calendar (10 min, doubling to 6 h).
+    private readonly Dictionary<Guid, (DateTimeOffset NextAt, TimeSpan Wait)> _confirmWaits = [];
+    private static readonly TimeSpan FirstConfirmWait = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan MaxConfirmWait = TimeSpan.FromHours(6);
+
+    // AB Reminders refused a write (403, not scope, not a rate limit): its records are kept and the next run checks it is still this
+    // client's before anything else; only then are they given up.
+    private bool _reclaimPending;
     private readonly Queue<DateTimeOffset> _confirmRetries = new();
 
     // "AB Reminders" was gone or refused this many times in a row: the first time it is made again at once, after that only once per
@@ -262,11 +271,19 @@ public sealed class TaskCalendarExportService : IDisposable
         }
         else if (!retry && _confirmPending && TakeConfirmRetry())
         {
-            Schedule(ConfirmRetryWait);
+            Schedule(NextConfirmWait());
         }
     }
 
     // A bounded budget (a few per hour), so a calendar that never shows the event doesn't keep Google busy; the next task change retries too.
+    // Until the earliest task's own wait for a read ends (never sooner than the budget's 10 min).
+    private TimeSpan NextConfirmWait()
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        TimeSpan earliest = _confirmWaits.Count == 0 ? ConfirmRetryWait : _confirmWaits.Values.Min(pause => pause.NextAt) - now;
+        return earliest > ConfirmRetryWait ? earliest : ConfirmRetryWait;
+    }
+
     private bool TakeConfirmRetry()
     {
         DateTimeOffset now = _time.GetUtcNow();
@@ -354,6 +371,30 @@ public sealed class TaskCalendarExportService : IDisposable
             SetStatus("Google ended the sign-in. Connect the account again in Settings › Connections.", false);
             return true;
         }
+        catch (InvalidOperationException ex)
+        {
+            // Nothing to wait out: it is tried again when the tasks or the settings change, after the user fixed it.
+            Log("not signed in here (" + (ex.Message.Contains("client", StringComparison.Ordinal) ? "client id or secret missing" : "sign-in unreadable") + ")");
+            SetStatus(ex.Message, false);
+            return false;
+        }
+
+        if (_reclaimPending && _state.AppCalendarId is { } toReclaim)
+        {
+            _reclaimPending = false;
+            if (!await _writer.ClaimCalendarAsync(access.Token, toReclaim, CancellationToken.None))
+            {
+                // Not this client's any more (or gone): its events can't be changed by the app, so its records go and a new one is made.
+                Log("AB Reminders is no longer the app's own; a new one will be made");
+                _state = _state with
+                {
+                    AppCalendarId = null,
+                    Records = _state.Records.Where(pair => pair.Value.CalendarKey != TaskCalendarMapping.AppCalendarKey).ToDictionary(pair => pair.Key, pair => pair.Value),
+                };
+                await SaveStateAsync();
+                planned = TaskCalendarDiff.Plan(wanted, _state.Records, keptElsewhere).Where(action => action.Kind != TaskCalendarActionKind.Forget).ToList();
+            }
+        }
 
         if (!access.Has(GoogleCalendarClient.AppCreatedScope))
         {
@@ -377,14 +418,26 @@ public sealed class TaskCalendarExportService : IDisposable
                 // shows the same event in the picked calendar, so a task never ends up with no event when that device doesn't write it
                 // (lost consent, uninstalled, stopped syncing); its records in the picked calendar are kept for clean-up once consent is back.
                 var confirmed = new List<TaskCalendarAction>();
+                DateTimeOffset checkedAt = _time.GetUtcNow();
                 foreach (TaskCalendarAction action in actions.Where(action => waiting.Contains(action.TaskId) && IsAppCalendarDelete(action)))
                 {
+                    if (_confirmWaits.TryGetValue(action.TaskId, out var pause) && checkedAt < pause.NextAt)
+                    {
+                        _confirmPending = true;
+                        continue;
+                    }
+
                     if (await _writer.EventExistsAsync(access.Token, picked!, action.Recorded!.EventId, CancellationToken.None))
                     {
                         confirmed.Add(action);
+                        _confirmWaits.Remove(action.TaskId);
                     }
                     else
                     {
+                        TimeSpan wait = _confirmWaits.TryGetValue(action.TaskId, out var before)
+                            ? TimeSpan.FromTicks(Math.Min(MaxConfirmWait.Ticks, before.Wait.Ticks * 2))
+                            : FirstConfirmWait;
+                        _confirmWaits[action.TaskId] = (checkedAt + wait, wait);
                         _confirmPending = true;
                     }
                 }
@@ -422,8 +475,15 @@ public sealed class TaskCalendarExportService : IDisposable
                         deleted += action.Kind == TaskCalendarActionKind.Delete ? 1 : 0;
                         dropped += action.Wanted?.Event.Dropped ?? 0;
                         break;
+                    case WriteResult.AppCalendarRefused:
+                        // The calendar is still there: its records stay (so its events can still be cleaned up), and the next run checks
+                        // whether it is still this client's before writing again.
+                        _reclaimPending = true;
+                        problem = "AB Reminders refused a change; the app will check it and try again later.";
+                        retry = true;
+                        break;
                     case WriteResult.AppCalendarUnusable:
-                        // Deleted by the user (its events went with it) or not this client's: forget it and its records and make a new
+                        // Deleted by the user (404: its events went with it): forget it and its records and make a new
                         // one, at once the first time, then once per backoff wait.
                         foreach (Guid id in records.Where(pair => pair.Value.CalendarKey == TaskCalendarMapping.AppCalendarKey).Select(pair => pair.Key).ToList())
                         {
@@ -556,7 +616,12 @@ public sealed class TaskCalendarExportService : IDisposable
             }
 
             Log(where + " refused (" + code + ")");
-            return app ? WriteResult.AppCalendarUnusable : WriteResult.PickedCalendarRefused;
+            if (!app)
+            {
+                return WriteResult.PickedCalendarRefused;
+            }
+
+            return ex.StatusCode == HttpStatusCode.Forbidden ? WriteResult.AppCalendarRefused : WriteResult.AppCalendarUnusable;
         }
     }
 
@@ -667,10 +732,10 @@ public sealed class TaskCalendarExportService : IDisposable
         }
 
         string refreshToken = Unprotect(source.ProtectedSecret)
-                              ?? throw new InvalidOperationException("The Google sign-in can't be read on this computer.");
+                              ?? throw new InvalidOperationException("The Google sign-in can't be read on this computer. Connect the account again in Settings › Connections.");
         if (!TryGetClient(out string clientId, out string clientSecret))
         {
-            throw new InvalidOperationException("The Google client ID and secret are missing in Settings.");
+            throw new InvalidOperationException("The Google client ID and secret are missing. Enter them in Settings › Connections.");
         }
 
         GoogleAccessToken access = await _google.RefreshWithScopesAsync(clientId, clientSecret, refreshToken, CancellationToken.None);
@@ -805,6 +870,7 @@ public sealed class TaskCalendarExportService : IDisposable
     {
         Done,
         AppCalendarUnusable,
+        AppCalendarRefused,
         AppConsentMissing,
         PickedConsentMissing,
         PickedCalendarRefused,
