@@ -107,6 +107,8 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Tasks.TaskActionsService? _taskActions;
     private AccountabiliBuddy.App.Services.Tasks.TaskViewService? _taskViews;
     private AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService? _taskTidyUp;
+    private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
+    private AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger? _taskReminderRinger;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
 
@@ -1319,6 +1321,16 @@ public partial class App : Application
             _taskViews = new AccountabiliBuddy.App.Services.Tasks.TaskViewService(taskStore, taskSettings, time);
             _taskTidyUp = new AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService(taskStore, _taskActions, taskSettings, _sessions, documents, time);
             _taskTidyUp.LoadBlocking();
+            // ADR 76: task reminders (due times, snooze, Can't miss, ringing); the volume guard first puts back what a crashed ring left raised.
+            var reminderSettings = new AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService(documents);
+            reminderSettings.LoadBlocking();
+            var volumeGuard = new AccountabiliBuddy.App.Services.Tasks.MasterVolumeGuard(new AccountabiliBuddy.Platform.Windows.Audio.WindowsMasterVolume(), documents);
+            volumeGuard.RestoreLeftoverBlocking();
+            _taskReminders = new AccountabiliBuddy.App.Services.Tasks.TaskReminderService(taskStore, reminderSettings, documents, time) { Actions = _taskActions };
+            _taskReminders.LoadBlocking();
+            _taskReminderRinger = new AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger(
+                _taskReminders, reminderSettings, _sessionCues!, volumeGuard, () => _sessions!.State.IsActive, () => _sessionOverlay.Glow());
+            _taskReminders.Start();
             _ = StartTaskViewsAsync();
         }
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -2506,6 +2518,7 @@ public partial class App : Application
         };
         _power.Resumed += (_, _) =>
         {
+            _taskReminders?.Refresh(); // reminders that came due while asleep ring now
             _ = _networkTime?.CheckAsync();
             // The cards stay hidden and registered while the services re-check: one that closes its card removes it, one that
             // opens a card only registers it. A full tick handles the session's sleep gap first, then every service checks again.
@@ -3471,6 +3484,8 @@ public partial class App : Application
         _workHours?.Dispose();
         _capture?.Dispose();
         _power?.Dispose();
+        _taskReminders?.Dispose();
+        _taskReminderRinger?.Dispose();
         _workGate?.Dispose();
         _hyperfocus?.Dispose();
         _deepWork?.Dispose();

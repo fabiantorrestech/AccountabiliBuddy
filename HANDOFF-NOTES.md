@@ -8,7 +8,7 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 
 - [x] Phase 0 Orientation (this file)
 - [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
-- [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); undo, history, tidy-up, views, search, title help, bulk DONE (M2.3); reminders; calendar export BLOCKED, see Calendar)
+- [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); undo, history, tidy-up, views, search, title help, bulk DONE (M2.3); reminders engine DONE (M3); calendar export BLOCKED, see Calendar)
 - [ ] Phase 3 PC UI (3.1 title bar, 3.2 layout, 3.3 rows/open task, 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
 - [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix)
 - Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
@@ -235,3 +235,11 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - `taskStore.SessionActions` is the setting again (the list's This session bin is always the next session's draft); the running checklist keeps its own `ActionCap` (replaces "Old-list rules use the running session's ActionCap" above).
 - `tasks.tidyUp` classified as a state key.
 - Re-check fixes: undoing a Bring back reinstates its Recently deleted entries after the restore, only for tasks not skipped (`TaskUndoRules.ToReinstate`). A task ticked done (another device) while `MoveOutOfChecklistAsync` puts it back stays done in the checklist (no drop) and leaves the list again (`TaskStore.TakeBackAsync`: held again, tombstoned, no History entry).
+
+## M3 done (reminders engine; UI is M6/M7)
+
+- Core (`src/AccountabiliBuddy.Core/`): `Tasks/TaskReminderTimes` (rule -> instant, DST), `TaskReminderEntry`, `TaskReminderQueue` (entries, due queue, next ring), `TaskReminderActions` (snooze/dismiss/start written as stamped `Reminders` edits), `TaskSnooze` + `TaskSnoozeShortcut` + `SnoozeDay` (minutes, 3 shortcuts, absolute, picker summary, 12-hour text), `TaskReminderRingPolicy` (rising volume, dismiss wait, hold, stop-after, repeat), `TaskReminderText`, `TaskReminderDisplay`, `MasterVolumePlan`; `Ports/IMasterVolume` + `MasterVolumeState`.
+- Platform.Windows: `Audio/WindowsMasterVolume` + `CoreAudioInterop` (hand-written COM, no package).
+- App (`Services/Tasks/`): `TaskReminderSettings(Service)` (doc `tasks.reminderSettings`: volume 70, rising on, ring even when muted off, dismiss protection 5 s, stop after 10 min, display Toast, snooze shortcuts, new reminders start at "At start time"), `TaskReminderService` (timer off the trusted clock, refresh on store/settings change and wake, `Pending`, `SnoozeAsync/DismissAsync/StartAsync`), `TaskReminderRinger` (window + bell + volume guard), `MasterVolumeGuard` (saved restore, crash recovery). `ViewModels/TaskReminderRingViewModel`, `Views/TaskReminderWindow` are the stand-in UI. Wired in `App.axaml.cs` (TaskList branch; wake refresh; dispose).
+- M6 hooks: `TaskReminderService.Pending/Entries/SessionFull`, `TaskSnooze.*`, `TaskReminderRingPolicy`; settings UI (M7) edits `TaskReminderSettingsService.UpdateAsync`. Decisions: HANDOFF-QUESTIONS 76-84.
+- Checks: `tasks-ui-checks` Program.cs (M3 block at the end; 417/417 pass). Real run: a seeded due task showed the window, Dismiss waited out protection, Dismiss wrote `Dismissed` to the task and closed it. Core Audio read/raise+mute/restore verified on this PC.

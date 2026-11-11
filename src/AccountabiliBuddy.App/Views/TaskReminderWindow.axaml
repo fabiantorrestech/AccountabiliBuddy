@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        x:Class="AccountabiliBuddy.App.Views.TaskReminderWindow"
+        x:DataType="vm:TaskReminderRingViewModel"
+        Title="Task reminder"
+        Width="420" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+    <!-- ADR 76: a due task reminder. Minimal stand-in; the redesign's reminder cards replace it. -->
+    <Border Padding="24,20" Background="#FF15191E" BorderBrush="#AA6366F1" BorderThickness="2" CornerRadius="10">
+        <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Heading}" Opacity="0.8" />
+                <TextBlock Grid.Column="1" Text="{Binding Counter}" Opacity="0.8" />
+            </Grid>
+            <TextBlock Text="{Binding Title}" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Note}" Opacity="0.7" FontStyle="Italic" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                <Button Content="Work on it now" Command="{Binding StartCommand}" Classes="accent" />
+                <Button Content="{Binding SnoozeText}" Command="{Binding SnoozeCommand}" />
+                <Button Content="{Binding DismissText}" Command="{Binding DismissCommand}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>
