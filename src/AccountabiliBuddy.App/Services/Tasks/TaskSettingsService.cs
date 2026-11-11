@@ -233,13 +233,16 @@ public sealed class TaskSettingsService
         }
     }
 
-    /// <summary>Clears the old device-local default view in both modes' copies, once the account took it over.</summary>
-    public async Task ClearLegacyDefaultViewAsync()
+    /// <summary>
+    /// Clears the old device-local default view in each mode's copy that holds the one the account took over (or an empty one), once
+    /// the account has it. A different value stays where it is, unused, so nothing is destroyed (the account holds one default view).
+    /// </summary>
+    public async Task ClearLegacyDefaultViewAsync(Guid adopted)
     {
         foreach (GuidanceMode mode in new[] { GuidanceMode.Guarding, GuidanceMode.Companion })
         {
             string key = ModeSettings.KeyFor(DocumentKey, mode);
-            if (await _store.LoadAsync<TaskSettings>(key) is { DefaultViewId: not null } own)
+            if (await _store.LoadAsync<TaskSettings>(key) is { DefaultViewId: Guid held } own && (held == adopted || held == Guid.Empty))
             {
                 TaskSettings cleared = own with { DefaultViewId = null };
                 await _store.SaveAsync(key, cleared);

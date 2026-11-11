@@ -224,7 +224,9 @@ public sealed class StepAwayService : IDisposable
         bool clockPauses = state.IsEnforcing && SideTaskSetting() == StepAwayTimer.PauseTimer;
         OpenCard(AwayCardKind.SideTaskLength, clockPauses
             ? "How long? The focus clock pauses; blocking and nudges keep running."
-            : "How long? The session timer keeps running, and so do blocking and nudges.");
+            : state.IsEnforcing
+                ? "How long? The session timer keeps running, and so do blocking and nudges."
+                : "How long? The break timer keeps running; blocking and nudges are off during a break.");
     }
 
     /// <summary>Starts a side task of 5, 10 or 15 minutes.</summary>

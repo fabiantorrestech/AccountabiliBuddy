@@ -1859,10 +1859,10 @@ public partial class App : Application
                 }
 
                 string? note = await _taskSettings.RestoreAsync(wanted, tasksMode);
-                // An older backup's default view: the account's now, taken over only where the account has none.
+                // An older backup's default view: the account's now, restored like a newer backup's (it wins over the account's current choice).
                 if (wanted.DefaultViewId is Guid oldDefaultView && _taskAccount is not null)
                 {
-                    await _taskAccount.AdoptLegacyAsync(oldDefaultView, null);
+                    await _taskAccount.SetDefaultViewAsync(oldDefaultView);
                 }
 
                 return note;
@@ -3061,9 +3061,9 @@ public partial class App : Application
         try
         {
             await account.AdoptLegacyAsync(defaultView, picked);
-            if (defaultView is not null)
+            if (defaultView is Guid adopted)
             {
-                await settings.ClearLegacyDefaultViewAsync();
+                await settings.ClearLegacyDefaultViewAsync(adopted);
             }
 
             if (picked is not null)

@@ -206,7 +206,7 @@ public sealed class SessionController : IDisposable
     /// countdown keeps going and enforcement stays on (ADR 77), otherwise the countdown pauses (lunch always pauses it).
     /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StepAway(AwayKind kind, bool keepTimerRunning = false)
+    public bool StepAway(AwayKind kind, bool keepTimerRunning)
     {
         return _engine.StepAway(kind, keepTimerRunning);
     }
@@ -233,7 +233,7 @@ public sealed class SessionController : IDisposable
     /// keeps going (ADR 77), otherwise it pauses like a step away (never in a break, see <see cref="SessionEngine.StartSideTask"/>).
     /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StartSideTask(TimeSpan length, bool keepTimerRunning = false)
+    public bool StartSideTask(TimeSpan length, bool keepTimerRunning)
     {
         return _engine.StartSideTask(length, keepTimerRunning);
     }

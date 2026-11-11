@@ -260,7 +260,7 @@ public sealed class SessionEngine
     /// shortens a wait or unlocks anything, and the stretch is logged as stepped away.
     /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StepAway(AwayKind kind, bool keepTimerRunning = false)
+    public bool StepAway(AwayKind kind, bool keepTimerRunning)
     {
         if (!State.IsActive || State.IsAway)
         {
@@ -287,7 +287,7 @@ public sealed class SessionEngine
         }
 
         Return();
-        return StepAway(AwayKind.Break);
+        return StepAway(AwayKind.Break, keepTimerRunning: false);
     }
 
     /// <summary>
@@ -335,7 +335,7 @@ public sealed class SessionEngine
             return false;
         }
 
-        return StepAway(AwayKind.Paused);
+        return StepAway(AwayKind.Paused, keepTimerRunning: false);
     }
 
     /// <summary>
@@ -347,7 +347,7 @@ public sealed class SessionEngine
     /// The length only says when the user is asked if they are back: nothing ends and nothing is shortened when it is up.
     /// </summary>
     /// <returns>False with no session running or when already away.</returns>
-    public bool StartSideTask(TimeSpan length, bool keepTimerRunning = false)
+    public bool StartSideTask(TimeSpan length, bool keepTimerRunning)
     {
         if (length <= TimeSpan.Zero)
         {
@@ -457,6 +457,13 @@ public sealed class SessionEngine
         if (State.Phase is not (SessionPhase.ShortBreak or SessionPhase.LongBreak) || _pomodoroSettings is not PomodoroSettings settings)
         {
             return false;
+        }
+
+        // A side task in the break ends here as Return() would record it (the break's countdown ran meanwhile, so nothing moves), so
+        // History shows the side task and lunch as two stretches instead of one.
+        if (State.Away == AwayKind.SideTask)
+        {
+            Return();
         }
 
         DateTimeOffset now = Now;

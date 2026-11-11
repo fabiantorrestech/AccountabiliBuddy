@@ -142,7 +142,7 @@ public sealed class LunchService
         // step away with the timer running becomes lunch's.
         if (!_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
         {
-            _sessions.StepAway(AwayKind.Break);
+            _sessions.StepAway(AwayKind.Break, keepTimerRunning: false);
         }
         else if (_sessions.State.AwayTimerRuns)
         {
@@ -244,7 +244,7 @@ public sealed class LunchService
         // ends and a running focus session steps away as a Break, as StartForAsync does. A received end changes nothing in the session.
         if (IsOnLunch && !wasOnLunch && !_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
         {
-            _sessions.StepAway(AwayKind.Break);
+            _sessions.StepAway(AwayKind.Break, keepTimerRunning: false);
         }
         else if (IsOnLunch && !wasOnLunch && _sessions.State.AwayTimerRuns)
         {

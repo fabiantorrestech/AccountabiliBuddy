@@ -46,6 +46,10 @@ public sealed class TaskCalendarExportService : IDisposable
     private static readonly TimeSpan FirstRetry = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxRetry = TimeSpan.FromMinutes(30);
 
+    // A delete waiting for the picked calendar to show the event is looked at again after this long, at most this many times per hour.
+    private static readonly TimeSpan ConfirmRetryWait = TimeSpan.FromMinutes(10);
+    private const int MaxConfirmRetriesPerHour = 3;
+
     private readonly TaskStore _store;
     private readonly TaskReminderSettingsService _settings;
     private readonly TaskAccountSettingsService _account;
@@ -67,6 +71,10 @@ public sealed class TaskCalendarExportService : IDisposable
     private bool _running;
     private bool _again;
     private TimeSpan? _retryWait;
+
+    // Set by a run that left an AB Reminders delete waiting for the picked calendar's event to show up; the times of the retries made.
+    private bool _confirmPending;
+    private readonly Queue<DateTimeOffset> _confirmRetries = new();
 
     // "AB Reminders" was gone or refused this many times in a row: the first time it is made again at once, after that only once per
     // backoff wait, so a calendar Google keeps refusing never makes a new calendar every few seconds.
@@ -107,6 +115,9 @@ public sealed class TaskCalendarExportService : IDisposable
 
     /// <summary>The account hasn't allowed adding events yet (existing users, until they press Allow in Settings).</summary>
     public bool NeedsConsent { get; private set; }
+
+    /// <summary>How many retries were scheduled in the last hour for a delete waiting on the picked calendar's event (at most 3).</summary>
+    public int ConfirmRetriesScheduled => _confirmRetries.Count;
 
     /// <summary><see cref="Problem"/> or <see cref="NeedsConsent"/> changed.</summary>
     public event EventHandler? StatusChanged;
@@ -249,11 +260,34 @@ public sealed class TaskCalendarExportService : IDisposable
             _again = false;
             Soon();
         }
+        else if (!retry && _confirmPending && TakeConfirmRetry())
+        {
+            Schedule(ConfirmRetryWait);
+        }
+    }
+
+    // A bounded budget (a few per hour), so a calendar that never shows the event doesn't keep Google busy; the next task change retries too.
+    private bool TakeConfirmRetry()
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        while (_confirmRetries.Count > 0 && now - _confirmRetries.Peek() >= TimeSpan.FromHours(1))
+        {
+            _confirmRetries.Dequeue();
+        }
+
+        if (_confirmRetries.Count >= MaxConfirmRetriesPerHour)
+        {
+            return false;
+        }
+
+        _confirmRetries.Enqueue(now);
+        return true;
     }
 
     /// <returns>True when it should try again later.</returns>
     private async Task<bool> RunAsync()
     {
+        _confirmPending = false;
         if (!_store.IsActive)
         {
             return false;
@@ -348,6 +382,10 @@ public sealed class TaskCalendarExportService : IDisposable
                     if (await _writer.EventExistsAsync(access.Token, picked!, action.Recorded!.EventId, CancellationToken.None))
                     {
                         confirmed.Add(action);
+                    }
+                    else
+                    {
+                        _confirmPending = true;
                     }
                 }
 
