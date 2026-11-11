@@ -205,11 +205,17 @@ public sealed class TaskActionsService
     }
 
     /// <summary>
-    /// A task was opened (its details shown): it counts as touched, which resets its age. Only the touch time moves: no toast, no undo.
+    /// A task was opened (its details shown): it counts as touched, which resets its age, unless it was touched within the last hour. Only the touch time moves: no toast, no undo.
     /// The task's other views are told, this one (<paramref name="source"/>) is not.
     /// </summary>
     public async Task OpenedAsync(Guid id, object? source = null)
     {
+        // Opening again within the hour doesn't touch again (it would only make the task sync every time it is looked at).
+        if (_store.Lists.Tasks.FirstOrDefault(item => item.Id == id) is { Task.IsLive: true } held && TaskUntouched.TouchedRecently(held.Task, _time.GetUtcNow()))
+        {
+            return;
+        }
+
         await _store.ChangeAsync(source, (lists, _, now) => TaskActions.Touch(lists, id, now).Lists);
     }
 
@@ -255,17 +261,29 @@ public sealed class TaskActionsService
 
     // ---- undo ----
 
-    /// <summary>Ctrl+Z: puts back what the newest action touched, exactly as it was. False when there is nothing to undo.</summary>
-    public async Task<bool> UndoAsync()
+    /// <summary>
+    /// Ctrl+Z: puts back what the newest action touched, exactly as it was. A task that was in This session comes back to Queued and is
+    /// offered to the session's own add (the cap rules): when it finds no room it stays in Queued (<see cref="TaskUndoOutcome.QueuedNoRoom"/>,
+    /// toasted "No room in this session · put in Queued"). A task that is in the session's checklist now is left alone.
+    /// </summary>
+    public async Task<TaskUndoOutcome> UndoAsync()
     {
-        if (!_undo.TryPop(out TaskUndoEntry? entry) || entry is null)
+        if (!_undo.TryPop(out TaskUndoEntry? popped) || popped is null)
         {
-            return false;
+            return new TaskUndoOutcome(false, []);
         }
 
+        (TaskUndoEntry entry, IReadOnlyList<Guid> sessionIds) = TaskUndoRules.ForRestore(popped, id => _session?.IsInChecklist(id) == true);
         await _store.ChangeAsync(null, (lists, self, now) => TaskUndoRules.Restore(lists, entry, self, now));
-        Announce(TaskToasts.Undone, canUndo: false);
-        return true;
+        List<Guid> noRoom = [];
+        if (sessionIds.Count > 0)
+        {
+            TaskMoveOutcome outcome = await MoveToSessionAsync(sessionIds);
+            noRoom.AddRange(_session is null ? sessionIds : outcome.NeedsRoom);
+        }
+
+        Announce(noRoom.Count > 0 ? "No room in this session · put in Queued" : TaskToasts.Undone, canUndo: false);
+        return new TaskUndoOutcome(true, noRoom);
     }
 
     /// <summary>Shows a toast for something another service did (the tidy-up's "Tidied 4 of 5 tasks").</summary>

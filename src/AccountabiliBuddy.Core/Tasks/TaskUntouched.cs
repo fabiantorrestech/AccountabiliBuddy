@@ -12,6 +12,15 @@ public static class TaskUntouched
     public const int MaxWeeks = 4;
     public const int DefaultWeeks = 3;
 
+    /// <summary>Opening a task touches it only when it was not touched within this long (spares sync).</summary>
+    public static readonly TimeSpan TouchThrottle = TimeSpan.FromHours(1);
+
+    /// <summary>The task was touched within <see cref="TouchThrottle"/>: opening it need not touch it again.</summary>
+    public static bool TouchedRecently(TaskItem task, DateTimeOffset now)
+    {
+        return now - task.TouchedAt < TouchThrottle;
+    }
+
     public static int ClampWeeks(int weeks)
     {
         return Math.Clamp(weeks, MinWeeks, MaxWeeks);

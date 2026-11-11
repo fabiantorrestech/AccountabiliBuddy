@@ -85,6 +85,15 @@ public static class TaskViewEdits
         return lists with { Views = views };
     }
 
+    /// <summary>
+    /// The old filter screen's saved filters (<paramref name="presetIds"/>) that still need a view: not mirrored before and with no view
+    /// (not even a deleted one). A mirrored filter is never updated or recreated, so what the new screens changed or deleted stays.
+    /// </summary>
+    public static IReadOnlyList<Guid> PresetsToMirror(IEnumerable<Guid> presetIds, IReadOnlySet<Guid> mirrored, TaskLists lists)
+    {
+        return presetIds.Where(id => !mirrored.Contains(id) && lists.Views.All(item => item.Id != id)).ToList();
+    }
+
     /// <summary>Deletes a view (a tombstone with no text). A built-in view or an unknown id changes nothing.</summary>
     public static TaskLists Delete(TaskLists lists, Guid id, DateTimeOffset now)
     {

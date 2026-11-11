@@ -1,3 +1,4 @@
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.Core.Tasks;
@@ -20,6 +21,38 @@ public static class TaskUndoRules
         }
 
         return new TaskUndoEntry(kind, text, tasks, log);
+    }
+
+    /// <summary>
+    /// The entry made safe to restore (ADR 76): a task whose snapshot sat in This session goes back to Queued, unfocused, because a place in
+    /// a session is the cap's to give (the returned ids are those tasks, for the caller to offer to the session's own add); a task that is
+    /// in the session's checklist now (<paramref name="inChecklist"/>) is left out, so the checklist is never edited behind the session's back.
+    /// </summary>
+    public static (TaskUndoEntry Entry, IReadOnlyList<Guid> SessionIds) ForRestore(TaskUndoEntry entry, Func<Guid, bool> inChecklist)
+    {
+        var tasks = new Dictionary<Guid, SyncTaskItem?>();
+        var sessionIds = new List<Guid>();
+        foreach ((Guid id, SyncTaskItem? snapshot) in entry.Tasks)
+        {
+            if (inChecklist(id))
+            {
+                continue;
+            }
+
+            if (snapshot is { Task: { IsLive: true, Bin: TaskBin.Session } task })
+            {
+                sessionIds.Add(id);
+                List<TaskStep>? steps = task.Steps?.Select(step => step with { Focus = false }).ToList();
+                tasks[id] = snapshot with { Task = task with { Bin = TaskBin.Queued, Steps = steps } };
+            }
+            else
+            {
+                tasks[id] = snapshot;
+            }
+        }
+
+        var log = entry.Log.Where(pair => !inChecklist(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value);
+        return (entry with { Tasks = tasks, Log = log }, sessionIds);
     }
 
     public static TaskLists Restore(TaskLists lists, TaskUndoEntry entry, Guid self, DateTimeOffset now)

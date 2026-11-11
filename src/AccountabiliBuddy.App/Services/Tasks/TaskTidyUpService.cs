@@ -78,7 +78,7 @@ public sealed class TaskTidyUpService
     /// <summary>Chooses for the task at <paramref name="index"/>; it applies at once, from the task as it was when the tidy-up began.</summary>
     public async Task DecideAsync(int index, TidyUpChoice choice)
     {
-        if (Plan is not TidyUpPlan plan || index < 0 || index >= plan.Total)
+        if (_sessions.State.IsActive || Plan is not TidyUpPlan plan || index < 0 || index >= plan.Total)
         {
             return;
         }

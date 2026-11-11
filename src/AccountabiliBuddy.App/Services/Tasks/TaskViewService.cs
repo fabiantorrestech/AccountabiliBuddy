@@ -16,6 +16,7 @@ public sealed class TaskViewService
     private readonly TaskSettingsService _settings;
     private readonly TimeProvider _time;
     private HashSet<Guid> _mirrored = [];
+    private Task _mirroring = Task.CompletedTask;
 
     public TaskViewService(TaskStore store, TaskSettingsService settings, TimeProvider time)
     {
@@ -188,65 +189,75 @@ public sealed class TaskViewService
     }
 
     /// <summary>
-    /// The PC's saved filters (<paramref name="presets"/>) as views: each is added or, when its view exists, updated (its name and
-    /// settings; search words stay on this PC). With <paramref name="addOnly"/> only the ones with no view yet are added (the startup
-    /// catch-up, so a view the user changed since is never overwritten). A filter that was saved before and is gone now (deleted on
-    /// the old screen) deletes its view.
+    /// The PC's saved filters (<paramref name="presets"/>) as views, once each: a filter not mirrored before gets a view (its search words
+    /// stay on this PC); one that was is never updated or recreated, so what the new screens changed or deleted stays. A filter gone from the
+    /// old screen deletes its view. Calls run one after another.
     /// </summary>
-    public async Task MirrorPresetsAsync(IReadOnlyList<TaskFilterPreset> presets, bool addOnly = false)
+    public Task MirrorPresetsAsync(IReadOnlyList<TaskFilterPreset> presets)
     {
-        if (!_store.IsActive)
-        {
-            return;
-        }
+        _mirroring = _mirroring.ContinueWith(_ => MirrorAsync(presets), TaskScheduler.Default).Unwrap();
+        return _mirroring;
+    }
 
-        IReadOnlyDictionary<Guid, string> categoryNames = _store.Categories.GroupBy(category => category.Id).ToDictionary(group => group.Key, group => group.First().Name);
-        HashSet<Guid> gone = addOnly ? [] : _mirrored.Except(presets.Select(preset => preset.Id)).ToHashSet();
-        await _store.ChangeAsync(this, (lists, _, now) =>
+    private async Task MirrorAsync(IReadOnlyList<TaskFilterPreset> presets)
+    {
+        try
         {
-            var labels = lists.Labels.Select(item => item.Label).Where(label => label.IsLive).ToList();
-            foreach (TaskFilterPreset preset in presets)
+            if (!_store.IsActive)
             {
-                if (addOnly && lists.Views.Any(item => item.Id == preset.Id))
+                return;
+            }
+
+            IReadOnlyDictionary<Guid, string> categoryNames = _store.Categories.GroupBy(category => category.Id).ToDictionary(group => group.Key, group => group.First().Name);
+            HashSet<Guid> gone = _mirrored.Except(presets.Select(preset => preset.Id)).ToHashSet();
+            HashSet<Guid> toAdd = TaskViewEdits.PresetsToMirror(presets.Select(preset => preset.Id), _mirrored, _store.Lists).ToHashSet();
+            await _store.ChangeAsync(this, (lists, _, now) =>
+            {
+                var labels = lists.Labels.Select(item => item.Label).Where(label => label.IsLive).ToList();
+                foreach (TaskFilterPreset preset in presets.Where(preset => toAdd.Contains(preset.Id)))
                 {
-                    continue;
+                    int unmapped = 0;
+                    var filter = new LegacyTaskFilter(
+                        preset.Id, preset.Name, preset.View.Statuses, preset.View.CategoryIds, preset.View.NoCategory, preset.View.Due, preset.View.Sort, preset.Search);
+                    TaskViewConfig config = LegacyTaskFilterMapper.Config(
+                        filter, categoryNames, name => labels.FirstOrDefault(label => TaskLabel.SameName(label.Name, name))?.Id, ref unmapped);
+                    lists = TaskViewEdits.Upsert(lists, preset.Id, preset.Name, config, now);
                 }
 
-                int unmapped = 0;
-                var filter = new LegacyTaskFilter(
-                    preset.Id, preset.Name, preset.View.Statuses, preset.View.CategoryIds, preset.View.NoCategory, preset.View.Due, preset.View.Sort, preset.Search);
-                TaskViewConfig config = LegacyTaskFilterMapper.Config(
-                    filter, categoryNames, name => labels.FirstOrDefault(label => TaskLabel.SameName(label.Name, name))?.Id, ref unmapped);
-                lists = TaskViewEdits.Upsert(lists, preset.Id, preset.Name, config, now);
+                foreach (Guid id in gone)
+                {
+                    lists = TaskViewEdits.Delete(lists, id, now);
+                }
+
+                return lists;
+            });
+            foreach (TaskFilterPreset preset in presets.Where(preset => toAdd.Contains(preset.Id)))
+            {
+                await _store.SetViewSearchAsync(preset.Id, preset.Search);
             }
 
             foreach (Guid id in gone)
             {
-                lists = TaskViewEdits.Delete(lists, id, now);
+                await _store.SetViewSearchAsync(id, null);
             }
 
-            return lists;
-        });
-        foreach (TaskFilterPreset preset in presets.Where(preset => !addOnly || !_store.ViewSearches.ContainsKey(preset.Id)))
-        {
-            await _store.SetViewSearchAsync(preset.Id, preset.Search);
+            _mirrored = presets.Select(preset => preset.Id).ToHashSet();
+            Changed?.Invoke(this, EventArgs.Empty);
         }
-
-        foreach (Guid id in gone)
+        catch (Exception ex)
         {
-            await _store.SetViewSearchAsync(id, null);
+            // Kind of failure only: the filters hold the user's text. The next save tries again.
+            System.Diagnostics.Trace.TraceError("Mirroring saved filters to views failed: " + ex.GetType().Name);
         }
-
-        _mirrored = presets.Select(preset => preset.Id).ToHashSet();
-        Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Keeps the old filter screen's saved filters in step with the views from now on (and catches up on the ones made since the migration).</summary>
+    /// <summary>Keeps the old filter screen's saved filters in step with the views from now on (and gives the ones made since the migration a view).</summary>
     public void FollowPresets(TaskFilterPresetStore presets)
     {
         IReadOnlyList<TaskFilterPreset> held = presets.Load();
-        _mirrored = held.Select(preset => preset.Id).ToHashSet();
-        _ = MirrorPresetsAsync(held, addOnly: true);
+        // Filters that already have a view (live or deleted) were mirrored before: they are left alone from here on.
+        _mirrored = held.Select(preset => preset.Id).Where(id => _store.Lists.Views.Any(item => item.Id == id)).ToHashSet();
+        _ = MirrorPresetsAsync(held);
         presets.Saved += list => _ = MirrorPresetsAsync(list);
     }
 
