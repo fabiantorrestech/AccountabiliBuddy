@@ -3,6 +3,8 @@ using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Sync;
+using AccountabiliBuddy.Core.Tasks;
+using AccountabiliBuddy.App.Services.Tasks;
 using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services;
@@ -22,9 +24,6 @@ namespace AccountabiliBuddy.App.Services;
 public sealed partial class SessionTasksService : IDisposable
 {
     public const string AllDoneReason = "All tasks done";
-
-    /// <summary>Tasks per session (done ones count, subtasks don't); a test session has no limit.</summary>
-    public const int MaxTasks = 3;
 
     /// <summary>The shortest reason for adding a task over the limit.</summary>
     public const int MinOverLimitReasonLength = 10;
@@ -137,29 +136,55 @@ public sealed partial class SessionTasksService : IDisposable
     public event EventHandler? AllDoneReached;
 
     /// <summary>
-    /// Raised when a real session runs with more than <see cref="MaxTasks"/> tasks (carried over, or a session started
-    /// from the phone or watch): the PC shows "Pick 3 for this session".
+    /// Raised when a real session runs with more tasks than it has places for (carried over, or a session started from the phone or
+    /// watch): the PC shows "Pick N for this session".
     /// </summary>
     public event EventHandler? PickRequired;
 
+    /// <summary>The Tasks settings (actions per session, the next step takes the slot); set by the app. Null: the defaults.</summary>
+    public TaskSettingsService? Settings { get; set; }
+
     /// <summary>
-    /// Tasks this session may hold: <see cref="MaxTasks"/> plus the "Add anyway" adds approved for it (those carry a
-    /// reason and stay; only carried-over extras are picked down).
+    /// How many actions This session holds (ADR 76): the running session's own number (the setting as it was at its start), else the
+    /// Tasks setting (2 to 5, 3 by default). A stepless task is one action, a task with steps one per step in focus
+    /// (<see cref="SessionActions"/>). A test session has no limit.
     /// </summary>
-    public int TaskAllowance => MaxTasks + (Current.SessionStart is DateTimeOffset start ? OverLimitCount(start) : 0);
+    public int ActionCap => Current.SessionStart is not null && Current.ActionCap is int cap ? cap : Settings?.SessionActions ?? SessionActions.DefaultCap;
 
-    /// <summary>A real session runs with more tasks (open and done) than <see cref="TaskAllowance"/>, and the user has not picked yet.</summary>
-    public bool NeedsPick => IsLive && _sessions.State.IsRealSession && Current.Tasks.Count > TaskAllowance;
+    /// <summary>
+    /// Actions this session may hold: <see cref="ActionCap"/> plus the "Add anyway" adds approved for it (those carry a reason and
+    /// stay; only carried-over extras are picked down).
+    /// </summary>
+    public int ActionAllowance => AllowanceOf(Current);
 
-    /// <summary>The open tasks the pick prompt lists, in list order (done ones are never parked).</summary>
+    /// <summary>
+    /// The actions the checklist holds: the running one's by its focused steps (<see cref="SessionActions.Used"/>), the draft's by
+    /// the task list's focus (a task in This session with steps in focus, one per step; any other task one). Done tasks hold one.
+    /// </summary>
+    public int ActionsUsed => Current.SessionStart is not null ? SessionActions.Used(Current) : DraftActions();
+
+    /// <summary>The running session's numbered places, in order (empty for a draft): the data of This session's Quiet view.</summary>
+    public IReadOnlyList<SessionSlot> Slots => Current.SessionStart is not null ? SessionActions.Slots(Current) : [];
+
+    /// <summary>
+    /// A real session runs with more tasks (open and done) than <see cref="ActionAllowance"/>, and the user has not picked yet. Each
+    /// task holds at least one action; steps in focus beyond that are trimmed to fit instead (<see cref="SessionActions.FittedToCap"/>).
+    /// </summary>
+    public bool NeedsPick => IsLive && _sessions.State.IsRealSession && Current.Tasks.Count > ActionAllowance;
+
+    /// <summary>The open tasks the pick prompt lists, in list order (done ones never go).</summary>
     public IReadOnlyList<SessionTask> PickCandidates => Current.Tasks.Where(task => !task.IsDone).ToList();
 
-    /// <summary>How many of the <see cref="PickCandidates"/> may stay: the allowance less the done tasks.</summary>
-    public int PickKeepCount => Math.Max(0, TaskAllowance - Current.Tasks.Count(task => task.IsDone));
+    /// <summary>How many of the <see cref="PickCandidates"/> may stay: the allowance less the done tasks (one action each).</summary>
+    public int PickKeepCount => Math.Max(0, ActionAllowance - Current.Tasks.Count(task => task.IsDone));
+
+    /// <summary>True when the pick sends the tasks it leaves out to Queued (the task list); false: they are parked as come-backs.</summary>
+    public bool PickSendsToQueued => _taskStore is not null;
 
     /// <summary>
-    /// Parks the tasks of <paramref name="shown"/> (the rows the prompt listed) that are not in <paramref name="keep"/>,
-    /// when they are still open. Done tasks and tasks added after the prompt opened are left alone.
+    /// Sends the tasks of <paramref name="shown"/> (the rows the prompt listed) that are not in <paramref name="keep"/> to Queued (to
+    /// Come back to before the task list), when they are still open; each counts as taken off open (ADR 25), as parking did. Done
+    /// tasks and tasks added after the prompt opened are left alone. The kept ones' steps in focus are then trimmed to fit.
     /// </summary>
     public async Task KeepOnlyAsync(IReadOnlySet<Guid> keep, IReadOnlyCollection<Guid> shown)
     {
@@ -167,9 +192,113 @@ public sealed partial class SessionTasksService : IDisposable
         {
             if (Current.Tasks.Any(task => task.Id == id && !task.IsDone))
             {
-                await ParkAsync(id);
+                await SendToQueuedAsync(id);
             }
         }
+
+        if (Current.SessionStart is not null && SessionActions.Used(Current) > ActionAllowance)
+        {
+            await SetAsync(SessionActions.FittedToCap(Current, ActionAllowance));
+        }
+    }
+
+    /// <summary>
+    /// Brings the open step <paramref name="stepId"/> of the running checklist into focus (the target on a step). With no free place
+    /// nothing changes and the answer is <see cref="SessionFocusResult.Full"/>: the caller offers "This session is full".
+    /// </summary>
+    public async Task<SessionFocusResult> FocusStepAsync(Guid stepId)
+    {
+        if (Current.SessionStart is null)
+        {
+            return SessionFocusResult.NotFound;
+        }
+
+        int allowance = _sessions.State.IsTest ? int.MaxValue : ActionAllowance;
+        (SessionChecklist focused, SessionFocusResult result) = SessionActions.Focus(Current, stepId, allowance);
+        if (result == SessionFocusResult.Focused && !ReferenceEquals(focused, Current))
+        {
+            await SetAsync(focused);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// "This session is full", Swap: makes the place <paramref name="slot"/> free. A focused step leaves focus while its task has another
+    /// in focus; otherwise the task leaves the running checklist for Queued (counted as taken off open, ADR 25, so it never makes "All
+    /// tasks done" easier). The caller then brings the newcomer in. False when the place is gone.
+    /// </summary>
+    public async Task<bool> SwapOutAsync(SessionSlot slot)
+    {
+        if (Current.SessionStart is null || Current.Tasks.All(task => task.Id != slot.TaskId))
+        {
+            return false;
+        }
+
+        SessionTask? leaving = Labelled(Current).FirstOrDefault(task => task.Id == slot.TaskId);
+        (SessionChecklist swapped, Guid? left) = SessionActions.SwapOut(Current, slot);
+        await SetAsync(swapped);
+        if (left is not null && leaving is not null)
+        {
+            await QueueOrParkAsync(leaving);
+        }
+
+        return true;
+    }
+
+    // An open task of the running checklist leaves it for Queued (or, before the task list, for Come back to).
+    private async Task SendToQueuedAsync(Guid taskId)
+    {
+        if (_taskStore is null)
+        {
+            await ParkAsync(taskId);
+            return;
+        }
+
+        SessionTask? leaving = Labelled(Current).FirstOrDefault(task => task.Id == taskId);
+        if (leaving is null)
+        {
+            return;
+        }
+
+        await SetAsync(Current.Parked(taskId));
+        await QueueOrParkAsync(leaving);
+    }
+
+    private async Task QueueOrParkAsync(SessionTask task)
+    {
+        if (_taskStore is not null)
+        {
+            // Every view reads the list again (the next session's list shows it in Queued).
+            await _taskStore.PutBackAsync(null, [task with { DoneAt = null }], TaskBin.Queued);
+            return;
+        }
+
+        if (Comebacks is not null)
+        {
+            int openSteps = task.Subtasks.Count(step => !step.IsDone);
+            await Comebacks.AddAsync(ParkTextOf(task.Title, openSteps), task.Category, task.CategoryColor, task.Labels);
+        }
+    }
+
+    // The places a checklist may hold: its cap plus the "Add anyway" adds approved for its session.
+    private int AllowanceOf(SessionChecklist checklist)
+    {
+        int cap = checklist.SessionStart is not null && checklist.ActionCap is int own ? own : Settings?.SessionActions ?? SessionActions.DefaultCap;
+        return cap + (checklist.SessionStart is DateTimeOffset start ? OverLimitCount(start) : 0);
+    }
+
+    // The draft's actions: a task in This session of the task list holds one per step in focus (TaskItem.ActionCount), any other one.
+    private int DraftActions()
+    {
+        if (_taskStore is not { IsActive: true } store)
+        {
+            return Current.Tasks.Count;
+        }
+
+        Dictionary<Guid, TaskItem> stored = store.Lists.Tasks.Where(item => item.Task.IsLive && item.Task.Bin == TaskBin.Session)
+            .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First().Task);
+        return Current.Tasks.Sum(task => !task.IsDone && stored.TryGetValue(task.Id, out TaskItem? item) ? item.ActionCount : 1);
     }
 
     public void LoadBlocking()
@@ -241,8 +370,11 @@ public sealed partial class SessionTasksService : IDisposable
         return SetAsync(Current.Add(title, parentId, categoryId));
     }
 
-    /// <summary>True when the next task would be a 4th: the caller asks to park it or for a reason (never in a test session).</summary>
-    public bool IsAtTaskLimit => !_sessions.State.IsTest && Current.Tasks.Count >= MaxTasks;
+    /// <summary>
+    /// True when This session's actions are all taken (<see cref="ActionCap"/>, ADR 76): the caller asks to park the next one or for a
+    /// reason (never in a test session).
+    /// </summary>
+    public bool IsAtActionLimit => !_sessions.State.IsTest && ActionsUsed >= ActionCap;
 
     /// <summary>Parks <paramref name="title"/> as a come-back instead of adding it.</summary>
     public async Task ParkTitleAsync(string title)
@@ -291,8 +423,8 @@ public sealed partial class SessionTasksService : IDisposable
 
     /// <summary>
     /// Adds a task another device asked for to the running session's checklist (ADR 48), by the same rules as the PC's own
-    /// add: a 4th task (past <see cref="TaskAllowance"/>, which counts done ones) is parked to Come back to instead, and
-    /// the answer says so. Refused when no real session runs here and in the last minute of a phase. A category named in
+    /// add: with no free action (past <see cref="ActionAllowance"/>, which counts done tasks) it goes to Queued instead (to Come back
+    /// to before the task list, ADR 76), and the answer says so; a task with steps that fits gets its first open steps in focus. Refused when no real session runs here and in the last minute of a phase. A category named in
     /// the request is matched by id, else by name, else made (with the colour sent when it is a valid "#RRGGBB").
     /// </summary>
     /// <param name="id">The id the other device chose for the task; a task already here with it counts as done.</param>
@@ -320,19 +452,28 @@ public sealed partial class SessionTasksService : IDisposable
         }
 
         List<string> steps = (request.Steps ?? []).Select(step => step.Title.Trim()).Where(step => step.Length > 0).ToList();
-        if (Current.Tasks.Count >= TaskAllowance)
+        if (SessionActions.Used(Current) >= ActionAllowance)
         {
-            // Past the limit a task is parked, never added: only the PC's own "Add anyway" (with a reason) goes over.
+            // Past the limit a task goes to Queued (or is parked), never added: only the PC's own "Add anyway" (with a reason) goes over.
+            if (_taskStore is { IsActive: true } store)
+            {
+                Guid? queuedCategory = await ResolveRemoteCategoryAsync(request);
+                SessionTask queued = Current.AddWithId(id, title, queuedCategory, steps, request.EstimateMinutes, request.Note).Tasks[^1];
+                queued = queued with { Category = _categories.FirstOrDefault(category => category.Id == queuedCategory)?.Name };
+                await store.PutBackAsync(null, [queued], TaskBin.Queued);
+                return RemoteTaskResult.ParkedInstead($"Queued: this session is full ({ActionAllowance} actions)");
+            }
+
             if (Comebacks is null)
             {
-                return RemoteTaskResult.Refused($"This session already has {TaskAllowance} tasks.");
+                return RemoteTaskResult.Refused($"This session already has {ActionAllowance} actions.");
             }
 
             // Parked with the category the phone sent, when it is a sane name and colour.
             string? parkedCategory = request.Category?.Trim() is { Length: > 0 and <= MaxRemoteText } name ? name : null;
             string? parkedColor = request.CategoryColor is { Length: 7 } hex && hex[0] == '#' && hex[1..].All(char.IsAsciiHexDigit) ? hex : null;
             await Comebacks.AddAsync(steps.Count > 0 ? $"{title} (+{steps.Count} {(steps.Count == 1 ? "step" : "steps")})" : title, parkedCategory, parkedColor);
-            return RemoteTaskResult.ParkedInstead($"Parked: {TaskAllowance} tasks this session");
+            return RemoteTaskResult.ParkedInstead($"Parked: {ActionAllowance} actions this session");
         }
 
         Guid? categoryId = await ResolveRemoteCategoryAsync(request);
@@ -682,7 +823,16 @@ public sealed partial class SessionTasksService : IDisposable
         }
 
         SessionTask? labelled = Labelled(Current).FirstOrDefault(candidate => candidate.Id == taskId);
-        await Comebacks.AddAsync(text, labelled?.Category, labelled?.CategoryColor, labelled?.Labels);
+        if (_taskStore is not null && labelled is not null)
+        {
+            // ADR 76: the same task moves to To sort (its id, number, steps and History stay), so its title stays as it is.
+            await Comebacks.AddAsync(labelled.Title, labelled.Category, labelled.CategoryColor, labelled.Labels, id: taskId);
+        }
+        else
+        {
+            await Comebacks.AddAsync(text, labelled?.Category, labelled?.CategoryColor, labelled?.Labels);
+        }
+
         await SetAsync(Current.Parked(taskId));
     }
 
@@ -698,7 +848,7 @@ public sealed partial class SessionTasksService : IDisposable
             return false;
         }
 
-        if (IsAtTaskLimit && !await RecordOverLimitAsync(overLimitReason ?? string.Empty))
+        if (IsAtActionLimit && !await RecordOverLimitAsync(overLimitReason ?? string.Empty))
         {
             return false;
         }
@@ -706,6 +856,15 @@ public sealed partial class SessionTasksService : IDisposable
         Guid? categoryId = comeback.Category is null
             ? null
             : await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: comeback.Category, CategoryColor: comeback.CategoryColor));
+        if (_taskStore is not null)
+        {
+            // ADR 76: the same task moves (its id, number and History stay); the come-back's tick is then no tick of it.
+            await HoldIfLiveAsync(comebackId);
+            await SetAsync(Current.AddTask(new SessionTask(comebackId, comeback.Text, null, [], categoryId, Labels: TaskLabels.Clean(comeback.Labels))));
+            await Comebacks.DeleteAsync(comebackId);
+            return true;
+        }
+
         await AddAsync(comeback.Text, null, categoryId);
         await Comebacks.TickAsync(comebackId);
         return true;
@@ -746,8 +905,11 @@ public sealed partial class SessionTasksService : IDisposable
             return null;
         }
 
-        IReadOnlyList<SessionSubtask> openSteps = task.Subtasks.Where(step => !step.IsDone).ToList();
-        SyncLaterItem? item = await Later.AddAsync(task.Title, openSteps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, dueOn, task.PlannedFor);
+        // ADR 76: with the task list the same task moves (its id, number, steps and History stay); before it, a new item with its open steps.
+        bool keepsId = _taskStore is not null;
+        IReadOnlyList<SessionSubtask> steps = keepsId ? task.Subtasks : task.Subtasks.Where(step => !step.IsDone).ToList();
+        SyncLaterItem? item = await Later.AddAsync(
+            task.Title, steps, task.Category, task.CategoryColor, task.EstimateMinutes, task.Note, dueOn, task.PlannedFor, keepsId ? task.Labels : null, keepsId ? task.Id : null);
         await SetAsync(Current.Parked(taskId));
         return item?.Id;
     }
@@ -848,7 +1010,10 @@ public sealed partial class SessionTasksService : IDisposable
     public async Task ToggleAsync(Guid id)
     {
         bool wasDone = Current.AllDone;
-        await SetAsync(Current.Toggle(id, _time.GetUtcNow()));
+        // ADR 76: a focused step that is finished hands its place to its task's next open step (the setting, on by default).
+        await SetAsync(Current.SessionStart is not null
+            ? SessionActions.Ticked(Current, id, _time.GetUtcNow(), Settings?.NextStepTakesSlot ?? true)
+            : Current.Toggle(id, _time.GetUtcNow()));
         if (!wasDone && Current.AllDone && IsLive)
         {
             AllDoneReached?.Invoke(this, EventArgs.Empty);
@@ -1049,9 +1214,22 @@ public sealed partial class SessionTasksService : IDisposable
 
     private async Task StartChecklistAsync(DateTimeOffset start)
     {
-        // The draft's tasks are this session's now: they leave the shared next-session list (ADR 48).
+        // The draft's tasks are this session's now: they leave the shared next-session list (ADR 48). ADR 76: their copies in the task
+        // list are kept here first (a task going back to a list comes back whole), and the session takes This session's focus from them.
+        IReadOnlyList<Guid> planned = [];
+        if (_taskStore is not null)
+        {
+            await _taskStore.HoldRunningAsync(Current.Tasks.Select(task => task.Id));
+            planned = _taskStore.HeldFocus();
+        }
+
         await TombstoneNextTasksAsync();
-        await SetAsync(Current.Started(start));
+        SessionChecklist started = Current.Started(start) with { ActionCap = Settings?.SessionActions ?? SessionActions.DefaultCap };
+        started = SessionActions.WithFocus(started, planned);
+        int allowance = AllowanceOf(started);
+        // Tasks with steps and none in focus get their first open steps in focus while places are free; extra focus is trimmed to fit.
+        started = SessionActions.FittedToCap(SessionActions.Joined(started, started.Tasks.Select(task => task.Id), allowance), allowance);
+        await SetAsync(started);
         if (NeedsPick)
         {
             PickRequired?.Invoke(this, EventArgs.Empty);
@@ -1112,7 +1290,7 @@ public sealed partial class SessionTasksService : IDisposable
         {
             DateTimeOffset cutoff = _time.GetUtcNow() - HistoryKept;
             // History keeps each task's category name and colour as they were, so deleting a category later loses nothing.
-            SessionChecklist labelled = Current with { Tasks = Labelled(Current) };
+            SessionChecklist labelled = Current with { Tasks = Labelled(Current), FocusedSteps = null, ActionCap = null };
             _history = [.. _history.Where(item => KeptInHistory(item, cutoff)), labelled];
             await _store.SaveAsync(HistoryKey, _history.Select(Sealed).ToList());
         }
@@ -1127,10 +1305,23 @@ public sealed partial class SessionTasksService : IDisposable
         }
 
         await ShowSharedDraftAsync();
+        if (_taskStore is not null)
+        {
+            await _taskStore.ReleaseRunningAsync();
+        }
     }
 
     private async Task SetAsync(SessionChecklist checklist)
     {
+        if (checklist.SessionStart is not null && Current.SessionStart is not null)
+        {
+            // ADR 76: a task with steps that joins the running session gets its first open steps in focus while places are free
+            // (a test session has no limit); focus on steps no longer open goes.
+            var before = Current.Tasks.Select(task => task.Id).ToHashSet();
+            int allowance = _sessions.State.IsTest ? int.MaxValue / 2 : AllowanceOf(checklist);
+            checklist = SessionActions.Joined(SessionActions.Cleaned(checklist), checklist.Tasks.Where(task => !before.Contains(task.Id)).Select(task => task.Id), allowance);
+        }
+
         Current = checklist.Grouped(_categories);
         bool shared = Current.SessionStart is null && ReconcileNextTasks(Current);
         Changed?.Invoke(this, EventArgs.Empty);

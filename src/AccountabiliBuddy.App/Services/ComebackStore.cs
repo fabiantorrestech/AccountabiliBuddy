@@ -115,8 +115,11 @@ public sealed class ComebackStore
         return saved;
     }
 
-    /// <summary>Adds one, in a category (its name and colour) or none; a blank line adds nothing.</summary>
-    public Task AddAsync(string text, string? category = null, string? categoryColor = null, IReadOnlyList<string>? labels = null)
+    /// <summary>
+    /// Adds one, in a category (its name and colour) or none; a blank line adds nothing. With <paramref name="id"/> (a task moved here
+    /// from another list of the task list, ADR 76) it keeps that id, so the move is a bin change of the same task.
+    /// </summary>
+    public Task AddAsync(string text, string? category = null, string? categoryColor = null, IReadOnlyList<string>? labels = null, Guid? id = null)
     {
         // ADR 72: "##word" in the typed text is a label.
         (string typedText, IReadOnlyList<string>? typedLabels) = TaskLabels.Parse(text.Trim());
@@ -130,8 +133,13 @@ public sealed class ComebackStore
         DateTimeOffset now = _time.GetUtcNow();
         double last = _all.Count == 0 ? 0 : _all.Max(comeback => comeback.Position);
         string? name = CleanCategory(category);
+        if (id is Guid kept)
+        {
+            _all.RemoveAll(other => other.Id == kept);
+        }
+
         _all.Add(new Comeback(
-            Guid.NewGuid(), trimmed, now, EditedAt: now, Position: SharedListMerge.PositionBetween(last, null),
+            id is Guid given && given != Guid.Empty ? given : Guid.NewGuid(), trimmed, now, EditedAt: now, Position: SharedListMerge.PositionBetween(last, null),
             Category: name, CategoryColor: name is null ? null : categoryColor, Labels: labels));
         return SaveAsync();
     }

@@ -268,6 +268,17 @@ public sealed class SessionEngine
     }
 
     /// <summary>
+    /// "Pause timer" (<see cref="AwayKind.Paused"/>): the countdown freezes until <see cref="Return"/> (Resume), which moves the phase's
+    /// end later by the time paused, while enforcement keeps running as in focus. Logged apart from stepping away. It never shortens a
+    /// wait, ends the session or unlocks anything.
+    /// </summary>
+    /// <returns>False with no session running or when already away or paused.</returns>
+    public bool PauseTimer()
+    {
+        return StepAway(AwayKind.Paused);
+    }
+
+    /// <summary>
     /// The user starts a side task of <paramref name="length"/>: the countdown pauses like a step away, but enforcement keeps
     /// running (<see cref="SessionState.PausesEnforcement"/>). The length only says when the user is asked if they are back:
     /// nothing ends and nothing is shortened when it is up.
@@ -316,7 +327,8 @@ public sealed class SessionEngine
     /// <returns>False when not away on a break or interruption, or nothing changed.</returns>
     public bool SetAwayAtDesk(bool atDesk)
     {
-        if (!State.IsAway || State.Away == AwayKind.SideTask || State.AwayAtDesk == atDesk)
+        // A side task and a paused timer enforce as in focus already: there is nothing to hold or lift.
+        if (!State.IsAway || State.Away is AwayKind.SideTask or AwayKind.Paused || State.AwayAtDesk == atDesk)
         {
             return false;
         }

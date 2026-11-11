@@ -44,6 +44,7 @@ public static class SessionStatusFormatter
         string away = state.Away switch
         {
             AwayKind.SideTask => "Side task · ",
+            AwayKind.Paused => "Paused · ",
             not null => "Away · ",
             null => string.Empty,
         };

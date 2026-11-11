@@ -1120,7 +1120,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     // ---- Reading the stores ----
 
     // Three tasks (more only where the session was allowed them), never in a test session: the same rule as adding one on Today.
-    private bool SessionIsFull => _tasks.IsAtTaskLimit && _tasks.Current.Tasks.Count >= _tasks.TaskAllowance;
+    private bool SessionIsFull => _tasks.IsAtActionLimit && _tasks.ActionsUsed >= _tasks.ActionAllowance;
 
     // A tick changes several stores one after another (the record, then the list): the page is rebuilt once, after the tick has
     // drawn, not once per store. Background priority lets the check box and the input go first.

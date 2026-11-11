@@ -16,7 +16,7 @@ public static class DeviceSettingsRegistry
         "session.pcOff", "stepAway", "shutdown", "batteryVisibility", "syncLight", "motion", "timers", "tasks.filterPresets", "tasks.view",
         "stats.view", "history.hidden", "history.hiddenDistractions", "history.names", "dailySteps", "enforcement.limit",
         "setup.computerType", "classify.exemptionProfiles", "dpAssistant", "planHelperDismissed", "updates", "backup.auto.settings",
-        "tasks.viewSearches", "tasks.categoryIds",
+        "tasks.viewSearches", "tasks.categoryIds", "tasks.settings",
     ];
 
     /// <summary>Restored through their services in synced settings, so the edit reaches the other devices.</summary>
@@ -39,7 +39,7 @@ public static class DeviceSettingsRegistry
         "quit.guard.pending", "review.ignored", "review.promoted", "session", "session.overLimit", "session.pcOff.pending",
         "session.taskHistory", "session.tasks", "setup.assistant", "setup.features", "shutdown.autoSaved", "shutdown.reviews", "tasks.receivedHistory", "tasks.handovers",
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
-        "tasks.model",
+        "tasks.model", "tasks.running",
     ];
 
     // Whole families of state: the sync machinery (identity, keys, received files, settings), dev switches.

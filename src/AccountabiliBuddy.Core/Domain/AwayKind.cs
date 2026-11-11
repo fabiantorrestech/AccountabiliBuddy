@@ -33,4 +33,11 @@ public enum AwayKind
     /// engine away; only folded into a record from the Interrupted/Resumed events. Appended last.
     /// </summary>
     DeviceOff,
+
+    /// <summary>
+    /// "Pause timer" (ADR 76, Tasks redesign): the countdown freezes until Resume like any away, and the session ends that much later,
+    /// but enforcement keeps running as in focus (<see cref="SessionState.PausesEnforcement"/>) and input never asks "Back to the
+    /// task?". Logged apart from stepping away. It never shortens a wait, ends the session or unlocks anything. Appended last.
+    /// </summary>
+    Paused,
 }

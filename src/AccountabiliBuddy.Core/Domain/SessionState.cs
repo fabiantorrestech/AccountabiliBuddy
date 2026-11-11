@@ -64,6 +64,9 @@ public sealed record SessionState(
 
     public bool IsAway => Away is not null;
 
+    /// <summary>"Pause timer": the countdown is frozen until Resume while enforcement runs as in focus (<see cref="AwayKind.Paused"/>).</summary>
+    public bool IsPaused => Away == AwayKind.Paused;
+
     /// <summary>
     /// "+10 min" is possible: a timed manual session in its focus phase, not away (break, interruption or side task). Never for
     /// planning, a break phase, Pomodoro, a session with no set end or a test session.
@@ -72,10 +75,10 @@ public sealed record SessionState(
 
     /// <summary>
     /// True while enforcement holds as it was (a break or an interruption with no input seen yet): nothing new is judged and
-    /// nothing blocked is lifted. From the first input (<see cref="AwayAtDesk"/>) and through a side task, enforcement runs
-    /// as in focus; only the focus clock stays paused.
+    /// nothing blocked is lifted. From the first input (<see cref="AwayAtDesk"/>), through a side task and while the timer is
+    /// paused (<see cref="AwayKind.Paused"/>), enforcement runs as in focus; only the focus clock stays paused.
     /// </summary>
-    public bool PausesEnforcement => IsAway && Away != AwayKind.SideTask && !AwayAtDesk;
+    public bool PausesEnforcement => IsAway && Away is not (AwayKind.SideTask or AwayKind.Paused) && !AwayAtDesk;
 
     /// <summary>The time countdowns read: frozen at <see cref="AwaySince"/> while away, else <paramref name="now"/>.</summary>
     public DateTimeOffset CountdownTime(DateTimeOffset now) => AwaySince is DateTimeOffset since && since < now ? since : now;

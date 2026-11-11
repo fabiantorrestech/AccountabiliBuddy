@@ -18,13 +18,24 @@ namespace AccountabiliBuddy.Core.Domain;
 /// Local only, and it must never sync or count as a session: its <paramref name="SessionStart"/> is null on purpose, which is what
 /// keeps it out of the synced task lists, the day bar and the shutdown card. Its tasks carry their own tick times.
 /// </param>
+/// <param name="FocusedSteps">
+/// The running session's steps in focus (ADR 76): each open one is one of the session's actions (<see cref="AccountabiliBuddy.Core.Tasks.SessionActions"/>);
+/// a task with steps and none in focus is one action. This PC's own: kept with the checklist, never synced (the step shape the
+/// other devices read has no focus). Null for none.
+/// </param>
+/// <param name="ActionCap">
+/// How many actions the running session holds (the Tasks setting, 2 to 5, as it was when the session started): a change of the
+/// setting never reaches a running session. Null in a draft or history.
+/// </param>
 public sealed record SessionChecklist(
     DateTimeOffset? SessionStart,
     bool MadeBeforeStart,
     IReadOnlyList<SessionTask> Tasks,
     Guid? CurrentId = null,
     int DroppedOpen = 0,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool OutsideSession = false)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool OutsideSession = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? FocusedSteps = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? ActionCap = null)
 {
     /// <summary>How long a session runs before a finished checklist may end it at once (ADR 25).</summary>
     public static readonly TimeSpan EndAtOnceAfter = TimeSpan.FromMinutes(10);
@@ -39,7 +50,11 @@ public sealed record SessionChecklist(
 
     public bool HasTasks => Tasks.Count > 0;
 
-    /// <summary>Every task ticked, and none taken off open while the session ran (<see cref="DroppedOpen"/>).</summary>
+    /// <summary>
+    /// Every task ticked (with all its steps, focused or not), and none taken off open while the session ran
+    /// (<see cref="DroppedOpen"/>). Focus never changes it: a task whose focused steps are done but that has open steps left is not
+    /// done, so counting actions (ADR 76) never makes "All tasks done" (ADR 25) easier to reach.
+    /// </summary>
     public bool AllDone => HasTasks && DroppedOpen == 0 && Tasks.All(task => task.IsDone);
 
     public int DoneCount => Tasks.Count(task => task.IsDone);

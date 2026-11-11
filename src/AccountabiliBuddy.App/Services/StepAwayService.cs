@@ -103,12 +103,15 @@ public sealed class StepAwayService : IDisposable
     /// </summary>
     public Func<bool> HoldsAway { get; set; } = () => false;
 
+    /// <summary>True while the timer is paused ("Pause timer", ADR 76): Resume is <see cref="Return"/>.</summary>
+    public bool IsPaused => _sessions.State.IsPaused;
+
     /// <summary>True during a side task (the screens show its time in amber).</summary>
     public bool IsSideTask => _sessions.State.Away == AwayKind.SideTask;
 
-    /// <summary>"Away · 4:12" while away, "Side task · 6:12" during a side task, else empty.</summary>
+    /// <summary>"Away · 4:12" while away, "Side task · 6:12" during a side task, "Paused · 1:05" while the timer is paused, else empty.</summary>
     public string AwayText => _sessions.State.AwaySince is DateTimeOffset since
-        ? $"{(IsSideTask ? "Side task" : "Away")} · {Clock(_time.GetUtcNow() - since)}"
+        ? $"{(IsSideTask ? "Side task" : IsPaused ? "Paused" : "Away")} · {Clock(_time.GetUtcNow() - since)}"
         : string.Empty;
 
     /// <summary>Raised when the user steps away or is back, and every second while away (for <see cref="AwayText"/>).</summary>
@@ -156,6 +159,17 @@ public sealed class StepAwayService : IDisposable
     public void Return()
     {
         _sessions.Return();
+    }
+
+    /// <summary>
+    /// "Pause timer" from the session menu (ADR 76): the countdown freezes until Resume (<see cref="Return"/>) while blocking and nudges
+    /// keep running; input never asks "Back to the task?". It never shortens a wait or unlocks anything.
+    /// </summary>
+    /// <returns>False with no session running or when already away or paused.</returns>
+    public bool PauseTimer()
+    {
+        CloseCard();
+        return _sessions.PauseTimer();
     }
 
     /// <summary>The shortcut: steps away during a session, or is "I'm back" while away.</summary>
@@ -224,6 +238,12 @@ public sealed class StepAwayService : IDisposable
 
         if (state.AwaySince is DateTimeOffset since)
         {
+            // A paused timer is not an away: input is expected, enforcement runs as in focus, and only Resume ends it.
+            if (state.Away == AwayKind.Paused)
+            {
+                return;
+            }
+
             if (state.Away == AwayKind.SideTask)
             {
                 CheckSideTask(state, since, now);

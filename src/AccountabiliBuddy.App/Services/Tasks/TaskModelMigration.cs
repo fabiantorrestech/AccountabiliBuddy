@@ -58,7 +58,7 @@ public static class TaskModelMigration
                 TimeZoneInfo.Local,
                 IsNumberingDevice: numbering == self,
                 FirstNumber: 1,
-                SessionActions: TaskStore.SessionActions);
+                SessionActions: store.SessionActions());
             TaskMigrationResult result = TaskMigration.Run(input);
             Log(logPath, time, Describe(result.Counts));
             if (!result.Counts.IsBalanced)

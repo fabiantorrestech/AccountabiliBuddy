@@ -25,7 +25,7 @@ public sealed partial class SessionTasksService
             return (AddToTodayResult.NothingToAdd, null);
         }
 
-        if (IsAtTaskLimit)
+        if (IsAtActionLimit)
         {
             if (overLimitReason is null)
             {
@@ -41,13 +41,22 @@ public sealed partial class SessionTasksService
         Guid? categoryId = source.Category is { } name && name.Trim().Length > 0
             ? await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: source.CategoryColor))
             : null;
-        List<SessionSubtask> steps = source.Steps.Select(step => new SessionSubtask(Guid.NewGuid(), step.Title, null)).ToList();
+        // ADR 76: a task moved from another list of the task list keeps its id and its steps' ids (a bin change of the same task).
+        bool keepsId = source.Id is Guid && _taskStore is not null;
+        List<SessionSubtask> steps = source.Steps.Select(step => new SessionSubtask(keepsId ? step.Id : Guid.NewGuid(), step.Title, keepsId ? step.DoneAt : null)).ToList();
         var task = new SessionTask(
-            Guid.NewGuid(), title, null, steps, categoryId,
+            keepsId ? source.Id!.Value : Guid.NewGuid(), title, null, steps, categoryId,
             EstimateMinutes: SessionChecklist.CleanEstimate(source.EstimateMinutes), Note: SessionChecklist.CleanNote(source.Note),
             Labels: TaskLabels.Clean(source.Labels));
-        await SetAsync(Current.AddTask(task));
-        return (AddToTodayResult.Added, task.Id);
+        if (keepsId)
+        {
+            await HoldIfLiveAsync(task.Id);
+        }
+
+        SessionChecklist added = Current.AddTask(task);
+        Guid addedId = added.Tasks.Count > Current.Tasks.Count ? added.Tasks[^1].Id : task.Id;
+        await SetAsync(added);
+        return (AddToTodayResult.Added, addedId);
     }
 
     /// <summary>
@@ -101,7 +110,10 @@ public sealed partial class SessionTasksService
             return (AddToTodayResult.NothingToAdd, null);
         }
 
-        var source = new TodaySource(item.Title, OpenStepsOf(item.Subtasks), item.Category, item.CategoryColor, item.EstimateMinutes, item.Note, item.Labels);
+        bool keepsId = _taskStore is not null;
+        var source = new TodaySource(
+            item.Title, keepsId ? item.Subtasks ?? [] : OpenStepsOf(item.Subtasks), item.Category, item.CategoryColor, item.EstimateMinutes, item.Note, item.Labels,
+            keepsId ? laterId : null);
         (AddToTodayResult Result, Guid? TaskId) added = await AddToTodayAsync(source, overLimitReason);
         if (added.Result == AddToTodayResult.Added)
         {
@@ -120,7 +132,8 @@ public sealed partial class SessionTasksService
             return (AddToTodayResult.NothingToAdd, null);
         }
 
-        (AddToTodayResult Result, Guid? TaskId) added = await AddToTodayAsync(new TodaySource(item.Title, [], Labels: item.Labels), overLimitReason);
+        (AddToTodayResult Result, Guid? TaskId) added = await AddToTodayAsync(
+            new TodaySource(item.Title, [], Labels: item.Labels, Id: _taskStore is not null ? autoSavedId : null), overLimitReason);
         if (added.Result == AddToTodayResult.Added)
         {
             await AutoSaved.RemoveAsync(autoSavedId);
@@ -138,10 +151,19 @@ public sealed partial class SessionTasksService
         }
 
         (AddToTodayResult Result, Guid? TaskId) added = await AddToTodayAsync(
-            new TodaySource(comeback.Text, [], comeback.Category, comeback.CategoryColor, Labels: comeback.Labels), overLimitReason);
+            new TodaySource(comeback.Text, [], comeback.Category, comeback.CategoryColor, Labels: comeback.Labels, Id: _taskStore is not null ? comebackId : null),
+            overLimitReason);
         if (added.Result == AddToTodayResult.Added)
         {
-            await Comebacks.TickAsync(comebackId);
+            // ADR 76: the task moved (same id), so the come-back goes rather than being ticked off.
+            if (_taskStore is not null)
+            {
+                await Comebacks.DeleteAsync(comebackId);
+            }
+            else
+            {
+                await Comebacks.TickAsync(comebackId);
+            }
         }
 
         return added;
@@ -217,7 +239,16 @@ public sealed partial class SessionTasksService
             return false;
         }
 
-        await Comebacks.AddAsync(ParkTextOf(item.Title, OpenStepsOf(item.Subtasks).Count), item.Category, item.CategoryColor, item.Labels);
+        if (_taskStore is not null)
+        {
+            // ADR 76: the same task moves to To sort (id, number, steps and History stay), so its title stays as it is.
+            await Comebacks.AddAsync(item.Title, item.Category, item.CategoryColor, item.Labels, id: laterId);
+        }
+        else
+        {
+            await Comebacks.AddAsync(ParkTextOf(item.Title, OpenStepsOf(item.Subtasks).Count), item.Category, item.CategoryColor, item.Labels);
+        }
+
         await Later.DeleteAsync(laterId);
         return true;
     }
@@ -230,7 +261,8 @@ public sealed partial class SessionTasksService
             return null;
         }
 
-        SyncLaterItem? item = await Later.AddAsync(comeback.Text, null, comeback.Category, comeback.CategoryColor, null, null, null, labels: comeback.Labels);
+        SyncLaterItem? item = await Later.AddAsync(
+            comeback.Text, null, comeback.Category, comeback.CategoryColor, null, null, null, labels: comeback.Labels, id: _taskStore is not null ? comebackId : null);
         await Comebacks.DeleteAsync(comebackId);
         return item?.Id;
     }
@@ -262,7 +294,7 @@ public sealed partial class SessionTasksService
                 laterId = await MoveHistoryTaskToLaterAsync(source.Value.Id);
                 break;
             case ViewModels.PulledListKind.AutoSaved when AutoSaved is not null:
-                laterId = (await Later.AddAsync(title, null, null, null, null, null, null, slot))?.Id;
+                laterId = (await Later.AddAsync(title, null, null, null, null, null, null, slot, id: _taskStore is not null ? source.Value.Id : null))?.Id;
                 await AutoSaved.RemoveAsync(source.Value.Id);
                 return laterId is not null;
             case null:
@@ -576,6 +608,13 @@ public sealed partial class SessionTasksService
         // A done task comes back open: all its steps reopen; an open one brings its open steps.
         IReadOnlyList<SessionSubtask> steps = task.IsDone ? task.Subtasks : OpenStepsOf(task.Subtasks);
         return new TodaySource(task.Title, steps, categoryName, categoryColor, task.EstimateMinutes, task.Note, task.Labels);
+    }
+
+    // A task joining a running session from a list: its copy in the task list is kept with the session's (ADR 76), before the list
+    // it leaves deletes it there, so it can come back whole.
+    private Task HoldIfLiveAsync(Guid taskId)
+    {
+        return _taskStore is not null && Current.SessionStart is not null && IsLive ? _taskStore.AlsoHoldAsync(taskId) : Task.CompletedTask;
     }
 
     private static IReadOnlyList<SessionSubtask> OpenStepsOf(IReadOnlyList<SessionSubtask>? steps)

@@ -7,9 +7,10 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// "Pick 3 for this session": a real session started with more than <see cref="SessionTasksService.MaxTasks"/> tasks.
-/// The first ones in list order (3, plus any approved "Add anyway") start ticked; Keep needs exactly that many, and the others are parked as come-backs. There is
-/// no way to skip it.
+/// "Pick 3 for this session": a real session started with more tasks than it has actions (<see cref="SessionTasksService.ActionCap"/>,
+/// ADR 76; each task holds at least one). The first ones in list order (the cap, plus any approved "Add anyway") start ticked; Keep
+/// needs exactly that many, and the others go to Queued (come-backs before the task list); the kept tasks' steps in focus are then
+/// trimmed to fit. There is no way to skip it.
 /// </summary>
 public sealed partial class PickTasksViewModel : ObservableObject
 {
@@ -35,7 +36,7 @@ public sealed partial class PickTasksViewModel : ObservableObject
 
     public string Heading => $"Pick {_keepCount} for this session";
 
-    /// <summary>E.g. "Picked 3 of 3. The other 4 go to Come back to."</summary>
+    /// <summary>E.g. "Picked 3 of 3. The other 4 go to Queued."</summary>
     [ObservableProperty]
     public partial string Status { get; set; } = string.Empty;
 
@@ -59,7 +60,8 @@ public sealed partial class PickTasksViewModel : ObservableObject
     private void Recount()
     {
         int picked = Rows.Count(row => row.IsPicked);
-        Status = $"Picked {picked} of {_keepCount}. The other {Rows.Count - picked} go to Come back to.";
+        string destination = _tasks.PickSendsToQueued ? "Queued" : "Come back to";
+        Status = $"Picked {picked} of {_keepCount}. The other {Rows.Count - picked} go to {destination}.";
         KeepCommand.NotifyCanExecuteChanged();
     }
 

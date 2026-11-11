@@ -569,6 +569,12 @@ public sealed partial class HistoryViewModel : ObservableObject
             outcome += $" · interrupted {FormatDuration(interrupted)}";
         }
 
+        // "Pause timer" (ADR 76): logged apart from stepping away, never counted as focus.
+        if (record.PausedTime is { } paused && paused > TimeSpan.Zero)
+        {
+            outcome += $" · paused {FormatDuration(paused)}";
+        }
+
         // The planning stage before the focus countdown: shown apart and never counted as focus.
         if (record.PlanningTime > TimeSpan.Zero)
         {

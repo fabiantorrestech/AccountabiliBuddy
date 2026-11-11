@@ -320,6 +320,12 @@ public partial class App : Application
         sessionTasks.LoadBlocking();
         // ADR 76: the one task list; it becomes the source once every list is loaded (TaskModelMigration, below).
         var taskStore = new AccountabiliBuddy.App.Services.Tasks.TaskStore(documents, new DpapiDataProtector(), time);
+        // ADR 76: Settings › Tasks (actions per session, the next step takes the slot); more actions is a looser change and waits.
+        var taskSettings = new AccountabiliBuddy.App.Services.Tasks.TaskSettingsService(
+            documents, time, _sessions, () => _configuration!.Current.Locks.LooseningDelay);
+        taskSettings.LoadBlocking();
+        sessionTasks.Settings = taskSettings;
+        taskStore.SessionActions = () => taskSettings.SessionActions;
         // ADR 66: waited ends confirmed early apply themselves when their wait is over; the notice shows where the cursor is.
         _armedEnds = new ArmedEndService(_sessions, documents, new DpapiDataProtector(), (title, message) => _presenter?.ShowNotice(title, message));
         _armedEnds.Register(new SessionArmedEndHandler(_sessions));

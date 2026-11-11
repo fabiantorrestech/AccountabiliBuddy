@@ -27,11 +27,11 @@ public sealed class TaskStore
     public const string CategoryIdsKey = "tasks.categoryIds";
     public const string MarkerKey = "tasks.model";
 
+    /// <summary>The running session's tasks as they were when it started (device-local state, sealed; see <see cref="HoldRunningAsync"/>).</summary>
+    public const string RunningKey = "tasks.running";
+
     /// <summary>The model the marker names; a later model change migrates again from this one.</summary>
     public const int ModelVersion = 1;
-
-    /// <summary>The session's places for tasks a list adds to the next session (the three-task rule, until it counts actions).</summary>
-    public const int SessionActions = SessionTasksService.MaxTasks;
 
     private readonly SqliteJsonDocumentStore _store;
     private readonly IDataProtector _protector;
@@ -39,6 +39,10 @@ public sealed class TaskStore
     private TaskLists _lists = TaskLists.Empty;
     private Dictionary<Guid, Guid> _categoryIds = [];
     private Dictionary<Guid, string> _viewSearches = [];
+
+    // The running session's tasks as they were in the list when it started (they leave the shared list then, Q32): a task that goes
+    // back to a list during or after the session comes back from here with its number, reminders and everything the checklist can't hold.
+    private Dictionary<Guid, SyncTaskItem> _running = [];
 
     // Saves run one after another, so an older list never overwrites a newer one.
     private Task _saving = Task.CompletedTask;
@@ -55,6 +59,9 @@ public sealed class TaskStore
 
     /// <summary>The other devices of the group (id and kind), for the numbering device. Set by the app.</summary>
     public Func<IEnumerable<(Guid DeviceId, string Kind)>> OtherDevices { get; set; } = () => [];
+
+    /// <summary>How many actions This session takes when a list adds to it (the Tasks setting, ADR 76). Set by the app.</summary>
+    public Func<int> SessionActions { get; set; } = () => Core.Tasks.SessionActions.DefaultCap;
 
     /// <summary>The running session's checklist; null while none runs. Set by the app (<see cref="SessionBin"/>).</summary>
     public Func<IReadOnlyList<SessionTask>?> RunningChecklist { get; set; } = () => null;
@@ -99,6 +106,7 @@ public sealed class TaskStore
                 LoadList<SyncTaskLogItem>(LogKey).Where(item => item.Entry?.Task is not null).ToList());
             _categoryIds = LoadSealed<Dictionary<Guid, Guid>>(CategoryIdsKey) ?? [];
             _viewSearches = LoadSealed<Dictionary<Guid, string>>(ViewSearchesKey) ?? [];
+            _running = LoadRunning();
             _lists = lists;
             IsActive = true;
             return true;
@@ -139,8 +147,107 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        TaskLists applied = TaskListRules.ApplyLocal(_lists, changed, Self, Now, Zone, SessionActions);
-        return Commit(applied, source, fromOtherDevice: false).Save;
+        // A running session's task that goes to a list (Move to Later, Park) comes back with what it had, under its own id.
+        TaskLists withHeld = WithHeldBack(_lists, LiveIds(changed), out bool heldTaken);
+        TaskLists applied = TaskListRules.ApplyLocal(withHeld, changed, Self, Now, Zone, SessionActions());
+        Task save = Commit(applied, source, fromOtherDevice: false).Save;
+        return heldTaken ? Task.WhenAll(save, SaveRunningAsync()) : save;
+    }
+
+    /// <summary>
+    /// Tasks put in the list where <paramref name="wanted"/> says (ADR 76; <see cref="TaskListRules.Place"/>): a move keeps the task's
+    /// id and number; a running session's task comes back from what it had when the session started. Saved, and the views told
+    /// (<paramref name="source"/> null: every view reads it again, its sender too).
+    /// </summary>
+    public Task PlaceAsync(object? source, IReadOnlyList<TaskItem> wanted)
+    {
+        if (!IsActive || wanted.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        TaskLists placed = TaskListRules.Place(_lists, wanted, _running, Self, Now);
+        bool heldTaken = false;
+        foreach (TaskItem task in wanted)
+        {
+            heldTaken |= _running.Remove(task.Id);
+        }
+
+        Task save = Commit(placed, source, fromOtherDevice: false).Save;
+        return heldTaken ? Task.WhenAll(save, SaveRunningAsync()) : save;
+    }
+
+    /// <summary>
+    /// Running checklist tasks go back to the list in <paramref name="bin"/> (Queued after a swap or the pick), each at the end of it,
+    /// with their number and everything they had when the session started (<see cref="TaskListRules.FromChecklist"/>).
+    /// </summary>
+    public Task PutBackAsync(object? source, IReadOnlyList<SessionTask> tasks, TaskBin bin)
+    {
+        if (!IsActive || tasks.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        List<TaskLabel> labels = _lists.Labels.Select(item => item.Label).ToList();
+        double position = TaskListRules.EndOf(_lists, bin);
+        DateTimeOffset now = Now;
+        var wanted = tasks.Select((task, index) =>
+        {
+            TaskItem? held = _running.TryGetValue(task.Id, out SyncTaskItem? kept) ? kept.Task
+                : _lists.Tasks.FirstOrDefault(item => item.Id == task.Id && item.Task.IsLive)?.Task;
+            return TaskListRules.FromChecklist(task, held, bin, position + index, labels, now);
+        }).ToList();
+        return PlaceAsync(source, wanted);
+    }
+
+    /// <summary>
+    /// The session that starts takes these tasks (<paramref name="ids"/>): their copies as they are now are kept on this PC (sealed),
+    /// before they leave the shared list, so whatever goes back to a list later comes back whole. Replaces what an earlier session held.
+    /// </summary>
+    public Task HoldRunningAsync(IEnumerable<Guid> ids)
+    {
+        if (!IsActive)
+        {
+            return Task.CompletedTask;
+        }
+
+        var wanted = ids.ToHashSet();
+        _running = _lists.Tasks.Where(item => item.Task.IsLive && wanted.Contains(item.Id))
+            .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First());
+        return SaveRunningAsync();
+    }
+
+    /// <summary>
+    /// A task joins the running session from a list (Later, To sort): its copy as it is now is kept with the session's others before
+    /// it leaves the list, so it can come back whole.
+    /// </summary>
+    public Task AlsoHoldAsync(Guid id)
+    {
+        if (!IsActive || _lists.Tasks.FirstOrDefault(item => item.Id == id && item.Task.IsLive) is not SyncTaskItem item)
+        {
+            return Task.CompletedTask;
+        }
+
+        _running[id] = item;
+        return SaveRunningAsync();
+    }
+
+    /// <summary>The focused steps of the held tasks (This session's focus as it was planned), for the session that starts.</summary>
+    public IReadOnlyList<Guid> HeldFocus()
+    {
+        return _running.Values.SelectMany(item => (item.Task.Steps ?? []).Where(step => step.Focus && !step.IsDone).Select(step => step.Id)).ToList();
+    }
+
+    /// <summary>The session ended: nothing is held any more (what it had stays in its history).</summary>
+    public Task ReleaseRunningAsync()
+    {
+        if (_running.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        _running = [];
+        return SaveRunningAsync();
     }
 
     /// <summary>The PC's category list as it now is (added, renamed, recoloured, reordered, taken off), from <paramref name="source"/>.</summary>
@@ -165,7 +272,7 @@ public sealed class TaskStore
             return false;
         }
 
-        TaskLists? merged = TaskListRules.MergeFile(_lists, file, Self, Now, Zone, SessionActions);
+        TaskLists? merged = TaskListRules.MergeFile(_lists, file, Self, Now, Zone, SessionActions());
         if (merged is null)
         {
             return false;
@@ -215,7 +322,7 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        TaskLists applied = TaskListRules.ApplyLocal(_lists, fields, Self, Now, Zone, SessionActions);
+        TaskLists applied = TaskListRules.ApplyLocal(_lists, fields, Self, Now, Zone, SessionActions());
         return Commit(applied, null, fromOtherDevice: true).Save;
     }
 
@@ -301,6 +408,58 @@ public sealed class TaskStore
         }
 
         return _store.SaveAllAsync(documents);
+    }
+
+    // Tombstones of held tasks that a change brings back are replaced by the held copies first (the change is then an edit of them).
+    private TaskLists WithHeldBack(TaskLists lists, IReadOnlySet<Guid> ids, out bool taken)
+    {
+        taken = false;
+        if (_running.Count == 0 || ids.Count == 0)
+        {
+            return lists;
+        }
+
+        var tasks = lists.Tasks.ToList();
+        for (int index = 0; index < tasks.Count; index++)
+        {
+            Guid id = tasks[index].Id;
+            if (!tasks[index].Task.IsLive && ids.Contains(id) && _running.Remove(id, out SyncTaskItem? held))
+            {
+                tasks[index] = held;
+                taken = true;
+            }
+        }
+
+        return taken ? lists with { Tasks = tasks } : lists;
+    }
+
+    private static HashSet<Guid> LiveIds(OldTaskFields fields)
+    {
+        return fields.NextTasks.Where(item => item.DeletedAt is null).Select(item => item.Id)
+            .Concat(fields.Later.Where(item => item.DeletedAt is null).Select(item => item.Id))
+            .Concat(fields.Parked.Where(item => item.DeletedAt is null).Select(item => item.Id))
+            .Concat(fields.AutoSaved.Where(item => item.DeletedAt is null).Select(item => item.Id))
+            .ToHashSet();
+    }
+
+    private Dictionary<Guid, SyncTaskItem> LoadRunning()
+    {
+        try
+        {
+            return (LoadSealed<List<SyncTaskItem>>(RunningKey) ?? []).Where(item => item.Task is not null)
+                .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First());
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
+        {
+            // Unreadable: the running session's tasks come back as new tasks if they go to a list; nothing else depends on it.
+            return [];
+        }
+    }
+
+    private Task SaveRunningAsync()
+    {
+        List<SyncTaskItem> held = _running.Values.ToList();
+        return _store.SaveAsync(RunningKey, Sealed(held));
     }
 
     private Stored Sealed<T>(T value)

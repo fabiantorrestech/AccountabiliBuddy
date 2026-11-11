@@ -28,7 +28,7 @@ public static class TaskListRules
     /// </summary>
     public static TaskLists ApplyLocal(TaskLists lists, OldTaskFields changed, Guid self, DateTimeOffset now, TimeZoneInfo zone, int sessionActions)
     {
-        OldTaskFields prepared = Adopted(changed, lists.Tasks, self);
+        OldTaskFields prepared = Adopted(WithoutMoveDepartures(changed, lists.Tasks, now), lists.Tasks, self);
         HashSet<Guid> known = lists.Tasks.Select(item => item.Id).ToHashSet();
         OldTaskReadResult read = OldTaskFieldsReader.Read(new OldTaskReadInput(
             prepared, self, TaskNumbering.PcKind, lists.Tasks, lists.Labels, lists.Log, self, now, zone, sessionActions));
@@ -61,6 +61,89 @@ public static class TaskListRules
         }
 
         return new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared));
+    }
+
+    /// <summary>
+    /// Tasks put in the list as this device's edits, each where <paramref name="wanted"/> says (its bin, place and fields). A live task
+    /// with the id is changed field by field (<see cref="TaskEdits"/>): a move is a bin edit, so it keeps its id, number, steps,
+    /// reminders and History. A tombstone or an unknown id comes back to life: from its <paramref name="held"/> copy when there is one
+    /// (a running session's task, which keeps its number and everything else), else as a new task; either way it is stamped after the
+    /// tombstone, so every device takes it back. Steps leave focus outside This session.
+    /// </summary>
+    public static TaskLists Place(TaskLists lists, IReadOnlyList<TaskItem> wanted, IReadOnlyDictionary<Guid, SyncTaskItem>? held, Guid self, DateTimeOffset now)
+    {
+        var tasks = lists.Tasks.ToList();
+        foreach (TaskItem want in wanted)
+        {
+            TaskItem target = want.Bin == TaskBin.Session ? want : want with { Steps = Unfocused(want.Steps) };
+            int index = tasks.FindIndex(item => item.Id == target.Id);
+            SyncTaskItem? current = index >= 0 ? tasks[index] : null;
+            DateTimeOffset? gone = current is { Task.IsLive: false } ? current.Task.DeletedAt ?? current.Task.EditedAt : null;
+            SyncTaskItem? source = current is { Task.IsLive: true } ? current
+                : held is not null && held.TryGetValue(target.Id, out SyncTaskItem? kept) && kept.Task.IsLive ? kept
+                : null;
+
+            SyncTaskItem placed;
+            if (source is null)
+            {
+                DateTimeOffset at = gone is DateTimeOffset deletedAt && deletedAt >= now ? deletedAt.AddTicks(1) : now;
+                placed = new SyncTaskItem(
+                    target with { EditedAt = at, TouchedAt = at, DeletedAt = null, CreatedAt = target.CreatedAt > at ? at : target.CreatedAt },
+                    TaskFieldStamps.AllAt(new TaskFieldStamp(at, self)));
+            }
+            else
+            {
+                placed = source;
+                foreach (TaskField field in TaskFieldValues.All)
+                {
+                    placed = TaskEdits.Edit(placed, field, target, now, self);
+                }
+
+                if (gone is DateTimeOffset deletedAt && placed.Task.EditedAt <= deletedAt)
+                {
+                    // Nothing changed since it was held: still newer than the tombstone, or no device would take it back.
+                    DateTimeOffset at = deletedAt.AddTicks(1);
+                    placed = TaskEdits.Edit(placed, TaskField.Bin, placed.Task with { Position = placed.Task.Position + 1e-7 }, at, self);
+                }
+            }
+
+            if (index >= 0)
+            {
+                tasks[index] = placed;
+            }
+            else
+            {
+                tasks.Add(placed);
+            }
+        }
+
+        return lists with { Tasks = tasks };
+    }
+
+    /// <summary>A place after every live task in <paramref name="bin"/> (1 in an empty bin).</summary>
+    public static double EndOf(TaskLists lists, TaskBin bin)
+    {
+        List<double> positions = lists.Tasks.Select(item => item.Task).Where(task => task.IsLive && task.Bin == bin).Select(task => task.Position).ToList();
+        return positions.Count == 0 ? 1 : Math.Floor(positions.Max()) + 1;
+    }
+
+    /// <summary>
+    /// A running checklist's task as it goes back to the list in <paramref name="bin"/> (Queued after a swap or the pick): what its
+    /// <paramref name="held"/> copy had (number, reminders, highlight, due, devices, origin, step estimates) with the checklist's
+    /// changes (<see cref="TaskSessionMapper.Apply"/>), at <paramref name="position"/>; a new task when nothing was held.
+    /// </summary>
+    public static TaskItem FromChecklist(SessionTask task, TaskItem? held, TaskBin bin, double position, IReadOnlyList<TaskLabel> labels, DateTimeOffset now)
+    {
+        TaskItem target = held ?? new TaskItem(task.Id, task.Title, bin, position, now, now, now);
+        TaskItem applied = TaskSessionMapper.Apply(target, task, labels);
+        bool done = bin == TaskBin.Done;
+        return applied with
+        {
+            Bin = bin,
+            PrevBin = done ? TaskBin.Session : bin == TaskBin.Queued ? TaskBin.Session : applied.PrevBin,
+            Position = position,
+            DoneAt = done ? applied.DoneAt ?? now : null,
+        };
     }
 
     /// <summary>
@@ -191,6 +274,33 @@ public static class TaskListRules
             Views = lists.Views.ToList(),
             TaskLog = lists.Log.ToList(),
         };
+    }
+
+    // A move between two of this PC's own lists (ADR 76) keeps the task's id: the list it goes to adds it with that id, which moves its
+    // bin; the list it leaves then drops it (a tombstone) or ticks it (a come-back taken to Today). That second half is not a delete or
+    // a tick of the task, which now lives in another list: it is left out. A list only shows a task whose home it is, so a real delete
+    // or tick always comes from the task's own list.
+    private static OldTaskFields WithoutMoveDepartures(OldTaskFields changed, IReadOnlyList<SyncTaskItem> tasks, DateTimeOffset now)
+    {
+        Dictionary<Guid, TaskItem> live = tasks.Where(item => item.Task.IsLive).GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First().Task);
+
+        bool Departs(OldTaskList list, ISharedItem item, bool ticked) =>
+            (item.DeletedAt is not null || ticked)
+            && live.TryGetValue(item.Id, out TaskItem? task)
+            && !OldTaskFieldsWriter.SameHome(TaskFacadeLists.ListOf(task, now), list);
+
+        return changed with
+        {
+            NextTasks = changed.NextTasks.Where(item => !Departs(OldTaskList.NextTasks, item, item.DoneAt is not null)).ToList(),
+            Later = changed.Later.Where(item => !Departs(OldTaskList.Later, item, item.DoneAt is not null)).ToList(),
+            Parked = changed.Parked.Where(item => !Departs(OldTaskList.Parked, item, item.DoneAt is not null)).ToList(),
+            AutoSaved = changed.AutoSaved.Where(item => !Departs(OldTaskList.AutoSaved, item, false)).ToList(),
+        };
+    }
+
+    private static IReadOnlyList<TaskStep>? Unfocused(IReadOnlyList<TaskStep>? steps)
+    {
+        return steps is null || steps.All(step => !step.Focus) ? steps : steps.Select(step => step with { Focus = false }).ToList();
     }
 
     // A local item kept here that this device holds only as a stub or tombstone (a handover taken in, or one that came back) is

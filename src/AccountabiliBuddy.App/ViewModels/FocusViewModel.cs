@@ -406,6 +406,7 @@ public sealed partial class FocusViewModel : ObservableObject
         string label = state.IsTest ? "Test session"
             : state.Away == AwayKind.SideTask ? "Side task"
             : state.Away == AwayKind.Interrupted ? "Interrupted"
+            : state.Away == AwayKind.Paused ? "Timer paused"
             : state.IsAway ? "Stepped away"
             : state.IsEnforcing ? "Focus" : "Break";
         string[] counts = checklist?.ProgressText.Split('/') ?? [];

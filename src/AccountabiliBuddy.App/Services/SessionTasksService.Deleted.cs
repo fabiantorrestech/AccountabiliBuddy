@@ -123,12 +123,12 @@ public sealed partial class SessionTasksService
         {
             // The list it left is gone (that session ended, or a session started since): it comes back as a new task today.
             (AddToTodayResult result, _) = await AddToTodayAsync(SourceOfTask(task));
-            return result == AddToTodayResult.Added ? (true, null) : (false, $"Today already has {MaxTasks} tasks. Take one off first.");
+            return result == AddToTodayResult.Added ? (true, null) : (false, $"Today already has {ActionCap} actions. Take one off first.");
         }
 
-        if (!_sessions.State.IsTest && Current.Tasks.Count >= TaskAllowance)
+        if (!_sessions.State.IsTest && ActionsUsed >= ActionAllowance)
         {
-            return (false, $"This session already has {TaskAllowance} tasks.");
+            return (false, $"This session already has {ActionAllowance} actions.");
         }
 
         Guid? categoryId = await CategoryIdOfAsync(task);
@@ -198,7 +198,7 @@ public sealed partial class SessionTasksService
         if (at < 0)
         {
             (AddToTodayResult result, _) = await AddToTodayAsync(SourceOfTask(entry.Task!));
-            return result == AddToTodayResult.Added ? (true, null) : (false, $"Today already has {MaxTasks} tasks. Take one off first.");
+            return result == AddToTodayResult.Added ? (true, null) : (false, $"Today already has {ActionCap} actions. Take one off first.");
         }
 
         _history = _history.Select((checklist, index) => index == at ? checklist.Insert(entry.Task!, entry.Index) : checklist).ToList();

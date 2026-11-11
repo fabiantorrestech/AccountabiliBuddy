@@ -190,6 +190,17 @@ public sealed class SessionController : IDisposable
         return _engine.StepAway(kind);
     }
 
+    /// <summary>
+    /// "Pause timer" (ADR 76): the countdown freezes until <see cref="Return"/> (Resume) and the session ends that much later, while
+    /// enforcement keeps running as in focus (<see cref="SessionEngine.PauseTimer"/>). Logged apart from stepping away. It never
+    /// shortens a wait, ends the session or unlocks anything.
+    /// </summary>
+    /// <returns>False with no session running or when already away or paused.</returns>
+    public bool PauseTimer()
+    {
+        return _engine.PauseTimer();
+    }
+
     /// <summary>A side task: the countdown pauses like a step away, enforcement keeps running (see <see cref="StepAwayService"/>).</summary>
     /// <returns>False with no session running or when already away.</returns>
     public bool StartSideTask(TimeSpan length)

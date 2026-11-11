@@ -34,13 +34,13 @@ public sealed partial class SessionReviewViewModel : ObservableObject
     /// <summary>When the reviewed session started (null for the week's card).</summary>
     public DateTimeOffset? SessionStart { get; init; }
 
-    /// <summary>Tasks added past the 3-task limit during the session.</summary>
+    /// <summary>Tasks added past the session's actions (ADR 76; 3 by default) during the session.</summary>
     public int OverLimitCount { get; init; }
 
     public bool HasOverLimit => OverLimitCount > 0;
 
-    /// <summary>E.g. "Over 3 tasks: 2".</summary>
-    public string OverLimitText => $"Over {SessionTasksService.MaxTasks} tasks: {OverLimitCount}";
+    /// <summary>E.g. "Added anyway: 2".</summary>
+    public string OverLimitText => $"Added anyway: {OverLimitCount}";
 
     /// <summary>"Phone: picked up 2× · longest down 18m" (ADR 26); empty until the phone's file comes.</summary>
     [ObservableProperty]

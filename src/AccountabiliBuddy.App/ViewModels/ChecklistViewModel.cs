@@ -182,8 +182,8 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
 
     /// <summary>The prompt's title line: the held task.</summary>
     public string OverLimitText => _heldPull is { Kind: var kind }
-        ? $"Keep it to {SessionTasksService.MaxTasks}: add \"{_heldTitle}\" anyway? It stays in {ListName(kind)} until you do."
-        : $"Keep it to {SessionTasksService.MaxTasks}: park \"{_heldTitle}\" for later?";
+        ? $"Keep it to {_tasks.ActionCap}: add \"{_heldTitle}\" anyway? It stays in {ListName(kind)} until you do."
+        : $"Keep it to {_tasks.ActionCap}: park \"{_heldTitle}\" for later?";
 
     /// <summary>The reason box's placeholder.</summary>
     public string OverLimitReasonHint => _heldPull is null
@@ -260,7 +260,7 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         }
 
         PullNotice = string.Empty;
-        if (_tasks.IsAtTaskLimit)
+        if (_tasks.IsAtActionLimit)
         {
             // A 4th task: hold it and ask (park it, or add it anyway with a reason).
             _heldTitle = title;

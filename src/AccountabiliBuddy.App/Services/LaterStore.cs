@@ -131,10 +131,14 @@ public sealed class LaterStore
         return saved;
     }
 
-    /// <summary>Adds an item at the end of the list; a blank title adds nothing. Returns it (null when nothing was added).</summary>
+    /// <summary>
+    /// Adds an item at the end of the list; a blank title adds nothing. Returns it (null when nothing was added). With
+    /// <paramref name="id"/> (a task moved here from another list of the task list, ADR 76) it keeps that id, so the move is a bin
+    /// change of the same task (its number, reminders and History stay).
+    /// </summary>
     public async Task<SyncLaterItem?> AddAsync(
         string title, IReadOnlyList<SessionSubtask>? steps, string? category, string? categoryColor, int? estimateMinutes, string? note,
-        DateOnly? dueOn, PlannedSlot? plannedFor = null, IReadOnlyList<string>? labels = null)
+        DateOnly? dueOn, PlannedSlot? plannedFor = null, IReadOnlyList<string>? labels = null, Guid? id = null)
     {
         // ADR 72: "##word" in a typed title is a label.
         (string typed, IReadOnlyList<string>? typedLabels) = TaskLabels.Parse(title.Trim());
@@ -147,8 +151,13 @@ public sealed class LaterStore
 
         DateTimeOffset now = _time.GetUtcNow();
         double last = _all.Where(item => item.DeletedAt is null).Select(item => item.Position).DefaultIfEmpty(0).Max();
+        if (id is Guid kept)
+        {
+            _all.RemoveAll(other => other.Id == kept);
+        }
+
         var item = new SyncLaterItem(
-            Guid.NewGuid(), trimmed, steps is { Count: > 0 } ? steps : null, category, categoryColor,
+            id is Guid given && given != Guid.Empty ? given : Guid.NewGuid(), trimmed, steps is { Count: > 0 } ? steps : null, category, categoryColor,
             SessionChecklist.CleanEstimate(estimateMinutes), SessionChecklist.CleanNote(note), dueOn,
             now, null, SharedListMerge.PositionBetween(last, null), plannedFor, Labels: labels);
         _all.Add(item);

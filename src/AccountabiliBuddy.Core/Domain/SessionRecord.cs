@@ -22,6 +22,19 @@ public sealed record SessionRecord(
     /// <summary>How long the user was away during the session that ended (a stretch still going isn't counted).</summary>
     public TimeSpan AwayTime => Total(Away ?? []);
 
+    /// <summary>
+    /// The stretches the user stepped away (a break, an interruption or a side task), oldest first, apart from the paused timer
+    /// (<see cref="PausedStretches"/>). A stretch still going ends at <see cref="DateTimeOffset.MaxValue"/>.
+    /// </summary>
+    public IReadOnlyList<AwayStretch> SteppedAwayStretches =>
+        (Away ?? []).Where(stretch => stretch.Kind is AwayKind.Break or AwayKind.Interrupted or AwayKind.SideTask).ToList();
+
+    /// <summary>The stretches the timer was paused ("Pause timer"), oldest first; logged apart from stepping away.</summary>
+    public IReadOnlyList<AwayStretch> PausedStretches => (Away ?? []).Where(stretch => stretch.Kind == AwayKind.Paused).ToList();
+
+    /// <summary>How long the timer was paused in the session that ended (a pause still going isn't counted).</summary>
+    public TimeSpan PausedTime => AwayTimeOf(AwayKind.Paused);
+
     /// <summary>How long the user was away for <paramref name="kind"/> (breaks or interruptions).</summary>
     public TimeSpan AwayTimeOf(AwayKind kind) => Total((Away ?? []).Where(stretch => stretch.Kind == kind));
 

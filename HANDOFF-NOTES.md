@@ -8,7 +8,7 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 
 - [x] Phase 0 Orientation (this file)
 - [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
-- [ ] Phase 2 PC services (store DONE (M2.1); session cap, reminders, undo, history, tidy-up, views; calendar export BLOCKED, see Calendar)
+- [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); reminders, undo, history, tidy-up, views; calendar export BLOCKED, see Calendar)
 - [ ] Phase 3 PC UI (3.1 title bar, 3.2 layout, 3.3 rows/open task, 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
 - [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix)
 - Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
@@ -30,6 +30,18 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 - [x] Backups: `TaskListsExport` + `BackupAccess` carry/restore the new parts (older backups: old fields read as this PC's edits); `DeviceSettingsRegistry` classifies the new docs.
 - [x] Pure logic in Core: `TaskLists`, `TaskListRules` (ApplyLocal, MergeFile/MergeLists, Normalize = settle finished Shelf tasks to History + numbers + prune 90 d/30 d, WithParts), `TaskFacadeLists`, `TaskCategoryEdits`. Check program: 114/114 PASS (M1's + M2 facades, local edits, phone and PC<->PC round trips).
 - Next task (M2.2): cap by actions; the session bin as stored tasks while a session runs (today: `TaskStore.SessionBin()` view, Q32).
+
+## M2 task 2 done (session actions, swap, focus, pause; moves keep ids)
+
+- [x] Cap in actions: `Core/Tasks/SessionActions.cs` (+ `SessionSlot`, `SessionFocusResult`): `ActionsOf`, `Used`, `Free`, `Slots`, `Joined`, `Ticked` (next step takes the slot), `Focus`, `SwapOut`, `FittedToCap`, `WithFocus`, `Cleaned`. `SessionChecklist.FocusedSteps` + `ActionCap` (PC-local, never synced; cleared in history). `AllDone`/`CanEndAtOnce` unchanged (Q47).
+- [x] `SessionTasksService`: `MaxTasks`/`TaskAllowance`/`IsAtTaskLimit` -> `ActionCap`/`ActionAllowance`/`ActionsUsed`/`IsAtActionLimit`; `NeedsPick`/`PickKeepCount` (one action per task at least); `KeepOnlyAsync` -> Queued; `AddRemoteAsync` full -> Queued; `FocusStepAsync`, `SwapOutAsync`, `Slots`, `PickSendsToQueued`; join focus in `SetAsync`; refill in `ToggleAsync`; start takes stored focus and fits the cap (Q48).
+- [x] Settings: `Services/Tasks/TaskSettings.cs`, `TaskSettingsService.cs` (`tasks.settings`, device-local; Q50); `TaskStore.SessionActions` reads the setting.
+- [x] Session bin decision (Q32): not stored; `tasks.running` holds the running tasks' copies (`HoldRunningAsync`, `AlsoHoldAsync`, `PutBackAsync`, `PlaceAsync`, `ReleaseRunningAsync`); `TaskListRules.Place`/`FromChecklist`/`EndOf`.
+- [x] Moves keep ids (Q52): `TaskListRules.ApplyLocal` ignores move departures; Later/Comeback adds take an id; SessionTasksService moves pass it.
+- [x] Pause timer (Q45), Step away unchanged (Q44); `SessionRecord` paused/stepped-away stretches; History line.
+- [x] Session ended data: `SessionLayoutService` (Q54, not wired). Quiet view data = `Slots` (Q53).
+- [x] `doc/hard-rules.md` ADR 76 entry extended. Check program 168/168 (54 new). Dev app started clean.
+- Next (M3+): UI for focus/swap ("This session is full" = `Slots` + `SwapOutAsync` + the add), step list popover, session menu (Pause = `StepAwayService.PauseTimer`), Settings › Tasks (cap, next step takes the slot), wire `SessionLayoutService`.
 
 ## M2 must wire (done in M2 task 1, see above; kept for reference)
 

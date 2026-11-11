@@ -61,7 +61,7 @@ public sealed partial class ComebackRowViewModel : ObservableObject
             return;
         }
 
-        if (_tasks.IsAtTaskLimit)
+        if (_tasks.IsAtActionLimit)
         {
             OverLimitError = null;
             IsAskingOverLimit = true;
