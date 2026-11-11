@@ -37,6 +37,9 @@ public sealed class TaskReminderRinger : IDisposable
 
     // The level the output is raised to for the ring now ("Ring even when the PC is muted"); null while not raised.
     private int? _raisedTo;
+
+    // The front reminder whose raise failed: not tried again until another one is at the front.
+    private string? _raiseFailedFor;
     private bool _busy;
     private bool _disposed;
 
@@ -188,21 +191,44 @@ public sealed class TaskReminderRinger : IDisposable
         PlaySoundIfDue(front, now, shown, policy);
     }
 
-    // "Ring even when the PC is muted": the output is raised only while the front reminder rings out loud. A normal reminder during a
-    // session (one quiet bell) gets no raise, and the raise is put back when the front becomes quiet; Core Audio is touched only on a change.
+    // "Ring even when the PC is muted": the output follows the front reminder. Raised only while it rings out loud (a normal reminder
+    // during a session, one quiet bell, gets none, and the raise is put back when the front turns quiet); a Can't miss raises to 100 and
+    // a normal one after it lowers to the normal level, never below the user's own (put back first, then raised from there). A raise
+    // that fails is tried again only for the next front. Core Audio is touched only on a change.
     private void FollowVolume(TaskReminderEntry front)
     {
         bool loud = _settings.Current.RingEvenWhenMuted && !(_sessionRunning() && !front.CantMiss);
-        int level = front.CantMiss ? 100 : _settings.Current.Volume;
-        if (loud && (_raisedTo is null || level > _raisedTo))
+        if (!loud)
         {
-            _guard.RaiseFor(level);
-            _raisedTo = level;
+            if (_raisedTo is not null)
+            {
+                _guard.Restore();
+                _raisedTo = null;
+            }
+
+            return;
         }
-        else if (!loud && _raisedTo is not null)
+
+        int level = front.CantMiss ? 100 : _settings.Current.Volume;
+        if (_raisedTo == level || _raiseFailedFor == front.Key)
+        {
+            return;
+        }
+
+        if (_raisedTo is int higher && level < higher)
         {
             _guard.Restore();
             _raisedTo = null;
+        }
+
+        if (_guard.RaiseFor(level))
+        {
+            _raisedTo = level;
+            _raiseFailedFor = null;
+        }
+        else
+        {
+            _raiseFailedFor = front.Key;
         }
     }
 
@@ -266,6 +292,7 @@ public sealed class TaskReminderRinger : IDisposable
         CloseWindow();
         _guard.Restore();
         _raisedTo = null;
+        _raiseFailedFor = null;
     }
 
     private void CloseWindow()

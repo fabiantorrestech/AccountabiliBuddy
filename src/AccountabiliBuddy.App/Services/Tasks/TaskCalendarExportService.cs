@@ -356,6 +356,7 @@ public sealed class TaskCalendarExportService : IDisposable
         if (Pending(planned).Count == 0)
         {
             _appCalendarTrouble = 0;
+            _confirmWaits.Clear();
             SetStatus(null, NeedsConsent);
             return false;
         }
@@ -379,6 +380,13 @@ public sealed class TaskCalendarExportService : IDisposable
             return false;
         }
 
+        if (!access.Has(GoogleCalendarClient.AppCreatedScope))
+        {
+            SetStatus(AppConsentText, true);
+            return false;
+        }
+
+        // After the scope check: without calendar.app.created every claim is refused, which would wrongly give the records up.
         if (_reclaimPending && _state.AppCalendarId is { } toReclaim)
         {
             _reclaimPending = false;
@@ -396,15 +404,10 @@ public sealed class TaskCalendarExportService : IDisposable
             }
         }
 
-        if (!access.Has(GoogleCalendarClient.AppCreatedScope))
-        {
-            SetStatus(AppConsentText, true);
-            return false;
-        }
-
         string? problem = null;
         bool needsConsent = false;
         List<TaskCalendarAction> actions = Pending(planned);
+        var confirming = new HashSet<Guid>();
         if (!access.Has(GoogleCalendarClient.EventsScope))
         {
             // Without that consent nothing is written outside the app's own calendar.
@@ -421,6 +424,7 @@ public sealed class TaskCalendarExportService : IDisposable
                 DateTimeOffset checkedAt = _time.GetUtcNow();
                 foreach (TaskCalendarAction action in actions.Where(action => waiting.Contains(action.TaskId) && IsAppCalendarDelete(action)))
                 {
+                    confirming.Add(action.TaskId);
                     if (_confirmWaits.TryGetValue(action.TaskId, out var pause) && checkedAt < pause.NextAt)
                     {
                         _confirmPending = true;
@@ -458,6 +462,12 @@ public sealed class TaskCalendarExportService : IDisposable
                 needsConsent = true;
                 problem = PickedConsentText;
             }
+        }
+
+        // A task no longer waiting for its confirmation (handled, changed, its pick gone, consent given) drops its wait.
+        foreach (Guid stale in _confirmWaits.Keys.Where(id => !confirming.Contains(id)).ToList())
+        {
+            _confirmWaits.Remove(stale);
         }
 
         var records = new Dictionary<Guid, TaskCalendarRecord>(_state.Records);
