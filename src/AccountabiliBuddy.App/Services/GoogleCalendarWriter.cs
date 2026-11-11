@@ -62,8 +62,11 @@ public sealed class GoogleCalendarWriter
     /// only with full calendar access, which the app never asks for, or with calendar.app.created for a calendar this client made. So a
     /// calendar the user made, or one made by an earlier Cloud project, is refused, even when calendar.events is granted.
     /// </summary>
-    /// <returns>True when it is the app's own; false when Google refuses (403) or doesn't have it (404).</returns>
-    /// <exception cref="HttpRequestException">A rate limit, a missing scope, or any other failure.</exception>
+    /// <returns>
+    /// True when it is the app's own; false when Google refuses (403, also "insufficient scope": the caller has already checked that the
+    /// sign-in holds calendar.app.created, so that answer means the calendar isn't this client's) or doesn't have it (404).
+    /// </returns>
+    /// <exception cref="HttpRequestException">A rate limit, or any other failure.</exception>
     public async Task<bool> ClaimCalendarAsync(string accessToken, string calendarId, CancellationToken cancellationToken)
     {
         var body = new JsonObject { ["description"] = AppCalendarDescription };
@@ -74,7 +77,7 @@ public sealed class GoogleCalendarWriter
             return true;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound
-                                              || (ex.StatusCode == HttpStatusCode.Forbidden && !GoogleErrorReason.IsRateLimit(ex) && !GoogleErrorReason.IsMissingScope(ex)))
+                                              || (ex.StatusCode == HttpStatusCode.Forbidden && !GoogleErrorReason.IsRateLimit(ex)))
         {
             return false;
         }
@@ -118,6 +121,26 @@ public sealed class GoogleCalendarWriter
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
             await InsertAsync(accessToken, calendarId, eventId, calendarEvent, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Whether the calendar holds the event, not cancelled (a read: calendar.readonly is enough). Used before this PC deletes its own
+    /// copy of a task's event because another device keeps it in the picked calendar under the same id.
+    /// </summary>
+    /// <returns>False when Google doesn't have it (404, 410), has it cancelled, or won't show it (403 other than a rate limit).</returns>
+    /// <exception cref="HttpRequestException">A rate limit, or any other failure.</exception>
+    public async Task<bool> EventExistsAsync(string accessToken, string calendarId, string eventId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using JsonDocument found = await _network.GetJsonAsync(EventUri(calendarId, eventId), accessToken, cancellationToken);
+            return Text(found.RootElement, "status") != "cancelled";
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone
+                                              || (ex.StatusCode == HttpStatusCode.Forbidden && !GoogleErrorReason.IsRateLimit(ex)))
+        {
+            return false;
         }
     }
 

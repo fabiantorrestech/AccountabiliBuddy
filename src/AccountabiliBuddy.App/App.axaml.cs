@@ -110,6 +110,7 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger? _taskReminderRinger;
     private AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService? _taskCalendarExport;
+    private AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService? _taskReminderSettings;
     private AccountabiliBuddy.App.Services.Tasks.TaskAccountSettingsService? _taskAccount;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
@@ -1331,6 +1332,7 @@ public partial class App : Application
             // ADR 76: task reminders (due times, snooze, Can't miss, ringing); the volume guard first puts back what a crashed ring left raised.
             var reminderSettings = new AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService(documents);
             reminderSettings.LoadBlocking();
+            _taskReminderSettings = reminderSettings;
             var volumeGuard = new AccountabiliBuddy.App.Services.Tasks.MasterVolumeGuard(new AccountabiliBuddy.Platform.Windows.Audio.WindowsMasterVolume(), documents);
             volumeGuard.RestoreLeftoverBlocking();
             _taskReminders = new AccountabiliBuddy.App.Services.Tasks.TaskReminderService(taskStore, reminderSettings, documents, time) { Actions = _taskActions };
@@ -1347,6 +1349,8 @@ public partial class App : Application
                 new GoogleCalendarWriter(_calendarNetwork, googleEndpoints), dataProtector, documents, time,
                 Path.Combine(dataDirectory, AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService.LogFileName), taskAccount);
             _taskCalendarExport.LoadBlocking();
+            _taskCalendarExport.SharesTaskLists = () => syncSettings.Current.ShareTaskLists;
+            syncSettings.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _taskCalendarExport.SyncNowAsync());
             _calendarSync.SkipCalendar = _taskCalendarExport.IsAppCalendar;
             // The default view and the picked calendar became the account's: this PC's own values are taken over once (where the account
             // has none), in memory before the export and the views start.
@@ -1864,6 +1868,27 @@ public partial class App : Application
                 return note;
             };
         }
+
+        // ADR 76, 78: the task reminder settings go through their service, so the ringer and the calendar export follow at once (a reminder
+        // setting loosens nothing about a session). An older backup's picked calendar is the account's now, taken over only where it has none.
+        backups.DeviceRestorers[AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService.DocumentKey] = async value =>
+        {
+            if (_taskReminderSettings is null
+                || System.Text.Json.JsonSerializer.Deserialize<AccountabiliBuddy.App.Services.Tasks.TaskReminderSettings>(
+                    value, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) is not { } wanted)
+            {
+                return null;
+            }
+
+            if (wanted.PickedCalendarId is { } oldPicked && _taskAccount is not null)
+            {
+                await _taskAccount.AdoptLegacyAsync(null, oldPicked);
+                wanted = wanted with { PickedCalendarId = null };
+            }
+
+            await _taskReminderSettings.UpdateAsync(_ => wanted);
+            return null;
+        };
 
         // ADR 76: the task store keeps these two in memory and saves them back, so a raw restore would be overwritten: it goes through the store.
         foreach (string mapKey in new[] { AccountabiliBuddy.App.Services.Tasks.TaskStore.CategoryIdsKey, AccountabiliBuddy.App.Services.Tasks.TaskStore.ViewSearchesKey })

@@ -181,7 +181,8 @@ public sealed class GoogleCalendarClient
                     RequiredString(item, "id"),
                     OptionalString(item, "summaryOverride") ?? OptionalString(item, "summary") ?? "(no name)",
                     OptionalString(item, "backgroundColor"),
-                    item.TryGetProperty("primary", out JsonElement primary) && primary.ValueKind == JsonValueKind.True));
+                    item.TryGetProperty("primary", out JsonElement primary) && primary.ValueKind == JsonValueKind.True,
+                    OptionalString(item, "description")));
             }
 
             pageToken = OptionalString(page.RootElement, "nextPageToken");

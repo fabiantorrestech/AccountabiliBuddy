@@ -55,23 +55,26 @@ public static class TaskCalendarMapping
     }
 
     /// <summary>
-    /// The task still wants its event (live, open, switch on) but isn't kept on this device (<paramref name="self"/> not among its
-    /// devices, or this PC not in a group yet): another device owns the event now, so this PC forgets it rather than deleting it.
+    /// The task still wants its event (live, open, switch on, and still a due date or a reminder that can ring) but isn't kept on this
+    /// device (<paramref name="self"/> not among its devices, or this PC not in a group yet): another device owns the event now, so this
+    /// PC forgets it rather than deleting it. A task that wants no event any more is deleted instead, so its event is never left behind
+    /// when the keeping device never wrote it (a phone, or export off there).
     /// </summary>
-    public static bool KeptElsewhere(TaskItem task, Guid? self)
+    public static bool KeptElsewhere(TaskItem task, Guid? self, TimeZoneInfo zone, TaskDateOnlyEvent dateOnly)
     {
         return task.IsLive
                && !task.IsDone
                && task.Bin != TaskBin.Done
                && task.Calendar
                && task.Devices is not null
-               && !(self is Guid device && task.Devices.Contains(device));
+               && !(self is Guid device && task.Devices.Contains(device))
+               && EventFor(task, zone, dateOnly) is not null;
     }
 
     /// <summary>The ids of the tasks <see cref="KeptElsewhere"/>, for <see cref="TaskCalendarDiff.Plan"/>.</summary>
-    public static IReadOnlySet<Guid> KeptElsewhereIds(IEnumerable<TaskItem> tasks, Guid? self)
+    public static IReadOnlySet<Guid> KeptElsewhereIds(IEnumerable<TaskItem> tasks, Guid? self, TimeZoneInfo zone, TaskDateOnlyEvent dateOnly)
     {
-        return tasks.Where(task => KeptElsewhere(task, self)).Select(task => task.Id).ToHashSet();
+        return tasks.Where(task => KeptElsewhere(task, self, zone, dateOnly)).Select(task => task.Id).ToHashSet();
     }
 
     /// <param name="dateOnly">What a due date without a time becomes.</param>

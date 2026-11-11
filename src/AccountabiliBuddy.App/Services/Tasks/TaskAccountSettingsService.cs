@@ -49,6 +49,12 @@ public sealed class TaskAccountSettingsService
     /// <summary>The device that chose the picked calendar (it had calendar.events then); null when it was never chosen.</summary>
     public Guid? PickedCalendarBy => Current.PickedCalendarStamp?.By;
 
+    /// <summary>
+    /// The pick was really chosen on a device (not only taken over from one device's old setting at the upgrade, which says nothing
+    /// about that device's consent).
+    /// </summary>
+    public bool PickedCalendarChosen => TaskAccountSettingsEdits.IsChosen(Current.PickedCalendarStamp);
+
     /// <summary>A setting changed, here or on another device.</summary>
     public event EventHandler? Changed;
 

@@ -5,7 +5,8 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <summary>
 /// Changes to the account's Tasks settings (<see cref="SyncTaskAccountSettings"/>) made on this device. A choice is stamped now, or just
 /// after the stamp it replaces when that one is ahead (another device's fast clock), so an edit made after seeing a value always wins
-/// over it on every device. Choosing the value a field already has, with a stamp, changes nothing.
+/// over it on every device. Choosing the value a field already has, with a real stamp, changes nothing; with only the adopted stamp
+/// (<see cref="SyncTaskAccountSettings.AdoptedAt"/>) it is stamped now, so the explicit choice can't lose a tie to another device.
 /// </summary>
 public static class TaskAccountSettingsEdits
 {
@@ -13,7 +14,7 @@ public static class TaskAccountSettingsEdits
     {
         SyncTaskAccountSettings current = settings ?? SyncTaskAccountSettings.Empty;
         Guid? wanted = viewId == Guid.Empty ? null : viewId;
-        if (current.DefaultViewStamp is not null && current.DefaultViewId == wanted)
+        if (IsChosen(current.DefaultViewStamp) && current.DefaultViewId == wanted)
         {
             return current;
         }
@@ -25,7 +26,7 @@ public static class TaskAccountSettingsEdits
     {
         SyncTaskAccountSettings current = settings ?? SyncTaskAccountSettings.Empty;
         string? wanted = string.IsNullOrWhiteSpace(calendarId) ? null : calendarId.Trim();
-        if (current.PickedCalendarStamp is not null && current.PickedCalendarId == wanted)
+        if (IsChosen(current.PickedCalendarStamp) && current.PickedCalendarId == wanted)
         {
             return current;
         }
@@ -78,6 +79,12 @@ public static class TaskAccountSettingsEdits
         }
 
         return current;
+    }
+
+    /// <summary>A stamp of a real choice (not none, not the one-time take-over at the upgrade).</summary>
+    public static bool IsChosen(TaskFieldStamp? stamp)
+    {
+        return stamp is not null && stamp.At > SyncTaskAccountSettings.AdoptedAt;
     }
 
     private static DateTimeOffset After(TaskFieldStamp? replaced, DateTimeOffset now)

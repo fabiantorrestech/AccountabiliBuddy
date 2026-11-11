@@ -71,6 +71,8 @@ public sealed class TaskCalendarExportService : IDisposable
     // "AB Reminders" was gone or refused this many times in a row: the first time it is made again at once, after that only once per
     // backoff wait, so a calendar Google keeps refusing never makes a new calendar every few seconds.
     private int _appCalendarTrouble;
+
+    private bool _loggedMarkedHide;
     private DateTimeOffset _retryAt = DateTimeOffset.MinValue;
 
     // The count last logged for tasks left to the devices that may write in a calendar picked elsewhere (logged when it changes).
@@ -109,6 +111,9 @@ public sealed class TaskCalendarExportService : IDisposable
     /// <summary><see cref="Problem"/> or <see cref="NeedsConsent"/> changed.</summary>
     public event EventHandler? StatusChanged;
 
+    /// <summary>"Sync task lists" is on (set by the app): only then does another device's pick count here.</summary>
+    public Func<bool> SharesTaskLists { get; set; } = () => true;
+
     /// <summary>The events this PC wrote, by task id (ids and hashes only).</summary>
     public IReadOnlyDictionary<Guid, TaskCalendarRecord> Records => _state.Records;
 
@@ -116,9 +121,26 @@ public sealed class TaskCalendarExportService : IDisposable
     /// Whether the Google calendar is the app's own "AB Reminders" (the reading side leaves it out: its events are tasks). By its
     /// recorded id only, so a calendar of the user's that happens to have the name is still read.
     /// </summary>
+    /// <remarks>
+    /// A PC that has no record of it (export off here, a new install) knows it by its name and the description only the app writes
+    /// (<see cref="GoogleCalendarWriter.AppCalendarDescription"/>, set when it is made or confirmed): a read-only check, no write. The
+    /// first time it is hidden that way the log says so.
+    /// </remarks>
     public bool IsAppCalendar(GoogleCalendarEntry calendar)
     {
-        return _state.AppCalendarId is { } id && calendar.Id == id;
+        if (_state.AppCalendarId is { } id)
+        {
+            return calendar.Id == id;
+        }
+
+        bool marked = calendar.Summary == AppCalendarName && calendar.Description == GoogleCalendarWriter.AppCalendarDescription;
+        if (marked && !_loggedMarkedHide)
+        {
+            _loggedMarkedHide = true;
+            Log("AB Reminders hidden from reading by its description (no record of it on this PC)");
+        }
+
+        return marked;
     }
 
     public void LoadBlocking()
@@ -261,8 +283,15 @@ public sealed class TaskCalendarExportService : IDisposable
             await SaveStateAsync();
         }
 
-        IReadOnlySet<Guid> keptElsewhere = TaskCalendarMapping.KeptElsewhereIds(tasks, self);
+        IReadOnlySet<Guid> keptElsewhere = TaskCalendarMapping.KeptElsewhereIds(tasks, self, zone, settings.DateOnlyEvent);
         string? picked = _account.PickedCalendarId;
+        bool pickedByOther = _account.PickedCalendarBy is Guid by && by != (self ?? Guid.Empty);
+        if (picked is not null && pickedByOther && !SharesTaskLists())
+        {
+            // "Sync task lists" off: another device's pick isn't this PC's to follow; its tasks stay in AB Reminders here.
+            picked = null;
+        }
+
         IReadOnlyDictionary<Guid, TaskCalendarWanted> wanted = TaskCalendarMapping.Wanted(tasks, zone, self, picked, settings.DateOnlyEvent);
         IReadOnlyList<TaskCalendarAction> planned = TaskCalendarDiff.Plan(wanted, _state.Records, keptElsewhere);
 
@@ -305,13 +334,24 @@ public sealed class TaskCalendarExportService : IDisposable
         {
             // Without that consent nothing is written outside the app's own calendar.
             HashSet<Guid> waiting = actions.Where(TouchesPicked).Select(action => action.TaskId).ToHashSet();
-            bool pickedElsewhere = picked is not null && _account.PickedCalendarBy is Guid by && by != (self ?? Guid.Empty);
+            // A pick only taken over at the upgrade (adopted stamp) says nothing about that device's consent: treated as picked here.
+            bool pickedElsewhere = picked is not null && pickedByOther && _account.PickedCalendarChosen;
             if (waiting.Count > 0 && pickedElsewhere)
             {
                 // The account's pick was made on another device, which had the consent and writes these tasks there (the event ids are
-                // shared). This PC adds none of them anywhere, and deletes its own "AB Reminders" events for them, so a task never
-                // gets a second event; its records in the picked calendar (from before) are kept for clean-up once consent is back.
-                actions = actions.Where(action => !waiting.Contains(action.TaskId) || IsAppCalendarDelete(action)).ToList();
+                // shared). This PC adds none of them anywhere. It deletes its own "AB Reminders" event for such a task only once a read
+                // shows the same event in the picked calendar, so a task never ends up with no event when that device doesn't write it
+                // (lost consent, uninstalled, stopped syncing); its records in the picked calendar are kept for clean-up once consent is back.
+                var confirmed = new List<TaskCalendarAction>();
+                foreach (TaskCalendarAction action in actions.Where(action => waiting.Contains(action.TaskId) && IsAppCalendarDelete(action)))
+                {
+                    if (await _writer.EventExistsAsync(access.Token, picked!, action.Recorded!.EventId, CancellationToken.None))
+                    {
+                        confirmed.Add(action);
+                    }
+                }
+
+                actions = actions.Where(action => !waiting.Contains(action.TaskId)).Concat(confirmed).ToList();
                 problem = PickedElsewhereText;
                 if (waiting.Count != _leftElsewhereLogged)
                 {

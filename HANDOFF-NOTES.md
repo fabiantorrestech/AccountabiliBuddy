@@ -278,3 +278,12 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - M7: setup assistant/Settings chooser: `backups.Read(text, password)` -> `TaskAccountSettingsService.FromBackup`, `AccountCopy()`, `Fresh`; apply with `ApplyAsync`. Settings › Tasks default view -> `TaskViewService.SetDefaultAsync`. Picked calendar row as in M3.3 (`AllowPickedCalendarAsync` then `SetPickedCalendarAsync`). Phone (Kotlin) mirror of `taskAccountSettings` is out of this run (it ignores the part).
 - Docs: hard-rules (ADR 76 entry: the fifth part; ADR 78 entry), ADR 0076 note, ADR 0078 amendment, HANDOFF-QUESTIONS 66 and 83.
 - Checks: new `tasks-ui-checks/AccountSettingsChecks` (47/47), `CalendarExportChecks` +9 (89/89; two old lines now set the pick through the account), Program.cs 454/454, AppChecks 20/20.
+
+## M3 task 3 fix round 2 (+ per-account pick safety)
+
+- `TaskCalendarMapping.KeptElsewhere(task, self, zone, dateOnly)` needs `EventFor != null`; otherwise Delete.
+- `GoogleCalendarWriter.ClaimCalendarAsync`: 403 insufficientPermissions = not ours. `EventExistsAsync` (GET by id) before deleting an AB Reminders copy for a pick made elsewhere.
+- `GoogleCalendarEntry.Description`; `IsAppCalendar` falls back to name + `AppCalendarDescription` when this PC has no record.
+- Pick safety: `TaskAccountSettingsService.PickedCalendarChosen` (adopted stamp is not "elsewhere"); `TaskCalendarExportService.SharesTaskLists` (set from `SyncSettings.ShareTaskLists`; off = another device's pick ignored). `TaskAccountSettingsEdits.IsChosen`: same value over an adopted stamp is restamped.
+- `DeviceSettingsRegistry`: `tasks.reminderSettings` device (restorer in App goes through `TaskReminderSettingsService`, legacy pick to the account); `tasks.reminderMissed`, `tasks.volumeRestore`, `tasks.calendarExport` state.
+- Checks: CalendarExportChecks 101/101, AccountSettingsChecks 47/47, AppChecks 20/20, Program 454/454.
