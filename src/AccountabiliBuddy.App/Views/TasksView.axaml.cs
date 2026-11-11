@@ -10,21 +10,23 @@ using Avalonia.VisualTree;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// The Tasks page. Code-behind: dragging a This-session row by its handle, Esc in the search box, the search box taking the
-/// keyboard when it opens, keeping a title or note typed in the detail card when the box loses the keyboard, filling a ⋯ menu when
-/// it opens, and putting the keyboard in the detail card's title or step box when a menu asks for it.
+/// The Tasks page. Code-behind: the two columns' widths (the Today / Shelf split, a hidden column giving its room to the other), the
+/// resize handle between them, keeping a title or note typed in the detail card when the box loses the keyboard, the ⋯ menus of the
+/// detail card's steps, and putting the keyboard in the detail card's title or step box when a menu asks for it.
 /// </summary>
 public partial class TasksView : UserControl
 {
-    // How far the pointer moves on a drag handle before it's a drag, not a click.
-    private const double DragThreshold = 4;
+    // The narrowest a shown column gets.
+    private const double ColumnMinWidth = 280;
 
     private TasksViewModel? _subscribed;
-    private TaskListRowViewModel? _dragRow;
-    private Point _dragStart;
-    private bool _isDragging;
-    private TaskListRowViewModel? _dropTarget;
-    private bool _dropAfter;
+    private bool _isSplitting;
+    private int _splitWhileDragging;
+
+    public TasksView()
+    {
+        InitializeComponent();
+    }
 
     // "From your lists": read the lists as the picker opens; an item chosen closes it.
     private void OnListPickerOpening(object? sender, EventArgs e)
@@ -42,11 +44,6 @@ public partial class TasksView : UserControl
     private void OnListPickerClosed(object? sender, EventArgs e)
     {
         ListPullButton.Flyout?.Hide();
-    }
-
-    public TasksView()
-    {
-        InitializeComponent();
     }
 
     // The page stays alive while another tab shows: leaving it ends select mode, so it is not found half-done on return.
@@ -74,6 +71,109 @@ public partial class TasksView : UserControl
             _subscribed.PropertyChanged += OnPagePropertyChanged;
             _subscribed.FocusRequested += OnFocusRequested;
         }
+
+        ApplyColumns();
+    }
+
+    private void OnPagePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(TasksViewModel.ShowsToday) or nameof(TasksViewModel.IsShelfShown) or nameof(TasksViewModel.TodaySplit))
+        {
+            ApplyColumns();
+        }
+    }
+
+    // Both columns: Today takes its share of the split and the Shelf the rest; one column alone takes all the room.
+    private void ApplyColumns(int? split = null)
+    {
+        if (_subscribed is not { } page)
+        {
+            return;
+        }
+
+        bool both = page.ShowsToday && page.IsShelfShown;
+        int today = split ?? page.TodaySplit;
+        ColumnDefinition todayColumn = Page.ColumnDefinitions[1];
+        ColumnDefinition shelfColumn = Page.ColumnDefinitions[3];
+        todayColumn.Width = page.ShowsToday ? new GridLength(both ? today : 1, GridUnitType.Star) : GridLength.Auto;
+        todayColumn.MinWidth = page.ShowsToday ? ColumnMinWidth : 0;
+        shelfColumn.Width = page.IsShelfShown ? new GridLength(both ? 100 - today : 1, GridUnitType.Star) : GridLength.Auto;
+        shelfColumn.MinWidth = page.IsShelfShown ? ColumnMinWidth : 0;
+    }
+
+    // ---- The resize handle: Today's share follows the pointer (30 to 70 %), kept when let go; a double-click puts it back. ----
+
+    private void OnSplitPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Control handle || !e.GetCurrentPoint(handle).Properties.IsLeftButtonPressed || _subscribed is null)
+        {
+            return;
+        }
+
+        _isSplitting = true;
+        _splitWhileDragging = _subscribed.TodaySplit;
+        SplitGrip.Classes.Set("active", true);
+        e.Pointer.Capture(handle);
+        e.Handled = true;
+    }
+
+    private void OnSplitMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_isSplitting)
+        {
+            return;
+        }
+
+        double left = TodayColumn.Bounds.Left;
+        double width = ShelfColumn.Bounds.Right - left;
+        if (width <= 0)
+        {
+            return;
+        }
+
+        double percent = (e.GetPosition(Page).X - left) / width * 100;
+        _splitWhileDragging = (int)Math.Round(Math.Clamp(percent, Services.Tasks.TaskLayoutPreferences.MinSplit, Services.Tasks.TaskLayoutPreferences.MaxSplit));
+        ApplyColumns(_splitWhileDragging);
+        e.Handled = true;
+    }
+
+    private void OnSplitReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_isSplitting && _subscribed is not null)
+        {
+            _ = _subscribed.SetSplitAsync(_splitWhileDragging);
+        }
+
+        EndSplit();
+        e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    private void OnSplitCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        EndSplit();
+    }
+
+    private void OnSplitDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_subscribed is not null)
+        {
+            _ = _subscribed.SetSplitAsync(Services.Tasks.TaskLayoutPreferences.DefaultSplit);
+        }
+
+        e.Handled = true;
+    }
+
+    private void EndSplit()
+    {
+        if (!_isSplitting)
+        {
+            return;
+        }
+
+        _isSplitting = false;
+        SplitGrip.Classes.Set("active", false);
+        ApplyColumns();
     }
 
     // A row's menu said Rename or Add subtask: the detail card shows that task, and its title or step box takes the keyboard. A picker's "New category…": its name box does.
@@ -101,22 +201,12 @@ public partial class TasksView : UserControl
         }, DispatcherPriority.Background);
     }
 
-    // A ⋯ button: the menu is built from the row it belongs to each time it opens.
+    // A step's ⋯ button in the detail card: the menu is built from the step each time it opens.
     private void OnMoreClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button button)
         {
             TaskMenus.Show(button);
-            e.Handled = true;
-        }
-    }
-
-    // A row's category chip or "+ category" spot: the picker of ⋯ › Label. Handled here, so the click does not also select or tick the row.
-    private void OnCategoryClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button button)
-        {
-            TaskMenus.ShowCategoryPicker(button);
             e.Handled = true;
         }
     }
@@ -131,18 +221,7 @@ public partial class TasksView : UserControl
         }
     }
 
-    // Select mode's "Set category…": the same choices, applied to every picked row.
-    private void OnSetPickedCategoryClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button button && DataContext is TasksViewModel page)
-        {
-            TaskMenus.ShowEntries(button, page.PickedCategoryEntries(), PlacementMode.TopEdgeAlignedRight);
-            e.Handled = true;
-        }
-    }
-
-    // Esc leaves select mode (the search box has its own Esc and handles it first); otherwise it closes the detail card when that
-    // is a card over the list's room (under 980 wide), unless a text box has the focus: Esc there is left to the edit.
+    // Esc leaves select mode; otherwise it closes the detail card, unless a text box has the focus: Esc there is left to the edit.
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
@@ -159,23 +238,10 @@ public partial class TasksView : UserControl
         }
 
         bool editing = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
-        Control? card = this.FindControl<Control>("DetailCard");
-        if (!editing && page.IsDetailOpen && card is { IsEffectivelyVisible: true } && IsDetailOverlay())
+        if (!editing && page.IsDetailOpen)
         {
             page.CloseDetailCommand.Execute(null);
             e.Handled = true;
-        }
-    }
-
-    // The close button shows only on a page under 980 wide, which is also when the card can be hidden.
-    private bool IsDetailOverlay() => this.FindControl<Control>("Page") is { Bounds.Width: < 980 };
-
-    // The filter flyout is taller than a short window leaves room for under its button: it scrolls inside instead of running off the window.
-    private void OnFilterFlyoutOpening(object? sender, EventArgs e)
-    {
-        if (sender is Flyout { Content: ScrollViewer scroll })
-        {
-            scroll.MaxHeight = Math.Clamp(Bounds.Height - 240, 200, 420);
         }
     }
 
@@ -189,24 +255,6 @@ public partial class TasksView : UserControl
                 box.Focus();
                 box.SelectAll();
             });
-        }
-    }
-
-    // Opening the search puts the keyboard in its box.
-    private void OnPagePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(TasksViewModel.IsSearchOpen) && _subscribed is { IsSearchOpen: true })
-        {
-            Dispatcher.UIThread.Post(() => this.FindControl<TextBox>("SearchBox")?.Focus(), DispatcherPriority.Loaded);
-        }
-    }
-
-    private void OnSearchKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Escape && _subscribed is not null)
-        {
-            _subscribed.ToggleSearchCommand.Execute(null);
-            e.Handled = true;
         }
     }
 
@@ -224,123 +272,5 @@ public partial class TasksView : UserControl
         {
             detail.CommitNoteCommand.Execute(null);
         }
-    }
-
-    // Drag to reorder: pressing a row's handle takes the pointer; the drag starts once it has moved a few pixels.
-    private void OnHandlePressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not Control { DataContext: TaskListRowViewModel row } handle || !e.GetCurrentPoint(handle).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-
-        _dragRow = row;
-        _dragStart = e.GetPosition(this);
-        _isDragging = false;
-        e.Pointer.Capture(handle);
-        e.Handled = true;
-    }
-
-    private void OnHandleMoved(object? sender, PointerEventArgs e)
-    {
-        if (_dragRow is null)
-        {
-            return;
-        }
-
-        Point at = e.GetPosition(this);
-        if (!_isDragging)
-        {
-            Point moved = at - _dragStart;
-            if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold)
-            {
-                return;
-            }
-
-            _isDragging = true;
-        }
-
-        // Between two rows the last place found stays; outside the page there is none.
-        if (FindDropTarget(at) is { } found)
-        {
-            ShowDropTarget(found.Row, found.After);
-        }
-        else if (!new Rect(Bounds.Size).Contains(at))
-        {
-            ShowDropTarget(null, false);
-        }
-
-        e.Handled = true;
-    }
-
-    private void OnHandleReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (_dragRow is not null && _isDragging && _dropTarget is not null && DataContext is TasksViewModel page)
-        {
-            _ = page.MoveSessionRowAsync(_dragRow.Id, _dropTarget.Id, _dropAfter);
-        }
-
-        EndDrag();
-        e.Pointer.Capture(null);
-        e.Handled = true;
-    }
-
-    private void OnHandleCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        EndDrag();
-    }
-
-    // The This-session row under the pointer that the dragged one can go next to: above or below it by the pointer's half.
-    private (TaskListRowViewModel Row, bool After)? FindDropTarget(Point at)
-    {
-        if (_dragRow is null || this.InputHitTest(at) is not Visual hit)
-        {
-            return null;
-        }
-
-        foreach (Visual visual in hit.GetSelfAndVisualAncestors())
-        {
-            if (visual == this)
-            {
-                return null;
-            }
-
-            if (visual is not Control { DataContext: TaskListRowViewModel row } item || !item.Classes.Contains("listItem") || !row.CanDrag)
-            {
-                continue;
-            }
-
-            if (row == _dragRow)
-            {
-                return null;
-            }
-
-            Point? local = this.TranslatePoint(at, item);
-            return local is Point point ? (row, point.Y > item.Bounds.Height / 2) : null;
-        }
-
-        return null;
-    }
-
-    private void ShowDropTarget(TaskListRowViewModel? row, bool after)
-    {
-        if (_dropTarget is not null)
-        {
-            _dropTarget.DropMark = 0;
-        }
-
-        _dropTarget = row;
-        _dropAfter = after;
-        if (row is not null)
-        {
-            row.DropMark = after ? 1 : -1;
-        }
-    }
-
-    private void EndDrag()
-    {
-        ShowDropTarget(null, false);
-        _dragRow = null;
-        _isDragging = false;
     }
 }

@@ -6,9 +6,10 @@
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.TasksView"
              x:DataType="vm:TasksViewModel">
-    <!-- The Tasks page (design 5x): a list card (the title and counts, search, category chips, the add row, then This session,
-         Come back to, Later, Done today, Unfinished from past sessions and the Archive) and a detail card for the selected task.
-         The accent is used once: "Start with this". -->
+    <!-- The Tasks page (spec 03 §B, P5/P6): the Today column card (the "Tasks" title, Normal / Compact and Expand / Collapse at its
+         top right, the add row, then This session, Queued and Finished today), a resize handle, the Shelf column card (hidden by
+         default: its rail "Shelf · 10 tasks" on the right edge, Ctrl+\), and the detail card of the task the user opened. Either
+         column can hide into a rail. Cards take the theme's Tasks radius. -->
     <UserControl.Resources>
         <!-- Check boxes, expanders and switches read in ink, not accent. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -20,20 +21,11 @@
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{DynamicResource Ab.InkColor}" />
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{DynamicResource Ab.InkColor}" />
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{DynamicResource Ab.InkColor}" />
-        <!-- The filter flyout: pills that wrap, each an on/off or one-of choice (a category's pill has its colour dot). -->
-        <ItemsPanelTemplate x:Key="PillWrap">
-            <WrapPanel ItemSpacing="6" LineSpacing="6" />
-        </ItemsPanelTemplate>
-        <DataTemplate x:Key="FilterPill" x:DataType="vm:TaskChipViewModel">
-            <Button Classes="chip small" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Text}">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
-                </StackPanel>
-            </Button>
-        </DataTemplate>
     </UserControl.Resources>
     <UserControl.Styles>
+        <Style Selector="Border.tasksCard">
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.TasksRadius}" />
+        </Style>
         <!-- A pill: category filter and estimate choice. Selected = Ink on Surface2 (the pill is Ink, its text Bg). -->
         <Style Selector="Button.chip">
             <Setter Property="Padding" Value="16,7" />
@@ -65,74 +57,7 @@
             <Setter Property="Opacity" Value="0.92" />
         </Style>
 
-        <!-- A list row: transparent, Surface2 while selected or under the pointer. -->
-        <Style Selector="Button.listRow">
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.listRow /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="18" />
-        </Style>
-        <Style Selector="Button.listRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-        <Style Selector="Button.listRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-        <Style Selector="Button.listRow.selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-        <Style Selector="Button.listRow.picked /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-
-        <!-- A row's category chip (dot and name; a click opens the picker) and the quiet "+ category" spot on a row with none, which
-             shows while the pointer is on the row or the row is selected. Hidden, the spot takes no clicks. -->
-        <Style Selector="Button.catChip">
-            <Setter Property="Padding" Value="6,3" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="MinWidth" Value="0" />
-            <Setter Property="HorizontalAlignment" Value="Left" />
-            <Setter Property="Cursor" Value="Hand" />
-        </Style>
-        <Style Selector="Button.catChip /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="999" />
-        </Style>
-        <Style Selector="Button.catChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
-        </Style>
-        <Style Selector="Button.catAdd">
-            <Setter Property="Opacity" Value="0" />
-            <Setter Property="IsHitTestVisible" Value="False" />
-            <Setter Property="Focusable" Value="False" />
-        </Style>
-        <Style Selector="Panel.listItem:pointerover Button.catAdd">
-            <Setter Property="Opacity" Value="1" />
-            <Setter Property="IsHitTestVisible" Value="True" />
-            <Setter Property="Focusable" Value="True" />
-        </Style>
-        <Style Selector="Button.listRow.selected Button.catAdd">
-            <Setter Property="Opacity" Value="1" />
-            <Setter Property="IsHitTestVisible" Value="True" />
-            <Setter Property="Focusable" Value="True" />
-        </Style>
-
-        <!-- A row's title: Ink; Muted once the task is ticked (the strike comes from the global TextBlock.done). -->
-        <Style Selector="TextBlock.rowTitle">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-        </Style>
-        <Style Selector="TextBlock.rowTitle.done">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-        </Style>
-
-        <!-- The Archive row at the bottom of the list: a flat button with a chevron. -->
+        <!-- The Archive row under the Shelf: a flat button with a chevron. -->
         <Style Selector="Button.archiveRow">
             <Setter Property="Padding" Value="12,10" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -141,24 +66,38 @@
         <Style Selector="Button.archiveRow /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
         </Style>
         <Style Selector="Button.archiveRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
 
-        <Style Selector="Border.dragHandle">
+        <!-- Normal / Compact: two halves of one pill; the one in use is Surface2. -->
+        <Style Selector="Button.segment">
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.segment /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Cursor" Value="SizeNorthSouth" />
-            <Setter Property="Width" Value="22" />
-            <Setter Property="Opacity" Value="0.55" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
-        <Style Selector="Border.dropLine">
-            <Setter Property="Height" Value="2" />
-            <Setter Property="CornerRadius" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="IsHitTestVisible" Value="False" />
+        <Style Selector="Button.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
+        <Style Selector="Button.segment.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- A narrow Today column: the segments keep their icons only. -->
+        <ContainerQuery Name="TaskColumn" Query="max-width:520">
+            <Style Selector="TextBlock.segmentText">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+        </ContainerQuery>
 
         <!-- The add row: a Surface2 pill whose entry has no box of its own. -->
         <Style Selector="TextBox.rowEntry">
@@ -233,308 +172,79 @@
             <Setter Property="TextDecorations" Value="Strikethrough" />
         </Style>
 
+        <!-- The resize handle's grip: Line, Muted while dragged. -->
+        <Style Selector="Border#SplitGrip">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Border#SplitGrip.active">
+            <Setter Property="Background" Value="{DynamicResource Ab.Muted}" />
+        </Style>
         <Style Selector="Border.detailCard">
-            <Setter Property="Width" Value="360" />
+            <Setter Property="Width" Value="340" />
         </Style>
-        <Style Selector="Button.closeDetail">
-            <Setter Property="IsVisible" Value="False" />
+        <Style Selector="StackPanel.detailBody">
+            <Setter Property="Margin" Value="0,0,14,0" />
         </Style>
-        <!-- Beside the heading in the card's second column; the list-width query below moves it under the heading. -->
-        <Style Selector="WrapPanel.chipsHost">
-            <Setter Property="Grid.Column" Value="1" />
-        </Style>
-
-        <!-- Row columns: the category slot is 92 wide and the "Now" slot 40, as before the slots were Panels. -->
-        <Style Selector="Grid.rowGrid">
-            <Setter Property="ColumnSpacing" Value="8" />
-        </Style>
-        <Style Selector="Panel.categorySlot">
-            <Setter Property="Width" Value="92" />
-        </Style>
-        <Style Selector="Panel.nowSlot">
-            <Setter Property="Width" Value="40" />
-        </Style>
-
-        <!-- At 900 wide the page keeps the detail card at 320 and the list gives way. Under 980 the detail card shows only for a task the user opened (a close button, Esc), and the list takes the whole page otherwise. -->
-        <ContainerQuery Name="TasksPage" Query="max-width:980">
-            <Style Selector="Border.detailCard">
-                <Setter Property="Width" Value="320" />
-            </Style>
-            <Style Selector="Border.detailCard.closed">
-                <Setter Property="IsVisible" Value="False" />
-            </Style>
-            <Style Selector="Button.closeDetail">
-                <Setter Property="IsVisible" Value="True" />
-            </Style>
-            <!-- With the card closed no row is the selected one. -->
-            <Style Selector="Border.listCard.detailClosed Button.listRow.selected /template/ ContentPresenter#PART_ContentPresenter">
-                <Setter Property="Background" Value="Transparent" />
-            </Style>
-            <Style Selector="StackPanel.detailBody">
-                <Setter Property="Margin" Value="0,0,14,0" />
-            </Style>
-        </ContainerQuery>
-        <!-- Rows: when the list card itself is narrow (the detail card beside it at the smallest window) the status and category slots go,
-             "Now" keeps only its own width and the gaps shrink, so the title keeps its room. A wide card keeps them. -->
-        <!-- The category chips take their own row under the heading when the card is too narrow to hold them beside it. -->
-        <ContainerQuery Name="TaskList" Query="max-width:760">
-            <Style Selector="DockPanel.hasChips WrapPanel.chipsHost">
-                <Setter Property="Grid.Row" Value="1" />
-                <Setter Property="Grid.Column" Value="0" />
-                <Setter Property="Margin" Value="0,12,0,0" />
-                <Setter Property="HorizontalAlignment" Value="Left" />
-            </Style>
-        </ContainerQuery>
-        <ContainerQuery Name="TaskList" Query="max-width:660">
-            <Style Selector="WrapPanel.chipsHost">
-                <Setter Property="Grid.Row" Value="1" />
-                <Setter Property="Grid.Column" Value="0" />
-                <Setter Property="Margin" Value="0,12,0,0" />
-                <Setter Property="HorizontalAlignment" Value="Left" />
-            </Style>
-        </ContainerQuery>
-        <ContainerQuery Name="TaskList" Query="max-width:560">
-            <Style Selector="Grid.rowGrid">
-                <Setter Property="ColumnSpacing" Value="4" />
-            </Style>
-            <Style Selector="Panel.statusSlot">
-                <Setter Property="IsVisible" Value="False" />
-            </Style>
-            <Style Selector="Panel.categorySlot">
-                <Setter Property="IsVisible" Value="False" />
-            </Style>
-            <Style Selector="Panel.nowSlot">
-                <Setter Property="Width" Value="NaN" />
-            </Style>
-        </ContainerQuery>
     </UserControl.Styles>
 
-    <UserControl.DataTemplates>
-        <!-- One row of any list: the number (This session), a check box, the title with its Muted line, the category's dot and name,
-             "Now", the ⋯ menu and the drag handle (This session). The category is never a fill. -->
-        <DataTemplate x:DataType="vm:TaskListRowViewModel">
-            <StackPanel Spacing="0">
-                <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
-                <Panel Classes="listItem">
-                    <Button Classes="listRow" Classes.selected="{Binding ShowsSelected}" Classes.picked="{Binding IsPicked}" Command="{Binding SelectCommand}"
-                            AutomationProperties.Name="{Binding Title}">
-                        <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,22" Margin="0,0,6,0">
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" MinWidth="22" VerticalAlignment="Center">
-                                <TextBlock Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Center" MinWidth="16"
-                                           IsVisible="{Binding IsNumbered}" />
-                                <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
-                                          MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Done"
-                                          ToolTip.Tip="Tick it off (untick to open it again)" />
-                                <!-- Select mode: a round circle (a done tick is a square), filled when the row is picked. -->
-                                <Panel IsVisible="{Binding ShowsPickCircle}" VerticalAlignment="Center" Width="22" Height="22"
-                                       AutomationProperties.Name="Select this row">
-                                    <mi:MaterialIcon Kind="CircleOutline" Width="22" Height="22" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsPicked}" />
-                                    <mi:MaterialIcon Kind="CheckCircle" Width="22" Height="22" Foreground="{DynamicResource Ab.Ink}" IsVisible="{Binding IsPicked}" />
-                                </Panel>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center" Margin="0,9">
-                                <TextBlock Classes="rowTitle" Classes.done="{Binding IsTicked}" Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Classes="muted" Text="{Binding SubText}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasSubText}" />
-                            </StackPanel>
-                            <!-- The status, category and "Now" slots keep their width in the wide layout (so the rows line up) and give it back to the title when the page is narrow. -->
-                            <Panel Grid.Column="2" Classes="statusSlot" VerticalAlignment="Center">
-                                <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="8,1" MinWidth="108"
-                                        VerticalAlignment="Center" IsVisible="{Binding HasStatusTag}">
-                                    <TextBlock Classes="muted" Text="{Binding StatusTag}" FontSize="12" HorizontalAlignment="Center" />
-                                </Border>
-                            </Panel>
-                            <!-- The category chip (a click opens the picker, the same as ⋯ › Label) or, on a row with none, the quiet "+ category". -->
-                            <Panel Grid.Column="3" Classes="categorySlot" VerticalAlignment="Center">
-                                <Button Classes="catChip" IsVisible="{Binding HasCategory}" IsHitTestVisible="{Binding !InSelectMode}" Focusable="{Binding !InSelectMode}" Click="OnCategoryClick"
-                                        AutomationProperties.Name="Change category" ToolTip.Tip="Change category">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
-                                        <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="60" TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Classes="catChip catAdd" IsVisible="{Binding ShowsAddCategory}" Click="OnCategoryClick"
-                                        AutomationProperties.Name="Add category" ToolTip.Tip="Add a category">
-                                    <TextBlock Classes="faint" Text="+ category" FontSize="12" VerticalAlignment="Center" />
-                                </Button>
-                            </Panel>
-                            <Panel Grid.Column="4" Classes="nowSlot" VerticalAlignment="Center">
-                                <TextBlock Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
-                            </Panel>
-                            <Button Grid.Column="5" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding ShowsRowTools}"
-                                    AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
-                                <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+    <Grid x:Name="Page" ColumnDefinitions="Auto,*,Auto,*,Auto,Auto">
+        <!-- Today hidden: its rail on the left. -->
+        <views:ShelfRailView Grid.Column="0" Margin="0,0,12,0" IsVisible="{Binding ShowsTodayRail}" Title="Today" Sub="{Binding TodayRailText}"
+                             Icon="ArrowExpandRight" Tip="Show Today" Command="{Binding ShowTodayCommand}" />
+
+        <!-- The Today column. -->
+        <Border x:Name="TodayColumn" Grid.Column="1" Classes="card tasksCard" IsVisible="{Binding ShowsToday}" Padding="0" ClipToBounds="True"
+                Container.Name="TaskColumn" Container.Sizing="Width">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="26,20,16,0">
+                    <TextBlock Classes="display" Text="Tasks" FontSize="30" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="2" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <Button Classes="segment" Classes.on="{Binding !IsCompact}" Command="{Binding UseNormalRowsCommand}" ToolTip.Tip="Normal rows"
+                                    AutomationProperties.Name="Normal rows">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <mi:MaterialIcon Kind="ViewHeadline" Width="15" Height="15" />
+                                    <TextBlock Classes="segmentText" Text="Normal" VerticalAlignment="Center" />
+                                </StackPanel>
                             </Button>
-                            <Border Grid.Column="6" Classes="dragHandle" IsVisible="{Binding ShowsDragHandle}" ToolTip.Tip="Drag to reorder"
-                                    AutomationProperties.Name="Drag to reorder"
-                                    PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
-                                    PointerCaptureLost="OnHandleCaptureLost">
-                                <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                            </Border>
-                        </Grid>
+                            <Button Classes="segment" Classes.on="{Binding IsCompact}" Command="{Binding UseCompactRowsCommand}" ToolTip.Tip="Compact rows"
+                                    AutomationProperties.Name="Compact rows">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <mi:MaterialIcon Kind="FormatLineSpacing" Width="15" Height="15" />
+                                    <TextBlock Classes="segmentText" Text="Compact" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                    <Button Grid.Column="2" Classes="quiet" Padding="7,5" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                            Command="{Binding TodayPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayPanel.ExpandTip}"
+                            AutomationProperties.Name="{Binding TodayPanel.ExpandTip}">
+                        <mi:MaterialIcon Kind="{Binding TodayPanel.ExpandIcon}" Width="18" Height="18" />
                     </Button>
-                </Panel>
-                <Border Classes="dropLine" IsVisible="{Binding ShowsLineBelow}" Margin="8,0" />
-            </StackPanel>
-        </DataTemplate>
-
-    </UserControl.DataTemplates>
-
-    <Grid x:Name="Page" ColumnDefinitions="*,Auto" Container.Name="TasksPage" Container.Sizing="Width">
-        <!-- The list card. -->
-        <Border Classes="card listCard" Classes.detailClosed="{Binding !IsDetailOpen}" Padding="0" ClipToBounds="True" MinWidth="320" Container.Name="TaskList" Container.Sizing="Width">
-            <DockPanel Classes.hasChips="{Binding HasCategoryChips}">
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" Margin="36,30,28,0">
-                    <StackPanel Spacing="2">
-                        <TextBlock Classes="display" Text="Tasks" FontSize="34" />
-                        <TextBlock Classes="muted" Text="{Binding CountsText}" FontSize="14" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <WrapPanel Classes="chipsHost" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Bottom">
-                        <Button Classes="quiet" Padding="8" ToolTip.Tip="Filter and sort: status, category, due date" AutomationProperties.Name="Filter and sort">
-                            <Panel>
-                                <mi:MaterialIcon Kind="FilterVariant" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
-                                <!-- How many of the four sections are not at their default. -->
-                                <Border Background="{DynamicResource Ab.Ink}" CornerRadius="999" MinWidth="14" Height="14" Padding="3,0" Margin="12,-8,-10,0"
-                                        HorizontalAlignment="Right" VerticalAlignment="Top" IsVisible="{Binding Filter.HasActive}">
-                                    <TextBlock Text="{Binding Filter.BadgeText}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Bg}"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Border>
-                            </Panel>
-                            <Button.Flyout>
-                                <Flyout Placement="BottomEdgeAlignedRight" Opening="OnFilterFlyoutOpening">
-                                    <ScrollViewer MaxHeight="420" Width="340" VerticalScrollBarVisibility="Auto">
-                                        <StackPanel Spacing="14" Margin="0,0,10,0">
-                                        <!-- Saved filters: the choices below and the search words, kept under a name. -->
-                                        <StackPanel Spacing="6" DataContext="{Binding Presets}">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Classes="section" Text="Saved" VerticalAlignment="Center" />
-                                                <Button Grid.Column="1" Classes="quiet" Padding="10,4" Command="{Binding AskNameCommand}" AutomationProperties.Name="Save current filter"
-                                                        ToolTip.Tip="Keep these filters and the search words under a name">
-                                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                                        <mi:MaterialIcon Kind="BookmarkOutline" Width="14" Height="14" />
-                                                        <TextBlock Text="Save current…" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                </Button>
-                                            </Grid>
-                                            <TextBox Text="{Binding NewName}" PlaceholderText="Name (Enter)" IsVisible="{Binding IsNaming}" MaxLength="40"
-                                                     AutomationProperties.Name="Name for this filter">
-                                                <TextBox.KeyBindings>
-                                                    <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
-                                                    <KeyBinding Gesture="Escape" Command="{Binding CancelNameCommand}" />
-                                                </TextBox.KeyBindings>
-                                            </TextBox>
-                                            <TextBlock Classes="muted" Text="Nothing saved yet." FontSize="13" IsVisible="{Binding IsEmpty}" />
-                                            <ItemsControl ItemsSource="{Binding Rows}" ItemsPanel="{StaticResource PillWrap}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:TaskFilterPresetRowViewModel">
-                                                        <StackPanel Orientation="Horizontal" Spacing="2">
-                                                            <Button Classes="chip small" Classes.selected="{Binding IsActive}" Command="{Binding ApplyCommand}" Content="{Binding Name}"
-                                                                    AutomationProperties.Name="{Binding Name}" />
-                                                            <Button Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" VerticalAlignment="Center" Command="{Binding DeleteCommand}"
-                                                                    AutomationProperties.Name="{Binding DeleteName}" ToolTip.Tip="Delete this saved filter">
-                                                                <mi:MaterialIcon Kind="Close" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" />
-                                                            </Button>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                        <StackPanel Spacing="14" DataContext="{Binding Filter}">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Classes="section" Text="Filter and sort" VerticalAlignment="Center" />
-                                                <Button Grid.Column="1" Classes="quiet" Padding="10,4" Content="Clear" Command="{Binding ClearCommand}" IsEnabled="{Binding HasActive}"
-                                                        AutomationProperties.Name="Clear filters" />
-                                            </Grid>
-                                            <StackPanel Spacing="6">
-                                                <TextBlock Classes="muted" Text="Status" FontSize="13" />
-                                                <ItemsControl ItemsSource="{Binding StatusPills}" ItemsPanel="{StaticResource PillWrap}" ItemTemplate="{StaticResource FilterPill}" />
-                                            </StackPanel>
-                                            <StackPanel Spacing="6">
-                                                <TextBlock Classes="muted" Text="Category" FontSize="13" />
-                                                <ItemsControl ItemsSource="{Binding CategoryPills}" ItemsPanel="{StaticResource PillWrap}" ItemTemplate="{StaticResource FilterPill}" />
-                                            </StackPanel>
-                                            <StackPanel Spacing="6">
-                                                <TextBlock Classes="muted" Text="Due (Later items)" FontSize="13" />
-                                                <ItemsControl ItemsSource="{Binding DuePills}" ItemsPanel="{StaticResource PillWrap}" ItemTemplate="{StaticResource FilterPill}" />
-                                            </StackPanel>
-                                            <StackPanel Spacing="6">
-                                                <TextBlock Classes="muted" Text="Sort" FontSize="13" />
-                                                <ItemsControl ItemsSource="{Binding SortPills}" ItemsPanel="{StaticResource PillWrap}" ItemTemplate="{StaticResource FilterPill}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                        </StackPanel>
-                                    </ScrollViewer>
-                                </Flyout>
-                            </Button.Flyout>
-                        </Button>
-                        <Button Classes="quiet" Padding="8" Command="{Binding ToggleSearchCommand}" ToolTip.Tip="Search tasks, steps, notes, come-backs and the Archive"
-                                AutomationProperties.Name="Search tasks">
-                            <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
-                        </Button>
-                        <Button Classes="quiet" Padding="8" Command="{Binding ToggleManageCategoriesCommand}"
-                                ToolTip.Tip="Categories: rename, recolour, add or delete (e.g. Work, Personal)" AutomationProperties.Name="Categories">
-                            <mi:MaterialIcon Kind="TagMultipleOutline" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
-                        </Button>
-                        <Button Classes="quiet" Padding="8" Command="{Binding ToggleSelectModeCommand}"
-                                ToolTip.Tip="Select several rows to give them a category" AutomationProperties.Name="Select">
-                            <mi:MaterialIcon Kind="CheckboxMultipleMarkedOutline" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
-                        </Button>
-                        <ItemsControl ItemsSource="{Binding CategoryChips}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel ItemSpacing="8" LineSpacing="8" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:TaskChipViewModel">
-                                    <Button Classes="chip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}"
-                                            AutomationProperties.Name="{Binding Text}">
-                                        <StackPanel Orientation="Horizontal" Spacing="7">
-                                            <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                                            <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </WrapPanel>
                 </Grid>
 
-                <!-- Search: opens under the title; searches titles, steps, notes, come-backs and the Archive. -->
-                <Border DockPanel.Dock="Top" Margin="36,14,28,0" Padding="16,0" CornerRadius="24" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding IsSearchOpen}">
-                    <Grid ColumnDefinitions="Auto,*">
-                        <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                        <TextBox x:Name="SearchBox" Grid.Column="1" Classes="rowEntry" Text="{Binding SearchText}" FontSize="15"
-                                 PlaceholderText="Search tasks, steps, notes, come-backs and the Archive" AutomationProperties.Name="Search tasks"
-                                 KeyDown="OnSearchKeyDown">
-                            <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
-                        </TextBox>
-                    </Grid>
-                </Border>
-
-                <!-- The add row. -->
-                <Border DockPanel.Dock="Top" Classes="addPill" Margin="36,16,28,10" Padding="20,0,18,0" MinHeight="52" CornerRadius="26"
+                <!-- The add row (the "+ Add a task" pill and Send to come with 3.4). -->
+                <Border DockPanel.Dock="Top" Classes="addPill" Margin="22,14,16,8" Padding="16,0,12,0" MinHeight="44" CornerRadius="22"
                         Background="{DynamicResource Ab.Surface2}" BorderBrush="Transparent" BorderThickness="1.5">
                     <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
-                        <mi:MaterialIcon Kind="Plus" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                        <mi:MaterialIcon Kind="Plus" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                         <!-- The category new tasks go in. -->
-                        <Button Grid.Column="1" Classes="quiet" Padding="6" Margin="6,0,0,0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                        <Button Grid.Column="1" Classes="quiet" Padding="6" Margin="4,0,0,0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                 ToolTip.Tip="{Binding NewTaskCategoryTip}" AutomationProperties.Name="Category for new tasks" Click="OnNewTaskCategoryClick">
                             <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
                         </Button>
-                        <TextBox Grid.Column="2" Classes="rowEntry" Text="{Binding NewTaskText}" PlaceholderText="{Binding AddPlaceholder}"
+                        <TextBox Grid.Column="2" Classes="rowEntry" FontSize="14.5" Text="{Binding NewTaskText}" PlaceholderText="{Binding AddPlaceholder}"
                                  AutomationProperties.Name="Add a task" controls:TaskSuggestions.Picker="{Binding ListPicker}">
                             <TextBox.KeyBindings>
                                 <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
                             </TextBox.KeyBindings>
                         </TextBox>
-                        <TextBlock Grid.Column="3" Classes="faint" Text="Enter" FontSize="13" VerticalAlignment="Center" />
-                        <Button Grid.Column="4" x:Name="ListPullButton" Classes="quiet" Margin="10,0,0,0" Padding="8,4" VerticalAlignment="Center"
+                        <TextBlock Grid.Column="3" Classes="faint" Text="Enter" FontSize="12" VerticalAlignment="Center" />
+                        <Button Grid.Column="4" x:Name="ListPullButton" Classes="quiet" Margin="8,0,0,0" Padding="8,4" VerticalAlignment="Center"
                                 ToolTip.Tip="Take a task from your lists to Today: Later, Come back to, Unfinished, Auto-saved, Done today (search for the Archive)" AutomationProperties.Name="From your lists">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
-                                <TextBlock Text="From your lists" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Classes="segmentText" Text="From your lists" FontSize="13" VerticalAlignment="Center" />
                             </StackPanel>
                             <Button.Flyout>
                                 <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
@@ -544,31 +254,13 @@
                         </Button>
                     </Grid>
                 </Border>
-                <views:TaskSuggestionsView DockPanel.Dock="Top" Margin="36,0,28,10" DataContext="{Binding ListPicker}" />
+                <views:TaskSuggestionsView DockPanel.Dock="Top" Margin="22,0,16,8" DataContext="{Binding ListPicker}" />
 
                 <!-- The Undo bar after a delete (10 seconds); the item stays in Archive > Recently deleted. -->
-                <views:UndoBarView DockPanel.Dock="Bottom" DataContext="{Binding Undo}" Margin="36,6,28,16" />
-
-                <!-- Select mode: "N selected", Set category… and Cancel. Category only: no bulk delete or move. -->
-                <Border DockPanel.Dock="Bottom" Margin="36,0,28,10" Padding="18,8,10,8" CornerRadius="26" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding IsSelectMode}">
-                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                        <TextBlock Text="{Binding PickedText}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Classes="quiet" Padding="14,8" Content="Set category…" Click="OnSetPickedCategoryClick" IsEnabled="{Binding HasPicked}"
-                                FontSize="14" AutomationProperties.Name="Set category" />
-                        <Button Grid.Column="2" Classes="quiet" Padding="14,8" Content="Cancel" Command="{Binding CancelSelectCommand}" FontSize="14"
-                                AutomationProperties.Name="Cancel selecting" />
-                    </Grid>
-                </Border>
-
-                <!-- The Categories editor (the header's tag button). -->
-                <Border DockPanel.Dock="Top" Margin="36,14,28,0" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding IsManagingCategories}">
-                    <views:CategoryEditorView DataContext="{Binding CategoryEditor}" />
-                </Border>
+                <views:UndoBarView DockPanel.Dock="Bottom" DataContext="{Binding Undo}" Margin="22,6,16,14" />
 
                 <!-- A picker's "New category…": its name; Enter makes it and applies it. -->
-                <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                <Border DockPanel.Dock="Top" Margin="22,0,16,8" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding IsNamingCategory}">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBox x:Name="NewCategoryBox" Classes="rowEntry" FontSize="14" Text="{Binding NewCategoryName}" PlaceholderText="{Binding NamePrompt}"
@@ -583,7 +275,7 @@
                 </Border>
 
                 <!-- Why something was not done. -->
-                <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="16,10,8,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                <Border DockPanel.Dock="Top" Margin="22,0,16,8" Padding="16,10,8,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding HasNotice}">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Classes="muted" Text="{Binding Notice}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -592,7 +284,7 @@
                 </Border>
 
                 <!-- "Add to Today" at three tasks: nothing is added until this is answered. -->
-                <Border DockPanel.Dock="Top" Margin="36,0,28,8" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                <Border DockPanel.Dock="Top" Margin="22,0,16,8" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding HasPending}">
                     <ContentControl Content="{Binding Pending}">
                         <ContentControl.DataTemplates>
@@ -624,36 +316,33 @@
                 </Border>
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="28,6,24,28" Spacing="4">
+                    <ItemsControl Margin="12,2,12,20" ItemsSource="{Binding TodayPanel.Sections}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TaskSectionViewModel">
+                                <views:TaskSectionView />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
 
-                        <!-- This session: the next session's list while idle, the running checklist during a session. -->
-                        <Grid ColumnDefinitions="*,Auto" Margin="8,10,8,2">
-                            <TextBlock Classes="section" Text="This session" />
-                            <TextBlock Grid.Column="1" Classes="faint" Text="drag to reorder" FontSize="12" IsVisible="{Binding HasSessionRows}" />
-                        </Grid>
-                        <ItemsControl x:Name="SessionList" ItemsSource="{Binding SessionRows}" IsVisible="{Binding HasSessionRows}" />
-                        <TextBlock Classes="muted" Text="Nothing for this session yet. Add a task above." Margin="12,4" FontSize="14"
-                                   IsVisible="{Binding !HasSessionRows}" />
+        <!-- Drag to resize the two columns; double-click puts the split back. -->
+        <Border x:Name="SplitHandle" Grid.Column="2" Width="14" Background="Transparent" Cursor="SizeWestEast" IsVisible="{Binding ShowsSplitHandle}"
+                ToolTip.Tip="Drag to resize · double-click to reset" AutomationProperties.Name="Resize the columns"
+                PointerPressed="OnSplitPressed" PointerMoved="OnSplitMoved" PointerReleased="OnSplitReleased" PointerCaptureLost="OnSplitCaptureLost"
+                DoubleTapped="OnSplitDoubleTapped">
+            <Border x:Name="SplitGrip" Width="4" Height="44" CornerRadius="2" VerticalAlignment="Center" />
+        </Border>
 
-                        <!-- Everything else, one flat list: Come back to, Later, Unfinished from past sessions, Auto-saved, Done today. The
-                             status tag and the category dot say what each row is; nothing folds. -->
-                        <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="8,14,8,6" IsVisible="{Binding HasOtherRows}" />
-
-                        <!-- Unfinished from past sessions: offered to Later, never moved on their own. -->
-                        <Grid ColumnDefinitions="*,Auto" Margin="8,0,4,2" IsVisible="{Binding HasUnfinished}">
-                            <TextBlock Classes="muted" Text="{Binding UnfinishedText}" FontSize="13" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Classes="quiet" Padding="10,4" Command="{Binding MoveAllUnfinishedToLaterCommand}" FontSize="13"
-                                    Content="Move all to Later" ToolTip.Tip="Nothing moves on its own: this puts every unfinished task from past sessions on the Later list" />
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding OtherRows}" />
-                        <Grid ColumnDefinitions="*,Auto" Margin="8,10,4,2" IsVisible="{Binding ShowsNoMatches}">
-                            <TextBlock Classes="muted" Text="Nothing matches these filters" FontSize="13" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Classes="quiet" Padding="10,4" Content="Clear" Command="{Binding Filter.ClearCommand}" FontSize="13"
-                                    AutomationProperties.Name="Clear filters here" />
-                        </Grid>
-
-                        <!-- The Archive: one row at the bottom that opens the Notebook (come-backs, session notes, unfinished and done tasks), with its filters and search. -->
-                        <Button Classes="archiveRow" Margin="0,10,0,0" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
+        <!-- The Shelf column. -->
+        <Border x:Name="ShelfColumn" Grid.Column="3" Classes="card tasksCard" IsVisible="{Binding IsShelfShown}" Padding="0" ClipToBounds="True"
+                Container.Name="TaskColumn" Container.Sizing="Width">
+            <views:ShelfView DataContext="{Binding Shelf}">
+                <views:ShelfView.Footer>
+                    <!-- The Archive: one row under the bins that opens the Notebook (come-backs, session notes, unfinished and done tasks), with its filters and search. -->
+                    <StackPanel x:DataType="vm:TasksViewModel" DataContext="{Binding $parent[views:TasksView].((vm:TasksViewModel)DataContext)}" Margin="8,6,8,16">
+                        <Button Classes="archiveRow" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                                 <TextBlock Classes="muted" Text="Archive" FontSize="14" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Archive.SummaryText}" FontSize="12" VerticalAlignment="Center"
@@ -664,12 +353,16 @@
                         </Button>
                         <views:NotebookView DataContext="{Binding Archive}" IsVisible="{Binding $parent[views:TasksView].((vm:TasksViewModel)DataContext).ShowsArchive}" />
                     </StackPanel>
-                </ScrollViewer>
-            </DockPanel>
+                </views:ShelfView.Footer>
+            </views:ShelfView>
         </Border>
 
+        <!-- Shelf hidden (the default): its rail on the right edge. -->
+        <views:ShelfRailView Grid.Column="4" Margin="12,0,0,0" IsVisible="{Binding ShowsShelfRail}" Title="Shelf" Sub="{Binding Shelf.CountText}"
+                             Icon="ArrowExpandLeft" Tip="Show the Shelf (Ctrl+\)" Command="{Binding ToggleShelfCommand}" />
+
         <!-- The detail card for the selected task, Later item or come-back. -->
-        <Border x:Name="DetailCard" Grid.Column="1" Classes="card detailCard" Classes.closed="{Binding !IsDetailOpen}" Margin="14,0,0,0" Padding="28,26">
+        <Border x:Name="DetailCard" Grid.Column="5" Classes="card detailCard" IsVisible="{Binding IsDetailOpen}" Margin="14,0,0,0" Padding="28,26">
             <Panel>
                 <TextBlock Classes="muted" Text="Pick a task to see its steps, estimate and notes." TextWrapping="Wrap" FontSize="14"
                            IsVisible="{Binding !HasDetail}" />
@@ -856,7 +549,7 @@
                         </DataTemplate>
                     </ContentControl.DataTemplates>
                 </ContentControl>
-                <!-- Under 980 wide the card opens over the list's room only for the task the user picked: this (or Esc) closes it. -->
+                <!-- The card shows only for a task the user opened: this (or Esc) closes it. -->
                 <Button Classes="quiet closeDetail" Padding="6" MinHeight="0" MinWidth="0" Margin="0,-12,-12,0" HorizontalAlignment="Right" VerticalAlignment="Top"
                         Command="{Binding CloseDetailCommand}" AutomationProperties.Name="Close details" ToolTip.Tip="Close (Esc)">
                     <mi:MaterialIcon Kind="Close" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />

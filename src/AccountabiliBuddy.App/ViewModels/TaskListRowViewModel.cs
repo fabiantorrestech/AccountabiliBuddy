@@ -14,6 +14,8 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 {
     private readonly Func<IReadOnlyList<TaskMenuEntry>>? _menu;
     private readonly Func<IReadOnlyList<TaskMenuEntry>>? _labelMenu;
+    private readonly Action<TaskListRowViewModel> _select;
+    private readonly Func<Task>? _toggle;
 
     public TaskListRowViewModel(
         TaskRowKey key, string title, string subText, Action<TaskListRowViewModel> select, int number = 0, bool isNow = false,
@@ -28,6 +30,8 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
         IsTicked = isTicked;
         _menu = menu;
         _labelMenu = labelMenu;
+        _select = select;
+        _toggle = toggle;
         SelectCommand = new RelayCommand(() => select(this));
         ToggleCommand = toggle is null ? null : new AsyncRelayCommand(toggle);
         CategoryBrush = Brushes.Transparent;
@@ -54,8 +58,11 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The running task: "Now" at its right.</summary>
     public bool IsNow { get; }
 
-    /// <summary>Only This session's open tasks drag (they are the order the session runs in).</summary>
-    public bool CanDrag => Kind == TaskRowKind.Session;
+    /// <summary>Only This session's open tasks drag (they are the order the session runs in); a Queued one does not.</summary>
+    public bool CanDrag => Kind == TaskRowKind.Session && !IsQueued;
+
+    /// <summary>A task of the next session's list that sits in Today's Queued (not in This session).</summary>
+    public bool IsQueued { get; init; }
 
     public bool IsComeBack => Kind == TaskRowKind.ComeBack;
 
@@ -159,6 +166,23 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
         return Key == other.Key && Title == other.Title && SubText == other.SubText && Number == other.Number && IsNow == other.IsNow
             && IsTicked == other.IsTicked && CategoryId == other.CategoryId && CategoryName == other.CategoryName
             && CategoryColor == other.CategoryColor && StatusTag == other.StatusTag && DueOn == other.DueOn && SortTime == other.SortTime
-            && HasToggle == other.HasToggle && CanLabel == other.CanLabel;
+            && HasToggle == other.HasToggle && CanLabel == other.CanLabel && IsQueued == other.IsQueued;
+    }
+
+    /// <summary>The same row (same item, commands and menus) with another Muted line and no number, for a second list (Reminders due today).</summary>
+    public TaskListRowViewModel WithSubText(string subText)
+    {
+        return new TaskListRowViewModel(Key, Title, subText, _select, 0, false, _toggle, IsTicked, _menu, _labelMenu)
+        {
+            CategoryId = CategoryId,
+            CategoryName = CategoryName,
+            CategoryColor = CategoryColor,
+            CategoryBrush = CategoryBrush,
+            StatusTag = StatusTag,
+            SortTime = SortTime,
+            DueOn = DueOn,
+            IsQueued = IsQueued,
+            InSelectMode = InSelectMode,
+        };
     }
 }

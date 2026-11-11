@@ -1,0 +1,206 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.TaskRowView"
+             x:DataType="vm:TaskListRowViewModel">
+    <!-- One task row, the same on the Tasks page's Today column, the Shelf and Today's sections: the number (This session), a check
+         box, the title with its Muted line, the category's dot and name, "Now", the ⋯ menu and the drag handle (This session). The
+         category is never a fill. Normal rows are 44 DIP or taller; Compact (a section with the "compact" class) 32, title only. -->
+    <UserControl.Resources>
+        <!-- Check boxes read in ink, not accent. -->
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="{DynamicResource Ab.Surface2Color}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPointerOver" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeCheckedPressed" Color="{DynamicResource Ab.FaintColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{DynamicResource Ab.InkColor}" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{DynamicResource Ab.InkColor}" />
+    </UserControl.Resources>
+    <UserControl.Styles>
+        <Style Selector="CheckBox">
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <!-- A list row: transparent, Surface2 while selected or under the pointer. -->
+        <Style Selector="Button.listRow">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.listRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+        </Style>
+        <Style Selector="Button.listRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.listRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.listRow.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.listRow.picked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+
+        <!-- A row's category chip (dot and name; a click opens the picker) and the quiet "+ category" spot on a row with none, which
+             shows while the pointer is on the row or the row is selected. Hidden, the spot takes no clicks. -->
+        <Style Selector="Button.catChip">
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.catChip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.catChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.catAdd">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style Selector="Panel.listItem:pointerover Button.catAdd">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+            <Setter Property="Focusable" Value="True" />
+        </Style>
+        <Style Selector="Button.listRow.selected Button.catAdd">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+            <Setter Property="Focusable" Value="True" />
+        </Style>
+
+        <!-- A row's title: Ink; Muted once the task is ticked (the strike comes from the global TextBlock.done). -->
+        <Style Selector="TextBlock.rowTitle">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBlock.rowTitle.done">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+
+        <Style Selector="Border.dragHandle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="Border.dropLine">
+            <Setter Property="Height" Value="2" />
+            <Setter Property="CornerRadius" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+
+        <!-- Row columns: the category slot is 92 wide and the "Now" slot 40. -->
+        <Style Selector="Grid.rowGrid">
+            <Setter Property="ColumnSpacing" Value="8" />
+        </Style>
+        <Style Selector="Panel.categorySlot">
+            <Setter Property="Width" Value="92" />
+        </Style>
+        <Style Selector="Panel.nowSlot">
+            <Setter Property="Width" Value="40" />
+        </Style>
+        <Style Selector="StackPanel.rowText">
+            <Setter Property="Margin" Value="0,7" />
+        </Style>
+
+        <!-- Compact rows (the section's "compact" class): 32 DIP, the title on one line, no Muted line. -->
+        <Style Selector=":is(Control).compact Button.listRow">
+            <Setter Property="MinHeight" Value="32" />
+        </Style>
+        <Style Selector=":is(Control).compact StackPanel.rowText">
+            <Setter Property="Margin" Value="0,3" />
+        </Style>
+        <Style Selector=":is(Control).compact TextBlock.rowTitle">
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector=":is(Control).compact TextBlock.rowSub">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+
+        <!-- A narrow column: the category slot goes, "Now" keeps only its own width and the gaps shrink, so the title keeps its room. -->
+        <ContainerQuery Name="TaskColumn" Query="max-width:520">
+            <Style Selector="Grid.rowGrid">
+                <Setter Property="ColumnSpacing" Value="4" />
+            </Style>
+            <Style Selector="Panel.categorySlot">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+            <Style Selector="Panel.nowSlot">
+                <Setter Property="Width" Value="NaN" />
+            </Style>
+        </ContainerQuery>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="0">
+        <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
+        <Panel Classes="listItem">
+            <Button Classes="listRow" Classes.selected="{Binding ShowsSelected}" Classes.picked="{Binding IsPicked}" Command="{Binding SelectCommand}"
+                    AutomationProperties.Name="{Binding Title}">
+                <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto,22" Margin="0,0,6,0">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" MinWidth="22" VerticalAlignment="Center">
+                        <TextBlock Classes="muted" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
+                                   MinWidth="12" IsVisible="{Binding IsNumbered}" />
+                        <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
+                                  MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Done"
+                                  ToolTip.Tip="Tick it off (untick to open it again)" />
+                        <!-- Select mode: a round circle (a done tick is a square), filled when the row is picked. -->
+                        <Panel IsVisible="{Binding ShowsPickCircle}" VerticalAlignment="Center" Width="22" Height="22"
+                               AutomationProperties.Name="Select this row">
+                            <mi:MaterialIcon Kind="CircleOutline" Width="22" Height="22" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsPicked}" />
+                            <mi:MaterialIcon Kind="CheckCircle" Width="22" Height="22" Foreground="{DynamicResource Ab.Ink}" IsVisible="{Binding IsPicked}" />
+                        </Panel>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Classes="rowText" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Classes="rowTitle" Classes.done="{Binding IsTicked}" Text="{Binding Title}" FontSize="14.5" FontWeight="Medium" TextWrapping="Wrap" />
+                        <TextBlock Classes="muted rowSub" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasSubText}" />
+                    </StackPanel>
+                    <!-- The category chip (a click opens the picker, the same as ⋯ › Category) or, on a row with none, the quiet "+ category". -->
+                    <Panel Grid.Column="2" Classes="categorySlot" VerticalAlignment="Center">
+                        <Button Classes="catChip" IsVisible="{Binding HasCategory}" IsHitTestVisible="{Binding !InSelectMode}" Focusable="{Binding !InSelectMode}" Click="OnCategoryClick"
+                                AutomationProperties.Name="Change category" ToolTip.Tip="Change category">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="60" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="catChip catAdd" IsVisible="{Binding ShowsAddCategory}" Click="OnCategoryClick"
+                                AutomationProperties.Name="Add category" ToolTip.Tip="Add a category">
+                            <TextBlock Classes="faint" Text="+ category" FontSize="12" VerticalAlignment="Center" />
+                        </Button>
+                    </Panel>
+                    <Panel Grid.Column="3" Classes="nowSlot" VerticalAlignment="Center">
+                        <TextBlock Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
+                    </Panel>
+                    <Button Grid.Column="4" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding ShowsRowTools}"
+                            AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
+                        <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                    </Button>
+                    <Border Grid.Column="5" Classes="dragHandle" IsVisible="{Binding ShowsDragHandle}" ToolTip.Tip="Drag to reorder"
+                            AutomationProperties.Name="Drag to reorder"
+                            PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
+                            PointerCaptureLost="OnHandleCaptureLost">
+                        <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                    </Border>
+                </Grid>
+            </Button>
+        </Panel>
+        <Border Classes="dropLine" IsVisible="{Binding ShowsLineBelow}" Margin="8,0" />
+    </StackPanel>
+</UserControl>

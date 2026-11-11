@@ -20,4 +20,11 @@ public enum TaskRowKind
 
     /// <summary>A shutdown card's tomorrow task, kept when the card closed by itself; a plain row with a ⋯ menu only.</summary>
     AutoSaved,
+
+    /// <summary>
+    /// A task in Today's Queued while a session runs: it is in the task list only (the checklist holds the session's tasks), so its
+    /// row works through the task list's actions (tick, rename, label, move, delete). While no session runs a Queued task is a
+    /// <see cref="Session"/> row, since the next session's list holds it.
+    /// </summary>
+    Queued,
 }

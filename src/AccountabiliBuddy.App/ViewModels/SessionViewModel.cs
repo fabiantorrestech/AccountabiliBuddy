@@ -78,6 +78,13 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial LunchCardViewModel? Lunch { get; set; }
 
+    /// <summary>
+    /// The Tasks page, for Today's own task sections ("Today Tue 11/10": This session, Queued, Reminders due today, Finished today, the
+    /// same rows as the Tasks page); set by the app. Null hides them.
+    /// </summary>
+    [ObservableProperty]
+    public partial TasksViewModel? TaskPage { get; set; }
+
     /// <summary>"Day off on this computer · Undo" after the Pre-Work window's day off.</summary>
     [ObservableProperty]
     public partial DayOffCardViewModel? DayOff { get; set; }

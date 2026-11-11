@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.ShelfRailView">
+    <!-- A hidden column's rail (the Shelf's on the right edge, Today's on the left): the show arrow, then its name and a line written
+         top to bottom ("Shelf · 10 tasks"). The whole rail is one button. -->
+    <UserControl.Styles>
+        <Style Selector="Button.rail">
+            <Setter Property="Width" Value="52" />
+            <Setter Property="Padding" Value="0,14" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.rail /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.TasksRadius}" />
+        </Style>
+        <Style Selector="Button.rail:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Button Classes="rail" Command="{Binding $parent[views:ShelfRailView].Command}"
+            ToolTip.Tip="{Binding $parent[views:ShelfRailView].Tip}" AutomationProperties.Name="{Binding $parent[views:ShelfRailView].Tip}">
+        <StackPanel Spacing="12" HorizontalAlignment="Center">
+            <mi:MaterialIcon Kind="{Binding $parent[views:ShelfRailView].Icon}" Width="20" Height="20" Foreground="{DynamicResource Ab.Ink}" HorizontalAlignment="Center" />
+            <LayoutTransformControl HorizontalAlignment="Center">
+                <LayoutTransformControl.LayoutTransform>
+                    <RotateTransform Angle="90" />
+                </LayoutTransformControl.LayoutTransform>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="{Binding $parent[views:ShelfRailView].Title}" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" />
+                    <TextBlock Classes="muted" Text="{Binding $parent[views:ShelfRailView].Sub}" FontSize="12" />
+                </StackPanel>
+            </LayoutTransformControl>
+        </StackPanel>
+    </Button>
+</UserControl>

@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.TaskSectionView"
+             x:DataType="vm:TaskSectionViewModel">
+    <!-- One section of a task panel: the header (chevron, icon or label dot, title, faint hint, pin; a Shelf bin's "+") folds it on a
+         click and offers Expand all / Collapse all / Pinned open on a right-click; then its rows, or "Nothing to see here.". A quiet
+         section (Queued, Reminders due today, Finished today) is faded as a whole and its title is faint. -->
+    <UserControl.Styles>
+        <Style Selector="Button.sectionHeader">
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Button.sectionHeader /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Button.sectionHeader:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="TextBlock.sectionTitle">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="StackPanel.quiet TextBlock.sectionTitle">
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <!-- The add box's entry: no box of its own inside the Surface2 pill. -->
+        <Style Selector="TextBox.addEntry">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.addEntry /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="TextBox.addEntry:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.addEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Opacity="{Binding Fade}" Classes.compact="{Binding IsCompact}" Spacing="2" Margin="0,4,0,2">
+        <Grid ColumnDefinitions="*,Auto">
+            <Button Classes="sectionHeader" Command="{Binding ToggleCommand}" ContextRequested="OnHeaderContextRequested"
+                    AutomationProperties.Name="{Binding Title}" ToolTip.Tip="Click to fold or unfold · right-click for Expand all, Collapse all and Pinned open">
+                <StackPanel Classes.quiet="{Binding IsQuiet}" Orientation="Horizontal" Spacing="6">
+                    <mi:MaterialIcon Kind="{Binding Chevron}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    <mi:MaterialIcon Kind="{Binding IconKind}" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}"
+                                     VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                    <Ellipse Width="9" Height="9" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                    <TextBlock Classes="sectionTitle" Text="{Binding Title}" VerticalAlignment="Center" />
+                    <TextBlock Classes="faint" Text="{Binding Hint}" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding HasHint}" />
+                    <mi:MaterialIcon Kind="PinOutline" Width="13" Height="13" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center"
+                                     IsVisible="{Binding ShowsPin}" ToolTip.Tip="Pinned open" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="1" Classes="quiet" Padding="5" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding HasAdd}"
+                    Command="{Binding BeginAddCommand}" ToolTip.Tip="{Binding AddTip}" AutomationProperties.Name="{Binding AddTip}">
+                <mi:MaterialIcon Kind="Plus" Width="18" Height="18" Foreground="{DynamicResource Ab.Faint}" />
+            </Button>
+        </Grid>
+
+        <!-- The "+" box: Enter adds a task here and keeps the box for the next; Esc or leaving it empty closes it. -->
+        <Border IsVisible="{Binding IsAdding}" Margin="28,0,6,2" Padding="12,0" CornerRadius="999" Background="{DynamicResource Ab.Surface2}">
+            <TextBox x:Name="AddBox" Classes="addEntry" Text="{Binding AddText}" PlaceholderText="{Binding AddTip}"
+                     AutomationProperties.Name="{Binding AddTip}" LostFocus="OnAddBoxLostFocus" PropertyChanged="OnAddBoxPropertyChanged">
+                <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding CommitAddCommand}" />
+                    <KeyBinding Gesture="Escape" Command="{Binding CancelAddCommand}" />
+                </TextBox.KeyBindings>
+            </TextBox>
+        </Border>
+
+        <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding ShowsRows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TaskListRowViewModel">
+                    <views:TaskRowView />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="faint" Text="{Binding EmptyText}" FontSize="13" Margin="30,2,0,6" IsVisible="{Binding ShowsEmpty}" />
+    </StackPanel>
+</UserControl>

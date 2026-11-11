@@ -1613,6 +1613,9 @@ public partial class App : Application
         };
         var sessionLayout = new AccountabiliBuddy.App.Services.Tasks.SessionLayoutService(_sessions!, time);
         _sessionLayout = sessionLayout;
+        // How the Tasks page and Today's task sections are laid out on this PC (density, split, folds, pins).
+        var taskLayout = new AccountabiliBuddy.App.Services.Tasks.TaskLayoutStore(documents);
+        taskLayout.LoadBlocking();
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
@@ -1656,7 +1659,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents), _filterPresets!)
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, taskLayout)
             {
                 // ADR 72: "Keep on…" offers this PC and the group's other PCs and phones (never the watch).
                 SelfId = selfId,
@@ -1677,14 +1680,25 @@ public partial class App : Application
             SessionControl = new SessionControlViewModel(
                 _sessions!, _stepAway!, sessionLayout, () => _quickSession!.Show(), () => _endFlow!.TryEndSessionAsync(VisibleMainWindow())),
         };
-        // "Ended · switches next time": opening Tasks again switches it back to planning.
+        // "Ended · switches next time": opening Tasks again switches it back to planning; header clicks on its sections are forgotten.
         mainViewModel.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab) && mainViewModel.SelectedTab == (int)MainTab.Tasks)
             {
                 sessionLayout.TasksOpened();
+                mainViewModel.Tasks?.TasksOpened();
             }
         };
+        if (mainViewModel.Tasks is { } tasksPage)
+        {
+            // Today shows the same task sections; a row opened there opens on the Tasks page (it has the detail card).
+            sessionViewModel.TaskPage = tasksPage;
+            tasksPage.OpenRequested += (_, _) => mainViewModel.SelectedTab = (int)MainTab.Tasks;
+            if (_taskActions is not null && _taskViews is not null && _taskTidyUp is not null && _taskReminders is not null)
+            {
+                tasksPage.UseTaskModel(taskStore, _taskActions, _taskViews, _taskTidyUp, _taskReminders);
+            }
+        }
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
         planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;
         // The menu on a calendar event, wherever it shows, and the same changes asked from a phone (ADR 64).

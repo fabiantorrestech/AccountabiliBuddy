@@ -1,0 +1,161 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.ShelfView"
+             x:DataType="vm:ShelfViewModel">
+    <!-- The Shelf column (spec 03 §B): "Shelf ▾" (views), Bins ▾ (Group by), unfold, hide; the search pill; the label chips (+, All,
+         labels, No label); the labels editor (the chips' +); the weekly tidy-up card; then To sort / Next / Later (or the view's
+         groups), each with "+" and "Nothing to see here." when empty; then the page's Footer (the Archive). Everything under the
+         header scrolls. -->
+    <UserControl.Styles>
+        <Style Selector="Button.chip">
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.chip.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.tool">
+            <Setter Property="Padding" Value="7,5" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.searchEntry">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.searchEntry /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="TextBox.searchEntry:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.searchEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel>
+        <!-- Header. -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="2" Margin="14,12,10,6">
+            <Button Classes="quiet tool" Click="OnViewMenuClick" ToolTip.Tip="Views" AutomationProperties.Name="Shelf views">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Classes="display" Text="Shelf" FontSize="22" VerticalAlignment="Center" />
+                    <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Classes="quiet tool" Click="OnGroupMenuClick" ToolTip.Tip="Group by" AutomationProperties.Name="Group by">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <mi:MaterialIcon Kind="TuneVariant" Width="16" Height="16" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding GroupText}" FontSize="13" VerticalAlignment="Center" />
+                    <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="3" Classes="quiet tool" Command="{Binding Panel.ToggleExpandCommand}" ToolTip.Tip="{Binding Panel.ExpandTip}"
+                    AutomationProperties.Name="{Binding Panel.ExpandTip}">
+                <mi:MaterialIcon Kind="{Binding Panel.ExpandIcon}" Width="18" Height="18" />
+            </Button>
+            <Button Grid.Column="4" Classes="quiet tool" Command="{Binding HideCommand}" ToolTip.Tip="Hide the Shelf (Ctrl+\)" AutomationProperties.Name="Hide the Shelf">
+                <mi:MaterialIcon Kind="ArrowCollapseRight" Width="18" Height="18" />
+            </Button>
+        </Grid>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Search pill: titles, steps, notes, tags, or a number like 142b. -->
+                <Border Margin="14,2,14,8" Padding="12,0" Height="34" CornerRadius="999" Background="{DynamicResource Ab.Surface2}"
+                        HorizontalAlignment="Left" MinWidth="200" MaxWidth="360">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <mi:MaterialIcon Kind="Magnify" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Classes="searchEntry" Text="{Binding SearchText}" PlaceholderText="Search" KeyDown="OnSearchKeyDown"
+                                 AutomationProperties.Name="Search the Shelf">
+                            <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
+                        </TextBox>
+                    </Grid>
+                </Border>
+
+                <!-- Label chips: + (the labels editor), All, each label, No label. -->
+                <WrapPanel Margin="14,0,14,8" ItemSpacing="6" LineSpacing="6" IsVisible="{Binding HasViews}">
+                    <Button Classes="chip" Padding="6,4" Command="{Binding ToggleManageLabelsCommand}" ToolTip.Tip="Labels: add, rename, recolour or delete"
+                            AutomationProperties.Name="Labels">
+                        <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
+                    </Button>
+                    <ItemsControl ItemsSource="{Binding LabelChips}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TaskChipViewModel">
+                                <Button Classes="chip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Text}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                        <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </WrapPanel>
+
+                <!-- The labels editor (the chips' +). -->
+                <Border Margin="14,0,14,8" Padding="16,12" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding IsManagingLabels}">
+                    <views:CategoryEditorView DataContext="{Binding $parent[views:TasksView].((vm:TasksViewModel)DataContext).CategoryEditor, FallbackValue={x:Null}}" />
+                </Border>
+
+                <!-- Weekly tidy-up: on its day, never in a session; × = not this week. -->
+                <Border Margin="14,0,14,8" Padding="12,8,6,8" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding HasTidyCard}">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                        <mi:MaterialIcon Kind="Broom" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding TidyTitle}" FontSize="13.5" FontWeight="Medium" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" Text="{Binding TidySub}" FontSize="12" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Content="Tidy up" Command="{Binding StartTidyCommand}" Padding="12,5" VerticalAlignment="Center"
+                                ToolTip.Tip="Coming soon" AutomationProperties.Name="Tidy up" />
+                        <Button Grid.Column="3" Classes="quiet tool" Command="{Binding DismissTidyCommand}" ToolTip.Tip="Not this week" AutomationProperties.Name="Not this week">
+                            <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- The bins (or the view's groups). -->
+                <ItemsControl Margin="8,0,8,4" ItemsSource="{Binding Panel.Sections}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TaskSectionViewModel">
+                            <views:TaskSectionView />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- What the page puts under the bins (the Archive). -->
+                <ContentControl Content="{Binding $parent[views:ShelfView].Footer}" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

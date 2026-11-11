@@ -331,6 +331,12 @@ public partial class MainWindow : Window
 
             e.Handled = true;
         }
+        else if (e.KeyModifiers == KeyModifiers.Control && e.Key is Key.OemPipe or Key.OemBackslash && viewModel.IsTasksSelected && viewModel.Tasks is { } tasks)
+        {
+            // Ctrl+\ on the Tasks page: show or hide the Shelf.
+            tasks.ToggleShelfCommand.Execute(null);
+            e.Handled = true;
+        }
         else if (e.Key == Key.Escape && viewModel.IsSearchOpen)
         {
             viewModel.Search?.ClearCommand.Execute(null);

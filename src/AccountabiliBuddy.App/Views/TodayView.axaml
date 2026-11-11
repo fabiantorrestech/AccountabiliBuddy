@@ -6,9 +6,10 @@
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.TodayView"
              x:DataType="vm:SessionViewModel">
-    <!-- The Today page (redesign): a main card that is one thing at a time (idle: start; planning; running; or the shutdown
-         and welcome cards), and a 330-wide side column (the goal ring, next up, timers, come back to, the session review).
-         The rest is folded under "More today". -->
+    <!-- The Today page (redesign): on the left "Today Tue 11/10" with Today's task sections (This session, Queued, Reminders due
+         today, Finished today: the Tasks page's rows and rules, spec 03 §B2); then a main card that is one thing at a time (idle:
+         start; planning; running; or the shutdown and welcome cards), and a 330-wide side column (the goal ring, next up, timers,
+         come back to, the session review). The rest is folded under "More today". On a narrow page the task sections sit on top. -->
     <UserControl.Resources>
         <!-- Check boxes and the fold read in ink, not accent: accent is for the progress ring and the one main button. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -47,6 +48,21 @@
         <ContainerQuery Name="TodayPage" Query="max-width:940">
             <Style Selector="Border.mainCard">
                 <Setter Property="Padding" Value="28,20" />
+            </Style>
+        </ContainerQuery>
+        <!-- Today's task sections: a 400-wide column on the left, or a band on top (scrolling inside) when the page is narrow. -->
+        <Style Selector="Border.todaySections">
+            <Setter Property="DockPanel.Dock" Value="Left" />
+            <Setter Property="Width" Value="400" />
+            <Setter Property="Margin" Value="0,0,14,0" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.TasksRadius}" />
+        </Style>
+        <ContainerQuery Name="TodayRoot" Query="max-width:1300">
+            <Style Selector="Border.todaySections">
+                <Setter Property="DockPanel.Dock" Value="Top" />
+                <Setter Property="Width" Value="NaN" />
+                <Setter Property="MaxHeight" Value="320" />
+                <Setter Property="Margin" Value="0,0,6,14" />
             </Style>
         </ContainerQuery>
         <!-- A come-back's ✎ and "Add to tasks": small and flat, like the checklist's row buttons. -->
@@ -120,6 +136,31 @@
             <Setter Property="ArcBrush" Value="{DynamicResource Ab.Met}" />
         </Style>
     </UserControl.Styles>
+    <DockPanel Container.Name="TodayRoot" Container.Sizing="Width">
+    <Border Classes="card todaySections" Padding="0" ClipToBounds="True" DataContext="{Binding TaskPage}"
+            IsVisible="{Binding $parent[views:TodayView].((vm:SessionViewModel)DataContext).TaskPage, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}"
+            Container.Name="TaskColumn" Container.Sizing="Width">
+        <DockPanel x:DataType="vm:TasksViewModel">
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="26,18,14,6">
+                <TextBlock Classes="display" Text="Today" FontSize="30" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding TodayDateText}" FontSize="13" VerticalAlignment="Center" Margin="0,6,0,0" />
+                <Button Grid.Column="2" Classes="quiet" Padding="7,5" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                        Command="{Binding TodayTabPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayTabPanel.ExpandTip}"
+                        AutomationProperties.Name="{Binding TodayTabPanel.ExpandTip}">
+                    <mi:MaterialIcon Kind="{Binding TodayTabPanel.ExpandIcon}" Width="18" Height="18" />
+                </Button>
+            </Grid>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl Margin="12,0,12,16" ItemsSource="{Binding TodayTabPanel.Sections}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TaskSectionViewModel">
+                            <views:TaskSectionView />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
     <ScrollViewer x:Name="PageScroll" HorizontalScrollBarVisibility="Disabled">
         <Grid ColumnDefinitions="*,338" ColumnSpacing="14" Margin="0,0,6,0" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}"
               Container.Name="TodayPage" Container.Sizing="Width">
@@ -863,4 +904,5 @@
             </StackPanel>
         </Grid>
     </ScrollViewer>
+    </DockPanel>
 </UserControl>

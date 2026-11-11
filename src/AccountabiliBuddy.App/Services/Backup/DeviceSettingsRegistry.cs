@@ -16,7 +16,7 @@ public static class DeviceSettingsRegistry
         "session.pcOff", "stepAway", "shutdown", "batteryVisibility", "syncLight", "motion", "timers", "tasks.filterPresets", "tasks.view",
         "stats.view", "history.hidden", "history.hiddenDistractions", "history.names", "dailySteps", "enforcement.limit",
         "setup.computerType", "classify.exemptionProfiles", "dpAssistant", "planHelperDismissed", "updates", "backup.auto.settings",
-        "tasks.viewSearches", "tasks.categoryIds", "tasks.settings", "tasks.reminderSettings",
+        "tasks.viewSearches", "tasks.categoryIds", "tasks.settings", "tasks.reminderSettings", "tasks.layout",
     ];
 
     /// <summary>Restored through their services in synced settings, so the edit reaches the other devices.</summary>
