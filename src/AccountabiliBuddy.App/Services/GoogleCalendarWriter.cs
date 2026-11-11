@@ -8,7 +8,7 @@ using AccountabiliBuddy.Core.Tasks;
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// The one write path to Google Calendar (ADR 78), over <see cref="CalendarNetwork"/>: finds or makes the app's own calendar and
+/// The one write path to Google Calendar (ADR 78), over <see cref="CalendarNetwork"/>: finds (and checks) or makes the app's own calendar and
 /// creates, changes and deletes task events by their fixed ids (<see cref="TaskCalendarMapping.EventId"/>). An event carries only
 /// the task's title and times and its reminder overrides; it is marked free, so it never blocks the user's time.
 /// </summary>
@@ -23,9 +23,16 @@ public sealed class GoogleCalendarWriter
         _endpoints = endpoints;
     }
 
-    /// <returns>The id of a calendar the account owns with that name (one the app made before, e.g. on an earlier install); null when none.</returns>
-    public async Task<string?> FindOwnedCalendarAsync(string accessToken, string name, CancellationToken cancellationToken)
+    /// <summary>The description the app gives its own calendar.</summary>
+    public const string AppCalendarDescription = "Made by AccountabiliBuddy for your task reminders. The app changes only the events it made here.";
+
+    /// <returns>
+    /// The ids of the calendars the account owns with that name, a candidate for the app's own (made on an earlier install). A name
+    /// proves nothing: <see cref="ClaimCalendarAsync"/> checks a candidate before it is used.
+    /// </returns>
+    public async Task<IReadOnlyList<string>> FindOwnedCalendarsAsync(string accessToken, string name, CancellationToken cancellationToken)
     {
+        var found = new List<string>();
         string? pageToken = null;
         do
         {
@@ -38,7 +45,7 @@ public sealed class GoogleCalendarWriter
                 {
                     if (Text(item, "summary") == name && Text(item, "id") is { } id)
                     {
-                        return id;
+                        found.Add(id);
                     }
                 }
             }
@@ -47,13 +54,36 @@ public sealed class GoogleCalendarWriter
         }
         while (pageToken is not null);
 
-        return null;
+        return found;
+    }
+
+    /// <summary>
+    /// Checks that the calendar is one this OAuth client made, by writing its description: Google allows changing a calendar itself
+    /// only with full calendar access, which the app never asks for, or with calendar.app.created for a calendar this client made. So a
+    /// calendar the user made, or one made by an earlier Cloud project, is refused, even when calendar.events is granted.
+    /// </summary>
+    /// <returns>True when it is the app's own; false when Google refuses (403) or doesn't have it (404).</returns>
+    /// <exception cref="HttpRequestException">A rate limit, a missing scope, or any other failure.</exception>
+    public async Task<bool> ClaimCalendarAsync(string accessToken, string calendarId, CancellationToken cancellationToken)
+    {
+        var body = new JsonObject { ["description"] = AppCalendarDescription };
+        try
+        {
+            using JsonDocument _ = await _network.SendJsonAsync(
+                HttpMethod.Patch, new Uri(_endpoints.CalendarApi, $"calendars/{Uri.EscapeDataString(calendarId)}"), accessToken, Json(body), cancellationToken);
+            return true;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound
+                                              || (ex.StatusCode == HttpStatusCode.Forbidden && !GoogleErrorReason.IsRateLimit(ex) && !GoogleErrorReason.IsMissingScope(ex)))
+        {
+            return false;
+        }
     }
 
     /// <returns>The new calendar's id.</returns>
     public async Task<string> CreateCalendarAsync(string accessToken, string name, CancellationToken cancellationToken)
     {
-        var body = new JsonObject { ["summary"] = name };
+        var body = new JsonObject { ["summary"] = name, ["description"] = AppCalendarDescription };
         using JsonDocument created = await _network.SendJsonAsync(
             HttpMethod.Post, new Uri(_endpoints.CalendarApi, "calendars"), accessToken, Json(body), cancellationToken);
         return Text(created.RootElement, "id") ?? throw new JsonException("Google's answer has no 'id'.");

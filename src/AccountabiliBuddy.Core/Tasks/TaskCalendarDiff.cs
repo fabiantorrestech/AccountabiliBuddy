@@ -6,13 +6,17 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// </summary>
 public static class TaskCalendarDiff
 {
+    /// <param name="keptElsewhere">Tasks that still want their event but are kept on other devices only (<see cref="TaskCalendarMapping.KeptElsewhereIds"/>).</param>
     /// <returns>
-    /// The writes, deletes first, then updates, then creates (each by task id): a recorded event no task wants any more is deleted
-    /// (finished, archived, deleted, switched off, no due date and no reminder left); one whose calendar changed is deleted there and
-    /// created in the new one; one whose content changed is updated; a wanted event with no record is created.
+    /// The writes, forgets and deletes first, then updates, then creates (each by task id): a recorded event of a task kept elsewhere is
+    /// forgotten (record dropped, event left for the devices that keep the task: they share its id); any other recorded event no task
+    /// wants any more is deleted (finished, archived, deleted, switched off, no due date and no reminder left); one whose calendar
+    /// changed is deleted there and created in the new one; one whose content changed is updated; a wanted event with no record is created.
     /// </returns>
     public static IReadOnlyList<TaskCalendarAction> Plan(
-        IReadOnlyDictionary<Guid, TaskCalendarWanted> wanted, IReadOnlyDictionary<Guid, TaskCalendarRecord> recorded)
+        IReadOnlyDictionary<Guid, TaskCalendarWanted> wanted,
+        IReadOnlyDictionary<Guid, TaskCalendarRecord> recorded,
+        IReadOnlySet<Guid> keptElsewhere)
     {
         var deletes = new List<TaskCalendarAction>();
         var updates = new List<TaskCalendarAction>();
@@ -22,7 +26,8 @@ public static class TaskCalendarDiff
         {
             if (!wanted.TryGetValue(taskId, out TaskCalendarWanted? want))
             {
-                deletes.Add(new TaskCalendarAction(TaskCalendarActionKind.Delete, taskId, record, null));
+                TaskCalendarActionKind kind = keptElsewhere.Contains(taskId) ? TaskCalendarActionKind.Forget : TaskCalendarActionKind.Delete;
+                deletes.Add(new TaskCalendarAction(kind, taskId, record, null));
             }
             else if (want.CalendarKey != record.CalendarKey)
             {

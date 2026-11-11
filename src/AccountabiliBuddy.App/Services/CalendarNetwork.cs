@@ -189,7 +189,9 @@ public sealed class CalendarNetwork : IDisposable
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode && response.StatusCode != HttpStatusCode.NotFound)
         {
-            throw new HttpRequestException($"{(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode);
+            string body = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw GoogleErrorReason.With(
+                new HttpRequestException($"{(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode), body);
         }
     }
 
@@ -586,7 +588,9 @@ public sealed class CalendarNetwork : IDisposable
         string body = await response.Content.ReadAsStringAsync(cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"{(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode);
+            // Google's reason (e.g. rateLimitExceeded) rides along for ADR 78's calendar writes; the body is never logged.
+            throw GoogleErrorReason.With(
+                new HttpRequestException($"{(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode), body);
         }
 
         return JsonDocument.Parse(body.Length == 0 ? "{}" : body);

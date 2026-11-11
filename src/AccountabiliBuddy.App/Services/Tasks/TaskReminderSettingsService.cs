@@ -63,6 +63,7 @@ public sealed class TaskReminderSettingsService
             NewReminderRule = rules.Contains(settings.NewReminderRule) ? settings.NewReminderRule : TaskReminder.AtStart,
             NewRemindersTo = Enum.IsDefined(settings.NewRemindersTo) ? settings.NewRemindersTo : TaskCalendarDestination.GoogleCalendar,
             PickedCalendarId = string.IsNullOrWhiteSpace(settings.PickedCalendarId) ? null : settings.PickedCalendarId,
+            DateOnlyEvent = Enum.IsDefined(settings.DateOnlyEvent) ? settings.DateOnlyEvent : TaskDateOnlyEvent.TimedAtNine,
         };
     }
 

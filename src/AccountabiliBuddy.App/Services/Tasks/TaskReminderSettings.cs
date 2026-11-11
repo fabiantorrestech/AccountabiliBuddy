@@ -21,6 +21,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// ADR 78's experimental option: the Google calendar (of the export account) that tasks with a due date go to instead of "AB Reminders";
 /// null when off (the default). Used only once the user allowed changing events there (calendar.events).
 /// </param>
+/// <param name="DateOnlyEvent">"Tasks with a date but no time" (ADR 78): a timed event at 9:00 AM (default) or an all-day event.</param>
 public sealed record TaskReminderSettings(
     int Volume = 70,
     bool RisingVolume = true,
@@ -33,7 +34,8 @@ public sealed record TaskReminderSettings(
     string NewReminderRule = TaskReminder.AtStart,
     TaskReminderDuringSession DuringSession = TaskReminderDuringSession.WaitUntilEnd,
     TaskCalendarDestination NewRemindersTo = TaskCalendarDestination.GoogleCalendar,
-    string? PickedCalendarId = null)
+    string? PickedCalendarId = null,
+    TaskDateOnlyEvent DateOnlyEvent = TaskDateOnlyEvent.TimedAtNine)
 {
     public static TaskReminderSettings Default { get; } = new();
 

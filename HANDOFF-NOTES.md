@@ -260,3 +260,12 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - M7 (settings): "Add new reminders to" row (`TaskReminderSettingsService.UpdateAsync`), Allow button (`AllowExportAsync`, show `Problem`/`NeedsConsent`), experimental picked calendar (pick from the export account's calendars, `AllowPickedCalendarAsync` then `SetPickedCalendarAsync`; off = `SetPickedCalendarAsync(null)`). Add a SetupFeatures entry then (re-consent for existing installs).
 - Docs: ADR 0078 (as-built section), CLAUDE.md outbound line, `doc/hard-rules.md` ADR 78 entry, HANDOFF-QUESTIONS 4 and 83, setup guide scopes (`GoogleSetupSteps`), Integrations and Settings hint texts.
 - Checks: `tasks-ui-checks/CalendarExportChecks` (mapping, JSON, diff, opt-in, service on a fake Google handler: consent gate, create/update/delete, offline, 409, calendar re-made, picked calendar on/off; 52/52 pass). Dev app started once on dev data: no exceptions.
+
+## M3 task 3 fix round (review of 1cbba319..bef5b000 + owner's item 9)
+
+- Shared event ids: `TaskCalendarActionKind.Forget` + `TaskCalendarMapping.KeptElsewhere(Ids)`; `TaskCalendarDiff.Plan(wanted, recorded, keptElsewhere)` forgets (no DELETE) a task that still wants its event but isn't kept on this PC.
+- App calendar identity: `GoogleCalendarWriter.FindOwnedCalendarsAsync` lists candidates, `ClaimCalendarAsync` (PATCH description) confirms one this client made; new calendars get the description too. 403/404 in AB Reminders -> forget and remake, once at once, then once per backoff (`_appCalendarTrouble`).
+- `GoogleErrorReason` (Google's `error.errors[0].reason`, put on the exception by `CalendarNetwork`): rate limits back off; `insufficientPermissions` -> NeedsConsent (picked calendar: its actions wait, records kept).
+- `AllowAsync` re-reads the source after sign-in (disconnected meanwhile -> refused); `IsAppCalendar` by recorded id only.
+- Item 9: `TaskDateOnlyEvent` + `TaskReminderSettings.DateOnlyEvent` ("Tasks with a date but no time": Timed at 9:00 AM default | All-day event); M7 adds the row next to "Add new reminders to".
+- Docs: ADR 78, hard-rules (headline + ADR 78 entry), Q83. Checks: `CalendarExportChecks` 80/80.

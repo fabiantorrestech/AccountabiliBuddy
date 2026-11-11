@@ -9,9 +9,10 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// Turns a task into its one calendar event (ADR 78). Only the title and times go into it.
 /// <list type="bullet">
 /// <item>A due date and time: a <see cref="TimedLength"/> event at the due time; each reminder is an override, minutes before it.</item>
-/// <item>A due date only: an all-day event that day. Google counts an all-day event's reminders back from its midnight start, so a
-/// reminder on the day itself (e.g. "At start time", 9:00 AM) can't be carried and is <see cref="TaskCalendarEvent.Dropped"/>;
-/// "1 day before at 9:00 AM" is 900 minutes.</item>
+/// <item>A due date only, by "Tasks with a date but no time" (<see cref="TaskDateOnlyEvent"/>): a <see cref="TimedLength"/> event at
+/// 9:00 AM (the default; the time such a task's reminders count from, so "At start time" is 0 minutes), or an all-day event that day.
+/// Google counts an all-day event's reminders back from its midnight start, so there a reminder on the day itself can't be carried and
+/// is <see cref="TaskCalendarEvent.Dropped"/>; "1 day before at 9:00 AM" is 900 minutes.</item>
 /// <item>Reminders but no due date (only "at" reminders can ring then): the anchor, a <see cref="TimedLength"/> event at the task's
 /// last reminder, with every reminder as minutes before it (the last one at 0), so each still rings at its own time.</item>
 /// </list>
@@ -53,8 +54,29 @@ public static class TaskCalendarMapping
                && (task.Devices is null || (self is Guid device && task.Devices.Contains(device)));
     }
 
+    /// <summary>
+    /// The task still wants its event (live, open, switch on) but isn't kept on this device (<paramref name="self"/> not among its
+    /// devices, or this PC not in a group yet): another device owns the event now, so this PC forgets it rather than deleting it.
+    /// </summary>
+    public static bool KeptElsewhere(TaskItem task, Guid? self)
+    {
+        return task.IsLive
+               && !task.IsDone
+               && task.Bin != TaskBin.Done
+               && task.Calendar
+               && task.Devices is not null
+               && !(self is Guid device && task.Devices.Contains(device));
+    }
+
+    /// <summary>The ids of the tasks <see cref="KeptElsewhere"/>, for <see cref="TaskCalendarDiff.Plan"/>.</summary>
+    public static IReadOnlySet<Guid> KeptElsewhereIds(IEnumerable<TaskItem> tasks, Guid? self)
+    {
+        return tasks.Where(task => KeptElsewhere(task, self)).Select(task => task.Id).ToHashSet();
+    }
+
+    /// <param name="dateOnly">What a due date without a time becomes.</param>
     /// <returns>The task's event; null when it has neither a due date nor a reminder that can ring.</returns>
-    public static TaskCalendarEvent? EventFor(TaskItem task, TimeZoneInfo zone)
+    public static TaskCalendarEvent? EventFor(TaskItem task, TimeZoneInfo zone, TaskDateOnlyEvent dateOnly)
     {
         string title = task.Title.Trim() is { Length: > 0 } trimmed ? trimmed : "Task";
         List<DateTimeOffset> rings = (task.Reminders ?? [])
@@ -65,9 +87,9 @@ public static class TaskCalendarMapping
 
         if (task.DueOn is DateOnly dueOn)
         {
-            if (task.DueAt is TimeOnly dueAt)
+            if (task.DueAt is not null || dateOnly == TaskDateOnlyEvent.TimedAtNine)
             {
-                DateTimeOffset start = TaskReminderTimes.Local(dueOn, dueAt, zone);
+                DateTimeOffset start = TaskReminderTimes.Local(dueOn, task.DueAt ?? TaskReminderTimes.NineAm, zone);
                 (IReadOnlyList<int> minutes, int dropped) = Overrides(start, rings);
                 return new TaskCalendarEvent(title, null, start, start + TimedLength, minutes, false, dropped);
             }
@@ -93,12 +115,12 @@ public static class TaskCalendarMapping
     /// per task.
     /// </summary>
     public static IReadOnlyDictionary<Guid, TaskCalendarWanted> Wanted(
-        IEnumerable<TaskItem> tasks, TimeZoneInfo zone, Guid? self, string? pickedCalendarId)
+        IEnumerable<TaskItem> tasks, TimeZoneInfo zone, Guid? self, string? pickedCalendarId, TaskDateOnlyEvent dateOnly)
     {
         var wanted = new Dictionary<Guid, TaskCalendarWanted>();
         foreach (TaskItem task in tasks.Where(task => Exports(task, self)))
         {
-            if (EventFor(task, zone) is not { } calendarEvent)
+            if (EventFor(task, zone, dateOnly) is not { } calendarEvent)
             {
                 continue;
             }
