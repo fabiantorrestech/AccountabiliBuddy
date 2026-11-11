@@ -47,14 +47,14 @@ internal sealed class TaskLabelBook
             return held.Id;
         }
 
-        Guid id = TaskLabel.IdFor(name);
+        Guid id = FreeIdFor(name, _labels);
         string chosen = TaskLabelColors.IsValid(color) ? color!.Trim() : TaskLabelColors.FirstUnused(_labels);
         double position = _labels.Count == 0 ? 1 : _labels.Max(label => label.Position) + 1;
         int existing = _labels.FindIndex(label => label.Id == id);
         var label = new TaskLabel(id, name.Trim(), chosen, position, stamp);
         if (existing >= 0)
         {
-            // A tombstone of the same name: a newer use brings the label back.
+            // A tombstone (FreeIdFor never gives a live label's id): a newer use brings the label back.
             _labels[existing] = label with { EditedAt = stamp > _labels[existing].EditedAt ? stamp : _labels[existing].EditedAt.AddTicks(1) };
         }
         else
@@ -63,6 +63,23 @@ internal sealed class TaskLabelBook
         }
 
         Made++;
+        return id;
+    }
+
+    /// <summary>
+    /// The id for a new label named <paramref name="name"/>: its name-based id (<see cref="TaskLabel.IdFor"/>), unless a live label
+    /// renamed since holds that id; then the next free one of the name's numbered ids (the name with "#2", "#3"... appended to it
+    /// before hashing). Never a live label's id, so a stale use of an old name can't undo a rename; the same labels give the same id
+    /// on every device. A tombstone's id may be given (that label comes back).
+    /// </summary>
+    internal static Guid FreeIdFor(string name, IReadOnlyList<TaskLabel> labels)
+    {
+        Guid id = TaskLabel.IdFor(name);
+        for (int suffix = 2; labels.Any(label => label.Id == id && label.IsLive); suffix++)
+        {
+            id = TaskLabel.IdFor(name.Trim() + "#" + suffix.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
         return id;
     }
 

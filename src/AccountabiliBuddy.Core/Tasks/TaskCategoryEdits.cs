@@ -108,12 +108,8 @@ public static class TaskCategoryEdits
 
     private static int AddLabel(List<TaskLabel> labels, string name, string color, DateTimeOffset now)
     {
-        Guid id = TaskLabel.IdFor(name);
-        if (labels.Any(label => label.Id == id && label.IsLive))
-        {
-            // The name-based id is taken by a label renamed since: this one needs its own.
-            id = Guid.NewGuid();
-        }
+        // The name-based id, or (taken by a label renamed since) the name's next numbered one.
+        Guid id = TaskLabelBook.FreeIdFor(name, labels);
 
         double position = labels.Where(label => label.IsLive).Select(label => label.Position).DefaultIfEmpty(0).Max() + 1;
         int existing = labels.FindIndex(label => label.Id == id);

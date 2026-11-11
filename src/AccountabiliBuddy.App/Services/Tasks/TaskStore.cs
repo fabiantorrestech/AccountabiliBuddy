@@ -103,7 +103,7 @@ public sealed class TaskStore
             IsActive = true;
             return true;
         }
-        catch (Exception ex) when (ex is SqliteException or JsonException or FormatException or NotSupportedException)
+        catch (Exception ex) when (ex is SqliteException or JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
         {
             IsActive = false;
             return false;
@@ -111,8 +111,8 @@ public sealed class TaskStore
     }
 
     /// <summary>
-    /// Makes the migration's result the task list: its documents are written first, the marker last, so a run that stops halfway
-    /// leaves no marker and the next start migrates again from the old documents (kept as they are).
+    /// Makes the migration's result the task list: its documents and the marker are written in one transaction, so a run that stops
+    /// halfway leaves no marker and the next start migrates again from the old documents (kept as they are).
     /// </summary>
     public void ActivateBlocking(TaskMigrationResult result, IReadOnlyDictionary<Guid, Guid> categoryIds)
     {
@@ -120,11 +120,8 @@ public sealed class TaskStore
         lists = TaskListRules.Normalize(lists, Self, NumberingDevice(), Now);
         var searches = result.ViewSearches.ToDictionary(pair => pair.Key, pair => pair.Value);
         var ids = categoryIds.ToDictionary(pair => pair.Key, pair => pair.Value);
-        Task.Run(async () =>
-        {
-            await SaveDocumentsAsync(lists, ids, searches);
-            await _store.SaveAsync(MarkerKey, new Marker(ModelVersion));
-        }).GetAwaiter().GetResult();
+        // The documents and the marker in one transaction: a run that stops halfway leaves neither.
+        Task.Run(() => SaveDocumentsAsync(lists, ids, searches, withMarker: true)).GetAwaiter().GetResult();
         _lists = lists;
         _categoryIds = ids;
         _viewSearches = searches;
@@ -286,14 +283,24 @@ public sealed class TaskStore
         return _saving;
     }
 
-    private async Task SaveDocumentsAsync(TaskLists lists, Dictionary<Guid, Guid> ids, Dictionary<Guid, string> searches)
+    // One transaction: the tasks, History and labels always agree (a tick moves a task into History, an untick back).
+    private Task SaveDocumentsAsync(TaskLists lists, Dictionary<Guid, Guid> ids, Dictionary<Guid, string> searches, bool withMarker = false)
     {
-        await _store.SaveAsync(ItemsKey, Sealed(lists.Tasks));
-        await _store.SaveAsync(LabelsKey, Sealed(lists.Labels));
-        await _store.SaveAsync(ViewsKey, Sealed(lists.Views));
-        await _store.SaveAsync(LogKey, Sealed(lists.Log));
-        await _store.SaveAsync(CategoryIdsKey, Sealed(ids));
-        await _store.SaveAsync(ViewSearchesKey, Sealed(searches));
+        var documents = new List<KeyValuePair<string, object>>
+        {
+            new(ItemsKey, Sealed(lists.Tasks)),
+            new(LabelsKey, Sealed(lists.Labels)),
+            new(ViewsKey, Sealed(lists.Views)),
+            new(LogKey, Sealed(lists.Log)),
+            new(CategoryIdsKey, Sealed(ids)),
+            new(ViewSearchesKey, Sealed(searches)),
+        };
+        if (withMarker)
+        {
+            documents.Add(new(MarkerKey, new Marker(ModelVersion)));
+        }
+
+        return _store.SaveAllAsync(documents);
     }
 
     private Stored Sealed<T>(T value)

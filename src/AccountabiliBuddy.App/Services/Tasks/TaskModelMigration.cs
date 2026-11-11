@@ -17,23 +17,26 @@ public static class TaskModelMigration
 {
     public const string LogFileName = "tasks-model.log";
 
-    /// <returns>True when the task list is the source from now on.</returns>
-    public static bool RunBlocking(
+    /// <returns>Where the task lists come from from now on.</returns>
+    public static TaskModelState RunBlocking(
         LocalDatabase database, TaskStore store, SessionTasksService sessionTasks, LaterStore later, ComebackStore comebacks,
         AutoSavedTaskStore autoSaved, TaskFilterPresetStore presets, TaskViewStore view, TimeProvider time, string dataDirectory)
     {
         string logPath = Path.Combine(dataDirectory, LogFileName);
+        bool migrated = false;
         try
         {
-            if (store.HasMarkerBlocking())
+            migrated = store.HasMarkerBlocking();
+            if (migrated)
             {
-                bool loaded = store.LoadBlocking();
-                if (!loaded)
+                if (store.LoadBlocking())
                 {
-                    Log(logPath, time, "task list could not be read; staying on the old lists");
+                    return TaskModelState.TaskList;
                 }
 
-                return loaded;
+                // The old documents stopped at the migration: using them would bring back deleted tasks and lose later edits.
+                Log(logPath, time, "task list could not be read; task lists closed until rebuilt (the old lists are not used)");
+                return TaskModelState.Unreadable;
             }
 
             string backup = Task.Run(() => database.BackupAsync("tasks-model")).GetAwaiter().GetResult();
@@ -61,19 +64,43 @@ public static class TaskModelMigration
             if (!result.Counts.IsBalanced)
             {
                 Log(logPath, time, "counts don't balance; staying on the old lists (no marker written)");
-                return false;
+                return TaskModelState.OldLists;
             }
 
             store.ActivateBlocking(result, CategoryIds(sessionTasks.Categories, result.Labels));
             Log(logPath, time, $"switched over: {store.Lists.Tasks.Count(item => item.Task.IsLive)} live tasks, {store.Lists.Log.Count} History entries");
-            return true;
+            return TaskModelState.TaskList;
         }
         catch (Exception ex)
         {
             // Never the message: it could quote a stored value. The type is enough to find it.
+            if (migrated)
+            {
+                Log(logPath, time, "task list could not be read (" + ex.GetType().Name + "); task lists closed until rebuilt");
+                return TaskModelState.Unreadable;
+            }
+
             Log(logPath, time, "migration failed (" + ex.GetType().Name + "); staying on the old lists (no marker written)");
-            return false;
+            return TaskModelState.OldLists;
         }
+    }
+
+    /// <summary>
+    /// The user's "Rebuild" for an unreadable task list (<see cref="TaskModelState.Unreadable"/>): the whole database is copied first
+    /// ("tasks-unreadable" backup, which keeps the unreadable documents), then the task list's documents and the marker go, so the
+    /// next start migrates again from the old lists as they were at the migration (the same content as the "tasks-model" backup).
+    /// Changes made to tasks after the migration are not in them.
+    /// </summary>
+    public static async Task SetAsideForRebuildAsync(LocalDatabase database, SqliteJsonDocumentStore documents, TimeProvider time, string dataDirectory)
+    {
+        string logPath = Path.Combine(dataDirectory, LogFileName);
+        string backup = await database.BackupAsync("tasks-unreadable");
+        foreach (string key in new[] { TaskStore.MarkerKey, TaskStore.ItemsKey, TaskStore.LabelsKey, TaskStore.ViewsKey, TaskStore.LogKey, TaskStore.ViewSearchesKey, TaskStore.CategoryIdsKey })
+        {
+            await documents.DeleteAsync(key);
+        }
+
+        Log(logPath, time, "rebuild chosen: unreadable task list set aside (" + Path.GetFileName(backup) + "); the next start migrates again");
     }
 
     // Each category keeps its id on this PC: running checklists and saved filters name it.

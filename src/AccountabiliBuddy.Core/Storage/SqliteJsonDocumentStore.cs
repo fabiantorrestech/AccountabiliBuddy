@@ -50,6 +50,33 @@ public sealed class SqliteJsonDocumentStore
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Saves several documents in one transaction: all of them or none (a store whose documents must agree, e.g. ADR 76's task list
+    /// and its History). Each value is written as <see cref="SaveAsync{T}"/> writes it.
+    /// </summary>
+    public async Task SaveAllAsync(IReadOnlyList<KeyValuePair<string, object>> documents, CancellationToken cancellationToken = default)
+    {
+        string updatedAt = _timeProvider.GetUtcNow().ToString("O");
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        foreach ((string key, object value) in documents)
+        {
+            await using SqliteCommand command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO documents (key, json, updated_at)
+                VALUES ($key, $json, $updatedAt)
+                ON CONFLICT(key) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at;
+                """;
+            command.Parameters.AddWithValue("$key", key);
+            command.Parameters.AddWithValue("$json", JsonSerializer.Serialize(value, value.GetType(), SerializerOptions));
+            command.Parameters.AddWithValue("$updatedAt", updatedAt);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>Every saved key (the device-settings registry's check, ADR 71).</summary>
     public async Task<IReadOnlyList<string>> ListKeysAsync(CancellationToken cancellationToken = default)
     {

@@ -1246,10 +1246,30 @@ public partial class App : Application
         taskStore.SelfId = selfId;
         taskStore.OtherDevices = () => receivedDevices.Active.Select(device => (device.File.Device.DeviceId, device.File.Device.Kind)).ToList();
         taskStore.RunningChecklist = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
-        bool usesTaskStore = AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.RunBlocking(
+        AccountabiliBuddy.App.Services.Tasks.TaskModelState taskModel = AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.RunBlocking(
             database, taskStore, sessionTasks, _later!, _comebacks!, autoSaved,
             new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector()), new TaskViewStore(documents), time, dataDirectory);
-        if (usesTaskStore)
+        if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.Unreadable)
+        {
+            // The migration ran but its task list can't be read: the old documents stopped at the migration, so they are never the
+            // source (deleted tasks would come back on every device and later edits be lost). The lists show empty views of the
+            // closed task list (nothing is saved), aren't shared or taken in, and stay out of backups until the user rebuilds them.
+            sessionTasks.UseTaskStore(taskStore);
+            _later!.UseTaskStore(taskStore);
+            _comebacks!.UseTaskStore(taskStore);
+            autoSaved.UseTaskStore(taskStore);
+            syncCoordinator.ShareTaskLists = () => false;
+            backups.Tasks = null;
+            Dispatcher.UIThread.Post(() => presenter.ShowChoice(
+                "Your task lists couldn't be opened",
+                "Tasks aren't shown, saved or synced on this PC for now. Rebuild them from the lists as they were when this version first "
+                    + "started (a copy of everything is kept first; tasks changed since then on this PC aren't in it).",
+                "Rebuild",
+                () => _ = RebuildTaskListsAsync(database, documents, time, dataDirectory),
+                () => { }));
+        }
+
+        if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.TaskList)
         {
             sessionTasks.UseTaskStore(taskStore);
             _later!.UseTaskStore(taskStore);
@@ -2893,6 +2913,17 @@ public partial class App : Application
         _unlinkedDialog = new UnlinkedDialog { DataContext = _unlinkedViewModel };
         _unlinkedDialog.Closed += (_, _) => _unlinkedDialog = null;
         ShowOwnedDialog(_unlinkedDialog);
+    }
+
+    // ADR 76: the user chose to rebuild an unreadable task list: set it aside (after a database copy), then start again so the
+    // migration runs; during a focus session the app isn't restarted, the rebuild happens at the next start.
+    private async Task RebuildTaskListsAsync(LocalDatabase database, SqliteJsonDocumentStore documents, TimeProvider time, string dataDirectory)
+    {
+        await AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.SetAsideForRebuildAsync(database, documents, time, dataDirectory);
+        if (_sessions?.State.IsActive == true || !TryRestartApp())
+        {
+            _presenter?.ShowNotice("Task lists rebuild at the next start", "They come back when the app starts again.");
+        }
     }
 
     /// <summary>Starts a new copy (which waits for this one to exit) and quits, e.g. to load restored settings.</summary>
