@@ -482,10 +482,11 @@ public sealed class SyncCoordinator
         // The shared lists (ADR 48) are merged into this PC's own, encrypted stores below; the copy kept of the sender's file
         // doesn't hold them, so their text isn't kept a second time, in the clear (the sealed bytes it passes on are sealed).
         // The past keys (ADR 56) are merged into their own encrypted store and left out of the copy kept here too.
+        // So are ADR 76's task parts and the account's Tasks settings (the picked calendar id can be the account's address).
         // A QR file never carries steps, which reads the same as "switched off": it keeps the stored counts rather than wiping them.
         SyncSteps? steps = method == SyncDeviceCard.MethodQr ? file.Steps ?? stored?.File.Steps : file.Steps;
         await _received.AcceptAsync(
-            file with { NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps, Tasks = null, Labels = null, Views = null, TaskLog = null },
+            file with { NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps, Tasks = null, Labels = null, Views = null, TaskLog = null, TaskAccountSettings = null },
             method,
             sealedBytes);
         if (PastKeys is not null)

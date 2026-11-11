@@ -61,7 +61,9 @@ public static class BackupAccess
     }
 
     /// <param name="store">ADR 76: the one task list; while it is the source, a backup holds it too and a restore goes into it.</param>
-    public static TaskListsAccess Tasks(SessionTasksService tasks, ComebackStore comebacks, LaterStore later, TimeProvider time, TaskStore? store = null)
+    /// <param name="account">The account's Tasks settings: in the backup with the task list, restored through their service.</param>
+    public static TaskListsAccess Tasks(
+        SessionTasksService tasks, ComebackStore comebacks, LaterStore later, TimeProvider time, TaskStore? store = null, TaskAccountSettingsService? account = null)
     {
         return new TaskListsAccess(
             Export: () => JsonSerializer.SerializeToElement(
@@ -73,7 +75,8 @@ public static class BackupAccess
                     Tasks: store is { IsActive: true } ? store.Lists.Tasks : null,
                     Labels: store is { IsActive: true } ? store.Lists.Labels : null,
                     Views: store is { IsActive: true } ? store.Lists.Views : null,
-                    TaskLog: store is { IsActive: true } ? store.Lists.Log : null),
+                    TaskLog: store is { IsActive: true } ? store.Lists.Log : null,
+                    AccountSettings: store is { IsActive: true, Lists.Account: { IsEmpty: false } held } ? held : null),
                 SyncJson.Options),
             Import: async (value, restore) =>
             {
@@ -87,6 +90,11 @@ public static class BackupAccess
                 {
                     // ADR 76: the backup's task list goes into this one (the old documents stay as the migration left them).
                     int live = await store.ImportAsync(new TaskLists(backupTasks, lists.Labels ?? [], lists.Views ?? [], lists.TaskLog ?? []), restore);
+                    if (account is not null && lists.AccountSettings is { } accountSettings)
+                    {
+                        await account.ImportAsync(accountSettings, restore);
+                    }
+
                     return restore
                         ? $"Task lists restored ({live} tasks from the backup)."
                         : $"Task lists merged ({live} tasks in the backup; the newest edit of each kept).";

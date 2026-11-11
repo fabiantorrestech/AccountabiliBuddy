@@ -7,22 +7,24 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// The Shelf's views (ADR 76, spec 05 section 10): the synced list of saved views (Default, Quick wins, Deep work and the user's),
 /// the one in use with the changes made to it since (<see cref="Working"/>, not saved until <see cref="SaveAsync"/>), its search words
-/// (this PC only) and what it shows (<see cref="Query"/>, <see cref="TaskViewRules"/>). The view the Shelf opens with is a setting
-/// (<see cref="TaskSettings.DefaultViewId"/>). The old filter screen's saved filters become views too, also the ones saved after the
+/// (this PC only) and what it shows (<see cref="Query"/>, <see cref="TaskViewRules"/>). The view the Shelf opens with is the account's
+/// setting, the same on every device (<see cref="TaskAccountSettingsService.DefaultViewId"/>). The old filter screen's saved filters become views too, also the ones saved after the
 /// migration (<see cref="MirrorPresetsAsync"/>). Use from the UI thread only.
 /// </summary>
 public sealed class TaskViewService
 {
     private readonly TaskStore _store;
     private readonly TaskSettingsService _settings;
+    private readonly TaskAccountSettingsService _account;
     private readonly TimeProvider _time;
     private HashSet<Guid> _mirrored = [];
     private Task _mirroring = Task.CompletedTask;
 
-    public TaskViewService(TaskStore store, TaskSettingsService settings, TimeProvider time)
+    public TaskViewService(TaskStore store, TaskSettingsService settings, TaskAccountSettingsService account, TimeProvider time)
     {
         _store = store;
         _settings = settings;
+        _account = account;
         _time = time;
         Working = TaskViewConfig.Everything;
         Search = string.Empty;
@@ -51,13 +53,13 @@ public sealed class TaskViewService
         && (TaskViewRules.Signature(Working) != TaskViewRules.Signature(view.Config) || Search != SavedSearch(view.Id));
 
     /// <summary>
-    /// Makes sure the built-in views exist and opens the default view (<see cref="TaskSettings.DefaultViewId"/>, else Default). Called
+    /// Makes sure the built-in views exist and opens the default view (<see cref="TaskAccountSettingsService.DefaultViewId"/>, else Default). Called
     /// once the task list is loaded.
     /// </summary>
     public async Task StartAsync()
     {
         await _store.ChangeAsync(this, (lists, _, now) => TaskViewEdits.WithBuiltIns(lists, now));
-        Guid wanted = _settings.Current.DefaultViewId is Guid id && Views.Any(view => view.Id == id) ? id : TaskView.DefaultId;
+        Guid wanted = _account.DefaultViewId is Guid id && Views.Any(view => view.Id == id) ? id : TaskView.DefaultId;
         Open(wanted);
     }
 
@@ -138,9 +140,9 @@ public sealed class TaskViewService
         }
 
         await _store.SetViewSearchAsync(id, null);
-        if (_settings.Current.DefaultViewId == id)
+        if (_account.DefaultViewId == id)
         {
-            await _settings.SetDefaultViewAsync(null);
+            await _account.SetDefaultViewAsync(null);
         }
 
         if (ActiveId == id)
@@ -155,10 +157,10 @@ public sealed class TaskViewService
         return true;
     }
 
-    /// <summary>The view the Shelf opens with (null: the built-in Default).</summary>
+    /// <summary>The view the Shelf opens with on every device (null: the built-in Default).</summary>
     public Task SetDefaultAsync(Guid? id)
     {
-        return _settings.SetDefaultViewAsync(id);
+        return _account.SetDefaultViewAsync(id);
     }
 
     /// <summary>

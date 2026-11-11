@@ -110,6 +110,7 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger? _taskReminderRinger;
     private AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService? _taskCalendarExport;
+    private AccountabiliBuddy.App.Services.Tasks.TaskAccountSettingsService? _taskAccount;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
 
@@ -328,6 +329,9 @@ public partial class App : Application
         sessionTasks.LoadBlocking();
         // ADR 76: the one task list; it becomes the source once every list is loaded (TaskModelMigration, below).
         var taskStore = new AccountabiliBuddy.App.Services.Tasks.TaskStore(documents, new DpapiDataProtector(), time);
+        // The account's Tasks settings (default view, picked calendar): kept and synced with the task list, the same on every device.
+        var taskAccount = new AccountabiliBuddy.App.Services.Tasks.TaskAccountSettingsService(taskStore);
+        _taskAccount = taskAccount;
         // ADR 76: Settings › Tasks (actions per session, the next step takes the slot); more actions is a looser change and waits.
         var taskSettings = new AccountabiliBuddy.App.Services.Tasks.TaskSettingsService(
             documents, time, _sessions, () => _configuration!.Current.Locks.LooseningDelay);
@@ -1019,7 +1023,7 @@ public partial class App : Application
         {
             // ADR 71: synced settings and task lists back up and restore through their own services.
             Synced = AccountabiliBuddy.App.Services.Backup.BackupAccess.Synced(sleepSettings, dayBarSettings, goal, guidance),
-            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore),
+            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore, taskAccount),
             ShareTaskLists = () => syncSettings.Current.ShareTaskLists,
         };
         // ADR 71: auto-backup of the synced settings, this PC's settings and (unshared) task lists, local and sealed on Drive.
@@ -1321,7 +1325,7 @@ public partial class App : Application
             taskStore.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
             // ADR 76: the task actions (undo, History, bulk), the Shelf's views and the weekly tidy-up: data only, the screens come later.
             _taskActions = new AccountabiliBuddy.App.Services.Tasks.TaskActionsService(taskStore, sessionTasks, time);
-            _taskViews = new AccountabiliBuddy.App.Services.Tasks.TaskViewService(taskStore, taskSettings, time);
+            _taskViews = new AccountabiliBuddy.App.Services.Tasks.TaskViewService(taskStore, taskSettings, taskAccount, time);
             _taskTidyUp = new AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService(taskStore, _taskActions, taskSettings, _sessions, documents, time);
             _taskTidyUp.LoadBlocking();
             // ADR 76: task reminders (due times, snooze, Can't miss, ringing); the volume guard first puts back what a crashed ring left raised.
@@ -1341,9 +1345,12 @@ public partial class App : Application
             _taskCalendarExport = new AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService(
                 taskStore, reminderSettings, calendars, new GoogleCalendarClient(_calendarNetwork, googleEndpoints, time),
                 new GoogleCalendarWriter(_calendarNetwork, googleEndpoints), dataProtector, documents, time,
-                Path.Combine(dataDirectory, AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService.LogFileName));
+                Path.Combine(dataDirectory, AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService.LogFileName), taskAccount);
             _taskCalendarExport.LoadBlocking();
             _calendarSync.SkipCalendar = _taskCalendarExport.IsAppCalendar;
+            // The default view and the picked calendar became the account's: this PC's own values are taken over once (where the account
+            // has none), in memory before the export and the views start.
+            _ = AdoptLegacyTaskSettingsAsync(taskAccount, taskSettings, reminderSettings);
             _taskCalendarExport.Start();
             _ = StartTaskViewsAsync();
         }
@@ -1847,7 +1854,14 @@ public partial class App : Application
                     return null;
                 }
 
-                return await _taskSettings.RestoreAsync(wanted, tasksMode);
+                string? note = await _taskSettings.RestoreAsync(wanted, tasksMode);
+                // An older backup's default view: the account's now, taken over only where the account has none.
+                if (wanted.DefaultViewId is Guid oldDefaultView && _taskAccount is not null)
+                {
+                    await _taskAccount.AdoptLegacyAsync(oldDefaultView, null);
+                }
+
+                return note;
             };
         }
 
@@ -3003,6 +3017,43 @@ public partial class App : Application
         _unlinkedDialog = new UnlinkedDialog { DataContext = _unlinkedViewModel };
         _unlinkedDialog.Closed += (_, _) => _unlinkedDialog = null;
         ShowOwnedDialog(_unlinkedDialog);
+    }
+
+    // The account takes over this PC's own default view and picked calendar once (only where it has none yet); then they are cleared
+    // here. The take-over is in memory when the first await comes, so the export never runs without it. Logs what kind, never a value.
+    private static async Task AdoptLegacyTaskSettingsAsync(
+        AccountabiliBuddy.App.Services.Tasks.TaskAccountSettingsService account,
+        AccountabiliBuddy.App.Services.Tasks.TaskSettingsService settings,
+        AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService reminders)
+    {
+        Guid? defaultView = settings.LegacyDefaultViewBlocking();
+        string? picked = reminders.Current.PickedCalendarId;
+        if (defaultView is null && picked is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await account.AdoptLegacyAsync(defaultView, picked);
+            if (defaultView is not null)
+            {
+                await settings.ClearLegacyDefaultViewAsync();
+            }
+
+            if (picked is not null)
+            {
+                await reminders.ClearLegacyPickedCalendarAsync();
+            }
+
+            System.Diagnostics.Trace.TraceInformation(
+                "Tasks settings now the account's: default view " + (defaultView is null ? "none" : "taken over") + ", picked calendar " + (picked is null ? "none" : "taken over"));
+        }
+        catch (Exception ex)
+        {
+            // Kind only. The old values stay, so the next start tries again.
+            System.Diagnostics.Trace.TraceError("Taking over the Tasks settings failed: " + ex.GetType().Name);
+        }
     }
 
     // The built-in views exist and the default one is open; the old filter screen's saved filters follow as views from then on.

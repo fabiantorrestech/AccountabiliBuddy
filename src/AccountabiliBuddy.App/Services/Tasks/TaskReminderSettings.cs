@@ -18,8 +18,8 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="NewReminderRule">The rule a new reminder starts at (a <see cref="TaskReminder"/> rule; "At start time" by default).</param>
 /// <param name="NewRemindersTo">"Add new reminders to" (ADR 78): the per-task calendar switch's default when a task gets its first reminder or due date.</param>
 /// <param name="PickedCalendarId">
-/// ADR 78's experimental option: the Google calendar (of the export account) that tasks with a due date go to instead of "AB Reminders";
-/// null when off (the default). Used only once the user allowed changing events there (calendar.events).
+/// Before the setting became the account's (<see cref="TaskAccountSettingsService.PickedCalendarId"/>): ADR 78's picked calendar on this
+/// PC. Read once to take it over (<see cref="TaskAccountSettingsService.AdoptLegacyAsync"/>), then cleared; never written again.
 /// </param>
 /// <param name="DateOnlyEvent">"Tasks with a date but no time" (ADR 78): a timed event at 9:00 AM (default) or an all-day event.</param>
 public sealed record TaskReminderSettings(

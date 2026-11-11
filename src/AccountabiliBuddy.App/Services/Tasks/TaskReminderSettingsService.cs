@@ -51,6 +51,12 @@ public sealed class TaskReminderSettingsService
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Clears the old device-local picked calendar once the account took it over.</summary>
+    public Task ClearLegacyPickedCalendarAsync()
+    {
+        return UpdateAsync(current => current with { PickedCalendarId = null });
+    }
+
     private static TaskReminderSettings Clamped(TaskReminderSettings settings)
     {
         string[] rules = [TaskReminder.AtStart, TaskReminder.TenMinutesBefore, TaskReminder.OneHourBefore, TaskReminder.DayBeforeAtNine];

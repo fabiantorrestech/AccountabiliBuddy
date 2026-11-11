@@ -17,8 +17,11 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <item>Only the task's title and times leave the PC (<see cref="TaskCalendarMapping"/>, <see cref="GoogleCalendarWriter"/>); every
 /// call goes through <see cref="CalendarNetwork"/>.</item>
 /// <item>Needs the connected account's consent to <see cref="GoogleCalendarClient.AppCreatedScope"/> (<see cref="AllowExportAsync"/>);
-/// until then nothing is written and calendars are read as before. The picked calendar needs <see cref="GoogleCalendarClient.EventsScope"/>
-/// too (<see cref="AllowPickedCalendarAsync"/>); without it its tasks stay in "AB Reminders".</item>
+/// until then nothing is written and calendars are read as before. The picked calendar is the account's setting, the same on every
+/// device (<see cref="TaskAccountSettingsService.PickedCalendarId"/>), but each PC needs <see cref="GoogleCalendarClient.EventsScope"/>
+/// of its own (<see cref="AllowPickedCalendarAsync"/>). Without it nothing is written there: a pick made on this PC keeps its tasks'
+/// events where they are until consent is given; a pick made on another device (which had the consent) leaves its tasks to the devices
+/// that can write there, and this PC deletes its own "AB Reminders" events for them, so no task gets two events.</item>
 /// <item>Writes follow every change of the tasks or the settings, a moment later, in the background; a failure waits and tries
 /// again (30 s, doubling to 30 min) and never stops the app. Only events recorded in <see cref="TaskCalendarExportState"/> are
 /// changed or deleted.</item>
@@ -35,6 +38,9 @@ public sealed class TaskCalendarExportService : IDisposable
     private const string AppConsentText = "Allow adding reminders to Google Calendar in Settings (Google asks once).";
     private const string PickedConsentText =
         "Allow changing your calendars' events (again) to use the picked calendar; until then the app doesn't write there.";
+    private const string PickedElsewhereText =
+        "Tasks with a due date go to the calendar picked on another device; this PC leaves them to the devices allowed to write there "
+        + "(allow changing your calendars' events here to add them from this PC too).";
 
     private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan FirstRetry = TimeSpan.FromSeconds(30);
@@ -42,6 +48,7 @@ public sealed class TaskCalendarExportService : IDisposable
 
     private readonly TaskStore _store;
     private readonly TaskReminderSettingsService _settings;
+    private readonly TaskAccountSettingsService _account;
     private readonly CalendarService _calendars;
     private readonly GoogleCalendarClient _google;
     private readonly GoogleCalendarWriter _writer;
@@ -66,6 +73,9 @@ public sealed class TaskCalendarExportService : IDisposable
     private int _appCalendarTrouble;
     private DateTimeOffset _retryAt = DateTimeOffset.MinValue;
 
+    // The count last logged for tasks left to the devices that may write in a calendar picked elsewhere (logged when it changes).
+    private int _leftElsewhereLogged = -1;
+
     public TaskCalendarExportService(
         TaskStore store,
         TaskReminderSettingsService settings,
@@ -75,10 +85,12 @@ public sealed class TaskCalendarExportService : IDisposable
         IDataProtector protector,
         SqliteJsonDocumentStore documents,
         TimeProvider time,
-        string? logPath)
+        string? logPath,
+        TaskAccountSettingsService? account = null)
     {
         _store = store;
         _settings = settings;
+        _account = account ?? new TaskAccountSettingsService(store);
         _calendars = calendars;
         _google = google;
         _writer = writer;
@@ -132,8 +144,10 @@ public sealed class TaskCalendarExportService : IDisposable
             _ = SyncNowAsync();
         };
         _store.Changed += (_, _) => Soon();
-        // A changed setting ("Tasks with a date but no time", the picked calendar) re-exports the events it changes, in place.
+        // A changed setting ("Tasks with a date but no time") re-exports the events it changes, in place; so does a change of the
+        // account's picked calendar, made here or on another device (it moves the events it concerns).
         _settings.Changed += (_, _) => Soon();
+        _account.Changed += (_, _) => Soon();
         Soon();
     }
 
@@ -160,12 +174,13 @@ public sealed class TaskCalendarExportService : IDisposable
     }
 
     /// <summary>
-    /// Turns the experimental option on for <paramref name="googleCalendarId"/> (a calendar of the export account), or off with null:
-    /// its tasks then go back to "AB Reminders" and the events the app made in the picked calendar are deleted.
+    /// Turns the experimental option on for <paramref name="googleCalendarId"/> (a calendar of the export account), or off with null,
+    /// for the whole account: its tasks then go back to "AB Reminders" and the events the app made in the picked calendar are deleted.
+    /// Call <see cref="AllowPickedCalendarAsync"/> first: devices without the consent leave these tasks to the ones that have it.
     /// </summary>
     public Task SetPickedCalendarAsync(string? googleCalendarId)
     {
-        return _settings.UpdateAsync(current => current with { PickedCalendarId = googleCalendarId });
+        return _account.SetPickedCalendarAsync(googleCalendarId);
     }
 
     /// <summary>Writes what changed now (a run already going runs again after it).</summary>
@@ -247,7 +262,8 @@ public sealed class TaskCalendarExportService : IDisposable
         }
 
         IReadOnlySet<Guid> keptElsewhere = TaskCalendarMapping.KeptElsewhereIds(tasks, self);
-        IReadOnlyDictionary<Guid, TaskCalendarWanted> wanted = TaskCalendarMapping.Wanted(tasks, zone, self, settings.PickedCalendarId, settings.DateOnlyEvent);
+        string? picked = _account.PickedCalendarId;
+        IReadOnlyDictionary<Guid, TaskCalendarWanted> wanted = TaskCalendarMapping.Wanted(tasks, zone, self, picked, settings.DateOnlyEvent);
         IReadOnlyList<TaskCalendarAction> planned = TaskCalendarDiff.Plan(wanted, _state.Records, keptElsewhere);
 
         // Tasks now kept on other devices only: their events stay for those devices (the same ids); this PC only forgets them.
@@ -287,11 +303,26 @@ public sealed class TaskCalendarExportService : IDisposable
         List<TaskCalendarAction> actions = Pending(planned);
         if (!access.Has(GoogleCalendarClient.EventsScope))
         {
-            // Without that consent nothing is written outside the app's own calendar. A task whose event is (or would go) in the picked
-            // calendar waits as it is, its record kept, so the app's events there can be cleaned up once consent is back.
+            // Without that consent nothing is written outside the app's own calendar.
             HashSet<Guid> waiting = actions.Where(TouchesPicked).Select(action => action.TaskId).ToHashSet();
-            if (waiting.Count > 0)
+            bool pickedElsewhere = picked is not null && _account.PickedCalendarBy is Guid by && by != (self ?? Guid.Empty);
+            if (waiting.Count > 0 && pickedElsewhere)
             {
+                // The account's pick was made on another device, which had the consent and writes these tasks there (the event ids are
+                // shared). This PC adds none of them anywhere, and deletes its own "AB Reminders" events for them, so a task never
+                // gets a second event; its records in the picked calendar (from before) are kept for clean-up once consent is back.
+                actions = actions.Where(action => !waiting.Contains(action.TaskId) || IsAppCalendarDelete(action)).ToList();
+                problem = PickedElsewhereText;
+                if (waiting.Count != _leftElsewhereLogged)
+                {
+                    _leftElsewhereLogged = waiting.Count;
+                    Log($"picked calendar chosen on another device, no consent here: {waiting.Count} task(s) left to the devices that have it");
+                }
+            }
+            else if (waiting.Count > 0)
+            {
+                // Picked here: a task whose event is (or would go) in the picked calendar waits as it is, its record kept, so the app's
+                // events there can be cleaned up once consent is back.
                 actions = actions.Where(action => !waiting.Contains(action.TaskId)).ToList();
                 needsConsent = true;
                 problem = PickedConsentText;
@@ -591,6 +622,11 @@ public sealed class TaskCalendarExportService : IDisposable
         await SaveStateAsync();
         Log($"{forgotten.Count} event(s) left to the devices that keep their tasks");
         return true;
+    }
+
+    private static bool IsAppCalendarDelete(TaskCalendarAction action)
+    {
+        return action is { Kind: TaskCalendarActionKind.Delete, Recorded.CalendarKey: TaskCalendarMapping.AppCalendarKey };
     }
 
     private static bool TouchesPicked(TaskCalendarAction action)

@@ -124,7 +124,7 @@ public static class SyncFileCodec
     /// <summary>
     /// ADR 76's optional parts, with every entry that lacks what the merge needs left out (no id, no task, no title on a live task,
     /// no name, no view settings, no snapshot); a label colour that can't be read becomes the set's first. Leaving an entry out
-    /// never deletes it: the merge keeps what it has.
+    /// never deletes it: the merge keeps what it has. The account's Tasks settings keep only stamped, readable fields.
     /// </summary>
     private static SyncFile WithCleanTaskParts(SyncFile file)
     {
@@ -144,6 +144,7 @@ public static class SyncFileCodec
             TaskLog = file.TaskLog?
                 .Where(item => item is { Entry: { Task: not null } } && item.Entry.Id != Guid.Empty && IsUsableTask(item.Entry.Task))
                 .ToList(),
+            TaskAccountSettings = TaskAccountSettingsMerge.Clean(file.TaskAccountSettings),
         };
     }
 

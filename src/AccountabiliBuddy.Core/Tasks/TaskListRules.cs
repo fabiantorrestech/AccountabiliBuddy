@@ -60,7 +60,7 @@ public static class TaskListRules
             tasks[index] = tasks[index] with { Task = task };
         }
 
-        return new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared));
+        return new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared), lists.Account);
     }
 
     /// <summary>
@@ -150,9 +150,22 @@ public static class TaskListRules
     /// Another device's file read in (one file at a time: an older app's moves pair within one file). A file with
     /// <see cref="SyncFile.Tasks"/> is the truth for its device: tasks merged field by field, labels, views and History item by item.
     /// One without has its old fields read in; a writer older than ADR 50 (no <c>later</c> part) can't clear an estimate, note or
-    /// plan, so those it lacks are this device's. Null when the file carries no task list at all.
+    /// plan, so those it lacks are this device's. The account's Tasks settings merge field by field whenever the file carries them.
+    /// Null when the file carries no task list and no account settings at all.
     /// </summary>
     public static TaskLists? MergeFile(TaskLists lists, SyncFile file, Guid self, DateTimeOffset now, TimeZoneInfo zone, int sessionActions)
+    {
+        TaskLists? merged = MergeTaskParts(lists, file, self, now, zone, sessionActions);
+        if (file.TaskAccountSettings is not { } account)
+        {
+            return merged;
+        }
+
+        TaskLists basis = merged ?? lists;
+        return basis with { Account = TaskAccountSettingsMerge.Merge(basis.Account, account, now) };
+    }
+
+    private static TaskLists? MergeTaskParts(TaskLists lists, SyncFile file, Guid self, DateTimeOffset now, TimeZoneInfo zone, int sessionActions)
     {
         if (file.Tasks is { } incoming)
         {
@@ -172,12 +185,13 @@ public static class TaskListRules
 
         OldTaskReadResult read = OldTaskFieldsReader.Read(new OldTaskReadInput(
             fields, file.Device.DeviceId, file.Device.Kind ?? string.Empty, lists.Tasks, lists.Labels, lists.Log, self, now, zone, sessionActions));
-        return new TaskLists(read.Tasks, read.Labels, lists.Views, CloseFinished(read.History, fields));
+        return new TaskLists(read.Tasks, read.Labels, lists.Views, CloseFinished(read.History, fields), lists.Account);
     }
 
     /// <summary>
     /// Another device's (or a backup's) task list merged in: tasks field by field (<see cref="TaskFieldMerge"/>), labels, views and
-    /// History item by item. Items a damaged file left empty are dropped.
+    /// History item by item, the account's Tasks settings field by field (none incoming keeps this device's). Items a damaged file left
+    /// empty are dropped.
     /// </summary>
     public static TaskLists MergeLists(TaskLists lists, TaskLists incoming, Guid self, DateTimeOffset now)
     {
@@ -185,7 +199,8 @@ public static class TaskListRules
             TaskFieldMerge.Merge(lists.Tasks, incoming.Tasks.OfType<SyncTaskItem>().Where(item => item.Task is not null), now, self),
             SharedListMerge.Merge(lists.Labels, incoming.Labels.OfType<SyncTaskLabel>().Where(item => item.Label is not null), now),
             SharedListMerge.Merge(lists.Views, incoming.Views.OfType<SyncTaskView>().Where(item => item.View is not null), now),
-            SharedListMerge.Merge(lists.Log, incoming.Log.OfType<SyncTaskLogItem>().Where(item => item.Entry?.Task is not null), now));
+            SharedListMerge.Merge(lists.Log, incoming.Log.OfType<SyncTaskLogItem>().Where(item => item.Entry?.Task is not null), now),
+            incoming.Account is null ? lists.Account : TaskAccountSettingsMerge.Merge(lists.Account, incoming.Account, now));
     }
 
     /// <summary>Settles, numbers and prunes the lists (see the class summary); stamped by <paramref name="self"/>.</summary>
@@ -251,12 +266,14 @@ public static class TaskListRules
             SharedListMerge.Merge(lists.Tasks, [], now, self),
             SharedListMerge.Merge(lists.Labels, [], now),
             SharedListMerge.Merge(lists.Views, [], now),
-            SharedListMerge.Merge(log, [], now));
+            SharedListMerge.Merge(log, [], now),
+            lists.Account);
     }
 
     /// <summary>
     /// <paramref name="file"/> with the task list's parts: the new ones (local items as their stubs) and the old fields rebuilt from
-    /// them for older apps (<see cref="OldTaskFieldsWriter"/>; <c>later</c> always, even empty).
+    /// them for older apps (<see cref="OldTaskFieldsWriter"/>; <c>later</c> always, even empty), and the account's Tasks settings once
+    /// something was chosen.
     /// </summary>
     public static SyncFile WithParts(SyncFile file, TaskLists lists, DateTimeOffset now, TimeZoneInfo zone)
     {
@@ -273,6 +290,7 @@ public static class TaskListRules
             Labels = lists.Labels.ToList(),
             Views = lists.Views.ToList(),
             TaskLog = lists.Log.ToList(),
+            TaskAccountSettings = lists.Account is { IsEmpty: false } account ? account : null,
         };
     }
 

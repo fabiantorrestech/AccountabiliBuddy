@@ -206,10 +206,49 @@ public sealed class TaskSettingsService
         return UpdateAsync(settings => settings with { PinHighlights = on }, mode);
     }
 
-    /// <summary>The view the Shelf opens with (null: the built-in Default).</summary>
-    public Task SetDefaultViewAsync(Guid? viewId, GuidanceMode? mode = null)
+    /// <summary>
+    /// The default view this PC kept before the setting became the account's: AccountabiliBuddy's copy first, then ProductaBuddy's
+    /// (only a copy of its own); null when neither has one.
+    /// </summary>
+    public Guid? LegacyDefaultViewBlocking()
     {
-        return UpdateAsync(settings => settings with { DefaultViewId = viewId }, mode);
+        try
+        {
+            return Task.Run(async () =>
+            {
+                foreach (GuidanceMode mode in new[] { GuidanceMode.Guarding, GuidanceMode.Companion })
+                {
+                    if (await _store.LoadAsync<TaskSettings>(ModeSettings.KeyFor(DocumentKey, mode)) is { DefaultViewId: Guid id } && id != Guid.Empty)
+                    {
+                        return (Guid?)id;
+                    }
+                }
+
+                return null;
+            }).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Clears the old device-local default view in both modes' copies, once the account took it over.</summary>
+    public async Task ClearLegacyDefaultViewAsync()
+    {
+        foreach (GuidanceMode mode in new[] { GuidanceMode.Guarding, GuidanceMode.Companion })
+        {
+            string key = ModeSettings.KeyFor(DocumentKey, mode);
+            if (await _store.LoadAsync<TaskSettings>(key) is { DefaultViewId: not null } own)
+            {
+                TaskSettings cleared = own with { DefaultViewId = null };
+                await _store.SaveAsync(key, cleared);
+                if (mode == ActiveMode)
+                {
+                    Current = Clamped(cleared);
+                }
+            }
+        }
     }
 
     /// <summary>The project markers the user taught (Settings › Tasks › Project markers).</summary>
@@ -231,7 +270,8 @@ public sealed class TaskSettingsService
 
     /// <summary>
     /// A backup's copy for <paramref name="mode"/> (ADR 71), through the same rules as a change made here: a waiting change in the
-    /// backup is never taken over, and a looser value waits or is refused.
+    /// backup is never taken over, and a looser value waits or is refused. An older backup's default view is not this PC's any more:
+    /// the caller hands it to <see cref="TaskAccountSettingsService.AdoptLegacyAsync"/>.
     /// </summary>
     /// <returns>A note for the restore summary, or null.</returns>
     public async Task<string?> RestoreAsync(TaskSettings wanted, GuidanceMode mode)
@@ -245,7 +285,6 @@ public sealed class TaskSettingsService
                 TidyUpOn = wanted.TidyUpOn,
                 TidyUpDay = wanted.TidyUpDay,
                 PinHighlights = wanted.PinHighlights,
-                DefaultViewId = wanted.DefaultViewId,
                 CustomMarkers = wanted.CustomMarkers,
             },
             mode);

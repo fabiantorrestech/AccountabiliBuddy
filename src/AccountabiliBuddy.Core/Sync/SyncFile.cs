@@ -79,6 +79,11 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Labels">ADR 76: the labels (id, name, colour with opacity, rings on, position), merged item by item; null as <paramref name="Tasks"/>.</param>
 /// <param name="Views">ADR 76: the saved views (never search words), merged item by item; null as <paramref name="Tasks"/>.</param>
 /// <param name="TaskLog">ADR 76: History (finished, archived, deleted tasks with their snapshot, 30 days), merged item by item; null as <paramref name="Tasks"/>. Not <paramref name="TaskHistory"/>.</param>
+/// <param name="TaskAccountSettings">
+/// The account's Tasks settings (the view the Shelf opens with, the picked calendar for tasks with a due date; ids only), merged field
+/// by field by <see cref="TaskAccountSettingsMerge"/>; null as <paramref name="Tasks"/>, and when nothing was ever chosen. Read
+/// leniently (<see cref="SyncLenientObjectConverter{T}"/>).
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -124,7 +129,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskItem>))] IReadOnlyList<SyncTaskItem>? Tasks = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLabel>))] IReadOnlyList<SyncTaskLabel>? Labels = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskView>))] IReadOnlyList<SyncTaskView>? Views = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLogItem>))] IReadOnlyList<SyncTaskLogItem>? TaskLog = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLogItem>))] IReadOnlyList<SyncTaskLogItem>? TaskLog = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientObjectConverter<SyncTaskAccountSettings>))] SyncTaskAccountSettings? TaskAccountSettings = null)
 {
     public const int CurrentFormatVersion = 1;
 }

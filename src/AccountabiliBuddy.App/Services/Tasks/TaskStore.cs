@@ -12,7 +12,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// The one shared task list on this PC (ADR 76): tasks, labels, saved views and History, the only place they are stored once the
 /// startup migration ran (marker document "tasks.model"). Kept as DPAPI-encrypted documents ("tasks.items", "tasks.labels",
-/// "tasks.views", "tasks.log"), with two device-local ones: the views' search words ("tasks.viewSearches") and the ids the PC's
+/// "tasks.views", "tasks.log", and the account's Tasks settings in "tasks.account"), with two device-local ones: the views' search words ("tasks.viewSearches") and the ids the PC's
 /// categories had ("tasks.categoryIds"). The PC's old lists (the next session's list, Later, come-backs, Auto-saved, categories)
 /// are views of it (<see cref="TaskFacadeLists"/>) and send their changes here; sync files merge in here and this PC's file is
 /// written from here (<see cref="TaskListRules"/>). Titles, notes, steps, tags and reasons are private text: sealed at rest and in
@@ -24,6 +24,9 @@ public sealed class TaskStore
     public const string LabelsKey = "tasks.labels";
     public const string ViewsKey = "tasks.views";
     public const string LogKey = "tasks.log";
+
+    /// <summary>The account's Tasks settings (default view, picked calendar), sealed; synced and backed up with the lists.</summary>
+    public const string AccountKey = "tasks.account";
     public const string ViewSearchesKey = "tasks.viewSearches";
     public const string CategoryIdsKey = "tasks.categoryIds";
     public const string MarkerKey = "tasks.model";
@@ -166,7 +169,8 @@ public sealed class TaskStore
                 LoadList<SyncTaskItem>(ItemsKey).Where(item => item.Task is not null).ToList(),
                 LoadList<SyncTaskLabel>(LabelsKey).Where(item => item.Label is not null).ToList(),
                 LoadList<SyncTaskView>(ViewsKey).Where(item => item.View is not null).ToList(),
-                LoadList<SyncTaskLogItem>(LogKey).Where(item => item.Entry?.Task is not null).ToList());
+                LoadList<SyncTaskLogItem>(LogKey).Where(item => item.Entry?.Task is not null).ToList(),
+                LoadAccount());
             _categoryIds = LoadSealed<Dictionary<Guid, Guid>>(CategoryIdsKey) ?? [];
             _viewSearches = LoadSealed<Dictionary<Guid, string>>(ViewSearchesKey) ?? [];
             (_running, _heldEndedAt) = LoadRunning();
@@ -573,6 +577,7 @@ public sealed class TaskStore
             new(LabelsKey, Sealed(lists.Labels)),
             new(ViewsKey, Sealed(lists.Views)),
             new(LogKey, Sealed(lists.Log)),
+            new(AccountKey, Sealed(lists.Account ?? SyncTaskAccountSettings.Empty)),
             new(CategoryIdsKey, Sealed(ids)),
             new(ViewSearchesKey, Sealed(searches)),
         };
@@ -660,6 +665,19 @@ public sealed class TaskStore
     private Stored Sealed<T>(T value)
     {
         return new Stored(Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(value, SyncJson.Options))));
+    }
+
+    // Two settings that come back from the other devices: one that can't be read here starts empty rather than closing the task list.
+    private SyncTaskAccountSettings? LoadAccount()
+    {
+        try
+        {
+            return TaskAccountSettingsMerge.Clean(LoadSealed<SyncTaskAccountSettings>(AccountKey));
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
+        {
+            return null;
+        }
     }
 
     private List<T> LoadList<T>(string key)

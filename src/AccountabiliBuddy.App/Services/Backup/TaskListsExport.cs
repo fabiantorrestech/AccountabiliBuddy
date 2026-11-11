@@ -6,7 +6,9 @@ namespace AccountabiliBuddy.App.Services.Backup;
 /// <summary>
 /// The task lists in a backup (ADR 71), in their sync form (the phone reads and writes the same names). Since ADR 76 a backup also
 /// holds the one task list itself (<paramref name="Tasks"/>, <paramref name="Labels"/>, <paramref name="Views"/>,
-/// <paramref name="TaskLog"/>): a restore takes those in, and the old lists only when a backup has none (an older one).
+/// <paramref name="TaskLog"/>): a restore takes those in, and the old lists only when a backup has none (an older one). Since the
+/// account's Tasks settings are shared it holds them too (<paramref name="AccountSettings"/>), taken in through
+/// <see cref="Tasks.TaskAccountSettingsService"/>.
 /// </summary>
 public sealed record TaskListsExport(
     IReadOnlyList<SyncNextTask>? NextTasks,
@@ -16,4 +18,5 @@ public sealed record TaskListsExport(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskItem>? Tasks = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskLabel>? Labels = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskView>? Views = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskLogItem>? TaskLog = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskLogItem>? TaskLog = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncTaskAccountSettings? AccountSettings = null);

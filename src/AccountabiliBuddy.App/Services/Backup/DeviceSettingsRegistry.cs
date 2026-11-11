@@ -25,7 +25,8 @@ public static class DeviceSettingsRegistry
     /// <summary>The task lists' own documents (their kind exports them in their sync form).</summary>
     public static IReadOnlyList<string> TaskKeys { get; } =
         ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted",
-         "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast", "tasks.items", "tasks.labels", "tasks.views", "tasks.log"];
+         "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast", "tasks.items", "tasks.labels", "tasks.views", "tasks.log",
+         "tasks.account"];
 
     /// <summary>The calendars part (sources with their secrets, in-app events).</summary>
     public static IReadOnlyList<string> CalendarKeys { get; } = ["calendar.sources", "calendar.events"];
