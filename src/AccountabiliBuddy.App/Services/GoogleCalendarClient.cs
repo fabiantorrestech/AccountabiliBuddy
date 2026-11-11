@@ -9,10 +9,12 @@ using AccountabiliBuddy.Core.Domain;
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// Google sign-in and the read-only Calendar API, as a small client over <see cref="CalendarNetwork"/> (ADR 9).
+/// Google sign-in and the read-only Calendar API, as a small client over <see cref="CalendarNetwork"/> (ADR 9). Writing task events
+/// (ADR 78) is <see cref="GoogleCalendarWriter"/>'s.
 /// <list type="bullet">
 /// <item>Sign-in: the installed-app flow. Google's page opens in the browser and hands back to a one-shot listener
-/// on 127.0.0.1 (any free port); PKCE (S256) and a random state protect the hand-off. Scope: calendar.readonly.</item>
+/// on 127.0.0.1 (any free port); PKCE (S256) and a random state protect the hand-off. Scope: calendar.readonly; task export adds
+/// <see cref="AppCreatedScope"/> (and, for the experimental picked calendar, <see cref="EventsScope"/>) by incremental consent.</item>
 /// <item>Events: singleEvents (repeats expanded) within a date range; incremental fetches use updatedMin with
 /// showDeleted, so only changes come back.</item>
 /// </list>
@@ -21,6 +23,12 @@ namespace AccountabiliBuddy.App.Services;
 public sealed class GoogleCalendarClient
 {
     public const string Scope = "https://www.googleapis.com/auth/calendar.readonly";
+
+    /// <summary>ADR 78: make calendars and change events only in the calendars the app made ("AB Reminders").</summary>
+    public const string AppCreatedScope = "https://www.googleapis.com/auth/calendar.app.created";
+
+    /// <summary>ADR 78, experimental: change events in any of the user's calendars (asked for only when the user turns it on).</summary>
+    public const string EventsScope = "https://www.googleapis.com/auth/calendar.events";
 
     private static readonly TimeSpan SignInTimeout = TimeSpan.FromMinutes(5);
 
@@ -37,9 +45,15 @@ public sealed class GoogleCalendarClient
 
     /// <param name="openBrowser">Opens the sign-in page; returns false if it couldn't.</param>
     /// <exception cref="GoogleSignInException">Cancelled, denied, timed out, or Google returned no refresh token.</exception>
-    /// <param name="scope">The access asked for; Calendar read-only unless given (Drive sync asks for drive.file, ADR 26).</param>
+    /// <param name="scope">The access asked for (space-separated); Calendar read-only unless given (Drive sync asks for drive.file, ADR 26).</param>
+    /// <param name="includeGrantedScopes">Incremental consent (ADR 78): the new sign-in also keeps what the account already allowed.</param>
     public async Task<GoogleTokens> SignInAsync(
-        string clientId, string clientSecret, Func<Uri, bool> openBrowser, CancellationToken cancellationToken, string? scope = null)
+        string clientId,
+        string clientSecret,
+        Func<Uri, bool> openBrowser,
+        CancellationToken cancellationToken,
+        string? scope = null,
+        bool includeGrantedScopes = false)
     {
         string verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
         string challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
@@ -51,7 +65,7 @@ public sealed class GoogleCalendarClient
         {
             int port = ((IPEndPoint)listener.LocalEndpoint).Port;
             string redirectUri = $"http://127.0.0.1:{port}/";
-            Uri authorize = WithQuery(_endpoints.Authorize, new Dictionary<string, string>
+            var parameters = new Dictionary<string, string>
             {
                 ["client_id"] = clientId,
                 ["redirect_uri"] = redirectUri,
@@ -62,7 +76,13 @@ public sealed class GoogleCalendarClient
                 ["state"] = state,
                 ["access_type"] = "offline",
                 ["prompt"] = "consent",
-            });
+            };
+            if (includeGrantedScopes)
+            {
+                parameters["include_granted_scopes"] = "true";
+            }
+
+            Uri authorize = WithQuery(_endpoints.Authorize, parameters);
 
             if (!openBrowser(authorize))
             {
@@ -100,7 +120,8 @@ public sealed class GoogleCalendarClient
                 throw new GoogleSignInException("Google returned no refresh token.");
             }
 
-            return new GoogleTokens(refreshToken, RequiredString(token.RootElement, "access_token"), ExpiresAt(token.RootElement));
+            return new GoogleTokens(
+                refreshToken, RequiredString(token.RootElement, "access_token"), ExpiresAt(token.RootElement), OptionalString(token.RootElement, "scope"));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -123,6 +144,21 @@ public sealed class GoogleCalendarClient
             ["grant_type"] = "refresh_token",
         }, cancellationToken);
         return (RequiredString(token.RootElement, "access_token"), ExpiresAt(token.RootElement));
+    }
+
+    /// <summary>A new access token and the scopes the sign-in holds now (ADR 78: whether task export was allowed).</summary>
+    public async Task<GoogleAccessToken> RefreshWithScopesAsync(
+        string clientId, string clientSecret, string refreshToken, CancellationToken cancellationToken)
+    {
+        using JsonDocument token = await _network.PostFormAsync(_endpoints.Token, new Dictionary<string, string>
+        {
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret,
+            ["refresh_token"] = refreshToken,
+            ["grant_type"] = "refresh_token",
+        }, cancellationToken);
+        return new GoogleAccessToken(
+            RequiredString(token.RootElement, "access_token"), ExpiresAt(token.RootElement), OptionalString(token.RootElement, "scope") ?? string.Empty);
     }
 
     public async Task<IReadOnlyList<GoogleCalendarEntry>> ListCalendarsAsync(string accessToken, CancellationToken cancellationToken)

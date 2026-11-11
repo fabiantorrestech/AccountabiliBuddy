@@ -316,7 +316,7 @@
                                             <TextBlock TextWrapping="Wrap" Text="In your own Google Cloud project:" />
                                             <TextBlock TextWrapping="Wrap" Text="1. Turn on the Google Calendar API (and the Google Drive API for Drive sync)." />
                                             <TextBlock TextWrapping="Wrap" Text="2. Set up the OAuth consent screen and add yourself as a test user." />
-                                            <TextBlock TextWrapping="Wrap" Text="3. Add the scopes: Calendar read-only (and drive.file for Drive sync)." />
+                                            <TextBlock TextWrapping="Wrap" Text="3. Add the scopes: Calendar read-only, calendar.app.created for task reminders (and drive.file for Drive sync)." />
                                             <TextBlock TextWrapping="Wrap" Text="4. Create an OAuth client of type Desktop app." />
                                             <TextBlock TextWrapping="Wrap" Text="5. Paste its client ID and secret below." />
                                             <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"

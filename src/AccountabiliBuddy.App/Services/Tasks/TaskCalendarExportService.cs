@@ -1,0 +1,590 @@
+using System.Globalization;
+using System.Net;
+using System.Text.Json;
+using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Ports;
+using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Tasks;
+using Avalonia.Threading;
+using Microsoft.Data.Sqlite;
+
+namespace AccountabiliBuddy.App.Services.Tasks;
+
+/// <summary>
+/// Exports task reminders and due dates to Google Calendar (ADR 78): one event per task whose "Add to Google Calendar" switch is on,
+/// in the app's own "AB Reminders" calendar (or, with the experimental option, due-dated tasks in a calendar the user picked).
+/// <list type="bullet">
+/// <item>Only the task's title and times leave the PC (<see cref="TaskCalendarMapping"/>, <see cref="GoogleCalendarWriter"/>); every
+/// call goes through <see cref="CalendarNetwork"/>.</item>
+/// <item>Needs the connected account's consent to <see cref="GoogleCalendarClient.AppCreatedScope"/> (<see cref="AllowExportAsync"/>);
+/// until then nothing is written and calendars are read as before. The picked calendar needs <see cref="GoogleCalendarClient.EventsScope"/>
+/// too (<see cref="AllowPickedCalendarAsync"/>); without it its tasks stay in "AB Reminders".</item>
+/// <item>Writes follow every change of the tasks or the settings, a moment later, in the background; a failure waits and tries
+/// again (30 s, doubling to 30 min) and never stops the app. Only events recorded in <see cref="TaskCalendarExportState"/> are
+/// changed or deleted.</item>
+/// <item>The log ("tasks-calendar.log" in the data folder) holds counts and status codes only.</item>
+/// </list>
+/// The same in both modes. Use from the UI thread only.
+/// </summary>
+public sealed class TaskCalendarExportService : IDisposable
+{
+    public const string StateKey = "tasks.calendarExport";
+    public const string AppCalendarName = "AB Reminders";
+    public const string LogFileName = "tasks-calendar.log";
+
+    private static readonly TimeSpan Debounce = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan FirstRetry = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MaxRetry = TimeSpan.FromMinutes(30);
+
+    private readonly TaskStore _store;
+    private readonly TaskReminderSettingsService _settings;
+    private readonly CalendarService _calendars;
+    private readonly GoogleCalendarClient _google;
+    private readonly GoogleCalendarWriter _writer;
+    private readonly IDataProtector _protector;
+    private readonly SqliteJsonDocumentStore _documents;
+    private readonly TimeProvider _time;
+    private readonly string? _logPath;
+
+    // Events Google refused as they are (400): not tried again until the task's event changes.
+    private readonly HashSet<(Guid TaskId, string Signature)> _refused = [];
+
+    private TaskCalendarExportState _state = TaskCalendarExportState.Empty;
+    private GoogleAccessToken? _access;
+    private string? _accessSourceId;
+    private DispatcherTimer? _timer;
+    private bool _running;
+    private bool _again;
+    private TimeSpan? _retryWait;
+    private DateTimeOffset _retryAt = DateTimeOffset.MinValue;
+
+    public TaskCalendarExportService(
+        TaskStore store,
+        TaskReminderSettingsService settings,
+        CalendarService calendars,
+        GoogleCalendarClient google,
+        GoogleCalendarWriter writer,
+        IDataProtector protector,
+        SqliteJsonDocumentStore documents,
+        TimeProvider time,
+        string? logPath)
+    {
+        _store = store;
+        _settings = settings;
+        _calendars = calendars;
+        _google = google;
+        _writer = writer;
+        _protector = protector;
+        _documents = documents;
+        _time = time;
+        _logPath = logPath;
+    }
+
+    /// <summary>Why export isn't working now, for Settings (M7); null when it is (or nothing is to be exported).</summary>
+    public string? Problem { get; private set; }
+
+    /// <summary>The account hasn't allowed adding events yet (existing users, until they press Allow in Settings).</summary>
+    public bool NeedsConsent { get; private set; }
+
+    /// <summary><see cref="Problem"/> or <see cref="NeedsConsent"/> changed.</summary>
+    public event EventHandler? StatusChanged;
+
+    /// <summary>The events this PC wrote, by task id (ids and hashes only).</summary>
+    public IReadOnlyDictionary<Guid, TaskCalendarRecord> Records => _state.Records;
+
+    /// <summary>Whether the Google calendar is the app's own "AB Reminders" (the reading side leaves it out: its events are tasks).</summary>
+    public bool IsAppCalendar(GoogleCalendarEntry calendar)
+    {
+        return calendar.Id == _state.AppCalendarId || calendar.Summary == AppCalendarName;
+    }
+
+    public void LoadBlocking()
+    {
+        try
+        {
+            _state = Task.Run(() => _documents.LoadAsync<TaskCalendarExportState>(StateKey)).GetAwaiter().GetResult() ?? TaskCalendarExportState.Empty;
+            _state = _state with { Records = _state.Records ?? new Dictionary<Guid, TaskCalendarRecord>() };
+        }
+        catch (Exception ex) when (ex is SqliteException or JsonException)
+        {
+            _state = TaskCalendarExportState.Empty;
+        }
+    }
+
+    /// <summary>Follows the tasks and the settings from now on, and exports what changed while the app was closed.</summary>
+    public void Start()
+    {
+        _timer = new DispatcherTimer { Interval = Debounce };
+        _timer.Tick += (_, _) =>
+        {
+            _timer.Stop();
+            _ = SyncNowAsync();
+        };
+        _store.Changed += (_, _) => Soon();
+        _settings.Changed += (_, _) => Soon();
+        Soon();
+    }
+
+    public void Dispose()
+    {
+        _timer?.Stop();
+    }
+
+    /// <summary>
+    /// Asks the connected Google account to allow adding events to calendars the app makes (incremental consent: reading stays
+    /// allowed). Opens Google's page in the browser.
+    /// </summary>
+    /// <returns>Null when allowed; otherwise why not.</returns>
+    public Task<string?> AllowExportAsync(Func<Uri, bool> openBrowser, CancellationToken cancellationToken)
+    {
+        return AllowAsync(includeEvents: false, openBrowser, cancellationToken);
+    }
+
+    /// <summary>The experimental option: also asks to change events in the user's own calendars (for the picked calendar).</summary>
+    /// <returns>Null when allowed; otherwise why not.</returns>
+    public Task<string?> AllowPickedCalendarAsync(Func<Uri, bool> openBrowser, CancellationToken cancellationToken)
+    {
+        return AllowAsync(includeEvents: true, openBrowser, cancellationToken);
+    }
+
+    /// <summary>
+    /// Turns the experimental option on for <paramref name="googleCalendarId"/> (a calendar of the export account), or off with null:
+    /// its tasks then go back to "AB Reminders" and the events the app made in the picked calendar are deleted.
+    /// </summary>
+    public Task SetPickedCalendarAsync(string? googleCalendarId)
+    {
+        return _settings.UpdateAsync(current => current with { PickedCalendarId = googleCalendarId });
+    }
+
+    /// <summary>Writes what changed now (a run already going runs again after it).</summary>
+    public async Task SyncNowAsync()
+    {
+        if (_running)
+        {
+            _again = true;
+            return;
+        }
+
+        _running = true;
+        bool retry = false;
+        try
+        {
+            retry = await RunAsync();
+        }
+        catch (Exception ex)
+        {
+            // Never a reason to stop the app: say so, wait and try again.
+            Log("export stopped (" + ex.GetType().Name + ")");
+            SetStatus("Adding reminders to Google Calendar stopped; it will try again.", NeedsConsent);
+            retry = true;
+        }
+        finally
+        {
+            _running = false;
+        }
+
+        if (retry)
+        {
+            _retryWait = _retryWait is TimeSpan wait ? TimeSpan.FromTicks(Math.Min(MaxRetry.Ticks, wait.Ticks * 2)) : FirstRetry;
+            _retryAt = _time.GetUtcNow() + _retryWait.Value;
+            Schedule(_retryWait.Value);
+        }
+        else
+        {
+            _retryWait = null;
+            _retryAt = DateTimeOffset.MinValue;
+        }
+
+        if (_again)
+        {
+            _again = false;
+            Soon();
+        }
+    }
+
+    /// <returns>True when it should try again later.</returns>
+    private async Task<bool> RunAsync()
+    {
+        if (!_store.IsActive)
+        {
+            return false;
+        }
+
+        TaskReminderSettings settings = _settings.Current;
+        List<TaskItem> tasks = _store.Lists.Tasks.Select(item => item.Task).ToList();
+        Guid? self = _store.SelfId();
+        TimeZoneInfo zone = _time.LocalTimeZone;
+
+        CalendarSource? source = ExportSource();
+        if (source is null)
+        {
+            bool wantsAny = tasks.Any(task => TaskCalendarMapping.Exports(task, self)) || _state.Records.Count > 0;
+            SetStatus(wantsAny ? "Connect a Google account to add reminders to Google Calendar." : null, false);
+            return false;
+        }
+
+        if (_state.SourceId != source.Id)
+        {
+            if (_state.SourceId is not null && _state.Records.Count > 0)
+            {
+                Log($"export account changed; {_state.Records.Count} event(s) stay in the old account");
+            }
+
+            _state = new TaskCalendarExportState(source.Id, null, new Dictionary<Guid, TaskCalendarRecord>());
+            await SaveStateAsync();
+        }
+
+        // Nothing to write: no call to Google at all (also for users who never turned export on).
+        IReadOnlyDictionary<Guid, TaskCalendarWanted> wanted = TaskCalendarMapping.Wanted(tasks, zone, self, settings.PickedCalendarId);
+        if (Pending(TaskCalendarDiff.Plan(wanted, _state.Records)).Count == 0)
+        {
+            SetStatus(null, NeedsConsent);
+            return false;
+        }
+
+        GoogleAccessToken access;
+        try
+        {
+            access = await AccessAsync(source);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
+        {
+            Log("sign-in refused (" + (int)ex.StatusCode.GetValueOrDefault() + ")");
+            SetStatus("Google ended the sign-in. Connect the account again in Settings › Connections.", false);
+            return true;
+        }
+
+        if (!access.Has(GoogleCalendarClient.AppCreatedScope))
+        {
+            SetStatus("Allow adding reminders to Google Calendar in Settings (Google asks once).", true);
+            return false;
+        }
+
+        string? problem = null;
+        if (settings.PickedCalendarId is not null && !access.Has(GoogleCalendarClient.EventsScope))
+        {
+            // Without that consent nothing is written outside the app's own calendar.
+            wanted = TaskCalendarMapping.Wanted(tasks, zone, self, null);
+            problem = "Allow changing your calendars' events to use the picked calendar; until then reminders go to AB Reminders.";
+        }
+
+        IReadOnlyList<TaskCalendarAction> actions = Pending(TaskCalendarDiff.Plan(wanted, _state.Records));
+        var records = new Dictionary<Guid, TaskCalendarRecord>(_state.Records);
+        int created = 0, updated = 0, deleted = 0, dropped = 0;
+        bool retry = false;
+        try
+        {
+            foreach (TaskCalendarAction action in actions)
+            {
+                switch (await WriteAsync(access.Token, action, records))
+                {
+                    case WriteResult.Done:
+                        created += action.Kind == TaskCalendarActionKind.Create ? 1 : 0;
+                        updated += action.Kind == TaskCalendarActionKind.Update ? 1 : 0;
+                        deleted += action.Kind == TaskCalendarActionKind.Delete ? 1 : 0;
+                        dropped += action.Wanted?.Event.Dropped ?? 0;
+                        break;
+                    case WriteResult.AppCalendarGone:
+                        // The user deleted "AB Reminders": its events went with it. Make it again and write them anew.
+                        Log("AB Reminders calendar is gone; making it again");
+                        foreach (Guid id in records.Where(pair => pair.Value.CalendarKey == TaskCalendarMapping.AppCalendarKey).Select(pair => pair.Key).ToList())
+                        {
+                            records.Remove(id);
+                        }
+
+                        _state = _state with { AppCalendarId = null };
+                        _again = true;
+                        break;
+                    case WriteResult.PickedCalendarRefused:
+                        problem = "The picked calendar can't be changed by the app (missing, or not yours to edit).";
+                        retry = true;
+                        break;
+                }
+
+                if (_again || retry)
+                {
+                    break;
+                }
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            if (ex.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _access = null;
+            }
+
+            Log("write failed (" + (ex.StatusCode is { } code ? ((int)code).ToString(CultureInfo.InvariantCulture) : "no connection") + ")");
+            problem ??= "Couldn't reach Google Calendar; it will try again.";
+            retry = true;
+        }
+        catch (TaskCanceledException)
+        {
+            Log("write failed (timeout)");
+            problem ??= "Couldn't reach Google Calendar; it will try again.";
+            retry = true;
+        }
+        finally
+        {
+            _state = _state with { Records = records };
+            await SaveStateAsync();
+            if (created + updated + deleted > 0)
+            {
+                Log($"created {created}, updated {updated}, deleted {deleted}" + (dropped > 0 ? $"; {dropped} reminder(s) an all-day event can't carry" : string.Empty));
+            }
+        }
+
+        SetStatus(problem, false);
+        return retry;
+    }
+
+    private async Task<WriteResult> WriteAsync(string token, TaskCalendarAction action, Dictionary<Guid, TaskCalendarRecord> records)
+    {
+        CancellationToken none = CancellationToken.None;
+        try
+        {
+            switch (action.Kind)
+            {
+                case TaskCalendarActionKind.Delete:
+                    TaskCalendarRecord gone = action.Recorded!;
+                    await _writer.DeleteEventAsync(token, gone.CalendarId, gone.EventId, none);
+                    records.Remove(action.TaskId);
+                    return WriteResult.Done;
+
+                case TaskCalendarActionKind.Update:
+                    TaskCalendarRecord known = action.Recorded!;
+                    await _writer.PutEventAsync(token, known.CalendarId, known.EventId, action.Wanted!.Event, isNew: false, none);
+                    records[action.TaskId] = known with { Signature = action.Wanted.Signature };
+                    return WriteResult.Done;
+
+                default:
+                    TaskCalendarWanted want = action.Wanted!;
+                    string calendarId = want.CalendarKey == TaskCalendarMapping.AppCalendarKey ? await AppCalendarIdAsync(token) : want.CalendarKey;
+                    string eventId = TaskCalendarMapping.EventId(action.TaskId);
+                    await _writer.PutEventAsync(token, calendarId, eventId, want.Event, isNew: true, none);
+                    records[action.TaskId] = new TaskCalendarRecord(want.CalendarKey, calendarId, eventId, want.Signature);
+                    return WriteResult.Done;
+            }
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.BadRequest && action.Wanted is { } refused)
+        {
+            Log("an event was refused (400); not tried again until the task changes");
+            _refused.Add((action.TaskId, refused.Signature));
+            return WriteResult.Done;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Forbidden)
+        {
+            string key = action.Recorded?.CalendarKey ?? action.Wanted!.CalendarKey;
+            if (key == TaskCalendarMapping.AppCalendarKey && ex.StatusCode == HttpStatusCode.NotFound)
+            {
+                return WriteResult.AppCalendarGone;
+            }
+
+            if (key != TaskCalendarMapping.AppCalendarKey)
+            {
+                Log("picked calendar refused (" + (int)ex.StatusCode.GetValueOrDefault() + ")");
+                return WriteResult.PickedCalendarRefused;
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<string> AppCalendarIdAsync(string token)
+    {
+        if (_state.AppCalendarId is { } known)
+        {
+            return known;
+        }
+
+        string id = await _writer.FindOwnedCalendarAsync(token, AppCalendarName, CancellationToken.None)
+                    ?? await _writer.CreateCalendarAsync(token, AppCalendarName, CancellationToken.None);
+        _state = _state with { AppCalendarId = id };
+        await SaveStateAsync();
+        return id;
+    }
+
+    private async Task<string?> AllowAsync(bool includeEvents, Func<Uri, bool> openBrowser, CancellationToken cancellationToken)
+    {
+        CalendarSource? source = ExportSource();
+        if (source is null)
+        {
+            return "Connect a Google account first (Settings › Connections).";
+        }
+
+        if (!TryGetClient(out string clientId, out string clientSecret))
+        {
+            return "Enter your Google client ID and secret in Settings first.";
+        }
+
+        var scopes = new List<string> { GoogleCalendarClient.Scope, GoogleCalendarClient.AppCreatedScope };
+        if (includeEvents)
+        {
+            scopes.Add(GoogleCalendarClient.EventsScope);
+        }
+
+        string scope = string.Join(' ', scopes);
+        try
+        {
+            GoogleTokens tokens = await _google.SignInAsync(clientId, clientSecret, openBrowser, cancellationToken, scope, includeGrantedScopes: true);
+            IReadOnlyList<GoogleCalendarEntry> calendars = await _google.ListCalendarsAsync(tokens.AccessToken, cancellationToken);
+            string account = calendars.FirstOrDefault(calendar => calendar.IsPrimary)?.Id ?? string.Empty;
+            if (!string.Equals(source.Name, $"Google · {account}", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"That was another Google account. Sign in with the connected one ({source.Name}).";
+            }
+
+            var granted = new GoogleAccessToken(tokens.AccessToken, tokens.AccessTokenExpiresAt, tokens.Scopes ?? string.Empty);
+            if (!granted.Has(GoogleCalendarClient.AppCreatedScope))
+            {
+                return "Google didn't allow it: on Google's page, tick the box for calendars the app creates.";
+            }
+
+            if (includeEvents && !granted.Has(GoogleCalendarClient.EventsScope))
+            {
+                return "Google didn't allow changing events in your calendars: tick that box on Google's page.";
+            }
+
+            // The new sign-in holds the earlier scopes too (incremental consent), so reading carries on with it.
+            _calendars.SaveSource(source with { ProtectedSecret = Convert.ToBase64String(_protector.Protect(tokens.RefreshToken)) });
+            _access = granted;
+            _accessSourceId = source.Id;
+            Log(includeEvents ? "allowed: app calendar and picked calendar" : "allowed: app calendar");
+            SetStatus(null, false);
+            _retryWait = null;
+            _retryAt = DateTimeOffset.MinValue;
+            Soon();
+            return null;
+        }
+        catch (GoogleSignInException ex)
+        {
+            return ex.Message;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            return "Couldn't reach Google. Try again in a moment.";
+        }
+    }
+
+    private async Task<GoogleAccessToken> AccessAsync(CalendarSource source)
+    {
+        if (_access is { } cached && _accessSourceId == source.Id && cached.ExpiresAt > _time.GetUtcNow())
+        {
+            return cached;
+        }
+
+        string refreshToken = Unprotect(source.ProtectedSecret)
+                              ?? throw new InvalidOperationException("The Google sign-in can't be read on this computer.");
+        if (!TryGetClient(out string clientId, out string clientSecret))
+        {
+            throw new InvalidOperationException("The Google client ID and secret are missing in Settings.");
+        }
+
+        GoogleAccessToken access = await _google.RefreshWithScopesAsync(clientId, clientSecret, refreshToken, CancellationToken.None);
+        _access = access;
+        _accessSourceId = source.Id;
+        return access;
+    }
+
+    // The account the events go to: the one used before while it is connected, else the first Google account.
+    private CalendarSource? ExportSource()
+    {
+        List<CalendarSource> google = _calendars.Sources.Where(source => source.Kind == CalendarSourceKind.Google).ToList();
+        return google.FirstOrDefault(source => source.Id == _state.SourceId) ?? google.FirstOrDefault();
+    }
+
+    private List<TaskCalendarAction> Pending(IReadOnlyList<TaskCalendarAction> actions)
+    {
+        return actions.Where(action => action.Wanted is not { } want || !_refused.Contains((action.TaskId, want.Signature))).ToList();
+    }
+
+    private void Soon()
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        Schedule(_retryAt > now ? _retryAt - now : Debounce);
+    }
+
+    private void Schedule(TimeSpan wait)
+    {
+        if (_timer is null)
+        {
+            return;
+        }
+
+        _timer.Stop();
+        _timer.Interval = wait < Debounce ? Debounce : wait;
+        _timer.Start();
+    }
+
+    private void SetStatus(string? problem, bool needsConsent)
+    {
+        if (problem == Problem && needsConsent == NeedsConsent)
+        {
+            return;
+        }
+
+        Problem = problem;
+        NeedsConsent = needsConsent;
+        StatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async Task SaveStateAsync()
+    {
+        try
+        {
+            await _documents.SaveAsync(StateKey, _state);
+        }
+        catch (SqliteException)
+        {
+            // Kept in memory; the fixed event ids mean a lost record never makes a second event.
+        }
+    }
+
+    private bool TryGetClient(out string clientId, out string clientSecret)
+    {
+        clientId = _calendars.Settings.GoogleClientId ?? string.Empty;
+        clientSecret = Unprotect(_calendars.Settings.ProtectedGoogleClientSecret) ?? string.Empty;
+        return clientId.Length > 0 && clientSecret.Length > 0;
+    }
+
+    private string? Unprotect(string? protectedSecret)
+    {
+        if (string.IsNullOrEmpty(protectedSecret))
+        {
+            return null;
+        }
+
+        try
+        {
+            return _protector.Unprotect(Convert.FromBase64String(protectedSecret));
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    private void Log(string line)
+    {
+        if (_logPath is not null)
+        {
+            try
+            {
+                File.AppendAllText(_logPath, _time.GetUtcNow().ToString("O", CultureInfo.InvariantCulture) + "  " + line + Environment.NewLine);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The log is a help, never a reason to stop.
+            }
+        }
+
+        System.Diagnostics.Debug.WriteLine("tasks-calendar: " + line);
+    }
+
+    private enum WriteResult
+    {
+        Done,
+        AppCalendarGone,
+        PickedCalendarRefused,
+    }
+}

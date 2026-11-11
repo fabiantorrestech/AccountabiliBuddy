@@ -61,6 +61,8 @@ public sealed class TaskReminderSettingsService
             StopAfterMinutes = Nearest(TaskReminderRingPolicy.StopAfterChoices, settings.StopAfterMinutes),
             SnoozeShortcuts = settings.SnoozeShortcuts is { Count: 3 } ? settings.SnoozeShortcuts : null,
             NewReminderRule = rules.Contains(settings.NewReminderRule) ? settings.NewReminderRule : TaskReminder.AtStart,
+            NewRemindersTo = Enum.IsDefined(settings.NewRemindersTo) ? settings.NewRemindersTo : TaskCalendarDestination.GoogleCalendar,
+            PickedCalendarId = string.IsNullOrWhiteSpace(settings.PickedCalendarId) ? null : settings.PickedCalendarId,
         };
     }
 

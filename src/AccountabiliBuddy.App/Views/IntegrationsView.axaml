@@ -78,7 +78,7 @@
                     <StackPanel>
                         <Border Classes="sRow">
                             <TextBlock Classes="sHint"
-                                       Text="Read-only calendars (iCal links and Google accounts) plus this app's own. Their events show on the Plan page's month view, Change a day. Nothing is ever written to them." />
+                                       Text="Read-only calendars (iCal links and Google accounts) plus this app's own. Their events show on the Plan page's month view, Change a day. Nothing is written to them; task reminders you choose to add go only to the app's own Google calendar, AB Reminders (title and times only)." />
                         </Border>
                         <views:CalendarFeedsView />
                     </StackPanel>

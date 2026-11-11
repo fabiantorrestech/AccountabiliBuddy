@@ -3,13 +3,15 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// The steps of the Google setup guide, with every Google Cloud Console link and scope in one place, so they can be
 /// fixed here when Google moves a page or renames a scope. The steps set up the user's own Google Cloud project
-/// for read-only Calendar access (ADR 9), Drive sync for this computer and the phone (ADR 26) and, when wanted,
-/// read-only sleep data (ADR 11).
+/// for read-only Calendar access (ADR 9), task reminders in the app's own calendar (ADR 78), Drive sync for this computer and the
+/// phone (ADR 26) and, when wanted, read-only sleep data (ADR 11).
 /// </summary>
 public static class GoogleSetupSteps
 {
     public const string AppName = "AccountabiliBuddy";
     public const string CalendarScope = GoogleCalendarClient.Scope;
+    public const string AppCalendarScope = GoogleCalendarClient.AppCreatedScope;
+    public const string EventsScope = GoogleCalendarClient.EventsScope;
     public const string SleepScope = "https://www.googleapis.com/auth/googlehealth.sleep.readonly";
     public const string DriveScope = AccountabiliBuddy.App.Services.Sync.DriveAccountService.Scope;
 
@@ -104,17 +106,21 @@ public static class GoogleSetupSteps
 
         new GoogleSetupStep(
             "scopes",
-            "Allow read-only access",
+            "Allow the app's access",
             new[]
             {
                 "Open the page and press Add or remove scopes.",
                 "At the bottom, in Manually add scopes, paste the scope(s) below (one per line), press Add to table, then Update.",
-                "Press Save. Calendar and sleep are read-only: the app can never change them. drive.file reaches only the files the app made.",
+                "Press Save. Your calendars and sleep are read-only: the app can never change them. calendar.app.created lets the app add your task reminders to one calendar of its own, \"AB Reminders\", and reaches nothing else. drive.file reaches only the files the app made.",
+                "Optional (experimental): calendar.events lets the app put tasks with a due date in a calendar you pick instead. Add it only if you'll turn that on; the app asks for it then.",
+                "Already set up before? Add the reminders scope now, then press Allow under Task reminders in Settings: until then reminders stay off and your calendars are read as before.",
             },
             "https://console.cloud.google.com/auth/scopes",
             new[]
             {
                 new GoogleSetupCopyValue("Calendar (read-only)", CalendarScope),
+                new GoogleSetupCopyValue("Task reminders (only the app's own calendar)", AppCalendarScope),
+                new GoogleSetupCopyValue("Due dates in a calendar you pick (experimental, optional)", EventsScope),
                 new GoogleSetupCopyValue("Sleep (read-only)", SleepScope),
                 new GoogleSetupCopyValue("Drive sync (only the app's files)", DriveScope),
             }),
@@ -182,6 +188,7 @@ public static class GoogleSetupSteps
                 "Press Connect a Google account. Your browser opens Google's sign-in: pick the account whose calendar you want (any of the test users).",
                 "Google warns that it hasn't verified the app: that's expected for your own project. Press Continue.",
                 "Allow the read-only access. Your calendars then show in Plan, under Calendar.",
+                "To add task reminders to Google Calendar, press Allow under Task reminders in Settings afterwards: Google asks once more, for the app's own calendar only.",
             },
             null,
             Array.Empty<GoogleSetupCopyValue>()),

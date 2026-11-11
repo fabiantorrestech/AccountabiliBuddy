@@ -13,7 +13,9 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// The only place the app talks to the internet (ADR 9, ADR 26): read-only downloads of iCal addresses the user added,
-/// Google sign-in plus read-only Calendar API calls for accounts the user connected, and Google Drive calls for the
+/// Google sign-in plus read-only Calendar API calls for accounts the user connected (ADR 78 adds one write path: the user's
+/// opted-in tasks' title and times as events in the app's own "AB Reminders" calendar, see <see cref="GoogleCalendarWriter"/>),
+/// and Google Drive calls for the
 /// user's own sealed sync files (scope drive.file: only files the app made), and read-only GETs of the user's Beeminder
 /// goals with the personal auth token they pasted (ADR 43), and the user's own sealed relay (ADR 46): HTTPS only, to
 /// the one address the user typed, with either that address's certificate pinned by its SHA-256 fingerprint (a

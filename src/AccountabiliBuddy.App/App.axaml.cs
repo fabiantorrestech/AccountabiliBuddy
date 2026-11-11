@@ -109,6 +109,7 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService? _taskTidyUp;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger? _taskReminderRinger;
+    private AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService? _taskCalendarExport;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
 
@@ -1336,6 +1337,14 @@ public partial class App : Application
             // A session starting holds normal reminders and its end queues the held ones (setting: During a focus session).
             _sessions!.StateChanged += (_, _) => _taskReminders.Refresh();
             _taskReminders.Start();
+            // ADR 78: the tasks that ask for it go to the app's own Google calendar (title and times only), once the account allowed it.
+            _taskCalendarExport = new AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService(
+                taskStore, reminderSettings, calendars, new GoogleCalendarClient(_calendarNetwork, googleEndpoints, time),
+                new GoogleCalendarWriter(_calendarNetwork, googleEndpoints), dataProtector, documents, time,
+                Path.Combine(dataDirectory, AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService.LogFileName));
+            _taskCalendarExport.LoadBlocking();
+            _calendarSync.SkipCalendar = _taskCalendarExport.IsAppCalendar;
+            _taskCalendarExport.Start();
             _ = StartTaskViewsAsync();
         }
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -3491,6 +3500,7 @@ public partial class App : Application
         _power?.Dispose();
         _taskReminders?.Dispose();
         _taskReminderRinger?.Dispose();
+        _taskCalendarExport?.Dispose();
         _workGate?.Dispose();
         _hyperfocus?.Dispose();
         _deepWork?.Dispose();

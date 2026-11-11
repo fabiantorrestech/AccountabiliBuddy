@@ -16,6 +16,11 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="SnoozeShortcuts">The three snooze shortcuts; null for the defaults (Tonight 6:00 PM, Tomorrow 9:00 AM, Monday 9:00 AM).</param>
 /// <param name="DuringSession">"During a focus session": normal reminders wait until it ends (default) or remind quietly; Can't miss always rings.</param>
 /// <param name="NewReminderRule">The rule a new reminder starts at (a <see cref="TaskReminder"/> rule; "At start time" by default).</param>
+/// <param name="NewRemindersTo">"Add new reminders to" (ADR 78): the per-task calendar switch's default when a task gets its first reminder or due date.</param>
+/// <param name="PickedCalendarId">
+/// ADR 78's experimental option: the Google calendar (of the export account) that tasks with a due date go to instead of "AB Reminders";
+/// null when off (the default). Used only once the user allowed changing events there (calendar.events).
+/// </param>
 public sealed record TaskReminderSettings(
     int Volume = 70,
     bool RisingVolume = true,
@@ -26,7 +31,9 @@ public sealed record TaskReminderSettings(
     TaskReminderDisplay Display = TaskReminderDisplay.Toast,
     IReadOnlyList<TaskSnoozeShortcut>? SnoozeShortcuts = null,
     string NewReminderRule = TaskReminder.AtStart,
-    TaskReminderDuringSession DuringSession = TaskReminderDuringSession.WaitUntilEnd)
+    TaskReminderDuringSession DuringSession = TaskReminderDuringSession.WaitUntilEnd,
+    TaskCalendarDestination NewRemindersTo = TaskCalendarDestination.GoogleCalendar,
+    string? PickedCalendarId = null)
 {
     public static TaskReminderSettings Default { get; } = new();
 

@@ -53,6 +53,11 @@ public sealed class CalendarSyncService : IDisposable
         _timeProvider = timeProvider;
     }
 
+    /// <summary>
+    /// Google calendars not read (ADR 78: the app's own "AB Reminders", whose events are the user's tasks); set by the app.
+    /// </summary>
+    public Func<GoogleCalendarEntry, bool> SkipCalendar { get; set; } = _ => false;
+
     /// <summary>True while any source is being fetched (for a "Refreshing…" hint).</summary>
     public bool IsFetching => _fetching.Count > 0;
 
@@ -114,6 +119,7 @@ public sealed class CalendarSyncService : IDisposable
         {
             GoogleTokens tokens = await _google.SignInAsync(clientId, clientSecret, openBrowser, cancellationToken);
             IReadOnlyList<GoogleCalendarEntry> calendars = await _google.ListCalendarsAsync(tokens.AccessToken, cancellationToken);
+            calendars = calendars.Where(calendar => calendar.IsPrimary || !SkipCalendar(calendar)).ToList();
             string account = calendars.FirstOrDefault(calendar => calendar.IsPrimary)?.Id ?? "Google account";
             string name = $"Google · {account}";
 
@@ -290,6 +296,7 @@ public sealed class CalendarSyncService : IDisposable
         {
             // New or renamed calendars appear; removed ones go (with their events).
             IReadOnlyList<GoogleCalendarEntry> entries = await _google.ListCalendarsAsync(accessToken, CancellationToken.None);
+            entries = entries.Where(entry => entry.IsPrimary || !SkipCalendar(entry)).ToList();
             source = source with { Calendars = entries.Select(entry => ToCalendarInfo(source.Id, entry)).ToList() };
             _calendars.SaveSource(source);
             source = _calendars.Sources.First(candidate => candidate.Id == source.Id);
