@@ -330,7 +330,8 @@ public partial class App : Application
             documents, time, _sessions, () => _configuration!.Current.Locks.LooseningDelay);
         taskSettings.LoadBlocking();
         sessionTasks.Settings = taskSettings;
-        taskStore.SessionActions = () => taskSettings.SessionActions;
+        // The running session's own cap while one runs (what it started with), else the setting.
+        taskStore.SessionActions = () => sessionTasks.ActionCap;
         taskStore.ReviewPending = () => _sessionReview?.Pending is not null;
         _taskSettings = taskSettings;
         // ADR 77: each session keeps the step-away setting it started with (in its checkpoint too).
@@ -1289,6 +1290,14 @@ public partial class App : Application
                 () => { }));
         }
 
+        if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.OldLists)
+        {
+            // The migration failed or didn't balance (details in tasks-model.log, counts only): the old lists stay the source.
+            Dispatcher.UIThread.Post(() => presenter.ShowNotice(
+                "Your task lists stayed as they were",
+                "Moving them to the new task list didn't work, so nothing was changed. A copy of everything was kept first."));
+        }
+
         if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.TaskList)
         {
             sessionTasks.UseTaskStore(taskStore);
@@ -1808,6 +1817,12 @@ public partial class App : Application
 
                 return await _taskSettings.RestoreAsync(wanted, tasksMode);
             };
+        }
+
+        // ADR 76: the task store keeps these two in memory and saves them back, so a raw restore would be overwritten: it goes through the store.
+        foreach (string mapKey in new[] { AccountabiliBuddy.App.Services.Tasks.TaskStore.CategoryIdsKey, AccountabiliBuddy.App.Services.Tasks.TaskStore.ViewSearchesKey })
+        {
+            backups.DeviceRestorers[mapKey] = value => taskStore.RestoreDeviceMapAsync(mapKey, value);
         }
 
         backups.DeviceRestorers["session.pcOff"] = async value =>
@@ -2957,8 +2972,6 @@ public partial class App : Application
         ShowOwnedDialog(_unlinkedDialog);
     }
 
-    // ADR 76: the user chose to rebuild an unreadable task list: set it aside (after a database copy), then start again so the
-    // migration runs; during a focus session the app isn't restarted, the rebuild happens at the next start.
     // The built-in views exist and the default one is open; the old filter screen's saved filters follow as views from then on.
     private async Task StartTaskViewsAsync()
     {
@@ -2971,6 +2984,8 @@ public partial class App : Application
         _taskViews.FollowPresets(_filterPresets);
     }
 
+    // ADR 76: the user chose to rebuild an unreadable task list: set it aside (after a database copy), then start again so the
+    // migration runs; during a focus session the app isn't restarted, the rebuild happens at the next start.
     private async Task RebuildTaskListsAsync(LocalDatabase database, SqliteJsonDocumentStore documents, TimeProvider time, string dataDirectory)
     {
         await AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.SetAsideForRebuildAsync(database, documents, time, dataDirectory);

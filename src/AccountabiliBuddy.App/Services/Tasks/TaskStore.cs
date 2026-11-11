@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
@@ -26,6 +27,9 @@ public sealed class TaskStore
     public const string ViewSearchesKey = "tasks.viewSearches";
     public const string CategoryIdsKey = "tasks.categoryIds";
     public const string MarkerKey = "tasks.model";
+
+    /// <summary>Stored when a migration attempt of a model version made its database backup, so a failing one backs up once, not on every start.</summary>
+    public const string AttemptKey = "tasks.modelAttempt";
 
     /// <summary>The running session's tasks as they were when it started (device-local state, sealed; see <see cref="HoldRunningAsync"/>).</summary>
     public const string RunningKey = "tasks.running";
@@ -92,6 +96,9 @@ public sealed class TaskStore
 
     public event EventHandler<TaskStoreChangedEventArgs>? Changed;
 
+    /// <summary>A text for the screen to show later (no screen takes it yet): an old list's delete was ignored because another device moved the task.</summary>
+    public event EventHandler<TaskToastEventArgs>? Notice;
+
     private Guid Self => SelfId() ?? Guid.Empty;
 
     private DateTimeOffset Now => _time.GetUtcNow();
@@ -102,6 +109,52 @@ public sealed class TaskStore
     public bool HasMarkerBlocking()
     {
         return Task.Run(() => _store.LoadAsync<Marker>(MarkerKey)).GetAwaiter().GetResult() is { Model: >= ModelVersion };
+    }
+
+    /// <summary>
+    /// A restored backup's category ids or view searches (<see cref="CategoryIdsKey"/>, <see cref="ViewSearchesKey"/>): written, then
+    /// read back into the store's own copy so its next save doesn't put the old one back. A document that can't be read leaves the
+    /// current one in place. Returns no note.
+    /// </summary>
+    public async Task<string?> RestoreDeviceMapAsync(string key, JsonElement value)
+    {
+        await _saving;
+        await _store.SaveAsync(key, value);
+        if (!IsActive)
+        {
+            return null;
+        }
+
+        try
+        {
+            if (key == CategoryIdsKey)
+            {
+                _categoryIds = LoadSealed<Dictionary<Guid, Guid>>(CategoryIdsKey) ?? [];
+            }
+            else if (key == ViewSearchesKey)
+            {
+                _viewSearches = LoadSealed<Dictionary<Guid, string>>(ViewSearchesKey) ?? [];
+            }
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException or CryptographicException)
+        {
+            // Not readable here (made on another PC): keep what is in memory and write it back over the file.
+            await Save();
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether this model version's migration attempt already wrote its backup.</summary>
+    public bool HasAttemptedBlocking()
+    {
+        return Task.Run(() => _store.LoadAsync<Marker>(AttemptKey)).GetAwaiter().GetResult() is { Model: >= ModelVersion };
+    }
+
+    /// <summary>Records that this model version's migration attempt wrote its backup.</summary>
+    public void RecordAttemptBlocking()
+    {
+        Task.Run(() => _store.SaveAsync(AttemptKey, new Marker(ModelVersion))).GetAwaiter().GetResult();
     }
 
     /// <summary>Reads the task list after a migration; false (and not active) when a document can't be read.</summary>
@@ -158,6 +211,11 @@ public sealed class TaskStore
         }
 
         // A running session's task that goes to a list (Move to Later, Park) comes back with what it had, under its own id.
+        foreach (TaskItem stale in TaskListRules.StaleDeletes(changed, _lists.Tasks, Now))
+        {
+            Notice?.Invoke(this, new TaskToastEventArgs(TaskToasts.MovedElsewhere(stale), canUndo: false));
+        }
+
         TaskLists withHeld = WithHeldBack(_lists, LiveIds(changed), out bool heldTaken);
         TaskLists applied = TaskListRules.ApplyLocal(withHeld, changed, Self, Now, Zone, SessionActions());
         // A delete from one of the old lists is filed in History too (ADR 76), except a running session's tasks leaving the list.

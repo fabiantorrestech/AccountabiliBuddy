@@ -95,6 +95,12 @@ public static class TaskToasts
         return "Added “" + Short(copy.Title) + "” to " + TaskBins.Name(copy.Bin);
     }
 
+    /// <summary>An old list's delete that was ignored because another device moved the task since (nothing was deleted).</summary>
+    public static string MovedElsewhere(TaskItem task)
+    {
+        return "“" + Short(task.Title) + "” was moved on another device, so it wasn't deleted";
+    }
+
     public static string Tidied(int decided, int total)
     {
         return decided == total ? "Tidied " + total + (total == 1 ? " task" : " tasks") : "Tidied " + decided + " of " + total + " tasks";

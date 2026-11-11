@@ -20,6 +20,9 @@ public sealed class TaskActionsService
     private readonly TimeProvider _time;
     private readonly TaskUndoStack _undo = new();
 
+    // The Recently deleted entries a Bring back took out, kept with its undo entry so undoing it puts them back.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TaskUndoEntry, List<DeletedItem>> _bringBackEntries = new();
+
     public TaskActionsService(TaskStore store, SessionTasksService? session, TimeProvider time)
     {
         _store = store;
@@ -250,9 +253,15 @@ public sealed class TaskActionsService
         bool changed = await RunAsync(TaskActionKind.History, 1, (lists, self, now) => TaskHistoryRules.BringBack(lists, entryId, now, self));
         if (changed && taskId is Guid id && _session?.Deleted is { } deleted)
         {
-            foreach (DeletedItem item in deleted.Items.Where(item => item.ItemId == id && item.Kind is DeletedKind.Task or DeletedKind.Later or DeletedKind.ComeBack or DeletedKind.AutoSaved).ToList())
+            List<DeletedItem> removed = deleted.Items.Where(item => item.ItemId == id && item.Kind is DeletedKind.Task or DeletedKind.Later or DeletedKind.ComeBack or DeletedKind.AutoSaved).ToList();
+            foreach (DeletedItem item in removed)
             {
                 await deleted.RemoveAsync(item.EntryId);
+            }
+
+            if (removed.Count > 0 && _undo.Peek is { } entry)
+            {
+                _bringBackEntries.AddOrUpdate(entry, removed);
             }
         }
 
@@ -271,6 +280,15 @@ public sealed class TaskActionsService
         if (!_undo.TryPop(out TaskUndoEntry? popped) || popped is null)
         {
             return new TaskUndoOutcome(false, []);
+        }
+
+        // Undoing a Bring back puts its Recently deleted entries back too (the task is gone again, so they can restore it).
+        if (_bringBackEntries.TryGetValue(popped, out List<DeletedItem>? removedByBringBack) && _session?.Deleted is { } deletedStore)
+        {
+            foreach (DeletedItem item in removedByBringBack)
+            {
+                await deletedStore.ReinstateAsync(item);
+            }
         }
 
         (TaskUndoEntry entry, IReadOnlyList<Guid> sessionIds) = TaskUndoRules.ForRestore(popped, id => _session?.IsInChecklist(id) == true);
@@ -309,7 +327,7 @@ public sealed class TaskActionsService
         }
 
         TaskActionKind recorded = count > 1 && kind is TaskActionKind.Edit or TaskActionKind.Delete or TaskActionKind.Move ? TaskActionKind.Bulk : kind;
-        _undo.Push(TaskUndoRules.Capture(before, result.Affected, recorded, result.Toast));
+        _undo.Push(TaskUndoRules.Capture(before, result.Affected, recorded, result.Toast, result.Lists));
         Announce(result.Toast, canUndo: true);
         return true;
     }

@@ -210,3 +210,14 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Dual path correctness is the data-loss risk: phone edits an old item whose task has reminders/steps focus/highlight that the old type cannot carry.
 - Cap by actions touches `SessionTasksService` (1.6k lines + 3 partials), `PickTasksViewModel`, `AddRemoteAsync`, `NeedsPick`, ADR 25 end-at-once, over-limit reasons.
 - Hard-rules/ADR updates required in M1: `doc/hard-rules.md` (new fields, what each may carry), ADR 76.
+
+## M1-M2 review cleanup (commit "Tasks (PC): M1-M2 review cleanup")
+
+- Migration: a live duplicate's losing title/note is kept as a `TaskConflict` on the winner; ADR 76 notes the Next/Later creation-time and single-stamp limits.
+- Numbering: a kept temporary number is skipped when another task's FormerNumbers holds it.
+- Migration backup is written once per model version (`tasks.modelAttempt`, a state key); a failed migration shows a notice at start.
+- Backup restore of `tasks.categoryIds` / `tasks.viewSearches` goes through `TaskStore.RestoreDeviceMapAsync`.
+- Undo restores only the fields the action changed (`TaskUndoEntry.Fields`); tidy-up re-choice restores only the Bin field. Undoing a Bring back re-adds its Recently deleted entries (`RecentlyDeletedStore.ReinstateAsync`).
+- Old-list rules use the running session's `ActionCap`.
+- Q52: `TaskListRules.StaleDeletes` + `TaskStore.Notice` event + `TaskToasts.MovedElsewhere`; no UI yet (a later milestone shows it).
+- Item 9 checked, no change: a ticked Later item/come-back files Finished; deleting it afterwards removes it from History by design (`CloseFinished`).

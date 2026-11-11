@@ -82,6 +82,18 @@ public sealed class RecentlyDeletedStore
         await saved;
     }
 
+    /// <summary>Puts back an entry that <see cref="RemoveAsync"/> took out (an undone Bring back), as it was; no Undo bar for it.</summary>
+    public Task ReinstateAsync(DeletedItem item)
+    {
+        if (_items.Any(held => held.EntryId == item.EntryId))
+        {
+            return Task.CompletedTask;
+        }
+
+        _items.Add(item);
+        return SaveAsync();
+    }
+
     /// <summary>Takes an entry out: it was restored, or it is deleted for good. Its content goes with it.</summary>
     public Task RemoveAsync(Guid entryId)
     {

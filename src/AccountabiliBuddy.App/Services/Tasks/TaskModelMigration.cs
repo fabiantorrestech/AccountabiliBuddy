@@ -17,7 +17,7 @@ public static class TaskModelMigration
 {
     public const string LogFileName = "tasks-model.log";
 
-    /// <returns>Where the task lists come from from now on.</returns>
+    /// <returns>Where the task lists come from from now on. <see cref="TaskModelState.OldLists"/> here always means the migration failed (the caller shows a notice).</returns>
     public static TaskModelState RunBlocking(
         LocalDatabase database, TaskStore store, SessionTasksService sessionTasks, LaterStore later, ComebackStore comebacks,
         AutoSavedTaskStore autoSaved, TaskFilterPresetStore presets, TaskViewStore view, TimeProvider time, string dataDirectory)
@@ -39,8 +39,17 @@ public static class TaskModelMigration
                 return TaskModelState.Unreadable;
             }
 
-            string backup = Task.Run(() => database.BackupAsync("tasks-model")).GetAwaiter().GetResult();
-            Log(logPath, time, "backup written: " + Path.GetFileName(backup));
+            // One backup per attempt version: a migration that keeps failing must not copy the whole database on every start.
+            if (store.HasAttemptedBlocking())
+            {
+                Log(logPath, time, "backup of this version's attempt already written");
+            }
+            else
+            {
+                string backup = Task.Run(() => database.BackupAsync("tasks-model")).GetAwaiter().GetResult();
+                store.RecordAttemptBlocking();
+                Log(logPath, time, "backup written: " + Path.GetFileName(backup));
+            }
 
             DateTimeOffset now = time.GetUtcNow();
             Guid? numbering = store.NumberingDevice();

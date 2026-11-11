@@ -96,7 +96,7 @@ public static class TaskMigration
                 .ThenByDescending(draft => draft.Task.EditedAt.UtcTicks)
                 .ThenBy(draft => draft.SourceOrder)
                 .ToList();
-            winners.Add(ordered[0]);
+            winners.Add(ordered[0] with { Task = WithLoserConflicts(ordered[0].Task, ordered.Skip(1)) });
             duplicates += ordered.Skip(1).Count(draft => draft.Task.IsLive);
         }
 
@@ -238,6 +238,31 @@ public static class TaskMigration
 
             yield return task with { Bin = TaskBin.Session, Steps = focused };
         }
+    }
+
+    // The live copy that lost keeps its title and note on the winner as "Changed on both devices" when they differ.
+    private static TaskItem WithLoserConflicts(TaskItem winner, IEnumerable<Draft> losers)
+    {
+        if (!winner.IsLive)
+        {
+            return winner;
+        }
+
+        var conflicts = new List<TaskConflict>(winner.Conflicts ?? []);
+        foreach (TaskItem loser in losers.Select(draft => draft.Task).Where(task => task.IsLive))
+        {
+            if (!string.Equals(loser.Title, winner.Title, StringComparison.Ordinal))
+            {
+                conflicts.Add(new TaskConflict(TaskConflict.TitleField, loser.Title, Guid.Empty, loser.EditedAt));
+            }
+
+            if (!string.Equals(loser.Note ?? string.Empty, winner.Note ?? string.Empty, StringComparison.Ordinal))
+            {
+                conflicts.Add(new TaskConflict(TaskConflict.NoteField, loser.Note, Guid.Empty, loser.EditedAt));
+            }
+        }
+
+        return conflicts.Count == (winner.Conflicts?.Count ?? 0) ? winner : winner with { Conflicts = conflicts };
     }
 
     private static TaskFieldStamps StampsAt(DateTimeOffset at)

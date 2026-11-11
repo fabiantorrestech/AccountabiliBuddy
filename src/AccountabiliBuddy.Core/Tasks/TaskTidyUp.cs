@@ -1,4 +1,5 @@
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.Core.Tasks;
 
@@ -66,6 +67,9 @@ public static class TaskTidyUp
         return new TidyUpPlan(items, weeks);
     }
 
+    // A choice changes where the task sits (bin, previous bin, place, done time) and nothing else; a decision put back first puts back just that.
+    private static readonly TaskField[] TidyUpFields = [TaskField.Bin];
+
     /// <summary>
     /// Applies a choice to a task, from the task as it was when the tidy-up began: a decision changed later first puts the task back
     /// (and takes it out of History if it went there), so the new choice is the only one in effect. Keep resets its age, Move to Next
@@ -73,7 +77,7 @@ public static class TaskTidyUp
     /// </summary>
     public static TaskActionResult Apply(TaskLists lists, TidyUpItem item, TidyUpChoice choice, DateTimeOffset now, Guid self)
     {
-        TaskLists reset = TaskUndoRules.Restore(lists, item.Original, self, now);
+        TaskLists reset = TaskUndoRules.Restore(lists, item.Original, self, now, TidyUpFields);
         TaskActionResult applied = choice switch
         {
             TidyUpChoice.MoveToNext when Bin(reset, item.TaskId) != TaskBin.Next => TaskActions.Move(reset, [item.TaskId], TaskBin.Next, now, self),

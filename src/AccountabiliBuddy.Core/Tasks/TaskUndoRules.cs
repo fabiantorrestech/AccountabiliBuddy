@@ -10,17 +10,30 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// </summary>
 public static class TaskUndoRules
 {
-    public static TaskUndoEntry Capture(TaskLists before, IEnumerable<Guid> ids, TaskActionKind kind, string text)
+    /// <param name="after">The lists the action made; with it the entry remembers which fields the action changed.</param>
+    public static TaskUndoEntry Capture(TaskLists before, IEnumerable<Guid> ids, TaskActionKind kind, string text, TaskLists? after = null)
     {
+        var changedFields = new HashSet<TaskField>();
         var tasks = new Dictionary<Guid, SyncTaskItem?>();
         var log = new Dictionary<Guid, SyncTaskLogItem?>();
         foreach (Guid id in ids.Distinct())
         {
             tasks[id] = before.Tasks.FirstOrDefault(item => item.Id == id);
             log[id] = before.Log.FirstOrDefault(item => item.Id == id);
+            SyncTaskItem? now = after?.Tasks.FirstOrDefault(item => item.Id == id);
+            if (tasks[id] is { Task.IsLive: true } was && now is { Task.IsLive: true })
+            {
+                foreach (TaskField field in TaskFieldValues.All)
+                {
+                    if (!string.Equals(TaskFieldValues.Canonical(was.Task, field), TaskFieldValues.Canonical(now.Task, field), StringComparison.Ordinal))
+                    {
+                        changedFields.Add(field);
+                    }
+                }
+            }
         }
 
-        return new TaskUndoEntry(kind, text, tasks, log);
+        return new TaskUndoEntry(kind, text, tasks, log, after is null ? null : changedFields);
     }
 
     /// <summary>
@@ -55,14 +68,17 @@ public static class TaskUndoRules
         return (entry with { Tasks = tasks, Log = log }, sessionIds);
     }
 
-    public static TaskLists Restore(TaskLists lists, TaskUndoEntry entry, Guid self, DateTimeOffset now)
+    /// <param name="onlyFields">Restore just these fields of a task that is still live (default: the entry's own, else every field).
+    /// A task that is gone comes back whole.</param>
+    public static TaskLists Restore(TaskLists lists, TaskUndoEntry entry, Guid self, DateTimeOffset now, IReadOnlyCollection<TaskField>? onlyFields = null)
     {
+        IReadOnlyCollection<TaskField> fields = onlyFields ?? (IReadOnlyCollection<TaskField>?)entry.Fields ?? TaskFieldValues.All;
         List<SyncTaskItem> tasks = lists.Tasks.ToList();
         foreach ((Guid id, SyncTaskItem? snapshot) in entry.Tasks)
         {
             int index = tasks.FindIndex(item => item.Id == id);
             SyncTaskItem? current = index >= 0 ? tasks[index] : null;
-            SyncTaskItem? restored = snapshot is { Task.IsLive: true } ? Reinstated(current, snapshot, now, self) : Gone(current, now);
+            SyncTaskItem? restored = snapshot is { Task.IsLive: true } ? Reinstated(current, snapshot, now, self, fields) : Gone(current, now);
             if (restored is null)
             {
                 continue;
@@ -111,7 +127,7 @@ public static class TaskUndoRules
         return current is { Task.IsLive: true } ? current.Deleted(SharedListMerge.NextStamp(now, current)) : null;
     }
 
-    private static SyncTaskItem Reinstated(SyncTaskItem? current, SyncTaskItem snapshot, DateTimeOffset now, Guid self)
+    private static SyncTaskItem Reinstated(SyncTaskItem? current, SyncTaskItem snapshot, DateTimeOffset now, Guid self, IReadOnlyCollection<TaskField> fields)
     {
         if (current is null || !current.Task.IsLive)
         {
@@ -121,11 +137,14 @@ public static class TaskUndoRules
         }
 
         SyncTaskItem item = current;
-        foreach (TaskField field in TaskFieldValues.All)
+        foreach (TaskField field in fields)
         {
             item = TaskEdits.Edit(item, field, snapshot.Task, now, self);
         }
 
-        return item with { Task = item.Task with { FormerNumbers = snapshot.Task.FormerNumbers, Origin = snapshot.Task.Origin } };
+        // The number's history and the origin line go back only with a full restore.
+        return fields.Contains(TaskField.Number)
+            ? item with { Task = item.Task with { FormerNumbers = snapshot.Task.FormerNumbers, Origin = snapshot.Task.Origin } }
+            : item;
     }
 }

@@ -89,7 +89,9 @@ public static class TaskNumbering
             SyncTaskItem item = result[index];
             TaskNumber? old = item.Task.Number;
             int value;
-            if (old is { Temporary: true } && !finals.Contains(old.Value))
+            bool usedAsFormer = old is not null && result.Select(other => other.Task).Concat(others)
+                .Any(other => other.Id != item.Task.Id && other.FormerNumbers is { } formers && formers.Contains(old.Value));
+            if (old is { Temporary: true } && !finals.Contains(old.Value) && !usedAsFormer)
             {
                 value = old.Value;
             }

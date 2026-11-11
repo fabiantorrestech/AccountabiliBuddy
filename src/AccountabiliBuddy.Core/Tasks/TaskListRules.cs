@@ -276,6 +276,29 @@ public static class TaskListRules
         };
     }
 
+    /// <summary>
+    /// The tasks an old list deleted that were left alone because they live elsewhere now and were moved after the delete was made
+    /// (a stale delete: another device moved the task meanwhile). A move's own departure (same moment) is not one. For the toast
+    /// <see cref="TaskToasts.MovedElsewhere"/>.
+    /// </summary>
+    public static IReadOnlyList<TaskItem> StaleDeletes(OldTaskFields changed, IReadOnlyList<SyncTaskItem> tasks, DateTimeOffset now)
+    {
+        Dictionary<Guid, SyncTaskItem> live = tasks.Where(item => item.Task.IsLive).GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First());
+        var stale = new List<TaskItem>();
+        foreach ((OldTaskList list, ISharedItem item, DateOnly? _) in Items(changed).Where(entry => entry.Item.DeletedAt is not null))
+        {
+            if (live.TryGetValue(item.Id, out SyncTaskItem? current)
+                && !OldTaskFieldsWriter.SameHome(TaskFacadeLists.ListOf(current.Task, now), list)
+                && current.Stamps.Of(TaskField.Bin) is { } moved && moved.At > item.DeletedAt!.Value
+                && stale.All(known => known.Id != item.Id))
+            {
+                stale.Add(current.Task);
+            }
+        }
+
+        return stale;
+    }
+
     // A move between two of this PC's own lists (ADR 76) keeps the task's id: the list it goes to adds it with that id, which moves its
     // bin; the list it leaves then drops it (a tombstone) or ticks it (a come-back taken to Today). That second half is not a delete or
     // a tick of the task, which now lives in another list: it is left out. A list only shows a task whose home it is, so a real delete
