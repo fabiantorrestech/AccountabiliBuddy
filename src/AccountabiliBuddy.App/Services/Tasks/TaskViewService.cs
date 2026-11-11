@@ -1,5 +1,6 @@
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Tasks;
+using Avalonia.Threading;
 
 namespace AccountabiliBuddy.App.Services.Tasks;
 
@@ -195,8 +196,15 @@ public sealed class TaskViewService
     /// </summary>
     public Task MirrorPresetsAsync(IReadOnlyList<TaskFilterPreset> presets)
     {
-        _mirroring = _mirroring.ContinueWith(_ => MirrorAsync(presets), TaskScheduler.Default).Unwrap();
+        _mirroring = MirrorAfterAsync(_mirroring, presets);
         return _mirroring;
+    }
+
+    // After the mirror before it, on the UI thread: the task list, its Changed event and every view of it belong to the UI thread.
+    private async Task MirrorAfterAsync(Task previous, IReadOnlyList<TaskFilterPreset> presets)
+    {
+        await previous;
+        await Dispatcher.UIThread.InvokeAsync(() => MirrorAsync(presets));
     }
 
     private async Task MirrorAsync(IReadOnlyList<TaskFilterPreset> presets)

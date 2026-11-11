@@ -20,6 +20,11 @@ namespace AccountabiliBuddy.Core.Domain;
 /// takes the stricter of this and the setting now (<see cref="Engine.StepAwayTimerPolicy.ForStepAway"/>). Null outside a session, and
 /// for a session saved before it was kept (read as keeping the timer running).
 /// </param>
+/// <param name="AwayPausesInFocus">
+/// A step away begun in a break (<see cref="IsEnforcing"/> false) whose setting pauses the timer: a break never freezes, so the timer
+/// runs (<see cref="AwayTimerRuns"/>) and the break ends on time; if focus starts while the user is still away, the countdown freezes
+/// from that moment as a paused step away in focus would (ADR 77). False otherwise.
+/// </param>
 /// <param name="FocusLengthAfterPlanning">While <see cref="SessionPhase.Planning"/>: how long the focus phase runs once planning ends
 /// (<see cref="PhaseStartedAt"/> and <see cref="PhaseEndsAt"/> are then the planning stage's own); null for a session with no set end.
 /// Kept in the checkpoint, so a restart resumes planning and still knows the focus length.</param>
@@ -38,7 +43,8 @@ public sealed record SessionState(
     int SideTaskExtensions = 0,
     TimeSpan? FocusLengthAfterPlanning = null,
     bool AwayTimerRuns = false,
-    StepAwayTimer? StepAwayAtStart = null)
+    StepAwayTimer? StepAwayAtStart = null,
+    bool AwayPausesInFocus = false)
 {
     public static SessionState Idle { get; } = new(null, SessionPhase.Idle, null, null, null, 0);
 

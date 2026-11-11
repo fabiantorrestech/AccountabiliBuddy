@@ -251,7 +251,8 @@ public sealed partial class SessionTasksService : IDisposable
 
         if (_taskStore is not null)
         {
-            await MoveOutOfChecklistAsync(leaving, TaskBin.Queued, swapped);
+            // The checklist without it is worked out again once it is in Queued: a tick or a remote edit meanwhile stays.
+            await MoveOutOfChecklistAsync(leaving, TaskBin.Queued, current => SessionActions.Cleaned(current.Remove(leaving.Id)));
         }
         else
         {
@@ -266,13 +267,18 @@ public sealed partial class SessionTasksService : IDisposable
     /// An open task of the checklist goes to <paramref name="bin"/> of the task list (Queued after a swap or the pick, To sort when
     /// parked) as the same task, with its steps and all it had: put there first, then taken off the checklist
     /// (<paramref name="without"/>, by default <see cref="SessionChecklist.Parked"/>, which counts an open task of a running session as
-    /// taken off open, ADR 25). A stop in between leaves it in both places, and the same id makes doing it again harmless.
+    /// taken off open, ADR 25), worked out from the checklist as it is after the put back. A stop in between leaves it in both places,
+    /// and the same id makes doing it again harmless.
     /// </summary>
-    private async Task MoveOutOfChecklistAsync(SessionTask labelled, TaskBin bin, SessionChecklist? without = null)
+    private async Task MoveOutOfChecklistAsync(SessionTask labelled, TaskBin bin, Func<SessionChecklist, SessionChecklist>? without = null)
     {
         // Sent as this service's own change: the checklist still holds the task, so the list mustn't take it as consumed meanwhile.
         await _taskStore!.PutBackAsync(this, [labelled with { DoneAt = null }], bin);
-        await SetAsync(without ?? Current.Parked(labelled.Id));
+        if (Current.Tasks.Any(task => task.Id == labelled.Id))
+        {
+            await SetAsync(without is null ? Current.Parked(labelled.Id) : without(Current));
+        }
+
         ReadFromTaskStore();
         Changed?.Invoke(this, EventArgs.Empty);
     }

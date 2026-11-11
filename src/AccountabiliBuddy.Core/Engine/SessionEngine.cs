@@ -254,7 +254,9 @@ public sealed class SessionEngine
     /// <summary>
     /// The user steps away (a break or an interruption). With <paramref name="keepTimerRunning"/> (the setting's default, only for a
     /// break or an interruption) the countdown keeps going, phases end on time and enforcement stays on (<see cref="SessionState.AwayTimerRuns"/>);
-    /// otherwise the countdown pauses until <see cref="Return"/>, which moves the phase on by the time away. Either way it never
+    /// otherwise the countdown pauses until <see cref="Return"/>, which moves the phase on by the time away. A break (outside focus and
+    /// planning) never freezes, whatever the setting: its countdown keeps going and it ends on time, and when focus starts with the user
+    /// still away a pausing step away freezes the countdown from then (<see cref="SessionState.AwayPausesInFocus"/>). Either way it never
     /// shortens a wait or unlocks anything, and the stretch is logged as stepped away.
     /// </summary>
     /// <returns>False with no session running or when already away.</returns>
@@ -266,7 +268,8 @@ public sealed class SessionEngine
         }
 
         bool timerRuns = keepTimerRunning && kind is AwayKind.Break or AwayKind.Interrupted;
-        SetState(State with { Away = kind, AwaySince = Now, AwayTimerRuns = timerRuns });
+        bool pausesInFocus = !timerRuns && !State.IsEnforcing;
+        SetState(State with { Away = kind, AwaySince = Now, AwayTimerRuns = timerRuns || pausesInFocus, AwayPausesInFocus = pausesInFocus });
         return true;
     }
 
@@ -308,9 +311,14 @@ public sealed class SessionEngine
     /// end later by the time paused, while enforcement keeps running as in focus. Logged apart from stepping away. It never shortens a
     /// wait, ends the session or unlocks anything.
     /// </summary>
-    /// <returns>False with no session running or when already away or paused.</returns>
+    /// <returns>False with no session running, outside focus and planning (a break's countdown never freezes), or when already away or paused.</returns>
     public bool PauseTimer()
     {
+        if (!State.IsEnforcing)
+        {
+            return false;
+        }
+
         return StepAway(AwayKind.Paused);
     }
 
@@ -394,7 +402,7 @@ public sealed class SessionEngine
         if (State.AwayTimerRuns)
         {
             // The timer ran meanwhile: nothing moves.
-            SetState(State with { Away = null, AwaySince = null, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0, AwayTimerRuns = false });
+            SetState(State with { Away = null, AwaySince = null, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0, AwayTimerRuns = false, AwayPausesInFocus = false });
             return away;
         }
 
@@ -434,7 +442,7 @@ public sealed class SessionEngine
             return true;
         }
 
-        SetState(next with { Away = AwayKind.Break, AwaySince = now, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0, AwayTimerRuns = false });
+        SetState(next with { Away = AwayKind.Break, AwaySince = now, AwayEndsAt = null, AwayAtDesk = false, SideTaskExtensions = 0, AwayTimerRuns = false, AwayPausesInFocus = false });
         return true;
     }
 
@@ -542,15 +550,29 @@ public sealed class SessionEngine
 
         SessionState state = State;
 
-        // Loop so that waking from sleep catches up through every phase that was missed.
+        // Loop so that waking from sleep catches up through every phase that was missed (until a countdown freezes).
         while (state.Mode == SessionMode.Pomodoro
+               && !state.CountdownFrozen
                && state.PhaseEndsAt is DateTimeOffset phaseEnd
                && now >= phaseEnd)
         {
-            state = NextPomodoroPhase(state, settings, phaseEnd, _breakAfterLastCycle);
+            state = FrozenIfAwayAtFocus(NextPomodoroPhase(state, settings, phaseEnd, _breakAfterLastCycle));
         }
 
         SetState(state);
+    }
+
+    // Focus starts while a step away begun in the break is still on, and its setting pauses the timer: from here it is a paused step
+    // away in focus, frozen from the focus's start (AwaySince moves there; the stretch stays logged from when the user stepped away),
+    // so Return gives the focus its full length.
+    private static SessionState FrozenIfAwayAtFocus(SessionState state)
+    {
+        if (state.Phase != SessionPhase.Focus || !state.AwayPausesInFocus || !state.IsAway || state.PhaseStartedAt is not DateTimeOffset start)
+        {
+            return state;
+        }
+
+        return state with { AwayTimerRuns = false, AwayPausesInFocus = false, AwaySince = start };
     }
 
     private static SessionState NextPomodoroPhase(

@@ -11,6 +11,12 @@ public static class TaskToasts
 
     public const string Undone = "Undone";
 
+    /// <summary>Undo left everything alone: each task it touched changed since (the session holds it, History has it again, it went another way).</summary>
+    public const string ChangedSince = "Can't undo · it changed since";
+
+    /// <summary>Undo put back some of what the action touched; the rest changed since.</summary>
+    public const string PartlyChangedSince = "Undone · some had changed since";
+
     /// <summary>A title cut to 28 characters with an ellipsis.</summary>
     public static string Short(string title)
     {

@@ -115,10 +115,12 @@ public static class SyncFileBuilder
         // The past keys (ADR 56) stay out of QR codes too: they are only for the sealed files of the sync methods.
         // The category list (name and colour per category) stays out too: the QR code's room goes to sessions, and a file without it leaves the receiver's copy alone.
         // ADR 72's history, settled records, Auto-saved list and handovers stay out for the same reasons.
+        // ADR 76's task list (tasks, labels, views, History) never goes in a QR file: it is private text, and it would not fit.
         file = file with
         {
             Events = null, NextTasks = null, Parked = null, Later = null, PastKeys = null, Categories = null,
             TaskHistory = null, PastSettled = null, AutoSaved = null, Handovers = null, HandoverAcks = null,
+            Tasks = null, Labels = null, Views = null, TaskLog = null,
         };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);

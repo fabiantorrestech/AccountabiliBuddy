@@ -48,6 +48,9 @@ public sealed class AutoSavedTaskStore
 
     public event EventHandler? Changed;
 
+    /// <summary>An add was refused because the task list this is a view of can't be opened (ADR 76's unreadable state).</summary>
+    public event EventHandler? AddRefused;
+
     /// <summary>The items younger than 30 days that are shown here (not tombstones, not kept on another device), newest first.</summary>
     public IReadOnlyList<AutoSavedTask> Items
     {
@@ -161,6 +164,13 @@ public sealed class AutoSavedTaskStore
         string trimmed = text.Trim();
         if (trimmed.Length == 0)
         {
+            return null;
+        }
+
+        if (_tasks is { IsActive: false })
+        {
+            // The task list can't be opened (nothing is saved): say so rather than drop the text unseen.
+            AddRefused?.Invoke(this, EventArgs.Empty);
             return null;
         }
 

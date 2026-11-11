@@ -23,10 +23,21 @@ public static class TaskModelMigration
         AutoSavedTaskStore autoSaved, TaskFilterPresetStore presets, TaskViewStore view, TimeProvider time, string dataDirectory)
     {
         string logPath = Path.Combine(dataDirectory, LogFileName);
-        bool migrated = false;
+        bool migrated;
         try
         {
             migrated = store.HasMarkerBlocking();
+        }
+        catch (Exception ex)
+        {
+            // The marker can't be read, so whether the migration ran isn't known: the old lists may have stopped at it, so they are
+            // never taken as the source on a guess.
+            Log(logPath, time, "migration marker could not be read (" + ex.GetType().Name + "); task lists closed until rebuilt");
+            return TaskModelState.Unreadable;
+        }
+
+        try
+        {
             if (migrated)
             {
                 if (store.LoadBlocking())

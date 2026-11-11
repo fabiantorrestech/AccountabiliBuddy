@@ -74,11 +74,11 @@ public sealed class TaskStore
     /// <summary>True while the last session's review card is still waiting (held copies stay until it is done). Set by the app.</summary>
     public Func<bool> ReviewPending { get; set; } = () => false;
 
-    /// <summary>How many actions This session takes when a list adds to it (the Tasks setting, ADR 76). Set by the app.</summary>
+    /// <summary>
+    /// How many actions the next session's This session bin takes when a list adds to it (the Tasks setting, ADR 76; the bin is always
+    /// the next session's draft, the running checklist keeps its own cap). Set by the app.
+    /// </summary>
     public Func<int> SessionActions { get; set; } = () => Core.Tasks.SessionActions.DefaultCap;
-
-    /// <summary>The running session's checklist; null while none runs. Set by the app (<see cref="SessionBin"/>).</summary>
-    public Func<IReadOnlyList<SessionTask>?> RunningChecklist { get; set; } = () => null;
 
     /// <summary>The task list is the source (the migration ran and its documents read).</summary>
     public bool IsActive { get; private set; }
@@ -349,6 +349,12 @@ public sealed class TaskStore
         return SaveRunningAsync();
     }
 
+    /// <summary>Whether a copy of this task is held for a session (running, or ended and not yet let go): undo leaves such a task alone.</summary>
+    public bool IsHeld(Guid id)
+    {
+        return _running.ContainsKey(id);
+    }
+
     /// <summary>The focused steps of the held tasks of the session that runs (This session's focus as it was planned), for its start.</summary>
     public IReadOnlyList<Guid> HeldFocus()
     {
@@ -498,28 +504,6 @@ public sealed class TaskStore
         return Commit(applied, null, fromOtherDevice: true).Save;
     }
 
-    /// <summary>
-    /// The running session's tasks as the This session bin shows them while it runs (ADR 76): the checklist stays the PC's own
-    /// (<see cref="SessionChecklist"/>), so this is a view of it, never stored or synced as tasks. Empty while no session runs.
-    /// </summary>
-    public IReadOnlyList<TaskItem> SessionBin()
-    {
-        IReadOnlyList<SessionTask>? running = RunningChecklist();
-        if (running is null)
-        {
-            return [];
-        }
-
-        List<TaskLabel> labels = _lists.Labels.Select(item => item.Label).ToList();
-        Dictionary<Guid, TaskItem> held = _lists.Tasks.Where(item => item.Task.IsLive).ToDictionary(item => item.Id, item => item.Task);
-        DateTimeOffset now = Now;
-        return running.Select((task, index) =>
-        {
-            TaskItem target = held.TryGetValue(task.Id, out TaskItem? own) ? own : new TaskItem(task.Id, task.Title, TaskBin.Session, index + 1, now, now, now);
-            return TaskSessionMapper.Apply(target with { Bin = TaskBin.Session, Position = index + 1 }, task, labels);
-        }).ToList();
-    }
-
     /// <summary>The numbering device of the group (ADR 76): this PC while it is in none.</summary>
     public Guid? NumberingDevice()
     {
@@ -641,12 +625,15 @@ public sealed class TaskStore
         }
     }
 
+    // In turn with the other saves (as Save), so an older copy never lands after a newer one.
     private Task SaveRunningAsync()
     {
         var held = new HeldDocument(
             _running.Values.ToList(),
             _heldEndedAt.Where(pair => _running.ContainsKey(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
-        return _store.SaveAsync(RunningKey, Sealed(held));
+        Stored sealedHeld = Sealed(held);
+        _saving = _saving.ContinueWith(_ => _store.SaveAsync(RunningKey, sealedHeld), TaskScheduler.Default).Unwrap();
+        return _saving;
     }
 
     // The held copies and when each one's session ended (none while it runs).

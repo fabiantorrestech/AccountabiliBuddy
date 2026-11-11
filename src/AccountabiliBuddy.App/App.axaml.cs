@@ -330,8 +330,9 @@ public partial class App : Application
             documents, time, _sessions, () => _configuration!.Current.Locks.LooseningDelay);
         taskSettings.LoadBlocking();
         sessionTasks.Settings = taskSettings;
-        // The running session's own cap while one runs (what it started with), else the setting.
-        taskStore.SessionActions = () => sessionTasks.ActionCap;
+        // The list's This session bin is the next session's draft: split by the setting (the next session starts with it). The running
+        // checklist keeps its own cap (SessionTasksService.ActionCap), which its add, remote adds and undo's offer go through.
+        taskStore.SessionActions = () => taskSettings.SessionActions;
         taskStore.ReviewPending = () => _sessionReview?.Pending is not null;
         _taskSettings = taskSettings;
         // ADR 77: each session keeps the step-away setting it started with (in its checkpoint too).
@@ -1265,7 +1266,6 @@ public partial class App : Application
         // fields rebuilt from it for older apps). A failed or unbalanced migration leaves everything on the old lists.
         taskStore.SelfId = selfId;
         taskStore.OtherDevices = () => receivedDevices.Active.Select(device => (device.File.Device.DeviceId, device.File.Device.Kind)).ToList();
-        taskStore.RunningChecklist = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
         _filterPresets = new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector());
         AccountabiliBuddy.App.Services.Tasks.TaskModelState taskModel = AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.RunBlocking(
             database, taskStore, sessionTasks, _later!, _comebacks!, autoSaved,
@@ -1281,6 +1281,12 @@ public partial class App : Application
             autoSaved.UseTaskStore(taskStore);
             syncCoordinator.ShareTaskLists = () => false;
             backups.Tasks = null;
+            // Text typed into them now (Ctrl+Alt+N, the work gate's come-back, the shutdown card) can't be kept: said, never dropped unseen.
+            void ShowNotKept(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => presenter.ShowNotice(
+                "That wasn't saved",
+                "Your task lists couldn't be opened, so new tasks can't be kept on this PC for now. Rebuild them first."));
+            _comebacks!.AddRefused += ShowNotKept;
+            autoSaved.AddRefused += ShowNotKept;
             Dispatcher.UIThread.Post(() => presenter.ShowChoice(
                 "Your task lists couldn't be opened",
                 "Tasks aren't shown, saved or synced on this PC for now. Rebuild them from the lists as they were when this version first "

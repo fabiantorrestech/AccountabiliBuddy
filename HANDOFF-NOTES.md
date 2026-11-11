@@ -221,3 +221,16 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Old-list rules use the running session's `ActionCap`.
 - Q52: `TaskListRules.StaleDeletes` + `TaskStore.Notice` event + `TaskToasts.MovedElsewhere`; no UI yet (a later milestone shows it).
 - Item 9 checked, no change: a ticked Later item/come-back files Finished; deleting it afterwards removes it from History by design (`CloseFinished`).
+
+## M1-M2 milestone review fixes (commit "Tasks (PC): M1-M2 milestone review fixes")
+
+- QR files (`SyncFileBuilder.ForQr`) drop `Tasks`, `Labels`, `Views`, `TaskLog`.
+- `TaskViewService.MirrorPresetsAsync` runs each mirror on the UI thread after the previous one (`Dispatcher.UIThread.InvokeAsync`). Audit: the other TaskStore writers already run there (sync merge via `SyncCoordinator.AcceptSealedAsync` → `UIThread.InvokeAsync`, remote actions via `UIThread.Post(syncActions.ApplyAsync)`, backup import from the VM, the lists and VMs themselves).
+- Undo skips what changed since (Q75).
+- `SessionEngine.PauseTimer` refused outside focus and planning; step away in a break never freezes (Q74, ADR 77).
+- `SessionTasksService.SwapOutAsync`: the checklist without the task is worked out after `PutBackAsync` (`MoveOutOfChecklistAsync` takes a function; nothing is written when the task already left).
+- `TaskModelMigration`: a marker that can't be read → `Unreadable` (never the old lists on a guess).
+- `TaskStore.SessionBin()` and `RunningChecklist` removed (no callers); `TaskStore.IsHeld` added; `SaveRunningAsync` goes through the `_saving` chain.
+- Unreadable task list: `ComebackStore.AddAsync` / `AutoSavedTaskStore.AddAsync` refuse and raise `AddRefused`; the app shows a notice (Ctrl+Alt+N, the work gate's come-back, the shutdown card, every other add).
+- `taskStore.SessionActions` is the setting again (the list's This session bin is always the next session's draft); the running checklist keeps its own `ActionCap` (replaces "Old-list rules use the running session's ActionCap" above).
+- `tasks.tidyUp` classified as a state key.

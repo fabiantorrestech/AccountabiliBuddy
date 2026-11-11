@@ -273,13 +273,14 @@ public sealed class TaskActionsService
     /// <summary>
     /// Ctrl+Z: puts back what the newest action touched, exactly as it was. A task that was in This session comes back to Queued and is
     /// offered to the session's own add (the cap rules): when it finds no room it stays in Queued (<see cref="TaskUndoOutcome.QueuedNoRoom"/>,
-    /// toasted "No room in this session · put in Queued"). A task that is in the session's checklist now is left alone.
+    /// toasted "No room in this session · put in Queued"). A task the session holds now, one a newer History entry has, or one that went
+    /// another way since is left alone (<see cref="TaskUndoOutcome.ChangedSince"/>, toasted "Can't undo · it changed since").
     /// </summary>
     public async Task<TaskUndoOutcome> UndoAsync()
     {
         if (!_undo.TryPop(out TaskUndoEntry? popped) || popped is null)
         {
-            return new TaskUndoOutcome(false, []);
+            return new TaskUndoOutcome(false, [], []);
         }
 
         // Undoing a Bring back puts its Recently deleted entries back too (the task is gone again, so they can restore it).
@@ -291,8 +292,21 @@ public sealed class TaskActionsService
             }
         }
 
-        (TaskUndoEntry entry, IReadOnlyList<Guid> sessionIds) = TaskUndoRules.ForRestore(popped, id => _session?.IsInChecklist(id) == true);
-        await _store.ChangeAsync(null, (lists, self, now) => TaskUndoRules.Restore(lists, entry, self, now));
+        // What changed since (the session holds it, a newer History entry has it, it went another way) is left out, and said so.
+        IReadOnlyList<Guid> sessionIds = [];
+        IReadOnlyList<Guid> skipped = [];
+        await _store.ChangeAsync(null, (lists, self, now) =>
+        {
+            (TaskUndoEntry entry, sessionIds, skipped) = TaskUndoRules.ForRestore(popped, lists, id => _session?.IsInChecklist(id) == true || _store.IsHeld(id));
+            return TaskUndoRules.Restore(lists, entry, self, now);
+        });
+        int touched = popped.Tasks.Keys.Union(popped.Log.Keys).Count();
+        if (skipped.Count > 0 && skipped.Count >= touched)
+        {
+            Announce(TaskToasts.ChangedSince, canUndo: false);
+            return new TaskUndoOutcome(false, [], skipped);
+        }
+
         List<Guid> noRoom = [];
         if (sessionIds.Count > 0)
         {
@@ -300,8 +314,8 @@ public sealed class TaskActionsService
             noRoom.AddRange(_session is null ? sessionIds : outcome.NeedsRoom);
         }
 
-        Announce(noRoom.Count > 0 ? "No room in this session · put in Queued" : TaskToasts.Undone, canUndo: false);
-        return new TaskUndoOutcome(true, noRoom);
+        Announce(noRoom.Count > 0 ? "No room in this session · put in Queued" : skipped.Count > 0 ? TaskToasts.PartlyChangedSince : TaskToasts.Undone, canUndo: false);
+        return new TaskUndoOutcome(true, noRoom, skipped);
     }
 
     /// <summary>Shows a toast for something another service did (the tidy-up's "Tidied 4 of 5 tasks").</summary>
@@ -315,9 +329,11 @@ public sealed class TaskActionsService
     {
         TaskLists? before = null;
         TaskActionResult? result = null;
+        DateTimeOffset at = default;
         bool changed = await _store.ChangeAsync(null, (lists, self, now) =>
         {
             before = lists;
+            at = now;
             result = action(lists, self, now);
             return result.Lists;
         });
@@ -327,7 +343,7 @@ public sealed class TaskActionsService
         }
 
         TaskActionKind recorded = count > 1 && kind is TaskActionKind.Edit or TaskActionKind.Delete or TaskActionKind.Move ? TaskActionKind.Bulk : kind;
-        _undo.Push(TaskUndoRules.Capture(before, result.Affected, recorded, result.Toast, result.Lists));
+        _undo.Push(TaskUndoRules.Capture(before, result.Affected, recorded, result.Toast, result.Lists, at));
         Announce(result.Toast, canUndo: true);
         return true;
     }

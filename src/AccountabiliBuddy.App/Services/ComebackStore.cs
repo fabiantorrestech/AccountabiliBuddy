@@ -53,6 +53,9 @@ public sealed class ComebackStore
 
     public event EventHandler? Changed;
 
+    /// <summary>An add was refused because the task list this is a view of can't be opened (ADR 76's unreadable state).</summary>
+    public event EventHandler? AddRefused;
+
     /// <summary>This device's id in its sync group (ADR 72's keeper rule); null while it isn't in one. Set by the app.</summary>
     public Func<Guid?> SelfId { get; set; } = () => null;
 
@@ -127,6 +130,13 @@ public sealed class ComebackStore
         labels = TaskLabels.With(labels, typedLabels ?? []);
         if (trimmed.Length == 0)
         {
+            return Task.CompletedTask;
+        }
+
+        if (_tasks is { IsActive: false })
+        {
+            // The task list can't be opened (nothing is saved): say so rather than drop the text unseen.
+            AddRefused?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
 

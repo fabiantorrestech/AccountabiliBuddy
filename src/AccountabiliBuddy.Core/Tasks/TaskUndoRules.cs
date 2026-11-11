@@ -10,12 +10,17 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// </summary>
 public static class TaskUndoRules
 {
-    /// <param name="after">The lists the action made; with it the entry remembers which fields the action changed.</param>
-    public static TaskUndoEntry Capture(TaskLists before, IEnumerable<Guid> ids, TaskActionKind kind, string text, TaskLists? after = null)
+    /// <param name="after">The lists the action made; with it the entry remembers which fields the action changed, which tasks it took
+    /// out of the lists and the History it left.</param>
+    /// <param name="at">The action's time: with it a Shelf task the action finished counts as gone to History, as the store settles it.</param>
+    public static TaskUndoEntry Capture(TaskLists before, IEnumerable<Guid> ids, TaskActionKind kind, string text, TaskLists? after = null, DateTimeOffset? at = null)
     {
         var changedFields = new HashSet<TaskField>();
+        var removed = new HashSet<Guid>();
+        var logAfter = new Dictionary<Guid, DateTimeOffset?>();
         var tasks = new Dictionary<Guid, SyncTaskItem?>();
         var log = new Dictionary<Guid, SyncTaskLogItem?>();
+        TaskLists? settled = after is not null && at is DateTimeOffset time ? TaskListRules.Settled(after, time) : after;
         foreach (Guid id in ids.Distinct())
         {
             tasks[id] = before.Tasks.FirstOrDefault(item => item.Id == id);
@@ -31,23 +36,50 @@ public static class TaskUndoRules
                     }
                 }
             }
+
+            if (settled is null)
+            {
+                continue;
+            }
+
+            if (tasks[id] is { Task.IsLive: true } && settled.Tasks.FirstOrDefault(item => item.Id == id) is not { Task.IsLive: true })
+            {
+                removed.Add(id);
+            }
+
+            logAfter[id] = settled.Log.FirstOrDefault(item => item.Id == id && item.Entry.IsLive)?.EditedAt;
         }
 
-        return new TaskUndoEntry(kind, text, tasks, log, after is null ? null : changedFields);
+        return settled is null
+            ? new TaskUndoEntry(kind, text, tasks, log)
+            : new TaskUndoEntry(kind, text, tasks, log, changedFields, removed, logAfter);
     }
 
     /// <summary>
-    /// The entry made safe to restore (ADR 76): a task whose snapshot sat in This session goes back to Queued, unfocused, because a place in
-    /// a session is the cap's to give (the returned ids are those tasks, for the caller to offer to the session's own add); a task that is
-    /// in the session's checklist now (<paramref name="inChecklist"/>) is left out, so the checklist is never edited behind the session's back.
+    /// The entry made safe to restore against the lists as they are now (<paramref name="lists"/>; ADR 76). A touched task is left out,
+    /// in <c>Skipped</c> for the "Can't undo · it changed since" toast, when the session holds it now (<paramref name="heldBySession"/>:
+    /// in its checklist or among the store's held copies, so the checklist is never edited behind the session's back), when a live
+    /// History entry newer than the action's own has it, or when it is gone now and this action wasn't what took it out (only a delete,
+    /// archive, finish or move out of the lists comes back whole). A task whose snapshot sat in This session goes back to Queued,
+    /// unfocused, because a place in a session is the cap's to give (<c>SessionIds</c>, for the caller to offer to the session's own add).
     /// </summary>
-    public static (TaskUndoEntry Entry, IReadOnlyList<Guid> SessionIds) ForRestore(TaskUndoEntry entry, Func<Guid, bool> inChecklist)
+    public static (TaskUndoEntry Entry, IReadOnlyList<Guid> SessionIds, IReadOnlyList<Guid> Skipped) ForRestore(
+        TaskUndoEntry entry, TaskLists lists, Func<Guid, bool> heldBySession)
     {
         var tasks = new Dictionary<Guid, SyncTaskItem?>();
         var sessionIds = new List<Guid>();
+        var skipped = new List<Guid>();
+        foreach (Guid id in entry.Tasks.Keys.Union(entry.Log.Keys))
+        {
+            if (heldBySession(id) || HasNewerHistory(entry, lists, id) || IsGoneSince(entry, lists, id))
+            {
+                skipped.Add(id);
+            }
+        }
+
         foreach ((Guid id, SyncTaskItem? snapshot) in entry.Tasks)
         {
-            if (inChecklist(id))
+            if (skipped.Contains(id))
             {
                 continue;
             }
@@ -64,12 +96,38 @@ public static class TaskUndoRules
             }
         }
 
-        var log = entry.Log.Where(pair => !inChecklist(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value);
-        return (entry with { Tasks = tasks, Log = log }, sessionIds);
+        var log = entry.Log.Where(pair => !skipped.Contains(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value);
+        return (entry with { Tasks = tasks, Log = log }, sessionIds, skipped);
+    }
+
+    // A live History entry for the task that came after the action (another device finished it, a session settled it): the action's
+    // undo would delete or overwrite it.
+    private static bool HasNewerHistory(TaskUndoEntry entry, TaskLists lists, Guid id)
+    {
+        if (entry.LogAfter is null || lists.Log.FirstOrDefault(item => item.Id == id && item.Entry.IsLive) is not { } current)
+        {
+            return false;
+        }
+
+        return !entry.LogAfter.TryGetValue(id, out DateTimeOffset? after) || after is not DateTimeOffset stamp || current.EditedAt > stamp;
+    }
+
+    // The task was live before the action and is gone now, but the action didn't take it out (it joined a session and finished,
+    // another device deleted it): reviving it whole would make a duplicate of what happened since.
+    private static bool IsGoneSince(TaskUndoEntry entry, TaskLists lists, Guid id)
+    {
+        if (!entry.Tasks.TryGetValue(id, out SyncTaskItem? snapshot) || snapshot is not { Task.IsLive: true }
+            || lists.Tasks.Any(item => item.Id == id && item.Task.IsLive))
+        {
+            return false;
+        }
+
+        bool removedByAction = entry.Removed?.Contains(id) ?? entry.Kind is TaskActionKind.Delete or TaskActionKind.Finish;
+        return !removedByAction;
     }
 
     /// <param name="onlyFields">Restore just these fields of a task that is still live (default: the entry's own, else every field).
-    /// A task that is gone comes back whole.</param>
+    /// A task that is gone comes back whole: pass the entry through <see cref="ForRestore"/> first, which leaves out what changed since.</param>
     public static TaskLists Restore(TaskLists lists, TaskUndoEntry entry, Guid self, DateTimeOffset now, IReadOnlyCollection<TaskField>? onlyFields = null)
     {
         IReadOnlyCollection<TaskField> fields = onlyFields ?? (IReadOnlyCollection<TaskField>?)entry.Fields ?? TaskFieldValues.All;
