@@ -20,7 +20,7 @@ public sealed class TaskReminderService : IDisposable
 {
     public const string MissedKey = "tasks.reminderMissed";
 
-    private static readonly TimeSpan MaxWait = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MaxWait = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan MinWait = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan MissedKept = TimeSpan.FromDays(3);
 
@@ -43,6 +43,9 @@ public sealed class TaskReminderService : IDisposable
 
     /// <summary>The task actions, for "Work on it now" (the session's own add, which keeps the cap); set by the app.</summary>
     public TaskActionsService? Actions { get; set; }
+
+    /// <summary>A focus session is running (set by the app); with "During a focus session" on wait, normal reminders are held meanwhile.</summary>
+    public Func<bool> SessionRunning { get; set; } = () => false;
 
     /// <summary>The reminders ringing now, in ring order (Can't miss first).</summary>
     public IReadOnlyList<TaskReminderEntry> Pending { get; private set; } = [];
@@ -111,7 +114,10 @@ public sealed class TaskReminderService : IDisposable
             _entries = [];
         }
 
-        List<TaskReminderEntry> due = TaskReminderQueue.Due(_entries, now).Where(entry => !_missed.ContainsKey(entry.Key)).ToList();
+        // Held reminders (a session runs, "Wait until the session ends") stay unhandled and are not Pending, so no ring time counts for
+        // them; Refresh on the session's end (the app calls it) queues them in due order, also after a restart.
+        List<TaskReminderEntry> due = TaskReminderQueue.Ringable(
+            TaskReminderQueue.Due(_entries, now).Where(entry => !_missed.ContainsKey(entry.Key)), SessionRunning(), _settings.Current.DuringSession);
         if (!due.Select(entry => entry.Key).SequenceEqual(Pending.Select(entry => entry.Key)))
         {
             Pending = due;

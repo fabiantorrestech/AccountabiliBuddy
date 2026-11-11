@@ -44,6 +44,18 @@ public sealed record TaskReminderRingPolicy(
         return DismissProtect ? TimeSpan.FromSeconds(Nearest(ProtectChoices, DismissProtectSeconds)) : TimeSpan.Zero;
     }
 
+    /// <summary>How much of the dismiss wait is left <paramref name="shown"/> after the reminder reached the front (zero or less: Dismiss works).</summary>
+    public TimeSpan DismissLeft(TimeSpan shown)
+    {
+        return DismissWait() - shown;
+    }
+
+    /// <summary>The ring time of the front reminder is used up <paramref name="shown"/> after it reached the front.</summary>
+    public bool Expired(TimeSpan shown, bool cantMiss)
+    {
+        return shown >= StopAfter(cantMiss);
+    }
+
     /// <summary>Hold-to-dismiss for Can't miss; none for a normal reminder.</summary>
     public TimeSpan HoldRequired(bool cantMiss)
     {

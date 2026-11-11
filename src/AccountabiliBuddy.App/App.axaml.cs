@@ -1330,6 +1330,9 @@ public partial class App : Application
             _taskReminders.LoadBlocking();
             _taskReminderRinger = new AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger(
                 _taskReminders, reminderSettings, _sessionCues!, volumeGuard, () => _sessions!.State.IsActive, () => _sessionOverlay.Glow());
+            _taskReminders.SessionRunning = () => _sessions!.State.IsActive;
+            // A session starting holds normal reminders and its end queues the held ones (setting: During a focus session).
+            _sessions!.StateChanged += (_, _) => _taskReminders.Refresh();
             _taskReminders.Start();
             _ = StartTaskViewsAsync();
         }

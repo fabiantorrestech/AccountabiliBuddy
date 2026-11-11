@@ -14,6 +14,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="StopAfterMinutes">A ring stops by itself after this long (1, 5, 10 or 30; default 10).</param>
 /// <param name="Display">Toast card (default) or always full screen.</param>
 /// <param name="SnoozeShortcuts">The three snooze shortcuts; null for the defaults (Tonight 6:00 PM, Tomorrow 9:00 AM, Monday 9:00 AM).</param>
+/// <param name="DuringSession">"During a focus session": normal reminders wait until it ends (default) or remind quietly; Can't miss always rings.</param>
 /// <param name="NewReminderRule">The rule a new reminder starts at (a <see cref="TaskReminder"/> rule; "At start time" by default).</param>
 public sealed record TaskReminderSettings(
     int Volume = 70,
@@ -24,7 +25,8 @@ public sealed record TaskReminderSettings(
     int StopAfterMinutes = 10,
     TaskReminderDisplay Display = TaskReminderDisplay.Toast,
     IReadOnlyList<TaskSnoozeShortcut>? SnoozeShortcuts = null,
-    string NewReminderRule = TaskReminder.AtStart)
+    string NewReminderRule = TaskReminder.AtStart,
+    TaskReminderDuringSession DuringSession = TaskReminderDuringSession.WaitUntilEnd)
 {
     public static TaskReminderSettings Default { get; } = new();
 

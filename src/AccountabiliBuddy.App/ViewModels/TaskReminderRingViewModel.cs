@@ -40,14 +40,19 @@ public sealed partial class TaskReminderRingViewModel : ObservableObject
     private bool _canDismiss;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SnoozeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    private bool _canAct = true;
+
+    [ObservableProperty]
     private string _dismissText = "Dismiss";
 
     [RelayCommand(CanExecute = nameof(CanDismiss))]
     private void Dismiss() => _onDismiss();
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAct))]
     private void Snooze() => _onSnooze();
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanAct))]
     private void Start() => _onStart();
 }

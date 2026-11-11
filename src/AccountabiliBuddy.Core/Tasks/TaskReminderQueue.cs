@@ -66,4 +66,14 @@ public static class TaskReminderQueue
 
         return next;
     }
+
+    /// <summary>
+    /// What may ring now while <paramref name="sessionRunning"/>: everything outside a session; in one, Can't miss always, and the rest
+    /// only when the choice is <see cref="TaskReminderDuringSession.RemindQuietly"/>. A held reminder stays unhandled (it is still in
+    /// <paramref name="due"/> next time) and comes up in due order when the session ends.
+    /// </summary>
+    public static List<TaskReminderEntry> Ringable(IEnumerable<TaskReminderEntry> due, bool sessionRunning, TaskReminderDuringSession during)
+    {
+        return due.Where(entry => !sessionRunning || entry.CantMiss || during == TaskReminderDuringSession.RemindQuietly).ToList();
+    }
 }

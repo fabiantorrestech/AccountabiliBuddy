@@ -9,6 +9,9 @@ public interface IMasterVolume
     /// <returns>The default output's state now; null when it can't be read (no output, remote session, refused).</returns>
     MasterVolumeState? Read();
 
+    /// <returns>The state of the output <paramref name="deviceId"/> names, default or not; null when it is gone or can't be read.</returns>
+    MasterVolumeState? Read(string deviceId);
+
     /// <summary>Sets the level (0 to 1) and mute of the output <paramref name="deviceId"/> names.</summary>
     /// <returns>False when the output is gone or refused the change.</returns>
     bool Apply(string deviceId, float level, bool muted);
