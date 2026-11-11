@@ -1,6 +1,7 @@
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Tasks;
 using Microsoft.Data.Sqlite;
 
 namespace AccountabiliBuddy.App.Services.Tasks;
@@ -151,6 +152,47 @@ public sealed class TaskSettingsService
         }
     }
 
+    /// <summary>Untouched after this many weeks (1 to 4). It only decides what the tidy-up and the "Untouched for" filter call old, so it loosens nothing and applies at once.</summary>
+    public Task SetUntouchedWeeksAsync(int weeks, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { UntouchedWeeks = TaskUntouched.ClampWeeks(weeks) }, mode);
+    }
+
+    /// <summary>The weekly tidy-up card: on or off, and the day it shows from.</summary>
+    public Task SetTidyUpAsync(bool on, DayOfWeek day, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { TidyUpOn = on, TidyUpDay = day }, mode);
+    }
+
+    /// <summary>Whether new views pin highlighted tasks to the top.</summary>
+    public Task SetPinHighlightsAsync(bool on, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { PinHighlights = on }, mode);
+    }
+
+    /// <summary>The view the Shelf opens with (null: the built-in Default).</summary>
+    public Task SetDefaultViewAsync(Guid? viewId, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { DefaultViewId = viewId }, mode);
+    }
+
+    /// <summary>The project markers the user taught (Settings › Tasks › Project markers).</summary>
+    public Task SetCustomMarkersAsync(IReadOnlyList<ProjectMarkerPattern> markers, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { CustomMarkers = markers.Count == 0 ? null : markers.Distinct().ToList() }, mode);
+    }
+
+    private async Task UpdateAsync(Func<TaskSettings, TaskSettings> change, GuidanceMode? mode)
+    {
+        GuidanceMode target = mode ?? ActiveMode;
+        TaskSettings settings = await LoadForAsync(target);
+        TaskSettings changed = Clamped(change(settings));
+        if (changed != settings)
+        {
+            await SaveForAsync(target, changed);
+        }
+    }
+
     /// <summary>
     /// A backup's copy for <paramref name="mode"/> (ADR 71), through the same rules as a change made here: a waiting change in the
     /// backup is never taken over, and a looser value waits or is refused.
@@ -160,6 +202,17 @@ public sealed class TaskSettingsService
     {
         TaskSettings before = await LoadForAsync(mode);
         await SetNextStepTakesSlotAsync(wanted.NextStepTakesSlot, mode);
+        await UpdateAsync(
+            settings => settings with
+            {
+                UntouchedWeeks = wanted.UntouchedWeeks,
+                TidyUpOn = wanted.TidyUpOn,
+                TidyUpDay = wanted.TidyUpDay,
+                PinHighlights = wanted.PinHighlights,
+                DefaultViewId = wanted.DefaultViewId,
+                CustomMarkers = wanted.CustomMarkers,
+            },
+            mode);
         bool actionsTaken = await SetSessionActionsAsync(wanted.SessionActions, mode);
         bool stepAwayTaken = await SetStepAwayAsync(wanted.StepAway, mode);
         if (!actionsTaken || !stepAwayTaken)
@@ -230,6 +283,7 @@ public sealed class TaskSettingsService
         {
             SessionActions = Core.Tasks.SessionActions.ClampCap(settings.SessionActions),
             PendingSessionActions = settings.PendingSessionActions is int pending ? Core.Tasks.SessionActions.ClampCap(pending) : null,
+            UntouchedWeeks = TaskUntouched.ClampWeeks(settings.UntouchedWeeks),
         };
     }
 }

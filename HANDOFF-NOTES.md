@@ -8,7 +8,7 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 
 - [x] Phase 0 Orientation (this file)
 - [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
-- [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); reminders, undo, history, tidy-up, views; calendar export BLOCKED, see Calendar)
+- [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); undo, history, tidy-up, views, search, title help, bulk DONE (M2.3); reminders; calendar export BLOCKED, see Calendar)
 - [ ] Phase 3 PC UI (3.1 title bar, 3.2 layout, 3.3 rows/open task, 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
 - [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix)
 - Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
@@ -42,6 +42,18 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 - [x] Session ended data: `SessionLayoutService` (Q54, not wired). Quiet view data = `Slots` (Q53).
 - [x] `doc/hard-rules.md` ADR 76 entry extended. Check program 168/168 (54 new). Dev app started clean.
 - Next (M3+): UI for focus/swap ("This session is full" = `Slots` + `SwapOutAsync` + the add), step list popover, session menu (Pause = `StepAwayService.PauseTimer`), Settings › Tasks (cap, next step takes the slot), wire `SessionLayoutService`.
+
+## M2 task 3 done (undo, history, tidy-up, views, search, title help, bulk; services only)
+
+- [x] Undo: `Core/Tasks/TaskUndoStack` (10), `TaskUndoEntry`, `TaskUndoRules` (Capture/Restore by touched ids), toast texts `TaskToasts`; App `TaskActionsService` (Ctrl+Z data API: `UndoAsync`, `Toast` event, `NextUndoText`). Q62.
+- [x] Actions (pure, bulk-ready): `TaskActions` (Move, Reorder, Finish, Reopen, TickStep, AddStep, Delete, Archive, Rename, RenameEach, SetLabel, Add/Remove/ToggleTag, SetTimeLimit, SetHighlight, Touch). Into This session only through `TaskActionsService.MoveToSessionAsync` -> `SessionTasksService.AddToTodayAsync` (cap rules; `NeedsRoom` for the full dialog).
+- [x] History: `TaskHistoryRules` (List 30 d, Remove, DoAgain, BringBack, WithDeletions, Reconciled), wired in `TaskStore.ApplyLocal` and `Normalize`. Q63, Q64, Q70.
+- [x] Untouched + tidy-up: `TaskUntouched`, `TaskTidyUp` (+ card/plan/item/choice), App `TaskTidyUpService`; settings in `TaskSettings`/`TaskSettingsService` (untouched weeks, tidy-up on/day, pin highlights, default view, custom markers). Q65, Q66.
+- [x] Views: `TaskViewRules` (filters, group, sort, shuffle, pin), `TaskViewEdits`, `LegacyTaskFilterMapper` (migration now uses it), `TaskViewConfig.Seed`; App `TaskViewService` (active view + working changes, save/save as/delete/default/reshuffle, `MirrorPresetsAsync`: old saved filters follow as views via `TaskFilterPresetStore.Saved`). Q67, Q69.
+- [x] Search `TaskSearch` (ID 142/142b incl. former and temporary numbers, text in title/steps/note/tags); title help `TaskTitleSplitter`, `TaskProjectMarkers`, `TaskTitleHelp` (counter, Parse of @label/#tag), `TaskMarkerLearner`. Q68.
+- [x] App wiring: `_taskActions`, `_taskViews`, `_taskTidyUp` fields in `App.axaml.cs` (no UI yet); one shared `TaskFilterPresetStore`.
+- Check program 320/320 (152 new). Dev app started clean.
+- Next (M3 UI): toast/undo bar from `TaskActionsService.Toast`, Ctrl+Z, View menu from `TaskViewService`, History dialog, tidy-up card/flow from `TaskTidyUpService`, add box from `TaskTitleHelp`, bulk bar/menus from `TaskActionsService`.
 
 ## M2 must wire (done in M2 task 1, see above; kept for reference)
 

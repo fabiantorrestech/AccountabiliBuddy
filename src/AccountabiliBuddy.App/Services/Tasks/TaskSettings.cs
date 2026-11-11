@@ -1,5 +1,6 @@
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
+using AccountabiliBuddy.Core.Tasks;
 
 namespace AccountabiliBuddy.App.Services.Tasks;
 
@@ -15,6 +16,12 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="StepAway">"When I step away" (ADR 77): keep the timer running (default) or pause it.</param>
 /// <param name="PendingStepAway">Pausing the timer, waiting for the looser-change wait to end; null when nothing waits.</param>
 /// <param name="PendingStepAwayFrom">When <paramref name="PendingStepAway"/> takes effect, unless a session runs then.</param>
+/// <param name="UntouchedWeeks">A task counts as untouched after this many weeks (<see cref="TaskUntouched.MinWeeks"/> to <see cref="TaskUntouched.MaxWeeks"/>, 3 by default).</param>
+/// <param name="TidyUpOn">The weekly tidy-up card shows (on by default).</param>
+/// <param name="TidyUpDay">The day it shows from (Monday by default).</param>
+/// <param name="PinHighlights">New views pin highlighted tasks to the top (on by default; each view can change it).</param>
+/// <param name="DefaultViewId">The view the Shelf opens with; null for the built-in Default (device-local, see HANDOFF-QUESTIONS).</param>
+/// <param name="CustomMarkers">Project markers the user taught (device-local, see HANDOFF-QUESTIONS); null for none.</param>
 public sealed record TaskSettings(
     int SessionActions,
     bool NextStepTakesSlot,
@@ -22,7 +29,13 @@ public sealed record TaskSettings(
     DateTimeOffset? PendingFrom = null,
     StepAwayTimer StepAway = StepAwayTimer.KeepTimerRunning,
     StepAwayTimer? PendingStepAway = null,
-    DateTimeOffset? PendingStepAwayFrom = null)
+    DateTimeOffset? PendingStepAwayFrom = null,
+    int UntouchedWeeks = TaskUntouched.DefaultWeeks,
+    bool TidyUpOn = true,
+    DayOfWeek TidyUpDay = DayOfWeek.Monday,
+    bool PinHighlights = true,
+    Guid? DefaultViewId = null,
+    IReadOnlyList<ProjectMarkerPattern>? CustomMarkers = null)
 {
     public static TaskSettings Default { get; } = new(Core.Tasks.SessionActions.DefaultCap, true, StepAway: StepAwayTimerPolicy.Default);
 }

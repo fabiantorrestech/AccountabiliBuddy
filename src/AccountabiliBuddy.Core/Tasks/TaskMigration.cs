@@ -354,53 +354,7 @@ public static class TaskMigration
 
         TaskViewConfig ConfigOf(LegacyTaskFilter filter)
         {
-            var bins = new List<TaskBin>();
-            foreach (string status in filter.Statuses)
-            {
-                IEnumerable<TaskBin> mapped = status switch
-                {
-                    "ComeBack" or "AutoSaved" => [TaskBin.Sort],
-                    "Later" => [TaskBin.Next, TaskBin.Later],
-                    "Done" => [TaskBin.Done],
-                    _ => [],
-                };
-                List<TaskBin> list = mapped.ToList();
-                if (list.Count == 0)
-                {
-                    unmapped++;
-                }
-
-                bins.AddRange(list.Where(bin => !bins.Contains(bin)));
-            }
-
-            List<Guid> labels = filter.CategoryIds
-                .Select(id => categoryNames.TryGetValue(id, out string? name) ? book.Named(name)?.Id : null)
-                .OfType<Guid>()
-                .Distinct()
-                .ToList();
-            IReadOnlyList<string>? due = filter.Due switch
-            {
-                "Overdue" => ["overdue"],
-                "Today" => ["today"],
-                "ThisWeek" => ["thisWeek"],
-                "NoDate" => ["none"],
-                _ => null,
-            };
-            string sort = filter.Sort switch
-            {
-                "DueAscending" => "dueAsc",
-                "DueDescending" => "dueDesc",
-                "MostRecent" => "newest",
-                "Oldest" => "oldest",
-                _ => TaskViewConfig.SortDefault,
-            };
-
-            return new TaskViewConfig(
-                new TaskViewFilter(Due: due),
-                Labels: labels.Count == 0 ? null : labels,
-                NoLabel: filter.NoCategory,
-                Sort: sort,
-                Bins: bins.Count == 0 ? null : bins);
+            return LegacyTaskFilterMapper.Config(filter, categoryNames, name => book.Named(name)?.Id, ref unmapped);
         }
     }
 }

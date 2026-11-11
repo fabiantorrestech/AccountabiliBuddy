@@ -1,3 +1,4 @@
+using AccountabiliBuddy.Core.Domain;
 using System.Globalization;
 
 namespace AccountabiliBuddy.Core.Tasks;
@@ -12,6 +13,12 @@ public static class TaskOrigins
     public const string FromStep = "From a step";
     public const string CopyFromPc = "Copy from PC";
     public const string ComeBackTo = "Come back to";
+
+    /// <summary>"Done again from 142" (a History copy of a finished task); "Done again" when the original had no number.</summary>
+    public static string DoneAgain(TaskNumber? original)
+    {
+        return original is null ? "Done again" : "Done again from " + original.Value;
+    }
 
     /// <summary>"Parked Tue 11/3 11:52 AM".</summary>
     public static string Parked(DateTimeOffset at, TimeZoneInfo zone)

@@ -11,8 +11,8 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// lists gave.</item>
 /// <item><see cref="MergeFile"/>: another device's sync file: its <see cref="SyncFile.Tasks"/> merged field by field, or, without
 /// them, its old fields read in.</item>
-/// <item><see cref="Normalize"/>: finished Shelf tasks go to History (as ticked Later items and come-backs always did), numbers are
-/// given, History older than its 90 days and tombstones older than 30 go.</item>
+/// <item><see cref="Normalize"/>: finished Shelf tasks go to History (as ticked Later items and come-backs always did), archived and
+/// deleted entries of tasks that are live again go (<see cref="TaskHistoryRules.Reconciled"/>), numbers are given, History older than its 90 days and tombstones older than 30 go.</item>
 /// <item><see cref="WithParts"/>: the new parts and the old fields (rebuilt from the lists, never stored) for this PC's file.</item>
 /// </list>
 /// </summary>
@@ -192,7 +192,7 @@ public static class TaskListRules
     /// <param name="numberingDevice">The device that gives final numbers (<see cref="TaskNumbering.NumberingDevice"/>); this device gives temporary ones otherwise.</param>
     public static TaskLists Normalize(TaskLists lists, Guid self, Guid? numberingDevice, DateTimeOffset now)
     {
-        return Pruned(Numbered(Settled(lists, now), self, numberingDevice, now), now, self);
+        return Pruned(Numbered(TaskHistoryRules.Reconciled(Settled(lists, now), now), self, numberingDevice, now), now, self);
     }
 
     /// <summary>

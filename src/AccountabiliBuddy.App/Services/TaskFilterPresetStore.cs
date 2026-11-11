@@ -24,6 +24,9 @@ public sealed class TaskFilterPresetStore
         _protector = protector;
     }
 
+    /// <summary>Raised with the whole list after it was saved: the saved filters are also views now (ADR 76), so a filter saved here becomes one.</summary>
+    public event Action<IReadOnlyList<TaskFilterPreset>>? Saved;
+
     /// <summary>The saved filters; none when there are none or they can't be read (a bad preference must never stop the app starting).</summary>
     public IReadOnlyList<TaskFilterPreset> Load()
     {
@@ -49,6 +52,7 @@ public sealed class TaskFilterPresetStore
         {
             string data = Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(presets, JsonOptions)));
             await _documents.SaveAsync(DocumentKey, new Stored(data));
+            Saved?.Invoke(presets);
         }
         catch (SqliteException)
         {

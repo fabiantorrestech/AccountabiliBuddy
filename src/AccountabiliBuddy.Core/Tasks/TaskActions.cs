@@ -1,0 +1,325 @@
+using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Sync;
+
+namespace AccountabiliBuddy.Core.Tasks;
+
+/// <summary>
+/// What the user does to tasks in the one shared task list (ADR 76), pure: each action takes the lists and returns the new lists, the
+/// toast text and the ids it touched (<see cref="TaskActionResult"/>), which is what <see cref="TaskUndoRules"/> keeps for Ctrl+Z.
+/// Every change goes through <see cref="TaskEdits"/> as an edit by this device, so field-level merging and "untouched" (any edit,
+/// move or step tick) work. The same actions serve one task and a selection (bulk). Tasks that are not live are skipped.
+/// Moving into This session is not here: it goes through the session's cap rules (<c>SessionTasksService</c>), never around them.
+/// </summary>
+public static class TaskActions
+{
+    /// <summary>
+    /// Moves tasks to <paramref name="bin"/>, each to the end of it in the order given, keeping id, number, steps and everything else.
+    /// A step leaves focus outside This session. Moving to <see cref="TaskBin.Done"/> is <see cref="Finish"/>; This session is refused
+    /// (nothing happens).
+    /// </summary>
+    public static TaskActionResult Move(TaskLists lists, IReadOnlyList<Guid> ids, TaskBin bin, DateTimeOffset now, Guid self)
+    {
+        if (bin == TaskBin.Session)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        if (bin == TaskBin.Done)
+        {
+            return Finish(lists, ids, now, self);
+        }
+
+        double end = TaskListRules.EndOf(lists, bin);
+        List<Guid> movable = ids.Where(id => LiveOf(lists, id) is { } task && task.Bin != bin).ToList();
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, movable,
+            (task, index) => task with
+            {
+                Bin = bin,
+                PrevBin = task.Bin == TaskBin.Done ? task.PrevBin : task.Bin,
+                Position = end + index,
+                DoneAt = null,
+                Steps = Unfocused(task.Steps),
+            },
+            [TaskField.Bin, TaskField.Steps], now, self);
+        return Result(lists, after, changed, TaskToasts.Moved(LiveTasks(lists, movable), bin));
+    }
+
+    /// <summary>
+    /// Puts one task before another in its bin (or at the end when <paramref name="beforeId"/> is null): a place between the two
+    /// neighbours, nothing else changes.
+    /// </summary>
+    public static TaskActionResult Reorder(TaskLists lists, Guid id, Guid? beforeId, DateTimeOffset now, Guid self)
+    {
+        if (LiveOf(lists, id) is not TaskItem moving)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        List<TaskItem> others = lists.Tasks.Select(item => item.Task)
+            .Where(task => task.IsLive && task.Bin == moving.Bin && task.Id != id)
+            .OrderBy(task => task.Position).ToList();
+        int at = beforeId is Guid before ? others.FindIndex(task => task.Id == before) : others.Count;
+        if (at < 0)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        double position = SharedListMerge.PositionBetween(at > 0 ? others[at - 1].Position : null, at < others.Count ? others[at].Position : null);
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, [id], (task, _) => task with { Position = position }, [TaskField.Bin], now, self);
+        return Result(lists, after, changed, "Moved");
+    }
+
+    /// <summary>Ticks tasks: each goes to Finished today (<see cref="TaskBin.Done"/>) remembering the bin it left; a finished Shelf task settles into History on normalizing.</summary>
+    public static TaskActionResult Finish(TaskLists lists, IReadOnlyList<Guid> ids, DateTimeOffset now, Guid self)
+    {
+        double end = TaskListRules.EndOf(lists, TaskBin.Done);
+        List<Guid> open = ids.Where(id => LiveOf(lists, id) is { Bin: not TaskBin.Done }).ToList();
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, open,
+            (task, index) => task with { Bin = TaskBin.Done, PrevBin = task.Bin, Position = end + index, DoneAt = now },
+            [TaskField.Bin], now, self);
+        return Result(lists, after, changed, TaskToasts.Finished(LiveTasks(lists, open)));
+    }
+
+    /// <summary>Unticks finished tasks: each goes back to the bin it left (Queued when that was This session or is unknown), at the end of it.</summary>
+    public static TaskActionResult Reopen(TaskLists lists, IReadOnlyList<Guid> ids, DateTimeOffset now, Guid self)
+    {
+        List<Guid> done = ids.Where(id => LiveOf(lists, id) is { Bin: TaskBin.Done }).ToList();
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, done, (task, index) => Reopened(lists, task, index), [TaskField.Bin], now, self);
+        string toast = changed.Count == 1 ? TaskToasts.BackIn(changed[0].Bin) : changed.Count + " tasks reopened";
+        return Result(lists, after, changed, toast);
+    }
+
+    /// <summary>
+    /// Ticks or unticks a step. Ticking the last open step finishes the task ("All steps done"); unticking a step of a finished task
+    /// puts the task back where it was before it finished (spec 05, "Steps finish the task").
+    /// </summary>
+    public static TaskActionResult TickStep(TaskLists lists, Guid taskId, Guid stepId, DateTimeOffset now, Guid self)
+    {
+        if (LiveOf(lists, taskId) is not TaskItem task)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        List<TaskStep> steps = (task.Steps ?? []).ToList();
+        int index = steps.FindIndex(step => step.Id == stepId);
+        if (index < 0)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        bool ticking = !steps[index].IsDone;
+        List<TaskStep> ticked = steps.Select(step => step.Id == stepId ? step with { DoneAt = ticking ? now : null } : step).ToList();
+        bool allDone = ticking && ticked.All(step => step.IsDone);
+        string reference = TaskToasts.StepRef(task, index);
+        string toast = allDone && task.Bin != TaskBin.Done ? TaskToasts.AllStepsDone(task) : "Step " + reference + (ticking ? " done" : " reopened");
+
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, [taskId],
+            (current, _) =>
+            {
+                TaskItem target = current with { Steps = ticked };
+                if (allDone && current.Bin != TaskBin.Done)
+                {
+                    return target with { Bin = TaskBin.Done, PrevBin = current.Bin, Position = TaskListRules.EndOf(lists, TaskBin.Done), DoneAt = now };
+                }
+
+                return !ticking && current.Bin == TaskBin.Done ? Reopened(lists, target, 0) : target;
+            },
+            [TaskField.Steps, TaskField.Bin], now, self);
+        return Result(lists, after, changed, toast);
+    }
+
+    /// <summary>Adds a step (after <paramref name="afterStepId"/>, else at the end); a finished task is unticked and goes back where it was.</summary>
+    public static TaskActionResult AddStep(TaskLists lists, Guid taskId, string title, Guid? afterStepId, DateTimeOffset now, Guid self)
+    {
+        string text = title.Trim();
+        if (text.Length == 0 || LiveOf(lists, taskId) is null)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, [taskId],
+            (task, _) =>
+            {
+                List<TaskStep> steps = (task.Steps ?? []).ToList();
+                int at = afterStepId is Guid previous ? steps.FindIndex(step => step.Id == previous) + 1 : steps.Count;
+                steps.Insert(at < 0 ? steps.Count : at, new TaskStep(Guid.NewGuid(), text));
+                TaskItem target = task with { Steps = steps };
+                return task.Bin == TaskBin.Done ? Reopened(lists, target, 0) : target;
+            },
+            [TaskField.Steps, TaskField.Bin], now, self);
+        return Result(lists, after, changed, "Step added");
+    }
+
+    /// <summary>Deletes tasks: each is kept in History as "deleted" with everything it had (so "Bring back" revives it) and leaves the list.</summary>
+    public static TaskActionResult Delete(TaskLists lists, IReadOnlyList<Guid> ids, DateTimeOffset now, Guid self)
+    {
+        return TaskHistoryRules.Remove(lists, ids, TaskHistoryKind.Deleted, now, self);
+    }
+
+    /// <summary>Archives tasks: out of the way, kept in History as "archived".</summary>
+    public static TaskActionResult Archive(TaskLists lists, IReadOnlyList<Guid> ids, DateTimeOffset now, Guid self)
+    {
+        return TaskHistoryRules.Remove(lists, ids, TaskHistoryKind.Archived, now, self);
+    }
+
+    /// <summary>Renames one task (a blank or unchanged title does nothing).</summary>
+    public static TaskActionResult Rename(TaskLists lists, Guid id, string title, DateTimeOffset now, Guid self)
+    {
+        return RenameEach(lists, new Dictionary<Guid, string> { [id] = title }, now, self);
+    }
+
+    /// <summary>
+    /// "Rename one by one" in one go: every task with a new title changes together, so the dialog saves and syncs nothing until its
+    /// last name is confirmed. Blank or unchanged names are skipped.
+    /// </summary>
+    public static TaskActionResult RenameEach(TaskLists lists, IReadOnlyDictionary<Guid, string> titles, DateTimeOffset now, Guid self)
+    {
+        Dictionary<Guid, string> wanted = titles
+            .Where(pair => pair.Value.Trim().Length > 0 && LiveOf(lists, pair.Key) is { } task && task.Title != pair.Value.Trim())
+            .ToDictionary(pair => pair.Key, pair => pair.Value.Trim());
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, wanted.Keys.ToList(), (task, _) => task with { Title = wanted[task.Id] }, [TaskField.Title], now, self);
+        return Result(lists, after, changed, TaskToasts.Renamed(changed.Count));
+    }
+
+    /// <summary>Gives tasks one label, or none (<paramref name="labelId"/> null). An unknown label does nothing.</summary>
+    public static TaskActionResult SetLabel(TaskLists lists, IReadOnlyList<Guid> ids, Guid? labelId, DateTimeOffset now, Guid self)
+    {
+        TaskLabel? label = labelId is Guid wanted ? lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == wanted) : null;
+        if (labelId is not null && label is null)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { LabelId = labelId }, [TaskField.Label], now, self);
+        return Result(lists, after, changed, TaskToasts.Labelled(label?.Name));
+    }
+
+    /// <summary>Adds tags to tasks (cleaned, no duplicates).</summary>
+    public static TaskActionResult AddTags(TaskLists lists, IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, DateTimeOffset now, Guid self)
+    {
+        IReadOnlyList<string> clean = TaskLabels.Clean(tags) ?? [];
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { Tags = TaskLabels.With(task.Tags, clean) }, [TaskField.Tags], now, self);
+        return Result(lists, after, changed, TaskToasts.Tagged(clean, added: true));
+    }
+
+    /// <summary>Takes tags off tasks.</summary>
+    public static TaskActionResult RemoveTags(TaskLists lists, IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, DateTimeOffset now, Guid self)
+    {
+        IReadOnlyList<string> clean = TaskLabels.Clean(tags) ?? [];
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, ids, (task, _) => task with { Tags = clean.Aggregate(task.Tags, (current, tag) => TaskLabels.Without(current, tag)) }, [TaskField.Tags], now, self);
+        return Result(lists, after, changed, TaskToasts.Tagged(clean, added: false));
+    }
+
+    /// <summary>The bulk Tags menu's tick: when every task has the tag it comes off all of them, otherwise it goes on all.</summary>
+    public static TaskActionResult ToggleTag(TaskLists lists, IReadOnlyList<Guid> ids, string tag, DateTimeOffset now, Guid self)
+    {
+        List<TaskItem> tasks = LiveTasks(lists, ids);
+        bool all = tasks.Count > 0 && tasks.All(task => TaskLabels.Has(task.Tags, tag));
+        return all ? RemoveTags(lists, ids, [tag], now, self) : AddTags(lists, ids, [tag], now, self);
+    }
+
+    /// <summary>Sets the time limit in minutes (null: none). Out of range values are cleaned as the checklist does.</summary>
+    public static TaskActionResult SetTimeLimit(TaskLists lists, IReadOnlyList<Guid> ids, int? minutes, DateTimeOffset now, Guid self)
+    {
+        int? clean = SessionChecklist.CleanEstimate(minutes);
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { EstimateMinutes = clean }, [TaskField.Estimate], now, self);
+        return Result(lists, after, changed, TaskToasts.TimeLimit(clean));
+    }
+
+    public static TaskActionResult SetHighlight(TaskLists lists, IReadOnlyList<Guid> ids, bool on, DateTimeOffset now, Guid self)
+    {
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { Highlight = on }, [TaskField.Highlight], now, self);
+        return Result(lists, after, changed, TaskToasts.Highlighted(on));
+    }
+
+    /// <summary>The H key: when every task is highlighted the highlight comes off, otherwise all get it.</summary>
+    public static TaskActionResult ToggleHighlight(TaskLists lists, IReadOnlyList<Guid> ids, DateTimeOffset now, Guid self)
+    {
+        List<TaskItem> tasks = LiveTasks(lists, ids);
+        return SetHighlight(lists, ids, !(tasks.Count > 0 && tasks.All(task => task.Highlight)), now, self);
+    }
+
+    /// <summary>
+    /// A task was opened (its details shown) or kept ("Keep" in the tidy-up): it counts as touched, which resets its age. Only the
+    /// touch time moves (never undone, never a toast). Nothing happens when it was already touched at or after <paramref name="now"/>.
+    /// </summary>
+    public static TaskActionResult Touch(TaskLists lists, Guid id, DateTimeOffset now)
+    {
+        List<SyncTaskItem> tasks = lists.Tasks.ToList();
+        int index = tasks.FindIndex(item => item.Id == id && item.Task.IsLive);
+        if (index < 0 || tasks[index].Task.TouchedAt >= now)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        SyncTaskItem item = tasks[index];
+        tasks[index] = item with { Task = item.Task with { TouchedAt = now, EditedAt = SharedListMerge.NextStamp(now, item) } };
+        return new TaskActionResult(lists with { Tasks = tasks }, string.Empty, [id]);
+    }
+
+    // The bin a finished task goes back to, at the end of it.
+    private static TaskItem Reopened(TaskLists lists, TaskItem task, int index)
+    {
+        TaskBin bin = task.PrevBin is { } previous && previous is not (TaskBin.Done or TaskBin.Session) ? previous : TaskBin.Queued;
+        return task with { Bin = bin, PrevBin = TaskBin.Done, Position = TaskListRules.EndOf(lists, bin) + index, DoneAt = null };
+    }
+
+    private static TaskItem? LiveOf(TaskLists lists, Guid id)
+    {
+        SyncTaskItem? item = lists.Tasks.FirstOrDefault(candidate => candidate.Id == id);
+        return item is { Task.IsLive: true } ? item.Task : null;
+    }
+
+    private static List<TaskItem> LiveTasks(TaskLists lists, IEnumerable<Guid> ids)
+    {
+        return ids.Distinct().Select(id => LiveOf(lists, id)).OfType<TaskItem>().ToList();
+    }
+
+    private static IReadOnlyList<TaskStep>? Unfocused(IReadOnlyList<TaskStep>? steps)
+    {
+        return steps is null || steps.All(step => !step.Focus) ? steps : steps.Select(step => step with { Focus = false }).ToList();
+    }
+
+    // Changes each live task of <ids> (in order) with <change> and stamps the named fields as this device's edit; the tasks that changed come back as they are now.
+    private static (TaskLists Lists, List<TaskItem> Changed) Edit(
+        TaskLists lists, IEnumerable<Guid> ids, Func<TaskItem, int, TaskItem> change, TaskField[] fields, DateTimeOffset now, Guid self)
+    {
+        List<SyncTaskItem> tasks = lists.Tasks.ToList();
+        var changed = new List<TaskItem>();
+        int number = 0;
+        foreach (Guid id in ids.Distinct())
+        {
+            int index = tasks.FindIndex(item => item.Id == id && item.Task.IsLive);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            SyncTaskItem item = tasks[index];
+            TaskItem target = change(item.Task, number++);
+            SyncTaskItem edited = item;
+            foreach (TaskField field in fields)
+            {
+                edited = TaskEdits.Edit(edited, field, target, now, self);
+            }
+
+            if (!ReferenceEquals(edited, item))
+            {
+                tasks[index] = edited;
+                changed.Add(edited.Task);
+            }
+        }
+
+        return (lists with { Tasks = tasks }, changed);
+    }
+
+    private static TaskActionResult Result(TaskLists before, TaskLists after, List<TaskItem> changed, string toast)
+    {
+        return changed.Count == 0 ? TaskActionResult.None(before) : new TaskActionResult(after, toast, changed.Select(task => task.Id).ToList());
+    }
+}

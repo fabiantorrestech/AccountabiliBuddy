@@ -160,8 +160,50 @@ public sealed class TaskStore
         // A running session's task that goes to a list (Move to Later, Park) comes back with what it had, under its own id.
         TaskLists withHeld = WithHeldBack(_lists, LiveIds(changed), out bool heldTaken);
         TaskLists applied = TaskListRules.ApplyLocal(withHeld, changed, Self, Now, Zone, SessionActions());
+        // A delete from one of the old lists is filed in History too (ADR 76), except a running session's tasks leaving the list.
+        applied = TaskHistoryRules.WithDeletions(withHeld, applied, DeletedIds(changed), Now);
         Task save = Commit(applied, source, fromOtherDevice: false).Save;
         return heldTaken ? Task.WhenAll(save, SaveRunningAsync()) : save;
+    }
+
+    /// <summary>
+    /// A change the user's task actions make (<see cref="TaskActionsService"/>, the views, the tidy-up): <paramref name="change"/> gets the
+    /// lists, this device's id and the time and returns the new lists, which are normalized, saved and shown by every view
+    /// (<paramref name="source"/> null: all of them, the sender too).
+    /// </summary>
+    /// <returns>Whether the lists changed.</returns>
+    public async Task<bool> ChangeAsync(object? source, Func<TaskLists, Guid, DateTimeOffset, TaskLists> change)
+    {
+        if (!IsActive)
+        {
+            return false;
+        }
+
+        (bool changed, Task save) = Commit(change(_lists, Self, Now), source, fromOtherDevice: false);
+        await save;
+        return changed;
+    }
+
+    /// <summary>The search words of a saved view (private, this PC only); blank removes them.</summary>
+    public Task SetViewSearchAsync(Guid viewId, string? search)
+    {
+        if (!IsActive)
+        {
+            return Task.CompletedTask;
+        }
+
+        string text = (search ?? string.Empty).Trim();
+        if (text.Length == 0 ? !_viewSearches.Remove(viewId) : _viewSearches.TryGetValue(viewId, out string? held) && held == text)
+        {
+            return _saving;
+        }
+
+        if (text.Length > 0)
+        {
+            _viewSearches[viewId] = text;
+        }
+
+        return Save();
     }
 
     /// <summary>
@@ -503,6 +545,17 @@ public sealed class TaskStore
         }
 
         return taken ? lists with { Tasks = tasks } : lists;
+    }
+
+    // The tasks the old lists deleted (not a running session's, which only leave the list while it runs).
+    private HashSet<Guid> DeletedIds(OldTaskFields fields)
+    {
+        return fields.NextTasks.Where(item => item.DeletedAt is not null).Select(item => item.Id)
+            .Concat(fields.Later.Where(item => item.DeletedAt is not null).Select(item => item.Id))
+            .Concat(fields.Parked.Where(item => item.DeletedAt is not null).Select(item => item.Id))
+            .Concat(fields.AutoSaved.Where(item => item.DeletedAt is not null).Select(item => item.Id))
+            .Where(id => !_running.ContainsKey(id))
+            .ToHashSet();
     }
 
     private static HashSet<Guid> LiveIds(OldTaskFields fields)

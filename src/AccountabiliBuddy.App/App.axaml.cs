@@ -103,6 +103,10 @@ public partial class App : Application
     private static readonly TimeSpan GoingOffStale = TimeSpan.FromSeconds(30);
     private PcOffSettingsService? _pcOff;
     private AccountabiliBuddy.App.Services.Tasks.TaskSettingsService? _taskSettings;
+    private AccountabiliBuddy.App.Services.TaskFilterPresetStore? _filterPresets;
+    private AccountabiliBuddy.App.Services.Tasks.TaskActionsService? _taskActions;
+    private AccountabiliBuddy.App.Services.Tasks.TaskViewService? _taskViews;
+    private AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService? _taskTidyUp;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
 
@@ -1261,9 +1265,10 @@ public partial class App : Application
         taskStore.SelfId = selfId;
         taskStore.OtherDevices = () => receivedDevices.Active.Select(device => (device.File.Device.DeviceId, device.File.Device.Kind)).ToList();
         taskStore.RunningChecklist = () => sessionTasks.IsLive ? sessionTasks.Current.Tasks : null;
+        _filterPresets = new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector());
         AccountabiliBuddy.App.Services.Tasks.TaskModelState taskModel = AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.RunBlocking(
             database, taskStore, sessionTasks, _later!, _comebacks!, autoSaved,
-            new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector()), new TaskViewStore(documents), time, dataDirectory);
+            _filterPresets, new TaskViewStore(documents), time, dataDirectory);
         if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.Unreadable)
         {
             // The migration ran but its task list can't be read: the old documents stopped at the migration, so they are never the
@@ -1294,6 +1299,12 @@ public partial class App : Application
             syncCoordinator.TaskModelParts = taskStore.WithParts;
             syncCoordinator.MergeTaskModel = taskStore.MergeFileAsync;
             taskStore.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+            // ADR 76: the task actions (undo, History, bulk), the Shelf's views and the weekly tidy-up: data only, the screens come later.
+            _taskActions = new AccountabiliBuddy.App.Services.Tasks.TaskActionsService(taskStore, sessionTasks, time);
+            _taskViews = new AccountabiliBuddy.App.Services.Tasks.TaskViewService(taskStore, taskSettings, time);
+            _taskTidyUp = new AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService(taskStore, _taskActions, taskSettings, _sessions, documents, time);
+            _taskTidyUp.LoadBlocking();
+            _ = StartTaskViewsAsync();
         }
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         pastSettled.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -1587,7 +1598,7 @@ public partial class App : Application
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
             _configuration.LoadError)
         {
-            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents), new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector()))
+            Tasks = new TasksViewModel(sessionTasks, _later!, _comebacks!, autoSaved, notebook, sessionViewModel, _configuration!, time, new TaskViewStore(documents), _filterPresets!)
             {
                 // ADR 72: "Keep on…" offers this PC and the group's other PCs and phones (never the watch).
                 SelfId = selfId,
@@ -2948,6 +2959,18 @@ public partial class App : Application
 
     // ADR 76: the user chose to rebuild an unreadable task list: set it aside (after a database copy), then start again so the
     // migration runs; during a focus session the app isn't restarted, the rebuild happens at the next start.
+    // The built-in views exist and the default one is open; the old filter screen's saved filters follow as views from then on.
+    private async Task StartTaskViewsAsync()
+    {
+        if (_taskViews is null || _filterPresets is null)
+        {
+            return;
+        }
+
+        await _taskViews.StartAsync();
+        _taskViews.FollowPresets(_filterPresets);
+    }
+
     private async Task RebuildTaskListsAsync(LocalDatabase database, SqliteJsonDocumentStore documents, TimeProvider time, string dataDirectory)
     {
         await AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.SetAsideForRebuildAsync(database, documents, time, dataDirectory);
