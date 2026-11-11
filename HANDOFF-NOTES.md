@@ -234,3 +234,4 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Unreadable task list: `ComebackStore.AddAsync` / `AutoSavedTaskStore.AddAsync` refuse and raise `AddRefused`; the app shows a notice (Ctrl+Alt+N, the work gate's come-back, the shutdown card, every other add).
 - `taskStore.SessionActions` is the setting again (the list's This session bin is always the next session's draft); the running checklist keeps its own `ActionCap` (replaces "Old-list rules use the running session's ActionCap" above).
 - `tasks.tidyUp` classified as a state key.
+- Re-check fixes: undoing a Bring back reinstates its Recently deleted entries after the restore, only for tasks not skipped (`TaskUndoRules.ToReinstate`). A task ticked done (another device) while `MoveOutOfChecklistAsync` puts it back stays done in the checklist (no drop) and leaves the list again (`TaskStore.TakeBackAsync`: held again, tombstoned, no History entry).

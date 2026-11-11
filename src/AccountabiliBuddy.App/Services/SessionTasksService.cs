@@ -267,14 +267,20 @@ public sealed partial class SessionTasksService : IDisposable
     /// An open task of the checklist goes to <paramref name="bin"/> of the task list (Queued after a swap or the pick, To sort when
     /// parked) as the same task, with its steps and all it had: put there first, then taken off the checklist
     /// (<paramref name="without"/>, by default <see cref="SessionChecklist.Parked"/>, which counts an open task of a running session as
-    /// taken off open, ADR 25), worked out from the checklist as it is after the put back. A stop in between leaves it in both places,
-    /// and the same id makes doing it again harmless.
+    /// taken off open, ADR 25), worked out from the checklist as it is after the put back; a task ticked meanwhile stays done in the
+    /// checklist and is taken back off the list. A stop in between leaves it in both places, and the same id makes doing it again harmless.
     /// </summary>
     private async Task MoveOutOfChecklistAsync(SessionTask labelled, TaskBin bin, Func<SessionChecklist, SessionChecklist>? without = null)
     {
         // Sent as this service's own change: the checklist still holds the task, so the list mustn't take it as consumed meanwhile.
         await _taskStore!.PutBackAsync(this, [labelled with { DoneAt = null }], bin);
-        if (Current.Tasks.Any(task => task.Id == labelled.Id))
+        SessionTask? now = Current.Tasks.FirstOrDefault(task => task.Id == labelled.Id);
+        if (now is { IsDone: true })
+        {
+            // Ticked meanwhile (another device): it stays done in the checklist, holding its place, and leaves the list again; no drop.
+            await _taskStore.TakeBackAsync(this, labelled.Id);
+        }
+        else if (now is not null)
         {
             await SetAsync(without is null ? Current.Parked(labelled.Id) : without(Current));
         }

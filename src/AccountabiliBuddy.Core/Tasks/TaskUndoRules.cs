@@ -100,6 +100,15 @@ public static class TaskUndoRules
         return (entry with { Tasks = tasks, Log = log }, sessionIds, skipped);
     }
 
+    /// <summary>
+    /// What an undone action's side entries (a Bring back's Recently deleted entries) put back: only those of tasks the undo didn't leave
+    /// alone (<paramref name="skipped"/>, from <see cref="ForRestore"/>), so a task that changed since is never offered twice.
+    /// </summary>
+    public static IReadOnlyList<T> ToReinstate<T>(IEnumerable<T> items, Func<T, Guid> taskIdOf, IReadOnlyCollection<Guid> skipped)
+    {
+        return items.Where(item => !skipped.Contains(taskIdOf(item))).ToList();
+    }
+
     // A live History entry for the task that came after the action (another device finished it, a session settled it): the action's
     // undo would delete or overwrite it.
     private static bool HasNewerHistory(TaskUndoEntry entry, TaskLists lists, Guid id)

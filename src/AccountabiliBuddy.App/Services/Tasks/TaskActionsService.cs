@@ -283,15 +283,6 @@ public sealed class TaskActionsService
             return new TaskUndoOutcome(false, [], []);
         }
 
-        // Undoing a Bring back puts its Recently deleted entries back too (the task is gone again, so they can restore it).
-        if (_bringBackEntries.TryGetValue(popped, out List<DeletedItem>? removedByBringBack) && _session?.Deleted is { } deletedStore)
-        {
-            foreach (DeletedItem item in removedByBringBack)
-            {
-                await deletedStore.ReinstateAsync(item);
-            }
-        }
-
         // What changed since (the session holds it, a newer History entry has it, it went another way) is left out, and said so.
         IReadOnlyList<Guid> sessionIds = [];
         IReadOnlyList<Guid> skipped = [];
@@ -300,6 +291,16 @@ public sealed class TaskActionsService
             (TaskUndoEntry entry, sessionIds, skipped) = TaskUndoRules.ForRestore(popped, lists, id => _session?.IsInChecklist(id) == true || _store.IsHeld(id));
             return TaskUndoRules.Restore(lists, entry, self, now);
         });
+        // Undoing a Bring back puts its Recently deleted entries back too (the task is gone again, so they can restore it), but not those
+        // of a task left alone because it changed since: it is live or in History, and a second Bring back would duplicate it.
+        if (_bringBackEntries.TryGetValue(popped, out List<DeletedItem>? removedByBringBack) && _session?.Deleted is { } deletedStore)
+        {
+            foreach (DeletedItem item in TaskUndoRules.ToReinstate(removedByBringBack, item => item.ItemId, skipped))
+            {
+                await deletedStore.ReinstateAsync(item);
+            }
+        }
+
         int touched = popped.Tasks.Keys.Union(popped.Log.Keys).Count();
         if (skipped.Count > 0 && skipped.Count >= touched)
         {

@@ -311,6 +311,24 @@ public sealed class TaskStore
     }
 
     /// <summary>
+    /// The reverse of <see cref="PutBackAsync"/> for one task the running checklist keeps after all (ticked there meanwhile): its list copy
+    /// is held with the session's again and leaves the list (a tombstone, no History entry: the checklist has it).
+    /// </summary>
+    public Task TakeBackAsync(object? source, Guid id)
+    {
+        if (!IsActive || _lists.Tasks.FirstOrDefault(item => item.Id == id && item.Task.IsLive) is not SyncTaskItem item)
+        {
+            return Task.CompletedTask;
+        }
+
+        _running[id] = item;
+        _heldEndedAt.Remove(id);
+        DateTimeOffset at = SharedListMerge.NextStamp(Now, item);
+        TaskLists taken = _lists with { Tasks = _lists.Tasks.Select(other => other.Id == id ? other.Deleted(at) : other).ToList() };
+        return Task.WhenAll(Commit(taken, source, fromOtherDevice: false).Save, SaveRunningAsync());
+    }
+
+    /// <summary>
     /// The session that starts takes these tasks (<paramref name="ids"/>): their copies as they are now are kept on this PC (sealed),
     /// before they leave the shared list, so whatever goes back to a list later comes back whole. Added to what is held already (a
     /// start run again after a restart finds the tasks gone from the list and keeps the copies it made the first time).
