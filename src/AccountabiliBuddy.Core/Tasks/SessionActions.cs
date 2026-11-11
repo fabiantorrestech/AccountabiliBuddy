@@ -179,8 +179,9 @@ public static class SessionActions
     public static (SessionChecklist Checklist, Guid? Leaving) SwapOut(SessionChecklist checklist, SessionSlot slot)
     {
         SessionTask? task = checklist.Tasks.FirstOrDefault(candidate => candidate.Id == slot.TaskId);
-        if (task is null)
+        if (task is null || task.IsDone)
         {
+            // A finished task holds its place for good: swapping it out would free a place without counting a drop.
             return (checklist, null);
         }
 

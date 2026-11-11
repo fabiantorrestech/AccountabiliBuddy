@@ -187,6 +187,11 @@ public sealed partial class SessionTasksService
             await RememberMovedAsync(taskId);
         }
 
+        if (added.TaskId is Guid copyId)
+        {
+            await CarryHeldAsync(taskId, copyId);
+        }
+
         return added;
     }
 
@@ -209,6 +214,11 @@ public sealed partial class SessionTasksService
         }
 
         SyncLaterItem? item = await Later.AddAsync(source.Title, source.Steps, source.Category, source.CategoryColor, source.EstimateMinutes, source.Note, null, labels: source.Labels);
+        if (item is not null)
+        {
+            await CarryHeldAsync(taskId, item.Id);
+        }
+
         return item?.Id;
     }
 
@@ -226,7 +236,9 @@ public sealed partial class SessionTasksService
         }
 
         TodaySource source = SourceOfTask(task);
-        await Comebacks.AddAsync(ParkTextOf(task.Title, source.Steps.Count), source.Category, source.CategoryColor, source.Labels);
+        Guid copyId = Guid.NewGuid();
+        await Comebacks.AddAsync(ParkTextOf(task.Title, source.Steps.Count), source.Category, source.CategoryColor, source.Labels, id: copyId);
+        await CarryHeldAsync(taskId, copyId);
         return true;
     }
 
@@ -608,6 +620,14 @@ public sealed partial class SessionTasksService
         // A done task comes back open: all its steps reopen; an open one brings its open steps.
         IReadOnlyList<SessionSubtask> steps = task.IsDone ? task.Subtasks : OpenStepsOf(task.Subtasks);
         return new TodaySource(task.Title, steps, categoryName, categoryColor, task.EstimateMinutes, task.Note, task.Labels);
+    }
+
+    // ADR 76: a copy made from an ended session's record takes its original's number, reminders and the like from the copy held
+    // since that session started (kept a day after it ended, and until its review is done); the copy is in the task list only
+    // outside a session (inside one it joined the running checklist).
+    private Task CarryHeldAsync(Guid originalId, Guid copyId)
+    {
+        return _taskStore is null ? Task.CompletedTask : _taskStore.CarryHeldAsync(originalId, copyId);
     }
 
     // A task joining a running session from a list: its copy in the task list is kept with the session's (ADR 76), before the list

@@ -44,6 +44,13 @@ public sealed class TaskStore
     // back to a list during or after the session comes back from here with its number, reminders and everything the checklist can't hold.
     private Dictionary<Guid, SyncTaskItem> _running = [];
 
+    // When the session that held each copy ended (none while it runs): a copy is kept until the session review is done and at least
+    // HeldAfterSession has passed, so a task sent back after the session (review, back to Today) still keeps its number.
+    private Dictionary<Guid, DateTimeOffset> _heldEndedAt = [];
+
+    /// <summary>How long a held copy stays after its session ended (longer while that session's review is still waiting).</summary>
+    public static readonly TimeSpan HeldAfterSession = TimeSpan.FromDays(1);
+
     // Saves run one after another, so an older list never overwrites a newer one.
     private Task _saving = Task.CompletedTask;
 
@@ -59,6 +66,9 @@ public sealed class TaskStore
 
     /// <summary>The other devices of the group (id and kind), for the numbering device. Set by the app.</summary>
     public Func<IEnumerable<(Guid DeviceId, string Kind)>> OtherDevices { get; set; } = () => [];
+
+    /// <summary>True while the last session's review card is still waiting (held copies stay until it is done). Set by the app.</summary>
+    public Func<bool> ReviewPending { get; set; } = () => false;
 
     /// <summary>How many actions This session takes when a list adds to it (the Tasks setting, ADR 76). Set by the app.</summary>
     public Func<int> SessionActions { get; set; } = () => Core.Tasks.SessionActions.DefaultCap;
@@ -106,7 +116,7 @@ public sealed class TaskStore
                 LoadList<SyncTaskLogItem>(LogKey).Where(item => item.Entry?.Task is not null).ToList());
             _categoryIds = LoadSealed<Dictionary<Guid, Guid>>(CategoryIdsKey) ?? [];
             _viewSearches = LoadSealed<Dictionary<Guid, string>>(ViewSearchesKey) ?? [];
-            _running = LoadRunning();
+            (_running, _heldEndedAt) = LoadRunning();
             _lists = lists;
             IsActive = true;
             return true;
@@ -202,7 +212,8 @@ public sealed class TaskStore
 
     /// <summary>
     /// The session that starts takes these tasks (<paramref name="ids"/>): their copies as they are now are kept on this PC (sealed),
-    /// before they leave the shared list, so whatever goes back to a list later comes back whole. Replaces what an earlier session held.
+    /// before they leave the shared list, so whatever goes back to a list later comes back whole. Added to what is held already (a
+    /// start run again after a restart finds the tasks gone from the list and keeps the copies it made the first time).
     /// </summary>
     public Task HoldRunningAsync(IEnumerable<Guid> ids)
     {
@@ -212,8 +223,13 @@ public sealed class TaskStore
         }
 
         var wanted = ids.ToHashSet();
-        _running = _lists.Tasks.Where(item => item.Task.IsLive && wanted.Contains(item.Id))
-            .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First());
+        foreach (SyncTaskItem item in _lists.Tasks.Where(item => item.Task.IsLive && wanted.Contains(item.Id)))
+        {
+            _running[item.Id] = item;
+            _heldEndedAt.Remove(item.Id);
+        }
+
+        PruneHeld();
         return SaveRunningAsync();
     }
 
@@ -229,25 +245,81 @@ public sealed class TaskStore
         }
 
         _running[id] = item;
+        _heldEndedAt.Remove(id);
         return SaveRunningAsync();
     }
 
-    /// <summary>The focused steps of the held tasks (This session's focus as it was planned), for the session that starts.</summary>
+    /// <summary>The focused steps of the held tasks of the session that runs (This session's focus as it was planned), for its start.</summary>
     public IReadOnlyList<Guid> HeldFocus()
     {
-        return _running.Values.SelectMany(item => (item.Task.Steps ?? []).Where(step => step.Focus && !step.IsDone).Select(step => step.Id)).ToList();
+        return _running.Where(pair => !_heldEndedAt.ContainsKey(pair.Key))
+            .SelectMany(pair => (pair.Value.Task.Steps ?? []).Where(step => step.Focus && !step.IsDone).Select(step => step.Id)).ToList();
     }
 
-    /// <summary>The session ended: nothing is held any more (what it had stays in its history).</summary>
+    /// <summary>
+    /// The session ended: its held copies are kept until its review is done and at least <see cref="HeldAfterSession"/> has passed
+    /// (a task sent back from its record then keeps its number, <see cref="CarryHeldAsync"/>), then they go.
+    /// </summary>
     public Task ReleaseRunningAsync()
     {
-        if (_running.Count == 0)
+        DateTimeOffset now = Now;
+        bool changed = false;
+        foreach (Guid id in _running.Keys.Where(id => !_heldEndedAt.ContainsKey(id)).ToList())
+        {
+            _heldEndedAt[id] = now;
+            changed = true;
+        }
+
+        changed |= PruneHeld();
+        return changed ? SaveRunningAsync() : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// A task of an ended session's record went back to a list as a copy (<paramref name="toId"/>): it takes what the original
+    /// (<paramref name="fromId"/>) had when its session started and the record can't hold (number, reminders, highlight, can't miss,
+    /// due, calendar), and the held copy goes. Nothing changes when nothing is held or the copy isn't in the list.
+    /// </summary>
+    public Task CarryHeldAsync(Guid fromId, Guid toId)
+    {
+        if (!IsActive || !_running.TryGetValue(fromId, out SyncTaskItem? held)
+            || _lists.Tasks.FirstOrDefault(item => item.Id == toId && item.Task.IsLive) is not SyncTaskItem copy)
         {
             return Task.CompletedTask;
         }
 
-        _running = [];
-        return SaveRunningAsync();
+        TaskItem original = held.Task;
+        TaskItem wanted = copy.Task with
+        {
+            Number = original.Number ?? copy.Task.Number,
+            FormerNumbers = original.FormerNumbers,
+            Reminders = original.Reminders,
+            Highlight = original.Highlight,
+            CantMiss = original.CantMiss,
+            DueOn = original.DueOn,
+            DueAt = original.DueAt,
+            Calendar = original.Calendar,
+        };
+        _running.Remove(fromId);
+        _heldEndedAt.Remove(fromId);
+        TaskLists placed = TaskListRules.Place(_lists, [wanted], null, Self, Now);
+        return Task.WhenAll(Commit(placed, null, fromOtherDevice: false).Save, SaveRunningAsync());
+    }
+
+    // Held copies of ended sessions past their time (and past their review) go; true when any went.
+    private bool PruneHeld()
+    {
+        DateTimeOffset now = Now;
+        bool reviewWaiting = ReviewPending();
+        List<Guid> gone = _heldEndedAt.Where(pair => now - pair.Value >= HeldAfterSession && !reviewWaiting).Select(pair => pair.Key)
+            .Concat(_heldEndedAt.Keys.Where(id => !_running.ContainsKey(id)))
+            .Distinct().ToList();
+        foreach (Guid id in gone)
+        {
+            _running.Remove(id);
+            _heldEndedAt.Remove(id);
+        }
+
+        return gone.Count > 0;
     }
 
     /// <summary>The PC's category list as it now is (added, renamed, recoloured, reordered, taken off), from <paramref name="source"/>.</summary>
@@ -442,25 +514,32 @@ public sealed class TaskStore
             .ToHashSet();
     }
 
-    private Dictionary<Guid, SyncTaskItem> LoadRunning()
+    private (Dictionary<Guid, SyncTaskItem> Items, Dictionary<Guid, DateTimeOffset> EndedAt) LoadRunning()
     {
         try
         {
-            return (LoadSealed<List<SyncTaskItem>>(RunningKey) ?? []).Where(item => item.Task is not null)
+            HeldDocument? held = LoadSealed<HeldDocument>(RunningKey);
+            Dictionary<Guid, SyncTaskItem> items = (held?.Items ?? []).Where(item => item?.Task is not null)
                 .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First());
+            return (items, held?.EndedAt is { } ended ? new Dictionary<Guid, DateTimeOffset>(ended) : []);
         }
         catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
         {
             // Unreadable: the running session's tasks come back as new tasks if they go to a list; nothing else depends on it.
-            return [];
+            return ([], []);
         }
     }
 
     private Task SaveRunningAsync()
     {
-        List<SyncTaskItem> held = _running.Values.ToList();
+        var held = new HeldDocument(
+            _running.Values.ToList(),
+            _heldEndedAt.Where(pair => _running.ContainsKey(pair.Key)).ToDictionary(pair => pair.Key, pair => pair.Value));
         return _store.SaveAsync(RunningKey, Sealed(held));
     }
+
+    // The held copies and when each one's session ended (none while it runs).
+    private sealed record HeldDocument(List<SyncTaskItem> Items, Dictionary<Guid, DateTimeOffset>? EndedAt);
 
     private Stored Sealed<T>(T value)
     {

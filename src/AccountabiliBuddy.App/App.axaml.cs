@@ -102,6 +102,7 @@ public partial class App : Application
     private static readonly TimeSpan GoingOffWriteBudget = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan GoingOffStale = TimeSpan.FromSeconds(30);
     private PcOffSettingsService? _pcOff;
+    private AccountabiliBuddy.App.Services.Tasks.TaskSettingsService? _taskSettings;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
 
@@ -326,6 +327,8 @@ public partial class App : Application
         taskSettings.LoadBlocking();
         sessionTasks.Settings = taskSettings;
         taskStore.SessionActions = () => taskSettings.SessionActions;
+        taskStore.ReviewPending = () => _sessionReview?.Pending is not null;
+        _taskSettings = taskSettings;
         // ADR 66: waited ends confirmed early apply themselves when their wait is over; the notice shows where the cursor is.
         _armedEnds = new ArmedEndService(_sessions, documents, new DpapiDataProtector(), (title, message) => _presenter?.ShowNotice(title, message));
         _armedEnds.Register(new SessionArmedEndHandler(_sessions));
@@ -1773,6 +1776,27 @@ public partial class App : Application
                 QuitGuardChange.RefusedInFocus => "The quit guard wasn't restored during a focus session.",
                 _ => null,
             };
+        };
+        // ADR 76: the Tasks settings go through their service too: more actions per session than now waits like any looser change
+        // (refused during a focus session), and a waiting change in the backup is never taken over.
+        backups.DeviceRestorers[AccountabiliBuddy.App.Services.Tasks.TaskSettingsService.DocumentKey] = async value =>
+        {
+            if (_taskSettings is null
+                || System.Text.Json.JsonSerializer.Deserialize<AccountabiliBuddy.App.Services.Tasks.TaskSettings>(value, AccountabiliBuddy.Core.Sync.SyncJson.Options) is not { } wanted)
+            {
+                return null;
+            }
+
+            int before = _taskSettings.SessionActions;
+            await _taskSettings.SetNextStepTakesSlotAsync(wanted.NextStepTakesSlot);
+            if (!await _taskSettings.SetSessionActionsAsync(wanted.SessionActions))
+            {
+                return "The number of actions per session wasn't restored during a focus session.";
+            }
+
+            return _taskSettings.SessionActions == before && wanted.SessionActions > before
+                ? "More actions per session take effect after the countdown."
+                : null;
         };
         backups.DeviceRestorers["session.pcOff"] = async value =>
         {

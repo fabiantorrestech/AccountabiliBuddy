@@ -236,14 +236,45 @@ public sealed partial class SessionTasksService : IDisposable
         }
 
         SessionTask? leaving = Labelled(Current).FirstOrDefault(task => task.Id == slot.TaskId);
-        (SessionChecklist swapped, Guid? left) = SessionActions.SwapOut(Current, slot);
-        await SetAsync(swapped);
-        if (left is not null && leaving is not null)
+        if (leaving is null || leaving.IsDone)
         {
+            // A finished task holds its place for good.
+            return false;
+        }
+
+        (SessionChecklist swapped, Guid? left) = SessionActions.SwapOut(Current, slot);
+        if (left is null)
+        {
+            await SetAsync(swapped);
+            return true;
+        }
+
+        if (_taskStore is not null)
+        {
+            await MoveOutOfChecklistAsync(leaving, TaskBin.Queued, swapped);
+        }
+        else
+        {
+            await SetAsync(swapped);
             await QueueOrParkAsync(leaving);
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// An open task of the checklist goes to <paramref name="bin"/> of the task list (Queued after a swap or the pick, To sort when
+    /// parked) as the same task, with its steps and all it had: put there first, then taken off the checklist
+    /// (<paramref name="without"/>, by default <see cref="SessionChecklist.Parked"/>, which counts an open task of a running session as
+    /// taken off open, ADR 25). A stop in between leaves it in both places, and the same id makes doing it again harmless.
+    /// </summary>
+    private async Task MoveOutOfChecklistAsync(SessionTask labelled, TaskBin bin, SessionChecklist? without = null)
+    {
+        // Sent as this service's own change: the checklist still holds the task, so the list mustn't take it as consumed meanwhile.
+        await _taskStore!.PutBackAsync(this, [labelled with { DoneAt = null }], bin);
+        await SetAsync(without ?? Current.Parked(labelled.Id));
+        ReadFromTaskStore();
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     // An open task of the running checklist leaves it for Queued (or, before the task list, for Come back to).
@@ -261,8 +292,7 @@ public sealed partial class SessionTasksService : IDisposable
             return;
         }
 
-        await SetAsync(Current.Parked(taskId));
-        await QueueOrParkAsync(leaving);
+        await MoveOutOfChecklistAsync(leaving, TaskBin.Queued);
     }
 
     private async Task QueueOrParkAsync(SessionTask task)
@@ -825,14 +855,13 @@ public sealed partial class SessionTasksService : IDisposable
         SessionTask? labelled = Labelled(Current).FirstOrDefault(candidate => candidate.Id == taskId);
         if (_taskStore is not null && labelled is not null)
         {
-            // ADR 76: the same task moves to To sort (its id, number, steps and History stay), so its title stays as it is.
-            await Comebacks.AddAsync(labelled.Title, labelled.Category, labelled.CategoryColor, labelled.Labels, id: taskId);
-        }
-        else
-        {
-            await Comebacks.AddAsync(text, labelled?.Category, labelled?.CategoryColor, labelled?.Labels);
+            // ADR 76: the same task moves to To sort with its title, steps, number and History (a task added during the session, with
+            // no held copy, keeps its steps too).
+            await MoveOutOfChecklistAsync(labelled, TaskBin.Sort);
+            return;
         }
 
+        await Comebacks.AddAsync(text, labelled?.Category, labelled?.CategoryColor, labelled?.Labels);
         await SetAsync(Current.Parked(taskId));
     }
 
