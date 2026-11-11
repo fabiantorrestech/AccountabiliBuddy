@@ -329,6 +329,8 @@ public partial class App : Application
         taskStore.SessionActions = () => taskSettings.SessionActions;
         taskStore.ReviewPending = () => _sessionReview?.Pending is not null;
         _taskSettings = taskSettings;
+        // ADR 77: each session keeps the step-away setting it started with (in its checkpoint too).
+        _sessions.StepAwaySetting = () => taskSettings.Current.StepAway;
         // ADR 66: waited ends confirmed early apply themselves when their wait is over; the notice shows where the cursor is.
         _armedEnds = new ArmedEndService(_sessions, documents, new DpapiDataProtector(), (title, message) => _presenter?.ShowNotice(title, message));
         _armedEnds.Register(new SessionArmedEndHandler(_sessions));

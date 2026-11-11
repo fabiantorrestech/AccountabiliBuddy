@@ -271,8 +271,9 @@ public sealed class SessionEngine
     }
 
     /// <summary>
-    /// Lunch starts while the user is stepped away with the timer running: the away becomes lunch's (the countdown pauses from now and
-    /// enforcement holds as lunch always did), so lunch keeps its own rules whatever the step-away setting.
+    /// Lunch starts while the user is stepped away with the timer running: that away ends here and lunch's begins (the countdown pauses
+    /// from now and enforcement holds as lunch always did), so lunch keeps its own rules whatever the step-away setting, and the two
+    /// are logged as two stretches (the first keeps its own kind, lunch's is a break).
     /// </summary>
     /// <returns>False when not stepped away with the timer running.</returns>
     public bool HoldAwayForLunch()
@@ -282,7 +283,23 @@ public sealed class SessionEngine
             return false;
         }
 
-        SetState(State with { Away = AwayKind.Break, AwaySince = Now, AwayTimerRuns = false, AwayAtDesk = false });
+        Return();
+        return StepAway(AwayKind.Break);
+    }
+
+    /// <summary>
+    /// "When I step away" as the running session started (<see cref="SessionState.StepAwayAtStart"/>), kept with it and its checkpoint.
+    /// Set once per session; a session resumed after a restart keeps what it had.
+    /// </summary>
+    /// <returns>False with no session running or when it is set already.</returns>
+    public bool RememberStepAway(StepAwayTimer mode)
+    {
+        if (!State.IsActive || State.StepAwayAtStart is not null)
+        {
+            return false;
+        }
+
+        SetState(State with { StepAwayAtStart = mode });
         return true;
     }
 

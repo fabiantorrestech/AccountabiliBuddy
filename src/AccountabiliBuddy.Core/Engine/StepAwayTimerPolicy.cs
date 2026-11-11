@@ -24,6 +24,16 @@ public static class StepAwayTimerPolicy
         return first == StepAwayTimer.KeepTimerRunning || second == StepAwayTimer.KeepTimerRunning ? StepAwayTimer.KeepTimerRunning : StepAwayTimer.PauseTimer;
     }
 
+    /// <summary>
+    /// The setting a step away uses now: during a session the stricter of the one it started with (<see cref="SessionState.StepAwayAtStart"/>,
+    /// kept through restarts; keep-running when unknown) and <paramref name="setting"/>, the active mode's now; outside a session the setting.
+    /// So neither a setting change, a mode switch nor a restart loosens a running session.
+    /// </summary>
+    public static StepAwayTimer ForStepAway(SessionState state, StepAwayTimer setting)
+    {
+        return state.IsActive ? Stricter(state.StepAwayAtStart ?? StepAwayTimer.KeepTimerRunning, setting) : setting;
+    }
+
     /// <summary>Whether a step away of <paramref name="kind"/> keeps the timer running under <paramref name="setting"/>.</summary>
     public static bool KeepsTimerRunning(StepAwayTimer setting, AwayKind kind)
     {

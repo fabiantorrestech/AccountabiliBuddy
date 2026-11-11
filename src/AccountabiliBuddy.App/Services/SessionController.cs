@@ -133,7 +133,21 @@ public sealed class SessionController : IDisposable
 
     public bool StartManual(Guid profileId, TimeSpan? duration)
     {
-        return _engine.StartManual(profileId, duration, PlanningLength());
+        return Started(_engine.StartManual(profileId, duration, PlanningLength()));
+    }
+
+    /// <summary>"When I step away" in effect now (ADR 77): kept with each session as it starts. Set by the app.</summary>
+    public Func<StepAwayTimer> StepAwaySetting { get; set; } = () => StepAwayTimerPolicy.Default;
+
+    // A session that just started keeps the step-away setting it started with (in its state and checkpoint).
+    private bool Started(bool started)
+    {
+        if (started)
+        {
+            _engine.RememberStepAway(StepAwaySetting());
+        }
+
+        return started;
     }
 
     /// <summary>
@@ -166,13 +180,13 @@ public sealed class SessionController : IDisposable
             return false;
         }
 
-        return _engine.StartTest(profileId, TimeSpan.FromMinutes(minutes));
+        return Started(_engine.StartTest(profileId, TimeSpan.FromMinutes(minutes)));
     }
 
     public bool StartPomodoro(Guid profileId, int? totalCycles)
     {
         PomodoroSettings settings = _configuration.Current.PomodoroDefaults with { TotalCycles = totalCycles };
-        return _engine.StartPomodoro(profileId, settings, planning: PlanningLength());
+        return Started(_engine.StartPomodoro(profileId, settings, planning: PlanningLength()));
     }
 
     /// <summary>One focus block followed by one break, then the session ends (quick session with a break).</summary>
@@ -180,7 +194,7 @@ public sealed class SessionController : IDisposable
     {
         // One cycle never reaches the long-break count, so the single break is shown as a short break.
         var settings = new PomodoroSettings(focus, breakLength, breakLength, CyclesBeforeLongBreak: 2, TotalCycles: 1);
-        return _engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true, planning: PlanningLength());
+        return Started(_engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true, planning: PlanningLength()));
     }
 
     /// <summary>

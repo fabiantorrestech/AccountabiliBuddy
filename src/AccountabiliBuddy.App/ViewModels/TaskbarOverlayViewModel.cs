@@ -452,7 +452,8 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
             string progress = Checklist is { HasTasks: true, ProgressText.Length: > 0 } ? $" · {Checklist.ProgressText.Replace("/", " of ")}" : string.Empty;
             string next = session.Mode == SessionMode.Pomodoro && session.Phase == SessionPhase.Focus ? " · break next" : string.Empty;
 
-            if (_drift is { } drift && session.IsEnforcing && !session.IsAway)
+            // A step away with the timer running keeps enforcement on (ADR 77): drift still shows.
+            if (_drift is { } drift && session.IsEnforcing && (!session.IsAway || session.AwayTimerRuns))
             {
                 state = OverlayState.Drift;
                 dot = true;
@@ -518,7 +519,7 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
             RingValue = settings.FillUp ? 1 - Fraction : Fraction;
             ShowsPause = true;
             PauseIcon = session.IsAway ? MaterialIconKind.Play : MaterialIconKind.Pause;
-            ShowsDone = session.IsEnforcing && !session.IsPlanning && !session.IsAway;
+            ShowsDone = session.IsEnforcing && !session.IsPlanning && (!session.IsAway || session.AwayTimerRuns);
             ShowsStart = false;
         }
         else

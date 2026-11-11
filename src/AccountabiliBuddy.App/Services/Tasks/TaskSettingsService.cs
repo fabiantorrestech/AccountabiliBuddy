@@ -24,7 +24,6 @@ public sealed class TaskSettingsService
     private readonly SessionController _sessions;
     private readonly Func<TimeSpan> _looserWait;
     private ModeSettings? _modes;
-    private StepAwayTimer? _stepAwayAtStart;
 
     /// <param name="looserWait">How long a looser change waits: the looser-change wait of the configuration in effect.</param>
     public TaskSettingsService(SqliteJsonDocumentStore store, TimeProvider time, SessionController sessions, Func<TimeSpan> looserWait)
@@ -34,8 +33,6 @@ public sealed class TaskSettingsService
         _sessions = sessions;
         _looserWait = looserWait;
         _sessions.Ticked += (_, _) => ApplyPendingIfReady();
-        _sessions.StateChanged += (_, state) => _stepAwayAtStart = state.IsActive ? _stepAwayAtStart ?? Current.StepAway : null;
-        _stepAwayAtStart = sessions.State.IsActive ? StepAwayTimer.KeepTimerRunning : null;
     }
 
     /// <summary>The active mode's settings.</summary>
@@ -47,10 +44,11 @@ public sealed class TaskSettingsService
     public bool NextStepTakesSlot => Current.NextStepTakesSlot;
 
     /// <summary>
-    /// "When I step away" for a step away now: the stricter of the setting as the running session started (a session resumed after a
-    /// restart counts as started keeping the timer running) and as it is now, so neither a change nor a mode switch loosens it.
+    /// "When I step away" for a step away now (<see cref="StepAwayTimerPolicy.ForStepAway"/>): the stricter of the setting the running
+    /// session started with (kept in its state and checkpoint, so a restart keeps it) and the active mode's now, so neither a change, a
+    /// mode switch nor a restart loosens it.
     /// </summary>
-    public StepAwayTimer StepAwayNow => _stepAwayAtStart is StepAwayTimer atStart ? StepAwayTimerPolicy.Stricter(atStart, Current.StepAway) : Current.StepAway;
+    public StepAwayTimer StepAwayNow => StepAwayTimerPolicy.ForStepAway(_sessions.State, Current.StepAway);
 
     private GuidanceMode ActiveMode => _modes?.Mode ?? GuidanceMode.Guarding;
 

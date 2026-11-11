@@ -15,6 +15,11 @@ namespace AccountabiliBuddy.Core.Domain;
 /// end on time, enforcement stays on (<see cref="PausesEnforcement"/> false) and nothing asks "Back to the task?". The stretch is still
 /// logged as stepped away and never counted as focus. False for every other away (the old step away, lunch, side task, pause).
 /// </param>
+/// <param name="StepAwayAtStart">
+/// "When I step away" as the session started (ADR 77), kept with the session (and its checkpoint, so a restart keeps it): a step away
+/// takes the stricter of this and the setting now (<see cref="Engine.StepAwayTimerPolicy.ForStepAway"/>). Null outside a session, and
+/// for a session saved before it was kept (read as keeping the timer running).
+/// </param>
 /// <param name="FocusLengthAfterPlanning">While <see cref="SessionPhase.Planning"/>: how long the focus phase runs once planning ends
 /// (<see cref="PhaseStartedAt"/> and <see cref="PhaseEndsAt"/> are then the planning stage's own); null for a session with no set end.
 /// Kept in the checkpoint, so a restart resumes planning and still knows the focus length.</param>
@@ -32,7 +37,8 @@ public sealed record SessionState(
     bool AwayAtDesk = false,
     int SideTaskExtensions = 0,
     TimeSpan? FocusLengthAfterPlanning = null,
-    bool AwayTimerRuns = false)
+    bool AwayTimerRuns = false,
+    StepAwayTimer? StepAwayAtStart = null)
 {
     public static SessionState Idle { get; } = new(null, SessionPhase.Idle, null, null, null, 0);
 
