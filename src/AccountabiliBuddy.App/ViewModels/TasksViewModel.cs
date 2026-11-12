@@ -39,6 +39,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private TaskRowKey? _selectedKey;
     private bool _refreshing;
     private readonly HashSet<TaskRowKey> _picked = [];
+    private readonly TaskFinishQueue _finishes = new();
     private Guid? _newTaskCategoryId;
     private Func<Guid?, Task>? _applyNewCategory;
 
@@ -867,7 +868,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         // A Queued task while a session runs joins it only through the session's cap.
-        if (key.Kind == TaskRowKind.Queued)
+        if (key.Kind == TaskRowKind.Queued && StoredTask(key.Id)?.Bin == TaskBin.Queued)
         {
             entries.Add(TaskMenuEntry.Async("Move to This session", () => MoveQueuedToSessionAsync(key.Id), MaterialIconKind.ArrowLeftBoldOutline));
         }
@@ -1248,6 +1249,26 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 sortTime: task.DoneAt!.Value));
         }
 
+        // During a session, a Queued task ticked today sits in the task list's Finished today, outside the checklist: listed here too,
+        // and unticking it puts it back in Queued (the task list's reopen).
+        if (live)
+        {
+            HashSet<Guid> listed = doneRows.Select(row => row.Id).ToHashSet();
+            IEnumerable<TaskItem> finishedInList = stored.Values
+                .Where(item => item.Bin == TaskBin.Done && item.DoneAt is DateTimeOffset at && DateOnly.FromDateTime(Local(at)) == today)
+                .Where(item => !listed.Contains(item.Id) && !_tasks.IsInChecklist(item.Id))
+                .OrderByDescending(item => item.DoneAt);
+            foreach (TaskItem item in finishedInList)
+            {
+                Guid id = item.Id;
+                TaskLabel? label = LabelOf(item.LabelId);
+                doneRows.Add(MakeRow(
+                    new TaskRowKey(TaskRowKind.Queued, id), item.Title, $"Finished {Clock(Local(item.DoneAt!.Value))}", label?.Name,
+                    label is null ? null : TaskLabelColors.Opaque(label.Color), categoryId: CategoryIdOf(item.LabelId), isTicked: true,
+                    toggle: () => ActAsync(actions => actions.ReopenAsync([id])), sortTime: item.DoneAt!.Value));
+            }
+        }
+
         Replace(_doneRows, doneRows);
 
         List<TaskListRowViewModel> shelfRows = RebuildShelf(today);
@@ -1419,6 +1440,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             }
 
             sections.Add(section);
+        }
+
+        // Groups no longer shown (a view or grouping changed) let their rows go, so nothing deleted stays selectable.
+        HashSet<string> shown = groups.Select(group => group.Key).ToHashSet();
+        foreach (string gone in _shelfRows.Keys.Where(key => !shown.Contains(key)).ToList())
+        {
+            _shelfRows[gone].Clear();
+            _shelfRows.Remove(gone);
         }
 
         Shelf.Panel.Show(sections);
@@ -1594,6 +1623,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)), labelMenu)
         {
             IsPicked = _picked.Contains(key),
+            Finishes = _finishes,
+            IsFinishing = _finishes.IsPending(key),
             NumberText = extras.NumberText,
             Bits = extras.Bits,
             IsHighlighted = extras.IsHighlighted,
@@ -1748,11 +1779,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             {
                 // The task list's own task: its steps, time limit and note change through the task actions.
                 TaskItem? item = StoredTask(key.Id);
-                return item is null || item.Bin != TaskBin.Queued
+                // A Queued task ticked during the session shows (read only) from Finished today.
+                return item is null || item.Bin is not (TaskBin.Queued or TaskBin.Done)
                     ? null
                     : new TaskSnapshot(
-                        key, "Queued", item.Title, (item.Steps ?? []).Select(step => step.ToSubtask()).ToList(), item.EstimateMinutes, item.Note,
-                        item.DueOn, item.PlannedFor, false, false, null);
+                        key, item.Bin == TaskBin.Done ? "Finished today" : "Queued", item.Title, (item.Steps ?? []).Select(step => step.ToSubtask()).ToList(), item.EstimateMinutes, item.Note,
+                        item.DueOn, item.PlannedFor, false, item.Bin == TaskBin.Done, null);
             }
 
             default:

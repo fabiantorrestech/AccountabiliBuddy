@@ -9,7 +9,7 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 - [x] Phase 0 Orientation (this file)
 - [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
 - [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); undo, history, tidy-up, views, search, title help, bulk DONE (M2.3); reminders engine DONE (M3); calendar export BLOCKED, see Calendar)
-- [ ] Phase 3 PC UI (3.1 title bar DONE (M4.1), 3.2 layout DONE (M4.2), 3.3 rows/open task DONE (M4.3), 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
+- [ ] Phase 3 PC UI (3.1 title bar DONE (M4.1), 3.2 layout DONE (M4.2), 3.3 rows/open task DONE (M4.3; M4 review fixes), 3.4 add/jot, 3.5 menus, 3.6 session, 3.7 reminders, 3.8 keyboard/toasts)
 - [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix)
 - Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
 
@@ -329,4 +329,13 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Behaviour changes: the old select mode (circles, bar, "Set category" on many) is gone; the detail card's 25/50/90 estimate chips became the time limit chip's menu; a tick now lands after a 1.8 s strike-and-fold (a second tick inside it takes it back); rows of the Shelf and Queued can be dragged and moved with the quick actions; right-click on a row opens its menu.
 - Flagged, not changed: `SessionTasksService.DraftActions` counts the draft's Queued tasks toward the cap while no session runs (Q126).
 - Left for later: 3.4 add box / Send to / Jot; 3.5 the bulk right-click menu for a selection, the Tags and Reminders & due date menus, Sync devices, Copy ID / Rename one by one in the row menu, label style setting; 3.6 the swap dialog for a full This session (now a notice), the step list popover and session layout; 3.8 the toasts (finish / Undo, Copy ID "Copied …", move toasts) and the roving keyboard focus (↑/↓ within a list, F2, H, Del, Enter); Phase 7 Settings (label style, untouched weeks UI). Not checked by eye: the 3 themes × light/dark look of the tints, ring and chips (built from tokens).
+- Build 0 errors; dev app started on dev data with no exception.
+
+## M4 milestone review fixes
+
+- [x] 1 (blocking) `TaskActionsService.MoveToSessionAsync`: a task the running checklist took (`AddToTodayAsync` → Added while a session runs) leaves the list with `TaskStore.TakeBackAsync(_session, id)` (held for the session, no History entry); it was in This session and still on the Shelf / in Queued. Every page path goes through here: the Queued row's target and menu, drag into This session, the Shelf rows' drag. (The old "Add to Today" menu paths keep their own source removal.)
+- [x] 2 (blocking, Q126 closed) `SessionTasksService.DraftActions` counts This session's draft tasks only; `HasDraftRoomFor` = `DraftActions() + actions <= ActionCap`. A Shelf task into This session with no session running now checks its `ActionCount` the same way (it only checked for one free action).
+- [x] 3 (blocking, Q48 closed) `StartChecklistAsync` starts with `ThisSessionDraftTasks` only; Queued's tasks stay in the list (not held, not tombstoned: `TombstoneNextTasksAsync(joining)`), so the pick sees the same set (Q128 for the phone's old field).
+- [x] 4 A Queued task ticked during a session shows under Finished today (row kind Queued, ticked; untick = `ReopenAsync`; its open task is read only) and never joins the next session as done (Q127). Its "Move to This session" menu entry shows only while it is in Queued.
+- [x] Nits: pending ticks keyed by task in `TaskFinishQueue` (new), flushed on Quit (Q129); `_shelfRows` lists of groups no longer shown are dropped; the stale comment above `IsInDraft` is gone.
 - Build 0 errors; dev app started on dev data with no exception.

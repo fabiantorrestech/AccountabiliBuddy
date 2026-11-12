@@ -24,7 +24,6 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     private readonly Func<IReadOnlyList<TaskMenuEntry>>? _labelMenu;
     private readonly Action<TaskListRowViewModel, TaskRowClick> _select;
     private readonly Func<Task>? _toggle;
-    private CancellationTokenSource? _finishing;
 
     public TaskListRowViewModel(
         TaskRowKey key, string title, string subText, Action<TaskListRowViewModel, TaskRowClick> select, int number = 0, bool isNow = false,
@@ -164,6 +163,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     [NotifyPropertyChangedFor(nameof(ShowsTicked), nameof(ShowsHighlightTint))]
     public partial bool IsFinishing { get; set; }
 
+    /// <summary>The page's waiting ticks (strike, fold, then store); null: a tick is stored at once.</summary>
+    public TaskFinishQueue? Finishes { get; init; }
+
     /// <summary>The ticked row is folding away (its height and opacity go to nothing).</summary>
     [ObservableProperty]
     public partial bool IsCollapsing { get; set; }
@@ -242,11 +244,13 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             NumberText = NumberText,
             IsHighlighted = IsHighlighted,
             IsPicked = IsPicked,
+            Finishes = Finishes,
         };
     }
 
     // Unticking acts at once. Ticking strikes the row through, holds it a moment, folds it away and then ticks it in the store, so
-    // the rows below move up smoothly; ticking again before that takes it back and nothing is stored.
+    // the rows below move up smoothly; ticking the same task again before that (this row or one rebuilt for it) takes it back and
+    // nothing is stored. The wait is the page's (Finishes), keyed by the task, so quitting stores it instead of losing it.
     private async Task ToggleAsync()
     {
         if (_toggle is null)
@@ -254,42 +258,35 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             return;
         }
 
-        if (IsTicked)
+        if (IsTicked || Finishes is null)
         {
             await _toggle();
             return;
         }
 
-        if (_finishing is not null)
+        if (Finishes.Cancel(Key))
         {
-            _finishing.Cancel();
-            _finishing = null;
             IsCollapsing = false;
             IsFinishing = false;
             return;
         }
 
-        var finishing = new CancellationTokenSource();
-        _finishing = finishing;
         IsFinishing = true;
-        try
-        {
-            await Task.Delay(FinishHold, finishing.Token);
-            IsCollapsing = true;
-            await Task.Delay(Motion.Current?.Scale(FinishFold) ?? FinishFold, finishing.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        _finishing = null;
-        await _toggle();
-        // The page's rebuild (queued by the store change) takes the row away first; a row the rules keep shows again after it.
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            IsCollapsing = false;
-            IsFinishing = false;
-        }, Avalonia.Threading.DispatcherPriority.ContextIdle);
+        Func<Task> toggle = _toggle;
+        await Finishes.RunAsync(
+            Key,
+            async () =>
+            {
+                await toggle();
+                // The page's rebuild (queued by the store change) takes the row away first; a row the rules keep shows again after it.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    IsCollapsing = false;
+                    IsFinishing = false;
+                }, Avalonia.Threading.DispatcherPriority.ContextIdle);
+            },
+            () => IsCollapsing = true,
+            FinishHold,
+            Motion.Current?.Scale(FinishFold) ?? FinishFold);
     }
 }

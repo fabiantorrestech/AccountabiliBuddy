@@ -3585,6 +3585,12 @@ public partial class App : Application
             await _noiseSettings.FlushAsync();
         }
 
+        // A task ticked a moment ago is still in its strike-and-fold: store it now so the tick isn't lost.
+        if (_mainWindow?.DataContext is MainWindowViewModel { Tasks: { } tasksPage })
+        {
+            await tasksPage.FlushPendingFinishesAsync();
+        }
+
         _goalCard?.Dispose();
         _weekCard?.Dispose();
         _headphones?.Dispose();

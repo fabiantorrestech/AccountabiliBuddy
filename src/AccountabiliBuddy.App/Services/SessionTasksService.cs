@@ -330,7 +330,6 @@ public sealed partial class SessionTasksService : IDisposable
         return cap + (checklist.SessionStart is DateTimeOffset start ? OverLimitCount(start) : 0);
     }
 
-    // The draft's actions: a task in This session of the task list holds one per step in focus (TaskItem.ActionCount), any other one.
     /// <summary>No session runs and the next session's list holds the task (in This session or in Queued).</summary>
     public bool IsInDraft(Guid id)
     {
@@ -339,38 +338,48 @@ public sealed partial class SessionTasksService : IDisposable
 
     /// <summary>
     /// No session runs and This session (the next session's tasks outside Queued) has room for <paramref name="actions"/> more
-    /// actions under <see cref="ActionCap"/>. Queued's tasks hold no place in it.
+    /// actions under <see cref="ActionCap"/>. The same count as <see cref="ActionsUsed"/>, so the two never disagree.
     /// </summary>
     public bool HasDraftRoomFor(int actions)
     {
-        if (Current.SessionStart is not null)
-        {
-            return false;
-        }
-
-        if (_taskStore is not { IsActive: true } store)
-        {
-            return Current.Tasks.Count + actions <= ActionCap;
-        }
-
-        Dictionary<Guid, TaskItem> stored = store.Lists.Tasks.Where(item => item.Task.IsLive)
-            .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First().Task);
-        int used = Current.Tasks
-            .Where(task => !(stored.TryGetValue(task.Id, out TaskItem? item) && item.Bin == TaskBin.Queued))
-            .Sum(task => !task.IsDone && stored.TryGetValue(task.Id, out TaskItem? item) ? item.ActionCount : 1);
-        return used + actions <= ActionCap;
+        return Current.SessionStart is null && DraftActions() + actions <= ActionCap;
     }
 
+    // The draft's actions (This session's only): a task in This session of the task list holds one per step in focus
+    // (TaskItem.ActionCount), a done one or one the task list doesn't hold one. Queued's tasks hold no place.
     private int DraftActions()
+    {
+        Dictionary<Guid, TaskItem> stored = StoredDraftItems();
+        return ThisSessionDraftTasks(stored).Sum(task => !task.IsDone && stored.TryGetValue(task.Id, out TaskItem? item) ? item.ActionCount : 1);
+    }
+
+    // The next session's list's tasks that are This session's: all of them before the task list; with it, not the ones in Queued and
+    // not a Queued task finished meanwhile (it sits in Finished today, ADR 76; it never joins a session as done).
+    private List<SessionTask> ThisSessionDraftTasks(IReadOnlyDictionary<Guid, TaskItem> stored)
+    {
+        return Current.Tasks.Where(task => !stored.TryGetValue(task.Id, out TaskItem? item) || BelongsToThisSession(item)).ToList();
+    }
+
+    private static bool BelongsToThisSession(TaskItem item)
+    {
+        return item.Bin switch
+        {
+            TaskBin.Queued => false,
+            TaskBin.Done => item.PrevBin is null or TaskBin.Session,
+            _ => true,
+        };
+    }
+
+    // The task list's live tasks by id (none before the task list exists).
+    private Dictionary<Guid, TaskItem> StoredDraftItems()
     {
         if (_taskStore is not { IsActive: true } store)
         {
-            return Current.Tasks.Count;
+            return [];
         }
 
-        Dictionary<Guid, TaskItem> stored = store.Lists.Tasks.Where(item => item.Task.IsLive && item.Task.Bin == TaskBin.Session)
+        return store.Lists.Tasks.Where(item => item.Task.IsLive)
             .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First().Task);
-        return Current.Tasks.Sum(task => !task.IsDone && stored.TryGetValue(task.Id, out TaskItem? item) ? item.ActionCount : 1);
     }
 
     public void LoadBlocking()
@@ -1287,15 +1296,19 @@ public sealed partial class SessionTasksService : IDisposable
     {
         // The draft's tasks are this session's now: they leave the shared next-session list (ADR 48). ADR 76: their copies in the task
         // list are kept here first (a task going back to a list comes back whole), and the session takes This session's focus from them.
+        // Queued is not part of the session (spec 05 §1): only This session's tasks start; Queued's stay in the list as they are (not
+        // held, not taken off), and so does a Queued task finished before the start.
+        List<SessionTask> joining = ThisSessionDraftTasks(StoredDraftItems());
+        HashSet<Guid> joiningIds = joining.Select(task => task.Id).ToHashSet();
         IReadOnlyList<Guid> planned = [];
         if (_taskStore is not null)
         {
-            await _taskStore.HoldRunningAsync(Current.Tasks.Select(task => task.Id));
+            await _taskStore.HoldRunningAsync(joiningIds);
             planned = _taskStore.HeldFocus();
         }
 
-        await TombstoneNextTasksAsync();
-        SessionChecklist started = Current.Started(start) with { ActionCap = Settings?.SessionActions ?? SessionActions.DefaultCap };
+        await TombstoneNextTasksAsync(joiningIds);
+        SessionChecklist started = (Current with { Tasks = joining }).Started(start) with { ActionCap = Settings?.SessionActions ?? SessionActions.DefaultCap };
         started = SessionActions.WithFocus(started, planned);
         int allowance = AllowanceOf(started);
         // Tasks with steps and none in focus get their first open steps in focus while places are free; extra focus is trimmed to fit.
@@ -1700,15 +1713,17 @@ public sealed partial class SessionTasksService : IDisposable
         return keep;
     }
 
-    private async Task TombstoneNextTasksAsync()
+    // The tasks that joined the session (all of the list's, before the task list) leave the shared next-session list.
+    private async Task TombstoneNextTasksAsync(IReadOnlySet<Guid> joining)
     {
         DateTimeOffset now = _time.GetUtcNow();
-        if (_nextTasks.All(task => task.DeletedAt is not null))
+        bool Leaves(SyncNextTask task) => task.DeletedAt is null && (_taskStore is null || joining.Contains(task.Id));
+        if (!_nextTasks.Any(Leaves))
         {
             return;
         }
 
-        _nextTasks = Pruned(_nextTasks.Select(task => task.DeletedAt is null ? task.Deleted(SharedListMerge.NextStamp(now, task)) : task), now);
+        _nextTasks = Pruned(_nextTasks.Select(task => Leaves(task) ? task.Deleted(SharedListMerge.NextStamp(now, task)) : task), now);
         await SaveNextTasksAsync();
     }
 

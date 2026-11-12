@@ -176,6 +176,9 @@ public sealed partial class TasksViewModel
         return next;
     }
 
+    /// <summary>The app is quitting: every tick still waiting out its strike-and-fold is stored now.</summary>
+    public Task FlushPendingFinishesAsync() => _finishes.FlushAsync();
+
     // ---- The open task ----
 
     partial void OnIsDetailOpenChanged(bool value) => MarkOpenRow();

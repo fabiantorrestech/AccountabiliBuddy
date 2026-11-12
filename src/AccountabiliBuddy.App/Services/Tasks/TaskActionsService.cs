@@ -100,10 +100,23 @@ public sealed class TaskActionsService
                 continue;
             }
 
+            // While no session runs it must still fit This session's own actions (Queued's hold no place), as the Queued path above.
+            if (_session.Current.SessionStart is null && !_session.HasDraftRoomFor(task.ActionCount) && overLimitReason is null)
+            {
+                needsRoom.Add(id);
+                continue;
+            }
+
             (AddToTodayResult result, _) = await _session.AddToTodayAsync(SourceOf(task, lists), overLimitReason);
             if (result == AddToTodayResult.Added)
             {
                 moved++;
+                if (_session.Current.SessionStart is not null)
+                {
+                    // A running checklist never reconciles the list (that is the draft's): its copy leaves the list here, held for the
+                    // session (no History entry), so it is not both in This session and still on the Shelf or in Queued.
+                    await _store.TakeBackAsync(_session, id);
+                }
             }
             else if (result == AddToTodayResult.AtLimit)
             {
