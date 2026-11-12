@@ -201,7 +201,11 @@
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Classes="sTitle" Text="Compact rows" />
                                         <TextBlock Classes="sHint" Text="The Tasks page switches to Compact while a session runs, then back." />
-                                        <TextBlock Classes="sPending" Text="{Binding CompactPending}" IsVisible="{Binding HasCompactPending}" />
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasCompactPending}">
+                                            <TextBlock Classes="sPending" Text="{Binding CompactPending}" />
+                                            <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelPendingCommand}" CommandParameter="compact"
+                                                    HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding CompactInSession}" VerticalAlignment="Top" AutomationProperties.Name="Compact rows during a session" />
                                 </Grid>
@@ -212,7 +216,11 @@
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Classes="sTitle" Text="Hide the Shelf" />
                                         <TextBlock Classes="sHint" Text="The Shelf folds away while a session runs; its rail says it's hidden." />
-                                        <TextBlock Classes="sPending" Text="{Binding ShelfPending}" IsVisible="{Binding HasShelfPending}" />
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasShelfPending}">
+                                            <TextBlock Classes="sPending" Text="{Binding ShelfPending}" />
+                                            <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelPendingCommand}" CommandParameter="shelf"
+                                                    HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding HideShelfInSession}" VerticalAlignment="Top" AutomationProperties.Name="Hide the Shelf during a session" />
                                 </Grid>
@@ -223,7 +231,11 @@
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Classes="sTitle" Text="Actions in a session" />
                                         <TextBlock Classes="sHint" Text="How many tasks or steps a session holds. Fewer applies at once; more waits." />
-                                        <TextBlock Classes="sPending" Text="{Binding ActionsPending}" IsVisible="{Binding HasActionsPending}" />
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasActionsPending}">
+                                            <TextBlock Classes="sPending" Text="{Binding ActionsPending}" />
+                                            <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelPendingCommand}" CommandParameter="actions"
+                                                    HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding ActionChoices}"
                                              SelectedIndex="{Binding ActionsIndex}" AutomationProperties.Name="Actions in a session" />
@@ -235,7 +247,11 @@
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Classes="sTitle" Text="Session view" />
                                         <TextBlock Classes="sHint" Text="Quiet: one row per action. Grouped: each task with its steps, the next two greyed." />
-                                        <TextBlock Classes="sPending" Text="{Binding SessionViewPending}" IsVisible="{Binding HasSessionViewPending}" />
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasSessionViewPending}">
+                                            <TextBlock Classes="sPending" Text="{Binding SessionViewPending}" />
+                                            <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelPendingCommand}" CommandParameter="view"
+                                                    HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding SessionViewChoices}"
                                              SelectedIndex="{Binding SessionViewIndex}" AutomationProperties.Name="Session view" />
@@ -257,7 +273,11 @@
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Classes="sTitle" Text="When I step away" />
                                         <TextBlock Classes="sHint" Text="Pausing makes the session end later, so it waits." />
-                                        <TextBlock Classes="sPending" Text="{Binding StepAwayPending}" IsVisible="{Binding HasStepAwayPending}" />
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasStepAwayPending}">
+                                            <TextBlock Classes="sPending" Text="{Binding StepAwayPending}" />
+                                            <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelPendingCommand}" CommandParameter="stepAway"
+                                                    HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding TimerChoices}"
                                              SelectedIndex="{Binding StepAwayIndex}" AutomationProperties.Name="When I step away" />
@@ -269,7 +289,11 @@
                                     <StackPanel Grid.Column="1" Spacing="2">
                                         <TextBlock Classes="sTitle" Text="When I start a side task" />
                                         <TextBlock Classes="sHint" Text="Pausing makes the session end later, so it waits." />
-                                        <TextBlock Classes="sPending" Text="{Binding SideTaskPending}" IsVisible="{Binding HasSideTaskPending}" />
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasSideTaskPending}">
+                                            <TextBlock Classes="sPending" Text="{Binding SideTaskPending}" />
+                                            <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelPendingCommand}" CommandParameter="sideTask"
+                                                    HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                                        </StackPanel>
                                     </StackPanel>
                                     <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding TimerChoices}"
                                              SelectedIndex="{Binding SideTaskIndex}" AutomationProperties.Name="When I start a side task" />

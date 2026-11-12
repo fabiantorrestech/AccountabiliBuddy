@@ -21,6 +21,10 @@ public sealed class TaskReminderSettingsService
     private readonly Func<bool> _sessionRunning;
     private readonly Func<TimeSpan> _looserWait;
 
+    // One change at a time: each reads the settings it changes and saves them, so a change can't save over another one made meanwhile
+    // (e.g. a ring setting's save putting back a "Remind quietly" that a stricter choice had just dropped).
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
     /// <summary>Without a session or a looser-change wait to follow (checks): "Remind quietly" still waits the default 10 minutes.</summary>
     public TaskReminderSettingsService(SqliteJsonDocumentStore store)
         : this(store, TimeProvider.System, () => false, () => TimeSpan.FromMinutes(10))
@@ -58,14 +62,22 @@ public sealed class TaskReminderSettingsService
     /// <summary>Changes the ring and calendar settings at once. "During a focus session" and its waiting change are kept as they are.</summary>
     public async Task UpdateAsync(Func<TaskReminderSettings, TaskReminderSettings> change)
     {
-        TaskReminderSettings before = Current;
-        TaskReminderSettings changed = Clamped(change(before)) with
+        await _gate.WaitAsync();
+        try
         {
-            DuringSession = before.DuringSession,
-            PendingDuringSession = before.PendingDuringSession,
-            PendingDuringSessionFrom = before.PendingDuringSessionFrom,
-        };
-        await SaveAsync(changed);
+            TaskReminderSettings before = Current;
+            TaskReminderSettings changed = Clamped(change(before)) with
+            {
+                DuringSession = before.DuringSession,
+                PendingDuringSession = before.PendingDuringSession,
+                PendingDuringSessionFrom = before.PendingDuringSessionFrom,
+            };
+            await SaveAsync(changed);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     /// <summary>
@@ -75,6 +87,19 @@ public sealed class TaskReminderSettingsService
     /// </summary>
     /// <returns>False when it was refused (Remind quietly while a session runs).</returns>
     public async Task<bool> SetDuringSessionAsync(TaskReminderDuringSession wanted)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            return await SetDuringSessionLockedAsync(wanted);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<bool> SetDuringSessionLockedAsync(TaskReminderDuringSession wanted)
     {
         TaskReminderSettings current = Current;
         if (wanted == TaskReminderDuringSession.WaitUntilEnd || current.DuringSession == wanted)
@@ -100,16 +125,38 @@ public sealed class TaskReminderSettingsService
     /// <summary>A waiting "During a focus session" change takes effect once its wait is over and no session runs (the app calls this every tick).</summary>
     public void ApplyPendingIfReady()
     {
-        TaskReminderSettings current = Current;
-        if (current.PendingDuringSession is not TaskReminderDuringSession pending
-            || current.PendingDuringSessionFrom is not DateTimeOffset from
-            || _time.GetUtcNow() < from
-            || _sessionRunning())
+        if (!IsPendingReady(Current))
         {
             return;
         }
 
-        _ = SaveAsync(current with { DuringSession = pending, PendingDuringSession = null, PendingDuringSessionFrom = null });
+        _ = ApplyPendingAsync();
+    }
+
+    private async Task ApplyPendingAsync()
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            // Read again inside the gate: a change made meanwhile (a stricter choice dropping it) wins.
+            TaskReminderSettings current = Current;
+            if (IsPendingReady(current))
+            {
+                await SaveAsync(current with { DuringSession = current.PendingDuringSession!.Value, PendingDuringSession = null, PendingDuringSessionFrom = null });
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private bool IsPendingReady(TaskReminderSettings current)
+    {
+        return current.PendingDuringSession is not null
+            && current.PendingDuringSessionFrom is DateTimeOffset from
+            && _time.GetUtcNow() >= from
+            && !_sessionRunning();
     }
 
     private async Task SaveAsync(TaskReminderSettings changed)

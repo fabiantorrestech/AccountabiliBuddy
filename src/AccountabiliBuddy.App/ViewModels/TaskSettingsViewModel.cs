@@ -343,6 +343,7 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
     [RelayCommand]
     private void CancelChoosingCopy()
     {
+        ViewChooser?.Forget();
         IsChoosingCopy = false;
     }
 
@@ -351,6 +352,7 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
     {
         if (ViewChooser is not null && await ViewChooser.ApplyAsync())
         {
+            ViewChooser.Forget();
             IsChoosingCopy = false;
             Load();
         }
@@ -774,6 +776,29 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         {
             _ = ApplyRuledAsync(() => _settings.SetSideTaskAsync(value == 1 ? StepAwayTimer.PauseTimer : StepAwayTimer.KeepTimerRunning));
         }
+    }
+
+    /// <summary>
+    /// "Cancel this change" under a waiting line: sets the row to the value in effect, which the setters take as the stricter value
+    /// (at once, also during a session) and which drops the waiting change.
+    /// </summary>
+    [RelayCommand]
+    private async Task CancelPendingAsync(string? which)
+    {
+        TaskSettings current = _settings.Current;
+        Task<bool> change = which switch
+        {
+            "compact" => _settings.SetCompactInSessionAsync(current.CompactInSession),
+            "shelf" => _settings.SetHideShelfInSessionAsync(current.HideShelfInSession),
+            "actions" => _settings.SetSessionActionsAsync(current.SessionActions),
+            "view" => _settings.SetSessionViewAsync(current.SessionView),
+            "stepAway" => _settings.SetStepAwayAsync(current.StepAway),
+            "sideTask" => _settings.SetSideTaskAsync(current.SideTask),
+            _ => Task.FromResult(true),
+        };
+        await change;
+        StatusText = string.Empty;
+        Load();
     }
 
     // A per-mode session setting: stricter at once, looser waits (shown under its row) or, during a session, is refused (said here).

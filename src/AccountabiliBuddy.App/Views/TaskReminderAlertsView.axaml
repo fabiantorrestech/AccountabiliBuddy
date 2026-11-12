@@ -118,8 +118,11 @@
                             </StackPanel>
                             <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding DuringSessionChoices}" SelectedIndex="{Binding DuringSessionIndex}"
                                      AutomationProperties.Name="During a focus session" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="sPending" Margin="0,6,0,0" Text="{Binding DuringSessionNote}"
-                                       IsVisible="{Binding HasDuringSessionNote}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Spacing="2" Margin="0,6,0,0" IsVisible="{Binding HasDuringSessionNote}">
+                                <TextBlock Classes="sPending" Text="{Binding DuringSessionNote}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                                <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelDuringSessionCommand}" IsVisible="{Binding HasDuringSessionPending}"
+                                        HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                            </StackPanel>
                         </Grid>
                     </Border>
                     <Border Classes="sRow" search:SearchArea.Name="Snooze shortcuts">

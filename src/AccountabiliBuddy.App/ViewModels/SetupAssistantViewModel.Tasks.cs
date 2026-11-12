@@ -41,9 +41,10 @@ public sealed partial class SetupAssistantViewModel
             TaskRingDevices?.Load();
         }
 
-        if (step == AssistantStep.TaskCalendarExport)
+        if (step == AssistantStep.TaskCalendarExport && TaskExport is not null)
         {
-            TaskExport?.Load();
+            TaskExport.Load();
+            _ = TaskExport.CheckAsync();
         }
     }
 
@@ -80,16 +81,18 @@ public sealed partial class SetupAssistantViewModel
         }
     }
 
+    /// <summary>Marks a What's new feature as dealt with (<see cref="Services.Setup.SetupFeaturesService.SkipAsync"/>); set by the app.</summary>
+    public Func<string, Task>? SkipFeature { get; init; }
+
     // Next on a Tasks page: the chooser applies the picked copy, the ringing devices are kept as shown (a choice for the account).
-    // False keeps the page (nothing could be applied yet, with why). A PC that has just joined a group may not have the account's copy
-    // yet: a choice stamped now would then win over it on every device, so "Start fresh" with nothing in the account and "as shown"
-    // ringing devices write nothing there (a switch the user turned was already saved).
+    // False keeps the page (nothing could be applied yet, with why). Start fresh over an account that holds nothing writes nothing (the
+    // chooser's rule: a stamp made now would later reset the group's choice); in What's new the feature is then marked dealt with. A PC
+    // that has just joined a group may not have the account's ring-on list yet, so "as shown" writes nothing there (a switch the user
+    // turned was already saved).
     private async Task<bool> FinishTaskStepAsync()
     {
         switch (Step)
         {
-            case AssistantStep.TaskViewChooser when TaskViewChooser is not null && _joined && TaskViewChooser.IsFreshPicked && !TaskViewChooser.HasAccountCopy:
-                return true;
             case AssistantStep.TaskRingDevices when _joined:
                 return true;
             case AssistantStep.TaskViewChooser when TaskViewChooser is not null:
@@ -97,6 +100,11 @@ public sealed partial class SetupAssistantViewModel
                 {
                     StatusMessage = TaskViewChooser.StatusText;
                     return false;
+                }
+
+                if (!TaskViewChooser.LastApplyWrote && _whatsNew is not null && SkipFeature is not null)
+                {
+                    await SkipFeature(Services.Setup.SetupFeatures.TasksRedesignId);
                 }
 
                 return true;

@@ -1086,6 +1086,7 @@ public partial class App : Application
             TaskExport = taskStore.IsActive && _taskCalendarExport is not null && _taskReminderSettings is not null
                 ? new TaskExportSetupViewModel(_taskCalendarExport, _taskReminderSettings) { OpenBrowser = OpenInBrowser }
                 : null,
+            SkipFeature = id => _setupFeatures?.SkipAsync(id) ?? Task.CompletedTask,
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -1802,6 +1803,8 @@ public partial class App : Application
                     {
                         reminderAlerts.Load();
                         labelsScreen.Refresh();
+                        // "Which devices should ring?" applies once a phone is in the list.
+                        _setupFeatures?.Refresh();
                     };
                 }
             }

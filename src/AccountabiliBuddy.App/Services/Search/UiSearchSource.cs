@@ -19,7 +19,7 @@ public static class UiSearchSource
         var seen = new HashSet<(string Text, string Path)>();
         foreach ((int tab, string tabName, Control page) in pages)
         {
-            foreach (Control control in page.GetLogicalDescendants().OfType<Control>())
+            foreach (Control control in IndexedControls(page))
             {
                 string? text = TextOf(control);
                 if (text is null)
@@ -38,7 +38,7 @@ public static class UiSearchSource
             }
 
             // Words in the flyouts of buttons that opt in: not on the page until opened, so read from the flyout's own content.
-            foreach (Control button in page.GetLogicalDescendants().OfType<Control>().Where(SearchArea.GetIndexesFlyout))
+            foreach (Control button in IndexedControls(page).Where(SearchArea.GetIndexesFlyout))
             {
                 (string path, SettingsSection? group) = PlaceOf(button, page, tabName);
                 string kind = tab == SearchTabs.Settings ? SearchKinds.Setting : SearchKinds.App;
@@ -96,6 +96,27 @@ public static class UiSearchSource
                 {
                     yield return text;
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// A page's descendants (hidden ones too: search finds words on folded parts), leaving out the subtrees marked
+    /// <see cref="SearchArea.SkipProperty"/> (e.g. Settings › Tasks while the task list isn't in use: its row is hidden).
+    /// </summary>
+    private static IEnumerable<Control> IndexedControls(Control root)
+    {
+        foreach (Control child in root.GetLogicalChildren().OfType<Control>())
+        {
+            if (SearchArea.GetSkip(child))
+            {
+                continue;
+            }
+
+            yield return child;
+            foreach (Control inner in IndexedControls(child))
+            {
+                yield return inner;
             }
         }
     }

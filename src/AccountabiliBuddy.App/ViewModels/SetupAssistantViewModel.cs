@@ -734,6 +734,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
         _coldTurkeyFiles?.Dispose();
         Backup.Dispose();
+        TaskExport?.Dispose();
     }
 
     [RelayCommand(CanExecute = nameof(CanGoNext))]

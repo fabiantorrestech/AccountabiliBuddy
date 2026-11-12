@@ -432,7 +432,6 @@ public sealed class TaskSettingsService
     /// <returns>A note for the restore summary, or null.</returns>
     public async Task<string?> RestoreAsync(TaskSettings wanted, GuidanceMode mode)
     {
-        TaskSettings before = await LoadForAsync(mode);
         await SetNextStepTakesSlotAsync(wanted.NextStepTakesSlot, mode);
         await UpdateAsync(
             settings => settings with
@@ -460,15 +459,13 @@ public sealed class TaskSettingsService
             return "Some Tasks settings weren't restored during a session (they would loosen it).";
         }
 
+        // Every setter above either applied its value (dropping a waiting change) or left one waiting for it, so any change still waiting
+        // now is one of these values (also one that was already waiting with the same value and keeps its time).
         TaskSettings after = await LoadForAsync(mode);
-        bool waiting = (after.PendingSessionActions is not null && after.PendingSessionActions != before.PendingSessionActions)
-            || (after.PendingStepAway is not null && after.PendingStepAway != before.PendingStepAway)
-            || (after.PendingSideTask is not null && after.PendingSideTask != before.PendingSideTask)
-            || (after.PendingCompactInSession is not null && after.PendingCompactInSession != before.PendingCompactInSession)
-            || (after.PendingHideShelfInSession is not null && after.PendingHideShelfInSession != before.PendingHideShelfInSession)
-            || (after.PendingSessionView is not null && after.PendingSessionView != before.PendingSessionView);
+        bool waiting = after.PendingSessionActions is not null || after.PendingStepAway is not null || after.PendingSideTask is not null
+            || after.PendingCompactInSession is not null || after.PendingHideShelfInSession is not null || after.PendingSessionView is not null;
         return waiting
-            ? "Looser Tasks settings (more actions per session, pausing the timer when stepping away or on a side task, a session layout that shows more) take effect after the countdown."
+            ? "Some of these Tasks settings loosen a session (more actions, pausing the timer when stepping away or on a side task, a session layout that shows more): they wait the looser-change countdown, shown under each row, and never start during a session."
             : null;
     }
 

@@ -1047,11 +1047,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The page showing, by identity (what the pages' <see cref="SettingsSectionIs"/> bindings read); null before the first.</summary>
     public SettingsSection? SelectedSection => SelectedRow?.Section;
 
-    /// <summary>Shows <paramref name="section"/>'s page (a link, search, the sync light); nothing changes when it isn't in the list.</summary>
+    /// <summary>
+    /// Shows <paramref name="section"/>'s page (a link, search, the sync light); nothing changes when it isn't in the list or its row is
+    /// hidden (Tasks without the task list: its page would be blank).
+    /// </summary>
     public void Select(SettingsSection section)
     {
         int index = IndexOf(section);
-        if (index >= 0)
+        if (index >= 0 && Rows[index].IsAvailable)
         {
             SelectedRowIndex = index;
         }

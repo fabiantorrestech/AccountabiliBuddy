@@ -258,8 +258,9 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <!-- Tasks (ADR 76): a page of its own, there only while the task list is the source (the row hides otherwise). -->
-                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Tasks}}" search:SearchArea.Name="Tasks" search:SearchArea.SettingsGroup="Tasks">
+                    <!-- Tasks (ADR 76): a page of its own, there only while the task list is the source (the row hides otherwise, and search leaves it out). -->
+                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Tasks}}" search:SearchArea.Name="Tasks" search:SearchArea.SettingsGroup="Tasks"
+                           search:SearchArea.Skip="{Binding Settings.TasksPage, Converter={x:Static ObjectConverters.IsNull}}">
                         <Panel IsVisible="{Binding Settings.TasksPage, Converter={x:Static ObjectConverters.IsNotNull}}">
                             <views:TaskSettingsView DataContext="{Binding Settings.TasksPage}" />
                         </Panel>

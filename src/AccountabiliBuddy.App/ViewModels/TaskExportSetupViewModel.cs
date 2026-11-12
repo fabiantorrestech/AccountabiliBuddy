@@ -12,7 +12,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// or Nowhere ("Add new reminders to", <see cref="TaskReminderSettingsService.UpdateAsync"/>). Set up = allowed, or Nowhere chosen
 /// (<see cref="IsSetUp"/>). Use from the UI thread only.
 /// </summary>
-public sealed partial class TaskExportSetupViewModel : ObservableObject
+public sealed partial class TaskExportSetupViewModel : ObservableObject, IDisposable
 {
     private readonly TaskCalendarExportService _export;
     private readonly TaskReminderSettingsService _reminders;
@@ -25,10 +25,19 @@ public sealed partial class TaskExportSetupViewModel : ObservableObject
         _export = export;
         _reminders = reminders;
         AccountText = StatusText = string.Empty;
-        _export.StatusChanged += (_, _) => Dispatcher.UIThread.Post(Load);
-        _reminders.Changed += (_, _) => Dispatcher.UIThread.Post(Load);
+        _export.StatusChanged += OnServiceChanged;
+        _reminders.Changed += OnServiceChanged;
         Load();
     }
+
+    /// <summary>Stops following the services (one page per setup assistant opened; the services live as long as the app).</summary>
+    public void Dispose()
+    {
+        _export.StatusChanged -= OnServiceChanged;
+        _reminders.Changed -= OnServiceChanged;
+    }
+
+    private void OnServiceChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Load);
 
     /// <summary>Opens Google's consent page in the browser (Allow); set by the app.</summary>
     public Func<Uri, bool>? OpenBrowser { get; init; }
@@ -69,6 +78,13 @@ public sealed partial class TaskExportSetupViewModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AllowCommand))]
     public partial bool IsAllowing { get; set; }
+
+    /// <summary>The page opened: asks Google once whether the OK already exists, then shows it.</summary>
+    public async Task CheckAsync()
+    {
+        await _export.CheckAllowedAsync();
+        Load();
+    }
 
     public void Load()
     {

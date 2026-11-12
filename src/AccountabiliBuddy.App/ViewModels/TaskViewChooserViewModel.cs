@@ -202,10 +202,38 @@ public sealed partial class TaskViewChooserViewModel : ObservableObject
             return false;
         }
 
-        await _account.ApplyAsync(choice);
+        // Start fresh over an account that holds neither setting changes nothing: a missing choice already means the built-in Default
+        // view and no picked calendar. Writing it would stamp it now, and once this PC links (or the account's copy arrives) that newer
+        // stamp would reset the group's default view and turn its picked calendar off.
+        LastApplyWrote = !(choice.Origin == TaskAccountSettingsOrigin.Fresh && !HasAccountCopy);
+        if (LastApplyWrote)
+        {
+            await _account.ApplyAsync(choice);
+        }
+
         StatusText = "Done. " + What(choice);
+        // The backup file's text and password aren't kept once its copy is applied.
+        _backupText = null;
+        Password = string.Empty;
         Refresh();
         return true;
+    }
+
+    /// <summary>The last <see cref="ApplyAsync"/> wrote to the account (false: Start fresh over an account that holds nothing).</summary>
+    public bool LastApplyWrote { get; private set; }
+
+    /// <summary>Forgets the opened backup (its text, password and copy) and goes back to the default pick (Settings' Cancel).</summary>
+    public void Forget()
+    {
+        _backupText = null;
+        _backupChoice = null;
+        _backupFileName = null;
+        Password = string.Empty;
+        NeedsPassword = false;
+        BackupText = "No file chosen yet.";
+        BackupWhat = StatusText = string.Empty;
+        Refresh();
+        Picked = HasAccountCopy ? TaskAccountSettingsOrigin.Account : TaskAccountSettingsOrigin.Fresh;
     }
 
     private async Task OpenBackupAsync(string? password)

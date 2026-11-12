@@ -231,6 +231,31 @@ public sealed class TaskCalendarExportService : IDisposable
     /// </summary>
     public bool IsAllowed => ExportSource() is CalendarSource source && _state.AllowedFor == source.Id;
 
+    /// <summary>
+    /// Asks Google once (a token refresh, no calendar call) whether the connected account's sign-in has the OK export needs, and
+    /// remembers it (<see cref="IsAllowed"/>). The setup assistant's page calls it when it opens, so an OK given earlier on an install with
+    /// nothing to export counts. Failures leave it as it was.
+    /// </summary>
+    public async Task<bool> CheckAllowedAsync()
+    {
+        if (ExportSource() is not CalendarSource source)
+        {
+            return false;
+        }
+
+        try
+        {
+            GoogleAccessToken access = await AccessAsync(source);
+            await NoteAllowedAsync(access.Has(GoogleCalendarClient.AppCreatedScope) ? source.Id : null);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException or TaskCanceledException)
+        {
+            // Offline or not signed in here: unknown, kept as it was.
+        }
+
+        return IsAllowed;
+    }
+
     /// <summary>The Google account events go to ("Google · name@example.com"); null when no Google account is connected.</summary>
     public string? ExportAccountName => ExportSource()?.Name;
 
@@ -380,9 +405,15 @@ public sealed class TaskCalendarExportService : IDisposable
             planned = planned.Where(action => action.Kind != TaskCalendarActionKind.Forget).ToList();
         }
 
-        // Nothing to write: no call to Google at all (also for users who never turned export on).
+        // Nothing to write: no call to Google at all (also for users who never turned export on). A sign-in already at hand still says
+        // whether the OK exists (for the setup assistant's check).
         if (Pending(planned).Count == 0)
         {
+            if (_access is { } cached && _accessSourceId == source.Id && cached.ExpiresAt > _time.GetUtcNow())
+            {
+                await NoteAllowedAsync(cached.Has(GoogleCalendarClient.AppCreatedScope) ? source.Id : null);
+            }
+
             _appCalendarTrouble = 0;
             _confirmWaits.Clear();
             SetStatus(null, NeedsConsent);

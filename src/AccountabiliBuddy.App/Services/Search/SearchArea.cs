@@ -29,7 +29,7 @@ public sealed class SearchArea : AvaloniaObject
 
     public static void SetIndexesFlyout(Control control, bool value) => control.SetValue(IndexesFlyoutProperty, value);
 
-    /// <summary>True on a control inside a flyout whose words (and its subtree's) search leaves out: they are not shown there.</summary>
+    /// <summary>True on a control whose words (and its subtree's) search leaves out: they are not shown there (in a flyout or on a page).</summary>
     public static readonly AttachedProperty<bool> SkipProperty =
         AvaloniaProperty.RegisterAttached<SearchArea, Control, bool>("Skip");
 

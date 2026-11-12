@@ -119,7 +119,7 @@ public sealed class TaskAccountSettingsService
     public TaskAccountSettingsChoice AccountCopy()
     {
         SyncTaskAccountSettings current = Current;
-        return new TaskAccountSettingsChoice(TaskAccountSettingsOrigin.Account, current.DefaultViewId, current.PickedCalendarId, current.EditedAt, null);
+        return new TaskAccountSettingsChoice(TaskAccountSettingsOrigin.Account, current.DefaultViewId, current.PickedCalendarId, ChoiceEditedAt(current), null);
     }
 
     /// <summary>A fresh start: the built-in Default view, no picked calendar.</summary>
@@ -144,9 +144,10 @@ public sealed class TaskAccountSettingsService
             }
         }
 
-        if (shared is { IsEmpty: false })
+        // Only the two settings a choice sets count: a backup holding only "Task reminders ring on" has no Tasks view to offer.
+        if (shared is not null && (shared.DefaultViewStamp is not null || shared.PickedCalendarStamp is not null))
         {
-            return new TaskAccountSettingsChoice(TaskAccountSettingsOrigin.Backup, shared.DefaultViewId, shared.PickedCalendarId, shared.EditedAt, content.CreatedAt);
+            return new TaskAccountSettingsChoice(TaskAccountSettingsOrigin.Backup, shared.DefaultViewId, shared.PickedCalendarId, ChoiceEditedAt(shared), content.CreatedAt);
         }
 
         Guid? legacyView = LegacyDefaultView(content.Device) ?? LegacyDefaultView(content.Settings);
@@ -169,6 +170,22 @@ public sealed class TaskAccountSettingsService
     public Task<bool> ResetAsync()
     {
         return ApplyAsync(Fresh);
+    }
+
+    // When the default view or the picked calendar was last really chosen (not "Task reminders ring on", which a choice leaves alone);
+    // null when neither was (only taken over at the upgrade, or never set).
+    private static DateTimeOffset? ChoiceEditedAt(SyncTaskAccountSettings settings)
+    {
+        DateTimeOffset? newest = null;
+        foreach (TaskFieldStamp? stamp in new[] { settings.DefaultViewStamp, settings.PickedCalendarStamp })
+        {
+            if (TaskAccountSettingsEdits.IsChosen(stamp) && (newest is null || stamp!.At > newest))
+            {
+                newest = stamp!.At;
+            }
+        }
+
+        return newest;
     }
 
     private static Guid? LegacyDefaultView(IReadOnlyDictionary<string, JsonElement>? documents)

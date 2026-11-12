@@ -117,6 +117,18 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
 
     public bool HasDuringSessionNote => DuringSessionNote.Length > 0;
 
+    /// <summary>A "Remind quietly" is waiting: "Cancel this change" shows under its line.</summary>
+    [ObservableProperty]
+    public partial bool HasDuringSessionPending { get; set; }
+
+    /// <summary>"Cancel this change": the value in effect again, which drops the waiting change (stricter, at once).</summary>
+    [RelayCommand]
+    private async Task CancelDuringSessionAsync()
+    {
+        await _settings.SetDuringSessionAsync(_settings.Current.DuringSession);
+        Load();
+    }
+
     /// <summary>"Tonight 6:00 PM · Tomorrow 9:00 AM · Monday 9:00 AM".</summary>
     [ObservableProperty]
     public partial string ShortcutsText { get; set; }
@@ -182,6 +194,7 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
             DisplayIndex = Math.Max(0, Array.IndexOf(Displays, current.Display));
             DuringSessionIndex = Math.Max(0, Array.IndexOf(DuringSessionValues, current.DuringSession));
             DuringSessionNote = PendingDuringSessionText(current);
+            HasDuringSessionPending = current.PendingDuringSession is not null;
             ShortcutsText = string.Join(" · ", current.Shortcuts.Select(TaskSnooze.Label));
             LoadDevices();
         }
