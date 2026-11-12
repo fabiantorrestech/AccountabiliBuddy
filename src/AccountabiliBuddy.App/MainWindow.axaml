@@ -188,8 +188,9 @@
                  drags the window and a double click maximizes it. Only one title-bar pop-up is open at a time (MainWindow.axaml.cs). -->
             <controls:TitleBarLayout x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}"
                                      chrome:WindowDecorationProperties.ElementRole="TitleBar">
-                <!-- In a narrow window the sound name gives way first, then the app name; back / forward and the noise buttons keep their
-                     size (156 = the pill without its name). -->
+                <!-- In a narrow window the sound name gives way first, down to a short name (204 = the pill without its name + a 48 wide
+                     name box, enough for the headphones notice), then the app name, and last the rest of the sound name (156 = the pill
+                     without its name); back / forward and the noise buttons keep their size (owner 2026-11-14). -->
                 <controls:GiveWayPanel x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" Margin="8,0,10,0" VerticalAlignment="Center">
                     <!-- Back / forward (owner 2026-11-14): always here, greyed while there is nowhere to go (Alt+← / Alt+→, the mouse's
                          back / forward buttons). -->
@@ -204,7 +205,7 @@
                         </Button>
                     </StackPanel>
                     <Border Classes="titleDivider" Height="18" Margin="8,0,10,0" controls:GiveWayPanel.IsDivider="True" />
-                    <TextBlock controls:GiveWayPanel.Order="2" Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                    <TextBlock controls:GiveWayPanel.Order="2" controls:GiveWayPanel.HideBelow="44" Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False" />
                     <!-- Not hit-testable, so it drags the window like the name; its name is read out instead of a tooltip. -->
                     <Border x:Name="ModePill" IsVisible="{Binding IsProductaBuddy}" IsHitTestVisible="False" CornerRadius="999"
@@ -213,7 +214,8 @@
                         <TextBlock Text="PB" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" />
                     </Border>
                     <Border Classes="titleDivider" Height="18" Margin="10,0" IsVisible="{Binding HasNoisePlayer}" controls:GiveWayPanel.IsDivider="True" />
-                    <Panel controls:GiveWayPanel.Order="1" MinWidth="156" IsVisible="{Binding HasNoisePlayer}" VerticalAlignment="Center">
+                    <Panel controls:GiveWayPanel.Order="1" MinWidth="156" controls:GiveWayPanel.FirstMinWidth="204" IsVisible="{Binding HasNoisePlayer}"
+                           VerticalAlignment="Center">
                         <views:TitleBarNoiseView x:Name="NoiseControl" DataContext="{Binding Session.NoisePlayer}"
                                                  chrome:WindowDecorationProperties.ElementRole="User" />
                     </Panel>

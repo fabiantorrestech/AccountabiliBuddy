@@ -79,6 +79,7 @@ Moved verbatim from the project CLAUDE.md on 2026-10-26; CLAUDE.md keeps a short
 5. **Controls stay next to what they act on.** Extra width goes to content (task text, steps), never to the space between a value and its buttons.
 6. **One place per thing.** The same item is never shown twice in a page's content (for example, the current task is not repeated next to the timer). App chrome is exempt: the title-bar session timer stays on every tab, including Today, because it is a fixed anchor (rule 1).
 7. **Session start or end keeps the layout.** Today's in-session and not-in-session layouts share the same skeleton: the session or start card in the same slot, and the task list in the same slot.
+   - **Owner-approved exception (2026-11-14), the PC title bar only:** the session control takes only the room its state needs (the Start pill or Ended button alone; in a session the ring, time, ⋯ and its compact extras), so when a session starts or ends the title bar's left group (the sound name, or the app name in a narrow window) narrows or widens. It eases over about 200 ms (ease-out); with Animations Off it changes at once and the left group fades in. The control's right edge, the right group and the back / forward arrows never move, and opening the extras still moves nothing.
 
 ### Back / forward (PC; owner 2026-11-14)
 

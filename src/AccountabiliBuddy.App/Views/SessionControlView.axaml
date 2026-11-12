@@ -145,21 +145,20 @@
                             <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
                         </Transitions>
                     </Border.Transitions>
-                    <!-- The end time is what gives way (trims) when the window is too narrow for both after the left group gave way. -->
+                    <!-- Compact (owner 2026-11-14, smaller reserve): Step away (or I'm back / Resume) as an icon with its name in the
+                         tooltip, and the short end time ("ends 11:20"; the full one in its tooltip). The end time is what gives way
+                         (trims) when the window is too narrow for both after the left group gave way. -->
                     <controls:GiveWayPanel x:Name="ExtrasRow">
                         <Border Height="28" CornerRadius="14" Background="{DynamicResource Ab.Surface}" ClipToBounds="True">
-                            <StackPanel Orientation="Horizontal">
-                                <Button Classes="sessionHalf" Padding="11,0,11,0" Command="{Binding MainActionCommand}"
-                                        AutomationProperties.Name="{Binding MainActionText}">
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                        <mi:MaterialIcon Kind="{Binding MainActionIcon}" Width="15" Height="15" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding MainActionText}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
+                            <Button x:Name="MainActionButton" Classes="sessionHalf" Width="30" Padding="0" HorizontalContentAlignment="Center"
+                                    Command="{Binding MainActionCommand}" ToolTip.Tip="{Binding MainActionText}"
+                                    AutomationProperties.Name="{Binding MainActionText}">
+                                <mi:MaterialIcon Kind="{Binding MainActionIcon}" Width="15" Height="15" VerticalAlignment="Center" />
+                            </Button>
                         </Border>
-                        <TextBlock controls:GiveWayPanel.Order="1" Text="{Binding EndsText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13"
-                                   FontWeight="Medium" Margin="10,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="EndsShort" controls:GiveWayPanel.Order="1" Text="{Binding EndsShortText}" ToolTip.Tip="{Binding EndsText}"
+                                   Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium" Margin="8,0,0,0" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
                     </controls:GiveWayPanel>
                 </Border>
                 <Panel Width="20" Height="20" VerticalAlignment="Center">

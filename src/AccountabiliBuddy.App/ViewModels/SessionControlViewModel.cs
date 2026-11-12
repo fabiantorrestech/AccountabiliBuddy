@@ -77,6 +77,13 @@ public sealed partial class SessionControlViewModel : ObservableObject
     [ObservableProperty]
     public partial string EndsText { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The title bar's compact extras (owner 2026-11-14, smaller reserve): <see cref="EndsText"/> without AM/PM, "ends 11:20"; the
+    /// full text stays in its tooltip and the Session menu's heading.
+    /// </summary>
+    [ObservableProperty]
+    public partial string EndsShortText { get; set; } = string.Empty;
+
     /// <summary>The ring has an end to count down to: the accent arc shows the share of the phase left.</summary>
     [ObservableProperty]
     public partial bool HasRing { get; set; }
@@ -259,7 +266,7 @@ public sealed partial class SessionControlViewModel : ObservableObject
         IsPaused = IsBreak = HasRing = IsCountUp = false;
         RingValue = 0;
         CanPause = CanSideTask = CanExtend = CanEndToQueued = false;
-        EndsText = string.Empty;
+        EndsText = EndsShortText = string.Empty;
         if (_layout.EndedAt is DateTimeOffset endedAt)
         {
             State = SessionControlState.Ended;
@@ -309,10 +316,22 @@ public sealed partial class SessionControlViewModel : ObservableObject
             SecondaryText = (hasEnd ? "left" : "so far") + (state.IsPaused ? " · paused" : phase);
         }
 
-        EndsText = state.IsPaused ? $"paused {AwayMinutes(state, now)}"
-            : state.IsPlanning && state.FocusEndsAt(now) is DateTimeOffset focusEnd ? $"ends {Clock(focusEnd, zone)}"
-            : state.PhaseEndsAt is DateTimeOffset end ? (state.IsEnforcing ? $"ends {Clock(end, zone)}" : $"break until {Clock(end, zone)}")
-            : $"since {Clock(state.PhaseStartedAt ?? now, zone)}";
+        EndsText = EndsFor(state, now, zone, at => Clock(at, zone));
+        EndsShortText = EndsFor(state, now, zone, at => ShortClock(at, zone));
+    }
+
+    private static string EndsFor(SessionState state, DateTimeOffset now, TimeZoneInfo zone, Func<DateTimeOffset, string> clock)
+    {
+        return state.IsPaused ? $"paused {AwayMinutes(state, now)}"
+            : state.IsPlanning && state.FocusEndsAt(now) is DateTimeOffset focusEnd ? $"ends {clock(focusEnd)}"
+            : state.PhaseEndsAt is DateTimeOffset end ? (state.IsEnforcing ? $"ends {clock(end)}" : $"break until {clock(end)}")
+            : $"since {clock(state.PhaseStartedAt ?? now)}";
+    }
+
+    // "11:20": 12-hour, without AM/PM (only the title bar's compact extras; the tooltip has the full time).
+    private static string ShortClock(DateTimeOffset at, TimeZoneInfo zone)
+    {
+        return TimeZoneInfo.ConvertTime(at, zone).ToString("h:mm", CultureInfo.InvariantCulture);
     }
 
     private void RefreshMainAction(SessionState state)

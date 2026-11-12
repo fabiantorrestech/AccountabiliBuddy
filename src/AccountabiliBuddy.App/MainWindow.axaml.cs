@@ -124,6 +124,9 @@ public partial class MainWindow : Window
             }
         }
 
+        // A session started or ended with Animations Off: the session control's room changed at once, so the left group (the sound
+        // name it narrowed or widened) fades in rather than jumping (owner 2026-11-14).
+        SessionControl.FootprintSnapped += (_, _) => FadeInTitleBarStart();
         _titleBarPopups.Add(SyncFlyout);
         _titleBarPopups.Add(SessionControl.SessionMenu);
         _titleBarPopups.Add(NoiseControl.VolumeFlyout);
@@ -306,6 +309,29 @@ public partial class MainWindow : Window
         }
 
         return IntPtr.Zero;
+    }
+
+    private static readonly TimeSpan TitleBarFade = TimeSpan.FromMilliseconds(150);
+
+    private DispatcherTimer? _titleBarFadeTimer;
+
+    // A quick fade of the title bar's left group from faint to full (reduced motion: no movement, only opacity).
+    private void FadeInTitleBarStart()
+    {
+        _titleBarFadeTimer?.Stop();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        TitleBarStart.Opacity = 0.3;
+        _titleBarFadeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _titleBarFadeTimer.Tick += (_, _) =>
+        {
+            double t = Math.Clamp(clock.Elapsed / TitleBarFade, 0, 1);
+            TitleBarStart.Opacity = 0.3 + 0.7 * t;
+            if (t >= 1)
+            {
+                _titleBarFadeTimer?.Stop();
+            }
+        };
+        _titleBarFadeTimer.Start();
     }
 
     // XButton1 / XButton2 go back / forward wherever the pointer is; the press is taken so nothing under it also acts on it.
