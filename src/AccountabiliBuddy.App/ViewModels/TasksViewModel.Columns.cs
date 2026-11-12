@@ -55,5 +55,11 @@ public sealed partial class TasksViewModel
         return order is null ? Task.CompletedTask : _layout.SetColumnOrderAsync(grouping, order);
     }
 
-    private List<string> ShownColumnKeys() => Shelf.Panel.Sections.Select(section => section.Key).ToList();
+    // The columns shown, in the order last stored: a second Alt+←/→ before the page has been rebuilt builds on the first.
+    private List<string> ShownColumnKeys()
+    {
+        string? grouping = Shelf.HasViews ? TaskColumnOrder.GroupingOf(Shelf.Grouping) : Core.Domain.TaskViewConfig.GroupBins;
+        List<string> shown = Shelf.Panel.Sections.Select(section => section.Key).ToList();
+        return grouping is null ? shown : TaskColumnOrder.Apply(shown, key => key, _layout.Current.ColumnOrderOf(grouping));
+    }
 }

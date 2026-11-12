@@ -15,7 +15,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// to, To sort by default), the "@label" / "#tag" list that opens as soon as "@" or "#" is typed and narrows per letter, the picked
 /// label and tags as removable chips, and the title help under the box: the 60-character soft limit with its counter from 50, the
 /// "Move … to notes" split, the project marker at the start ("Part of a project?" with label and tag choices, Apply, Keep as typed)
-/// and the one-time offer to learn a marker style. Rule-based and local; nothing here blocks adding. One class for the Today column's
+/// and the one-time offer to learn a marker style. Rule-based and local; nothing here blocks adding. One class for the Tasks page's
 /// box, a Shelf bin's "+" box and Jot it down (<see cref="AddBoxKind"/>); the page adds the task (<see cref="IAddBoxHost"/>).
 /// </summary>
 public sealed partial class AddBoxViewModel : ObservableObject
@@ -326,7 +326,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
         return true;
     }
 
-    /// <summary>Esc: closes the list first; then a Shelf bin's box or the jot closes (the jot forgets its text), the Today column's box empties.</summary>
+    /// <summary>Esc: closes the list first; then a Shelf bin's box or the jot closes (the jot forgets its text), the Tasks page's box empties.</summary>
     public void Escape()
     {
         if (DismissSuggestions())

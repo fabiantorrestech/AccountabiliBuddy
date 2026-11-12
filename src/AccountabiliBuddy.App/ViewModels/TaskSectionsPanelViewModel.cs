@@ -7,7 +7,8 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The sections of one task panel (the Tasks page's Today column "today", the Today page's "todaytab", the Shelf "shelf") and how
+/// The sections of one task panel (the Today page's "todaytab", the Shelf "shelf"; "today" was the Tasks page's Today column until
+/// round 2 R3) and how
 /// they fold (shared behaviour §1): a section is open when the user unfolded it since Tasks was last opened, else when it is pinned
 /// open, else as the panel's last Expand all / Collapse all left it, else by its own default (This session open, the quieter sections folded, the Shelf's open).
 /// Expand all / Collapse all (the unfold button, or a header's right-click) are remembered per panel; the pins are shared by both

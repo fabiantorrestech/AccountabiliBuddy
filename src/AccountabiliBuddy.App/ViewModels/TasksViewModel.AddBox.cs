@@ -5,7 +5,7 @@ using AccountabiliBuddy.Core.Tasks;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The page's add boxes (spec 03 §B, B2): the Today column's "+ Add a task", each Shelf bin's "+" and Jot it down, and what they need
+/// The page's add boxes (spec 03 §B, B2): the page's "+ Add a task", each Shelf bin's "+" and Jot it down, and what they need
 /// (<see cref="IAddBoxHost"/>). A task is added through the task list's actions (number, stamps, undo, sync); This session is Queued
 /// first and then offered to the session's own add, so the cap decides and a full session leaves it in Queued. While the task list is
 /// not the source (or can't be opened), the old lists take the add as the old add row did, so an unreadable list still refuses it and
@@ -16,10 +16,10 @@ public sealed partial class TasksViewModel : IAddBoxHost
     private AddBoxViewModel? _addBox;
     private AddBoxViewModel? _jot;
 
-    /// <summary>The Today column's add box ("+ Add a task", Send to To sort by default).</summary>
+    /// <summary>The Tasks page's add box ("+ Add a task", Send to To sort by default).</summary>
     public AddBoxViewModel AddBox => _addBox ??= new AddBoxViewModel(this, AddBoxKind.Main);
 
-    /// <summary>Jot it down, shared by the Today page and the Today column (Ctrl+J).</summary>
+    /// <summary>Jot it down, on the Today page (Ctrl+J).</summary>
     public AddBoxViewModel Jot => _jot ??= new AddBoxViewModel(this, AddBoxKind.Jot);
 
     private TaskSettingsService? _taskSettings;

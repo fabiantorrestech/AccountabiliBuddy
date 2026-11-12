@@ -5,7 +5,7 @@
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.TaskRowView"
              x:DataType="vm:TaskListRowViewModel">
-    <!-- One task row, the same on the Tasks page's Today column, the Shelf and Today's sections (spec 03 §B): the number (This
+    <!-- One task row, the same in the Shelf's columns and Today's sections (spec 03 §B): the number (This
          session) and check box, the title (a star before it when highlighted) with its detail line (⏱ 50 min, 📅 Fri 11/13,
          🔔 10 min before, #tags, origin, untouched, the sync-problem cloud), the label's dot and name, the time or "Now", the hover
          quick actions (← / →), the open arrow, the ⋯ menu and the drag handle. Highlighted (starred) rows get a faint gold tint and a

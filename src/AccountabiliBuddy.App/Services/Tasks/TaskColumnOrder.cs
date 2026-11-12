@@ -5,8 +5,8 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// The left-to-right order of the Shelf's columns (round 2 R3, brief §4.6): per grouping, the order this PC stored
 /// (<see cref="TaskLayoutPreferences.ColumnOrder"/>) first, then any column it doesn't name in the grouping's own order (a new label or
-/// tag lands at the right). Moving a column stores the whole order shown, followed by the stored keys not shown now (a label filtered
-/// away keeps its place for when it comes back). Pure, so the checks can call it.
+/// tag lands at the right). Moving a column rewrites only the places of the columns shown now: a column out of view (an empty label
+/// or tag group, one a search or filter hides) keeps its stored slot for when it comes back. Pure, so the checks can call it.
 /// </summary>
 public static class TaskColumnOrder
 {
@@ -69,20 +69,34 @@ public static class TaskColumnOrder
         return from < 0 || to < 0 || from == to ? null : MovedTo(shown, stored, key, to);
     }
 
+    // The full order (the stored keys, then the shown ones it doesn't name yet), with the shown columns' slots refilled in their new
+    // order; every other slot keeps its key.
     private static List<string> MovedTo(IReadOnlyList<string> shown, IReadOnlyList<string>? stored, string key, int to)
     {
-        List<string> order = shown.ToList();
-        order.Remove(key);
-        order.Insert(to, key);
-        foreach (string hidden in stored ?? [])
+        List<string> newShown = shown.ToList();
+        newShown.Remove(key);
+        newShown.Insert(to, key);
+
+        var full = new List<string>();
+        foreach (string known in (stored ?? []).Concat(shown))
         {
-            if (!order.Contains(hidden, StringComparer.Ordinal))
+            if (!full.Contains(known, StringComparer.Ordinal))
             {
-                order.Add(hidden);
+                full.Add(known);
             }
         }
 
-        return order;
+        var shownKeys = new HashSet<string>(shown, StringComparer.Ordinal);
+        int next = 0;
+        for (int index = 0; index < full.Count; index++)
+        {
+            if (shownKeys.Contains(full[index]))
+            {
+                full[index] = newShown[next++];
+            }
+        }
+
+        return full;
     }
 
     private static int IndexOf(IReadOnlyList<string> keys, string key)

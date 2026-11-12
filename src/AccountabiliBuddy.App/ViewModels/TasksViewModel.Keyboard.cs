@@ -6,8 +6,11 @@ namespace AccountabiliBuddy.App.ViewModels;
 // its ID, Ctrl+Z, and the page's part of Esc. The keys themselves are read by Services/TaskShortcuts (the window) and the rows.
 public sealed partial class TasksViewModel
 {
-    /// <summary>Ctrl+G found a task: the page puts the keyboard on its row (after the page shows it).</summary>
+    /// <summary>Ctrl+G found a task on the Shelf: the Tasks page puts the keyboard on its row (after the page shows it).</summary>
     public event EventHandler<TaskRowKey>? FocusRowRequested;
+
+    /// <summary>Ctrl+G found a task of Today's sections (round 2 R3): the Today page puts the keyboard on its row.</summary>
+    public event EventHandler<TaskRowKey>? FocusTodayRowRequested;
 
     /// <summary>
     /// The menu a key acts through (Del, F2, H): the selection's bulk menu when two or more rows are picked; else the one picked row's,
@@ -59,9 +62,11 @@ public sealed partial class TasksViewModel
     }
 
     /// <summary>
-    /// Ctrl+G: opens the task with this ID ("142", or "142b" for its step) on the Tasks page (switching to it from any other page): the Shelf or Today column shows if it was
-    /// hidden, its section unfolds, the task opens and its row takes the keyboard. Null when it opened; otherwise what to say ("No task
-    /// 142"). Only tasks the page lists can open (the Shelf's view may leave one out: it says so).
+    /// Ctrl+G: finds the task with this ID ("142", or "142b" for its step). On the Shelf: the Tasks page shows (and the Shelf, if hidden
+    /// during a session), its column unfolds, the task opens and its row takes the keyboard. In Today's sections (This session, Queued,
+    /// Reminders due today, Finished today; round 2 R3): the Today page shows, the section unfolds and the row takes the keyboard (Enter
+    /// opens it on Tasks). Null when found; otherwise what to say ("No task 142"). Only tasks the pages list are found (the Shelf's
+    /// view may leave one out: it says so).
     /// </summary>
     public string? GoToTask(string reference)
     {
@@ -82,7 +87,8 @@ public sealed partial class TasksViewModel
         }
 
         Guid id = hit.Task.Id;
-        foreach (TaskSectionsPanelViewModel panel in new[] { TodayTabPanel, Shelf.Panel })
+        // The Shelf first: a Shelf task with a reminder due today is also listed under Today's Reminders due today.
+        foreach (TaskSectionsPanelViewModel panel in new[] { Shelf.Panel, TodayTabPanel })
         {
             foreach (TaskSectionViewModel section in panel.Sections)
             {
@@ -96,6 +102,13 @@ public sealed partial class TasksViewModel
 
                 Reveal(panel, section);
                 ClearSelection();
+                if (ReferenceEquals(panel, TodayTabPanel))
+                {
+                    OpenTodayRequested?.Invoke(this, EventArgs.Empty);
+                    FocusTodayRowRequested?.Invoke(this, row.Key);
+                    return null;
+                }
+
                 if (row.OwnerKey is TaskRowKey owner)
                 {
                     if (!(IsDetailOpen && _selectedKey == owner))
@@ -118,8 +131,7 @@ public sealed partial class TasksViewModel
         return text + " isn't shown in the current view";
     }
 
-    // The Shelf shows (hidden during a session: Ctrl+G shows it, as Show the Shelf does), and the section is unfolded. A task of
-    // Today's sections opens on the Tasks page's detail card (round 2 R3: Today's rows are on the Today tab).
+    // The Shelf shows (hidden during a session: Ctrl+G shows it, as Show the Shelf does), and the section is unfolded.
     private void Reveal(TaskSectionsPanelViewModel panel, TaskSectionViewModel section)
     {
         if (ReferenceEquals(panel, Shelf.Panel) && _shelf.Show())

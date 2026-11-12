@@ -343,12 +343,17 @@ public partial class TaskSectionView : UserControl
 
             if (visual is TaskColumnView { DataContext: TaskSectionViewModel column })
             {
-                return new DropPlace(column, null, true);
+                return TakesDrop(column) ? new DropPlace(column, null, true) : null;
             }
 
             if (visual is not TaskSectionView { DataContext: TaskSectionViewModel section })
             {
                 continue;
+            }
+
+            if (!TakesDrop(section))
+            {
+                return null;
             }
 
             if (item is { DataContext: TaskListRowViewModel row })
@@ -366,6 +371,20 @@ public partial class TaskSectionView : UserControl
         }
 
         return null;
+    }
+
+    // A section takes the dragged row when it is the row's own section (a reorder) or a bin (a move); a label or tag group, Reminders
+    // due today and Finished today from elsewhere refuse it, so they don't light up as targets.
+    private bool TakesDrop(TaskSectionViewModel target)
+    {
+        if (DataContext is not TaskSectionViewModel from)
+        {
+            return false;
+        }
+
+        return ReferenceEquals(from, target) || from.Key == target.Key && from.Bin == target.Bin
+            || target.Bin is AccountabiliBuddy.Core.Domain.TaskBin.Session or AccountabiliBuddy.Core.Domain.TaskBin.Queued
+                or AccountabiliBuddy.Core.Domain.TaskBin.Sort or AccountabiliBuddy.Core.Domain.TaskBin.Next or AccountabiliBuddy.Core.Domain.TaskBin.Later;
     }
 
     private void ShowDropTarget(DropPlace? place)

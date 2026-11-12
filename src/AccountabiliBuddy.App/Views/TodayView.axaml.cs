@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace AccountabiliBuddy.App.Views;
 
@@ -41,9 +42,47 @@ public partial class TodayView : UserControl
         picker.Closed += closeOnPick;
     }
 
+    private TasksViewModel? _tasksPage;
+
     public TodayView()
     {
         InitializeComponent();
+        // The page header's DataContext is the task page (Today's sections live there): Ctrl+G's rows on Today are focused here.
+        TodayHeader.DataContextChanged += (_, _) => FollowTasksPage(TodayHeader.DataContext as TasksViewModel);
+    }
+
+    private void FollowTasksPage(TasksViewModel? page)
+    {
+        if (ReferenceEquals(page, _tasksPage))
+        {
+            return;
+        }
+
+        if (_tasksPage is not null)
+        {
+            _tasksPage.FocusTodayRowRequested -= OnFocusTodayRowRequested;
+        }
+
+        _tasksPage = page;
+        if (_tasksPage is not null)
+        {
+            _tasksPage.FocusTodayRowRequested += OnFocusTodayRowRequested;
+        }
+    }
+
+    // Ctrl+G found a task of Today's sections (round 2 R3): once the tab shows and its section unfolded, its row takes the keyboard.
+    private void OnFocusTodayRowRequested(object? sender, TaskRowKey key)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            Button? row = this.GetVisualDescendants().OfType<Button>()
+                .FirstOrDefault(button => button.Classes.Contains("listRow") && button.IsEffectivelyVisible && button.DataContext is TaskListRowViewModel candidate && candidate.Key == key);
+            if (row is not null)
+            {
+                row.Focus(Avalonia.Input.NavigationMethod.Tab);
+                row.BringIntoView();
+            }
+        }, DispatcherPriority.Background);
     }
 
     protected override void OnDataContextChanged(EventArgs e)

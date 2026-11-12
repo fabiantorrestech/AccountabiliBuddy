@@ -7,7 +7,7 @@ using Avalonia.Interactivity;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// The add box of the Today column and of a Shelf bin's "+" (<see cref="AddBoxViewModel"/>). Code-behind: the keyboard and focus
+/// The add box of the Tasks page and of a Shelf bin's "+" (<see cref="AddBoxViewModel"/>). Code-behind: the keyboard and focus
 /// (<see cref="AddBoxInput"/>), a click anywhere on the pill takes the keyboard, and the Send to and marker menus (they keep the box in
 /// use while open). "From your lists…" opens the lists' picker by the ▾.
 /// </summary>

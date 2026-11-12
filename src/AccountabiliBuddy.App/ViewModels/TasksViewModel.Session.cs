@@ -106,13 +106,20 @@ public sealed partial class TasksViewModel
     [ObservableProperty]
     public partial string ShelfHiddenText { get; set; } = string.Empty;
 
-    /// <summary>The user left the Tasks page: a Shelf shown during the session hides again (it is shown only while they look at it).</summary>
+    /// <summary>
+    /// The user left the Tasks page: a Shelf shown during the session hides again (it is shown only while they look at it), and a search
+    /// typed while it stayed hidden is cleared, so the hidden Shelf doesn't come back showing it.
+    /// </summary>
     public void TasksLeft()
     {
         if (_shelf.ShownByUser)
         {
             _shelf.HideAgain();
             ShelfVisibilityChanged();
+        }
+        else if (_shelf.CanToggle && Shelf.IsSearching)
+        {
+            Shelf.SearchText = string.Empty;
         }
     }
 

@@ -580,7 +580,10 @@ public sealed partial class TasksViewModel
                 await _actions.MoveAsync([id], drop.To.Bin.Value);
                 break;
             default:
-                Notice = "Drop it on This session, Queued, To sort, Next or Later.";
+                // Label and tag columns, Reminders due today and Finished today take no drops from elsewhere.
+                Notice = drop.To.TodayStrip is not null
+                    ? "Drop it on To sort, Next or Later, or on the Today strip."
+                    : "Drop it on This session or Queued.";
                 break;
         }
     }

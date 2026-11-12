@@ -386,7 +386,7 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
 
     public IReadOnlyList<TaskShortcutRow> Shortcuts { get; } =
     [
-        new("Ctrl+\\", "Show or hide the Shelf"),
+        new("Ctrl+\\", "Show the Shelf hidden during a session (Tasks), or the Today sidebar (Today)"),
         new("Ctrl+J", "Jot it down"),
         new("Ctrl+F", "Search"),
         new("Ctrl+G", "Go to a task by its ID"),

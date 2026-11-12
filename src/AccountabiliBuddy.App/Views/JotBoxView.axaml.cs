@@ -4,7 +4,7 @@ using Avalonia.Controls;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// Jot it down on the Today page and in the Today column (<see cref="AddBoxViewModel"/> with <see cref="AddBoxKind.Jot"/>). Both places
+/// Jot it down on the Today page (<see cref="AddBoxViewModel"/> with <see cref="AddBoxKind.Jot"/>). Both places
 /// share one jot; the one on screen takes the keyboard when it opens. Code-behind: the keyboard and focus (<see cref="AddBoxInput"/>).
 /// </summary>
 public partial class JotBoxView : UserControl
