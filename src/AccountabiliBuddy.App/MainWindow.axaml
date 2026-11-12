@@ -157,23 +157,23 @@
                  double click maximizes it. Only one title-bar pop-up is open at a time (MainWindow.axaml.cs). -->
             <controls:TitleBarLayout x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}"
                                      chrome:WindowDecorationProperties.ElementRole="TitleBar">
-                <!-- A grid, not a stack, so the noise control (its sound name) can give way in a narrow window. -->
-                <Grid x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" ColumnDefinitions="Auto,Auto,Auto,*" Margin="16,0,10,0"
-                      VerticalAlignment="Center">
-                    <TextBlock Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
-                               IsHitTestVisible="False" />
+                <!-- In a narrow window the sound name gives way first, then the app name; the noise buttons keep their size (156 = the pill
+                     without its name). -->
+                <controls:GiveWayPanel x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" Margin="16,0,10,0" VerticalAlignment="Center">
+                    <TextBlock controls:GiveWayPanel.Order="2" Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False" />
                     <!-- Not hit-testable, so it drags the window like the name; its name is read out instead of a tooltip. -->
-                    <Border x:Name="ModePill" Grid.Column="1" IsVisible="{Binding IsProductaBuddy}" IsHitTestVisible="False" CornerRadius="999"
+                    <Border x:Name="ModePill" IsVisible="{Binding IsProductaBuddy}" IsHitTestVisible="False" CornerRadius="999"
                             Padding="8,1" Margin="8,0,0,0" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" Background="{DynamicResource Ab.Surface}"
                             VerticalAlignment="Center" AutomationProperties.Name="ProductaBuddy mode">
                         <TextBlock Text="PB" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" />
                     </Border>
-                    <Border Grid.Column="2" Classes="titleDivider" Height="18" Margin="10,0" IsVisible="{Binding HasNoisePlayer}" />
-                    <Panel Grid.Column="3" IsVisible="{Binding HasNoisePlayer}" VerticalAlignment="Center">
+                    <Border Classes="titleDivider" Height="18" Margin="10,0" IsVisible="{Binding HasNoisePlayer}" />
+                    <Panel controls:GiveWayPanel.Order="1" MinWidth="156" IsVisible="{Binding HasNoisePlayer}" VerticalAlignment="Center">
                         <views:TitleBarNoiseView x:Name="NoiseControl" DataContext="{Binding Session.NoisePlayer}"
                                                  chrome:WindowDecorationProperties.ElementRole="User" />
                     </Panel>
-                </Grid>
+                </controls:GiveWayPanel>
 
                 <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts). -->
                 <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="Center" DataContext="{Binding SessionControl}"

@@ -19,13 +19,21 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+// The listed files are copied into build/sharedSrc and compiled from there, so :shared's source folder is never a second content
+// root of this module (Android Studio flags "duplicate content roots" otherwise).
+val sharedCopy = tasks.register<Sync>("copySharedSources") {
+    from("../shared/src/main/java") {
+        include(sharedSources)
+    }
+    into(layout.buildDirectory.dir("sharedSrc"))
+}
+
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
     sourceSets.named("main") {
-        kotlin.srcDir("../shared/src/main/java")
-        kotlin.include(sharedSources + "com/accountabilibuddy/checks/**")
+        kotlin.srcDir(sharedCopy)
     }
 }
 

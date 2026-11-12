@@ -45,7 +45,11 @@ public partial class ThemeToggleButton : UserControl
         if (Menu is { } menu)
         {
             menu.Opened += (_, _) => ToggleButton.Classes.Set(OpenClass, true);
-            menu.Closed += (_, _) => ToggleButton.Classes.Set(OpenClass, false);
+            menu.Closed += (_, _) =>
+            {
+                ToggleButton.Classes.Set(OpenClass, false);
+                _openedByHold = false;
+            };
         }
 
         ActualThemeVariantChanged += (_, _) => ShowVariant();

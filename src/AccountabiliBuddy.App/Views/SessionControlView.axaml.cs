@@ -14,7 +14,7 @@ namespace AccountabiliBuddy.App.Views;
 /// the pointer is on it, while the keyboard focus is in it (Tab, not a click), while its menu is open, and always while away
 /// (I'm back). Motion "Off": it opens at once and the ended target doesn't fade.
 /// </summary>
-public partial class SessionControlView : UserControl
+public partial class SessionControlView : UserControl, AccountabiliBuddy.App.Controls.ITitleBarLeftReserve
 {
     private const string OpenClass = "open";
     private const string FadeClass = "fade";
@@ -73,30 +73,36 @@ public partial class SessionControlView : UserControl
         e.Handled = true;
     }
 
-    // Round 2 (brief §3.2, CN §1 rule 2): the control is centred in the title bar by its resting width; the extras (Step away, ⌄,
-    // the end time) open to the left over the empty title bar, so the ring and the time never move when they open.
+    // Round 2 (brief §3.2, CN §1 rules 2 and 3; R1 review): the extras (Step away, the end time) open to the left of the ring. Their
+    // full open width is reserved inside this control's own bounds while the pill shows, so opening them moves nothing, they never
+    // cover the noise control, and they are hit-tested as this control's buttons (never as the title bar's drag area). The title bar
+    // centres the resting part (ring, time, ⋯) and keeps the reserve clear of the left group (TitleBarLayout, LeftReserve).
+    private double _openExtrasWidth;
+
+    /// <summary>The width kept free left of the ring for the extras when open; 0 while idle or ended.</summary>
+    public double LeftReserve => Pill.IsVisible ? _openExtrasWidth : 0;
+
     protected override Size MeasureOverride(Size availableSize)
     {
-        Size full = base.MeasureOverride(availableSize);
-        return new Size(Math.Max(0, full.Width - ExtrasWidth()), full.Height);
-    }
-
-    protected override Size ArrangeOverride(Size finalSize)
-    {
-        double extras = ExtrasWidth();
-        foreach (Visual child in VisualChildren)
+        // The open width is the extras' content at its natural size (capped like the open style's MaxWidth), not the animated
+        // MaxWidth; the content is measured unconstrained first, and the normal pass below measures it again under the MaxWidth.
+        if (Pill.IsVisible && Extras.Child is Layoutable content)
         {
-            if (child is Layoutable layoutable)
-            {
-                layoutable.Arrange(new Rect(-extras, 0, finalSize.Width + extras, finalSize.Height));
-            }
+            content.Measure(Size.Infinity);
+            _openExtrasWidth = Math.Min(content.DesiredSize.Width + Extras.Padding.Left + Extras.Padding.Right, ExtrasOpenMaxWidth);
+        }
+        else
+        {
+            _openExtrasWidth = 0;
         }
 
-        return finalSize;
+        Size full = base.MeasureOverride(availableSize);
+        double shownExtras = Pill.IsVisible ? Extras.DesiredSize.Width : 0;
+        return new Size(full.Width - shownExtras + LeftReserve, full.Height);
     }
 
-    // Only the running pill has extras; when it is hidden its last measured width is stale.
-    private double ExtrasWidth() => Pill.IsVisible ? Extras.DesiredSize.Width : 0;
+    // The open style's MaxWidth on Border#Extras (SessionControlView.axaml).
+    private const double ExtrasOpenMaxWidth = 360;
 
     protected override void OnDataContextChanged(EventArgs e)
     {

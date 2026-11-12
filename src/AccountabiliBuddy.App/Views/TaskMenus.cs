@@ -103,7 +103,7 @@ public static class TaskMenus
         }
 
         Control? host = MenuHostOf(button);
-        host?.Classes.Set(MenuOpenClass, true);
+        flyout.Opened += (_, _) => host?.Classes.Set(MenuOpenClass, true);
         flyout.Closed += (_, _) =>
         {
             host?.Classes.Set(MenuOpenClass, false);

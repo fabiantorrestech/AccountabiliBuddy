@@ -6,9 +6,10 @@ namespace AccountabiliBuddy.App.Controls;
 /// <summary>
 /// The title bar's three groups (round 2, brief §3.2): the <see cref="TitleBarSlot.Start"/> group at the left edge, the
 /// <see cref="TitleBarSlot.End"/> group at the right edge, and the <see cref="TitleBarSlot.Center"/> child (the session control)
-/// centred on the whole width, so neither side group moves it and it moves neither of them. In a narrow window the centre child
-/// slides toward whichever side has room, and never overlaps the side groups' laid-out widths. Each child is laid out at its own
-/// desired size, vertically centred.
+/// centred on the whole width, so neither side group moves it and it moves neither of them. A centre child that keeps room on its
+/// left for something that opens there (<see cref="ITitleBarLeftReserve"/>: the session control's extras) is centred by the rest
+/// of its width, and that room never overlaps the left group. In a narrow window the centre child slides toward whichever side has
+/// room, and never overlaps the side groups' laid-out widths. Each child is laid out at its own desired size, vertically centred.
 /// </summary>
 public sealed class TitleBarLayout : Panel
 {
@@ -17,7 +18,7 @@ public sealed class TitleBarLayout : Panel
 
     static TitleBarLayout()
     {
-        AffectsParentArrange<TitleBarLayout>(SlotProperty);
+        AffectsParentMeasure<TitleBarLayout>(SlotProperty);
     }
 
     public static TitleBarSlot GetSlot(Control control) => control.GetValue(SlotProperty);
@@ -92,8 +93,10 @@ public sealed class TitleBarLayout : Panel
             }
 
             double width = child.DesiredSize.Width;
-            double left = (finalSize.Width - width) / 2;
-            // Too little room in the middle: keep it clear of the right group first, then of the left group.
+            double reserve = child is ITitleBarLeftReserve reserving ? Math.Min(reserving.LeftReserve, width) : 0;
+            // The resting part is centred; the reserve sits to its left.
+            double left = (finalSize.Width - (width - reserve)) / 2 - reserve;
+            // Too little room in the middle: keep it clear of the right group first, then (reserve included) of the left group.
             left = Math.Min(left, endLeft - width);
             left = Math.Max(left, startRight);
             child.Arrange(Centred(left, child.DesiredSize, finalSize.Height));
