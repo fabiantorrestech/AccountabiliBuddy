@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
@@ -71,7 +72,8 @@ object SectionIcons {
      *   Today             CalendarToday             CalendarToday
      *   Tasks             FormatListChecks          Checklist
      *   Plan              ViewAgendaOutline         CalendarViewDay
-     *   Stats             ChartTimelineVariant      Insights
+     *   Goals             TrackChanges              TrackChanges   (round 2: Goals takes Stats' place in the bar)
+     *   Stats             ChartTimelineVariant      Insights       (opens from the Goals header)
      *   Settings          Cog                       Settings
      *   Your day          WeatherSunny              WbSunny
      *   Sleep             WeatherNight              Bedtime
@@ -91,6 +93,7 @@ object SectionIcons {
     val Tasks: ImageVector = Icons.Outlined.Checklist
     val Plan: ImageVector = Icons.Outlined.CalendarViewDay
     val Stats: ImageVector = Icons.Outlined.Insights
+    val Goals: ImageVector = Icons.Outlined.TrackChanges
     val Settings: ImageVector = Icons.Outlined.Settings
     val YourDay: ImageVector = Icons.Outlined.WbSunny
     val Sleep: ImageVector = Icons.Outlined.Bedtime

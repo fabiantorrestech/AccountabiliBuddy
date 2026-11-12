@@ -38,8 +38,8 @@ fun AbBottomBar(selected: AppDestination, onSelect: (AppDestination) -> Unit, mo
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AppDestination.entries.forEach { destination ->
-                val active = destination == selected
+            AppDestination.bar.forEach { destination ->
+                val active = destination == selected.barItem
                 Column(
                     Modifier.weight(1f).height(72.dp).selectable(selected = active, role = Role.Tab, onClick = { onSelect(destination) }),
                     horizontalAlignment = Alignment.CenterHorizontally,

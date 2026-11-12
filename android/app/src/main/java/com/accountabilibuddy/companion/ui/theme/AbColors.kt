@@ -28,6 +28,10 @@ class AbColors(
     val drift: Color,
     val plan: Color,
     val upcoming: Color,
+    /** Round 2 (brief §3.8): late or behind pills ("Behind", "Overdue 3 d"): ink on fill with a line, the PC's `Ab.Amber*`. */
+    val amberInk: Color,
+    val amberFill: Color,
+    val amberLine: Color,
 ) {
     /**
      * The five heatmap steps, level 0 (empty, the surface2 tone) to level 4 (accent). The steps between mix the two, the

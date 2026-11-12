@@ -51,7 +51,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.SyncAction
 
 /**
- * The shell: the five places (Today, Tasks, Plan, Stats, Settings) with the bottom bar, the modal screens that take the whole app
+ * The shell: the five places (Today, Tasks, Plan, Goals, Settings; Stats opens from Goals) with the bottom bar, the modal screens that take the whole app
  * (Unlinked, Setup, Plan day, What's new, the plan editor), the dialogs, and messages as snackbars.
  */
 @Composable
@@ -398,6 +398,21 @@ fun MainScreen(
                     onCategories = { viewModel.openPlanEditor(startTab = 3)?.let { viewModel.message.value = it } },
                     onSetWeek = { week -> viewModel.setThisWeek(week)?.let { viewModel.message.value = it } },
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
+                )
+                // Round 2 R6.1: Goals takes Stats' slot in the bar; its header's Stats pill opens the Stats screen (unchanged).
+                AppDestination.Goals -> com.accountabilibuddy.companion.ui.goals.GoalsScreen(
+                    allReceived = syncAllReceived,
+                    received = syncReceived,
+                    actions = com.accountabilibuddy.companion.ui.goals.GoalsActions(
+                        onOpenStats = { nav.open(AppDestination.Stats) },
+                        // R6b builds these sheets (New goal, the goal's page, the goal menu, Edit area, Areas, Settings › Goals).
+                        onNewGoal = { viewModel.message.value = "New goal comes in the next update." },
+                        onOpenGoal = { viewModel.message.value = "A goal's page comes in the next update." },
+                        onGoalMenu = { viewModel.message.value = "The goal menu comes in the next update." },
+                        onEditArea = { viewModel.message.value = "Edit area comes in the next update." },
+                        onOpenAreas = { viewModel.message.value = "Areas come in the next update." },
+                        onOpenGoalsSettings = { viewModel.message.value = "Goals settings come in the next update." },
+                    ),
                 )
                 AppDestination.Stats -> StatsScreen(state, syncAllReceived, syncReceived, health, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage, routeView = shown.detail)
                 AppDestination.Settings -> {

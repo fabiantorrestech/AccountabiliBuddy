@@ -20,7 +20,7 @@ enum class BackupGroup(
         prefs = setOf("smartBedtime", "lunchSettings", "stepsSettings"), files = setOf("sleep.json", "phone.json"),
     ),
     Noise("Noise and headphones", "The noise player and its headphone rules", prefs = setOf("noise", "headphones")),
-    Look("Look", "Theme, motion, the bar's style and the layout of Today", prefs = setOf("ui")),
+    Look("Look", "Theme, motion, the bar's style, the layout of Today and how Goals are shown", prefs = setOf("ui", "goalsUi")),
     SyncSettings(
         "Sync settings", "Which ways your devices sync, and the linked watch. Folders may need choosing again",
         files = setOf("sync-settings.json", "watch.json"),

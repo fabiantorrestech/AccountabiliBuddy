@@ -289,6 +289,9 @@ class CompanionApp : Application() {
     /** The shared next-session tasks and come-backs (ADR 48): items with edit times, merged with the other devices' lists. */
     val sharedLists by lazy { com.accountabilibuddy.companion.sync.SharedListsStore(this) }
 
+    /** Round 2 R6: this phone's goals (device-local until ADR 79; Keystore-sealed lists). Set up at start ([onCreate]). */
+    val goals by lazy { com.accountabilibuddy.companion.goals.PhoneGoalStore(this) }
+
     /** This phone's own task categories (ADR 62). */
     val taskCategories by lazy { com.accountabilibuddy.companion.sync.TaskCategoriesStore(this) }
 
@@ -595,6 +598,10 @@ class CompanionApp : Application() {
         watchBridge.onLinkChanged = { sendSyncFilesSoon() }
         folderSource = DriveFolderSource(this, sync)
         com.accountabilibuddy.companion.ui.UiPrefs.load(this)
+        // Round 2 R6: the Goals screen's choices, and the goals' first run (Work and Deep work, once; nothing else).
+        com.accountabilibuddy.companion.goals.GoalDisplayPrefs.load(this)
+        goals.onChanged = { autoBackup.soon() }
+        com.accountabilibuddy.companion.goals.PhoneGoalsMigration.run(goals)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
         relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })

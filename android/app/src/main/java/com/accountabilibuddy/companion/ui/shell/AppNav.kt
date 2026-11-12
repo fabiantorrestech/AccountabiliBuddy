@@ -39,9 +39,10 @@ class AppNav(initial: AppRoute = AppRoute.Home) {
         return true
     }
 
-    /** One step back: out of a page inside a place, else to Today. False when already on Today's first page. */
+    /** One step back: out of a page inside a place, Stats back to Goals (where it opens from), else to Today. False on Today's first page. */
     fun back(): Boolean = when {
         route.detail != null -> { route = AppRoute(route.destination); true }
+        route.destination == AppDestination.Stats -> { route = AppRoute(AppDestination.Goals); true }
         route.destination != AppDestination.Today -> { route = AppRoute.Home; true }
         else -> false
     }

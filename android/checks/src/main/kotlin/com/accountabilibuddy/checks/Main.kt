@@ -37,10 +37,22 @@ private val checks: List<FixtureCheck> = listOf(
     GoalHeatmapStepCheck(),
     GoalHeatmapFitCheck(),
     GoalStripCellCheck(),
+    // Round 2 R6a: the phone's Goals list against the PC's App (goals-ui/*.json, written by GoalsUiFixtures).
+    GoalsUiRowsCheck(),
+    GoalsUiWeekCheck(),
+    GoalsUiTextsCheck(),
+)
+
+/**
+ * Checks of pure Kotlin with no fixture (their C# twins run on a database, not as a pure function): run every time, after the
+ * fixture checks. Round 2 R6a: the phone goals store's rules.
+ */
+private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
+    "goals-store" to GoalListRulesCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals")
+private val fullyCheckedAreas = listOf("goals", "goals-ui")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken
@@ -66,6 +78,10 @@ fun main(args: Array<String>) {
     for (area in fullyCheckedAreas.filter { onlyArea == null || it == onlyArea }) {
         val unchecked = FixtureFile.readArea(root, area).map { it.name }.filter { file -> checks.none { it.area == area && it.name == file } }
         report.check("$area: every fixture file has a check", unchecked.isEmpty(), "unchecked: $unchecked")
+    }
+
+    for ((area, check) in selfChecks.filter { onlyArea == null || it.first == onlyArea }) {
+        runCatching { check(report) }.onFailure { report.check("$area: ran", false, "threw ${it::class.simpleName}: ${it.message}") }
     }
 
     report.printTotal()

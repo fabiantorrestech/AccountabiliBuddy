@@ -20,6 +20,7 @@ object AbPalettes {
         infoBg = c(0xE4EBF0), infoInk = c(0x2C3E50),
         sleep = c(0x5865A8), waiting = c(0xB7791F), met = c(0x0F766E), drift = c(0xC2412D),
         plan = c(0xC9CED3), upcoming = c(0xB4BBC2),
+        amberInk = c(0x8A5300), amberFill = c(0xFCF1D8), amberLine = c(0xEBCB7E),
     )
 
     val InstrumentDark = AbColors(
@@ -30,6 +31,7 @@ object AbPalettes {
         infoBg = c(0x1A2530), infoInk = c(0xB4C6D6),
         sleep = c(0x8E9BD6), waiting = c(0xE8B04B), met = c(0x5EEAD4), drift = c(0xF0705A),
         plan = c(0x3A4148), upcoming = c(0x444C54),
+        amberInk = c(0xF2C46D), amberFill = c(0x3A2C12), amberLine = c(0x6B5124),
     )
 
     val NightDeskLight = AbColors(
@@ -40,6 +42,7 @@ object AbPalettes {
         infoBg = c(0xE8EBF3), infoInk = c(0x2E3757),
         sleep = c(0x5865A8), waiting = c(0x5865A8), met = c(0x3F7A5A), drift = c(0xB5523F),
         plan = c(0xCDD4DF), upcoming = c(0xB9C2D0),
+        amberInk = c(0x8A5300), amberFill = c(0xFBF0D9), amberLine = c(0xE6C887),
     )
 
     val NightDeskDark = AbColors(
@@ -50,6 +53,7 @@ object AbPalettes {
         infoBg = c(0x1B2134), infoInk = c(0xB7C0DE),
         sleep = c(0xA7B2D6), waiting = c(0xA7B2D6), met = c(0x8FBFA6), drift = c(0xD99A8E),
         plan = c(0x343C52), upcoming = c(0x46506A),
+        amberInk = c(0xE9C27A), amberFill = c(0x33280F), amberLine = c(0x5E4A22),
     )
 
     val PaperLight = AbColors(
@@ -60,6 +64,7 @@ object AbPalettes {
         infoBg = c(0xE6EAF0), infoInk = c(0x2E3A55),
         sleep = c(0x6E6A9E), waiting = c(0xA8741D), met = c(0x3F7A5A), drift = c(0xB5523F),
         plan = c(0xCFC8B9), upcoming = c(0xBDB6A6),
+        amberInk = c(0x7F4F00), amberFill = c(0xF8EBCB), amberLine = c(0xE0C27A),
     )
 
     val PaperDark = AbColors(
@@ -70,5 +75,6 @@ object AbPalettes {
         infoBg = c(0x272C38), infoInk = c(0xBFC8E0),
         sleep = c(0xA9A5D6), waiting = c(0xDDB25E), met = c(0x8DBFA0), drift = c(0xD99A8E),
         plan = c(0x4A463F), upcoming = c(0x5A554D),
+        amberInk = c(0xE3B862), amberFill = c(0x36291A), amberLine = c(0x6A5530),
     )
 }

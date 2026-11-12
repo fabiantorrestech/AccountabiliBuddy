@@ -5,6 +5,7 @@ import com.accountabilibuddy.companion.data.BackupFile
 import com.accountabilibuddy.companion.data.ImportedData
 import com.accountabilibuddy.companion.data.ProfileDocumentParser
 import com.accountabilibuddy.companion.data.SettingsJson
+import com.accountabilibuddy.companion.goals.PhoneGoalsBackup
 import com.accountabilibuddy.shared.sync.SyncFileJson
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -24,6 +25,10 @@ import java.time.Instant
  *   from a PC, so they are taken here as from a PC's backup and the PCs keep theirs.
  * - **This phone's settings** (`.abdevice`): [PhoneBackup]'s file (with both modes' copies), marked as a phone's; refused on a PC.
  * - **Task lists** (`.abtasks`): tasks, Later, come-backs and task categories.
+ *
+ * Round 2 R6: this phone's goals go with the task lists as a `goals` part ([PhoneGoalsBackup], the PC's shape), in the task-lists kind
+ * and in synced settings while the task lists are shared; notes and reasons only in a file with a password. A restore takes a phone's
+ * goals only (a PC's backup carries that PC's goals, which stay on the PC until ADR 79).
  */
 object PhoneKindBackup {
     enum class Kind(val written: String, val extension: String, val title: String) {
@@ -35,10 +40,11 @@ object PhoneKindBackup {
     private const val PLATFORM = "phone"
 
     /** The backup file for [kind]; with [password], encrypted. */
-    fun export(app: CompanionApp, kind: Kind, password: String? = null): String = BackupFile.seal(content(app, kind), password)
+    fun export(app: CompanionApp, kind: Kind, password: String? = null): String =
+        BackupFile.seal(content(app, kind, includesNotes = !password.isNullOrEmpty()), password)
 
-    /** The content of [kind]'s backup (what goes inside the file). */
-    fun content(app: CompanionApp, kind: Kind): JsonObject = buildJsonObject {
+    /** The content of [kind]'s backup (what goes inside the file); goal notes and reasons only with [includesNotes] (a password). */
+    fun content(app: CompanionApp, kind: Kind, includesNotes: Boolean = false): JsonObject = buildJsonObject {
         put("createdAt", Instant.now().toString())
         put("appVersion", app.appVersion())
         put("includesSecrets", false)
@@ -52,10 +58,16 @@ object PhoneKindBackup {
                     readFile(app, "daybar.json")?.let { put("daybar", it) }
                     put("guidance", app.guidance.state.value.mode.name.lowercase())
                 })
-                if (app.sync.sharesTaskLists()) put("tasks", tasks(app))
+                if (app.sync.sharesTaskLists()) {
+                    put("tasks", tasks(app))
+                    PhoneGoalsBackup.export(app.goals, includesNotes)?.let { put(PhoneGoalsBackup.PART, it) }
+                }
             }
             Kind.Device -> put("device", Json.parseToJsonElement(PhoneBackup.export(app, app.appVersion(), forDeviceKind = true)))
-            Kind.Tasks -> put("tasks", tasks(app))
+            Kind.Tasks -> {
+                put("tasks", tasks(app))
+                PhoneGoalsBackup.export(app.goals, includesNotes)?.let { put(PhoneGoalsBackup.PART, it) }
+            }
         }
     }
 
@@ -80,8 +92,18 @@ object PhoneKindBackup {
         return when (kind) {
             Kind.Synced -> importSynced(app, content, restore)
             Kind.Device -> PhoneBackup.import(app, (content["device"] as? JsonObject ?: return "The backup has no settings.").toString()) ?: "This phone's settings restored."
-            Kind.Tasks -> importTasks(app, content["tasks"] as? JsonObject ?: return "The backup has no task lists.", restore)
+            Kind.Tasks -> listOfNotNull(
+                importTasks(app, content["tasks"] as? JsonObject ?: return "The backup has no task lists.", restore),
+                importGoals(app, content, restore),
+            ).joinToString(" ")
         }
+    }
+
+    // Round 2 R6: a phone's goals only; a PC's backup carries that PC's goals, which stay on the PC (device-local until ADR 79).
+    private fun importGoals(app: CompanionApp, content: JsonObject, restore: Boolean): String? {
+        val part = content[PhoneGoalsBackup.PART] as? JsonObject ?: return null
+        if (content["platform"]?.jsonPrimitive?.contentOrNull != PLATFORM) return "The goals in it are a PC's and stay on that PC."
+        return PhoneGoalsBackup.import(app.goals, part, restore)
     }
 
     private fun importSynced(app: CompanionApp, content: JsonObject, restore: Boolean): String {
@@ -111,6 +133,7 @@ object PhoneKindBackup {
             }
         }
         (content["tasks"] as? JsonObject)?.let { notes += importTasks(app, it, restore) }
+        importGoals(app, content, restore)?.let(notes::add)
         return notes.joinToString(" ")
     }
 

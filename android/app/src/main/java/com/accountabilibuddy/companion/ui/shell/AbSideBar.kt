@@ -48,8 +48,8 @@ fun AbSideBar(selected: AppDestination, onSelect: (AppDestination) -> Unit, modi
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(com.accountabilibuddy.companion.guidance.appBrandName(), style = Ab.type.bodyMedium, fontWeight = FontWeight.SemiBold, color = colors.ink, maxLines = 1, modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 12.dp))
-                    AppDestination.entries.forEach { destination ->
-                        val active = destination == selected
+                    AppDestination.bar.forEach { destination ->
+                        val active = destination == selected.barItem
                         Row(
                             Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp))
                                 .let { if (active) it.background(colors.surface2) else it }

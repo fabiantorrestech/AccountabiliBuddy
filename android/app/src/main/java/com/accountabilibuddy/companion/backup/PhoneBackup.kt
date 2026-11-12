@@ -34,6 +34,8 @@ object PhoneBackup {
     val PREFS = listOf(
         "ui", "emergency", "essentials", "bedtimeEssentials", "headphones", "noise", "pause", "startup", "nudges", "takeover", "smartBedtime", "lunchSettings", "stepsSettings",
         "timers", "curbox", "blockGuard", "lunchLockLift", "phoneDown",
+        // Round 2 R6: how the Goals screen shows goals (view, folded areas, week start, heatmap labels, extra tiles); no goal text.
+        com.accountabilibuddy.companion.goals.GoalDisplayPrefs.FILE,
         // ADR 69: the other mode's copies of the per-mode settings, and which mode the live values belong to.
         com.accountabilibuddy.companion.guidance.PhoneModeSettings.PREFS,
     )
