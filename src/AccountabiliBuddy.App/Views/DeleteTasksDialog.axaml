@@ -1,0 +1,32 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.DeleteTasksDialog"
+                        x:DataType="vm:DeleteTasksViewModel"
+                        Title="Delete tasks"
+                        Icon="/Assets/app-icon.png"
+                        Width="420">
+    <!-- Delete N (spec 03 §C): the titles (first few + "and N more"), red Delete, Cancel (has the keyboard). -->
+    <StackPanel Margin="22,20" Spacing="12">
+        <TextBlock Classes="dlgTitle" Text="{Binding Heading}" />
+        <ItemsControl ItemsSource="{Binding Titles}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="3" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding StringFormat='• {0}'}" FontSize="13.5" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="muted" Text="{Binding MoreText}" IsVisible="{Binding HasMore}" FontSize="13" />
+        <TextBlock Classes="faint" Text="{Binding Note}" FontSize="12" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Classes="dialogStart" Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="danger" Content="{Binding DeleteText}" Command="{Binding DeleteCommand}" />
+        </StackPanel>
+    </StackPanel>
+</views:TaskDialogWindow>

@@ -228,6 +228,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>Makes the task's Reminders &amp; due date menu (a task the task list holds); null for the other rows.</summary>
     public Func<ReminderMenuViewModel?>? ReminderMenu { get; init; }
 
+    /// <summary>The sync-problem cloud's click: "Changed on both devices" for this task; null when it has no conflict.</summary>
+    public Action? OpenConflict { get; init; }
+
     /// <summary>
     /// Whether <paramref name="other"/> (the same row built again) would draw the same: then the page keeps this row's object and its
     /// control instead of drawing a new one. Its commands act on the same item, so they may be kept too.
@@ -262,6 +265,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             Finishes = Finishes,
             SelectionMenu = SelectionMenu,
             ReminderMenu = ReminderMenu,
+            OpenConflict = OpenConflict,
         };
     }
 

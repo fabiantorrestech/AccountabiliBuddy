@@ -15,7 +15,8 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// written the buttons are off.
 /// During a focus session the service holds normal reminders (setting "During a focus session": wait until it ends, or remind quietly).
 /// A quiet one shows without taking the focus and its bell sounds once; Can't miss rings as it always does. Nothing here ends, pauses or
-/// changes a session. This window is a stand-in: the redesign's reminder cards replace it. Use from the UI thread only.
+/// changes a session. "Pick a time…" opens "Snooze until…" (<see cref="SnoozePickerService"/>); the buttons stay off while it is open.
+/// This window is a stand-in: the redesign's reminder cards replace it. Use from the UI thread only.
 /// </summary>
 public sealed class TaskReminderRinger : IDisposable
 {
@@ -27,6 +28,7 @@ public sealed class TaskReminderRinger : IDisposable
     private readonly MasterVolumeGuard _guard;
     private readonly Func<bool> _sessionRunning;
     private readonly Action _glow;
+    private readonly SnoozePickerService _picker;
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(1) };
     private TaskReminderWindow? _window;
     private TaskReminderRingViewModel? _viewModel;
@@ -53,6 +55,7 @@ public sealed class TaskReminderRinger : IDisposable
         _guard = guard;
         _sessionRunning = sessionRunning;
         _glow = glow;
+        _picker = new SnoozePickerService(reminders, settings);
         _tick.Tick += (_, _) => OnTick();
         _reminders.PendingChanged += (_, _) => OnPendingChanged();
     }
@@ -114,7 +117,8 @@ public sealed class TaskReminderRinger : IDisposable
             onDismiss: () => _ = ActAsync(entry => _reminders.DismissAsync(entry)),
             onSnooze: () => _ = ActAsync(entry => _reminders.SnoozeAsync(entry, TaskSnooze.FromNow(_reminders.Now, QuickSnoozeMinutes))),
             onStart: () => _ = ActAsync(entry => _reminders.StartAsync(entry)),
-            snoozeText: $"Snooze {QuickSnoozeMinutes} min");
+            snoozeText: $"Snooze {QuickSnoozeMinutes} min",
+            onPick: () => _ = ActAsync(entry => _picker.ShowAsync(_window, entry)));
         var window = new TaskReminderWindow { DataContext = _viewModel, ShowActivated = !inSession || front.CantMiss };
         _window = window;
         window.Closed += (_, _) =>

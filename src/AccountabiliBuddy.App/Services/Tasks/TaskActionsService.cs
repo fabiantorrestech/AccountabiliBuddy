@@ -239,6 +239,24 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Bulk, titles.Count, (lists, self, now) => TaskActions.RenameEach(lists, titles, now, self));
     }
 
+    // ---- "Changed on both devices" (spec 05 §11) ----
+
+    /// <summary>
+    /// Keeps one version of a title or note two devices changed (<see cref="TaskActions.ResolveConflict"/>). Not on the undo stack: an
+    /// undo would bring the old text back without the choice, so the other version would be lost.
+    /// </summary>
+    public Task<bool> ResolveConflictAsync(Guid id, TaskConflict conflict, bool keepOther)
+    {
+        return RunUnrecordedAsync((lists, self, now) => TaskActions.ResolveConflict(lists, id, conflict, keepOther, now, self));
+    }
+
+    /// <summary>"Keep both as separate tasks" (<see cref="TaskActions.KeepBothVersions"/>): the other version goes to Queued. Not on the undo stack either.</summary>
+    public Task<bool> KeepBothVersionsAsync(Guid id, TaskConflict conflict)
+    {
+        Guid copyId = Guid.NewGuid();
+        return RunUnrecordedAsync((lists, self, now) => TaskActions.KeepBothVersions(lists, id, conflict, copyId, now, self));
+    }
+
     public Task<bool> SetLabelAsync(IReadOnlyList<Guid> ids, Guid? labelId)
     {
         return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self));
@@ -443,6 +461,24 @@ public sealed class TaskActionsService
         TaskActionKind recorded = count > 1 && kind is TaskActionKind.Edit or TaskActionKind.Delete or TaskActionKind.Move ? TaskActionKind.Bulk : kind;
         _undo.Push(TaskUndoRules.Capture(before, result.Affected, recorded, result.Toast, result.Lists, at));
         Announce(result.Toast, canUndo: true);
+        return true;
+    }
+
+    // Runs a pure action over the lists and raises its toast, without an undo entry.
+    private async Task<bool> RunUnrecordedAsync(Func<TaskLists, Guid, DateTimeOffset, TaskActionResult> action)
+    {
+        TaskActionResult? result = null;
+        bool changed = await _store.ChangeAsync(null, (lists, self, now) =>
+        {
+            result = action(lists, self, now);
+            return result.Lists;
+        });
+        if (!changed || result is not { Changed: true })
+        {
+            return false;
+        }
+
+        Announce(result.Toast, canUndo: false);
         return true;
     }
 

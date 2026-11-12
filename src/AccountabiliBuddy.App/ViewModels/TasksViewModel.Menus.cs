@@ -345,6 +345,59 @@ public sealed partial class TasksViewModel
         ClearSelection();
     }
 
+    // ---- The dialogs the menus and rows open (M5 task 3) ----
+
+    /// <summary>The device a version came from in "Changed on both devices" (name and kind, pc / phone / watch); set by the app.</summary>
+    public Func<Guid, (string Name, string Kind)?>? DeviceOf { get; set; }
+
+    /// <summary>
+    /// A row's sync-problem cloud or the open task's sync line asked for "Changed on both devices" for this task: the page opens its
+    /// dialog (<see cref="ConflictDialogFor"/>).
+    /// </summary>
+    public event EventHandler<Guid>? ConflictRequested;
+
+    internal void RequestConflict(Guid id)
+    {
+        ConflictRequested?.Invoke(this, id);
+    }
+
+    /// <summary>"Changed on both devices" for a task the task list holds with a conflict; null otherwise.</summary>
+    public ConflictDialogViewModel? ConflictDialogFor(Guid id)
+    {
+        if (_store is null || _actions is null || StoredTask(id)?.Conflicts is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        return new ConflictDialogViewModel(_store, _actions, id, deviceId => DeviceOf?.Invoke(deviceId), SelfId?.Invoke(), _time);
+    }
+
+    /// <summary>
+    /// "Rename one by one" for these tasks, in the order the task list keeps them (Today's bins, then the Shelf's); Rename all renames
+    /// them as one action and clears the selection. Null when none of them is in the task list.
+    /// </summary>
+    public RenameOneByOneViewModel? RenameEachDialog(IReadOnlyList<Guid> ids)
+    {
+        List<(Guid Id, string Title)> tasks = InListOrder(ids).Select(task => (task.Id, task.Title)).ToList();
+        return tasks.Count == 0 ? null : new RenameOneByOneViewModel(titles => BulkAsync(actions => actions.RenameEachAsync(titles)), tasks);
+    }
+
+    /// <summary>"Delete N tasks?" for these tasks; Delete runs <see cref="DeleteManyAsync"/>. Null when none of them is in the task list.</summary>
+    public DeleteTasksViewModel? DeleteManyDialog(IReadOnlyList<Guid> ids)
+    {
+        List<TaskItem> tasks = InListOrder(ids);
+        return tasks.Count == 0 ? null : new DeleteTasksViewModel(tasks.Select(task => task.Title).ToList(), () => DeleteManyAsync(tasks.Select(task => task.Id).ToList()));
+    }
+
+    private List<TaskItem> InListOrder(IReadOnlyList<Guid> ids)
+    {
+        List<TaskBin> order = [.. TaskBins.Today, .. TaskBins.Shelf];
+        return ids.Distinct().Select(StoredTask).OfType<TaskItem>()
+            .OrderBy(task => order.IndexOf(task.Bin) is int at and >= 0 ? at : order.Count)
+            .ThenBy(task => task.Position)
+            .ToList();
+    }
+
     // ---- Reminders & due date ----
 
     /// <summary>The task has a Reminders &amp; due date menu: the task list holds it (and it isn't the running session's own).</summary>

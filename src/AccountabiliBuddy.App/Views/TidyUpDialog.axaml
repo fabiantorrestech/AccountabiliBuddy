@@ -1,0 +1,159 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.TidyUpDialog"
+                        x:DataType="vm:TidyUpViewModel"
+                        Title="Weekly tidy-up"
+                        Icon="/Assets/app-icon.png"
+                        Width="500">
+    <!-- The weekly tidy-up (spec 05 §9): the task card (large title, ← n / N →, facts, steps, note, origin), the numbered decisions
+         with the highlighted row (❯, accent; red for Delete), Suggested / Your choice, Stop for now; then "Tidied N of M tasks". -->
+    <views:TaskDialogWindow.Styles>
+        <Style Selector="Border.fact">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="9,3" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.fact TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.fact.faint TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.stop">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.stop /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.stop:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.dlgRow.deleteRow TextBlock.decisionTitle">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+    </views:TaskDialogWindow.Styles>
+
+    <StackPanel Margin="22,20" Spacing="12">
+        <StackPanel Spacing="2">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="dlgTitle" Text="Weekly tidy-up" />
+                <TextBlock Grid.Column="1" Classes="faint numeral" Text="{Binding Keys}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding !IsFinished}" />
+            </Grid>
+            <TextBlock Classes="dlgSub" Text="{Binding Sub}" IsVisible="{Binding !IsFinished}" />
+        </StackPanel>
+
+        <!-- The task. -->
+        <Border IsVisible="{Binding !IsFinished}" Background="{DynamicResource Ab.Surface2}" CornerRadius="20" Padding="18,16">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBlock Text="{Binding TaskTitle}" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top">
+                        <Button Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" Command="{Binding BackCommand}" ToolTip.Tip="Back (←)" AutomationProperties.Name="Previous task">
+                            <mi:MaterialIcon Kind="ArrowLeft" Width="17" Height="17" />
+                        </Button>
+                        <TextBlock Classes="muted numeral" Text="{Binding PositionText}" FontSize="12.5" VerticalAlignment="Center" />
+                        <Button Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" Command="{Binding ForwardCommand}" ToolTip.Tip="Skip without deciding (→)" AutomationProperties.Name="Next task">
+                            <mi:MaterialIcon Kind="ArrowRight" Width="17" Height="17" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+                <TextBlock Classes="muted" Text="Gone from your lists (finished or deleted on another device). → skips it." IsVisible="{Binding IsGone}" FontSize="12.5" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Facts}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TidyUpFact">
+                            <Border Classes="fact" Classes.faint="{Binding IsFaint}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" IsVisible="{Binding HasDot}" VerticalAlignment="Center" />
+                                    <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" IsVisible="{Binding HasIcon}" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <ItemsControl ItemsSource="{Binding Steps}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <TextBlock Text="{Binding}" FontSize="13" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="muted" Text="{Binding MoreSteps}" IsVisible="{Binding HasMoreSteps}" FontSize="12.5" />
+                <TextBlock Classes="muted" Text="{Binding Note}" IsVisible="{Binding HasNote}" FontStyle="Italic" FontSize="13" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+                <TextBlock Classes="faint" Text="{Binding Origin}" IsVisible="{Binding HasOrigin}" FontSize="12" />
+            </StackPanel>
+        </Border>
+
+        <!-- 1. Keep · 2. Move to Next · 3. Archive · 4. Delete -->
+        <ItemsControl ItemsSource="{Binding Decisions}" IsVisible="{Binding !IsFinished}" IsEnabled="{Binding !IsGone}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="6" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TidyUpDecisionViewModel">
+                    <Button Classes="dlgRow" Classes.lit="{Binding IsLit}" Classes.deleteRow="{Binding IsDanger}" Command="{Binding Pick}"
+                            PointerEntered="OnDecisionPointerEntered" Padding="0" AutomationProperties.Name="{Binding Name}">
+                        <Panel>
+                            <Border Background="{DynamicResource Ab.Drift}" Opacity="0.16" CornerRadius="{DynamicResource Ab.PopoverRadius}" IsVisible="{Binding IsLitDanger}" />
+                            <Grid ColumnDefinitions="18,Auto,Auto,*,Auto" ColumnSpacing="8" Margin="10,8,14,8">
+                                <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" IsVisible="{Binding IsLit}" VerticalAlignment="Center"
+                                                 Foreground="{DynamicResource Ab.Accent}" />
+                                <TextBlock Grid.Column="1" Classes="muted numeral" Text="{Binding Number}" FontSize="13" VerticalAlignment="Center" />
+                                <mi:MaterialIcon Grid.Column="2" Kind="{Binding Icon}" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Classes="decisionTitle" Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" />
+                                    <TextBlock Classes="muted" Text="{Binding Sub}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <Border Classes="dlgTag soft" IsVisible="{Binding IsSuggested}">
+                                        <TextBlock Text="Suggested" />
+                                    </Border>
+                                    <Border Classes="dlgTag" IsVisible="{Binding IsChosen}">
+                                        <TextBlock Text="Your choice" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Panel>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button Classes="stop" HorizontalAlignment="Left" Command="{Binding StopForNowCommand}" IsVisible="{Binding !IsFinished}"
+                ToolTip.Tip="What you decided stays; the card stays on the Shelf this week (Esc)">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <mi:MaterialIcon Kind="PauseCircleOutline" Width="18" Height="18" VerticalAlignment="Center" />
+                <TextBlock Text="Stop for now" FontSize="13.5" VerticalAlignment="Center" />
+            </StackPanel>
+        </Button>
+
+        <!-- Finished. -->
+        <StackPanel Spacing="14" IsVisible="{Binding IsFinished}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <mi:MaterialIcon Kind="Broom" Width="22" Height="22" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding FinishedText}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Classes="muted" Text="The card comes back on the next tidy-up day, if anything is untouched by then." FontSize="13" TextWrapping="Wrap" />
+            <Button Classes="primary dialogStart" Content="Done" Command="{Binding DoneCommand}" HorizontalAlignment="Right" />
+        </StackPanel>
+    </StackPanel>
+</views:TaskDialogWindow>

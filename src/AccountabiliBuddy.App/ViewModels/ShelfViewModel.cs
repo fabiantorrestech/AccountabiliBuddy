@@ -86,8 +86,9 @@ public sealed partial class ShelfViewModel : ObservableObject
     public partial bool IsShuffled { get; set; }
 
     /// <summary>
-    /// "Create a view…" (null) or "Edit view…" (that view) was chosen: the page opens the Create / Edit view dialog (M5 task 3), which
-    /// saves through TaskViewService.SaveAsAsync / RenameAsync. The entries show only while something listens.
+    /// "Create a view…" (null) or "Edit view…" (that view) was chosen: the page opens the Create / Edit view dialog (<see cref="ViewEditor"/>),
+    /// which saves through <see cref="TaskViewService.CreateAsync"/> / <see cref="TaskViewService.EditAsync"/>. The entries show only while
+    /// something listens.
     /// </summary>
     public event EventHandler<TaskView?>? ViewEditorRequested;
 
@@ -102,6 +103,7 @@ public sealed partial class ShelfViewModel : ObservableObject
         _views.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         _tidyUp.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         OnPropertyChanged(nameof(HasViews));
+        StartTidyCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSearchTextChanged(string value)
@@ -134,13 +136,37 @@ public sealed partial class ShelfViewModel : ObservableObject
     [RelayCommand]
     private Task DismissTidyAsync() => _tidyUp?.DismissAsync() ?? Task.CompletedTask;
 
-    /// <summary>The tidy-up card's "Tidy up": the step-by-step flow is not built yet (HANDOFF-QUESTIONS 103), so this stays off.</summary>
+    /// <summary>
+    /// The tidy-up card's "Tidy up": begins the tidy-up over the untouched tasks and asks the page for its dialog
+    /// (<see cref="TidyUpRequested"/>). Never during a session (the service refuses, and the card is not shown then).
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanStartTidy))]
     private void StartTidy()
     {
+        if (TidyUpRequested is null || _tidyUp is null || _store is null || _tidyUp.Start() is null)
+        {
+            return;
+        }
+
+        TidyUpRequested.Invoke(this, new TidyUpViewModel(_tidyUp, _store, _time));
     }
 
-    private static bool CanStartTidy() => false;
+    private bool CanStartTidy() => _tidyUp is not null;
+
+    /// <summary>"Tidy up" was clicked and the tidy-up began: the page shows its flow (the tidy-up dialog).</summary>
+    public event EventHandler<TidyUpViewModel>? TidyUpRequested;
+
+    /// <summary>The Create a view (null) / Edit view dialog's data; null before the task list exists.</summary>
+    public ViewEditorViewModel? ViewEditor(TaskView? view)
+    {
+        if (_views is null || _store is null)
+        {
+            return null;
+        }
+
+        IEnumerable<IReadOnlyList<string>?> tagLists = _store.Lists.Tasks.Where(item => item.Task.IsLive).Select(item => item.Task.Tags);
+        return new ViewEditorViewModel(_views, view, LiveLabels(), TaskLabels.AllOf(tagLists).ToList());
+    }
 
     /// <summary>The header, chips and card from the task list as it is now (the page calls this as it rebuilds).</summary>
     public void Refresh()
@@ -279,16 +305,16 @@ public sealed partial class ShelfViewModel : ObservableObject
     }
 
     // "Show only" choices: the stored value and what the menu says.
-    private static readonly (string Value, string Text)[] DueChoices =
+    internal static readonly (string Value, string Text)[] DueChoices =
         [("overdue", "Overdue"), ("today", "Today"), ("tomorrow", "Tomorrow"), ("thisWeek", "This week"), ("none", "No due date")];
 
-    private static readonly (string Value, string Text)[] TimeChoices =
+    internal static readonly (string Value, string Text)[] TimeChoices =
         [("le10", "10 min or less"), ("le25", "25 min or less"), ("le50", "50 min or less"), ("ge50", "50 min or more"), ("none", "No time limit")];
 
-    private static readonly (string Value, string Text)[] OldChoices =
+    internal static readonly (string Value, string Text)[] OldChoices =
         [("1w", "1 week or more"), ("2w", "2 weeks or more"), ("4w", "4 weeks or more"), ("8w", "8 weeks or more")];
 
-    private static readonly (string Value, string Text, MaterialIconKind Icon)[] SortChoices =
+    internal static readonly (string Value, string Text, MaterialIconKind Icon)[] SortChoices =
     [
         (TaskViewConfig.SortDefault, "Manual (drag)", MaterialIconKind.Drag),
         (TaskViewConfig.SortNewest, "Newest first", MaterialIconKind.SortClockDescendingOutline),
@@ -464,7 +490,7 @@ public sealed partial class ShelfViewModel : ObservableObject
     }
 
     // A view's icon name ("lightning-bolt") as a Material icon; a bookmark when it has none or one this app doesn't know.
-    private static MaterialIconKind ViewIcon(string? name)
+    internal static MaterialIconKind ViewIcon(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
         {

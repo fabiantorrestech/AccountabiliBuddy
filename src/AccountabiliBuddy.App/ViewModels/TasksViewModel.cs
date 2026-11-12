@@ -1547,6 +1547,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             Finishes = _finishes,
             SelectionMenu = selectable ? SelectionMenu : null,
             ReminderMenu = item is null ? null : () => ReminderMenuFor(key),
+            OpenConflict = item?.Conflicts is { Count: > 0 } ? () => RequestConflict(key.Id) : null,
             IsFinishing = _finishes.IsPending(key),
             IsCollapsing = _finishes.IsFolding(key),
             NumberText = extras.NumberText,

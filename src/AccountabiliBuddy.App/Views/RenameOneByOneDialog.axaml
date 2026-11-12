@@ -1,0 +1,49 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.RenameOneByOneDialog"
+                        x:DataType="vm:RenameOneByOneViewModel"
+                        Title="Rename one by one"
+                        Icon="/Assets/app-icon.png"
+                        Width="460">
+    <!-- Rename one by one (spec 05 §12): ‹ n of N ›, the old name in italics, nothing applies until Rename all (one undo step). -->
+    <StackPanel Margin="22,20" Spacing="12">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
+            <TextBlock Classes="dlgTitle" Text="{Binding Heading}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="quiet" Padding="6,4" MinHeight="0" Command="{Binding PreviousCommand}" IsVisible="{Binding IsMany}"
+                    ToolTip.Tip="Previous (Alt+←)" AutomationProperties.Name="Previous task">
+                <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" />
+            </Button>
+            <Button Grid.Column="2" Classes="quiet" Padding="6,4" MinHeight="0" Command="{Binding NextCommand}" IsVisible="{Binding IsMany}"
+                    ToolTip.Tip="Next (Alt+→)" AutomationProperties.Name="Next task">
+                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" />
+            </Button>
+        </Grid>
+        <ItemsControl ItemsSource="{Binding Progress}" IsVisible="{Binding IsMany}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="1" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:Boolean">
+                    <Panel Margin="1,0" Height="3">
+                        <Border CornerRadius="2" Background="{DynamicResource Ab.Line}" />
+                        <Border CornerRadius="2" Background="{DynamicResource Ab.Accent}" IsVisible="{Binding}" />
+                    </Panel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Spacing="6">
+            <TextBlock Classes="dlgSub" Text="{Binding OldTitle}" FontStyle="Italic" MaxLines="3" TextTrimming="CharacterEllipsis" />
+            <TextBox Name="NameBox" Classes="dialogStart" Text="{Binding NewTitle}" KeyDown="OnNameKeyDown" AutomationProperties.Name="New name" />
+        </StackPanel>
+        <TextBlock Classes="faint" Text="{Binding Foot}" IsVisible="{Binding IsMany}" FontSize="12" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="primary" Content="{Binding ApplyText}" Command="{Binding ApplyCommand}" />
+        </StackPanel>
+    </StackPanel>
+</views:TaskDialogWindow>

@@ -1,0 +1,272 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.SnoozePickerDialog"
+                        x:DataType="vm:SnoozePickerViewModel"
+                        Title="Snooze until…"
+                        Icon="/Assets/app-icon.png"
+                        Width="400">
+    <!-- Snooze until… (spec 03 §C, 05 §8): 400 wide; "Ring again" + the summary (month, date, time and a year not this year lead to
+         their fields, dashed underline); the shortcuts with a pencil; the month grid from Monday; Month / Date / Time / Year. -->
+    <views:TaskDialogWindow.Styles>
+        <Style Selector="Button.part">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.part /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.part TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.chip">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="11,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.day">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.day /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.day:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.day.faint /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.day:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.day:disabled">
+            <Setter Property="Opacity" Value="0.3" />
+        </Style>
+        <Style Selector="Button.day.ringed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.day.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="TextBlock.field">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="Margin" Value="2,0,0,3" />
+        </Style>
+        <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="TextBlock.statusError">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+    </views:TaskDialogWindow.Styles>
+
+    <StackPanel Margin="20,18" Spacing="12">
+        <StackPanel Spacing="1">
+            <TextBlock Classes="dlgTitle" Text="Snooze until…" />
+            <TextBlock Classes="dlgSub" Text="{Binding TaskTitle}" IsVisible="{Binding HasTaskTitle}" MaxLines="1" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <!-- Ring again · Thursday, Nov 12th · 9:00 AM -->
+        <StackPanel Spacing="2">
+            <TextBlock Classes="muted" Text="Ring again" FontSize="11.5" />
+            <WrapPanel>
+                <TextBlock Text="{Binding WeekdayText}" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Classes="part" Click="OnMonthPartClick" ToolTip.Tip="Change the month" AutomationProperties.Name="Change the month">
+                    <TextBlock Text="{Binding MonthPart}">
+                        <TextBlock.TextDecorations>
+                            <TextDecorationCollection>
+                                <TextDecoration Location="Underline" StrokeThickness="2" StrokeDashArray="2,2" Stroke="{DynamicResource Ab.Faint}" StrokeOffset="3" />
+                            </TextDecorationCollection>
+                        </TextBlock.TextDecorations>
+                    </TextBlock>
+                </Button>
+                <TextBlock Text=" " FontSize="20" />
+                <Button Classes="part" Click="OnDayPartClick" ToolTip.Tip="Change the date" AutomationProperties.Name="Change the date">
+                    <TextBlock Text="{Binding DayPart}">
+                        <TextBlock.TextDecorations>
+                            <TextDecorationCollection>
+                                <TextDecoration Location="Underline" StrokeThickness="2" StrokeDashArray="2,2" Stroke="{DynamicResource Ab.Faint}" StrokeOffset="3" />
+                            </TextDecorationCollection>
+                        </TextBlock.TextDecorations>
+                    </TextBlock>
+                </Button>
+                <Button Classes="part" Click="OnYearPartClick" IsVisible="{Binding HasYearPart}" ToolTip.Tip="Change the year" AutomationProperties.Name="Change the year">
+                    <TextBlock Text="{Binding YearPart}">
+                        <TextBlock.TextDecorations>
+                            <TextDecorationCollection>
+                                <TextDecoration Location="Underline" StrokeThickness="2" StrokeDashArray="2,2" Stroke="{DynamicResource Ab.Faint}" StrokeOffset="3" />
+                            </TextDecorationCollection>
+                        </TextBlock.TextDecorations>
+                    </TextBlock>
+                </Button>
+                <TextBlock Text=" · " FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" />
+                <Button Classes="part" Click="OnTimePartClick" ToolTip.Tip="Change the time" AutomationProperties.Name="Change the time">
+                    <TextBlock Text="{Binding TimePart}">
+                        <TextBlock.TextDecorations>
+                            <TextDecorationCollection>
+                                <TextDecoration Location="Underline" StrokeThickness="2" StrokeDashArray="2,2" Stroke="{DynamicResource Ab.Faint}" StrokeOffset="3" />
+                            </TextDecorationCollection>
+                        </TextBlock.TextDecorations>
+                    </TextBlock>
+                </Button>
+            </WrapPanel>
+        </StackPanel>
+
+        <!-- The three shortcuts and the pencil that edits them. -->
+        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsEditingShortcuts}">
+            <ItemsControl ItemsSource="{Binding Shortcuts}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SnoozeShortcutViewModel">
+                        <Button Classes="chip" Content="{Binding Text}" Command="{Binding Pick}" ToolTip.Tip="{Binding Tip}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Classes="quiet" Padding="5" MinHeight="0" MinWidth="0" Command="{Binding EditShortcutsCommand}"
+                    ToolTip.Tip="Edit these shortcuts" AutomationProperties.Name="Edit the snooze shortcuts">
+                <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" />
+            </Button>
+        </StackPanel>
+        <Border IsVisible="{Binding IsEditingShortcuts}" Background="{DynamicResource Ab.Surface2}" CornerRadius="{DynamicResource Ab.PopoverRadius}" Padding="12,10">
+            <StackPanel Spacing="8">
+                <TextBlock Classes="dlgHead" Text="Snooze shortcuts" />
+                <ItemsControl ItemsSource="{Binding ShortcutEdits}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SnoozeShortcutEditViewModel">
+                            <Grid ColumnDefinitions="130,90,*" ColumnSpacing="8">
+                                <ComboBox ItemsSource="{Binding Days}" SelectedIndex="{Binding DayIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Day" />
+                                <TextBox Grid.Column="1" Text="{Binding TimeText}" Classes.invalid="{Binding !IsValid}" AutomationProperties.Name="Time" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Result}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Content="Cancel" Command="{Binding CancelShortcutsCommand}" />
+                    <Button Classes="primary" Content="Save shortcuts" Command="{Binding SaveShortcutsCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- The month grid. -->
+        <StackPanel Spacing="4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Classes="quiet" Padding="6,2" MinHeight="0" Command="{Binding PreviousMonthCommand}" ToolTip.Tip="Previous month" AutomationProperties.Name="Previous month">
+                    <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" />
+                </Button>
+                <TextBlock Grid.Column="1" Text="{Binding MonthTitle}" FontWeight="SemiBold" FontSize="13.5" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Classes="quiet" Padding="6,2" MinHeight="0" Command="{Binding NextMonthCommand}" ToolTip.Tip="Next month" AutomationProperties.Name="Next month">
+                    <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" />
+                </Button>
+            </Grid>
+            <ItemsControl ItemsSource="{Binding WeekdayHeads}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="7" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <TextBlock Classes="muted" Text="{Binding}" FontSize="11.5" HorizontalAlignment="Center" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ItemsControl ItemsSource="{Binding Days}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="7" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SnoozeDayCellViewModel">
+                        <Button Classes="day" Classes.faint="{Binding IsFaint}" Classes.ringed="{Binding IsRinged}" Classes.selected="{Binding IsSelected}"
+                                Content="{Binding Text}" Command="{Binding Pick}" AutomationProperties.Name="{Binding Name}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- Month / Date / Time / Year. -->
+        <Grid ColumnDefinitions="1.25*,0.7*,1.35*,0.9*" ColumnSpacing="8">
+            <StackPanel>
+                <TextBlock Classes="field" Text="Month" />
+                <ComboBox Name="MonthBox" ItemsSource="{Binding Months}" SelectedIndex="{Binding MonthIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Month" />
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <TextBlock Classes="field" Text="Date" />
+                <TextBox Name="DayBox" Text="{Binding DayText}" LostFocus="OnDayLostFocus" AutomationProperties.Name="Date" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Classes="field" Text="Time" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBox Name="TimeBox" Classes.invalid="{Binding IsTimeInvalid}" Text="{Binding TimeText}" LostFocus="OnTimeLostFocus"
+                             AutomationProperties.Name="Time" ToolTip.Tip="930 is 9:30; A or P picks AM or PM" />
+                    <Button Grid.Column="1" Classes="quiet" Margin="2,0,0,0" Padding="6,4" MinHeight="0" Command="{Binding ToggleAmPmCommand}"
+                            Content="{Binding AmPmText}" FontSize="12.5" ToolTip.Tip="AM or PM (A / P)" AutomationProperties.Name="AM or PM" />
+                </Grid>
+            </StackPanel>
+            <StackPanel Grid.Column="3">
+                <TextBlock Classes="field" Text="Year" />
+                <Panel>
+                    <TextBox Name="YearBox" Text="{Binding YearText}" LostFocus="OnYearLostFocus" AutomationProperties.Name="Year" />
+                    <Border Name="YearFlash" Background="{DynamicResource Ab.Accent}" CornerRadius="4" Opacity="0" IsHitTestVisible="False" />
+                </Panel>
+            </StackPanel>
+        </Grid>
+
+        <!-- Natural typing ("thu 10:30"). -->
+        <StackPanel Spacing="3">
+            <TextBox Classes="dialogStart" Text="{Binding NaturalText}" PlaceholderText="Or type it: thu 10:30, tomorrow 9am" KeyDown="OnNaturalKeyDown"
+                     AutomationProperties.Name="Type a day and time" />
+            <TextBlock Classes="muted" Text="{Binding NaturalProblem}" IsVisible="{Binding HasNaturalProblem}" FontSize="12" />
+        </StackPanel>
+
+        <TextBlock Classes="muted" Classes.statusError="{Binding IsStatusError}" Text="{Binding StatusText}" FontSize="12.5" TextWrapping="Wrap" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Classes="primary" Content="Snooze" Command="{Binding SnoozeCommand}" />
+        </StackPanel>
+    </StackPanel>
+</views:TaskDialogWindow>

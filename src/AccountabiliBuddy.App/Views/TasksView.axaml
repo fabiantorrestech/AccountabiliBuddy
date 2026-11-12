@@ -442,7 +442,8 @@
                                     </WrapPanel>
                                     <!-- The sync line, the task's menu and its ID chip ("142", copies "142 · title"). -->
                                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" ToolTip.Tip="{Binding SyncText}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" ToolTip.Tip="{Binding SyncText}"
+                                                    IsVisible="{Binding !HasConflict}">
                                             <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center"
                                                              Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsSyncProblem}" />
                                             <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center"
@@ -450,6 +451,16 @@
                                             <TextBlock Classes="muted" Classes.syncProblem="{Binding IsSyncProblem}" Text="{Binding SyncText}" FontSize="12"
                                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                         </StackPanel>
+                                        <!-- Changed on both devices: the line opens the dialog. -->
+                                        <Button Classes="quiet" Padding="4,2" MinHeight="0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                IsVisible="{Binding HasConflict}" Command="{Binding OpenConflictCommand}"
+                                                ToolTip.Tip="Pick the version to keep" AutomationProperties.Name="Changed on both devices: pick a version">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Drift}" />
+                                                <TextBlock Classes="muted syncProblem" Text="{Binding SyncText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           VerticalAlignment="Center" TextDecorations="Underline" />
+                                            </StackPanel>
+                                        </Button>
                                         <Button Grid.Column="1" Classes="quiet" Padding="6,4" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                                                 AutomationProperties.Name="More actions" ToolTip.Tip="More (or right-click the row)" Click="OnMoreClick">
                                             <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />

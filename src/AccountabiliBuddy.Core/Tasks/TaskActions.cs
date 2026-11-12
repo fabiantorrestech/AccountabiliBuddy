@@ -431,6 +431,69 @@ public static class TaskActions
         return Result(lists, after, changed, TaskToasts.Calendar(on));
     }
 
+    // ---- "Changed on both devices" (spec 05 §11): the user keeps one version, or both as two tasks ----
+
+    /// <summary>
+    /// Keeps one version of a title or note that two devices changed (<paramref name="conflict"/> on the task): the shown one, or the
+    /// other one (<paramref name="keepOther"/>). Stamped as made from both versions (<see cref="TaskEdits.Resolve"/>), so the conflict
+    /// closes on every device once synced. A blank other title keeps the shown one. Nothing happens when the task or the conflict is gone.
+    /// </summary>
+    public static TaskActionResult ResolveConflict(TaskLists lists, Guid id, TaskConflict conflict, bool keepOther, DateTimeOffset now, Guid self)
+    {
+        List<SyncTaskItem> tasks = lists.Tasks.ToList();
+        int index = tasks.FindIndex(item => item.Id == id && item.Task.IsLive);
+        if (index < 0 || tasks[index].Task.Conflicts?.Contains(conflict) != true)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        SyncTaskItem item = tasks[index];
+        bool isTitle = conflict.Field == TaskConflict.TitleField;
+        string? shown = isTitle ? item.Task.Title : item.Task.Note;
+        string? kept = keepOther ? conflict.OtherValue : shown;
+        if (isTitle && string.IsNullOrWhiteSpace(kept))
+        {
+            kept = shown;
+        }
+
+        tasks[index] = TaskEdits.Resolve(item, conflict, isTitle ? kept?.Trim() : SessionChecklist.CleanNote(kept), now, self);
+        return new TaskActionResult(lists with { Tasks = tasks }, keepOther ? "Kept the other version" : "Kept this version", [id]);
+    }
+
+    /// <summary>
+    /// "Keep both as separate tasks": the shown version stays on the task (the conflict closes as in <see cref="ResolveConflict"/>) and
+    /// the other version becomes a new task <paramref name="newId"/> at the end of Queued, with the task's label, tags, time limit and
+    /// steps (new step ids, none in focus). Reminders, due date and highlight stay with the original only, so nothing rings twice.
+    /// </summary>
+    public static TaskActionResult KeepBothVersions(TaskLists lists, Guid id, TaskConflict conflict, Guid newId, DateTimeOffset now, Guid self)
+    {
+        if (newId == Guid.Empty || lists.Tasks.Any(item => item.Id == newId))
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        TaskActionResult resolved = ResolveConflict(lists, id, conflict, keepOther: false, now, self);
+        if (!resolved.Changed || LiveOf(resolved.Lists, id) is not TaskItem source)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        bool isTitle = conflict.Field == TaskConflict.TitleField;
+        string title = isTitle && conflict.OtherValue?.Trim() is { Length: > 0 } other ? other : source.Title;
+        string? note = isTitle ? source.Note : SessionChecklist.CleanNote(conflict.OtherValue);
+        List<TaskStep>? steps = source.Steps?.Select(step => step with { Id = Guid.NewGuid(), Focus = false }).ToList();
+        var copy = new TaskItem(
+            newId, title, TaskBin.Queued, TaskListRules.EndOf(resolved.Lists, TaskBin.Queued), now, now, now,
+            LabelId: source.LabelId,
+            Tags: source.Tags,
+            Steps: steps is { Count: > 0 } ? steps : null,
+            EstimateMinutes: source.EstimateMinutes,
+            Note: note,
+            Origin: source.Number is TaskNumber number ? "Other version of " + number.Value : "Other version");
+        List<SyncTaskItem> tasks = [.. resolved.Lists.Tasks, new SyncTaskItem(copy, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self)))];
+        return new TaskActionResult(resolved.Lists with { Tasks = tasks }, "Kept both · the other copy is in Queued", [id, newId]);
+    }
+
     /// <summary>
     /// A task was opened (its details shown) or kept ("Keep" in the tidy-up): it counts as touched, which resets its age. Only the
     /// touch time moves (never undone, never a toast). Nothing happens when it was already touched at or after <paramref name="now"/>.

@@ -1669,6 +1669,10 @@ public partial class App : Application
                     .Where(device => device.File.Device.DeviceId != syncIdentity.DeviceId)
                     .Select(device => (device.File.Device.DeviceId, device.File.Device.Name))
                     .ToList(),
+                // "Changed on both devices" names the device each version came from.
+                DeviceOf = deviceId => receivedDevices.Active.FirstOrDefault(device => device.File.Device.DeviceId == deviceId) is { } known
+                    ? (receivedDevices.LabelOf(known.File.Device), known.File.Device.Kind)
+                    : null,
             },
             Plan = planViewModel,
             Stats = statsViewModel,

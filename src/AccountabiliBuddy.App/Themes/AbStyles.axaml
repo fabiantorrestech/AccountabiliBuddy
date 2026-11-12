@@ -238,4 +238,89 @@
     <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
         <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
     </Style>
+
+    <!-- The Tasks dialogs (spec 03 §C, TaskDialogWindow): title, sub line, an outlined option row (highlighted: accent border and
+         tint), a quiet text button, a red filled button and a small filled tag. -->
+    <Style Selector="TextBlock.dlgTitle">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.dlgSub">
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.dlgHead">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="Button.dlgRow">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="14,10" />
+        <Setter Property="MinHeight" Value="56" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Ab.PopoverRadius}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Button.dlgRow /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.dlgRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.dlgRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.dlgRow.lit /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+    </Style>
+    <Style Selector="Button.dlgRow.lit.deleteRow /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+    </Style>
+    <Style Selector="Button.danger">
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.danger /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Drift}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Drift}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="Button.danger:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Drift}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="Border.dlgTag">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="7,1" />
+        <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.dlgTag TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+    </Style>
+    <Style Selector="Border.dlgTag.soft">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+    </Style>
+    <Style Selector="Border.dlgTag.soft TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
 </Styles>

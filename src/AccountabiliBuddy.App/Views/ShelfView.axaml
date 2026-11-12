@@ -60,7 +60,7 @@
     <DockPanel>
         <!-- Header. -->
         <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="2" Margin="14,12,10,6">
-            <Button Classes="quiet tool" Click="OnViewMenuClick" ToolTip.Tip="Views" AutomationProperties.Name="Shelf views">
+            <Button Name="ViewMenuButton" Classes="quiet tool" Click="OnViewMenuClick" ToolTip.Tip="Views" AutomationProperties.Name="Shelf views">
                 <StackPanel Orientation="Horizontal" Spacing="4">
                     <TextBlock Classes="display" Text="Shelf" FontSize="22" VerticalAlignment="Center" />
                     <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
@@ -142,7 +142,7 @@
                             <TextBlock Classes="muted" Text="{Binding TidySub}" FontSize="12" />
                         </StackPanel>
                         <Button Grid.Column="2" Content="Tidy up" Command="{Binding StartTidyCommand}" Padding="12,5" VerticalAlignment="Center"
-                                ToolTip.Tip="Coming soon" AutomationProperties.Name="Tidy up" />
+                                ToolTip.Tip="Go through the untouched tasks one by one" AutomationProperties.Name="Tidy up" />
                         <Button Grid.Column="3" Classes="quiet tool" Command="{Binding DismissTidyCommand}" ToolTip.Tip="Not this week" AutomationProperties.Name="Not this week">
                             <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
                         </Button>

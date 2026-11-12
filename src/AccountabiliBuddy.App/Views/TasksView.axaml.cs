@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.App.Views;
 /// <summary>
 /// The Tasks page. Code-behind: the two columns' widths (the Today / Shelf split, a hidden column giving its room to the other), the
 /// resize handle between them, keeping a title or note typed in the detail card when the box loses the keyboard, the ⋯ menus of the
-/// detail card's steps, and putting the keyboard in the detail card's title or step box when a menu asks for it.
+/// detail card's steps, putting the keyboard in the detail card's title or step box when a menu asks for it, and the dialogs the
+/// rows and menus ask for (Rename one by one, Delete N, Changed on both devices).
 /// </summary>
 public partial class TasksView : UserControl
 {
@@ -46,6 +47,9 @@ public partial class TasksView : UserControl
         {
             _subscribed.PropertyChanged -= OnPagePropertyChanged;
             _subscribed.FocusRequested -= OnFocusRequested;
+            _subscribed.RenameEachRequested -= OnRenameEachRequested;
+            _subscribed.DeleteManyRequested -= OnDeleteManyRequested;
+            _subscribed.ConflictRequested -= OnConflictRequested;
         }
 
         _subscribed = DataContext as TasksViewModel;
@@ -53,9 +57,38 @@ public partial class TasksView : UserControl
         {
             _subscribed.PropertyChanged += OnPagePropertyChanged;
             _subscribed.FocusRequested += OnFocusRequested;
+            _subscribed.RenameEachRequested += OnRenameEachRequested;
+            _subscribed.DeleteManyRequested += OnDeleteManyRequested;
+            _subscribed.ConflictRequested += OnConflictRequested;
         }
 
         ApplyColumns();
+    }
+
+    // ---- The dialogs (spec 03 §C): over the window, the keyboard back where it was once they close ----
+
+    private void OnRenameEachRequested(object? sender, IReadOnlyList<Guid> ids)
+    {
+        if (_subscribed?.RenameEachDialog(ids) is { } rename)
+        {
+            _ = RenameOneByOneDialog.ShowAsync(this, rename);
+        }
+    }
+
+    private void OnDeleteManyRequested(object? sender, IReadOnlyList<Guid> ids)
+    {
+        if (_subscribed?.DeleteManyDialog(ids) is { } delete)
+        {
+            _ = DeleteTasksDialog.ShowAsync(this, delete);
+        }
+    }
+
+    private void OnConflictRequested(object? sender, Guid id)
+    {
+        if (_subscribed?.ConflictDialogFor(id) is { } conflict)
+        {
+            _ = ConflictDialog.ShowAsync(this, conflict);
+        }
     }
 
     private void OnPagePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -141,7 +141,8 @@ public sealed partial class TasksViewModel
 
         if (item.Conflicts is { Count: > 0 })
         {
-            bits.Add(new TaskRowBit(string.Empty, MaterialIconKind.CloudAlertOutline, "Changed on both devices", Tone: TaskRowBitTone.Drift));
+            bits.Add(new TaskRowBit(
+                string.Empty, MaterialIconKind.CloudAlertOutline, "Changed on both devices · click to pick a version", Tone: TaskRowBitTone.Drift, OpensConflict: true));
         }
 
         return bits;

@@ -236,13 +236,20 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:TaskRowBit">
-                                    <Border Classes="bit" Classes.chip="{Binding IsChip}" Classes.ink="{Binding IsInk}" Classes.faint="{Binding IsFaint}"
-                                            Classes.drift="{Binding IsDrift}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
-                                            <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasText}" />
-                                        </StackPanel>
-                                    </Border>
+                                    <Panel VerticalAlignment="Center">
+                                        <Border Classes="bit" Classes.chip="{Binding IsChip}" Classes.ink="{Binding IsInk}" Classes.faint="{Binding IsFaint}"
+                                                Classes.drift="{Binding IsDrift}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center" IsVisible="{Binding IsPlain}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                                                <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasText}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <!-- The sync-problem cloud: "Changed on both devices". -->
+                                        <Button Classes="rowTool conflictBit" IsVisible="{Binding OpensConflict}" Click="OnConflictClick" Width="20" Height="20"
+                                                ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="Changed on both devices: pick a version">
+                                            <mi:MaterialIcon Kind="{Binding IconKind}" Width="14" Height="14" Foreground="{DynamicResource Ab.Drift}" />
+                                        </Button>
+                                    </Panel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

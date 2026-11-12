@@ -164,6 +164,13 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
     [ObservableProperty]
     public partial bool IsSyncProblem { get; set; }
 
+    /// <summary>The task was changed on two devices: the sync line opens "Changed on both devices".</summary>
+    [ObservableProperty]
+    public partial bool HasConflict { get; set; }
+
+    [RelayCommand]
+    private void OpenConflict() => _owner.RequestConflict(Key.Id);
+
     /// <summary>The ⋯ in the footer: the row's own menu.</summary>
     public IReadOnlyList<TaskMenuEntry> BuildMenu() => _owner.MenuFor(Key);
 
@@ -497,6 +504,7 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
         SyncText = syncText;
         SyncIcon = syncIcon;
         IsSyncProblem = problem;
+        HasConflict = item?.Conflicts is { Count: > 0 };
     }
 
     private List<TaskChipViewModel> BuildEstimateChips(int? current)

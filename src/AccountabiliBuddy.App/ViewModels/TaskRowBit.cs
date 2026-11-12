@@ -10,8 +10,12 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Icon">The Material icon before the words; null for none.</param>
 /// <param name="Tip">The tooltip, e.g. "Time limit"; empty for none.</param>
 /// <param name="IsChip">Drawn as a small Surface2 pill (tags).</param>
-public sealed record TaskRowBit(string Text, MaterialIconKind? Icon = null, string Tip = "", bool IsChip = false, TaskRowBitTone Tone = TaskRowBitTone.Muted)
+/// <param name="OpensConflict">The sync-problem cloud: a click opens "Changed on both devices".</param>
+public sealed record TaskRowBit(
+    string Text, MaterialIconKind? Icon = null, string Tip = "", bool IsChip = false, TaskRowBitTone Tone = TaskRowBitTone.Muted, bool OpensConflict = false)
 {
+    public bool IsPlain => !OpensConflict;
+
     public bool HasIcon => Icon is not null;
 
     public MaterialIconKind IconKind => Icon ?? MaterialIconKind.CircleSmall;

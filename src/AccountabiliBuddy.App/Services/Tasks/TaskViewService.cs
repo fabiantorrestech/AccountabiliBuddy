@@ -128,6 +128,41 @@ public sealed class TaskViewService
         return saved;
     }
 
+    /// <summary>
+    /// The Create a view dialog: a new view with <paramref name="config"/> (the Shelf's search words go with it, this PC only), opened
+    /// at once; null when the list is full.
+    /// </summary>
+    public async Task<TaskView?> CreateAsync(string name, string? icon, TaskViewConfig config)
+    {
+        string search = Search;
+        TaskView? saved = null;
+        await _store.ChangeAsync(this, (lists, _, now) =>
+        {
+            (TaskLists after, saved) = TaskViewEdits.Save(lists, name, icon, config, now);
+            return after;
+        });
+        if (saved is null)
+        {
+            return null;
+        }
+
+        await _store.SetViewSearchAsync(saved.Id, search);
+        Open(saved.Id);
+        return saved;
+    }
+
+    /// <summary>The Edit view dialog: the view's name, icon and settings. The view in use shows its new settings at once.</summary>
+    public async Task EditAsync(Guid id, string name, string? icon, TaskViewConfig config)
+    {
+        await _store.ChangeAsync(this, (lists, _, now) => TaskViewEdits.Update(lists, id, name, icon, config, now));
+        if (ActiveId == id)
+        {
+            Working = config;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public Task RenameAsync(Guid id, string name, string? icon = null)
     {
         return _store.ChangeAsync(this, (lists, _, now) => TaskViewEdits.Update(lists, id, name, icon, null, now));

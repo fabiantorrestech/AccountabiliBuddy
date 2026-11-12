@@ -1,0 +1,66 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.ConflictDialog"
+                        x:DataType="vm:ConflictDialogViewModel"
+                        Title="Changed on both devices"
+                        Icon="/Assets/app-icon.png"
+                        Width="460">
+    <!-- P9 (spec 05 §11): the newer version first and highlighted ("Newer"), large 12-hour times, a click keeps that one; Keep both
+         puts the other in Queued; Decide later changes nothing. -->
+    <StackPanel Margin="22,20" Spacing="12">
+        <StackPanel Spacing="2">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="dlgTitle" Text="Changed on both devices" />
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding CountText}" IsVisible="{Binding HasCount}" FontSize="12" VerticalAlignment="Center" />
+            </Grid>
+            <TextBlock Classes="dlgSub" Text="{Binding TaskTitle}" MaxLines="2" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+
+        <TextBlock Classes="dlgSub" IsVisible="{Binding IsGone}" Text="Nothing left to decide: it was settled on another device, or the task is gone." />
+
+        <StackPanel Spacing="8" IsVisible="{Binding !IsGone}">
+            <TextBlock Classes="dlgHead" Text="{Binding Head}" />
+            <ItemsControl ItemsSource="{Binding Versions}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="8" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ConflictVersionViewModel">
+                        <Button Classes="dlgRow" Classes.lit="{Binding IsNewer}" Classes.dialogStart="{Binding IsNewer}" Command="{Binding Keep}"
+                                AutomationProperties.Name="{Binding KeepName}" ToolTip.Tip="Keep this version">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <mi:MaterialIcon Kind="{Binding DeviceIcon}" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Text}" FontSize="14.5" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis"
+                                               FontWeight="{Binding IsNewer, Converter={x:Static views:ConflictDialog.WeightOf}}"
+                                               FontStyle="{Binding IsEmpty, Converter={x:Static views:ConflictDialog.StyleOf}}" />
+                                    <TextBlock Classes="muted" Text="{Binding Sub}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <TextBlock Classes="numeral" Text="{Binding TimeText}" FontSize="18" HorizontalAlignment="Right" />
+                                    <Border Classes="dlgTag" IsVisible="{Binding IsNewer}" HorizontalAlignment="Right">
+                                        <TextBlock Text="Newer" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Classes="quiet" Command="{Binding KeepBothCommand}" HorizontalAlignment="Left" Padding="6,4"
+                    ToolTip.Tip="The other version becomes its own task in Queued">
+                <TextBlock Classes="muted" Text="Keep both as separate tasks" FontSize="13" TextDecorations="Underline" />
+            </Button>
+            <TextBlock Classes="faint" Text="{x:Static vm:ConflictDialogViewModel.Foot}" FontSize="12" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Decide later" Command="{Binding DecideLaterCommand}" IsCancel="True" />
+        </StackPanel>
+    </StackPanel>
+</views:TaskDialogWindow>

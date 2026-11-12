@@ -123,6 +123,17 @@ public partial class TaskRowView : UserControl
         }, DispatcherPriority.Render);
     }
 
+    // The sync-problem cloud on the detail line: "Changed on both devices" (the row itself does not open).
+    private void OnConflictClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is TaskListRowViewModel { OpenConflict: { } open })
+        {
+            open();
+        }
+
+        e.Handled = true;
+    }
+
     private void OnRowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         _pressModifiers = e.KeyModifiers;

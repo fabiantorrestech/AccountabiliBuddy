@@ -1,0 +1,190 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.ViewEditorDialog"
+                        x:DataType="vm:ViewEditorViewModel"
+                        Title="{Binding Heading}"
+                        Icon="/Assets/app-icon.png"
+                        Width="440">
+    <!-- Create a view / Edit view (spec 03 §C, 05 §10): name (needed, its own), icon, Group by, Sort, Pin highlights, Show only. -->
+    <views:TaskDialogWindow.Styles>
+        <Style Selector="Button.iconPick">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="Button.iconPick /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.iconPick.picked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="TextBlock.group">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="Margin" Value="0,6,0,2" />
+        </Style>
+        <Style Selector="TextBlock.problem">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="CheckBox">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinHeight" Value="28" />
+        </Style>
+    </views:TaskDialogWindow.Styles>
+
+    <StackPanel Margin="22,20" Spacing="10">
+        <TextBlock Classes="dlgTitle" Text="{Binding Heading}" />
+
+        <StackPanel Spacing="4">
+            <TextBox Classes="dialogStart" Text="{Binding Name}" PlaceholderText="Name it" MaxLength="40" KeyDown="OnNameKeyDown" AutomationProperties.Name="View name" />
+            <TextBlock Classes="problem" Text="{Binding NameProblem}" IsVisible="{Binding HasNameProblem}" />
+        </StackPanel>
+
+        <ItemsControl ItemsSource="{Binding Icons}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ViewIconChoiceViewModel">
+                    <Button Classes="iconPick" Classes.picked="{Binding IsSelected}" Command="{Binding Pick}" AutomationProperties.Name="{Binding Name}" ToolTip.Tip="Icon">
+                        <mi:MaterialIcon Kind="{Binding Kind}" Width="18" Height="18" />
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button Classes="quiet" HorizontalAlignment="Left" Padding="6,4" Command="{Binding TakeShelfCommand}"
+                ToolTip.Tip="Group, sort and filters become what the Shelf shows now">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon Kind="ContentCopy" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
+                <TextBlock Classes="muted" Text="Use the Shelf’s current settings" FontSize="12.5" />
+            </StackPanel>
+        </Button>
+
+        <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="4" Margin="0,0,8,0">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                    <StackPanel>
+                        <TextBlock Classes="group" Text="Group by" />
+                        <ComboBox ItemsSource="{Binding GroupNames}" SelectedIndex="{Binding GroupIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Group by" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Classes="group" Text="Sort" />
+                        <ComboBox ItemsSource="{Binding SortNames}" SelectedIndex="{Binding SortIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Sort" />
+                    </StackPanel>
+                </Grid>
+                <CheckBox Content="Pin highlights to the top" IsChecked="{Binding PinHighlights}" Margin="0,6,0,0" />
+
+                <TextBlock Classes="dlgHead" Text="Show only" Margin="0,10,0,0" />
+                <TextBlock Classes="faint" Text="Ticks in one list widen it; different lists narrow it." FontSize="11.5" TextWrapping="Wrap" />
+
+                <TextBlock Classes="group" Text="Labels" />
+                <ItemsControl ItemsSource="{Binding Labels}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="14" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ViewEditorOption">
+                            <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Text}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" IsVisible="{Binding HasDot}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </CheckBox>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel IsVisible="{Binding HasTags}">
+                    <TextBlock Classes="group" Text="Tags" />
+                    <ItemsControl ItemsSource="{Binding Tags}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="14" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ViewEditorOption">
+                                <CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Text}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <CheckBox Content="Has every ticked tag" IsChecked="{Binding MatchAllTags}" />
+                </StackPanel>
+
+                <TextBlock Classes="group" Text="Due date" />
+                <ItemsControl ItemsSource="{Binding Due}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="14" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ViewEditorOption">
+                            <CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Text}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Classes="group" Text="Time limit" />
+                <ItemsControl ItemsSource="{Binding Time}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="14" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ViewEditorOption">
+                            <CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Text}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Classes="group" Text="Untouched for" />
+                <ItemsControl ItemsSource="{Binding Old}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="14" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ViewEditorOption">
+                            <CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Text}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <CheckBox Content="Highlighted only" IsChecked="{Binding HighlightedOnly}" Margin="0,6,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding CanDelete}" VerticalAlignment="Center">
+                <Button Classes="quiet" Padding="6,4" Command="{Binding AskDeleteCommand}" IsVisible="{Binding !IsConfirmingDelete}">
+                    <TextBlock Text="Delete view" Foreground="{DynamicResource Ab.Drift}" FontSize="13" />
+                </Button>
+                <Button Classes="danger" Content="{Binding DeleteText}" Command="{Binding DeleteCommand}" IsVisible="{Binding IsConfirmingDelete}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                <Button Classes="primary" Content="{Binding SaveText}" Command="{Binding SaveCommand}" />
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</views:TaskDialogWindow>

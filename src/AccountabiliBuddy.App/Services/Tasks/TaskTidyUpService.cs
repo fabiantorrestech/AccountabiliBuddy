@@ -32,6 +32,14 @@ public sealed class TaskTidyUpService
         _sessions = sessions;
         _documents = documents;
         _time = time;
+        // Never during a session: one that starts (from the phone, the title bar, a shortcut) ends the open tidy-up; what was decided stays.
+        _sessions.StateChanged += (_, state) =>
+        {
+            if (state.IsActive && Plan is not null)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(Stop);
+            }
+        };
     }
 
     /// <summary>The running tidy-up; null while none runs.</summary>
