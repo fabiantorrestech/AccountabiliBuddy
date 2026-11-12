@@ -73,7 +73,24 @@ object GoalDrafts {
             weeklyHours = weeklyMinutes?.let { numberText(it / 60.0) }.orEmpty(),
             sources = goal.sources,
             isDeepWork = goal.isDeepWork,
+            notes = goal.notes.orEmpty(),
+            extraTiles = goal.extraTiles,
         )
+    }
+
+    /** The longest notes a goal keeps (the PC's notes box has no limit; the phone's sheet keeps it readable). */
+    const val MAX_NOTES_LENGTH = 2000
+
+    /** The notes as the goal stores them: trimmed, cut at [MAX_NOTES_LENGTH], null when blank. */
+    fun notesOf(draft: GoalDraft): String? = draft.notes.trim().take(MAX_NOTES_LENGTH).ifEmpty { null }
+
+    /**
+     * The draft with the goal's own Streak or Total switch set (brief §4.3: "the per-goal switch in Edit goal overrides it"). The
+     * goal starts from what shows now ([shownNow]: its own choice, else Goals › Options), so flipping one switch keeps the other.
+     */
+    fun withExtraTile(draft: GoalDraft, shownNow: GoalExtraTiles, streak: Boolean? = null, total: Boolean? = null): GoalDraft {
+        val base = draft.extraTiles ?: shownNow
+        return draft.copy(extraTiles = GoalExtraTiles(streak = streak ?: base.streak, total = total ?: base.total))
     }
 
     /** The kind changed on step 1: a habit that isn't daily starts at 3 times a period (the PC's `SetKind`). */
@@ -199,6 +216,7 @@ object GoalDrafts {
             return base.copy(
                 name = draft.name.trim(), icon = draft.icon, color = draft.color, areaId = area,
                 position = if (area == base.areaId) base.position else position,
+                notes = notesOf(draft), extraTiles = draft.extraTiles,
             )
         }
 
@@ -215,6 +233,8 @@ object GoalDrafts {
             target = target,
             sources = buildSources(draft),
             position = if (base == null || moved) position else base.position,
+            notes = notesOf(draft),
+            extraTiles = draft.extraTiles,
         )
     }
 

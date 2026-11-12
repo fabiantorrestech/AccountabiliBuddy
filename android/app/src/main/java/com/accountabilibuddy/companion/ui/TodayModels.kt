@@ -44,6 +44,12 @@ class TodayActions(
     val onAllowUsage: () -> Unit,
     /** Settings › Alerts & on-screen, where the noise folder, headphones and schedules are (the Noise picker's links). */
     val onOpenNoiseSettings: () -> Unit = {},
+    /** "Goals ›" on Today's goals: the Goals tab. */
+    val onOpenGoals: () -> Unit = {},
+    /** A row of Today's goals: that goal's page. */
+    val onOpenGoal: (UUID) -> Unit = {},
+    /** A short note for the user (a tick or a logged value the goals refused). */
+    val onMessage: (String) -> Unit = {},
 )
 
 /** Today's lunch: what the plan says, whether it was taken, and what the buttons do. */

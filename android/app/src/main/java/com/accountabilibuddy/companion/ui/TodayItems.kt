@@ -40,6 +40,8 @@ class TodayItemContext(
     val allTasksTicked: Boolean,
     val showWorkUse: Boolean,
     val showDayOff: Boolean,
+    /** The goals with Show on Today on ([com.accountabilibuddy.shared.goals.GoalTodayRows]); null while there are none or they aren't ready. */
+    val goals: com.accountabilibuddy.shared.goals.GoalTodayCard? = null,
 )
 
 /**
@@ -65,11 +67,18 @@ fun TodaySink.todayItem(part: TodayItem, c: TodayItemContext) {
             if (c.lunchChip != null) item(key = "lunch-chip") { LunchChip(c.lunch, c.clock, c.lunchChip) }
         }
         TodayItem.PcMissing -> if (!c.inSession && !c.pc.hasPc) item(key = "pc-missing") { PcMissingCard(c.actions.onOpenDevices) }
+        TodayItem.Goals -> c.goals?.takeIf { it.rows.isNotEmpty() }?.let { card ->
+            item(key = "today-goals") { com.accountabilibuddy.companion.ui.today.TodayGoalsCard(card, c.actions) }
+        }
+        TodayItem.NextUp -> c.info?.nextUp?.takeIf { it.isNotEmpty() }?.let { lines ->
+            item(key = "next-up") { com.accountabilibuddy.companion.ui.today.NextUpCard(lines) }
+        }
         TodayItem.Ring -> {
             val info = c.info
             if (info != null && (info.goalMinutes != null || info.focusedMinutes > 0)) item(key = "ring") { RingCard(info.focusedMinutes, info.goalMinutes) }
         }
-        TodayItem.Comebacks -> if (!c.inSession && c.comebacks != null && c.comebacks.items.isNotEmpty()) item(key = "comebacks") { ComebackCard(c.comebacks, c.actions.onOpenTasks) }
+        // In a session too (board B-Phone-Session: the "Come back to 2" chip); its default place is a More today chip.
+        TodayItem.Comebacks -> if (c.comebacks != null && c.comebacks.items.isNotEmpty()) item(key = "comebacks") { ComebackCard(c.comebacks, c.actions.onOpenTasks) }
         TodayItem.SmallCards -> if (!c.inSession) item(key = "small") { SmallCardsRow(c.hasTimer, c.phoneUsage, c.clock, c.actions.onAllowUsage) }
         TodayItem.Noise -> c.noiseCard?.let { card -> item(key = "noise") { card() } }
         TodayItem.DailySteps -> if (c.stepsState.enabled) item(key = "daily-steps") { DailyStepsCard(c.stepsState, c.clock) }

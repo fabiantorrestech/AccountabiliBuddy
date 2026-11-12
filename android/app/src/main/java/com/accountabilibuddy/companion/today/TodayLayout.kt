@@ -10,14 +10,32 @@ package com.accountabilibuddy.companion.today
  * - A part missing from a saved order (added in a later version) goes to the end of the order, in its default place.
  * - A saved place a part may not take (see [TodayItem.allowed]) counts as its default place, so a stored value can never hide a
  *   guard or an obligation.
+ * - [session] says which state the layout is for: a part with no choice takes that state's default place
+ *   ([TodayItem.defaultFor]), and [placements] holds only the choices that differ from it.
  */
 data class TodayLayout(
     val order: List<TodayItem>? = null,
     val placements: Map<TodayItem, TodayPlacement> = emptyMap(),
+    val session: Boolean = false,
 ) {
     val isDefault: Boolean get() = order == null && placements.isEmpty()
 
-    fun placementOf(item: TodayItem): TodayPlacement = item.clamp(placements[item] ?: item.defaultPlacement)
+    private fun defaultOf(item: TodayItem): TodayPlacement = item.defaultFor(session)
+
+    fun placementOf(item: TodayItem): TodayPlacement = item.clamp(placements[item] ?: defaultOf(item))
+
+    /**
+     * The same order and the same places, as the layout of the other state ("Copy the other layout"): every part keeps where it
+     * sits now, written against that state's defaults.
+     */
+    fun forState(inSession: Boolean): TodayLayout {
+        if (inSession == session) return this
+        val kept = TodayItem.entries.mapNotNull { item ->
+            val placed = placementOf(item)
+            if (placed == item.defaultFor(inSession)) null else item to placed
+        }.toMap()
+        return TodayLayout(order, kept, inSession)
+    }
 
     /** Every part, in the order Today draws them for the state of the day. */
     fun orderFor(inSession: Boolean): List<TodayItem> {
@@ -35,14 +53,14 @@ data class TodayLayout(
     /** Puts [item] at [placement]; a place the part may not take changes nothing. The part keeps its place in the order. */
     fun withPlacement(item: TodayItem, placement: TodayPlacement): TodayLayout {
         if (placement !in item.allowed) return this
-        val next = if (placement == item.defaultPlacement) placements - item else placements + (item to placement)
+        val next = if (placement == defaultOf(item)) placements - item else placements + (item to placement)
         return copy(placements = next)
     }
 
     /** Hides [item], or brings it back to its default place; a part that is always shown is left alone. */
     fun toggleHidden(item: TodayItem): TodayLayout = when {
         item.alwaysShown -> this
-        placementOf(item) == TodayPlacement.Hidden -> withPlacement(item, item.defaultPlacement)
+        placementOf(item) == TodayPlacement.Hidden -> withPlacement(item, defaultOf(item).takeIf { it != TodayPlacement.Hidden } ?: item.defaultPlacement)
         else -> withPlacement(item, TodayPlacement.Hidden)
     }
 
@@ -76,19 +94,19 @@ data class TodayLayout(
 
     companion object {
         /** Ring first, then the lunch chip and the guard banner: how Today has always drawn a running session. */
-        private val SESSION_FIRST = listOf(TodayItem.Ring, TodayItem.LunchChip, TodayItem.Guard, TodayItem.Noise, TodayItem.DailySteps)
+        private val SESSION_FIRST = listOf(TodayItem.Ring, TodayItem.LunchChip, TodayItem.Guard, TodayItem.Noise, TodayItem.DailySteps, TodayItem.Goals, TodayItem.NextUp)
 
         /** Reads what [orderText] and [placementsText] wrote; anything unreadable or unknown is ignored. */
-        fun parse(order: String?, placements: String?): TodayLayout {
+        fun parse(order: String?, placements: String?, session: Boolean = false): TodayLayout {
             val items = order?.split(',')?.mapNotNull { TodayItem.fromKey(it.trim()) }?.distinct()?.takeIf { it.isNotEmpty() }
             val chosen = placements.orEmpty().split(',').mapNotNull { pair ->
                 val (itemKey, placementKey) = pair.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
                 val item = TodayItem.fromKey(itemKey.trim()) ?: return@mapNotNull null
                 val placement = TodayPlacement.fromKey(placementKey.trim()) ?: return@mapNotNull null
                 // A choice equal to the default, or one the part may not take, is not a choice.
-                if (placement !in item.allowed || placement == item.defaultPlacement) null else item to placement
+                if (placement !in item.allowed || placement == item.defaultFor(session)) null else item to placement
             }.toMap()
-            return TodayLayout(items, chosen)
+            return TodayLayout(items, chosen, session)
         }
     }
 }

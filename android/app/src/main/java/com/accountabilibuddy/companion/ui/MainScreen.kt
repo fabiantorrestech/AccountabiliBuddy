@@ -376,7 +376,12 @@ fun MainScreen(
                             onOpenTasks = { nav.select(AppDestination.Tasks) },
                             onAllowUsage = onAllowUsage,
                             onOpenNoiseSettings = { nav.open(AppDestination.Settings, SettingsCategory.Alerts.key) },
+                            onOpenGoals = { nav.select(AppDestination.Goals) },
+                            onOpenGoal = { nav.open(AppDestination.Goals, it.toString()) },
+                            onMessage = { viewModel.message.value = it },
                         ),
+                        allReceived = syncAllReceived,
+                        received = syncReceived,
                         // On a tablet the sync light lives in the sidebar, on every place.
                         syncLight = if (wide) ({}) else syncLightSlot,
                         banner = {
@@ -403,10 +408,22 @@ fun MainScreen(
                 AppDestination.Goals -> {
                     // A goal's page is the Goals place with the goal's id as its detail (back goes to the list).
                     val openGoal = shown.detail?.let { runCatching { java.util.UUID.fromString(it) }.getOrNull() }
+                    // The goal menu's "Start a session…": the start Today's Start button uses, on the controlled PC, in the same cases.
+                    val goalSession = com.accountabilibuddy.companion.ui.goals.GoalSessionStart(
+                        pcName = pcName?.takeIf { it.isNotBlank() } ?: "your PC",
+                        pcState = pcState,
+                        blocked = com.accountabilibuddy.companion.ui.goals.GoalSessionStart.blockedReason(
+                            pcName = pcName, pcState = pcState,
+                            updateNeeded = controlPc?.let { PcFileControl.updateNeeded(it.file.device) },
+                            waiting = pcWaiting != null,
+                            settingsRest = guardsLock?.let { !it.test } == true,
+                        ),
+                        onStart = viewModel::startOnPc,
+                    )
                     if (openGoal != null) {
                         com.accountabilibuddy.companion.ui.goals.GoalPageScreen(
                             goalId = openGoal, allReceived = syncAllReceived, received = syncReceived,
-                            onBack = { nav.back() }, onMessage = { viewModel.message.value = it },
+                            onBack = { nav.back() }, onMessage = { viewModel.message.value = it }, session = goalSession,
                         )
                     } else com.accountabilibuddy.companion.ui.goals.GoalsScreen(
                         allReceived = syncAllReceived,
@@ -417,6 +434,7 @@ fun MainScreen(
                             onOpenGoal = { nav.open(AppDestination.Goals, it.toString()) },
                             onMessage = { viewModel.message.value = it },
                             onOpenGoalsSettings = { nav.open(AppDestination.Settings, SettingsCategory.Goals.key) },
+                            session = goalSession,
                         ),
                     )
                 }

@@ -24,6 +24,8 @@ data class TodayInfo(
     val pace: BudgetPace? = null,
     /** What calendar events changed in the guards today (ADR 58), e.g. "Comms from calendar: 2:00-3:00 PM"; no titles. Empty when none. */
     val calendar: List<String> = emptyList(),
+    /** "Next up" (board Main): what runs now and the next parts of today's plan, soonest first; empty when the day has none. */
+    val nextUp: List<NextUpLine> = emptyList(),
 ) {
     companion object {
         const val NOTHING_RUNNING = "Nothing running."
@@ -50,7 +52,8 @@ data class TodayInfo(
             val counted = DayWorkWindows.focusedToday(focus, now, zone)?.invoke(date) ?: Duration.ZERO
             val mode = plan.templateFor(date).mode
 
-            fun info(suffix: String?, next: String, pace: BudgetPace? = null) = TodayInfo(suffix, NOTHING_RUNNING, next, focusedMinutes, goal, pace)
+            fun info(suffix: String?, next: String, pace: BudgetPace? = null, nextUp: List<NextUpLine> = emptyList()) =
+                TodayInfo(suffix, NOTHING_RUNNING, next, focusedMinutes, goal, pace, nextUp = nextUp)
 
             if (notWorkingToday) return info("not working today", "Not working today.")
             if (mode == DayMode.Free) return info("free day", "Free day. Nothing is guarded.")
@@ -68,11 +71,12 @@ data class TodayInfo(
             if (windows.isEmpty()) return info("day off", "Day off.")
             val last = windows.maxBy { it.window.end }
             val suffix = if (last.window.end.isAfter(now)) "work until ${clock.time(last.window.end)}" else "work is done"
+            val nextUp = NextUpLine.of(windows, plan.fixedLunchOn(date), now, clock)
             val current = windows.firstOrNull { it.window.contains(now) }
-            if (current != null) return info(suffix, "${current.name} until ${clock.time(current.window.end)}.")
+            if (current != null) return info(suffix, "${current.name} until ${clock.time(current.window.end)}.", nextUp = nextUp)
             val next = windows.filter { it.window.start.isAfter(now) }.minByOrNull { it.window.start }
-            if (next != null) return info(suffix, "${next.name} at ${clock.time(next.window.start)}.")
-            return info(suffix, "Done for today.")
+            if (next != null) return info(suffix, "${next.name} at ${clock.time(next.window.start)}.", nextUp = nextUp)
+            return info(suffix, "Done for today.", nextUp = nextUp)
         }
     }
 }

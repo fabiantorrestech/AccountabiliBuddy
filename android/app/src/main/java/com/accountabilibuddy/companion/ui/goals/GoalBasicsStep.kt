@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import com.accountabilibuddy.companion.ui.kit.AbOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,7 +60,7 @@ fun GoalBasicsStep(
         footer = {
             problem?.let { Text(it, style = Ab.type.small, color = colors.muted) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AbTonalButton("Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
+                AbOutlinedButton("Cancel", onClick = onDismiss, modifier = Modifier.weight(1f))
                 AbPrimaryButton("Next", onClick = onNext, enabled = problem == null, modifier = Modifier.weight(1f))
             }
         },

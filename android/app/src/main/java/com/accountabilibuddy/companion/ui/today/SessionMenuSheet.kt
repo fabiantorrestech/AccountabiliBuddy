@@ -52,7 +52,7 @@ fun SessionMenuSheet(
     val pc = pcName ?: "the PC"
     val soon = "Coming soon for a session on $pc"
 
-    AbSheet(title = "Session", subtitle = sessionSubtitle(state, clock, awaySince), onDismiss = onDismiss, height = AbSheetHeight.Half) {
+    AbSheet(title = "Session", subtitle = sessionSubtitle(state, clock, awaySince, pcName), onDismiss = onDismiss, height = AbSheetHeight.Half) {
         val away = stepAway?.away == true
         AbSheetRow(
             title = if (away) "I'm back" else "Step away",
@@ -102,9 +102,10 @@ fun SessionMenuSheet(
     }
 }
 
-// "32m left · ends 1:23 PM · Deep work", redrawn each second in the sheet only.
+// "32m left · ends 1:23 PM · Deep work · on Work PC", redrawn each second in the sheet only. Where the session runs is said here
+// (it left Today's date line, which stays "Wed, Nov 11 · PB" as the boards draw it).
 @Composable
-private fun sessionSubtitle(state: PcState, clock: ClockFormat, awaySince: Instant?): String {
+private fun sessionSubtitle(state: PcState, clock: ClockFormat, awaySince: Instant?, pcName: String?): String {
     val ticking by rememberTickingNow()
     val now = awaySince?.takeIf { it.isBefore(ticking) } ?: ticking
     val end = state.phaseEndsAt?.toInstant()
@@ -116,5 +117,7 @@ private fun sessionSubtitle(state: PcState, clock: ClockFormat, awaySince: Insta
         parts += "No set end"
     }
     state.profileName?.let { parts += it }
+    if (state.isPlanning) parts += "planning first" else if (state.isBreak) parts += "break"
+    pcName?.takeIf { it.isNotBlank() }?.let { parts += "on $it" }
     return parts.joinToString(" · ")
 }

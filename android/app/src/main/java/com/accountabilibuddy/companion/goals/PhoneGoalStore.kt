@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.goals
 
+import com.accountabilibuddy.shared.goals.GoalOrderRules
 import android.content.Context
 import com.accountabilibuddy.shared.TokenVault
 import com.accountabilibuddy.shared.goals.Goal
@@ -109,7 +110,33 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
         Changed(lists.copy(areas = lists.areas.map { if (it.id == id) it.copy(name = "", icon = "", color = "", editedAt = stamp, deletedAt = stamp) else it }))
     }
 
+    /**
+     * Deletes an area after moving its live goals to [heir], another live area, in one commit (brief §4.3: "Delete asks first and
+     * says where its goals go"; the PC moves them the same way). The goals keep their order, after the heir's own, and all their
+     * history; only their area and place change.
+     */
+    fun deleteAreaMovingGoals(id: UUID, heir: UUID): String? = change { lists, now ->
+        val old = lists.areas.firstOrNull { it.id == id && it.isLive } ?: return@change Refused(GONE)
+        if (heir == id || lists.areas.none { it.id == heir && it.isLive }) return@change Refused("Pick an area for its goals.")
+        val moved = GoalOrderRules.movedTo(lists.goals, id, heir).associateBy { it.id }
+        val goals = lists.goals.map { goal ->
+            moved[goal.id]?.let { goal.copy(areaId = it.areaId, position = it.position, editedAt = GoalListRules.after(now, goal.editedAt)) } ?: goal
+        }
+        val stamp = GoalListRules.after(now, old.editedAt)
+        Changed(lists.copy(goals = goals, areas = lists.areas.map { if (it.id == id) it.copy(name = "", icon = "", color = "", editedAt = stamp, deletedAt = stamp) else it }))
+    }
+
     // ---------------------------------------------------------------- goals
+
+    /**
+     * Saves the new places of the goals that moved inside their area ([GoalOrderRules.reordered]) in one commit. Only [Goal.position]
+     * is taken from [changed]: nothing else about a goal changes here, so it needs none of [updateGoal]'s checks.
+     */
+    fun reorderGoals(changed: List<Goal>): String? = change { lists, now ->
+        val byId = changed.associateBy { it.id }
+        if (byId.keys.any { id -> lists.goals.none { it.id == id && it.isLive } }) return@change Refused(GONE)
+        Changed(lists.copy(goals = lists.goals.map { old -> byId[old.id]?.let { old.copy(position = it.position, editedAt = GoalListRules.after(now, old.editedAt)) } ?: old }))
+    }
 
     /** Adds [goal] (its id new) to a live area; a second built-in goal, Deep work's own source or a "Coming soon" source is refused. */
     fun addGoal(goal: Goal): String? = change { lists, now ->

@@ -17,8 +17,8 @@ import com.accountabilibuddy.companion.ui.sheets.AbSheetValue
 fun TodayOptionsSheet(noiseTitle: String?, onArrange: () -> Unit, onNoise: () -> Unit, onDismiss: () -> Unit) {
     AbSheet(title = "Today", subtitle = "This phone only", onDismiss = onDismiss, height = AbSheetHeight.Half) {
         AbSheetRow(
-            title = "Today layout",
-            subtitle = "What shows in a session and outside one",
+            title = "Today settings",
+            subtitle = "Today layout: what shows in a session and outside one",
             icon = Icons.Outlined.Tune,
             onClick = {
                 onDismiss()

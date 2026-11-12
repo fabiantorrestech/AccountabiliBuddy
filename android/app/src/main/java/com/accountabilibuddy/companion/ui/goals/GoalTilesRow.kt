@@ -1,5 +1,8 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,26 +54,34 @@ fun GoalTilesRow(tiles: List<GoalTile>, tint: Color, onWhatItTakes: (() -> Unit)
 @Composable
 private fun GoalTileCard(tile: GoalTile, tint: Color, modifier: Modifier = Modifier, onWhatItTakes: (() -> Unit)? = null) {
     val colors = Ab.colors
-    AbCard(modifier.heightIn(min = 96.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp), verticalSpacing = 6.dp) {
+    // Board Goals-Phone-Habit: caption, the number, one line of text, and the bar or dots last. The Target tile's line reads
+    // "On track · done ~1/10 · What it takes ›" (the status in its colour, the link in the accent); the whole tile opens it.
+    AbCard(modifier.heightIn(min = 96.dp), onClick = onWhatItTakes, contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp), verticalSpacing = 6.dp) {
         Text(tile.caption, style = Ab.type.small, color = colors.muted, maxLines = 2)
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(tile.big, style = Ab.type.bodyMedium.copy(fontSize = 22.sp, fontFeatureSettings = "tnum"), fontWeight = FontWeight.SemiBold, color = colors.ink)
             tile.of?.let { Text(it, style = Ab.type.small.copy(fontFeatureSettings = "tnum"), color = colors.muted, modifier = Modifier.padding(bottom = 2.dp)) }
         }
+        if (tile.status != null || tile.foot != null || onWhatItTakes != null) {
+            Text(
+                buildAnnotatedString {
+                    var first = true
+                    fun part(block: () -> Unit) {
+                        if (!first) append(" · ")
+                        first = false
+                        block()
+                    }
+                    tile.status?.let { status ->
+                        part { withStyle(SpanStyle(color = if (tile.statusAmber) colors.amberInk else colors.met, fontWeight = FontWeight.Medium)) { append(status) } }
+                    }
+                    tile.foot?.let { foot -> part { append(foot) } }
+                    if (onWhatItTakes != null) part { withStyle(SpanStyle(color = colors.accent, fontWeight = FontWeight.SemiBold)) { append("What it takes ›") } }
+                },
+                style = Ab.type.small, color = colors.muted,
+            )
+        }
         tile.fraction?.let { GoalTileBar(it, tile.mark, tint) }
         tile.segments?.takeIf { it.isNotEmpty() }?.let { GoalWeekDots(it, tint) }
-        tile.foot?.let { Text(it, style = Ab.type.small, color = colors.muted) }
-        if (tile.status != null || onWhatItTakes != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                tile.status?.let { if (tile.statusAmber) AmberPill(it) else MutedPill(it) }
-                if (onWhatItTakes != null) {
-                    Text(
-                        "What it takes ›", style = Ab.type.small, fontWeight = FontWeight.SemiBold, color = colors.accent,
-                        modifier = Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onWhatItTakes).padding(vertical = 14.dp),
-                    )
-                }
-            }
-        }
     }
 }
 

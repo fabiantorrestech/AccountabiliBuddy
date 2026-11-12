@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import androidx.compose.material.icons.outlined.MonitorWeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -92,6 +93,8 @@ fun GoalSourcesSheet(
             subtitle = if (has(GoalSourceType.HealthSleep)) "Already counting" else "Counts from the next update",
         )
         AbSheetRow("Screen time", onClick = null, icon = Icons.Outlined.PhoneAndroid, enabled = false, subtitle = "Coming in the next update")
+        // Brief §7: shown as a placeholder until its permission is decided (ADR 81, Proposed); weight is typed in until then.
+        AbSheetRow("Weight from Health Connect", onClick = null, icon = Icons.Outlined.MonitorWeight, enabled = false, subtitle = "Coming soon · typed in until then")
 
         Head("MEASURED ON YOUR PC")
         AbSheetRow("Focus · a #tag", onClick = null, icon = Icons.Outlined.Tag, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.FocusTag), subtitle = GoalPhoneRules.MEASURED_ON_PC)

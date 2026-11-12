@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.ui.today
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +70,7 @@ fun ThisSessionCard(running: RunningTasks) {
                 TaskLine(
                     number = number, item = current.item, ticker = ticker, isCurrent = true,
                     subLine = { SubLine(parent = current.task.title.takeIf { current.isStep }, current.task) },
+                    letter = current.stepLetter,
                 )
             }
             others.forEach { task ->
@@ -92,12 +95,13 @@ fun ThisSessionCard(running: RunningTasks) {
 
 // One numbered row: number, tick box, title (bold for the current item), and its sub-line. A finished row has no number.
 @Composable
-private fun TaskLine(number: Int?, item: SessionTaskItem, ticker: TaskTicker, isCurrent: Boolean, subLine: @Composable () -> Unit) {
+private fun TaskLine(number: Int?, item: SessionTaskItem, ticker: TaskTicker, isCurrent: Boolean, subLine: @Composable () -> Unit, letter: String? = null) {
     val colors = Ab.colors
     val done = item.isDone || ticker.sending(item.id)
     val canTick = !done && ticker.canTick && item.id != null
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 52.dp)
+        // Board B-Phone-Session: the current row is 60 dp with a 17 sp / 600 title, the others 52 dp at 15 sp / 500.
+        Modifier.fillMaxWidth().heightIn(min = if (isCurrent) 60.dp else 52.dp)
             .toggleable(value = done, enabled = canTick, role = Role.Checkbox, onValueChange = { ticker.tick(item.id) })
             .semantics { stateDescription = if (done) "Done" else if (isCurrent) "Current" else "Open" }
             .padding(vertical = 8.dp),
@@ -107,7 +111,7 @@ private fun TaskLine(number: Int?, item: SessionTaskItem, ticker: TaskTicker, is
             if (number != null) {
                 Text(
                     number.toString(), style = Ab.type.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = FontWeight.SemiBold,
                     color = if (isCurrent) colors.accent else colors.muted,
                 )
             }
@@ -116,11 +120,23 @@ private fun TaskLine(number: Int?, item: SessionTaskItem, ticker: TaskTicker, is
         AbCheck(done)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                item.title, style = Ab.type.body, fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (done) colors.muted else colors.ink, textDecoration = if (done) TextDecoration.LineThrough else null,
-                maxLines = 3, overflow = TextOverflow.Ellipsis,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // The step's letter ("b"), as the PC numbers a task's steps; Done reads "Done · b".
+                if (letter != null) {
+                    Text(
+                        letter, style = Ab.type.micro.copy(fontSize = 11.5.sp, letterSpacing = 0.sp), fontWeight = FontWeight.Bold, color = colors.muted,
+                        modifier = Modifier.padding(top = 3.dp).background(colors.surface2, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 1.dp)
+                            .semantics { contentDescription = "Step $letter" },
+                    )
+                }
+                Text(
+                    item.title,
+                    style = if (isCurrent) Ab.type.body.copy(fontSize = 17.sp, lineHeight = 22.sp) else Ab.type.bodyMedium.copy(lineHeight = 20.sp),
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (done) colors.muted else colors.ink, textDecoration = if (done) TextDecoration.LineThrough else null,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                )
+            }
             subLine()
         }
     }

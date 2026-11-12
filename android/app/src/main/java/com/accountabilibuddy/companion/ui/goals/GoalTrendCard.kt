@@ -1,5 +1,14 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import com.accountabilibuddy.shared.goals.GoalUnit
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -66,18 +75,24 @@ fun GoalTrendCard(page: PhoneGoalPage, tint: Color, modifier: Modifier = Modifie
     val shown = trend
     val unit = page.goal.target.unit
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.Bottom) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.Bottom) {
+            // Board Goals-Phone-Weight: the value at 44 sp / 600 in the accent, its unit at 17 sp beside it.
+            val value = shown?.latest?.let { GoalTexts.value(it, unit) } ?: "–"
+            val split = ' ' in value && (unit == GoalUnit.Lb || unit == GoalUnit.Kg)
             Text(
-                shown?.latest?.let { GoalTexts.value(it, unit) } ?: "–",
-                style = Ab.type.head.copy(fontFeatureSettings = "tnum"), color = colors.accent, modifier = Modifier.weight(1f),
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontSize = 44.sp, fontWeight = FontWeight.SemiBold)) { append(if (split) value.substringBeforeLast(' ') else value) }
+                    if (split) withStyle(SpanStyle(fontSize = 17.sp)) { append(" " + value.substringAfterLast(' ')) }
+                },
+                style = Ab.type.count.copy(fontSize = 44.sp, lineHeight = 48.sp), color = colors.accent, maxLines = 1, modifier = Modifier.weight(1f),
             )
             shown?.changeText?.let {
-                Text(it, style = Ab.type.small, color = if (shown.changeGood == true) colors.met else colors.muted, modifier = Modifier.padding(bottom = 4.dp))
+                Text(it, style = Ab.type.small, color = if (shown.changeGood == true) colors.met else colors.muted, modifier = Modifier.padding(bottom = 8.dp))
             }
         }
         AbCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp), verticalSpacing = 10.dp) {
             AbSegmented(GoalTrendRange.entries.map { it.label }, rangeIndex, { rangeIndex = it })
-            TrendChart(shown, tint)
+            TrendChart(shown, tint, page.facts.today)
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 LegendItem("Logged", colors.accent, dashed = false)
                 LegendItem("At your 3-month pace", colors.accent.copy(alpha = 0.6f), dashed = true)
@@ -89,7 +104,7 @@ fun GoalTrendCard(page: PhoneGoalPage, tint: Color, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun TrendChart(trend: GoalTrend?, tint: Color) {
+private fun TrendChart(trend: GoalTrend?, tint: Color, today: java.time.LocalDate) {
     val colors = Ab.colors
     val measurer = rememberTextMeasurer()
     val label = TextStyle(fontSize = 11.sp, color = colors.muted)
@@ -134,6 +149,11 @@ private fun TrendChart(trend: GoalTrend?, tint: Color) {
             drawText(m, topLeft = Offset((x(day) - m.size.width / 2f).coerceIn(leftPad, size.width - m.size.width), size.height - m.size.height))
             day += every
         }
+        // A thin line at today, between what was logged and what is projected.
+        val todayDay = today.toEpochDay()
+        if (todayDay in firstDay..lastDay && lastDay > firstDay) {
+            drawLine(colors.faint, Offset(x(todayDay), 6.dp.toPx()), Offset(x(todayDay), 6.dp.toPx() + plotH), 1.dp.toPx())
+        }
         t.targetLevel?.let { target ->
             drawLine(colors.met, Offset(leftPad, y(target)), Offset(leftPad + plotW, y(target)), 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 6f)), cap = StrokeCap.Round)
         }
@@ -142,6 +162,13 @@ private fun TrendChart(trend: GoalTrend?, tint: Color) {
             val b = t.projection[1]
             drawLine(lineColor.copy(alpha = 0.6f), Offset(x(a.day.toEpochDay()), y(a.value)), Offset(x(b.day.toEpochDay()), y(b.value)), 2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
             drawCircle(colors.met, 4.dp.toPx(), Offset(x(b.day.toEpochDay()), y(b.value)), style = Stroke(1.5.dp.toPx()))
+            // "Target · Mar 1" at the target's point, kept inside the plot.
+            t.targetDate?.let { date ->
+                val month = date.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH)
+                val m = measurer.measure("Target · $month ${date.dayOfMonth}", label.copy(color = colors.met))
+                val left = (x(b.day.toEpochDay()) - m.size.width - 6.dp.toPx()).coerceAtLeast(leftPad)
+                drawText(m, topLeft = Offset(left, (y(b.value) - m.size.height - 4.dp.toPx()).coerceAtLeast(0f)))
+            }
         }
         t.points.zipWithNext().forEach { (p, q) ->
             drawLine(lineColor, Offset(x(p.day.toEpochDay()), y(p.value)), Offset(x(q.day.toEpochDay()), y(q.value)), 2.5.dp.toPx(), cap = StrokeCap.Round)
@@ -187,10 +214,23 @@ private fun TrendBanner(banner: GoalTrendBanner) {
         GoalTrendBanner.Tone.Neutral -> Triple(colors.infoBg, colors.line, colors.infoInk)
     }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(fill).border(1.dp, edge, RoundedCornerShape(16.dp)).padding(14.dp),
+        Modifier.fillMaxWidth().clip(Ab.shapes.mediumShape).background(fill).border(1.dp, edge, Ab.shapes.mediumShape).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        banner.headline?.let { Text(it, style = Ab.type.bodyMedium, fontWeight = FontWeight.Bold, color = ink) }
-        Text(banner.body, style = Ab.type.small, color = colors.ink)
+        banner.headline?.let { headline ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Outlined.Timer, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
+                Text(headline, style = Ab.type.bodyMedium, fontWeight = FontWeight.Bold, color = ink)
+            }
+        }
+        // The date the pace reaches the target is the line's point: bold, as the board writes it ("around **Mar 3**").
+        val date = Regex("around ([^,.]+)").find(banner.body)?.groups?.get(1)
+        Text(
+            buildAnnotatedString {
+                append(banner.body)
+                if (date != null) addStyle(SpanStyle(fontWeight = FontWeight.Bold), date.range.first, date.range.last + 1)
+            },
+            style = Ab.type.small, color = colors.ink,
+        )
     }
 }

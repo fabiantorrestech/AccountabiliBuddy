@@ -10,10 +10,25 @@ package com.accountabilibuddy.shared.goals
  * Beeminder is greyed; "Open its tasks" is "Coming soon" (plan §3b 2). Whether a row's screen exists yet is the screen's business.
  */
 object GoalMenuPlan {
-    /** [todayState]: the goal's state today (a habit's tick, "8 of 15 min so far"). */
-    fun of(goal: Goal, todayState: GoalDayState, paused: Boolean, reminderCount: Int, areaName: String?): List<GoalMenuItem> {
+    /**
+     * [todayState]: the goal's state today (a habit's tick, "8 of 15 min so far"). [startValue]: what Start a session… starts by
+     * default ("Default"), shown at its right; [startBlocked]: why a session can't be started from this phone now (no PC linked, a
+     * session running, an answer awaited), which greys the row and is its note.
+     */
+    fun of(
+        goal: Goal,
+        todayState: GoalDayState,
+        paused: Boolean,
+        reminderCount: Int,
+        areaName: String?,
+        startValue: String? = null,
+        startBlocked: String? = null,
+    ): List<GoalMenuItem> {
         val items = mutableListOf(GoalMenuItem(GoalMenuItemId.Heading, goal.name))
-        items += GoalMenuItem(GoalMenuItemId.StartSession, "Start a session", note = "Counts toward ${goal.name}", opensMore = true)
+        items += GoalMenuItem(
+            GoalMenuItemId.StartSession, "Start a session…", note = startBlocked ?: "Counts toward ${goal.name}",
+            value = startValue.takeIf { startBlocked == null }, enabled = startBlocked == null, opensMore = true,
+        )
         items += separator
         items += quickLog(goal, todayState, paused)
         items += separator

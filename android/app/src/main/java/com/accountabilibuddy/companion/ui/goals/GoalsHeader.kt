@@ -1,9 +1,7 @@
 package com.accountabilibuddy.companion.ui.goals
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,26 +17,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.accountabilibuddy.companion.ui.kit.AbPageHeader
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
- * The phone's Goals header (brief §3.3, §4.3): about 56 dp of space, "Goals", the subtitle "Week of Nov 8 · 5 of 8 on track" (the
- * day the week starts on), then a **Stats** pill (the Stats screen, which left the bottom bar for Goals) and **Options** (tune). No gear.
+ * The phone's Goals header (brief §3.3, §4.3): the shared page header ([AbPageHeader], so "Goals" sits where every tab's title sits),
+ * the subtitle "Week of Nov 8 · 5 of 8 on track" (the day the week starts on), then a **Stats** pill (the Stats screen, which left the
+ * bottom bar for Goals) and **Options** (tune). No gear.
  */
 @Composable
 fun GoalsHeader(subtitle: String, onStats: () -> Unit, onOptions: () -> Unit, modifier: Modifier = Modifier) {
     val colors = Ab.colors
-    Row(modifier.fillMaxWidth().padding(top = 40.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text("Goals", style = Ab.type.title, color = colors.ink, modifier = Modifier.semantics { heading() })
-            Text(subtitle, style = Ab.type.small, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+    AbPageHeader(
+        "Goals",
+        modifier,
+        subtitle = { Text(subtitle, style = Ab.type.small.copy(fontSize = 13.5.sp), color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+    ) {
         Surface(
             onClick = onStats,
             shape = Ab.shapes.pill,

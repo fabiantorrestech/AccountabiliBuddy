@@ -1,5 +1,9 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,11 +67,22 @@ fun GoalReadingsCard(readings: List<GoalReading>, unit: GoalUnit, today: LocalDa
                         Pill(if (reading.day == today) "Today  ${GoalTexts.date(reading.day, today)}" else GoalTexts.date(reading.day, today), bold = reading.day == today)
                         Pill(clock12(reading.time))
                     }
-                    Text("${reading.source} · ${reading.note}", style = Ab.type.micro, color = if (reading.charted) colors.muted else colors.faint)
+                    val replaced = reading.replaced
+                    Text(
+                        // Board Goals-Phone-Weight: "Edited by you · was 182.8 · your edit wins" for the edit that replaced a value.
+                        if (replaced != null) "Edited by you · was ${GoalTexts.number(replaced, 1)} · your edit wins" else "${reading.source} · ${reading.note}",
+                        style = Ab.type.micro, color = if (reading.charted) colors.muted else colors.faint,
+                    )
                 }
+                // Every value and its unit in the accent (brief §4.3): 16 sp / 700 with a 12 sp unit.
+                val shown = GoalTexts.value(reading.value, unit)
+                val number = if (' ' in shown && (unit == GoalUnit.Lb || unit == GoalUnit.Kg)) shown.substringBeforeLast(' ') else shown
                 Text(
-                    GoalTexts.value(reading.value, unit), style = Ab.type.bodyMedium.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.SemiBold,
-                    color = if (reading.charted) colors.accent else colors.muted,
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold)) { append(number) }
+                        if (number != shown) withStyle(SpanStyle(fontSize = 12.sp)) { append(" " + shown.substringAfterLast(' ')) }
+                    },
+                    style = Ab.type.bodyMedium.copy(fontFeatureSettings = "tnum"), color = colors.accent,
                 )
             }
         }

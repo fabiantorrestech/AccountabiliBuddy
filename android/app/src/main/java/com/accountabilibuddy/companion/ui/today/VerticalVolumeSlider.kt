@@ -36,12 +36,12 @@ import kotlin.math.roundToInt
  * a progress control ("Noise volume, 40 percent").
  */
 @Composable
-fun VerticalVolumeSlider(value: Int, onChange: (Int) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier, trackHeight: Dp = 150.dp) {
+fun VerticalVolumeSlider(value: Int, onChange: (Int) -> Unit, onDone: () -> Unit, modifier: Modifier = Modifier, trackHeight: Dp = 138.dp) {
     val colors = Ab.colors
     val current by rememberUpdatedState(value)
     val setValue by rememberUpdatedState(onChange)
     val done by rememberUpdatedState(onDone)
-    val thumb = 26.dp
+    val thumb = 24.dp
     val thumbPx = with(LocalDensity.current) { thumb.toPx() }
     BoxWithConstraints(
         modifier.width(48.dp).height(trackHeight)
@@ -83,8 +83,8 @@ fun VerticalVolumeSlider(value: Int, onChange: (Int) -> Unit, onDone: () -> Unit
         val fraction = current / 100f
         val trackDp = trackHeight - thumb
         // The track, its filled part from the bottom, and the thumb.
-        Box(Modifier.align(Alignment.Center).width(6.dp).height(trackDp).background(colors.surface2, CircleShape))
-        Box(Modifier.offset(y = -thumb / 2).width(6.dp).height(trackDp * fraction).background(colors.accent, CircleShape))
+        Box(Modifier.align(Alignment.Center).width(8.dp).height(trackDp).background(colors.bg, CircleShape))
+        Box(Modifier.offset(y = -thumb / 2).width(8.dp).height(trackDp * fraction).background(colors.accent, CircleShape))
         Box(Modifier.offset(y = -(trackDp * fraction)).size(thumb).background(colors.ink, CircleShape))
     }
 }

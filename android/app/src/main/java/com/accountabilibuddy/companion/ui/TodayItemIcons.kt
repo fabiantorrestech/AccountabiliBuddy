@@ -2,13 +2,17 @@ package com.accountabilibuddy.companion.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.Alarm
+
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.DirectionsWalk
-import androidx.compose.material.icons.outlined.DonutLarge
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.TrackChanges
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.DownloadForOffline
 import androidx.compose.material.icons.outlined.EventBusy
-import androidx.compose.material.icons.outlined.Lightbulb
+
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Restaurant
@@ -24,7 +28,9 @@ fun TodayItem.icon(): ImageVector = when (this) {
     TodayItem.Guard -> Icons.Outlined.Shield
     TodayItem.LunchChip -> Icons.Outlined.Restaurant
     TodayItem.PcMissing -> Icons.Outlined.Computer
-    TodayItem.Ring -> Icons.Outlined.DonutLarge
+    TodayItem.Goals -> Icons.Outlined.TrackChanges
+    TodayItem.NextUp -> Icons.Outlined.ViewAgenda
+    TodayItem.Ring -> Icons.Outlined.Timer
     TodayItem.Comebacks -> Icons.Outlined.Lightbulb
     TodayItem.SmallCards -> Icons.Outlined.PhoneAndroid
     TodayItem.Noise -> Icons.Outlined.MusicNote

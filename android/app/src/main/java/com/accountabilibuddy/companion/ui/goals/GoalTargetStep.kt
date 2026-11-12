@@ -1,5 +1,11 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import com.accountabilibuddy.shared.goals.GoalExtraTiles
+import com.accountabilibuddy.companion.ui.kit.AbSwitch
+import com.accountabilibuddy.companion.ui.kit.AbOutlinedButton
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.Functions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -101,13 +107,14 @@ fun GoalTargetStep(
         footer = {
             problem?.let { Text(it, style = Ab.type.small, color = colors.muted) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AbTonalButton("Back", onClick = onBack, modifier = Modifier.weight(1f))
+                AbOutlinedButton("Back", onClick = onBack, modifier = Modifier.weight(1f))
                 AbPrimaryButton(if (stored == null) "Create goal" else "Save", onClick = onSave, enabled = problem == null, modifier = Modifier.weight(1f))
             }
         },
     ) {
         if (draft.isDeepWork) {
             DeepWorkTarget(draft, onDraft, weekly, received, companion, onCancelWeekly)
+            OnItsPage(draft, onDraft)
             return@AbSheet
         }
 
@@ -132,9 +139,10 @@ fun GoalTargetStep(
         val byId = remember(labels) { labels.associateBy { GoalLabelId.idFor(it) } }
         FlowRow(Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             draft.sources.forEach { rule ->
+                // As the board names them ("Spanish label", "Tick by hand"); a tap takes one away (the line below says so).
                 AbChip(
                     sourceName(rule.type, rule.labelId?.let(byId::get)), selected = true,
-                    onClick = { onDraft(draft.copy(sources = draft.sources.filter { it.id != rule.id })) }, icon = Icons.Outlined.Close,
+                    onClick = { onDraft(draft.copy(sources = draft.sources.filter { it.id != rule.id })) },
                 )
             }
             AbChip("Source", selected = false, onClick = onSources, icon = Icons.Outlined.Add)
@@ -147,11 +155,36 @@ fun GoalTargetStep(
         GoalFieldLabel("REMINDERS")
         AbSheetRow("Reminders", onClick = null, icon = Icons.Outlined.NotificationsNone, enabled = false, subtitle = "Coming in the next update")
 
+        OnItsPage(draft, onDraft)
+
         Text(
             "Raising or lowering this goal's target applies at once: it feeds no guard.",
             style = Ab.type.small, color = colors.muted, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
         )
     }
+}
+
+// What the goal's own page shows and keeps (brief §4.3, §4.4): its Streak and Total tiles, where the goal's own switch wins over
+// Goals › Options › Extra tiles, and its notes (private text; previewed on the page).
+@Composable
+private fun OnItsPage(draft: GoalDraft, onDraft: (GoalDraft) -> Unit) {
+    val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
+    val shown = draft.extraTiles ?: if (display.extraTiles) GoalExtraTiles(streak = true, total = true) else GoalExtraTiles.NONE
+    GoalFieldLabel("EXTRA TILES ON ITS PAGE")
+    AbSheetRow(
+        "Streak", onClick = { onDraft(GoalDrafts.withExtraTile(draft, shown, streak = !shown.streak)) }, icon = Icons.Outlined.LocalFireDepartment,
+        subtitle = if (draft.extraTiles == null) "Follows Goals › Options until you change it here" else "This goal's own choice", role = Role.Switch,
+        trailing = { AbSwitch(shown.streak, onCheckedChange = { onDraft(GoalDrafts.withExtraTile(draft, shown, streak = it)) }) },
+    )
+    AbSheetRow(
+        "Total", onClick = { onDraft(GoalDrafts.withExtraTile(draft, shown, total = !shown.total)) }, icon = Icons.Outlined.Functions, role = Role.Switch,
+        trailing = { AbSwitch(shown.total, onCheckedChange = { onDraft(GoalDrafts.withExtraTile(draft, shown, total = it)) }) },
+    )
+    GoalFieldLabel("NOTES")
+    AbTextField(
+        draft.notes, { onDraft(draft.copy(notes = it.take(GoalDrafts.MAX_NOTES_LENGTH))) }, "Why it matters, links (private)",
+        Modifier.padding(horizontal = 24.dp, vertical = 6.dp), singleLine = false,
+    )
 }
 
 // The target's own fields for the goal's kind and period.
@@ -274,10 +307,10 @@ private fun DeepWorkTarget(draft: GoalDraft, onDraft: (GoalDraft) -> Unit, weekl
     AbSheetRow("Counts all focus", onClick = null, icon = Icons.Outlined.Lock, enabled = false, subtitle = "Deep work's source is locked to focus")
 }
 
-/** A source's name on a chip: "Spanish" for a label, "Tick by hand", "Daily steps", "Sleep". */
+/** A source's name on a chip: "Spanish label" for a label, "Tick by hand", "Daily steps", "Sleep". */
 internal fun sourceName(type: GoalSourceType, labelName: String?): String = when (type) {
     GoalSourceType.FocusAll -> "All focus"
-    GoalSourceType.FocusLabel -> labelName ?: "A label"
+    GoalSourceType.FocusLabel -> labelName?.let { "$it label" } ?: "A label"
     GoalSourceType.FocusTag -> "#tag"
     GoalSourceType.Hand -> "Tick by hand"
     GoalSourceType.HealthSteps -> "Daily steps"

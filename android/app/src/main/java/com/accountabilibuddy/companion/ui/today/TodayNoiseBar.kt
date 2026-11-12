@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.ui.today
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +64,8 @@ fun TodayNoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlaye
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+            // Accent while it plays, muted while paused (boards B-Phone-Session and Main).
+            Icon(Icons.Outlined.MusicNote, contentDescription = null, tint = if (state.playing) colors.accent else colors.muted, modifier = Modifier.size(20.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     state.title ?: if (state.fileCount == 0) "No sounds in that folder" else "Noise",
@@ -78,14 +81,13 @@ fun TodayNoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlaye
                 )
             }
         }
-        IconButton(onClick = player::previous) { Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous sound", tint = colors.muted) }
-        IconButton(onClick = player::next) { Icon(Icons.Filled.SkipNext, contentDescription = "Next sound", tint = colors.muted) }
-        Box {
+        IconButton(onClick = player::previous) { Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous sound", tint = colors.ink) }
+        IconButton(onClick = player::next) { Icon(Icons.Filled.SkipNext, contentDescription = "Next sound", tint = colors.ink) }
+        Box(contentAlignment = Alignment.Center) {
+            // A filled circle behind the button while its slider is open.
+            if (volumeOpen) Box(Modifier.size(44.dp).background(colors.surface2, CircleShape))
             IconButton(onClick = { volumeOpen = !volumeOpen }) {
-                Icon(
-                    Icons.AutoMirrored.Outlined.VolumeUp, contentDescription = "Volume, ${settings.volume} percent",
-                    tint = if (volumeOpen) colors.ink else colors.muted,
-                )
+                Icon(Icons.AutoMirrored.Outlined.VolumeUp, contentDescription = "Volume, ${settings.volume} percent", tint = colors.ink)
             }
             if (volumeOpen) VolumePopup(settings.volume, player, onDismiss = { volumeOpen = false })
         }
@@ -118,12 +120,14 @@ private fun VolumePopup(volume: Int, player: NoisePlayer, onDismiss: () -> Unit)
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
+        // Board B-Phone-Session: a 56 x 190 pill with a hairline, the % on top, an 8 dp track and a 24 dp thumb.
         Column(
-            Modifier.background(Ab.colors.surface2, CircleShape).padding(horizontal = 4.dp, vertical = 14.dp),
+            Modifier.size(width = 56.dp, height = 190.dp).background(Ab.colors.surface2, CircleShape).border(1.dp, Ab.colors.line, CircleShape)
+                .padding(top = 14.dp, bottom = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("$level%", style = Ab.type.small.copy(fontFeatureSettings = "tnum"), color = Ab.colors.ink, modifier = Modifier.padding(bottom = 8.dp))
-            VerticalVolumeSlider(level, onChange = { level = it }, onDone = { player.setVolume(level) })
+            Text("$level%", style = Ab.type.micro.copy(fontSize = 12.5.sp, letterSpacing = 0.sp, fontFeatureSettings = "tnum"), fontWeight = FontWeight.Bold, color = Ab.colors.ink)
+            VerticalVolumeSlider(level, onChange = { level = it }, onDone = { player.setVolume(level) }, modifier = Modifier.padding(top = 6.dp), trackHeight = 138.dp)
         }
     }
 }

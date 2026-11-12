@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -67,7 +68,7 @@ fun AbSheet(
         contentColor = colors.ink,
         scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f),
         dragHandle = {
-            Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 4.dp).background(colors.line, shapes.pill))
+            Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 4.dp).background(colors.faint, shapes.pill))
         },
     ) {
         Column(Modifier.fillMaxWidth().height(sheetHeight).navigationBarsPadding()) {
@@ -82,11 +83,11 @@ fun AbSheet(
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        title, style = Ab.type.body, fontWeight = FontWeight.SemiBold, color = colors.ink,
+                        title, style = Ab.type.body.copy(fontSize = 17.sp), fontWeight = FontWeight.SemiBold, color = colors.ink,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
                     )
                     if (subtitle != null) {
-                        Text(subtitle, style = Ab.type.small, color = colors.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(subtitle, style = Ab.type.small.copy(fontSize = 13.5.sp), color = colors.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 titleAction?.invoke()

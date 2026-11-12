@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.ui.today
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,12 +74,13 @@ fun SessionCard(state: PcState, clock: ClockFormat, awayText: String?, awaySince
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                AbRing(progress, diameter = 72.dp, strokeWidth = 6.dp)
-                Icon(Icons.Outlined.Timer, contentDescription = null, tint = Ab.colors.muted, modifier = Modifier.size(20.dp))
+                AbRing(progress, diameter = 64.dp, strokeWidth = 5.dp)
+                Icon(Icons.Outlined.Timer, contentDescription = null, tint = Ab.colors.accent, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f)) {
-                BigTimer(clockText(seconds), color = if (state.isBreak) Ab.meaning(Ab.colors.sleep) else Ab.colors.ink)
-                Text(caption, style = Ab.type.bodyMedium, color = Ab.colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Board B-Phone-Session: 48 sp / 600 (an hour or more steps down so it still fits beside the ring).
+                BigTimer(clockText(seconds), color = if (state.isBreak) Ab.meaning(Ab.colors.sleep) else Ab.colors.ink, size = 48.sp, longSize = 40.sp)
+                Text(caption, style = Ab.type.small.copy(fontSize = 13.5.sp), color = Ab.colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             }
         }
         if (awayText != null) Text(awayText, style = Ab.type.small, color = Ab.colors.muted)

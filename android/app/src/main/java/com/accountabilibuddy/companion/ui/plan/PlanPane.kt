@@ -42,13 +42,16 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier = Modifier) {
     var weekSheet by remember { mutableStateOf(false) }
     val header: @Composable () -> Unit = {
-        Column {
-            AbPageHeader("Plan") { PlanMenu(model, actions, onWeekSheet = { weekSheet = true }) }
-            Text(
-                model.title + (model.weekLabel?.let { " · $it" } ?: ""),
-                style = Ab.type.bodyMedium, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
+        // The shared page header: the day and the week are its subtitle line, so "Plan" sits where every tab's title sits.
+        AbPageHeader(
+            "Plan",
+            subtitle = {
+                Text(
+                    model.title + (model.weekLabel?.let { " · $it" } ?: ""),
+                    style = Ab.type.small, color = Ab.colors.muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            },
+        ) { PlanMenu(model, actions, onWeekSheet = { weekSheet = true }) }
     }
     val buttons: @Composable RowScope.() -> Unit = {
         AbTonalButton("Change a day", onClick = actions.onChangeDay, enabled = model.canEdit, modifier = Modifier.weight(1f))
@@ -77,7 +80,7 @@ fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier 
     } else Column(modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { header() }

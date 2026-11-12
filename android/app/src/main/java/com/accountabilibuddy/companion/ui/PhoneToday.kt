@@ -1,5 +1,8 @@
 package com.accountabilibuddy.companion.ui
 
+import com.accountabilibuddy.companion.ui.today.TodayGoalRows
+import com.accountabilibuddy.companion.ui.today.NextUpRows
+import com.accountabilibuddy.companion.ui.today.GoalsLink
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,11 +98,21 @@ internal fun PhoneToday(
     }
     val ordered = layout.orderFor(parts.inSession)
     val above = ordered.filter { placeOf(it) == TodayPlacement.Above && it != TodayItem.Noise }
+    val timers by app.timers.timers.collectAsState()
+    val alarms by app.timers.alarms.collectAsState()
+    // What waits inside a chip, where the part can be counted (boards: "Goals 3", "Come back to 2", "Timers 1").
+    fun countOf(part: TodayItem): Int? = when (part) {
+        TodayItem.Goals -> parts.goals?.left
+        TodayItem.Comebacks -> parts.comebacks?.items?.size
+        TodayItem.Timers -> timers.size + alarms.size
+        TodayItem.Beeminder -> parts.beeminder?.goals?.size
+        else -> null
+    }
     val chips = ordered.filter { placeOf(it) == TodayPlacement.Fold }.mapNotNull { part ->
         when {
             part == TodayItem.Noise -> if (noiseState.hasFolder) MoreTodayChip(part.key, "Noise", part.icon()) { noisePicker = true } else null
             TodayBlocks().apply { todayItem(part, parts) }.blocks.isEmpty() -> null
-            else -> MoreTodayChip(part.key, part.title, part.icon()) { openPart = part }
+            else -> MoreTodayChip(part.key, chipLabel(part), part.icon(), countOf(part)) { openPart = part }
         }
     }
     val showNoiseBar = noiseState.hasFolder && layout.placementOf(TodayItem.Noise) == TodayPlacement.Above
@@ -113,7 +126,7 @@ internal fun PhoneToday(
     Column(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "header") {
@@ -133,11 +146,12 @@ internal fun PhoneToday(
             }
             val sink = asTodaySink()
             above.forEach { part -> sink.todayItem(part, parts) }
-            if (chips.isNotEmpty()) item(key = "more-today") { MoreTodayChipRow(chips, Modifier.padding(top = 8.dp)) }
         }
 
-        // The thumb zone (CN §3): always at the bottom of the pane, above the tabs and the park pill.
+        // The thumb zone (CN §3): always at the bottom of the pane, above the tabs and the park pill. More today sits at its top, as
+        // the boards draw it (the foot of the page, right above the action bar), so the chips never scroll away.
         Column(Modifier.fillMaxWidth().background(Ab.colors.bg)) {
+            MoreTodayChipRow(chips, Modifier.padding(top = 4.dp))
             if (session != null) {
                 SessionActionBar(
                     current = current, canDone = canDone, onDone = { ticker?.tick(currentId) }, stepAway = stepAway,
@@ -155,9 +169,26 @@ internal fun PhoneToday(
     }
 
     openPart?.let { part ->
-        AbSheet(title = part.title, subtitle = part.about, onDismiss = { openPart = null }, height = AbSheetHeight.Half) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TodayBlocks().apply { todayItem(part, parts) }.blocks.forEach { block -> Box { block.content() } }
+        val goals = parts.goals
+        val nextUp = parts.info?.nextUp.orEmpty()
+        when {
+            // Board B-Phone-Tray-Open: the rows themselves, with "Goals ›" on the title line.
+            part == TodayItem.Goals && goals != null -> AbSheet(
+                title = "Today's goals",
+                subtitle = "${goals.leftText} · tick or log without leaving ${if (session != null) "the session" else "Today"}",
+                onDismiss = { openPart = null },
+                height = AbSheetHeight.Half,
+                titleAction = { GoalsLink { openPart = null; actions.onOpenGoals() } },
+            ) {
+                TodayGoalRows(goals, actions, Modifier.padding(horizontal = 24.dp))
+            }
+            part == TodayItem.NextUp && nextUp.isNotEmpty() -> AbSheet(title = part.title, subtitle = part.about, onDismiss = { openPart = null }, height = AbSheetHeight.Half) {
+                NextUpRows(nextUp, Modifier.padding(horizontal = 24.dp))
+            }
+            else -> AbSheet(title = part.title, subtitle = part.about, onDismiss = { openPart = null }, height = AbSheetHeight.Half) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TodayBlocks().apply { todayItem(part, parts) }.blocks.forEach { block -> Box { block.content() } }
+                }
             }
         }
     }
@@ -182,7 +213,16 @@ internal fun PhoneToday(
 
 private val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.getDefault())
 
-// The header with its date line: the date and what the day is, or, in a session, where it runs ("Focus on Work PC · 1 of 3").
+// A chip's short name where the part's own title is long (boards: "Goals", "Timers", "Lunch", "Beeminder").
+private fun chipLabel(part: TodayItem): String = when (part) {
+    TodayItem.Goals -> "Goals"
+    TodayItem.Timers -> "Timers"
+    TodayItem.Beeminder -> "Beeminder"
+    else -> part.title
+}
+
+// The header with its date line (boards: "Wed, Nov 11 · PB" in and out of a session): the date and, with nothing running, what the
+// day is. Where a session runs ("on Work PC") is said in the Session sheet, so the line never crowds PB.
 @Composable
 private fun TodayTitleLine(
     info: TodayInfo?,
@@ -193,19 +233,7 @@ private fun TodayTitleLine(
     onOptions: () -> Unit,
 ) {
     val date = LocalDate.now().format(DATE)
-    val line = if (session == null) {
-        listOfNotNull(date, info?.dateSuffix).joinToString(" · ")
-    } else {
-        val tasks = pc.tasks?.tasks.orEmpty()
-        val shown = pc.tasks?.let { com.accountabilibuddy.shared.sync.SessionTaskItem.shown(it.tasks, it.currentId)?.first }
-        val place = if (tasks.isEmpty()) "" else " · ${shown?.let { tasks.indexOf(it) + 1 } ?: tasks.size} of ${tasks.size}"
-        val where = when {
-            session.isPlanning -> "Plan first on ${pc.name}"
-            session.isBreak -> "Break on ${pc.name}"
-            else -> "Focus on ${pc.name}$place"
-        }
-        "$date · $where"
-    }
+    val line = listOfNotNull(date, info?.dateSuffix.takeIf { session == null }).joinToString(" · ")
     com.accountabilibuddy.companion.ui.today.TodayTitleHeader(line, companion, syncLight, onOptions)
 }
 

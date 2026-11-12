@@ -1,5 +1,10 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import com.accountabilibuddy.companion.ui.kit.AbPageHeaderDefaults
+import com.accountabilibuddy.companion.ui.kit.AbOutlinedButton
+import androidx.compose.material.icons.automirrored.outlined.Notes
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,7 +81,15 @@ import java.util.UUID
  * Slots keep their height while the numbers load, so nothing jumps (brief §3.1). Weight is hand entries only (ADR 81 is Proposed).
  */
 @Composable
-fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: List<ReceivedDevice>, onBack: () -> Unit, onMessage: (String) -> Unit) {
+fun GoalPageScreen(
+    goalId: UUID,
+    allReceived: List<ReceivedDevice>,
+    received: List<ReceivedDevice>,
+    onBack: () -> Unit,
+    onMessage: (String) -> Unit,
+    /** What the goal menu's "Start a session…" starts with; null greys the row. */
+    session: GoalSessionStart? = null,
+) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val status by app.goals.status.collectAsStateWithLifecycle()
     val lists by app.goals.lists.collectAsStateWithLifecycle()
@@ -116,10 +129,16 @@ fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: Li
                 GoalTrendCard(page, tint)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val isWeight = goal.target.unit == GoalUnit.Lb || goal.target.unit == GoalUnit.Kg
-                    AbPrimaryButton(if (isWeight) "Log weight" else "Log a value", onClick = { logOpen = true }, modifier = Modifier.weight(1f))
-                    AbTonalButton("Target", onClick = { editAtTarget = true; editOpen = true })
+                    AbPrimaryButton(if (isWeight) "Log weight" else "Log a value", onClick = { logOpen = true }, icon = Icons.Outlined.Add, modifier = Modifier.weight(1f))
+                    AbOutlinedButton("Target", onClick = { editAtTarget = true; editOpen = true }, icon = Icons.Outlined.Edit)
                 }
                 GoalReadingsCard(GoalReadings.of(goal, page.data.entries, zone), goal.target.unit, today, onEditDay = { editDay = it.toEpochDay() })
+                // The board's footnote, worded for the rule the numbers follow (your own edit wins over a reading, Q497).
+                Text(
+                    "The chart uses each day's first reading, or your own edit of that day. Tap a reading to change its day.",
+                    style = Ab.type.small, color = Ab.colors.faint, modifier = Modifier.padding(horizontal = 4.dp),
+                )
+                NotesCard(stored?.notes, onEdit = { editAtTarget = true; editOpen = true })
                 BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { onMessage("Reminders come in the next update.") })
             }
         } else {
@@ -138,13 +157,14 @@ fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: Li
                         onSave = { value -> saveHand(day, value) },
                     )
                 }
+                NotesCard(stored?.notes, onEdit = { editAtTarget = true; editOpen = true })
                 BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { onMessage("Reminders come in the next update.") })
             }
         }
     }
 
     if (menuOpen) {
-        GoalMenuSheet(goalId, allReceived, received, onMessage, onDismiss = { menuOpen = false }, onDeleted = onBack, onEdit = { menuOpen = false; editAtTarget = false; editOpen = true })
+        GoalMenuSheet(goalId, allReceived, received, onMessage, onDismiss = { menuOpen = false }, onDeleted = onBack, onEdit = { menuOpen = false; editAtTarget = false; editOpen = true }, start = session)
     }
     if (editOpen) {
         GoalEditorSheets(goalId, allReceived, received, onMessage, onDismiss = { editOpen = false }, startAtTarget = editAtTarget)
@@ -178,7 +198,8 @@ private fun goal0(page: PhoneGoalPage): String = page.goal.name
 @Composable
 private fun Header(page: PhoneGoalPage?, name: String, icon: String?, tint: androidx.compose.ui.graphics.Color, onBack: () -> Unit, onMenu: () -> Unit) {
     val colors = Ab.colors
-    Row(Modifier.fillMaxWidth().padding(top = 28.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    // The same space above as every tab's title (the shared page header), so opening a goal doesn't jump.
+    Row(Modifier.fillMaxWidth().padding(top = AbPageHeaderDefaults.topSpace(), start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to Goals", tint = colors.accent) }
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
             Icon(GoalIcons.of(icon), contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
@@ -208,6 +229,17 @@ private fun subtitle(page: PhoneGoalPage?) = buildAnnotatedString {
     } else {
         withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)) { append(target) }
         append(listOfNotNull(area, "${facts.age.short} going").joinToString(" · ", prefix = " · ") + paused)
+    }
+}
+
+// The goal's notes, previewed (brief §4.4: "a Notes section with a preview on the goal's detail"): the first lines, a tap edits them
+// in Edit goal. Private text: drawn here only. Nothing is drawn for a goal without notes.
+@Composable
+private fun NotesCard(notes: String?, onEdit: () -> Unit) {
+    val text = notes?.trim().orEmpty()
+    if (text.isEmpty()) return
+    AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), verticalSpacing = 0.dp) {
+        AbListRow("Notes", icon = Icons.AutoMirrored.Outlined.Notes, subtitle = text.lineSequence().take(3).joinToString("\n").take(240), onClick = onEdit)
     }
 }
 

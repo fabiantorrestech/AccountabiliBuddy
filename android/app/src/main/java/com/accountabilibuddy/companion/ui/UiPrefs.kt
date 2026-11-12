@@ -80,7 +80,7 @@ object UiPrefs {
         _barLook.value = runCatching { BarLook.valueOf(prefs.getString("barLook", null) ?: "") }.getOrDefault(BarLook.Color)
         _todayLayout.value = TodayLayout.parse(prefs.getString("todayOrder", null), prefs.getString("todayPlacements", null))
         _todaySessionLayout.value = if (prefs.getBoolean("todaySessionOwn", false)) {
-            TodayLayout.parse(prefs.getString("todaySessionOrder", null), prefs.getString("todaySessionPlacements", null))
+            TodayLayout.parse(prefs.getString("todaySessionOrder", null), prefs.getString("todaySessionPlacements", null), session = true)
         } else {
             null
         }
@@ -109,7 +109,8 @@ object UiPrefs {
         prefs(context).edit().putString("syncLight", setting.name).apply()
     }
 
-    fun setTodayLayout(context: Context, layout: TodayLayout) {
+    fun setTodayLayout(context: Context, chosen: TodayLayout) {
+        val layout = chosen.forState(inSession = false)
         _todayLayout.value = layout
         val edit = prefs(context).edit()
         layout.orderText()?.let { edit.putString("todayOrder", it) } ?: edit.remove("todayOrder")
@@ -118,7 +119,8 @@ object UiPrefs {
     }
 
     /** Sets Today's in-session layout; null goes back to using [todayLayout] in a session too. */
-    fun setTodaySessionLayout(context: Context, layout: TodayLayout?) {
+    fun setTodaySessionLayout(context: Context, chosen: TodayLayout?) {
+        val layout = chosen?.forState(inSession = true)
         _todaySessionLayout.value = layout
         val edit = prefs(context).edit()
         if (layout == null) {

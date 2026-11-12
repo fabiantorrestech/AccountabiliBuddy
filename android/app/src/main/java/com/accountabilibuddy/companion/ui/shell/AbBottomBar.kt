@@ -22,10 +22,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
- * The bottom bar: 72 dp, five items in the same order everywhere. The active item sits in a 56 x 30 pill on the second
+ * The bottom bar: 72 dp, five items in the same order everywhere. The active item sits in a 64 x 32 pill on the second
  * tone with ink on it, never in the accent colour (the accent is for progress and the one main button).
  */
 @Composable
@@ -46,13 +47,13 @@ fun AbBottomBar(selected: AppDestination, onSelect: (AppDestination) -> Unit, mo
                     verticalArrangement = Arrangement.Center,
                 ) {
                     Box(
-                        Modifier.width(56.dp).height(30.dp).clip(RoundedCornerShape(15.dp)).let { if (active) it.background(colors.surface2) else it },
+                        Modifier.width(64.dp).height(32.dp).clip(RoundedCornerShape(16.dp)).let { if (active) it.background(colors.surface2) else it },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(destination.icon, contentDescription = null, tint = if (active) colors.ink else colors.muted, modifier = Modifier.size(24.dp))
                     }
                     Text(
-                        destination.label, style = Ab.type.micro, color = if (active) colors.ink else colors.muted,
+                        destination.label, style = Ab.type.small.copy(lineHeight = 16.sp), color = if (active) colors.ink else colors.muted,
                         fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal, modifier = Modifier.padding(top = 4.dp),
                     )
                 }

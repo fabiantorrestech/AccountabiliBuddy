@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.today.TodayItem
 import com.accountabilibuddy.companion.today.TodayPlacement
-import com.accountabilibuddy.companion.ui.kit.AbSegmented
+import com.accountabilibuddy.companion.ui.kit.AbSegmentedCompact
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -47,12 +47,11 @@ fun TodayLayoutRow(part: TodayItem, placement: TodayPlacement, handle: @Composab
             AlwaysPill(part.title)
         } else {
             val options = PLACES.filter { it in part.allowed }
-            AbSegmented(
+            AbSegmentedCompact(
                 options = options.map { label(it) },
                 selectedIndex = options.indexOf(placement).takeIf { it >= 0 },
                 onSelect = { onPlace(options[it]) },
-                modifier = Modifier.width(if (options.size == 3) 176.dp else 124.dp)
-                    .semantics { contentDescription = "${part.title}: where it shows" },
+                modifier = Modifier.semantics { contentDescription = "${part.title}: where it shows" },
             )
         }
     }

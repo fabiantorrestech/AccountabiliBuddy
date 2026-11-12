@@ -190,9 +190,10 @@ fun PlanningHero(startedAt: Instant?, endsAt: Instant, profileName: String?) {
 // The timer is a display number: it keeps its size when the phone's font size is large (a 72 sp number at 1.3 would not fit), and
 // an hour or more (h:mm:ss) steps down so seven characters fit a narrow screen.
 @Composable
-internal fun BigTimer(text: String, color: androidx.compose.ui.graphics.Color) {
+internal fun BigTimer(text: String, color: androidx.compose.ui.graphics.Color, size: androidx.compose.ui.unit.TextUnit = 72.sp, longSize: androidx.compose.ui.unit.TextUnit = 52.sp) {
     val density = LocalDensity.current
-    val style = if (text.length > 5) Ab.type.timer.copy(fontSize = 52.sp, lineHeight = 57.sp) else Ab.type.timer
+    val shown = if (text.length > 5) longSize else size
+    val style = Ab.type.timer.copy(fontSize = shown, lineHeight = shown * 1.1f)
     CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = minOf(density.fontScale, 1f))) {
         AbTimerText(text, style = style, color = color)
     }

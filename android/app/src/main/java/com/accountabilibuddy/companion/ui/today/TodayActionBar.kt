@@ -49,10 +49,10 @@ fun StartActionBar(pcName: String, onStart: () -> Unit, modifier: Modifier = Mod
     AbPrimaryButton("Start on $pcName", onClick = onStart, icon = Icons.Outlined.PlayArrow, modifier = modifier.fillMaxWidth())
 }
 
-/** A round 48 dp ⋯ button on the tonal surface; [label] is what a screen reader says. */
+/** A round 52 dp ⋯ button on the tonal surface, as tall as the buttons beside it; [label] is what a screen reader says. */
 @Composable
 fun MoreButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(onClick = onClick, modifier = modifier.size(48.dp), shape = CircleShape, color = Ab.colors.surface2, contentColor = Ab.colors.ink) {
+    Surface(onClick = onClick, modifier = modifier.size(52.dp), shape = CircleShape, color = Ab.colors.surface2, contentColor = Ab.colors.ink) {
         Box(contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.MoreHoriz, contentDescription = label, modifier = Modifier.size(22.dp))
         }

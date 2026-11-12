@@ -49,8 +49,11 @@ fun TodayLayoutSheet(onDismiss: () -> Unit, startInSession: Boolean = false) {
     val idle by UiPrefs.todayLayout.collectAsState()
     val ownSession by UiPrefs.todaySessionLayout.collectAsState()
     var inSession by rememberSaveable { mutableStateOf(startInSession) }
-    val layout = if (inSession) ownSession ?: idle else idle
-    val other = if (inSession) idle else ownSession ?: idle
+    // Until a session has its own layout it follows the other one, with the parts that have a session default at that default.
+    val sessionLayout = ownSession ?: idle.copy(session = true)
+    val layout = if (inSession) sessionLayout else idle
+    val other = (if (inSession) idle else sessionLayout).forState(inSession)
+    val companion = com.accountabilibuddy.companion.guidance.isCompanionMode()
     val save: (TodayLayout) -> Unit = { next -> if (inSession) UiPrefs.setTodaySessionLayout(context, next) else UiPrefs.setTodayLayout(context, next) }
 
     AbSheet(
@@ -60,7 +63,7 @@ fun TodayLayoutSheet(onDismiss: () -> Unit, startInSession: Boolean = false) {
         height = AbSheetHeight.Tall,
         footer = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AbTonalButton("Reset", onClick = { save(TodayLayout()) }, enabled = !layout.isDefault, modifier = Modifier.weight(1f))
+                AbTonalButton("Reset", onClick = { save(TodayLayout(session = inSession)) }, enabled = !layout.isDefault, modifier = Modifier.weight(1f))
                 AbPrimaryButton("Copy the other layout", onClick = { save(other) }, enabled = other != layout, modifier = Modifier.weight(1.6f))
             }
         },
@@ -69,8 +72,8 @@ fun TodayLayoutSheet(onDismiss: () -> Unit, startInSession: Boolean = false) {
             AbSegmented(listOf("In a session", "Not in a session"), selectedIndex = if (inSession) 0 else 1, onSelect = { inSession = it == 0 })
             AbSectionLabel(if (inSession) "Always shown in a session" else "Always shown", Modifier.padding(top = 12.dp))
             if (inSession) {
-                FixedRow(Icons.Outlined.Timer, "Time left", "The session card · Done, Step away and ⋯ below")
-                FixedRow(Icons.Outlined.Checklist, "This session", "The session's tasks, the current one first")
+                FixedRow(Icons.Outlined.Timer, "Time left", "In the session card · Step away and ⋯")
+                FixedRow(Icons.Outlined.Checklist, "This session", "Today's task sections, the current one first")
             } else {
                 FixedRow(Icons.Outlined.PlayArrow, "Start", "What's next and Start on your PC")
             }
@@ -83,8 +86,13 @@ fun TodayLayoutSheet(onDismiss: () -> Unit, startInSession: Boolean = false) {
                 TodayLayoutRow(part, layout.placementOf(part), handle, onPlace = { save(layout.withPlacement(part, it)) })
             }
             Text(
-                "The guard banner, the lunch chip and Link a PC always show. Need it for work, Not working today and the import card " +
-                    "can't be hidden. This phone only.",
+                if (companion) {
+                    "The guard banner, the lunch chip and Link a PC always show. Need it for work, Not working today and the import card " +
+                        "can't be hidden. This phone only."
+                } else {
+                    "Outside PB (ProductaBuddy), the guard banner and lunch chip always show while a guard is on. Link a PC always shows " +
+                        "too. Need it for work, Not working today and the import card can't be hidden. This phone only."
+                },
                 style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(top = 12.dp),
             )
         }

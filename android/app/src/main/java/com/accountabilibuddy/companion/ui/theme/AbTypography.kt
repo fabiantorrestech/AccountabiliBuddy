@@ -41,8 +41,8 @@ class AbTypography(
     /** Smaller timers and numbers inside a card. */
     val timerSmall: TextStyle = numeral(22)
 
-    /** Page title. */
-    val title: TextStyle = display(32)
+    /** Page title (the boards' 30 px). */
+    val title: TextStyle = display(30)
 
     /** Headline inside a page. */
     val head: TextStyle = display(24)

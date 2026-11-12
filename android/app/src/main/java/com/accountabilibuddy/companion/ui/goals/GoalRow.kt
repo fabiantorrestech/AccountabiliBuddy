@@ -40,13 +40,14 @@ import com.accountabilibuddy.shared.goals.GoalTexts
  * One goal on the phone's Goals list (brief §4.3, change note §4a): the icon on a chip tinted with the goal's colour, the name, the
  * target under it ("↳ 15 min a day"; "Built in" as a chip on Deep work), and at the right the one number that matters with the kind's
  * visual under it. Status pills share the number's slot: an amber Behind takes its place, a muted "Due Fri" or Paused sits beside it.
- * A paused goal (All only) is faded with "since Mon 10/12". A tap opens the goal; a hold or ⋮ opens the goal menu (R6b).
+ * A paused goal (All only) is faded with "since Mon 10/12". A tap opens the goal; a hold opens the goal menu (the board draws no ⋮
+ * on a row: the goal's page has it), and the row keeps an accent outline while its menu is open ([menuOpen], brief §3.6).
  *
  * @param noPcGoal Deep work has no daily target yet because no PC file has carried one: its line says where it comes from.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GoalRow(facts: GoalFacts, noPcGoal: Boolean, onOpen: () -> Unit, onMenu: () -> Unit, modifier: Modifier = Modifier) {
+fun GoalRow(facts: GoalFacts, noPcGoal: Boolean, onOpen: () -> Unit, onMenu: () -> Unit, modifier: Modifier = Modifier, menuOpen: Boolean = false) {
     val colors = Ab.colors
     val goal = facts.goal
     val tint = GoalIcons.color(goal.color) ?: colors.accent
@@ -57,15 +58,19 @@ fun GoalRow(facts: GoalFacts, noPcGoal: Boolean, onOpen: () -> Unit, onMenu: () 
     Row(
         modifier
             .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .clip(Ab.shapes.mediumShape)
+            // The row whose menu is open keeps an accent outline until the menu closes (brief §3.6).
+            .then(if (menuOpen) Modifier.border(1.5.dp, colors.accent, Ab.shapes.mediumShape) else Modifier)
             .heightIn(min = 64.dp)
             .combinedClickable(role = Role.Button, onClickLabel = "Open", onLongClickLabel = "Goal menu", onLongClick = onMenu, onClick = onOpen)
             .alpha(if (facts.isPaused) 0.55f else 1f)
-            .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 12.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-            Icon(GoalIcons.of(goal.icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+            Icon(GoalIcons.of(goal.icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f)) {
             Text(goal.name, style = Ab.type.bodyMedium.copy(fontSize = 15.5.sp), fontWeight = FontWeight.Medium, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -80,13 +85,13 @@ fun GoalRow(facts: GoalFacts, noPcGoal: Boolean, onOpen: () -> Unit, onMenu: () 
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (pill != null && !amber) MutedPill(pill.first)
+                // Paused is a pill; "Due Fri" is plain muted text beside the number (board Goals-Phone).
+                if (pill != null && !amber) {
+                    if (facts.isPaused) MutedPill(pill.first) else Text(pill.first, style = Ab.type.small, color = colors.muted, maxLines = 1)
+                }
                 if (amber) AmberPill(pill.first) else Text(number, style = Ab.type.small.copy(fontFeatureSettings = "tnum"), fontWeight = FontWeight.SemiBold, color = colors.ink, maxLines = 1)
             }
             Visual(facts, tint)
-        }
-        IconButton(onClick = onMenu) {
-            Icon(Icons.Outlined.MoreVert, contentDescription = "Goal menu: ${goal.name}", tint = colors.muted)
         }
     }
 }

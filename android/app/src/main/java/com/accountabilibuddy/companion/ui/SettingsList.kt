@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -70,9 +71,14 @@ fun SettingsList(
     val searching = query.isNotBlank()
     val results = remember(query) { SettingsSearch.search(query) }
 
-    LazyColumn(state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item { AbPageHeader("Settings") }
-        item { AbSearchField(query, onQueryChange, "Search settings") }
+    LazyColumn(state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // One item, 12 dp apart: the first row under the title sits where every tab's first row sits (brief §3.1 rule 1).
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AbPageHeader("Settings")
+                AbSearchField(query, onQueryChange, "Search settings")
+            }
+        }
         inputs.guardsLock?.let { lock ->
             item { GuardsRestBanner(lock) }
         }

@@ -1,5 +1,13 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -41,7 +49,7 @@ import com.accountabilibuddy.companion.goals.PhoneGoalsOverview
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.ui.LocalMotionScale
 import com.accountabilibuddy.companion.ui.kit.AbCard
-import com.accountabilibuddy.companion.ui.kit.AbSegmented
+import com.accountabilibuddy.companion.ui.kit.AbSegmentedCompact
 import com.accountabilibuddy.companion.ui.kit.AbTextButton
 import com.accountabilibuddy.companion.ui.motionSpec
 import com.accountabilibuddy.companion.ui.theme.Ab
@@ -112,64 +120,81 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
         PhoneGoalStatus.Unreadable -> "Your goals can't be read"
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item(key = "header") {
-            GoalsHeader(subtitle, onStats = actions.onOpenStats, onOptions = { optionsOpen = true }, modifier = Modifier.padding(start = 20.dp, end = 8.dp))
-        }
-        if (status != PhoneGoalStatus.Ready) {
-            item(key = "note") {
-                AbCard(Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        if (status == PhoneGoalStatus.Unreadable) {
-                            "Your goals on this phone can't be read (for example after the app's data was moved), so they are left as they are and nothing is changed. Stats still works."
-                        } else {
-                            "Your goals are being set up. Open the app again in a moment."
-                        },
-                        style = Ab.type.small, color = Ab.colors.muted,
-                    )
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            // Room under the last block for the floating +.
+            contentPadding = PaddingValues(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(key = "header") {
+                GoalsHeader(subtitle, onStats = actions.onOpenStats, onOptions = { optionsOpen = true }, modifier = Modifier.padding(horizontal = 16.dp))
+            }
+            if (status != PhoneGoalStatus.Ready) {
+                item(key = "note") {
+                    AbCard(Modifier.padding(horizontal = 16.dp)) {
+                        Text(
+                            if (status == PhoneGoalStatus.Unreadable) {
+                                "Your goals on this phone can't be read (for example after the app's data was moved), so they are left as they are and nothing is changed. Stats still works."
+                            } else {
+                                "Your goals are being set up. Open the app again in a moment."
+                            },
+                            style = Ab.type.small, color = Ab.colors.muted,
+                        )
+                    }
+                }
+                return@LazyColumn
+            }
+            val shown = overview ?: return@LazyColumn
+            val layout = GoalListLayout.of(shown, display, selectedArea)
+
+            item(key = "chips") {
+                GoalAreaChips(shown.areas, selectedArea, onSelect = { areaFilter = it?.toString() }, onNewGoal = { newGoalOpen = true })
+            }
+            item(key = "your-goals") {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("YOUR GOALS", style = Ab.type.micro, fontWeight = FontWeight.SemiBold, color = Ab.colors.muted)
+                    Text("  ${layout.count}", style = Ab.type.micro.copy(fontFeatureSettings = "tnum"), color = Ab.colors.faint, modifier = Modifier.weight(1f))
+                    val views = GoalListView.entries
+                    AbSegmentedCompact(views.map { it.label }, views.indexOf(display.view), { GoalDisplayPrefs.setView(context, views[it]) })
                 }
             }
-            return@LazyColumn
-        }
-        val shown = overview ?: return@LazyColumn
-        val layout = GoalListLayout.of(shown, display, selectedArea)
-
-        item(key = "chips") {
-            GoalAreaChips(shown.areas, selectedArea, onSelect = { areaFilter = it?.toString() }, onNewGoal = { newGoalOpen = true })
-        }
-        item(key = "your-goals") {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("YOUR GOALS", style = Ab.type.micro, fontWeight = FontWeight.SemiBold, color = Ab.colors.muted)
-                Text("  ${layout.count}", style = Ab.type.micro.copy(fontFeatureSettings = "tnum"), color = Ab.colors.faint, modifier = Modifier.weight(1f))
-                val views = GoalListView.entries
-                AbSegmented(views.map { it.label }, views.indexOf(display.view), { GoalDisplayPrefs.setView(context, views[it]) }, Modifier.width(220.dp))
+            items(layout.sections, key = { it.area?.id?.toString() ?: "all" }) { section ->
+                GoalBlock(
+                    section = section,
+                    noPcGoal = shown.pcDailyMinutes == null,
+                    onToggle = { area -> GoalDisplayPrefs.setCollapsed(context, area, !section.collapsed) },
+                    actions = actions,
+                    onMenu = { id -> menuGoal = id.toString() },
+                    onEditArea = { id -> areaSheet = id.toString() },
+                    openMenu = menuGoal,
+                )
+            }
+            if (layout.pausedHidden > 0) {
+                item(key = "paused-link") {
+                    val word = if (layout.pausedHidden == 1) "1 paused goal" else "${layout.pausedHidden} paused goals"
+                    AbTextButton("$word · show them in All", onClick = { GoalDisplayPrefs.setView(context, GoalListView.All) }, modifier = Modifier.padding(horizontal = 8.dp))
+                }
             }
         }
-        items(layout.sections, key = { it.area?.id?.toString() ?: "all" }) { section ->
-            GoalBlock(
-                section = section,
-                noPcGoal = shown.pcDailyMinutes == null,
-                onToggle = { area -> GoalDisplayPrefs.setCollapsed(context, area, !section.collapsed) },
-                actions = actions,
-                onMenu = { id -> menuGoal = id.toString() },
-                onEditArea = { id -> areaSheet = id.toString() },
-            )
-        }
-        if (layout.pausedHidden > 0) {
-            item(key = "paused-link") {
-                val word = if (layout.pausedHidden == 1) "1 paused goal" else "${layout.pausedHidden} paused goals"
-                AbTextButton("$word · show them in All", onClick = { GoalDisplayPrefs.setView(context, GoalListView.All) }, modifier = Modifier.padding(horizontal = 8.dp))
+        // The floating + (board Goals-Phone): a new goal, the same as the + chip, within the thumb's reach.
+        if (status == PhoneGoalStatus.Ready) {
+            Surface(
+                onClick = { newGoalOpen = true },
+                shape = Ab.shapes.mediumShape,
+                color = Ab.colors.accent,
+                contentColor = Ab.colors.onAccent,
+                shadowElevation = 6.dp,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 20.dp).size(60.dp).semantics { contentDescription = "New goal" },
+            ) {
+                Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(28.dp)) }
             }
         }
     }
 
     menuGoal?.let { raw ->
         val id = runCatching { UUID.fromString(raw) }.getOrNull()
-        if (id == null) menuGoal = null else GoalMenuSheet(id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null }, onEdit = { menuGoal = null; editGoal = id.toString() })
+        if (id == null) menuGoal = null else GoalMenuSheet(id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null }, onEdit = { menuGoal = null; editGoal = id.toString() }, start = actions.session)
     }
     if (newGoalOpen) {
         GoalEditorSheets(goalId = null, allReceived = allReceived, received = received, onMessage = actions.onMessage, onDismiss = { newGoalOpen = false })
@@ -180,7 +205,11 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
     }
     areaSheet?.let { raw ->
         // "new" makes an area; anything else is an area's id.
-        GoalAreaSheet(areaId = runCatching { UUID.fromString(raw) }.getOrNull(), onDismiss = { areaSheet = null }, onMessage = actions.onMessage)
+        GoalAreaSheet(
+            areaId = runCatching { UUID.fromString(raw) }.getOrNull(), onDismiss = { areaSheet = null }, onMessage = actions.onMessage,
+            // ⋮ on a goal in Edit area: this sheet closes and that goal's menu opens.
+            onGoalMenu = { id -> areaSheet = null; menuGoal = id.toString() },
+        )
     }
     if (areasOpen) {
         GoalAreasSheet(
@@ -207,11 +236,12 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
 
 // One soft block (brief §3.5: no dividers, rows apart by spacing): an area's header and its goals, or the one block of Current / All.
 @Composable
-private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions, onMenu: (UUID) -> Unit, onEditArea: (UUID) -> Unit) {
+private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions, onMenu: (UUID) -> Unit, onEditArea: (UUID) -> Unit, openMenu: String?) {
     val scale = LocalMotionScale.current
     val area = section.area
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(20.dp)).background(Ab.colors.surface).padding(vertical = 4.dp),
+        // The theme's own card radius (28 Night Desk, 14 Instrument, 18 Paper), not a fixed one.
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(Ab.shapes.cardShape).background(Ab.colors.surface).padding(vertical = 4.dp),
     ) {
         if (area != null) {
             GoalAreaHeader(area, section.rows.size, section.collapsed, onToggle = { onToggle(area.id) }, onEdit = { onEditArea(area.id) })
@@ -236,6 +266,7 @@ private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UU
                         noPcGoal = noPcGoal,
                         onOpen = { actions.onOpenGoal(facts.goal.id) },
                         onMenu = { onMenu(facts.goal.id) },
+                        menuOpen = openMenu == facts.goal.id.toString(),
                     )
                 }
             }

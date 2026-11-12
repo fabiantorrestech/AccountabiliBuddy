@@ -10,10 +10,12 @@ import java.util.UUID
  * @property onOpenGoal A tap on a row: the goal's page.
  * @property onMessage A short note for the user (a change refused, a screen that comes later).
  * @property onOpenGoalsSettings Options › Goals settings: the Settings › Goals page.
+ * @property session What the goal menu's "Start a session…" starts with ([GoalSessionStart]); null greys the row.
  */
 data class GoalsActions(
     val onOpenStats: () -> Unit,
     val onOpenGoal: (UUID) -> Unit,
     val onMessage: (String) -> Unit,
     val onOpenGoalsSettings: () -> Unit,
+    val session: GoalSessionStart? = null,
 )

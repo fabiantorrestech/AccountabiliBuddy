@@ -71,6 +71,9 @@ fun TodayPane(
     syncLight: @Composable () -> Unit,
     /** Quiet cards above the hero (the "New since your last version" card); empty when there is nothing to say. */
     banner: @Composable () -> Unit = {},
+    /** Every received device, removed devices' kept copies included, and the ones still in the group: Today's goals count from them, as the Goals tab does. */
+    allReceived: List<com.accountabilibuddy.companion.sync.ReceivedDevice> = emptyList(),
+    received: List<com.accountabilibuddy.companion.sync.ReceivedDevice> = emptyList(),
 ) {
     // A phone with no plan yet starts with the fold open: the import card is in it.
     var expanded by rememberSaveable { mutableStateOf(!state.hasImport) }
@@ -87,20 +90,22 @@ fun TodayPane(
     val idleLayout by UiPrefs.todayLayout.collectAsState()
     val ownSessionLayout by UiPrefs.todaySessionLayout.collectAsState()
     // Round 2: a session has its own layout once the person sets one (Settings › Today); until then the one layout serves both.
-    val layout = if (session != null) ownSessionLayout ?: idleLayout else idleLayout
+    // Parts with a session default of their own (Today's goals, Next up, Deep work, Daily steps) take it there either way.
+    val layout = if (session != null) ownSessionLayout ?: idleLayout.copy(session = true) else idleLayout
     // A phone with no plan from the PC yet cannot say what is next (its default plan would read as a day off).
     val info = model.today?.let { if (session == null && !state.hasImport) it.copy(dateSuffix = null, next = "No plan on this phone yet.") else it }
 
     // The tablet draws the same parts as a dashboard ([WideToday]); with it the timeline runs across the top, wherever the layout put it
     // (a part the person hid stays hidden).
     val wide = LocalExpanded.current
+    val todayGoals by com.accountabilibuddy.companion.ui.today.rememberTodayGoals(allReceived, received, inSession = session != null)
     val dayBarOnTop = wide && layout.placementOf(TodayItem.DayBar) != TodayPlacement.Hidden
     val parts = TodayItemContext(
         inSession = session != null, state = state, model = model, info = info, clock = clock, pc = pc, comebacks = comebacks,
         phoneUsage = phoneUsage, hasTimer = hasTimer, lunchChip = chip, lunch = lunch, guardsLock = guardsLock, guardOn = guardOn,
         beeminder = beeminder, noiseCard = noiseCard, stepsState = stepsState, actions = actions,
         allTasksTicked = session != null && !session.isPlanning && pc.tasks != null && pc.tasks.tasks.isNotEmpty() && pc.tasks.tasks.all { it.isDone },
-        showWorkUse = showWorkUse, showDayOff = showDayOff,
+        showWorkUse = showWorkUse, showDayOff = showDayOff, goals = todayGoals,
     )
     val body: TodaySink.() -> Unit = {
         if (session == null) {

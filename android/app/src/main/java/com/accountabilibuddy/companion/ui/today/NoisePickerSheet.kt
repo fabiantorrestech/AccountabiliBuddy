@@ -1,5 +1,12 @@
 package com.accountabilibuddy.companion.ui.today
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +52,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * own volume as a horizontal slider with its %, and a footer pointing to the headphone rules and schedules. The phone has no built-in
  * sounds: the list is the folder's files ([NoisePlaylist]); the board's names are samples.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoisePickerSheet(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, onOpenNoiseSettings: () -> Unit, onDismiss: () -> Unit) {
     // Read again whenever the player publishes (a new folder, a new current sound).
@@ -52,6 +60,7 @@ fun NoisePickerSheet(state: NoiseState, settings: NoiseSettings, player: NoisePl
     val current = remember(state) { player.currentIndex() }
     var volume by remember(settings.volume) { mutableFloatStateOf(settings.volume.toFloat()) }
 
+    val sliderColors = SliderDefaults.colors(thumbColor = Ab.colors.accent, activeTrackColor = Ab.colors.accent, inactiveTrackColor = Ab.colors.surface2)
     AbSheet(
         title = "Noise",
         subtitle = "Plays on this phone · the watch can pause it",
@@ -96,10 +105,15 @@ fun NoisePickerSheet(state: NoiseState, settings: NoiseSettings, player: NoisePl
                 value = volume, onValueChange = { volume = it }, onValueChangeFinished = { player.setVolume(volume.toInt()) },
                 valueRange = 0f..100f,
                 modifier = Modifier.weight(1f).semantics { contentDescription = "Noise volume" },
-                colors = SliderDefaults.colors(thumbColor = Ab.colors.accent, activeTrackColor = Ab.colors.accent, inactiveTrackColor = Ab.colors.surface2),
+                colors = sliderColors,
+                // Board Today-Phone-Noise: a 22 dp round thumb on a 6 dp track.
+                thumb = { Box(Modifier.size(22.dp).background(Ab.colors.accent, CircleShape)) },
+                track = { sliderState ->
+                    SliderDefaults.Track(sliderState = sliderState, modifier = Modifier.height(6.dp), colors = sliderColors, drawStopIndicator = null, thumbTrackGapSize = 0.dp)
+                },
             )
             Text(
-                "${volume.toInt()}%", style = Ab.type.bodyMedium.copy(fontFeatureSettings = "tnum"), color = Ab.colors.ink,
+                "${volume.toInt()}%", style = Ab.type.bodyMedium.copy(fontSize = 14.sp, fontFeatureSettings = "tnum"), fontWeight = FontWeight.SemiBold, color = Ab.colors.ink,
                 textAlign = TextAlign.End, modifier = Modifier.widthIn(min = 44.dp),
             )
         }

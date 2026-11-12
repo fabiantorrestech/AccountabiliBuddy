@@ -34,6 +34,8 @@ object GoalDraftText {
         put("habitUnit", draft.habitUnit.name)
         put("weeklyHours", draft.weeklyHours)
         put("isDeepWork", draft.isDeepWork)
+        put("notes", draft.notes)
+        draft.extraTiles?.let { put("extraTiles", (if (it.streak) "s" else "") + (if (it.total) "t" else "") + "-") }
         put("sources", JsonArray(draft.sources.map(GoalJson::writeSourceRule)))
     }.toString()
 
@@ -59,6 +61,8 @@ object GoalDraftText {
             weeklyHours = string("weeklyHours").orEmpty(),
             sources = (json["sources"] as JsonArray).map(GoalJson::readSourceRule),
             isDeepWork = json["isDeepWork"]?.jsonPrimitive?.content == "true",
+            notes = string("notes").orEmpty(),
+            extraTiles = string("extraTiles")?.let { GoalExtraTiles(streak = 's' in it, total = 't' in it) },
         )
     }.getOrNull()
 }

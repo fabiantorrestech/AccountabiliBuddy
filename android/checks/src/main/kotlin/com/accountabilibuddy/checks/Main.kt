@@ -58,6 +58,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "goals-ui-page" to GoalsUiPageCheck::run,
     // Round 2 R6b2: New / Edit goal rules, areas, the weekly target's wait and the Goals settings defaults (phone only).
     "goals-ui-edit" to GoalsUiEditCheck::run,
+    // The phone design-fix round: Today's goals, the order of an area's goals, notes and extra tiles, Start a session (phone only).
+    "goals-ui-fix-round" to GoalsUiFixRoundCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

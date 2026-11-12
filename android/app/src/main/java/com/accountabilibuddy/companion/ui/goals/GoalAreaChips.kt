@@ -1,5 +1,8 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,10 +35,17 @@ fun GoalAreaChips(areas: List<GoalArea>, selected: UUID?, onSelect: (UUID?) -> U
             shape = Ab.shapes.pill,
             color = colors.bg.copy(alpha = 0f),
             contentColor = colors.ink,
-            border = BorderStroke(1.dp, colors.line),
             modifier = Modifier.minimumInteractiveComponentSize(),
         ) {
-            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+            // A dashed round outline: it adds something, it is not one of the areas (board Goals-Phone).
+            val line = colors.line
+            Box(
+                Modifier.size(36.dp).drawBehind {
+                    val stroke = 1.dp.toPx()
+                    drawCircle(line, radius = (size.minDimension - stroke) / 2, style = Stroke(stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
+                },
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(Icons.Outlined.Add, contentDescription = "New goal", modifier = Modifier.size(20.dp))
             }
         }

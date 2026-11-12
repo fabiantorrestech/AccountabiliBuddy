@@ -32,6 +32,11 @@ object GoalReadings {
                         entry.day in handDays -> "not charted, your edit wins"
                         else -> "not charted, an earlier reading is used"
                     },
+                    replaced = if (hand && charted) {
+                        GoalCounting.decidingEntry(goal, mine.filter { it.day == entry.day && it.id != entry.id })?.value?.takeIf { it != entry.value }
+                    } else {
+                        null
+                    },
                 )
             }
             .sortedWith(

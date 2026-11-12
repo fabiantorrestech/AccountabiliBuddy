@@ -19,6 +19,8 @@ import java.util.UUID
  * @property habitUnit A habit keeps the unit it was stored with (a tick, or a count of days hit).
  * @property weeklyHours Deep work only: its weekly target in hours; blank = none.
  * @property sources What counts; every rule keeps its id.
+ * @property notes Why it matters, with links: the user's private text, never logged. Blank = none.
+ * @property extraTiles The goal's own Streak / Total switches; null = it follows Goals › Options › Extra tiles.
  */
 data class GoalDraft(
     val id: UUID,
@@ -39,4 +41,6 @@ data class GoalDraft(
     val weeklyHours: String = "",
     val sources: List<GoalSourceRule> = emptyList(),
     val isDeepWork: Boolean = false,
+    val notes: String = "",
+    val extraTiles: GoalExtraTiles? = null,
 )

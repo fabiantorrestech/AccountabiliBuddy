@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.goals.GoalDisplay
 import com.accountabilibuddy.companion.goals.GoalHeatmapLabels
 import com.accountabilibuddy.companion.goals.GoalListView
-import com.accountabilibuddy.companion.ui.kit.AbSegmented
+import com.accountabilibuddy.companion.ui.kit.AbSegmentedCompact
 import com.accountabilibuddy.companion.ui.kit.AbSwitch
 import com.accountabilibuddy.companion.ui.sheets.AbSheet
 import com.accountabilibuddy.companion.ui.sheets.AbSheetCheck
@@ -67,7 +67,7 @@ fun GoalsOptionsSheet(
         Head("LIST")
         AbSheetRow("Show goals", onClick = null, icon = Icons.AutoMirrored.Outlined.List, trailing = {
             val views = GoalListView.entries
-            AbSegmented(views.map { it.label }, views.indexOf(display.view), { onView(views[it]) }, Modifier.width(200.dp))
+            AbSegmentedCompact(views.map { it.label }, views.indexOf(display.view), { onView(views[it]) })
         })
         AbSheetRow("Sort", onClick = { sortOpen = true }, icon = Icons.AutoMirrored.Outlined.Sort, trailing = { AbSheetValue("Your order") })
         AbSheetRow("Areas", onClick = onOpenAreas, icon = Icons.Outlined.Home, subtitle = "Rename, pick icons, reorder, add", trailing = { AbSheetValue(areaCount.toString()) })
@@ -75,11 +75,11 @@ fun GoalsOptionsSheet(
         Head("CHARTS")
         AbSheetRow("Week starts on", onClick = null, icon = Icons.Outlined.CalendarMonth, trailing = {
             val starts = listOf(GoalWeekStart.Monday, GoalWeekStart.Sunday, GoalWeekStart.Saturday)
-            AbSegmented(listOf("Mon", "Sun", "Sat"), starts.indexOf(display.weekStart), { onWeekStart(starts[it]) }, Modifier.width(160.dp))
+            AbSegmentedCompact(listOf("Mon", "Sun", "Sat"), starts.indexOf(display.weekStart), { onWeekStart(starts[it]) })
         })
         AbSheetRow("Heatmap day labels", onClick = null, icon = Icons.Outlined.Insights, trailing = {
             val labels = GoalHeatmapLabels.entries
-            AbSegmented(labels.map { it.label }, labels.indexOf(display.heatmapLabels), { onHeatmapLabels(labels[it]) }, Modifier.width(160.dp))
+            AbSegmentedCompact(labels.map { it.label }, labels.indexOf(display.heatmapLabels), { onHeatmapLabels(labels[it]) })
         })
         AbSheetRow(
             "Extra tiles on goal pages", onClick = { onExtraTiles(!display.extraTiles) }, icon = Icons.Outlined.Visibility,

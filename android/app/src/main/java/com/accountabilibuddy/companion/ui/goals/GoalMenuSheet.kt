@@ -1,5 +1,10 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import com.accountabilibuddy.companion.ui.StartOnPcDialog
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.PauseCircle
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -52,8 +57,9 @@ import java.util.UUID
  * name and "Learning · 15 min a day", the same rows in the same order as the PC goal menu ([GoalMenuPlan]).
  *
  * Working here: Tick / Untick today, Log a value / Add time by hand (a hand entry for today), Show on Today, Move to area, Pause / Resume
- * (at once, from today; Deep work refuses), Delete goal… (asks first; Deep work refuses). Their screens come later, so they say
- * "Coming in the next update": Start a session, Reminders. Edit goal… opens the goal's sheets (R6b2). Greyed with a reason: Open its tasks (Coming soon), Open in
+ * (at once, from today; Deep work refuses), Delete goal… (asks first; Deep work refuses), Start a session… (the presets page:
+ * the PC's default, its profiles, Custom…, through the start Today uses; greyed with the reason when Start isn't possible). Its
+ * screen comes later, so it says "comes in the next update": Reminders. Edit goal… opens the goal's sheets (R6b2). Greyed with a reason: Open its tasks (Coming soon), Open in
  * Beeminder (read on the PC), Deep work's Track time only (its target is the PC's, ADR 29).
  *
  * @param onDeleted Called after the goal is deleted (the goal page goes back to the list).
@@ -68,11 +74,15 @@ fun GoalMenuSheet(
     onDismiss: () -> Unit,
     onDeleted: () -> Unit = {},
     onEdit: () -> Unit = {},
+    /** What "Start a session…" starts with; null greys the row ("Link a PC…"). */
+    start: GoalSessionStart? = null,
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val page = rememberGoalPage(goalId, allReceived, received).value
     val lists by app.goals.lists.collectAsStateWithLifecycle()
     var inAreas by rememberSaveable { mutableStateOf(false) }
+    var inPresets by rememberSaveable { mutableStateOf(false) }
+    var customStart by rememberSaveable { mutableStateOf(false) }
     var valueDialog by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val stored = lists.liveGoals.firstOrNull { it.id == goalId }
@@ -108,7 +118,41 @@ fun GoalMenuSheet(
         return
     }
 
-    val items = GoalMenuPlan.of(goal, page.facts.todayState, page.facts.isPaused, page.reminderCount, page.areaName)
+    // Start a session… › the presets that count toward this goal (brief §4.3, change note §4a): the PC's default first (✓), its
+    // focus profiles, then Custom… (Today's own Start dialog). Each is the start Today's Start button sends, nothing else.
+    val pcState = start?.pcState
+    if (inPresets && start != null && start.blocked == null && pcState != null) {
+        AbSheet(
+            title = "Start a session", subtitle = "Counts toward ${goal.name} · on ${start.pcName}",
+            onDismiss = onDismiss, height = AbSheetHeight.Tall, onBack = { inPresets = false },
+        ) {
+            AbSheetRow(
+                "Default", onClick = { start.onStart(null, null, false); onDismiss() }, icon = Icons.Outlined.PlayArrow,
+                subtitle = "${start.pcName}'s default profile, for the length it remembers", role = Role.RadioButton, trailing = { AbSheetCheck(true) },
+            )
+            start.profiles.forEach { profile ->
+                AbSheetRow(
+                    profile.name, onClick = { start.onStart(profile.id, GoalSessionStart.PRESET_MINUTES, false); onDismiss() }, icon = Icons.Outlined.PlayArrow,
+                    trailing = { AbSheetValue("${GoalSessionStart.PRESET_MINUTES} min", opens = false) },
+                )
+            }
+            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(Ab.colors.line))
+            AbSheetRow("Custom…", onClick = { customStart = true }, icon = Icons.Outlined.Tune, subtitle = "Pick the profile and the length", trailing = { AbSheetValue(null) })
+        }
+        if (customStart) {
+            StartOnPcDialog(
+                pcState, start.pcName,
+                onStart = { profileId, minutes, countUp -> customStart = false; start.onStart(profileId, minutes, countUp); onDismiss() },
+                onCancel = { customStart = false },
+            )
+        }
+        return
+    }
+
+    val items = GoalMenuPlan.of(
+        goal, page.facts.todayState, page.facts.isPaused, page.reminderCount, page.areaName,
+        startValue = "Default", startBlocked = if (start == null) "Link a PC to start sessions from here" else start.blocked,
+    )
     val heading = items.first()
     AbSheet(title = heading.title, subtitle = listOfNotNull(page.areaName, GoalTexts.targetLine(goal, today)).joinToString(" · "), onDismiss = onDismiss, height = AbSheetHeight.Tall) {
         items.drop(1).forEach { item ->
@@ -121,7 +165,8 @@ fun GoalMenuSheet(
             AbSheetRow(
                 item.title,
                 onClick = when (item.id) {
-                    GoalMenuItemId.StartSession, GoalMenuItemId.Reminders -> soon
+                    GoalMenuItemId.StartSession -> ({ inPresets = true })
+                    GoalMenuItemId.Reminders -> soon
                     GoalMenuItemId.EditGoal -> onEdit
                     GoalMenuItemId.TickToday -> ({ done(app.goals.addHandEntry(goalId, today, if (page.facts.todayState.hit) 0.0 else 1.0)) })
                     GoalMenuItemId.LogValue, GoalMenuItemId.AddTimeByHand -> ({ valueDialog = true })
@@ -175,7 +220,8 @@ fun GoalMenuSheet(
 private fun iconOf(item: GoalMenuItem, paused: Boolean) = when (item.id) {
     GoalMenuItemId.StartSession -> Icons.Outlined.PlayArrow
     GoalMenuItemId.TickToday -> Icons.Outlined.Check
-    GoalMenuItemId.LogValue -> Icons.Outlined.Edit
+    // One meaning per icon (ADR 32): the pencil is Edit goal, so logging a value is a plus.
+    GoalMenuItemId.LogValue -> Icons.Outlined.Add
     GoalMenuItemId.AddTimeByHand -> Icons.Outlined.Timer
     GoalMenuItemId.OpenTasks -> Icons.Outlined.Checklist
     GoalMenuItemId.OpenInBeeminder -> Icons.AutoMirrored.Outlined.OpenInNew
@@ -183,7 +229,8 @@ private fun iconOf(item: GoalMenuItem, paused: Boolean) = when (item.id) {
     GoalMenuItemId.Reminders -> Icons.Outlined.NotificationsNone
     GoalMenuItemId.MoveToArea -> Icons.Outlined.SwapHoriz
     GoalMenuItemId.ShowOnToday -> Icons.Outlined.PushPin
-    GoalMenuItemId.Pause -> if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause
+    // Brief §3.10: pause_circle for a goal (the bare pause is the session's Pause timer; the bare play is Start a session).
+    GoalMenuItemId.Pause -> if (paused) Icons.Outlined.PlayCircle else Icons.Outlined.PauseCircle
     GoalMenuItemId.Delete -> Icons.Outlined.Delete
     GoalMenuItemId.TrackTimeOnly -> Icons.Outlined.Flag
     else -> null
