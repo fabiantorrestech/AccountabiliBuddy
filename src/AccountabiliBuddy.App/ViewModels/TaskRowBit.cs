@@ -29,4 +29,6 @@ public sealed record TaskRowBit(
     public bool IsFaint => Tone == TaskRowBitTone.Faint;
 
     public bool IsDrift => Tone == TaskRowBitTone.Drift;
+
+    public bool IsAmber => Tone == TaskRowBitTone.Amber;
 }

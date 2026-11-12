@@ -104,4 +104,18 @@ public partial class TodayView : UserControl
             row.SaveEditCommand.Execute(null);
         }
     }
+
+    // Options (tune) in the page header (round 2, brief §3.3): under the button, aligned to its right edge.
+    private void OnTodayOptionsRequested(object? sender, RoutedEventArgs e)
+    {
+        if (TodayHeader.DataContext is not TasksViewModel tasks)
+        {
+            return;
+        }
+
+        TodayHeader.SetOptionsOpen(true);
+        TaskMenus.ShowEntries(TodayHeader.OptionsAnchor, tasks.TodayOptionsMenu(), PlacementMode.BottomEdgeAlignedRight,
+            closed: () => TodayHeader.SetOptionsOpen(false));
+        e.Handled = true;
+    }
 }

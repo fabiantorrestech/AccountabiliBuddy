@@ -121,6 +121,7 @@ public sealed partial class ShelfViewModel : ObservableObject
         _views.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         _tidyUp.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         OnPropertyChanged(nameof(HasViews));
+        OnPropertyChanged(nameof(HasHistory));
         StartTidyCommand.NotifyCanExecuteChanged();
     }
 
@@ -268,29 +269,11 @@ public sealed partial class ShelfViewModel : ObservableObject
         if (_views is TaskViewService views)
         {
             TaskViewConfig working = views.Working;
-            entries.Add(new TaskMenuEntry("Saved views", IsHeading: true));
-            foreach (TaskView view in views.Views)
-            {
-                Guid id = view.Id;
-                entries.Add(new TaskMenuEntry(
-                    view.Name, new RelayCommand(() => views.Select(id)), IsChecked: id == views.ActiveId, Icon: ViewIcon(view.Icon),
-                    Hint: views.DefaultViewId == id ? "Default" : null));
-            }
-
-            if (ViewEditorRequested is not null)
-            {
-                entries.Add(TaskMenuEntry.Do("Create a view…", () => ViewEditorRequested?.Invoke(this, null), MaterialIconKind.BookmarkPlusOutline));
-            }
-
-            if (views.Active is TaskView active)
-            {
-                entries.Add(TaskMenuEntry.Group("This view", ThisViewMenu(views, active), MaterialIconKind.BookmarkOutline));
-            }
-
+            entries.AddRange(SavedViewsMenu());
             entries.Add(TaskMenuEntry.Separator);
             entries.Add(new TaskMenuEntry("Arrange", IsHeading: true));
-            entries.Add(new TaskMenuEntry("Group by", Children: GroupMenu(), Icon: MaterialIconKind.FormatListGroup, Hint: GroupText));
-            entries.Add(new TaskMenuEntry("Sort", Children: SortMenu(working.Sort), Icon: MaterialIconKind.Sort, Hint: SortName(working.Sort)));
+            entries.Add(new TaskMenuEntry("Group by", Children: GroupMenu(), Icon: MaterialIconKind.FormatListGroup, Value: GroupText));
+            entries.Add(new TaskMenuEntry("Sort", Children: SortMenu(working.Sort), Icon: MaterialIconKind.Sort, Value: SortName(working.Sort)));
             if (working.Sort == TaskViewConfig.SortShuffle)
             {
                 entries.Add(TaskMenuEntry.Async("Reshuffle", views.ReshuffleAsync, MaterialIconKind.ShuffleVariant));
@@ -302,24 +285,24 @@ public sealed partial class ShelfViewModel : ObservableObject
 
             entries.Add(TaskMenuEntry.Separator);
             entries.Add(new TaskMenuEntry("Show only", IsHeading: true));
-            entries.Add(new TaskMenuEntry("Labels", Children: LabelFilterMenu(working), Icon: MaterialIconKind.CircleSlice8, Hint: LabelFilterText(working)));
-            entries.Add(new TaskMenuEntry("Tags", Children: TagFilterMenu(working), Icon: MaterialIconKind.Pound, Hint: PickedText(working.Tags?.Count)));
+            entries.Add(new TaskMenuEntry("Labels", Children: LabelFilterMenu(working), Icon: MaterialIconKind.CircleSlice8, Value: LabelFilterText(working)));
+            entries.Add(new TaskMenuEntry("Tags", Children: TagFilterMenu(working), Icon: MaterialIconKind.Pound, Value: PickedText(working.Tags?.Count)));
             entries.Add(new TaskMenuEntry(
                 "Due date", Children: PickMenu(DueChoices, working.Only.Due, list => working.Only with { Due = list }),
-                Icon: MaterialIconKind.CalendarBlankOutline, Hint: PickedText(working.Only.Due?.Count)));
+                Icon: MaterialIconKind.CalendarBlankOutline, Value: PickedText(working.Only.Due?.Count)));
             entries.Add(new TaskMenuEntry(
                 "Time limit", Children: PickMenu(TimeChoices, working.Only.Time, list => working.Only with { Time = list }),
-                Icon: MaterialIconKind.TimerOutline, Hint: PickedText(working.Only.Time?.Count)));
+                Icon: MaterialIconKind.TimerOutline, Value: PickedText(working.Only.Time?.Count)));
             entries.Add(new TaskMenuEntry(
                 "Untouched for", Children: PickMenu(OldChoices, working.Only.Old, list => working.Only with { Old = list }),
-                Icon: MaterialIconKind.Sleep, Hint: PickedText(working.Only.Old?.Count)));
+                Icon: MaterialIconKind.Sleep, Value: PickedText(working.Only.Old?.Count)));
             entries.Add(new TaskMenuEntry(
                 "Highlighted only",
                 new RelayCommand(() => views.Modify(config => config with { Only = config.Only with { HighlightedOnly = !config.Only.HighlightedOnly } })),
                 Icon: working.Only.HighlightedOnly ? MaterialIconKind.CheckboxMarked : MaterialIconKind.CheckboxBlankOutline));
 
             entries.Add(TaskMenuEntry.Separator);
-            entries.Add(new TaskMenuEntry("History…", ViewAction: "history", Icon: MaterialIconKind.History, Hint: "30 days"));
+            entries.Add(new TaskMenuEntry("History…", ViewAction: "history", Icon: MaterialIconKind.History, Value: "30 days"));
             entries.Add(new TaskMenuEntry(
                 "Reset", views.IsChanged ? new RelayCommand(() => views.Select(views.ActiveId)) : null, Icon: MaterialIconKind.Restore, IsDanger: views.IsChanged));
             entries.Add(TaskMenuEntry.Separator);
@@ -330,6 +313,42 @@ public sealed partial class ShelfViewModel : ObservableObject
             : TaskMenuEntry.Do("Hide Today", _toggleToday, MaterialIconKind.ArrowCollapseLeft));
         return entries;
     }
+
+    /// <summary>
+    /// The saved views (the one in use ticked, the default marked), Create a view… and This view ›: the top of the View menu, and the
+    /// whole menu of the Tasks header's Views (bookmark) button (round 2, brief §3.3). Empty before the task list exists.
+    /// </summary>
+    public IReadOnlyList<TaskMenuEntry> SavedViewsMenu()
+    {
+        if (_views is not TaskViewService views)
+        {
+            return [];
+        }
+
+        var entries = new List<TaskMenuEntry> { new("Saved views", IsHeading: true) };
+        foreach (TaskView view in views.Views)
+        {
+            Guid id = view.Id;
+            entries.Add(new TaskMenuEntry(
+                view.Name, new RelayCommand(() => views.Select(id)), IsChecked: id == views.ActiveId, Icon: ViewIcon(view.Icon),
+                Value: views.DefaultViewId == id ? "Default" : null));
+        }
+
+        if (ViewEditorRequested is not null)
+        {
+            entries.Add(TaskMenuEntry.Do("Create a view…", () => ViewEditorRequested?.Invoke(this, null), MaterialIconKind.BookmarkPlusOutline));
+        }
+
+        if (views.Active is TaskView active)
+        {
+            entries.Add(TaskMenuEntry.Group("This view", ThisViewMenu(views, active), MaterialIconKind.BookmarkOutline));
+        }
+
+        return entries;
+    }
+
+    /// <summary>History is there (the task list's actions): the Tasks header's History button shows.</summary>
+    public bool HasHistory => _actions is not null;
 
     // "Show only" choices: the stored value and what the menu says.
     internal static readonly (string Value, string Text)[] DueChoices =

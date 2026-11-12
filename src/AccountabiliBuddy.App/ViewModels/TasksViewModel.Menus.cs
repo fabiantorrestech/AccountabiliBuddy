@@ -47,36 +47,72 @@ public sealed partial class TasksViewModel
     // ---- One task ----
 
     /// <summary>
-    /// The menu of one task the task list holds: Rename, Move ›, Time limit ›, Label ›, Tags ›, Reminders &amp; due date…, Highlight,
-    /// Sync devices ›, Delete, Copy ID. ("Rename one by one" is for a selection only.)
+    /// The shared row menu (round 2, brief §3.6 / §4.2, boards Tasks-PC-Task-Menu and Today-PC-Task-Menu) of one task the task list
+    /// holds, the same on Tasks and Today: the task's title as a small heading; Move ›, Time limit ›, Label ›, Tags ›, Reminders &amp;
+    /// due date ›, Highlight; then Rename, Copy ID, Sync devices ›; then Delete (red, last). Each shows what it is set to now at the
+    /// right; no shortcut letters (F2, Del and H still work on the row through <see cref="TaskMenuEntry.Shortcut"/>). Moves follow the
+    /// same rules as before (into This session only through the session's cap). "Rename one by one" is for a selection only.
     /// </summary>
     private IReadOnlyList<TaskMenuEntry> TaskListMenu(TaskRowKey key, TaskItem item)
     {
         IReadOnlyList<Guid> ids = [key.Id];
         var entries = new List<TaskMenuEntry>
         {
-            new("Rename", new RelayCommand(() => BeginDetailEdit(key, "title")), Icon: MaterialIconKind.FormTextbox, Hint: "F2"),
-            TaskMenuEntry.Group("Move", MoveChoices(ids, item.Bin, key), MaterialIconKind.ArrowRight),
-            TaskMenuEntry.Group("Time limit", TimeLimitChoicesFor(ids, item.EstimateMinutes), MaterialIconKind.TimerOutline),
-            TaskMenuEntry.Group("Label", LabelChoicesFor(ids, item.LabelId, markCurrent: true), MaterialIconKind.CircleSlice8),
-            TaskMenuEntry.Group("Tags", TagChoicesFor(ids), MaterialIconKind.Pound),
-            TaskMenuEntry.View("Reminders & due date…", "reminders", MaterialIconKind.BellOutline),
+            new(item.Title, IsHeading: true),
+            new("Move", Children: MoveChoices(ids, item.Bin, key), Icon: MaterialIconKind.ArrowRight, Value: TaskBins.Name(item.Bin)),
+            new("Time limit", Children: TimeLimitChoicesFor(ids, item.EstimateMinutes), Icon: MaterialIconKind.TimerOutline,
+                Value: item.EstimateMinutes is int minutes ? EstimateText.Of(minutes) : null),
+            new("Label", Children: LabelChoicesFor(ids, item.LabelId, markCurrent: true), Icon: MaterialIconKind.CircleSlice8, Value: LabelOf(item.LabelId)?.Name),
+            new("Tags", Children: TagChoicesFor(ids), Icon: MaterialIconKind.Pound, Value: TagsValue(item.Tags)),
+            new("Reminders & due date", ViewAction: "reminders", Icon: MaterialIconKind.BellOutline,
+                Value: $"{(item.Reminders ?? []).Count} of {TaskReminder.MaxPerTask}", OpensMore: true),
             HighlightEntry(ids, [item]),
+            TaskMenuEntry.Separator,
+            new("Rename", new RelayCommand(() => BeginDetailEdit(key, "title")), Icon: MaterialIconKind.FormTextbox, Shortcut: "F2"),
         };
-        if (KeepOnEntries(key) is { } devices)
-        {
-            entries.Add(TaskMenuEntry.Group("Sync devices", devices, MaterialIconKind.Sync));
-        }
-
-        entries.Add(TaskMenuEntry.Separator);
-        entries.Add(new TaskMenuEntry("Delete", new AsyncRelayCommand(() => DeleteAsync(key)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Hint: "Del"));
         if (item.Number is TaskNumber number)
         {
             entries.Add(new TaskMenuEntry(
-                "Copy ID", ViewAction: "copyId", Icon: MaterialIconKind.ContentCopy, Hint: number.Value.ToString(CultureInfo.InvariantCulture)));
+                "Copy ID", ViewAction: "copyId", Icon: MaterialIconKind.ContentCopy, Value: number.Value.ToString(CultureInfo.InvariantCulture)));
         }
 
+        if (KeepOnEntries(key) is { } devices)
+        {
+            entries.Add(new TaskMenuEntry("Sync devices", Children: devices, Icon: MaterialIconKind.Sync, Value: SyncValue(devices)));
+        }
+
+        entries.Add(TaskMenuEntry.Separator);
+        entries.Add(new TaskMenuEntry("Delete", new AsyncRelayCommand(() => DeleteAsync(key)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del"));
         return entries;
+    }
+
+    // The Sync devices entry's value: where the task is kept now ("All", "This PC", a device's name); null when none is ticked.
+    private static string? SyncValue(IReadOnlyList<TaskMenuEntry> devices)
+    {
+        string? chosen = devices.FirstOrDefault(entry => entry.IsChecked)?.Header;
+        if (chosen is null)
+        {
+            return null;
+        }
+
+        if (chosen.StartsWith("All ", StringComparison.Ordinal))
+        {
+            return "All";
+        }
+
+        string name = chosen.StartsWith("Only ", StringComparison.Ordinal) ? chosen["Only ".Length..] : chosen;
+        return name.Length > 0 ? char.ToUpperInvariant(name[0]) + name[1..] : name;
+    }
+
+    // The Tags entry's value: the first tag, and how many more ("#Release +1"); null for none.
+    private static string? TagsValue(IReadOnlyList<string>? tags)
+    {
+        if (tags is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        return tags.Count == 1 ? "#" + tags[0] : $"#{tags[0]} +{tags.Count - 1}";
     }
 
     // ---- A selection (right-click inside it) ----
@@ -98,7 +134,7 @@ public sealed partial class TasksViewModel
         List<Guid> ids = held.Select(key => key.Id).Distinct().ToList();
         int left = keys.Select(key => key.Id).Distinct().Count() - ids.Count;
         string heading = ids.Count == 1 ? "1 task" : ids.Count + " tasks";
-        var entries = new List<TaskMenuEntry> { new(heading, IsHeading: true, Hint: left > 0 ? left + " left out" : null) };
+        var entries = new List<TaskMenuEntry> { new(heading, IsHeading: true, Value: left > 0 ? left + " left out" : null) };
         if (ids.Count == 0)
         {
             return entries;
@@ -140,7 +176,7 @@ public sealed partial class TasksViewModel
         string text = "Delete " + ids.Count;
         if (DeleteManyRequested is not null)
         {
-            return new TaskMenuEntry(text, new RelayCommand(() => DeleteManyRequested?.Invoke(this, ids)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Hint: "Del");
+            return new TaskMenuEntry(text, new RelayCommand(() => DeleteManyRequested?.Invoke(this, ids)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del");
         }
 
         return new TaskMenuEntry(
@@ -213,12 +249,12 @@ public sealed partial class TasksViewModel
     {
         var entries = new List<TaskMenuEntry>
         {
-            MoveEntry(ids, TaskBin.Session, current, MaterialIconKind.PlayCircleOutline),
-            MoveEntry(ids, TaskBin.Queued, current, MaterialIconKind.PlaylistPlus),
-            MoveEntry(ids, TaskBin.Sort, current, MaterialIconKind.Tray),
-            MoveEntry(ids, TaskBin.Next, current, MaterialIconKind.Tray),
-            MoveEntry(ids, TaskBin.Later, current, MaterialIconKind.Tray),
-            MoveEntry(ids, TaskBin.Done, current, MaterialIconKind.CheckCircleOutline),
+            MoveEntry(ids, TaskBin.Session, current),
+            MoveEntry(ids, TaskBin.Queued, current),
+            MoveEntry(ids, TaskBin.Sort, current),
+            MoveEntry(ids, TaskBin.Next, current),
+            MoveEntry(ids, TaskBin.Later, current),
+            MoveEntry(ids, TaskBin.Done, current),
         };
         if (key is TaskRowKey row && (row.Kind == TaskRowKind.Later || row.Kind == TaskRowKind.Session && !_tasks.IsLive))
         {
@@ -229,8 +265,9 @@ public sealed partial class TasksViewModel
         return entries;
     }
 
-    private TaskMenuEntry MoveEntry(IReadOnlyList<Guid> ids, TaskBin bin, TaskBin? current, MaterialIconKind icon)
+    private TaskMenuEntry MoveEntry(IReadOnlyList<Guid> ids, TaskBin bin, TaskBin? current)
     {
+        MaterialIconKind icon = TaskBinIcons.Of(bin);
         string text = bin == TaskBin.Done ? "Finished" : TaskBins.Name(bin);
         if (current == bin)
         {
@@ -320,7 +357,7 @@ public sealed partial class TasksViewModel
                 ? MaterialIconKind.CheckboxMarked
                 : having > 0 ? MaterialIconKind.MinusBoxOutline : MaterialIconKind.CheckboxBlankOutline;
             string? hint = tasks.Count > 1 && having > 0 && having < tasks.Count ? $"{having} of {tasks.Count}" : null;
-            entries.Add(new TaskMenuEntry("#" + name, new AsyncRelayCommand(() => BulkAsync(actions => actions.ToggleTagAsync(ids, name))), Icon: icon, Hint: hint));
+            entries.Add(new TaskMenuEntry("#" + name, new AsyncRelayCommand(() => BulkAsync(actions => actions.ToggleTagAsync(ids, name))), Icon: icon, Value: hint));
         }
 
         entries.Add(TaskMenuEntry.Do("New tag…", () => AskNewLabel(name => BulkAsync(actions => actions.AddTagsAsync(ids, [name]))), MaterialIconKind.Plus));
@@ -333,7 +370,7 @@ public sealed partial class TasksViewModel
         bool all = tasks.Count > 0 && tasks.All(task => task.Highlight);
         return new TaskMenuEntry(
             all ? "Remove highlight" : "Highlight", new AsyncRelayCommand(() => BulkAsync(actions => actions.SetHighlightAsync(ids, !all))),
-            Icon: all ? MaterialIconKind.StarOffOutline : MaterialIconKind.StarOutline, Hint: "H");
+            Icon: all ? MaterialIconKind.StarOffOutline : MaterialIconKind.StarOutline, Shortcut: "H");
     }
 
     // One action through the task actions, then the selection clears (the rows it named may have moved).

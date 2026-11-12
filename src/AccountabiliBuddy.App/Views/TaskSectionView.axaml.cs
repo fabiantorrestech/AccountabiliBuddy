@@ -121,7 +121,7 @@ public partial class TaskSectionView : UserControl
     {
         if (sender is Control header && DataContext is TaskSectionViewModel section)
         {
-            TaskMenus.ShowEntries(header, section.HeaderMenu(), PlacementMode.BottomEdgeAlignedLeft);
+            TaskMenus.ShowEntries(header, section.HeaderMenu(), PlacementMode.BottomEdgeAlignedLeft, fromKeyboard: !e.TryGetPosition(header, out _));
             e.Handled = true;
         }
     }

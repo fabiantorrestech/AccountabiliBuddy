@@ -1,6 +1,7 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="using:AccountabiliBuddy.App.Controls">
+        xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia">
     <!-- Shared styles over the Ab.* tokens (ADR 49). Flat: no gradients, no drop shadows. -->
 
     <Style Selector="Border.card">
@@ -322,5 +323,239 @@
     </Style>
     <Style Selector="Border.dlgTag.soft TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+
+    <!-- ===== Round 2 shared chrome (brief §3.3-3.6, §3.8, §3.12; plan R1.3-R1.5). Every value is a theme token. ===== -->
+
+    <!-- Page header (§3.3, Controls/PageHeader): "<Page> · Wed 11/11", labelled primary buttons, icon-only secondary controls with
+         tooltips, then the one bordered Options (tune) button, last. No gear. -->
+    <Style Selector="TextBlock.abPageTitle">
+        <Setter Property="FontFamily" Value="{DynamicResource Ab.DisplayFont}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LetterSpacing" Value="{DynamicResource Ab.DisplayLetterSpacing}" />
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.abPageDate">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="FontFeatures" Value="+tnum" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+    <!-- An icon-only secondary header control (Views, Expand/collapse all, History): quiet, 34 square, a tooltip and a name. -->
+    <Style Selector="Button.abHeaderIcon">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.abHeaderIcon /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.abHeaderIcon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.abHeaderIcon:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+    </Style>
+    <!-- The Options (tune) button: bordered, last in the header; it stays pressed-looking while its menu is open. -->
+    <Style Selector="Button.abOptions">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.abOptions /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.abOptions:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.abOptions:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+    </Style>
+    <Style Selector="Button.abOptions.open /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+    </Style>
+
+    <!-- Section headers (§3.4: Tasks bins, Goals areas): 16.5 px bold in ink, a 19 px icon, a grey count pill. -->
+    <Style Selector="TextBlock.abSectionTitle">
+        <Setter Property="FontSize" Value="16.5" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="mi|MaterialIcon.abSectionIcon">
+        <Setter Property="Width" Value="19" />
+        <Setter Property="Height" Value="19" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.abCountPill">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="7,1" />
+        <Setter Property="MinWidth" Value="20" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.abCountPill > TextBlock">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="FontFeatures" Value="+tnum" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Hover-only secondary actions (§3.4 edit / grip / +, §3.5 row actions, §3.12): hidden until the pointer is over the host OR the
+         keyboard is inside it, so Tab reaches them and they appear. Every hover rule here has its focus-within twin (AppChecks r1b). -->
+    <Style Selector=":is(Control).abHoverHost :is(Control).abHoverOnly">
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(Control).abHoverHost:pointerover :is(Control).abHoverOnly">
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector=":is(Control).abHoverHost:focus-within :is(Control).abHoverOnly">
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+
+    <!-- Lists (§3.5): soft rounded section blocks (no border), 18 px between blocks, no divider lines between rows (spacing only);
+         a hovered row inside a block turns lighter (Ab.RowHover: white in Instrument light; TaskRowView applies it to its rows). -->
+    <Style Selector="Border.abSoftBlock">
+        <Setter Property="Background" Value="{DynamicResource Ab.SectionBlock}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+        <Setter Property="Padding" Value="6" />
+    </Style>
+    <Style Selector="StackPanel.abBlocks">
+        <Setter Property="Spacing" Value="18" />
+    </Style>
+    <!-- A sub-line under a name ("↳ 2h a day", "↳ ePT · 142c"): the text starts with "↳ ". -->
+    <Style Selector="TextBlock.abSubLine">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <!-- "Built in": a small chip, not text. -->
+    <Style Selector="Border.abChip">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="6,1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.abChip > TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+
+    <!-- Status (§3.8): amber pills mean late or behind ("Overdue 3 d", "1 behind"). Red is only for destructive actions and the drag
+         Cancel zone. -->
+    <Style Selector="Border.abPill">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.abPill.amber">
+        <Setter Property="Background" Value="{DynamicResource Ab.AmberFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.AmberLine}" />
+    </Style>
+    <Style Selector="Border.abPill.amber TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.abPill.amber mi|MaterialIcon">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+    </Style>
+    <!-- The drag Cancel zone ("keeps selected"): red outline on a faint red fill; lit (thicker) while a dragged task is over it. -->
+    <Style Selector="Border.abDragCancel">
+        <Setter Property="Background" Value="{DynamicResource Ab.DragCancelFill}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.DragCancel}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+    </Style>
+    <Style Selector="Border.abDragCancel.lit">
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.abDragCancel TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.DragCancel}" />
+    </Style>
+    <Style Selector="Border.abDragCancel mi|MaterialIcon">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.DragCancel}" />
+    </Style>
+
+    <!-- Menus (§3.6, Views/TaskMenus): a row outlined in the accent while its menu is open; thin dividers; section heads as small muted
+         labels; values right-aligned and muted; ✓ and › muted; a destructive entry red. No shortcut letters anywhere. -->
+    <Style Selector="Border.abMenuRing">
+        <Setter Property="IsVisible" Value="False" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector=":is(Control).abMenuOpen > Border.abMenuRing">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="Separator.abMenuDivider">
+        <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Margin" Value="10,4" />
+    </Style>
+    <Style Selector="TextBlock.abMenuText">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="TextBlock.abMenuHead">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="TextBlock.abMenuValue">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="FontFeatures" Value="+tnum" />
+        <Setter Property="MaxWidth" Value="140" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="TextBlock.abMenuCheck">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="TextBlock.abMenuMore">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="TextBlock.abMenuNote">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <Style Selector="TextBlock.abMenuDanger">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+    </Style>
+    <!-- A heading is a disabled entry: the theme's disabled dimming would make it unreadable on Paper, so it keeps full opacity. -->
+    <Style Selector="MenuItem.abMenuHeading">
+        <Setter Property="Opacity" Value="1" />
     </Style>
 </Styles>

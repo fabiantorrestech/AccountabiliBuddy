@@ -21,6 +21,14 @@
             <Color x:Key="Ab.DriftColor">#B5523F</Color>
             <Color x:Key="Ab.PlanColor">#CDD4DF</Color>
             <Color x:Key="Ab.UpcomingColor">#B9C2D0</Color>
+            <!-- Round 2 (brief §3.4, §3.5, §3.8): soft section blocks, a hovered row inside them, the amber late/behind pill, the drag Cancel zone. -->
+            <Color x:Key="Ab.SectionBlockColor">#F4F6F9</Color>
+            <Color x:Key="Ab.RowHoverColor">#FFFFFF</Color>
+            <Color x:Key="Ab.AmberInkColor">#8A5300</Color>
+            <Color x:Key="Ab.AmberFillColor">#FBF0D9</Color>
+            <Color x:Key="Ab.AmberLineColor">#E6C887</Color>
+            <Color x:Key="Ab.DragCancelColor">#B3261E</Color>
+            <Color x:Key="Ab.DragCancelFillColor">#FBE8E6</Color>
             <SolidColorBrush x:Key="Ab.Bg" Color="{DynamicResource Ab.BgColor}" />
             <SolidColorBrush x:Key="Ab.Surface" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="Ab.Surface2" Color="{DynamicResource Ab.Surface2Color}" />
@@ -39,6 +47,13 @@
             <SolidColorBrush x:Key="Ab.Drift" Color="{DynamicResource Ab.DriftColor}" />
             <SolidColorBrush x:Key="Ab.Plan" Color="{DynamicResource Ab.PlanColor}" />
             <SolidColorBrush x:Key="Ab.Upcoming" Color="{DynamicResource Ab.UpcomingColor}" />
+            <SolidColorBrush x:Key="Ab.SectionBlock" Color="{DynamicResource Ab.SectionBlockColor}" />
+            <SolidColorBrush x:Key="Ab.RowHover" Color="{DynamicResource Ab.RowHoverColor}" />
+            <SolidColorBrush x:Key="Ab.AmberInk" Color="{DynamicResource Ab.AmberInkColor}" />
+            <SolidColorBrush x:Key="Ab.AmberFill" Color="{DynamicResource Ab.AmberFillColor}" />
+            <SolidColorBrush x:Key="Ab.AmberLine" Color="{DynamicResource Ab.AmberLineColor}" />
+            <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
+            <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />
             <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
             <Color x:Key="SystemAccentColor">#8C6D45</Color>
             <Color x:Key="SystemAccentColorLight1">#8C6D45</Color>
@@ -76,6 +91,14 @@
             <Color x:Key="Ab.DriftColor">#D99A8E</Color>
             <Color x:Key="Ab.PlanColor">#343C52</Color>
             <Color x:Key="Ab.UpcomingColor">#46506A</Color>
+            <!-- Round 2 (brief §3.4, §3.5, §3.8): soft section blocks, a hovered row inside them, the amber late/behind pill, the drag Cancel zone. -->
+            <Color x:Key="Ab.SectionBlockColor">#1B2130</Color>
+            <Color x:Key="Ab.RowHoverColor">#232A39</Color>
+            <Color x:Key="Ab.AmberInkColor">#E9C27A</Color>
+            <Color x:Key="Ab.AmberFillColor">#33280F</Color>
+            <Color x:Key="Ab.AmberLineColor">#5E4A22</Color>
+            <Color x:Key="Ab.DragCancelColor">#E5776A</Color>
+            <Color x:Key="Ab.DragCancelFillColor">#3A1D1C</Color>
             <SolidColorBrush x:Key="Ab.Bg" Color="{DynamicResource Ab.BgColor}" />
             <SolidColorBrush x:Key="Ab.Surface" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="Ab.Surface2" Color="{DynamicResource Ab.Surface2Color}" />
@@ -94,6 +117,13 @@
             <SolidColorBrush x:Key="Ab.Drift" Color="{DynamicResource Ab.DriftColor}" />
             <SolidColorBrush x:Key="Ab.Plan" Color="{DynamicResource Ab.PlanColor}" />
             <SolidColorBrush x:Key="Ab.Upcoming" Color="{DynamicResource Ab.UpcomingColor}" />
+            <SolidColorBrush x:Key="Ab.SectionBlock" Color="{DynamicResource Ab.SectionBlockColor}" />
+            <SolidColorBrush x:Key="Ab.RowHover" Color="{DynamicResource Ab.RowHoverColor}" />
+            <SolidColorBrush x:Key="Ab.AmberInk" Color="{DynamicResource Ab.AmberInkColor}" />
+            <SolidColorBrush x:Key="Ab.AmberFill" Color="{DynamicResource Ab.AmberFillColor}" />
+            <SolidColorBrush x:Key="Ab.AmberLine" Color="{DynamicResource Ab.AmberLineColor}" />
+            <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
+            <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />
             <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
             <Color x:Key="SystemAccentColor">#D2B98F</Color>
             <Color x:Key="SystemAccentColorLight1">#D2B98F</Color>

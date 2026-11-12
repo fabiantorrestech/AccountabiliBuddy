@@ -62,6 +62,10 @@
         <Style Selector="Grid.row:pointerover Button.onHover">
             <Setter Property="Opacity" Value="1" />
         </Style>
+        <!-- ...and on the row holding the keyboard, so Tab finds them visible (round 2, brief §3.12). -->
+        <Style Selector="Grid.row:focus-within Button.onHover">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
         <!-- The drag handle (⠿) at a row's left: shows on hover like move and rename. -->
         <Style Selector="Border.dragHandle">
             <Setter Property="Background" Value="Transparent" />

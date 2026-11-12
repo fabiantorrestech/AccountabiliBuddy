@@ -1729,6 +1729,9 @@ public partial class App : Application
             // Today shows the same task sections; a row opened there opens on the Tasks page (it has the detail card).
             sessionViewModel.TaskPage = tasksPage;
             tasksPage.OpenRequested += (_, _) => mainViewModel.SelectedTab = (int)MainTab.Tasks;
+            // The Tasks and Today headers' Options menus end with "Tasks settings" / "Today settings" (round 2, brief §3.3): Settings at
+            // that section, behind Settings' own session locks.
+            tasksPage.OpenSettings = mainViewModel.OpenSettings;
             // Rows say "untouched N wk" after the Tasks setting's weeks; the open task's sync line reads the title bar's sync light.
             tasksPage.UntouchedWeeks = () => _taskSettings?.Current.UntouchedWeeks ?? AccountabiliBuddy.Core.Tasks.TaskUntouched.DefaultWeeks;
             tasksPage.SyncLight = () => mainViewModel.SyncLight;

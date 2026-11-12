@@ -854,7 +854,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         entries.Add(TaskMenuEntry.Separator);
-        entries.Add(TaskMenuEntry.Async("Delete", () => DeleteAsync(key), MaterialIconKind.DeleteOutline));
+        entries.Add(new TaskMenuEntry("Delete", new AsyncRelayCommand(() => DeleteAsync(key)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del"));
         return entries;
     }
 
@@ -1391,6 +1391,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             section.Hint = CountText(groupRows.Count);
             TaskLabel? label = LabelOf(labelId);
             section.Dot = label is null ? null : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color));
+            section.Icon = bin is TaskBin binIcon ? TaskBinIcons.Of(binIcon) : null;
             if (bin is TaskBin shelfBin)
             {
                 section.UseAdd(this, shelfBin, $"Add to {title}");

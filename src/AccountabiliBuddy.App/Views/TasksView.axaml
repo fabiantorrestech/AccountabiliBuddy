@@ -268,11 +268,16 @@
         <Border x:Name="TodayColumn" Grid.Column="1" Classes="card tasksCard" IsVisible="{Binding ShowsToday}" Padding="0" ClipToBounds="True"
                 Container.Name="TaskColumn" Container.Sizing="Width">
             <DockPanel>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="26,20,16,0">
-                    <TextBlock Classes="display" Text="Tasks" FontSize="30" VerticalAlignment="Center" />
+                <!-- The page header (round 2, brief §3.3 / §4.6): "Tasks · Wed 11/11", Hold to reset (labelled, while the session view
+                     changed), then icon-only Views (bookmark), Expand / collapse all and History, then the bordered Options (tune), last.
+                     Normal / Compact moved into Options › Rows. -->
+                <controls:PageHeader x:Name="TasksHeader" DockPanel.Dock="Top" Margin="26,20,16,0" Title="Tasks" Date="{Binding TodayDateText}"
+                                     OptionsRequested="OnTasksOptionsRequested">
+                    <controls:PageHeader.Actions>
+                    <StackPanel Orientation="Horizontal" Spacing="2">
                     <!-- Hold to reset (1.5 s): the session view back the way it started. It keeps its slot (faded out, no clicks) while
                          nothing changed, so nothing jumps; a click that isn't a hold shows the hint. -->
-                    <Button x:Name="ResetButton" Grid.Column="1" Classes="quiet resetHold" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                    <Button x:Name="ResetButton" Margin="0,0,6,0" Classes="quiet resetHold" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                             Opacity="{Binding IsSessionViewChanged, Converter={x:Static views:TasksView.ShownOpacity}}" IsHitTestVisible="{Binding IsSessionViewChanged}"
                             Focusable="{Binding IsSessionViewChanged}" ToolTip.Tip="{x:Static vm:TasksViewModel.ResetHint}"
                             ToolTip.IsOpen="{Binding ShowsResetHint}" AutomationProperties.Name="Hold to reset the session view">
@@ -287,30 +292,21 @@
                             </Border>
                         </Panel>
                     </Button>
-                    <Border Grid.Column="2" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="2" VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="2">
-                            <Button Classes="segment" Classes.on="{Binding !IsCompact}" Command="{Binding UseNormalRowsCommand}" ToolTip.Tip="Normal rows"
-                                    AutomationProperties.Name="Normal rows">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <mi:MaterialIcon Kind="ViewHeadline" Width="15" Height="15" />
-                                    <TextBlock Classes="segmentText" Text="Normal" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                            <Button Classes="segment" Classes.on="{Binding IsCompact}" Command="{Binding UseCompactRowsCommand}" ToolTip.Tip="Compact rows"
-                                    AutomationProperties.Name="Compact rows">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <mi:MaterialIcon Kind="FormatLineSpacing" Width="15" Height="15" />
-                                    <TextBlock Classes="segmentText" Text="Compact" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-                    </Border>
-                    <Button Grid.Column="3" Classes="quiet" Padding="7,5" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                            Command="{Binding TodayPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayPanel.ExpandTip}"
+                    <Button x:Name="ViewsButton" Classes="abHeaderIcon" Click="OnViewsClick" IsVisible="{Binding Shelf.HasViews}"
+                            ToolTip.Tip="Views" AutomationProperties.Name="Views">
+                        <mi:MaterialIcon Kind="BookmarkOutline" Width="18" Height="18" />
+                    </Button>
+                    <Button Classes="abHeaderIcon" Command="{Binding TodayPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayPanel.ExpandTip}"
                             AutomationProperties.Name="{Binding TodayPanel.ExpandTip}">
                         <mi:MaterialIcon Kind="{Binding TodayPanel.ExpandIcon}" Width="18" Height="18" />
                     </Button>
-                </Grid>
+                    <Button x:Name="HistoryButton" Classes="abHeaderIcon" Click="OnHistoryClick" IsVisible="{Binding Shelf.HasHistory}"
+                            ToolTip.Tip="History: finished and deleted tasks, 30 days" AutomationProperties.Name="History">
+                        <mi:MaterialIcon Kind="History" Width="18" Height="18" />
+                    </Button>
+                    </StackPanel>
+                    </controls:PageHeader.Actions>
+                </controls:PageHeader>
 
                 <!-- "Session ended at 12:52 AM" (P4): Tasks switches to planning the next time it opens, or now; × closes it (a 15-second ring). -->
                 <Border DockPanel.Dock="Top" Classes="endedStrip" Margin="22,14,16,0" Padding="14,10,8,10" IsVisible="{Binding ShowsEndedNotice}">

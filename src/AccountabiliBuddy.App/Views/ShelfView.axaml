@@ -73,7 +73,8 @@
             </Button>
             <Button Grid.Column="2" Classes="quiet tool" Click="OnGroupMenuClick" ToolTip.Tip="Group by" AutomationProperties.Name="Group by">
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                    <mi:MaterialIcon Kind="TuneVariant" Width="16" Height="16" VerticalAlignment="Center" />
+                    <!-- Group by's own icon (the View menu's): sliders (tune) mean the page Options button only (ADR 32, round 2 brief §3.10). -->
+                    <mi:MaterialIcon Kind="FormatListGroup" Width="16" Height="16" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding GroupText}" FontSize="13" VerticalAlignment="Center" />
                     <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                 </StackPanel>

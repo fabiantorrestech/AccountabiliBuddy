@@ -36,17 +36,35 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     /// <summary>The faint text after the title: "3 ready", "3/3 in focus", a count.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasHint))]
+    [NotifyPropertyChangedFor(nameof(HasHint), nameof(ShowsCountPill), nameof(ShowsHintText))]
     public partial string Hint { get; set; }
 
     public bool HasHint => Hint.Length > 0;
 
+    /// <summary>
+    /// A Shelf group (a bin, a label or a tag; not one of Today's sections): its header follows the shared section header rule (round 2,
+    /// brief §3.4): 16.5 px bold title, 19 px icon, the count in a grey pill, "+" only on hover or keyboard focus.
+    /// </summary>
+    public bool IsShelfGroup => Key is not ("session" or "queued" or "reminders" or "done");
+
+    /// <summary>A Shelf group's count, in its grey pill.</summary>
+    public bool ShowsCountPill => IsShelfGroup && HasHint;
+
+    /// <summary>One of Today's sections: its hint ("3 ready", a count) as faint text after the title.</summary>
+    public bool ShowsHintText => !IsShelfGroup && HasHint;
+
     /// <summary>An icon before the title (the bell of Reminders due today); null for none.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasIcon), nameof(IconKind))]
+    [NotifyPropertyChangedFor(nameof(HasIcon), nameof(IconKind), nameof(ShowsSectionIcon), nameof(ShowsSmallIcon))]
     public partial MaterialIconKind? Icon { get; set; }
 
     public bool HasIcon => Icon is not null;
+
+    /// <summary>The icon in the shared section header size (a Shelf bin).</summary>
+    public bool ShowsSectionIcon => IsShelfGroup && HasIcon;
+
+    /// <summary>The icon in Today's smaller section header (Reminders due today's bell).</summary>
+    public bool ShowsSmallIcon => !IsShelfGroup && HasIcon;
 
     public MaterialIconKind IconKind => Icon ?? MaterialIconKind.BellOutline;
 

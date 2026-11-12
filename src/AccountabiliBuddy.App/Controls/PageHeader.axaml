@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Controls.PageHeader">
+    <!-- A page's header (round 2, brief §3.3, CN §4b): "<Page>" then the date in muted text ("Wed 11/11"); at the right the page's own
+         controls (labelled primary buttons, then icon-only secondary controls with tooltips: Button.abHeaderIcon), then the one bordered
+         Options (tune) button, always last. No gear: the Options menu's last row opens the page's settings. Styles: Themes/AbStyles.axaml. -->
+    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
+        <TextBlock x:Name="TitleText" Classes="abPageTitle" />
+        <TextBlock x:Name="DateText" Grid.Column="1" Classes="abPageDate" />
+        <ContentControl x:Name="ActionsHost" Grid.Column="3" VerticalAlignment="Center" />
+        <Button x:Name="OptionsButton" Grid.Column="4" Classes="abOptions" Click="OnOptionsClick" ToolTip.Tip="Options">
+            <mi:MaterialIcon Kind="Tune" Width="18" Height="18" />
+        </Button>
+    </Grid>
+</UserControl>

@@ -237,8 +237,9 @@ public partial class TaskRowView : UserControl
         }
 
         // From the menu key or Shift+F10 there is no pointer: the menu opens under the row.
-        PlacementMode placement = e.TryGetPosition(RowButton, out _) ? PlacementMode.Pointer : PlacementMode.BottomEdgeAlignedLeft;
-        TaskMenus.ShowEntries(RowButton, row.BuildContextMenu(), placement, OnMenuViewAction);
+        bool fromPointer = e.TryGetPosition(RowButton, out _);
+        PlacementMode placement = fromPointer ? PlacementMode.Pointer : PlacementMode.BottomEdgeAlignedLeft;
+        TaskMenus.ShowEntries(RowButton, row.BuildContextMenu(), placement, OnMenuViewAction, fromKeyboard: !fromPointer);
         e.Handled = true;
     }
 

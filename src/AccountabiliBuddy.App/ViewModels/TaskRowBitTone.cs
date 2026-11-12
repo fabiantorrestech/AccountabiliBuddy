@@ -12,6 +12,9 @@ public enum TaskRowBitTone
     /// <summary>Quieter: "untouched 5 wk".</summary>
     Faint,
 
-    /// <summary>A warning: overdue, a sync problem.</summary>
+    /// <summary>A warning: a sync problem.</summary>
     Drift,
+
+    /// <summary>Late or behind (round 2, brief §3.8): an overdue due date, drawn as an amber pill.</summary>
+    Amber,
 }

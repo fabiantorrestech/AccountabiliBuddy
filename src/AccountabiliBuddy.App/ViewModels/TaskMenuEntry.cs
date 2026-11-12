@@ -14,9 +14,15 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="IsChecked">Marked with ✓ (the category or plan part the task has now).</param>
 /// <param name="Icon">A 16 px Material icon before the text (ADR 32: the same meaning has the same icon everywhere); null for none.</param>
 /// <param name="Indented">Set in under the heading above it (a category listed under its device).</param>
-/// <param name="IsHeading">A group's name above its entries: bold, and not clickable.</param>
-/// <param name="IsDanger">Drawn in the drift (red) colour: Delete, the View menu's Reset.</param>
-/// <param name="Hint">Muted text at the right: a key ("F2", "Del", "H") or a value ("142", "2 of 3").</param>
+/// <param name="IsHeading">A group's name above its entries ("Group by", the task's title): a small muted label, not clickable.</param>
+/// <param name="IsDanger">Drawn in the drift (red) colour: Delete, the View menu's Reset. A row menu puts it last (brief §3.6).</param>
+/// <param name="Value">Muted text at the right: what the entry is set to now ("Next", "50 min", "142c", "1 of 5", "2 of 3"). Never a key.</param>
+/// <param name="Shortcut">
+/// The key that runs this entry on a row or the page ("F2", "Del", "H"; <see cref="Services.TaskShortcuts"/>). Never shown in a menu:
+/// menus have no shortcut letters (brief §3.6, CN §4b).
+/// </param>
+/// <param name="Note">A muted second line under the text ("How the day starts and ends, the start-of-day card").</param>
+/// <param name="OpensMore">Opens a panel or another page (Reminders &amp; due date, "Tasks settings"): drawn with › like a submenu, and → opens it too.</param>
 public sealed record TaskMenuEntry(
     string Header,
     ICommand? Command = null,
@@ -29,7 +35,10 @@ public sealed record TaskMenuEntry(
     bool Indented = false,
     bool IsHeading = false,
     bool IsDanger = false,
-    string? Hint = null)
+    string? Value = null,
+    string? Shortcut = null,
+    string? Note = null,
+    bool OpensMore = false)
 {
     public static TaskMenuEntry Separator { get; } = new(string.Empty, IsSeparator: true);
 

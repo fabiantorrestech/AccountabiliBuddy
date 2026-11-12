@@ -42,6 +42,10 @@
         <Style Selector="Button.listRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <!-- Inside a soft section block (round 2, brief §3.5) a hovered row turns lighter, not darker. -->
+        <Style Selector="Border.abSoftBlock Button.listRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+        </Style>
         <Style Selector="Button.listRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
@@ -183,6 +187,10 @@
         <Style Selector="Border.bit.drift">
             <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Drift}" />
         </Style>
+        <!-- Overdue: the shared amber pill (Themes/AbStyles.axaml Border.abPill.amber), with the pill's own padding. -->
+        <Style Selector="Border.bit.abPill">
+            <Setter Property="Padding" Value="7,0" />
+        </Style>
 
         <Style Selector="Border.dragHandle">
             <Setter Property="Background" Value="Transparent" />
@@ -260,7 +268,8 @@
 
     <StackPanel x:Name="RowRoot" Spacing="0">
         <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
-        <Panel Classes="listItem" ContextRequested="OnRowContextRequested" KeyDown="OnRowKeyDown">
+        <!-- abMenuHost: the row gets an accent outline (Border.abMenuRing) while its menu is open (round 2, brief §3.6). -->
+        <Panel Classes="listItem abMenuHost" ContextRequested="OnRowContextRequested" KeyDown="OnRowKeyDown">
             <Border Classes="tint" Opacity="0.14" IsVisible="{Binding ShowsHighlightTint}" />
             <Border Classes="tint" Opacity="0.16" IsVisible="{Binding IsPicked}" />
             <Border Classes="ring" IsVisible="{Binding IsPicked}" />
@@ -361,7 +370,7 @@
                                 <DataTemplate x:DataType="vm:TaskRowBit">
                                     <Panel VerticalAlignment="Center">
                                         <Border Classes="bit" Classes.chip="{Binding IsChip}" Classes.ink="{Binding IsInk}" Classes.faint="{Binding IsFaint}"
-                                                Classes.drift="{Binding IsDrift}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center" IsVisible="{Binding IsPlain}">
+                                                Classes.drift="{Binding IsDrift}" Classes.abPill="{Binding IsAmber}" Classes.amber="{Binding IsAmber}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center" IsVisible="{Binding IsPlain}">
                                             <StackPanel Orientation="Horizontal" Spacing="4">
                                                 <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
                                                 <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasText}" />
@@ -426,6 +435,7 @@
                 </Grid>
                 </Panel>
             </Button>
+            <Border Classes="abMenuRing" />
         </Panel>
         <Border Classes="dropLine" IsVisible="{Binding ShowsLineBelow}" Margin="8,0" />
     </StackPanel>

@@ -125,10 +125,10 @@ public sealed class TaskShortcuts
         return false;
     }
 
-    // The entry the menu labels with this key ("Del", "F2", "H"), or the older menus' entry of that name; run when it can.
+    // The entry this key runs ("Del", "F2", "H": its Shortcut, never shown in the menu), or the older menus' entry of that name; run when it can.
     private static bool Run(IReadOnlyList<TaskMenuEntry> menu, string hint, Func<string, bool> isNamed)
     {
-        TaskMenuEntry? entry = menu.FirstOrDefault(item => item.Hint == hint && item.Command is not null)
+        TaskMenuEntry? entry = menu.FirstOrDefault(item => item.Shortcut == hint && item.Command is not null)
             ?? menu.FirstOrDefault(item => item.Command is not null && !item.IsHeading && isNamed(item.Header));
         if (entry?.Command is not { } command || !command.CanExecute(null))
         {

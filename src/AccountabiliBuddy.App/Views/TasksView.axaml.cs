@@ -621,4 +621,46 @@ public partial class TasksView : UserControl
             detail.CommitNoteCommand.Execute(null);
         }
     }
+
+    // ---- The page header (round 2, brief §3.3): Views, History and Options ----
+
+    // Views (bookmark): the saved views, Create a view… and This view ›.
+    private void OnViewsClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control button && DataContext is TasksViewModel tasks)
+        {
+            TaskMenus.ShowEntries(button, tasks.Shelf.SavedViewsMenu(), PlacementMode.BottomEdgeAlignedRight);
+            e.Handled = true;
+        }
+    }
+
+    // History: finished and deleted tasks of the last 30 days.
+    private void OnHistoryClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control button && DataContext is TasksViewModel tasks && tasks.Shelf.History() is { } history)
+        {
+            TaskHistoryPopover.ShowAt(button, history, PlacementMode.BottomEdgeAlignedRight);
+            e.Handled = true;
+        }
+    }
+
+    // Options (tune): under the button, aligned to its right edge; its View menu's "History…" opens History there too.
+    private void OnTasksOptionsRequested(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not TasksViewModel tasks)
+        {
+            return;
+        }
+
+        Control anchor = TasksHeader.OptionsAnchor;
+        TasksHeader.SetOptionsOpen(true);
+        TaskMenus.ShowEntries(anchor, tasks.TasksOptionsMenu(), PlacementMode.BottomEdgeAlignedRight, entry =>
+        {
+            if (entry.ViewAction == "history" && tasks.Shelf.History() is { } history)
+            {
+                TaskHistoryPopover.ShowAt(anchor, history, PlacementMode.BottomEdgeAlignedRight);
+            }
+        }, () => TasksHeader.SetOptionsOpen(false));
+        e.Handled = true;
+    }
 }

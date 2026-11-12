@@ -141,15 +141,17 @@
             IsVisible="{Binding $parent[views:TodayView].((vm:SessionViewModel)DataContext).TaskPage, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}"
             Container.Name="TaskColumn" Container.Sizing="Width">
         <DockPanel x:DataType="vm:TasksViewModel">
-            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="26,18,14,6">
-                <TextBlock Classes="display" Text="Today" FontSize="30" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding TodayDateText}" FontSize="13" VerticalAlignment="Center" Margin="0,6,0,0" />
-                <Button Grid.Column="2" Classes="quiet" Padding="7,5" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                        Command="{Binding TodayTabPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayTabPanel.ExpandTip}"
-                        AutomationProperties.Name="{Binding TodayTabPanel.ExpandTip}">
-                    <mi:MaterialIcon Kind="{Binding TodayTabPanel.ExpandIcon}" Width="18" Height="18" />
-                </Button>
-            </Grid>
+            <!-- The page header (round 2, brief §3.3 / §4.2): "Today · Wed 11/11", Expand / collapse all (icon only), then the bordered
+                 Options (tune), last; its last row opens Today's settings. -->
+            <controls:PageHeader x:Name="TodayHeader" DockPanel.Dock="Top" Margin="26,18,14,6" Title="Today" Date="{Binding TodayDateText}"
+                                 OptionsRequested="OnTodayOptionsRequested">
+                <controls:PageHeader.Actions>
+                    <Button Classes="abHeaderIcon" Command="{Binding TodayTabPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayTabPanel.ExpandTip}"
+                            AutomationProperties.Name="{Binding TodayTabPanel.ExpandTip}">
+                        <mi:MaterialIcon Kind="{Binding TodayTabPanel.ExpandIcon}" Width="18" Height="18" />
+                    </Button>
+                </controls:PageHeader.Actions>
+            </controls:PageHeader>
             <!-- Jot it down rests at the bottom (fainter during a session; Ctrl+J). -->
             <views:JotBoxView DockPanel.Dock="Bottom" DataContext="{Binding Jot}" Margin="22,8,14,12" ZIndex="1" />
             <!-- The page's toast (the Tasks page's, spec 03 §F): bottom-left of these sections, above Jot it down. Docked first at the

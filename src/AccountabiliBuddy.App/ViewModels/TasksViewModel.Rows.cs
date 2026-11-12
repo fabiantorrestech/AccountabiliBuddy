@@ -102,7 +102,7 @@ public sealed partial class TasksViewModel
         if (item.DueOn is DateOnly due && !item.IsDone)
         {
             string text = DueText(due, item.DueAt, today);
-            TaskRowBitTone tone = due < today ? TaskRowBitTone.Drift : due == today ? TaskRowBitTone.Ink : TaskRowBitTone.Muted;
+            TaskRowBitTone tone = due < today ? TaskRowBitTone.Amber : due == today ? TaskRowBitTone.Ink : TaskRowBitTone.Muted;
             bits.Add(new TaskRowBit(due < today ? "Overdue · " + text : text, MaterialIconKind.CalendarBlankOutline, "Done by", Tone: tone));
         }
 

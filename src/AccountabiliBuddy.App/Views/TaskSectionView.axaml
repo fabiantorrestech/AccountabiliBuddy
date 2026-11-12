@@ -7,7 +7,9 @@
              x:DataType="vm:TaskSectionViewModel">
     <!-- One section of a task panel: the header (chevron, icon or label dot, title, faint hint, pin; a Shelf bin's "+") folds it on a
          click and offers Expand all / Collapse all / Pinned open on a right-click; then its rows, or "Nothing to see here.". A quiet
-         section (Queued, Reminders due today, Finished today) is faded as a whole and its title is faint. -->
+         section (Queued, Reminders due today, Finished today) is faded as a whole and its title is faint. A Shelf group's header follows
+         the shared section header rule (round 2, brief §3.4; Themes/AbStyles.axaml): 16.5 px bold title, 19 px icon, the count in a grey
+         pill, and its "+" only on hover or keyboard focus. -->
     <UserControl.Styles>
         <Style Selector="Button.sectionHeader">
             <Setter Property="Padding" Value="6,4" />
@@ -35,21 +37,26 @@
     </UserControl.Styles>
 
     <StackPanel Opacity="{Binding Fade}" Classes.compact="{Binding IsCompact}" Spacing="2" Margin="0,4,0,2">
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid Classes="abHoverHost" ColumnDefinitions="*,Auto">
             <Button Classes="sectionHeader" Command="{Binding ToggleCommand}" ContextRequested="OnHeaderContextRequested"
                     AutomationProperties.Name="{Binding Title}" ToolTip.Tip="Click to fold or unfold · right-click for Expand all, Collapse all and Pinned open">
                 <StackPanel Classes.quiet="{Binding IsQuiet}" Orientation="Horizontal" Spacing="6">
                     <mi:MaterialIcon Kind="{Binding Chevron}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                     <mi:MaterialIcon Kind="{Binding IconKind}" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}"
-                                     VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                                     VerticalAlignment="Center" IsVisible="{Binding ShowsSmallIcon}" />
+                    <mi:MaterialIcon Classes="abSectionIcon" Kind="{Binding IconKind}" IsVisible="{Binding ShowsSectionIcon}" />
                     <Ellipse Width="9" Height="9" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                    <TextBlock Classes="sectionTitle" Text="{Binding Title}" VerticalAlignment="Center" />
-                    <TextBlock Classes="faint" Text="{Binding Hint}" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding HasHint}" />
+                    <TextBlock Classes.sectionTitle="{Binding !IsShelfGroup}" Classes.abSectionTitle="{Binding IsShelfGroup}" Text="{Binding Title}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Classes="faint" Text="{Binding Hint}" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding ShowsHintText}" />
+                    <Border Classes="abCountPill" IsVisible="{Binding ShowsCountPill}">
+                        <TextBlock Text="{Binding Hint}" />
+                    </Border>
                     <mi:MaterialIcon Kind="PinOutline" Width="13" Height="13" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center"
                                      IsVisible="{Binding ShowsPin}" ToolTip.Tip="Pinned open" />
                 </StackPanel>
             </Button>
-            <Button Grid.Column="1" Classes="quiet" Padding="5" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding HasAdd}"
+            <Button Grid.Column="1" Classes="quiet abHoverOnly" Padding="5" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding HasAdd}"
                     Command="{Binding BeginAddCommand}" ToolTip.Tip="{Binding AddTip}" AutomationProperties.Name="{Binding AddTip}">
                 <mi:MaterialIcon Kind="Plus" Width="18" Height="18" Foreground="{DynamicResource Ab.Faint}" />
             </Button>
