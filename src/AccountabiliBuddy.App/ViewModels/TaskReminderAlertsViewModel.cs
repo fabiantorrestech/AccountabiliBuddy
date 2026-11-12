@@ -230,8 +230,9 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
 
         NoticeText = string.Empty;
 
-        IReadOnlyList<Guid> known = _shownDevices.Select(shown => shown.Id).Where(id => id != Guid.Empty).ToList();
-        _ = _account.SetRingOnAsync(TaskRingDevices.Toggled(_account.RingOn, known, device.Id, on));
+        // Phones only: a PC always rings, so it never holds the list back from "every device".
+        IReadOnlyList<Guid> phones = _shownDevices.Where(shown => !shown.IsPc).Select(shown => shown.Id).Where(id => id != Guid.Empty).ToList();
+        _ = _account.SetRingOnAsync(TaskRingDevices.Toggled(_account.RingOn, phones, device.Id, on));
     }
 
     // ---- saving ----

@@ -188,8 +188,9 @@ public sealed partial class LabelRowViewModel : ObservableObject
             return;
         }
 
-        IReadOnlyList<Guid> known = _devices.Select(shown => shown.Id).Where(id => id != Guid.Empty).ToList();
-        IReadOnlyList<Guid>? ringOn = TaskRingDevices.Toggled(RingOn, known, device.Id, on);
+        // Phones only: a PC always rings, so it never holds a list back from "every device".
+        IReadOnlyList<Guid> phones = _devices.Where(shown => !shown.IsPc).Select(shown => shown.Id).Where(id => id != Guid.Empty).ToList();
+        IReadOnlyList<Guid>? ringOn = TaskRingDevices.Toggled(RingOn, phones, device.Id, on);
         // Kept here at once, so a second switch in the same open checklist starts from this one.
         RingOn = ringOn;
         RingText = TaskRingText.For(ringOn, _devices);

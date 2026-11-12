@@ -190,14 +190,15 @@ public static class TaskListRules
 
     /// <summary>
     /// Another device's (or a backup's) task list merged in: tasks field by field (<see cref="TaskFieldMerge"/>), labels, views and
-    /// History item by item, the account's Tasks settings field by field (none incoming keeps this device's). Items a damaged file left
+    /// History item by item (a label's rings on by its own stamp, <see cref="TaskLabelMerge"/>), the account's Tasks settings field by field
+    /// (none incoming keeps this device's). Items a damaged file left
     /// empty are dropped.
     /// </summary>
     public static TaskLists MergeLists(TaskLists lists, TaskLists incoming, Guid self, DateTimeOffset now)
     {
         return new TaskLists(
             TaskFieldMerge.Merge(lists.Tasks, incoming.Tasks.OfType<SyncTaskItem>().Where(item => item.Task is not null), now, self),
-            SharedListMerge.Merge(lists.Labels, incoming.Labels.OfType<SyncTaskLabel>().Where(item => item.Label is not null), now),
+            TaskLabelMerge.Merge(lists.Labels, incoming.Labels.OfType<SyncTaskLabel>().Where(item => item.Label is not null), now),
             SharedListMerge.Merge(lists.Views, incoming.Views.OfType<SyncTaskView>().Where(item => item.View is not null), now),
             SharedListMerge.Merge(lists.Log, incoming.Log.OfType<SyncTaskLogItem>().Where(item => item.Entry?.Task is not null), now),
             incoming.Account is null ? lists.Account : TaskAccountSettingsMerge.Merge(lists.Account, incoming.Account, now));

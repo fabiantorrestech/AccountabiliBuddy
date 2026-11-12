@@ -6,7 +6,8 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <summary>
 /// The Labels screen's edits of the labels themselves (ADR 76, spec 03 §C, 05 §16), each stamped so the newest version wins on every
 /// device (<see cref="SharedListMerge"/>): a new label (the name-based id, a colour of the 12-colour set or a custom one), a new colour
-/// (any form <see cref="TaskLabelColors"/> takes, opacity kept) and its "Rings on" devices. Renaming and deleting go through the PC's
+/// (any form <see cref="TaskLabelColors"/> takes, opacity kept) and its "Rings on" devices (stamped on their own, see
+/// <see cref="TaskLabelMerge"/>). Renaming and deleting go through the PC's
 /// category list (<see cref="TaskCategoryEdits"/>), which also carries them to a running checklist. Ids only change for a new label.
 /// </summary>
 public static class TaskLabelEdits
@@ -72,13 +73,21 @@ public static class TaskLabelEdits
             : label with { Color = wanted, EditedAt = After(now, label.EditedAt) });
     }
 
-    /// <summary>The devices the label's reminders ring on (null: every device); unchanged when it already rings on those.</summary>
-    public static TaskLists SetRingOn(TaskLists lists, Guid labelId, IReadOnlyList<Guid>? ringOn, DateTimeOffset now)
+    /// <summary>
+    /// The phones the label's reminders ring on (null: every device), stamped on its own (<see cref="TaskLabel.RingOnStamp"/>: now, or
+    /// just after a stamp ahead) by <paramref name="self"/>; unchanged when it already rings on those.
+    /// </summary>
+    public static TaskLists SetRingOn(TaskLists lists, Guid labelId, IReadOnlyList<Guid>? ringOn, DateTimeOffset now, Guid self)
     {
         IReadOnlyList<Guid>? wanted = TaskRingDevices.Normalized(ringOn);
         return Changed(lists, labelId, label => TaskRingDevices.Same(label.RingOn, wanted)
             ? null
-            : label with { RingOn = wanted, EditedAt = After(now, label.EditedAt) });
+            : label with
+            {
+                RingOn = wanted,
+                RingOnStamp = new TaskFieldStamp(label.RingOnStamp is { } held ? After(now, held.At) : now, self),
+                EditedAt = After(now, label.EditedAt),
+            });
     }
 
     // The lists with one live label changed (change returns null: nothing to change).

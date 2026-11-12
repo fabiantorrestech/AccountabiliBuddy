@@ -205,6 +205,14 @@ public static class OldTaskFieldsReader
                 TaskLabel? label = _book.Named(category.Name);
                 if (label is null)
                 {
+                    // An older phone keeps its categories for good: a label deleted or renamed since (on a device that knows labels) comes
+                    // back only when the phone chose the category's colour after that change.
+                    if (_book.Labels.FirstOrDefault(known => known.Id == TaskLabel.IdFor(category.Name)) is TaskLabel changed
+                        && !(category.ColorEditedAt is DateTimeOffset chosen && chosen <= _limit && chosen > (changed.DeletedAt ?? changed.EditedAt)))
+                    {
+                        continue;
+                    }
+
                     _book.IdForName(category.Name, category.Color, category.ColorEditedAt ?? UnstampedAt);
                     _fieldsApplied++;
                 }

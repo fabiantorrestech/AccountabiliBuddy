@@ -529,6 +529,14 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 
 Tally: ✓ 18 · ◐ 15 · ✗ 3 (phone/tablet-only items are in "For the Android run").
 
+## M7 label sync fixes (Opus review of 840b2c05)
+
+- [x] 1 (Q262): "Rings on" lists hold phones only: `TaskRingDevices.Toggled(ringOn, phones, device, on)` ignores PCs and stores none once every phone shown is on, also after another PC joined; `TaskRingText.For` says "All devices" only for none. Callers pass phones only.
+- [x] 2 (Q263): `TaskLabel.RingOnStamp` (optional `ringOnStamp` on label items); `Core/Sync/TaskLabelMerge` merges rings on by its own stamp after the item merge (in `TaskListRules.MergeLists`); `TaskLabelEdits.SetRingOn` stamps it (`self`). An older phone's category colour read on a PC without the newest choice no longer erases it.
+- [x] 3 (Q264): `OldTaskFieldsReader.AdoptCategories` doesn't bring back a label deleted or renamed since unless the phone's category colour was chosen after that.
+- [x] Nits (Q265): `SyncFileCodec` cleans labels' rings on (64-id rule); `SyncFile`/`TaskLists` doc comments list `ringOn`. `doc/hard-rules.md` (labels part, Rings on paragraph) and ADR 0076's note updated.
+- Checks: Program.cs 633/633 (21 new `m7fix/`, 1 changed for phones-only lists; the reviewer's probe scenarios included), AppChecks 170/170 (7 new `m7fix/app`, 1 changed: the account's list holds no PC id), AccountSettingsChecks 66/66, CalendarExportChecks 120/120. Build 0 errors; dev app started on dev data, running after 22 s, stopped. Questions 262-266.
+
 ## For the Android run
 
 Collected from these notes and HANDOFF-QUESTIONS (the phone keeps writing the old fields until then; the PC reads them and keeps dual-writing them).
@@ -548,3 +556,4 @@ Collected from these notes and HANDOFF-QUESTIONS (the phone keeps writing the ol
 13. Phase 7-Android: Settings › Tasks, the Labels screen, Alerts › Task reminders (+ silent/DND, During a focus session with the same looser-change rule, Q254) and Rings on.
 14. Phase 8-Android: phone SetupFeatures (`android/app/.../setup/SetupFeatures.kt`): Tasks redesign + the view chooser (same three choices, Q257), Task reminders incl. exact alarms / full-screen permission, ringing devices (13s picker, also when linking a new device).
 15. 08's phone-only items: phone tabs without counts, sheets' back arrow and heights, swipe, tablet pop-ups, `./gradlew assembleDebug`.
+16. Rings on (M7 label sync fixes, Q262-Q265): the Kotlin `labels` twin carries `ringOn` + `ringOnStamp` and merges rings on by its own stamp after the item merge (`TaskLabelMerge`), cleans it like `SyncFileCodec.CleanRingOn`; lists name phones only (`TaskRingDevices.Toggled`); the phone's ring check is `TaskRingDevices.RingsFor`. Until the phone writes the `labels` part, the PC keeps ignoring its old categories for labels deleted or renamed since (unless their colour was chosen after); once it does, the phone should drop its own categories list.

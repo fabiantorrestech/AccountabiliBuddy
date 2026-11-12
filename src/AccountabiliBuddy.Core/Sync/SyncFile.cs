@@ -76,11 +76,12 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <paramref name="Comebacks"/>, <paramref name="Categories"/>) are then only for older apps. Read leniently
 /// (<see cref="SyncLenientListConverter{T}"/>).
 /// </param>
-/// <param name="Labels">ADR 76: the labels (id, name, colour with opacity, rings on, position), merged item by item; null as <paramref name="Tasks"/>.</param>
+/// <param name="Labels">ADR 76: the labels (id, name, colour with opacity, rings on with its own stamp, position), merged item by item (rings on by its stamp, <see cref="TaskLabelMerge"/>); null as <paramref name="Tasks"/>.</param>
 /// <param name="Views">ADR 76: the saved views (never search words), merged item by item; null as <paramref name="Tasks"/>.</param>
 /// <param name="TaskLog">ADR 76: History (finished, archived, deleted tasks with their snapshot, 30 days), merged item by item; null as <paramref name="Tasks"/>. Not <paramref name="TaskHistory"/>.</param>
 /// <param name="TaskAccountSettings">
-/// The account's Tasks settings (the view the Shelf opens with, the picked calendar for tasks with a due date; ids only), merged field
+/// The account's Tasks settings (the view the Shelf opens with, the picked calendar for tasks with a due date, the devices task reminders
+/// ring on; ids only), merged field
 /// by field by <see cref="TaskAccountSettingsMerge"/>; null as <paramref name="Tasks"/>, and when nothing was ever chosen. Read
 /// leniently (<see cref="SyncLenientObjectConverter{T}"/>).
 /// </param>

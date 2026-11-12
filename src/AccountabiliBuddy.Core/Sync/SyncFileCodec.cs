@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Tasks;
 
 namespace AccountabiliBuddy.Core.Sync;
 
@@ -123,9 +124,24 @@ public static class SyncFileCodec
 
     /// <summary>
     /// ADR 76's optional parts, with every entry that lacks what the merge needs left out (no id, no task, no title on a live task,
-    /// no name, no view settings, no snapshot); a label colour that can't be read becomes the set's first. Leaving an entry out
+    /// no name, no view settings, no snapshot); a label colour that can't be read becomes the set's first, and its rings on is cleaned. Leaving an entry out
     /// never deletes it: the merge keeps what it has. The account's Tasks settings keep only stamped, readable fields.
     /// </summary>
+    // A label's rings on as the account's (TaskAccountSettingsMerge.Clean): no empty or repeated ids, in id order; over
+    // TaskRingDevices.MaxDevices ids drops the list and its stamp (the merge keeps what the receiver has).
+    private static SyncTaskLabel CleanRingOn(SyncTaskLabel item)
+    {
+        if (item.Label.RingOn is null)
+        {
+            return item;
+        }
+
+        IReadOnlyList<Guid>? ringOn = TaskRingDevices.Normalized(item.Label.RingOn);
+        return ringOn!.Count > TaskRingDevices.MaxDevices
+            ? item with { Label = item.Label with { RingOn = null, RingOnStamp = null } }
+            : item with { Label = item.Label with { RingOn = ringOn } };
+    }
+
     private static SyncFile WithCleanTaskParts(SyncFile file)
     {
         return file with
@@ -137,6 +153,7 @@ public static class SyncFileCodec
             Labels = file.Labels?
                 .Where(item => item is { Label: { Name: not null } } && item.Label.Id != Guid.Empty)
                 .Select(item => TaskLabelColors.IsValid(item.Label.Color) ? item : item with { Label = item.Label with { Color = TaskLabelColors.Set[0] } })
+                .Select(CleanRingOn)
                 .ToList(),
             Views = file.Views?
                 .Where(item => item is { View: { Name: not null, Config: { Only: not null } } } && item.View.Id != Guid.Empty)

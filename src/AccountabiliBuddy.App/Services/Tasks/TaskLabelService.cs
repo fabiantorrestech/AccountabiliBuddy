@@ -89,7 +89,7 @@ public sealed class TaskLabelService
     /// <summary>The devices the label's task reminders ring on (null: every device).</summary>
     public Task SetRingOnAsync(Guid labelId, IReadOnlyList<Guid>? ringOn)
     {
-        return _store.ChangeAsync(this, (lists, _, now) => TaskLabelEdits.SetRingOn(lists, labelId, ringOn, now));
+        return _store.ChangeAsync(this, (lists, self, now) => TaskLabelEdits.SetRingOn(lists, labelId, ringOn, now, self));
     }
 
     /// <summary>The label goes on every device; its tasks (and a running checklist's) are left with No label.</summary>

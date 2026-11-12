@@ -12,9 +12,14 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="Name">Unique among labels, case-insensitively.</param>
 /// <param name="Color">"#RRGGBB", "#RRGGBBAA" or "rgba(r,g,b,a)" (<see cref="TaskLabelColors"/>).</param>
 /// <param name="Position">Its place in the label list.</param>
-/// <param name="EditedAt">Its newest change (name, colour, rings on, position); the newest version wins.</param>
-/// <param name="RingOn">The devices its tasks' reminders ring on; null for all (the current PC always rings for itself).</param>
+/// <param name="EditedAt">Its newest change (name, colour, rings on, position); the newest version wins (rings on: see <paramref name="RingOnStamp"/>).</param>
+/// <param name="RingOn">The phones its tasks' reminders ring on (device ids); null for every device. A PC always rings for its own reminders.</param>
 /// <param name="DeletedAt">Set on a tombstone; its tasks become "No label".</param>
+/// <param name="RingOnStamp">
+/// When and on which device <paramref name="RingOn"/> was chosen; null when never. Rings on merges on its own, newest stamp first
+/// (<see cref="Sync.TaskLabelMerge"/>), so another change of the label (an older phone's category colour read on a PC that hasn't
+/// seen the choice yet) never takes it back.
+/// </param>
 public sealed record TaskLabel(
     Guid Id,
     string Name,
@@ -22,7 +27,8 @@ public sealed record TaskLabel(
     double Position,
     DateTimeOffset EditedAt,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? RingOn = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? RingOnStamp = null)
 {
     // A fixed namespace for the name-based ids (an RFC 4122 version 5 style id); the phone's twin uses the same bytes.
     private static readonly Guid NameSpace = new("6f1b9a4e-3c2d-4e8b-9a71-5d0c2b7e4f13");

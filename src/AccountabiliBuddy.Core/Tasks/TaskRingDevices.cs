@@ -3,9 +3,9 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <summary>
 /// "Rings on" lists (Tasks redesign, spec 03 §C/§D): which of the user's devices ring for task reminders, as device ids. Two lists hold
 /// one: the account's (Settings › Alerts &amp; on-screen › Task reminders ring on, <c>SyncTaskAccountSettings.RingOn</c>) and each
-/// label's (<c>TaskLabel.RingOn</c>). Null means every device, also one added later; a list names the devices that ring. A PC always
-/// rings for its own reminders whatever a list says; phones honour both lists (a device rings for a task's reminder only when both
-/// name it).
+/// label's (<c>TaskLabel.RingOn</c>). Null means every device, also one added later; a list names the phones that ring (PCs never need
+/// to be on it: a PC always rings for its own reminders whatever a list says). Phones honour both lists (a phone rings for a task's
+/// reminder only when both name it).
 /// </summary>
 public static class TaskRingDevices
 {
@@ -40,12 +40,18 @@ public static class TaskRingDevices
     }
 
     /// <summary>
-    /// The list with <paramref name="device"/> turned on or off. <paramref name="known"/> are the devices shown (this PC included): a
-    /// list that then names all of them is stored as null (every device, also one added later).
+    /// The list with the phone <paramref name="device"/> turned on or off. <paramref name="phones"/> are the phones shown (never PCs: a PC
+    /// always rings, so it is never on a list and can't keep one from meaning "every device"); a list that then names all of them is
+    /// stored as null (every device, also one linked later). A device that isn't one of <paramref name="phones"/> (a PC) changes nothing.
     /// </summary>
-    public static IReadOnlyList<Guid>? Toggled(IReadOnlyList<Guid>? ringOn, IReadOnlyList<Guid> known, Guid device, bool on)
+    public static IReadOnlyList<Guid>? Toggled(IReadOnlyList<Guid>? ringOn, IReadOnlyList<Guid> phones, Guid device, bool on)
     {
-        var devices = new HashSet<Guid>(ringOn ?? known);
+        if (!phones.Contains(device))
+        {
+            return Normalized(ringOn);
+        }
+
+        var devices = new HashSet<Guid>(ringOn ?? phones);
         if (on)
         {
             devices.Add(device);
@@ -55,7 +61,7 @@ public static class TaskRingDevices
             devices.Remove(device);
         }
 
-        if (known.Where(id => id != Guid.Empty).All(devices.Contains))
+        if (phones.Where(id => id != Guid.Empty).All(devices.Contains))
         {
             return null;
         }

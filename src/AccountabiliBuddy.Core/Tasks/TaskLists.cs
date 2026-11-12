@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// The text in it is the user's private text: sealed wherever it is stored or synced, never logged.
 /// </summary>
 /// <param name="Account">
-/// The account's Tasks settings (default view, picked calendar), synced with the lists; null when nothing was ever chosen. Carried
+/// The account's Tasks settings (default view, picked calendar, the devices task reminders ring on), synced with the lists; null when nothing was ever chosen. Carried
 /// over by every rule that rebuilds the lists.
 /// </param>
 public sealed record TaskLists(
