@@ -264,29 +264,10 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             return;
         }
 
-        if (Finishes.Cancel(Key))
+        // The page's queue strikes, folds and resets every row of this task (this one, a rebuilt one, the Today page's).
+        if (!Finishes.Cancel(Key))
         {
-            IsCollapsing = false;
-            IsFinishing = false;
-            return;
+            await Finishes.RunAsync(Key, _toggle, FinishHold, Motion.Current?.Scale(FinishFold) ?? FinishFold);
         }
-
-        IsFinishing = true;
-        Func<Task> toggle = _toggle;
-        await Finishes.RunAsync(
-            Key,
-            async () =>
-            {
-                await toggle();
-                // The page's rebuild (queued by the store change) takes the row away first; a row the rules keep shows again after it.
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    IsCollapsing = false;
-                    IsFinishing = false;
-                }, Avalonia.Threading.DispatcherPriority.ContextIdle);
-            },
-            () => IsCollapsing = true,
-            FinishHold,
-            Motion.Current?.Scale(FinishFold) ?? FinishFold);
     }
 }

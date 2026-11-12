@@ -192,7 +192,7 @@ public sealed class TaskStore
     public void ActivateBlocking(TaskMigrationResult result, IReadOnlyDictionary<Guid, Guid> categoryIds)
     {
         var lists = TaskLists.From(result);
-        lists = TaskListRules.Normalize(lists, Self, NumberingDevice(), Now);
+        lists = TaskListRules.Normalize(lists, Self, NumberingDevice(), Now, Zone);
         var searches = result.ViewSearches.ToDictionary(pair => pair.Key, pair => pair.Value);
         var ids = categoryIds.ToDictionary(pair => pair.Key, pair => pair.Value);
         // The documents and the marker in one transaction: a run that stops halfway leaves neither.
@@ -541,7 +541,7 @@ public sealed class TaskStore
     // Normalizes and keeps the change; saves and tells the views only when something changed.
     private (bool Changed, Task Save) Commit(TaskLists changed, object? source, bool fromOtherDevice, bool forceSave = false)
     {
-        TaskLists normalized = TaskListRules.Normalize(changed, Self, NumberingDevice(), Now);
+        TaskLists normalized = TaskListRules.Normalize(changed, Self, NumberingDevice(), Now, Zone);
         bool differs = normalized.Signature() != _lists.Signature();
         if (!differs && !forceSave)
         {

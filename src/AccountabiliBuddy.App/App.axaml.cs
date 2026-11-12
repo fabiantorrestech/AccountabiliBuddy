@@ -3573,6 +3573,13 @@ public partial class App : Application
             return;
         }
 
+        // A task ticked a moment ago is still in its strike-and-fold: store it now (before the session ends, so a session that ends at
+        // once archives its checklist with that tick in it), so the tick isn't lost.
+        if (_mainWindow?.DataContext is MainWindowViewModel { Tasks: { } tasksPage })
+        {
+            await tasksPage.FlushPendingFinishesAsync();
+        }
+
         // Quitting ends the running session, so it is not resumed at the next launch.
         // During focus that is the same as ending it early (friction); in a break it just ends.
         if (_sessions is { State.IsActive: true } && !await _endFlow!.TryEndSessionAsync(VisibleMainWindow()))
@@ -3583,12 +3590,6 @@ public partial class App : Application
         if (_noiseSettings is not null)
         {
             await _noiseSettings.FlushAsync();
-        }
-
-        // A task ticked a moment ago is still in its strike-and-fold: store it now so the tick isn't lost.
-        if (_mainWindow?.DataContext is MainWindowViewModel { Tasks: { } tasksPage })
-        {
-            await tasksPage.FlushPendingFinishesAsync();
         }
 
         _goalCard?.Dispose();

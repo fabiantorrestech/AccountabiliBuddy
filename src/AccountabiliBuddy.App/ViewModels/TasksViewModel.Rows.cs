@@ -176,6 +176,16 @@ public sealed partial class TasksViewModel
         return next;
     }
 
+    // A tick started, began to fold, was taken back or was stored: every row of that task follows.
+    private void OnFinishChanged(object? sender, TaskRowKey key)
+    {
+        foreach (TaskListRowViewModel row in AllRows().Where(row => row.Key == key))
+        {
+            row.IsFinishing = _finishes.IsPending(key);
+            row.IsCollapsing = _finishes.IsFolding(key);
+        }
+    }
+
     /// <summary>The app is quitting: every tick still waiting out its strike-and-fold is stored now.</summary>
     public Task FlushPendingFinishesAsync() => _finishes.FlushAsync();
 

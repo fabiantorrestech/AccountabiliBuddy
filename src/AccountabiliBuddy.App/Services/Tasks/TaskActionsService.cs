@@ -79,7 +79,9 @@ public sealed class TaskActionsService
         TaskLists lists = _store.Lists;
         foreach (Guid id in ids.Distinct())
         {
-            if (lists.Tasks.FirstOrDefault(item => item.Id == id) is not { Task: { IsLive: true } task } || task.Bin == TaskBin.Session)
+            // Already in This session, or already taken by the running checklist (a second click or drop before the list caught up).
+            if (lists.Tasks.FirstOrDefault(item => item.Id == id) is not { Task: { IsLive: true } task } || task.Bin == TaskBin.Session
+                || _session.Current.SessionStart is not null && _session.IsInChecklist(id))
             {
                 continue;
             }

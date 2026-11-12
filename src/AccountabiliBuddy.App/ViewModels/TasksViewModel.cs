@@ -76,6 +76,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         TodayPanel = new TaskSectionsPanelViewModel("today", layout);
         TodayTabPanel = new TaskSectionsPanelViewModel("todaytab", layout);
         Shelf = new ShelfViewModel(new TaskSectionsPanelViewModel("shelf", layout), () => IsShelfShown = false, ToggleToday, () => IsTodayHidden);
+        _finishes.Changed += OnFinishChanged;
         foreach (TaskSectionsPanelViewModel panel in new[] { TodayPanel, TodayTabPanel, Shelf.Panel })
         {
             panel.Drop = DropAsync;
@@ -1625,6 +1626,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             IsPicked = _picked.Contains(key),
             Finishes = _finishes,
             IsFinishing = _finishes.IsPending(key),
+            IsCollapsing = _finishes.IsFolding(key),
             NumberText = extras.NumberText,
             Bits = extras.Bits,
             IsHighlighted = extras.IsHighlighted,

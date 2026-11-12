@@ -205,23 +205,35 @@ public static class TaskListRules
 
     /// <summary>Settles, numbers and prunes the lists (see the class summary); stamped by <paramref name="self"/>.</summary>
     /// <param name="numberingDevice">The device that gives final numbers (<see cref="TaskNumbering.NumberingDevice"/>); this device gives temporary ones otherwise.</param>
-    public static TaskLists Normalize(TaskLists lists, Guid self, Guid? numberingDevice, DateTimeOffset now)
+    /// <param name="zone">The device's time zone, for "its finish day is over" (see <see cref="Settled"/>); null leaves finished Queued tasks where they are.</param>
+    public static TaskLists Normalize(TaskLists lists, Guid self, Guid? numberingDevice, DateTimeOffset now, TimeZoneInfo? zone = null)
     {
-        return Pruned(Numbered(TaskHistoryRules.Reconciled(Settled(lists, now), now), self, numberingDevice, now), now, self);
+        return Pruned(Numbered(TaskHistoryRules.Reconciled(Settled(lists, now, zone), now), self, numberingDevice, now), now, self);
     }
 
     /// <summary>
     /// A finished Shelf task (Next, Later, To sort) goes to History, as a ticked Later item or come-back always did: an entry with
-    /// its snapshot and a tombstone in the list, both stamped with the tick's own time, so two devices settling it agree.
+    /// its snapshot and a tombstone in the list, both stamped with the tick's own time, so two devices settling it agree. A finished
+    /// Queued task stays in Finished today for the rest of its finish day (in <paramref name="zone"/>, as Finished today counts days)
+    /// and goes to History the same way once that day is over; with no zone it stays.
     /// </summary>
-    public static TaskLists Settled(TaskLists lists, DateTimeOffset now)
+    public static TaskLists Settled(TaskLists lists, DateTimeOffset now, TimeZoneInfo? zone = null)
     {
+        DateOnly? today = zone is null ? null : DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
         var tasks = lists.Tasks.ToList();
         var entries = new List<SyncTaskLogItem>();
         for (int index = 0; index < tasks.Count; index++)
         {
             TaskItem task = tasks[index].Task;
-            if (!task.IsLive || task.Bin != TaskBin.Done || task.DoneAt is not DateTimeOffset doneAt || task.PrevBin is not (TaskBin.Sort or TaskBin.Next or TaskBin.Later))
+            if (!task.IsLive || task.Bin != TaskBin.Done || task.DoneAt is not DateTimeOffset doneAt)
+            {
+                continue;
+            }
+
+            bool fromShelf = task.PrevBin is TaskBin.Sort or TaskBin.Next or TaskBin.Later;
+            bool queuedDayOver = task.PrevBin == TaskBin.Queued && today is DateOnly day
+                && DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(doneAt, zone!).DateTime) < day;
+            if (!fromShelf && !queuedDayOver)
             {
                 continue;
             }
