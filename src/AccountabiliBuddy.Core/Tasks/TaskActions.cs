@@ -351,6 +351,86 @@ public static class TaskActions
         return SetHighlight(lists, ids, !(tasks.Count > 0 && tasks.All(task => task.Highlight)), now, self);
     }
 
+    // ---- Reminders & due date (spec 05 §7): each edit is stamped; the first reminder or due date takes the calendar default ----
+
+    /// <summary>
+    /// Adds a reminder: one of the relative rules (<see cref="TaskReminder.AtStart"/>, <see cref="TaskReminder.TenMinutesBefore"/>,
+    /// <see cref="TaskReminder.OneHourBefore"/>, <see cref="TaskReminder.DayBeforeAtNine"/>) or <see cref="TaskReminder.Absolute"/> at
+    /// <paramref name="at"/>. Refused at <see cref="TaskReminder.MaxPerTask"/>, for a relative rule the task already has (or the same
+    /// moment twice), for an unknown rule and for an absolute one without a moment. A task's first reminder or due date takes
+    /// "Add new reminders to" (<see cref="TaskCalendarOptIn.WithDefault"/>).
+    /// </summary>
+    public static TaskActionResult AddReminder(
+        TaskLists lists, Guid id, Guid reminderId, string rule, DateTimeOffset? at, TaskCalendarDestination destination, DateTimeOffset now, Guid self)
+    {
+        bool known = rule is TaskReminder.AtStart or TaskReminder.TenMinutesBefore or TaskReminder.OneHourBefore or TaskReminder.DayBeforeAtNine
+            || rule == TaskReminder.Absolute && at is not null;
+        if (!known || LiveOf(lists, id) is not TaskItem task)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        IReadOnlyList<TaskReminder> reminders = task.Reminders ?? [];
+        bool repeated = reminders.Any(reminder => reminder.Rule == rule && (rule != TaskReminder.Absolute || reminder.At == at));
+        if (reminders.Count >= TaskReminder.MaxPerTask || repeated || reminders.Any(reminder => reminder.Id == reminderId))
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        var added = new TaskReminder(reminderId, rule, rule == TaskReminder.Absolute ? at : null);
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, [id], (current, _) => TaskCalendarOptIn.WithDefault(current, current with { Reminders = [.. current.Reminders ?? [], added] }, destination),
+            [TaskField.Reminders, TaskField.Calendar], now, self);
+        return Result(lists, after, changed, changed.Count == 1 ? TaskToasts.ReminderAdded(changed[0]) : string.Empty);
+    }
+
+    /// <summary>Takes one reminder off a task (the last one leaves it without reminders).</summary>
+    public static TaskActionResult RemoveReminder(TaskLists lists, Guid id, Guid reminderId, DateTimeOffset now, Guid self)
+    {
+        if (LiveOf(lists, id)?.Reminders?.Any(reminder => reminder.Id == reminderId) != true)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, [id],
+            (task, _) =>
+            {
+                List<TaskReminder> left = (task.Reminders ?? []).Where(reminder => reminder.Id != reminderId).ToList();
+                return task with { Reminders = left.Count == 0 ? null : left };
+            },
+            [TaskField.Reminders], now, self);
+        return Result(lists, after, changed, TaskToasts.ReminderRemoved);
+    }
+
+    /// <summary>
+    /// Sets "Done by": a date, with a time or for the whole day (<paramref name="at"/> null); <paramref name="on"/> null removes it (and
+    /// its time). A task's first due date or reminder takes "Add new reminders to" (<see cref="TaskCalendarOptIn.WithDefault"/>).
+    /// </summary>
+    public static TaskActionResult SetDue(
+        TaskLists lists, IReadOnlyList<Guid> ids, DateOnly? on, TimeOnly? at, TaskCalendarDestination destination, DateTimeOffset now, Guid self)
+    {
+        TimeOnly? time = on is null ? null : at;
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, ids, (task, _) => TaskCalendarOptIn.WithDefault(task, task with { DueOn = on, DueAt = time }, destination),
+            [TaskField.Due, TaskField.Calendar], now, self);
+        return Result(lists, after, changed, TaskToasts.Due(on, time));
+    }
+
+    /// <summary>"Can't miss": the task's reminders ring full screen and must be held to dismiss.</summary>
+    public static TaskActionResult SetCantMiss(TaskLists lists, IReadOnlyList<Guid> ids, bool on, DateTimeOffset now, Guid self)
+    {
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { CantMiss = on }, [TaskField.CantMiss], now, self);
+        return Result(lists, after, changed, TaskToasts.CantMiss(on));
+    }
+
+    /// <summary>The task's own "Add to Google Calendar" switch (ADR 78; <see cref="TaskItem.Calendar"/>).</summary>
+    public static TaskActionResult SetCalendar(TaskLists lists, IReadOnlyList<Guid> ids, bool on, DateTimeOffset now, Guid self)
+    {
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { Calendar = on }, [TaskField.Calendar], now, self);
+        return Result(lists, after, changed, TaskToasts.Calendar(on));
+    }
+
     /// <summary>
     /// A task was opened (its details shown) or kept ("Keep" in the tidy-up): it counts as touched, which resets its age. Only the
     /// touch time moves (never undone, never a toast). Nothing happens when it was already touched at or after <paramref name="now"/>.

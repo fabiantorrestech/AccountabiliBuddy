@@ -32,6 +32,9 @@ public sealed class TaskReminderService : IDisposable
     private Dictionary<string, DateTimeOffset> _missed = [];
     private IReadOnlyList<TaskReminderEntry> _entries = [];
 
+    // "Ring it now (test)" rings: shown like a due reminder, but nothing a test ring's buttons do is written to the task.
+    private readonly List<TaskReminderEntry> _tests = [];
+
     public TaskReminderService(TaskStore store, TaskReminderSettingsService settings, SqliteJsonDocumentStore documents, TimeProvider time)
     {
         _store = store;
@@ -118,6 +121,9 @@ public sealed class TaskReminderService : IDisposable
         // them; Refresh on the session's end (the app calls it) queues them in due order, also after a restart.
         List<TaskReminderEntry> due = TaskReminderQueue.Ringable(
             TaskReminderQueue.Due(_entries, now).Where(entry => !_missed.ContainsKey(entry.Key)), SessionRunning(), _settings.Current.DuringSession);
+        // A test ring the user asked for shows first, also during a session; it leaves once acted on, or when its task is gone.
+        _tests.RemoveAll(test => TaskOf(test.TaskId) is null);
+        due.InsertRange(0, _tests);
         if (!due.Select(entry => entry.Key).SequenceEqual(Pending.Select(entry => entry.Key)))
         {
             Pending = due;
@@ -127,15 +133,43 @@ public sealed class TaskReminderService : IDisposable
         Schedule(now);
     }
 
+    /// <summary>
+    /// "Ring it now (test)" in the Reminders &amp; due date menu: the task's reminder rings at once as it would (full screen when it is
+    /// Can't miss), so the user hears and sees it. Dismiss, Snooze and Work on it now only close a test ring: nothing is written to the
+    /// task and no session is touched.
+    /// </summary>
+    public void RingTest(Guid taskId)
+    {
+        if (TaskOf(taskId) is not TaskItem task)
+        {
+            return;
+        }
+
+        DateTimeOffset now = Now;
+        _tests.RemoveAll(test => test.TaskId == taskId);
+        _tests.Add(new TaskReminderEntry(taskId, Guid.NewGuid(), TaskReminder.AtStart, now, TaskReminderStatus.Up, now, 0, task.CantMiss));
+        Refresh();
+    }
+
     /// <summary>Rings it again at <paramref name="until"/> (a snooze moment, see <see cref="TaskSnooze"/>).</summary>
     public async Task SnoozeAsync(TaskReminderEntry entry, DateTimeOffset until)
     {
+        if (EndTest(entry))
+        {
+            return;
+        }
+
         await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Snooze(lists, entry, until, now, self).Lists);
         Refresh();
     }
 
     public async Task DismissAsync(TaskReminderEntry entry)
     {
+        if (EndTest(entry))
+        {
+            return;
+        }
+
         await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Dismiss(lists, entry, now, self).Lists);
         Refresh();
     }
@@ -147,6 +181,11 @@ public sealed class TaskReminderService : IDisposable
     /// </summary>
     public async Task StartAsync(TaskReminderEntry entry)
     {
+        if (EndTest(entry))
+        {
+            return;
+        }
+
         await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Start(lists, entry, now, self).Lists);
         if (Actions is not null)
         {
@@ -163,6 +202,11 @@ public sealed class TaskReminderService : IDisposable
     /// <summary>The ring time ran out with nobody acting: it is not rung again (and stays on the task as it is).</summary>
     public void RingTimedOut(TaskReminderEntry entry)
     {
+        if (EndTest(entry))
+        {
+            return;
+        }
+
         DateTimeOffset now = Now;
         _missed[entry.Key] = now;
         foreach (string key in _missed.Where(pair => now - pair.Value > MissedKept).Select(pair => pair.Key).ToList())
@@ -180,6 +224,18 @@ public sealed class TaskReminderService : IDisposable
         }
 
         Refresh();
+    }
+
+    // A test ring acted on (or rung out) just leaves; true when it was one.
+    private bool EndTest(TaskReminderEntry entry)
+    {
+        if (_tests.RemoveAll(test => test.Key == entry.Key) == 0)
+        {
+            return false;
+        }
+
+        Refresh();
+        return true;
     }
 
     private void Schedule(DateTimeOffset now)

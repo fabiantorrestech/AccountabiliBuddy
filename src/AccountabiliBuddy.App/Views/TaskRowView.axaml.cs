@@ -173,8 +173,8 @@ public partial class TaskRowView : UserControl
         e.Handled = true;
     }
 
-    // Right-click (or the menu key): the row's own menu. On a row outside the selection the selection is cleared first; the bulk
-    // menu for a selection comes with the menus (3.5), so a selected row shows its own menu too.
+    // Right-click (or the menu key): on a row inside a selection of two or more, the bulk menu; otherwise the row's own menu (a row
+    // outside the selection clears it first).
     private void OnRowContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (DataContext is not TaskListRowViewModel row)
@@ -187,8 +187,27 @@ public partial class TaskRowView : UserControl
             SectionModel?.ClearSelection();
         }
 
-        TaskMenus.ShowEntries(RowButton, row.BuildMenu(), PlacementMode.Pointer);
+        TaskMenus.ShowEntries(RowButton, row.BuildContextMenu(), PlacementMode.Pointer, OnMenuViewAction);
         e.Handled = true;
+    }
+
+    // The entries only the view can answer: Copy ID (the clipboard) and Reminders & due date (its popover, at the row).
+    private void OnMenuViewAction(TaskMenuEntry entry)
+    {
+        if (DataContext is not TaskListRowViewModel row)
+        {
+            return;
+        }
+
+        switch (entry.ViewAction)
+        {
+            case "copyId":
+                _ = TaskMenus.CopyAsync(this, row.Tip);
+                break;
+            case "reminders" when row.ReminderMenu?.Invoke() is { } menu:
+                ReminderMenu.ShowAt(RowButton, menu, PlacementMode.BottomEdgeAlignedLeft);
+                break;
+        }
     }
 
     // Alt+↑/↓ moves the row one place in its section (reorder and renumber); Ctrl+A and Esc are the section's.
@@ -206,7 +225,7 @@ public partial class TaskRowView : UserControl
     {
         if (sender is Button button)
         {
-            TaskMenus.Show(button);
+            TaskMenus.Show(button, OnMenuViewAction);
             e.Handled = true;
         }
     }

@@ -48,6 +48,9 @@ public sealed class TaskViewService
 
     public TaskView? Active => Views.FirstOrDefault(view => view.Id == ActiveId);
 
+    /// <summary>The view the Shelf opens with on every device: the account's pick when it still exists, else the built-in Default.</summary>
+    public Guid DefaultViewId => _account.DefaultViewId is Guid id && Views.Any(view => view.Id == id) ? id : TaskView.DefaultId;
+
     /// <summary>Something differs from the saved view (Save is faded until it does).</summary>
     public bool IsChanged => Active is TaskView view
         && (TaskViewRules.Signature(Working) != TaskViewRules.Signature(view.Config) || Search != SavedSearch(view.Id));

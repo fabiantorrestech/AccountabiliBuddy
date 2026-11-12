@@ -21,8 +21,8 @@ public sealed partial class TasksViewModel
     /// <summary>Makes an item local to a device, or synced again with null (<see cref="TaskListSync.SetLocalAsync"/>); set by the app.</summary>
     public Func<LocalItemKind, Guid, Guid?, Task<bool>>? SetLocal { get; set; }
 
-    /// <summary>The name box's hint: a new category's or a new label's name.</summary>
-    public string NamePrompt => _applyNewLabel is null ? "New category name (Enter)" : "New label name (Enter)";
+    /// <summary>The name box's hint: a new label's (the coloured dot) or a new tag's name.</summary>
+    public string NamePrompt => _applyNewLabel is null ? "New label name (Enter)" : "New tag name (Enter)";
 
     // The ⋯ menu's "Labels": every label on this device's lists, ticked where the row has it (a click adds or removes it), and
     // "New label…". Not for another PC's past task: its record is that PC's.
@@ -45,7 +45,7 @@ public sealed partial class TasksViewModel
                 IsChecked: has));
         }
 
-        entries.Add(TaskMenuEntry.Do("New label…", () => AskNewLabel(name => SetRowLabelsAsync(key, TaskLabels.With(LabelsOf(key), [name]))), MaterialIconKind.Plus));
+        entries.Add(TaskMenuEntry.Do("New tag…", () => AskNewLabel(name => SetRowLabelsAsync(key, TaskLabels.With(LabelsOf(key), [name]))), MaterialIconKind.Plus));
         return entries;
     }
 
@@ -61,8 +61,8 @@ public sealed partial class TasksViewModel
         Guid? keeper = LocalToOf(key);
         var entries = new List<TaskMenuEntry>
         {
-            new("All my devices (synced)", new AsyncRelayCommand(() => SetLocalAsync(kind, key.Id, null)), IsChecked: keeper is null),
-            new("Only this PC", new AsyncRelayCommand(() => SetLocalAsync(kind, key.Id, self)), IsChecked: keeper == self),
+            new("All my devices (synced)", new AsyncRelayCommand(() => SetLocalAsync(kind, key.Id, null)), IsChecked: keeper is null, Icon: MaterialIconKind.Devices),
+            new("Only this PC", new AsyncRelayCommand(() => SetLocalAsync(kind, key.Id, self)), IsChecked: keeper == self, Icon: MaterialIconKind.Laptop),
         };
         foreach ((Guid id, string name) in KeepOnDevices?.Invoke() ?? [])
         {

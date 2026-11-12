@@ -274,6 +274,36 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.ToggleHighlight(lists, ids, now, self));
     }
 
+    // ---- Reminders & due date (the menu of the same name; <paramref name="destination"/> = the "Add new reminders to" setting) ----
+
+    public Task<bool> AddReminderAsync(Guid id, string rule, DateTimeOffset? at, TaskCalendarDestination destination)
+    {
+        Guid reminderId = Guid.NewGuid();
+        return RunAsync(TaskActionKind.Edit, 1, (lists, self, now) => TaskActions.AddReminder(lists, id, reminderId, rule, at, destination, now, self));
+    }
+
+    public Task<bool> RemoveReminderAsync(Guid id, Guid reminderId)
+    {
+        return RunAsync(TaskActionKind.Edit, 1, (lists, self, now) => TaskActions.RemoveReminder(lists, id, reminderId, now, self));
+    }
+
+    /// <summary>"Done by" a date (with a time, or the whole day); null removes it.</summary>
+    public Task<bool> SetDueAsync(IReadOnlyList<Guid> ids, DateOnly? on, TimeOnly? at, TaskCalendarDestination destination)
+    {
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetDue(lists, ids, on, at, destination, now, self));
+    }
+
+    public Task<bool> SetCantMissAsync(IReadOnlyList<Guid> ids, bool on)
+    {
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetCantMiss(lists, ids, on, now, self));
+    }
+
+    /// <summary>The task's own "Add to Google Calendar" switch (ADR 78).</summary>
+    public Task<bool> SetCalendarAsync(IReadOnlyList<Guid> ids, bool on)
+    {
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetCalendar(lists, ids, on, now, self));
+    }
+
     /// <summary>
     /// A task was opened (its details shown): it counts as touched, which resets its age, unless it was touched within the last hour. Only the touch time moves: no toast, no undo.
     /// The task's other views are told, this one (<paramref name="source"/>) is not.

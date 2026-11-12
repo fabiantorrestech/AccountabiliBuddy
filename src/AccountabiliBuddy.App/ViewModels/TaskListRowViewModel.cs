@@ -213,6 +213,21 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
         return _menu?.Invoke() ?? [];
     }
 
+    /// <summary>The bulk menu of the page's selection (two or more rows picked); null where the page has none.</summary>
+    public Func<IReadOnlyList<TaskMenuEntry>>? SelectionMenu { get; init; }
+
+    /// <summary>
+    /// Right-click on a picked row: the selection's bulk menu when two or more rows are picked, else the row's own menu.
+    /// </summary>
+    public IReadOnlyList<TaskMenuEntry> BuildContextMenu()
+    {
+        IReadOnlyList<TaskMenuEntry> bulk = IsPicked ? SelectionMenu?.Invoke() ?? [] : [];
+        return bulk.Count > 0 ? bulk : BuildMenu();
+    }
+
+    /// <summary>Makes the task's Reminders &amp; due date menu (a task the task list holds); null for the other rows.</summary>
+    public Func<ReminderMenuViewModel?>? ReminderMenu { get; init; }
+
     /// <summary>
     /// Whether <paramref name="other"/> (the same row built again) would draw the same: then the page keeps this row's object and its
     /// control instead of drawing a new one. Its commands act on the same item, so they may be kept too.
@@ -245,6 +260,8 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             IsHighlighted = IsHighlighted,
             IsPicked = IsPicked,
             Finishes = Finishes,
+            SelectionMenu = SelectionMenu,
+            ReminderMenu = ReminderMenu,
         };
     }
 

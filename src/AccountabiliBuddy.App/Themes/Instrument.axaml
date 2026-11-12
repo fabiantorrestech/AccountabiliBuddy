@@ -120,6 +120,9 @@
     <CornerRadius x:Key="Ab.PanelRadius">10</CornerRadius>
     <!-- The Tasks page's cards and rails (spec 06 "r", PC values). -->
     <CornerRadius x:Key="Ab.TasksRadius">14</CornerRadius>
+    <!-- Menus and popovers on the Tasks page (spec 06 "pr", PC values), with the shared popover shadow (spec 03 §C). -->
+    <CornerRadius x:Key="Ab.PopoverRadius">10</CornerRadius>
+    <BoxShadows x:Key="Ab.PopoverShadow">0 16 40 0 #38000000</BoxShadows>
     <!-- The time-left ring beside the timer digits: nudged so it sits on the digits' middle, which depends on the numeral font. -->
     <Thickness x:Key="Ab.TimeRingMargin">0,18,0,0</Thickness>
     <Thickness x:Key="Ab.CardBorderThickness">1</Thickness>

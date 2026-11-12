@@ -27,11 +27,18 @@ public partial class ShelfView : UserControl
         set => SetValue(FooterProperty, value);
     }
 
+    // "Shelf ▾": the View menu; its "History…" opens the History popover under the same button.
     private void OnViewMenuClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control button && DataContext is ShelfViewModel shelf)
         {
-            TaskMenus.ShowEntries(button, shelf.ViewMenu(), PlacementMode.BottomEdgeAlignedLeft);
+            TaskMenus.ShowEntries(button, shelf.ViewMenu(), PlacementMode.BottomEdgeAlignedLeft, entry =>
+            {
+                if (entry.ViewAction == "history" && shelf.History() is { } history)
+                {
+                    TaskHistoryPopover.ShowAt(button, history, PlacementMode.BottomEdgeAlignedLeft);
+                }
+            });
             e.Handled = true;
         }
     }

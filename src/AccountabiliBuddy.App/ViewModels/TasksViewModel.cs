@@ -112,7 +112,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _store = store;
         _actions = actions;
         _reminders = reminders;
-        Shelf.UseTaskModel(store, views, tidyUp);
+        Shelf.UseTaskModel(store, views, tidyUp, actions, _time);
         store.Changed += OnStoreChanged;
         reminders.PendingChanged += OnStoreChanged;
         QueueRefresh();
@@ -678,10 +678,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TaskMenuEntry.Async("Add to Today", () => AddAutoSavedToTodayAsync(id, title), MaterialIconKind.CalendarToday),
             TaskMenuEntry.Async("Later", () => MoveAutoSavedToLaterAsync(id, title), MaterialIconKind.ClockOutline),
         };
-        // ADR 72: labels and where it is kept, like every other row.
+        // ADR 72: tags and where it is kept, like every other row.
         if (LabelsEntries(key) is { } labels)
         {
-            entries.Add(TaskMenuEntry.Group("Labels", labels, MaterialIconKind.TagMultipleOutline));
+            entries.Add(TaskMenuEntry.Group("Tags", labels, MaterialIconKind.Pound));
         }
 
         if (KeepOnEntries(key) is { } keepOn)
@@ -790,12 +790,20 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     // ---- The ⋯ menu ----
 
     /// <summary>
-    /// The entries of a task's ⋯ menu: Add to Today (first, where it applies), Rename, Add subtask, Label (a category or none),
-    /// Move to… (Later, Come back to, Put in plan: only the moves that make sense for that row) and Delete. <paramref name="rename"/> and <paramref name="addStep"/> say how the place the row is shown
-    /// edits in place (the Archive); without them the detail card's boxes take the keyboard.
+    /// The entries of a task's ⋯ menu and right-click menu. A task the task list holds gets the redesign's menu
+    /// (<see cref="TaskListMenu"/>); the other rows (the Archive's records, Auto-saved before the task list, a running session's own
+    /// tasks) keep theirs: Add to Today (first, where it applies), Rename, Add subtask, Label (or none), Tags, Keep on…, Move to… (Later,
+    /// To sort, Put in plan: only the moves that make sense for that row) and Delete. <paramref name="rename"/> and
+    /// <paramref name="addStep"/> say how the place the row is shown edits in place (the Archive); without them the detail card's boxes
+    /// take the keyboard.
     /// </summary>
     internal IReadOnlyList<TaskMenuEntry> MenuFor(TaskRowKey key, Action? rename = null, Action? addStep = null)
     {
+        if (rename is null && addStep is null && MenuTask(key) is TaskItem item)
+        {
+            return TaskListMenu(key, item);
+        }
+
         var entries = new List<TaskMenuEntry>();
         if (CanAddToToday(key))
         {
@@ -814,11 +822,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step")), MaterialIconKind.PlaylistPlus));
         }
 
-        entries.Add(TaskMenuEntry.Group("Category", LabelEntries(key), MaterialIconKind.ShapeOutline));
-        // ADR 72: labels (several, plain names) and where the item is kept.
+        entries.Add(TaskMenuEntry.Group("Label", LabelEntries(key), MaterialIconKind.CircleSlice8));
+        // ADR 72: tags (several, plain names) and where the item is kept.
         if (LabelsEntries(key) is { } labels)
         {
-            entries.Add(TaskMenuEntry.Group("Labels", labels, MaterialIconKind.TagMultipleOutline));
+            entries.Add(TaskMenuEntry.Group("Tags", labels, MaterialIconKind.Pound));
         }
 
         if (KeepOnEntries(key) is { } keepOn)
@@ -936,7 +944,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 Dot: TaskCategoryBrushes.Of(category.Color)));
         }
 
-        entries.Add(new TaskMenuEntry("No category", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null));
+        entries.Add(new TaskMenuEntry("No label", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null));
         entries.Add(NewCategoryEntry(apply));
         return entries;
     }
@@ -948,7 +956,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         var entries = new List<TaskMenuEntry>
         {
-            new("No category", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null),
+            new("No label", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null),
         };
         if (_tasks.Categories.Count > 0)
         {
@@ -989,7 +997,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private TaskMenuEntry NewCategoryEntry(Func<Guid?, Task> apply)
     {
-        return TaskMenuEntry.Do("New category…", () => AskNewCategory(apply), MaterialIconKind.Plus);
+        return TaskMenuEntry.Do("New label…", () => AskNewCategory(apply), MaterialIconKind.Plus);
     }
 
     private string? CategoryNameOf(TaskRowKey key)
@@ -1537,6 +1545,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         {
             IsPicked = _picked.Contains(key),
             Finishes = _finishes,
+            SelectionMenu = selectable ? SelectionMenu : null,
+            ReminderMenu = item is null ? null : () => ReminderMenuFor(key),
             IsFinishing = _finishes.IsPending(key),
             IsCollapsing = _finishes.IsFolding(key),
             NumberText = extras.NumberText,

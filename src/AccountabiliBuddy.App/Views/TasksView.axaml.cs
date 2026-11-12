@@ -349,12 +349,41 @@ public partial class TasksView : UserControl
         e.Handled = true;
     }
 
-    // A step's ⋯ button in the detail card: the menu is built from the step each time it opens.
+    // The detail card's ⋯ and a step's ⋯: the menu is built from what it belongs to each time it opens. The open task's menu can ask
+    // for Copy ID and Reminders & due date, which only the view can do.
     private void OnMoreClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button button)
         {
-            TaskMenus.Show(button);
+            TaskMenus.Show(button, entry => OnDetailMenuViewAction(button, entry));
+            e.Handled = true;
+        }
+    }
+
+    private void OnDetailMenuViewAction(Button button, TaskMenuEntry entry)
+    {
+        if (button.DataContext is not TaskDetailViewModel detail)
+        {
+            return;
+        }
+
+        switch (entry.ViewAction)
+        {
+            case "copyId":
+                _ = TaskMenus.CopyAsync(this, detail.CopyText);
+                break;
+            case "reminders" when detail.ReminderMenu() is { } menu:
+                ReminderMenu.ShowAt(button, menu, PlacementMode.BottomEdgeAlignedRight);
+                break;
+        }
+    }
+
+    // The open task's reminders line: its Reminders & due date menu.
+    private void OnRemindersClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { DataContext: TaskDetailViewModel detail } button && detail.ReminderMenu() is { } menu)
+        {
+            ReminderMenu.ShowAt(button, menu, PlacementMode.BottomEdgeAlignedLeft);
             e.Handled = true;
         }
     }

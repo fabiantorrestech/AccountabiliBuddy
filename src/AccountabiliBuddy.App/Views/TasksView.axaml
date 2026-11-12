@@ -633,13 +633,16 @@
                                             </Border>
                                         </StackPanel>
 
-                                        <!-- The reminders line (read only until the Reminders & due date menu, 3.5) and Effort (coming soon). -->
+                                        <!-- The reminders line (a click opens Reminders & due date where the task list holds the task) and Effort (coming soon). -->
                                         <WrapPanel ItemSpacing="14" LineSpacing="6">
-                                            <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="Reminders and the due date">
-                                                <mi:MaterialIcon Kind="BellOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                                <TextBlock Classes="muted" Classes.faint="{Binding !HasReminders}" Text="{Binding ReminderText}" FontSize="12.5"
-                                                           VerticalAlignment="Center" TextWrapping="Wrap" />
-                                            </StackPanel>
+                                            <Button Classes="quiet" Padding="4,2" MinHeight="0" Margin="-4,0,0,0" IsEnabled="{Binding CanEditReminders}"
+                                                    Click="OnRemindersClick" ToolTip.Tip="Reminders and the due date" AutomationProperties.Name="Reminders and due date">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <mi:MaterialIcon Kind="BellOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                    <TextBlock Classes="muted" Classes.faint="{Binding !HasReminders}" Text="{Binding ReminderText}" FontSize="12.5"
+                                                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Button>
                                             <StackPanel Orientation="Horizontal" Spacing="6" Opacity="0.5" ToolTip.Tip="Effort is coming soon">
                                                 <mi:MaterialIcon Kind="WeightLifter" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                                                 <TextBlock Classes="muted" Text="Effort · soon" FontSize="12.5" VerticalAlignment="Center" />

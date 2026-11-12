@@ -1699,6 +1699,8 @@ public partial class App : Application
             tasksPage.SyncLight = () => mainViewModel.SyncLight;
             // The add box's title help reads the user's project markers and offers to learn new ones.
             tasksPage.TaskSettings = _taskSettings;
+            // "Add new reminders to": a task's calendar switch when the Reminders & due date menu gives it its first reminder or due date.
+            tasksPage.ReminderSettings = _taskReminderSettings;
             if (_taskActions is not null && _taskViews is not null && _taskTidyUp is not null && _taskReminders is not null)
             {
                 tasksPage.UseTaskModel(taskStore, _taskActions, _taskViews, _taskTidyUp, _taskReminders);

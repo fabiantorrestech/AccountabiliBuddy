@@ -15,6 +15,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Icon">A 16 px Material icon before the text (ADR 32: the same meaning has the same icon everywhere); null for none.</param>
 /// <param name="Indented">Set in under the heading above it (a category listed under its device).</param>
 /// <param name="IsHeading">A group's name above its entries: bold, and not clickable.</param>
+/// <param name="IsDanger">Drawn in the drift (red) colour: Delete, the View menu's Reset.</param>
+/// <param name="Hint">Muted text at the right: a key ("F2", "Del", "H") or a value ("142", "2 of 3").</param>
 public sealed record TaskMenuEntry(
     string Header,
     ICommand? Command = null,
@@ -25,7 +27,9 @@ public sealed record TaskMenuEntry(
     bool IsSeparator = false,
     MaterialIconKind? Icon = null,
     bool Indented = false,
-    bool IsHeading = false)
+    bool IsHeading = false,
+    bool IsDanger = false,
+    string? Hint = null)
 {
     public static TaskMenuEntry Separator { get; } = new(string.Empty, IsSeparator: true);
 

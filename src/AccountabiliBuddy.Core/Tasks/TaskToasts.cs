@@ -113,6 +113,36 @@ public static class TaskToasts
         return "“" + Short(task.Title) + "” was moved on another device, so it wasn't deleted";
     }
 
+    /// <summary>"Reminder added", with "· also on Google Calendar" when the task goes there.</summary>
+    public static string ReminderAdded(TaskItem task)
+    {
+        return task.Calendar ? "Reminder added · also on Google Calendar" : "Reminder added";
+    }
+
+    public static string ReminderRemoved => "Reminder removed";
+
+    public static string CantMiss(bool on)
+    {
+        return on ? "Can’t miss on · it rings full screen" : "Can’t miss off";
+    }
+
+    /// <summary>"Done by Fri 11/13", "Done by Fri 11/13 5:00 PM" (always 12-hour), or "Due date removed".</summary>
+    public static string Due(DateOnly? on, TimeOnly? at)
+    {
+        if (on is not DateOnly day)
+        {
+            return "Due date removed";
+        }
+
+        string text = "Done by " + day.ToString("ddd M/d", System.Globalization.CultureInfo.InvariantCulture);
+        return at is TimeOnly time ? text + " " + TaskSnooze.Clock(time) : text;
+    }
+
+    public static string Calendar(bool on)
+    {
+        return on ? "Added to Google Calendar" : "Taken off Google Calendar";
+    }
+
     public static string Tidied(int decided, int total)
     {
         return decided == total ? "Tidied " + total + (total == 1 ? " task" : " tasks") : "Tidied " + decided + " of " + total + " tasks";

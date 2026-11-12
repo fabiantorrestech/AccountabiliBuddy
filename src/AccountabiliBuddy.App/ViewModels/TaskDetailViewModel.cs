@@ -167,6 +167,13 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
     /// <summary>The ⋯ in the footer: the row's own menu.</summary>
     public IReadOnlyList<TaskMenuEntry> BuildMenu() => _owner.MenuFor(Key);
 
+    /// <summary>The reminders line opens the Reminders &amp; due date menu: the task list holds the task (and it isn't the running session's own).</summary>
+    [ObservableProperty]
+    public partial bool CanEditReminders { get; set; }
+
+    /// <summary>The Reminders &amp; due date menu of this task; null when it can't have one.</summary>
+    public ReminderMenuViewModel? ReminderMenu() => _owner.ReminderMenuFor(Key);
+
     /// <summary>The label chip's picker (the same choices as ⋯ › Label).</summary>
     public IReadOnlyList<TaskMenuEntry> LabelMenu() => _owner.LabelMenuFor(Key);
 
@@ -477,6 +484,7 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
         ReminderText = _owner.ReminderLineOf(item) ?? NoReminders;
         IsHighlighted = item?.Highlight == true;
         CanHighlight = item is not null;
+        CanEditReminders = item is not null && _owner.HasReminderMenu(Key);
 
         int done = snapshot.Steps.Count(step => step.IsDone);
         StepsHead = snapshot.Steps.Count > 0 ? $"Steps · {done}/{snapshot.Steps.Count}" : "Steps";

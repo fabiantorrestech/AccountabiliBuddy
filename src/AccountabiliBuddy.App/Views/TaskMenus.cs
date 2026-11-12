@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Material.Icons.Avalonia;
@@ -11,7 +12,8 @@ namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
 /// Fills a ⋯ menu from the row it belongs to each time it opens (see <see cref="ITaskMenuSource"/>): a row costs nothing until its
-/// menu is used, and the entries always match what the row is now (the category it has, the moves that make sense).
+/// menu is used, and the entries always match what the row is now (the label it has, the moves that make sense). Every menu shown
+/// here follows the shared popover rules (<see cref="TaskMenuFlyout"/>, <see cref="TaskPopover"/>), its submenus too.
 /// </summary>
 public static class TaskMenus
 {
@@ -42,10 +44,31 @@ public static class TaskMenus
         }
     }
 
+    /// <summary>
+    /// Puts <paramref name="text"/> on the clipboard of <paramref name="visual"/>'s window (Copy ID: "142 · title", the user's own
+    /// text, copied only where they asked). Another app holding the clipboard means nothing is copied.
+    /// </summary>
+    public static async Task CopyAsync(Visual visual, string text)
+    {
+        if (TopLevel.GetTopLevel(visual)?.Clipboard is not { } clipboard)
+        {
+            return;
+        }
+
+        try
+        {
+            await clipboard.SetTextAsync(text);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            // Another app holds the clipboard: nothing is copied.
+        }
+    }
+
     /// <summary>Opens a menu of <paramref name="entries"/> under or beside <paramref name="button"/>; <paramref name="closed"/> runs once it closes.</summary>
     public static void ShowEntries(Control button, IEnumerable<TaskMenuEntry> entries, PlacementMode placement, Action<TaskMenuEntry>? viewAction = null, Action? closed = null)
     {
-        var flyout = new MenuFlyout { Placement = placement };
+        var flyout = new TaskMenuFlyout { Placement = placement };
         foreach (Control item in Build(entries, viewAction))
         {
             flyout.Items.Add(item);
@@ -73,11 +96,12 @@ public static class TaskMenus
             AutomationProperties.SetName(item, entry.IsChecked ? $"{entry.Header} (chosen)" : entry.Header);
             if (entry.Icon is { } kind)
             {
-                item.Icon = MenuIcon(kind);
+                item.Icon = MenuIcon(kind, entry.IsDanger ? "Ab.Drift" : "Ab.Muted");
             }
 
             if (entry.Children is { Count: > 0 } children)
             {
+                TaskPopover.FollowRules(item);
                 foreach (Control child in Build(children, viewAction))
                 {
                     item.Items.Add(child);
@@ -97,18 +121,18 @@ public static class TaskMenus
         }
     }
 
-    // A 16 px icon in Ab.Muted (followed live, so a theme change recolours it).
-    private static MaterialIcon MenuIcon(Material.Icons.MaterialIconKind kind)
+    // A 16 px icon in Ab.Muted, or Ab.Drift on a danger entry (followed live, so a theme change recolours it).
+    private static MaterialIcon MenuIcon(Material.Icons.MaterialIconKind kind, string colorKey)
     {
         var icon = new MaterialIcon { Kind = kind, Width = 16, Height = 16 };
-        icon.Bind(TemplatedControl.ForegroundProperty, icon.GetResourceObservable("Ab.Muted"));
+        icon.Bind(TemplatedControl.ForegroundProperty, icon.GetResourceObservable(colorKey));
         return icon;
     }
 
-    // A category's dot before its text, a ✓ after the one the task has; plain text otherwise.
+    // A label's dot before its text, a ✓ after the one the task has, a muted hint at the right, red for danger; plain text otherwise.
     private static object HeaderOf(TaskMenuEntry entry)
     {
-        if (entry.Dot is null && !entry.IsChecked && !entry.Indented && !entry.IsHeading)
+        if (entry.Dot is null && !entry.IsChecked && !entry.Indented && !entry.IsHeading && !entry.IsDanger && entry.Hint is null)
         {
             return entry.Header;
         }
@@ -138,6 +162,10 @@ public static class TaskMenus
             // A heading is a disabled item, which the theme dims too far on Paper; the app's muted text colour (followed live) stays readable.
             text.Bind(TextBlock.ForegroundProperty, text.GetResourceObservable("Ab.Muted"));
         }
+        else if (entry.IsDanger)
+        {
+            text.Bind(TextBlock.ForegroundProperty, text.GetResourceObservable("Ab.Drift"));
+        }
 
         panel.Children.Add(text);
         if (entry.IsChecked)
@@ -145,6 +173,18 @@ public static class TaskMenus
             panel.Children.Add(new TextBlock { Text = "✓", VerticalAlignment = VerticalAlignment.Center });
         }
 
-        return panel;
+        if (entry.Hint is not { Length: > 0 } hint)
+        {
+            return panel;
+        }
+
+        // The hint sits at the right edge of the entry, muted and smaller.
+        var hintText = new TextBlock { Text = hint, FontSize = 12, Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        hintText.Bind(TextBlock.ForegroundProperty, hintText.GetResourceObservable("Ab.Muted"));
+        var row = new DockPanel { LastChildFill = true };
+        DockPanel.SetDock(hintText, Dock.Right);
+        row.Children.Add(hintText);
+        row.Children.Add(panel);
+        return row;
     }
 }

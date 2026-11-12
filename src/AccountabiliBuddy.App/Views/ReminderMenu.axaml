@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.ReminderMenu"
+             x:DataType="vm:ReminderMenuViewModel">
+    <!-- Reminders & due date (spec 03 §C, 05 §7): 290 wide, "n of 5". Shown in a TaskPopoverFlyout, which gives it the shared popover
+         look; every row acts at once and the menu shows the change (it stays open). -->
+    <UserControl.Styles>
+        <Style Selector="Button.remRow">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="TextBlock.head">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="Margin" Value="8,8,8,2" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.rowIcon">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.drift">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Border.rule">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Margin" Value="4,6" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Margin="6" Spacing="0">
+        <Grid ColumnDefinitions="*,Auto" Margin="8,4,8,2">
+            <TextBlock Text="Reminders &amp; due date" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center" />
+        </Grid>
+
+        <TextBlock Classes="muted" IsVisible="{Binding IsGone}" Text="This task isn't in your lists any more." Margin="8,6" TextWrapping="Wrap" FontSize="13" />
+
+        <StackPanel IsVisible="{Binding !IsGone}">
+            <TextBlock Classes="head" Text="Reminders" />
+            <ItemsControl ItemsSource="{Binding Reminders}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ReminderMenuRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="8,4,2,4">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="BellOutline" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Text}" FontSize="13" TextWrapping="Wrap" />
+                                <TextBlock Classes="muted" Text="{Binding Sub}" IsVisible="{Binding HasSub}" FontSize="11.5" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                    Command="{Binding RemoveCommand}" ToolTip.Tip="Remove" AutomationProperties.Name="Remove this reminder">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="Close" />
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ItemsControl ItemsSource="{Binding Presets}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ReminderMenuChoice">
+                        <Button Classes="quiet remRow" Command="{Binding Command}" AutomationProperties.Name="{Binding Text, StringFormat='Add a reminder {0}'}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="{Binding Icon}" />
+                                <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="muted" IsVisible="{Binding IsFull}" Text="Five is the most a task can have." Margin="8,4" FontSize="12" />
+
+            <Button Classes="quiet remRow" Command="{Binding ToggleCantMissCommand}" AutomationProperties.Name="Can't miss (full screen)">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <mi:MaterialIcon Classes="rowIcon" Kind="AlarmLightOutline" />
+                    <TextBlock Grid.Column="1" Text="Can’t miss (full screen)" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Text="✓" IsVisible="{Binding IsCantMiss}" VerticalAlignment="Center" />
+                </Grid>
+            </Button>
+            <Button Classes="quiet remRow" Command="{Binding RingNowCommand}" IsVisible="{Binding CanRingNow}" AutomationProperties.Name="Ring it now (test)">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                    <mi:MaterialIcon Classes="rowIcon" Kind="BellRingOutline" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Ring it now (test)" />
+                        <TextBlock Classes="muted" Text="{Binding RingNowSub}" FontSize="11.5" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+
+            <Border Classes="rule" />
+            <TextBlock Classes="head" Text="Done by" />
+            <ItemsControl ItemsSource="{Binding DueChoices}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ReminderMenuChoice">
+                        <Button Classes="quiet remRow" Command="{Binding Command}" AutomationProperties.Name="{Binding Text, StringFormat='Done by {0}'}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="{Binding Icon}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="✓" IsVisible="{Binding IsChecked}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Classes="quiet remRow" Command="{Binding TogglePickDateCommand}" AutomationProperties.Name="Pick a date">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <mi:MaterialIcon Classes="rowIcon" Kind="CalendarMonthOutline" />
+                    <TextBlock Text="Pick a date…" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <!-- Pick a date: a month (no past days), an optional time (blank = the whole day), Set. -->
+            <StackPanel IsVisible="{Binding IsPickingDate}" Spacing="6" Margin="8,2,8,6">
+                <Calendar SelectedDate="{Binding PickedDate, Mode=TwoWay}" DisplayDateStart="{Binding FirstPickable}" HorizontalAlignment="Center" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Text="{Binding PickedTimeText}" PlaceholderText="Time, e.g. 5:30 PM (optional)" FontSize="13"
+                             AutomationProperties.Name="Done by time" KeyDown="OnTimeKeyDown" />
+                    <Button Grid.Column="1" Classes="primary" Content="Set" Command="{Binding ApplyPickCommand}" IsEnabled="{Binding CanApplyPick}" />
+                </Grid>
+                <TextBlock Classes="muted" Classes.drift="{Binding IsPickBad}" Text="{Binding PickStatus}" FontSize="11.5" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Classes="quiet remRow" Command="{Binding ClearDueCommand}" IsVisible="{Binding HasDue}" AutomationProperties.Name="No due date">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <mi:MaterialIcon Classes="rowIcon" Kind="CalendarRemoveOutline" />
+                    <TextBlock Text="No due date" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <Border Classes="rule" />
+            <Button Classes="quiet remRow" Command="{Binding ToggleCalendarCommand}" AutomationProperties.Name="Add to Google Calendar">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <mi:MaterialIcon Classes="rowIcon" Kind="Google" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Add to Google Calendar" />
+                        <TextBlock Classes="muted" Text="AccountabiliBuddy calendar" FontSize="11.5" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="✓" IsVisible="{Binding IsOnCalendar}" VerticalAlignment="Center" />
+                </Grid>
+            </Button>
+        </StackPanel>
+    </StackPanel>
+</UserControl>
