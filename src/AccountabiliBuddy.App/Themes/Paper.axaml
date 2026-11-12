@@ -1,6 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- Paper: warm off-white ground, ink-blue accent, hairline borders, Newsreader display. Same keys in all three theme files (ADR 49). Colours are Ab.<Name>Color, brushes Ab.<Name>. -->
+    <!-- Paper: warm off-white ground, moss-green accent (owner 2026-11-14: light #4E6B3B, dark #B3C79A), hairline borders, Newsreader display. Same keys in all three theme files (ADR 49). Colours are Ab.<Name>Color, brushes Ab.<Name>. -->
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
             <Color x:Key="Ab.BgColor">#F5F2EB</Color>
@@ -10,11 +10,11 @@
             <Color x:Key="Ab.InkColor">#1F1D1A</Color>
             <Color x:Key="Ab.MutedColor">#6B655B</Color>
             <Color x:Key="Ab.FaintColor">#8C8578</Color>
-            <Color x:Key="Ab.AccentColor">#2E4A7D</Color>
+            <Color x:Key="Ab.AccentColor">#4E6B3B</Color>
             <Color x:Key="Ab.OnAccentColor">#FFFFFF</Color>
-            <Color x:Key="Ab.AccentSoftColor">#E3E8F1</Color>
-            <Color x:Key="Ab.InfoBgColor">#E6EAF0</Color>
-            <Color x:Key="Ab.InfoInkColor">#2E3A55</Color>
+            <Color x:Key="Ab.AccentSoftColor">#E7ECDF</Color>
+            <Color x:Key="Ab.InfoBgColor">#E9ECE2</Color>
+            <Color x:Key="Ab.InfoInkColor">#34452A</Color>
             <Color x:Key="Ab.SleepColor">#6E6A9E</Color>
             <Color x:Key="Ab.MetColor">#3F7A5A</Color>
             <Color x:Key="Ab.WaitingColor">#A8741D</Color>
@@ -55,13 +55,13 @@
             <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
             <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />
             <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
-            <Color x:Key="SystemAccentColor">#2E4A7D</Color>
-            <Color x:Key="SystemAccentColorLight1">#2E4A7D</Color>
-            <Color x:Key="SystemAccentColorLight2">#2E4A7D</Color>
-            <Color x:Key="SystemAccentColorLight3">#2E4A7D</Color>
-            <Color x:Key="SystemAccentColorDark1">#2E4A7D</Color>
-            <Color x:Key="SystemAccentColorDark2">#2E4A7D</Color>
-            <Color x:Key="SystemAccentColorDark3">#2E4A7D</Color>
+            <Color x:Key="SystemAccentColor">#4E6B3B</Color>
+            <Color x:Key="SystemAccentColorLight1">#4E6B3B</Color>
+            <Color x:Key="SystemAccentColorLight2">#4E6B3B</Color>
+            <Color x:Key="SystemAccentColorLight3">#4E6B3B</Color>
+            <Color x:Key="SystemAccentColorDark1">#4E6B3B</Color>
+            <Color x:Key="SystemAccentColorDark2">#4E6B3B</Color>
+            <Color x:Key="SystemAccentColorDark3">#4E6B3B</Color>
             <Color x:Key="SystemRegionColor">#F5F2EB</Color>
             <Color x:Key="SystemAltHighColor">#FBFAF6</Color>
             <Color x:Key="SystemBaseHighColor">#1F1D1A</Color>
@@ -69,7 +69,7 @@
             <Color x:Key="SystemBaseMediumColor">#6B655B</Color>
             <Color x:Key="SystemBaseMediumLowColor">#8C8578</Color>
             <Color x:Key="SystemBaseLowColor">#ECE7DC</Color>
-            <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #2E4A7D</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #4E6B3B</BoxShadows>
             <BoxShadows x:Key="Ab.FocusRingOnAccent">inset 0 0 0 2 #1F1D1A</BoxShadows>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
@@ -80,11 +80,11 @@
             <Color x:Key="Ab.InkColor">#EDE8DE</Color>
             <Color x:Key="Ab.MutedColor">#A39C8F</Color>
             <Color x:Key="Ab.FaintColor">#6F695F</Color>
-            <Color x:Key="Ab.AccentColor">#A9BEE6</Color>
-            <Color x:Key="Ab.OnAccentColor">#15203A</Color>
-            <Color x:Key="Ab.AccentSoftColor">#28303F</Color>
-            <Color x:Key="Ab.InfoBgColor">#272C38</Color>
-            <Color x:Key="Ab.InfoInkColor">#BFC8E0</Color>
+            <Color x:Key="Ab.AccentColor">#B3C79A</Color>
+            <Color x:Key="Ab.OnAccentColor">#1C2614</Color>
+            <Color x:Key="Ab.AccentSoftColor">#2B3124</Color>
+            <Color x:Key="Ab.InfoBgColor">#292D24</Color>
+            <Color x:Key="Ab.InfoInkColor">#C9D4B8</Color>
             <Color x:Key="Ab.SleepColor">#A9A5D6</Color>
             <Color x:Key="Ab.MetColor">#8DBFA0</Color>
             <Color x:Key="Ab.WaitingColor">#DDB25E</Color>
@@ -125,13 +125,13 @@
             <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
             <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />
             <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
-            <Color x:Key="SystemAccentColor">#A9BEE6</Color>
-            <Color x:Key="SystemAccentColorLight1">#A9BEE6</Color>
-            <Color x:Key="SystemAccentColorLight2">#A9BEE6</Color>
-            <Color x:Key="SystemAccentColorLight3">#A9BEE6</Color>
-            <Color x:Key="SystemAccentColorDark1">#A9BEE6</Color>
-            <Color x:Key="SystemAccentColorDark2">#A9BEE6</Color>
-            <Color x:Key="SystemAccentColorDark3">#A9BEE6</Color>
+            <Color x:Key="SystemAccentColor">#B3C79A</Color>
+            <Color x:Key="SystemAccentColorLight1">#B3C79A</Color>
+            <Color x:Key="SystemAccentColorLight2">#B3C79A</Color>
+            <Color x:Key="SystemAccentColorLight3">#B3C79A</Color>
+            <Color x:Key="SystemAccentColorDark1">#B3C79A</Color>
+            <Color x:Key="SystemAccentColorDark2">#B3C79A</Color>
+            <Color x:Key="SystemAccentColorDark3">#B3C79A</Color>
             <Color x:Key="SystemRegionColor">#1A1917</Color>
             <Color x:Key="SystemAltHighColor">#22211E</Color>
             <Color x:Key="SystemBaseHighColor">#EDE8DE</Color>
@@ -139,7 +139,7 @@
             <Color x:Key="SystemBaseMediumColor">#A39C8F</Color>
             <Color x:Key="SystemBaseMediumLowColor">#6F695F</Color>
             <Color x:Key="SystemBaseLowColor">#2C2A26</Color>
-            <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #A9BEE6</BoxShadows>
+            <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #B3C79A</BoxShadows>
             <BoxShadows x:Key="Ab.FocusRingOnAccent">inset 0 0 0 2 #EDE8DE</BoxShadows>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
@@ -156,7 +156,7 @@
     <!-- Task reminders (spec 03 §D): the tilted cards behind the toast stack, the full-screen card and the scrim behind it. -->
     <BoxShadows x:Key="Ab.ReminderBehindShadow">0 6 16 0 #1F000000</BoxShadows>
     <BoxShadows x:Key="Ab.AlarmShadow">0 24 60 0 #59000000</BoxShadows>
-    <SolidColorBrush x:Key="Ab.Scrim" Color="#8C0A0E14" />
+    <SolidColorBrush x:Key="Ab.Scrim" Color="#8C12110E" />
     <!-- The time-left ring beside the timer digits: nudged so it sits on the digits' middle, which depends on the numeral font. -->
     <Thickness x:Key="Ab.TimeRingMargin">0,-24,0,0</Thickness>
     <Thickness x:Key="Ab.CardBorderThickness">1</Thickness>
