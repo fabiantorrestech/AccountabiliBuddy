@@ -129,7 +129,8 @@ public sealed partial class TasksViewModel
         }
 
         int weeks = TaskUntouched.ClampWeeks(UntouchedWeeks?.Invoke() ?? TaskUntouched.DefaultWeeks);
-        if (TaskUntouched.IsUntouched(item, weeks, now))
+        bool showsAge = TaskSettings?.Current.ShowAgeOnRows ?? true;
+        if (showsAge && TaskUntouched.IsUntouched(item, weeks, now))
         {
             bits.Add(new TaskRowBit($"untouched {TaskUntouched.Weeks(item, now)} wk", Tone: TaskRowBitTone.Faint));
         }

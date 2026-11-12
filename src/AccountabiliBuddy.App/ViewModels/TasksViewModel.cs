@@ -1582,6 +1582,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             CategoryName = categoryName,
             CategoryColor = categoryColor,
             CategoryBrush = TaskCategoryBrushes.Of(categoryColor),
+            LabelStyle = TaskSettings?.Current.LabelStyle ?? TaskLabelStyle.Dot,
             StatusTag = statusTag,
             StepLines = stepLines ?? [],
             SortTime = sortTime,

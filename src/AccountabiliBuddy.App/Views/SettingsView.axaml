@@ -10,13 +10,13 @@
              x:DataType="vm:SettingsViewModel">
     <!-- The Settings list's content for Your day, Sleep, Focus sessions, Alerts &amp; on-screen, Appearance and App &amp; data
          (the shell, SettingsShellView, holds the list, the Save bar and the rows that are pages of their own). One row's
-         cards show at a time; Rows[i] is the list's row, and its SearchArea names let search open it. -->
+         cards show at a time, picked by the row's section (SettingsSectionIs), and its SearchArea names let search open it. -->
     <!-- The pages are panels of rows (Themes/AbStyles.axaml: sPanel, sRow, sTitle, sHint, sGroup, CheckBox.sw). -->
     <ScrollViewer x:Name="SectionsScroller">
         <StackPanel Margin="0,0,16,24" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
             <!-- Your day: each group of settings is a panel of rows (a title, a Muted line, the control on the right). -->
-            <StackPanel Spacing="12" IsVisible="{Binding Rows[0].IsSelected}"
-                        search:SearchArea.Name="Your day" search:SearchArea.SettingsGroup="0">
+            <StackPanel Spacing="12" IsVisible="{Binding SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.YourDay}}"
+                        search:SearchArea.Name="Your day" search:SearchArea.SettingsGroup="YourDay">
                 <StackPanel Spacing="6" search:SearchArea.Name="Steer me to start" IsVisible="{Binding HasStartNudge}">
                     <TextBlock Classes="sGroup" Text="Steer me to start" />
                     <Border Classes="sPanel" DataContext="{Binding StartNudge}" x:DataType="vm:StartNudgeViewModel">
@@ -338,8 +338,8 @@
             </StackPanel>
 
             <!-- Sleep -->
-            <StackPanel Spacing="12" IsVisible="{Binding Rows[1].IsSelected}"
-                        search:SearchArea.Name="Sleep" search:SearchArea.SettingsGroup="1">
+            <StackPanel Spacing="12" IsVisible="{Binding SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Sleep}}"
+                        search:SearchArea.Name="Sleep" search:SearchArea.SettingsGroup="Sleep">
                 <TextBlock Classes="sHint" Margin="4,0,0,0"
                            Text="Your bedtime and wake time. The day bar runs from wake time to bedtime and shades the night; staying up past bedtime shades the lost sleep red. From when going to bed would give your sleep goal, a line on screen counts down the sleep you'll get if you go now, with your wake time (green down to an hour under the goal, yellow down to three hours under, red below), and a reminder pops up two hours before bedtime. Hold Ctrl+Alt over the on-screen window to change tonight's wake time. The times are the Sleep parts of your day plan. Can be changed during focus too, except turning sleep mode off: that waits like other looser changes and is refused during focus." />
                 <Border Classes="sPanel">
@@ -521,8 +521,8 @@
             </StackPanel>
 
             <!-- Focus sessions -->
-            <StackPanel Spacing="12" IsVisible="{Binding Rows[2].IsSelected}"
-                        search:SearchArea.Name="Focus sessions" search:SearchArea.SettingsGroup="2">
+            <StackPanel Spacing="12" IsVisible="{Binding SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.FocusSessions}}"
+                        search:SearchArea.Name="Focus sessions" search:SearchArea.SettingsGroup="FocusSessions">
                 <StackPanel Spacing="6" search:SearchArea.Name="Quick session shortcut">
                     <TextBlock Classes="sGroup" Text="Starting" />
                     <Border Classes="sPanel">
@@ -732,8 +732,8 @@
             </StackPanel>
 
             <!-- Alerts & on-screen -->
-            <StackPanel Spacing="12" IsVisible="{Binding Rows[4].IsSelected}"
-                        search:SearchArea.Name="Alerts &amp; on-screen" search:SearchArea.SettingsGroup="4">
+            <StackPanel Spacing="12" IsVisible="{Binding SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.AlertsAndOnScreen}}"
+                        search:SearchArea.Name="Alerts &amp; on-screen" search:SearchArea.SettingsGroup="AlertsAndOnScreen">
                 <StackPanel Spacing="6" search:SearchArea.Name="Animations" IsVisible="{Binding HasMotion}">
                     <TextBlock Classes="sGroup" Text="Animations" />
                     <Border Classes="sPanel" DataContext="{Binding Motion}" x:DataType="vm:MotionViewModel">
@@ -1071,8 +1071,8 @@
                 </ContentControl>
             </StackPanel>
 
-            <StackPanel Spacing="16" IsVisible="{Binding Rows[7].IsSelected}"
-                        search:SearchArea.Name="Appearance" search:SearchArea.SettingsGroup="7">
+            <StackPanel Spacing="16" IsVisible="{Binding SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Appearance}}"
+                        search:SearchArea.Name="Appearance" search:SearchArea.SettingsGroup="Appearance">
                 <StackPanel DataContext="{Binding Appearance}" x:DataType="vm:AppearanceViewModel"
                             IsVisible="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).HasAppearance}">
                     <views:AppearanceView />
@@ -1080,8 +1080,8 @@
             </StackPanel>
 
             <!-- App & data -->
-            <StackPanel Spacing="12" IsVisible="{Binding Rows[8].IsSelected}"
-                        search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="8">
+            <StackPanel Spacing="12" IsVisible="{Binding SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.AppAndData}}"
+                        search:SearchArea.Name="App &amp; data" search:SearchArea.SettingsGroup="AppAndData">
                 <!-- ADR 68, 69: the app mode on all devices, and where the two modes' own settings differ. -->
                 <views:GuidanceModeSwitch DataContext="{Binding GuidancePage}" />
                 <StackPanel Spacing="6" search:SearchArea.Name="Computer type">

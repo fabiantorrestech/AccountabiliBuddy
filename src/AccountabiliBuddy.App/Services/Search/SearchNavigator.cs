@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
@@ -13,7 +14,7 @@ public sealed class SearchNavigator
     private readonly Action<int> _selectTab;
     private readonly Action<Guid> _selectProfile;
     private readonly Action<DateOnly> _showDate;
-    private readonly Action<int> _showSettingsGroup;
+    private readonly Action<SettingsSection> _showSettingsGroup;
     private readonly Action<int> _showPlanTemplate;
     private readonly Action<object?> _reveal;
 
@@ -22,7 +23,7 @@ public sealed class SearchNavigator
         Action<int> selectTab,
         Action<Guid> selectProfile,
         Action<DateOnly> showDate,
-        Action<int> showSettingsGroup,
+        Action<SettingsSection> showSettingsGroup,
         Action<int> showPlanTemplate,
         Action<object?> reveal)
     {
@@ -47,7 +48,7 @@ public sealed class SearchNavigator
             _showDate(date);
         }
 
-        if (target.SettingsGroup is int group)
+        if (target.SettingsGroup is SettingsSection group)
         {
             _showSettingsGroup(group);
         }

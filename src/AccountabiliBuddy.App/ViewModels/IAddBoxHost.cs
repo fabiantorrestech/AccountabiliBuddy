@@ -18,6 +18,9 @@ public interface IAddBoxHost
     /// <summary>The project markers the user taught (Settings › Tasks › Project markers).</summary>
     IReadOnlyList<ProjectMarkerPattern> CustomMarkers { get; }
 
+    /// <summary>Settings › Tasks › Title help › Suggest shorter titles: the counter and "Move … to notes" show (on by default).</summary>
+    bool SuggestShorterTitles { get; }
+
     /// <summary>"From your lists": the picker of tasks from the other lists; null where there is none.</summary>
     ListPickerViewModel? FromYourLists { get; }
 

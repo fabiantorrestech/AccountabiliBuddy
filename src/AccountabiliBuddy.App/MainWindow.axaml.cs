@@ -412,7 +412,7 @@ public partial class MainWindow : Window
             tab => viewModel.SelectedTab = tab,
             profileId => viewModel.Profiles.Select(profileId),
             date => viewModel.Plan?.OpenChangeADay(date),
-            row => viewModel.Settings.SelectedRowIndex = row,
+            section => viewModel.Settings.Select(section),
             template => viewModel.Plan?.OpenDayTypes(template),
             control => Dispatcher.UIThread.Post(() => RevealFound(control as Control), DispatcherPriority.Background));
         search.OpenRequested += (_, target) =>

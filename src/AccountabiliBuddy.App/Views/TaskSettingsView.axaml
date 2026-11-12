@@ -1,0 +1,501 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:tasks="using:AccountabiliBuddy.App.Services.Tasks"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.TaskSettingsView"
+             x:DataType="vm:TaskSettingsViewModel">
+    <!-- Settings › Tasks (spec 03 §H, 04 §I, Settings Restructure Plan): Reminders, Labels, During a session, New tasks, Shelf, Keyboard
+         shortcuts, the end-of-day link and Reset. Rows save on change through their services. Row rules (08): a row's icon sits level
+         with its title's first line; a long value shows bold under the description; short values (a switch, "25") stay on the right.
+         Link rows point to the page that owns the setting, so each setting is edited in one place. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.sValue">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style Selector="TextBlock.sPending">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.InfoInk}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <!-- The row's icon: 20 DIP, level with the title's first line (15 DIP text, about 20 DIP high). -->
+        <Style Selector="mi|MaterialIcon.rowIcon">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,16,24" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
+            <Border Classes="sInfo" IsVisible="{Binding HasStatus}">
+                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- 1. Reminders -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Reminders">
+                <TextBlock Classes="sGroup" Text="Reminders" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow" search:SearchArea.Name="Task reminders">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="BellRingOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Ringing, snooze and full screen" />
+                                    <TextBlock Classes="sHint" Text="Volume, dismiss protection, how reminders show and the snooze shortcuts: Alerts &amp; on-screen." />
+                                    <TextBlock Classes="sValue" Text="{Binding RingingSummary}" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Open Alerts &amp; on-screen" Command="{Binding OpenAlertsCommand}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="LabelOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Rings on, per label" />
+                                    <TextBlock Classes="sHint" Text="Which devices ring for each label is set with the labels (below)." />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Show labels" Command="{Binding ShowLabelsCommand}" IsVisible="{Binding HasLabels}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Add new reminders to">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CalendarExport" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Add new reminders to" />
+                                    <TextBlock Classes="sHint" Text="Where a task's reminders and due date go when it first gets one: the title and times only, into the app's own calendar. Each task's own switch decides after that. Windows Calendar isn't available yet." />
+                                </StackPanel>
+                                <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding AddRemindersToChoices}"
+                                         SelectedIndex="{Binding AddRemindersToIndex}" AutomationProperties.Name="Add new reminders to" />
+                                <Grid Grid.Row="2" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,8,0,0" IsVisible="{Binding UsesGoogle}">
+                                    <TextBlock Classes="sValue" Text="{Binding ExportStatus}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Content="Allow…" Command="{Binding AllowExportCommand}" IsVisible="{Binding ShowsAllow}" VerticalAlignment="Center"
+                                            ToolTip.Tip="Google asks once to let the app add events to calendars it makes" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" IsVisible="{Binding UsesGoogle}">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CalendarToday" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Tasks with a date but no time" />
+                                    <TextBlock Classes="sHint" Text="A timed event at 9:00 AM keeps the day's reminders on it; Google can't put same-day reminders on an all-day event." />
+                                </StackPanel>
+                                <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding DateOnlyChoices}"
+                                         SelectedIndex="{Binding DateOnlyIndex}" AutomationProperties.Name="Tasks with a date but no time" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" IsVisible="{Binding UsesGoogle}" search:SearchArea.Name="Picked calendar">
+                            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="FlaskOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Due dates in a calendar you pick (experimental)" />
+                                    <TextBlock Classes="sHint" Text="Tasks with a due date go to one of your own calendars instead, for the whole account. Off puts them back in the app's calendar." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding PickedCalendarOn}" VerticalAlignment="Top"
+                                          AutomationProperties.Name="Due dates in a calendar you pick" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Spacing="8" Margin="0,8,0,0" IsVisible="{Binding PickedCalendarOn}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <ComboBox ItemsSource="{Binding PickableCalendars}" SelectedItem="{Binding ChosenCalendar}" MinWidth="240"
+                                                  AutomationProperties.Name="Calendar for due dates">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="tasks:TaskPickableCalendar">
+                                                    <TextBlock Text="{Binding Name}" />
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <Button Content="Use it" Command="{Binding UsePickedCalendarCommand}"
+                                                ToolTip.Tip="Google asks to let the app change events in your calendars" />
+                                    </StackPanel>
+                                    <TextBlock Classes="sValue" Text="{Binding PickedStatus}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="New reminders start at">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="BellPlusOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="New reminders start at" />
+                                    <TextBlock Classes="sHint" Text="The reminder a task starts with once it gets a due time." />
+                                </StackPanel>
+                                <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding NewReminderChoices}"
+                                         SelectedIndex="{Binding NewReminderIndex}" AutomationProperties.Name="New reminders start at" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 2. Labels -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Labels">
+                <TextBlock Classes="sGroup" Text="Labels" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow" IsVisible="{Binding HasLabels}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="LabelMultipleOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Labels" />
+                                    <TextBlock Classes="sHint" Text="Rename, recolour, add or delete. Deleting one leaves its tasks with no label." />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="{Binding LabelsButtonText}" Command="{Binding ToggleLabelsCommand}" VerticalAlignment="Center" />
+                                <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="16,12"
+                                        CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}" IsVisible="{Binding ShowsLabelsEditor}">
+                                    <views:CategoryEditorView DataContext="{Binding Labels}" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Label style">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="TagTextOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Label on rows" />
+                                    <TextBlock Classes="sHint" Text="Dot: the label's dot and name at the row's right. Pill before: before the title. Pill in details: on the line under the title (not in Compact rows)." />
+                                </StackPanel>
+                                <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding LabelStyleChoices}"
+                                         SelectedIndex="{Binding LabelStyleIndex}" AutomationProperties.Name="Label on rows" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 3. During a session (per mode; looser changes wait, none during a session; the rows rest while one runs) -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Tasks during a session">
+                <TextBlock Classes="sGroup" Text="During a session" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="PlayCircleOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="How a session starts" />
+                                    <TextBlock Classes="sHint" Text="The quick session shortcut and Quick Start with Default: Focus sessions › Starting." />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Open Focus sessions" Command="{Binding OpenFocusSessionsCommand}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="Walk" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Stepped-away nudge" />
+                                    <TextBlock Classes="sHint" Text="The step away shortcut and stepping away by itself: Focus sessions › Step away." />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Open Focus sessions" Command="{Binding OpenFocusSessionsCommand}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <StackPanel IsEnabled="{Binding !IsLocked}">
+                            <Border Classes="sRow" search:SearchArea.Name="Compact rows">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="FormatLineSpacing" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="Compact rows" />
+                                        <TextBlock Classes="sHint" Text="The Tasks page switches to Compact while a session runs, then back." />
+                                        <TextBlock Classes="sPending" Text="{Binding CompactPending}" IsVisible="{Binding HasCompactPending}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding CompactInSession}" VerticalAlignment="Top" AutomationProperties.Name="Compact rows during a session" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow" search:SearchArea.Name="Hide the Shelf">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="EyeOffOutline" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="Hide the Shelf" />
+                                        <TextBlock Classes="sHint" Text="The Shelf folds away while a session runs; its rail says it's hidden." />
+                                        <TextBlock Classes="sPending" Text="{Binding ShelfPending}" IsVisible="{Binding HasShelfPending}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding HideShelfInSession}" VerticalAlignment="Top" AutomationProperties.Name="Hide the Shelf during a session" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow" search:SearchArea.Name="Actions in a session">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="Numeric3BoxOutline" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="Actions in a session" />
+                                        <TextBlock Classes="sHint" Text="How many tasks or steps a session holds. Fewer applies at once; more waits." />
+                                        <TextBlock Classes="sPending" Text="{Binding ActionsPending}" IsVisible="{Binding HasActionsPending}" />
+                                    </StackPanel>
+                                    <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding ActionChoices}"
+                                             SelectedIndex="{Binding ActionsIndex}" AutomationProperties.Name="Actions in a session" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow" search:SearchArea.Name="Session view">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="ViewAgendaOutline" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="Session view" />
+                                        <TextBlock Classes="sHint" Text="Quiet: one row per action. Grouped: each task with its steps, the next two greyed." />
+                                        <TextBlock Classes="sPending" Text="{Binding SessionViewPending}" IsVisible="{Binding HasSessionViewPending}" />
+                                    </StackPanel>
+                                    <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding SessionViewChoices}"
+                                             SelectedIndex="{Binding SessionViewIndex}" AutomationProperties.Name="Session view" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow" search:SearchArea.Name="Next step takes the slot">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="ArrowDown" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="The next step takes the slot" />
+                                        <TextBlock Classes="sHint" Text="When a focused step is finished, the task's next open step comes into focus in its place." />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding NextStepTakesSlot}" VerticalAlignment="Top" AutomationProperties.Name="The next step takes the slot" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow" search:SearchArea.Name="When I step away">
+                                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="TimerPauseOutline" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="When I step away" />
+                                        <TextBlock Classes="sHint" Text="Pausing makes the session end later, so it waits." />
+                                        <TextBlock Classes="sPending" Text="{Binding StepAwayPending}" IsVisible="{Binding HasStepAwayPending}" />
+                                    </StackPanel>
+                                    <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding TimerChoices}"
+                                             SelectedIndex="{Binding StepAwayIndex}" AutomationProperties.Name="When I step away" />
+                                </Grid>
+                            </Border>
+                            <Border Classes="sRow" search:SearchArea.Name="When I start a side task">
+                                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="CallSplit" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="When I start a side task" />
+                                        <TextBlock Classes="sHint" Text="Pausing makes the session end later, so it waits." />
+                                        <TextBlock Classes="sPending" Text="{Binding SideTaskPending}" IsVisible="{Binding HasSideTaskPending}" />
+                                    </StackPanel>
+                                    <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding TimerChoices}"
+                                             SelectedIndex="{Binding SideTaskIndex}" AutomationProperties.Name="When I start a side task" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 4. New tasks -->
+            <StackPanel Spacing="6" search:SearchArea.Name="New tasks">
+                <TextBlock Classes="sGroup" Text="New tasks" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow" search:SearchArea.Name="Default time limit">
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="TimerOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Default time limit" />
+                                    <TextBlock Classes="sHint" Text="{Binding TimeLimitHint}" />
+                                </StackPanel>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+                                    <ListBox Classes="segmented" ItemsSource="{Binding TimeLimitChoices}" SelectedIndex="{Binding TimeLimitIndex}"
+                                             AutomationProperties.Name="Default time limit" />
+                                    <NumericUpDown Value="{Binding CustomTimeLimit}" Minimum="1" Maximum="1440" Increment="5" FormatString="0" Width="120"
+                                                   IsVisible="{Binding IsCustomTimeLimit}" VerticalAlignment="Center" AutomationProperties.Name="Custom time limit in minutes" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Title help">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="FormatTitle" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Suggest shorter titles" />
+                                    <TextBlock Classes="sHint" Text="The add box counts from 50 characters and offers to move the rest of a long title to the task's notes." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding SuggestShorterTitles}" VerticalAlignment="Top" AutomationProperties.Name="Suggest shorter titles" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Project markers">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CodeBrackets" />
+                                <StackPanel Grid.Column="1" Spacing="8">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="Project markers" />
+                                        <TextBlock Classes="sHint" Text="A marker at the start of a title (“[App] fix login”) offers a label and a tag. Built in: [Name], (Name), {Name}, &lt;Name&gt;, ⌜Name⌟ and “Name:” or “Name -”. Styles you taught, or said No to, are listed here." />
+                                    </StackPanel>
+                                    <TextBlock Classes="muted" Text="None taught yet." FontSize="13" IsVisible="{Binding !HasMarkers}" />
+                                    <ItemsControl ItemsSource="{Binding Markers}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ProjectMarkerRowViewModel">
+                                                <Grid ColumnDefinitions="140,*,Auto" ColumnSpacing="10" Margin="0,2">
+                                                    <TextBlock Text="{Binding Text}" FontSize="13" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Classes="muted" Text="{Binding KindText}" FontSize="12" VerticalAlignment="Center" />
+                                                    <Button Grid.Column="2" Classes="quiet" Command="{Binding RemoveCommand}" Padding="8,4" ToolTip.Tip="{Binding RemoveTip}"
+                                                            AutomationProperties.Name="{Binding RemoveTip}">
+                                                        <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBox Text="{Binding NewMarkerOpen}" Width="70" PlaceholderText="Before" AutomationProperties.Name="Marker before the name" />
+                                        <TextBlock Classes="muted" Text="Name" VerticalAlignment="Center" />
+                                        <TextBox Text="{Binding NewMarkerClose}" Width="70" PlaceholderText="After" AutomationProperties.Name="Marker after the name" />
+                                        <Button Content="Add" Command="{Binding AddMarkerCommand}" />
+                                    </StackPanel>
+                                    <TextBlock Classes="sPending" Text="{Binding MarkerProblem}" IsVisible="{Binding HasMarkerProblem}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" IsVisible="{Binding HasViews}" search:SearchArea.Name="Default view">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="StarOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Default view" />
+                                    <TextBlock Classes="sHint" Text="{Binding DefaultViewHint}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" ItemsSource="{Binding ViewChoices}" SelectedItem="{Binding DefaultView}" MinWidth="180" VerticalAlignment="Top"
+                                          AutomationProperties.Name="Default view">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TaskDefaultViewChoice">
+                                            <TextBlock Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" IsEnabled="False" search:SearchArea.Name="Effort ratings">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14" Opacity="0.55">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="Gauge" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Effort ratings" />
+                                    <TextBlock Classes="sHint" Text="How much a task takes out of you, U0 to U4. Coming later." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="False" VerticalAlignment="Top" AutomationProperties.Name="Effort ratings (coming later)" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 5. Shelf / Weekly tidy-up -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Shelf">
+                <TextBlock Classes="sGroup" Text="Shelf" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow" search:SearchArea.Name="Pin highlights">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="PinOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Pin highlights to the top" />
+                                    <TextBlock Classes="sHint" Text="New views start with highlighted tasks first; each view can change it." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding PinHighlights}" VerticalAlignment="Top" AutomationProperties.Name="Pin highlights to the top" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Counts as untouched after">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="ClockAlertOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Counts as untouched after" />
+                                    <TextBlock Classes="sHint" Text="A task nobody changed for this long shows up in the weekly tidy-up and the Untouched filter." />
+                                </StackPanel>
+                                <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding UntouchedChoices}"
+                                         SelectedIndex="{Binding UntouchedIndex}" AutomationProperties.Name="Counts as untouched after" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Show age on rows">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="History" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Show age on rows" />
+                                    <TextBlock Classes="sHint" Text="Rows say “untouched 5 wk” once a task counts as untouched." />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding ShowAgeOnRows}" VerticalAlignment="Top" AutomationProperties.Name="Show age on rows" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Weekly tidy-up">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="Broom" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Weekly tidy-up" />
+                                    <TextBlock Classes="sHint" Text="A card on the Shelf from this day until you go through the untouched tasks or put it off. Never during a session." />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" ItemsSource="{Binding DayChoices}" SelectedIndex="{Binding TidyUpDayIndex}" IsEnabled="{Binding TidyUpOn}"
+                                          MinWidth="140" VerticalAlignment="Top" AutomationProperties.Name="Weekly tidy-up day" />
+                                <CheckBox Grid.Column="3" Classes="sw" IsChecked="{Binding TidyUpOn}" VerticalAlignment="Top" AutomationProperties.Name="Weekly tidy-up" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 6. Keyboard shortcuts (read only) -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Keyboard shortcuts">
+                <TextBlock Classes="sGroup" Text="Keyboard shortcuts" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="KeyboardOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Start a session" />
+                                    <TextBlock Classes="sHint" Text="Changed in Focus sessions › Starting (Quick session shortcut)." />
+                                    <TextBlock Classes="sValue" Text="{Binding StartSessionText}" FontFamily="{DynamicResource Ab.NumeralFont}" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Open Focus sessions" Command="{Binding OpenFocusSessionsCommand}" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <StackPanel Spacing="2">
+                                <TextBlock Classes="sHint" Text="On the Tasks and Today pages, while no text box has the keyboard (Ctrl+G works on every page)." Margin="0,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding Shortcuts}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TaskShortcutRow">
+                                            <Grid ColumnDefinitions="150,*" ColumnSpacing="12" Margin="0,3">
+                                                <TextBlock Text="{Binding Keys}" FontSize="13" FontWeight="SemiBold" FontFamily="{DynamicResource Ab.NumeralFont}" />
+                                                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding What}" FontSize="13" TextWrapping="Wrap" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 7. End-of-day task review (the shutdown routine lives in Your day) -->
+            <Border Classes="sPanel" search:SearchArea.Name="End-of-day task review">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="WeatherSunset" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="End-of-day task review" />
+                                <TextBlock Classes="sHint" Text="The shutdown routine's unfinished tasks and look-ahead steps: Your day › Shutdown routine." />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Open Your day" Command="{Binding OpenYourDayCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- 8. Reset (rests during a session; a reset that loosens waits like any looser change) -->
+            <Border Classes="sPanel" search:SearchArea.Name="Reset Tasks settings" IsEnabled="{Binding !IsLocked}">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="Restore" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Reset Tasks settings" />
+                                <TextBlock Classes="sHint" Text="This PC's Tasks settings for the mode in use go back to their defaults. Looser defaults wait like any looser change. Labels, views, taught markers and your tasks stay." />
+                                <TextBlock Classes="sValue" Text="{Binding ResetNote}" IsVisible="{Binding HasResetNote}" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Classes="danger" Content="Reset…" Command="{Binding AskResetCommand}" IsVisible="{Binding !IsConfirmingReset}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0" IsVisible="{Binding IsConfirmingReset}">
+                                <TextBlock Text="Reset every Tasks setting on this page?" VerticalAlignment="Center" />
+                                <Button Classes="danger" Content="Reset" Command="{Binding ResetCommand}" />
+                                <Button Content="Cancel" Command="{Binding CancelResetCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

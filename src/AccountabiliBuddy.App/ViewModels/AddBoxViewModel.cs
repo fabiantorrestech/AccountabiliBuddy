@@ -145,7 +145,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
 
     // ---- the hint line under the box ----
 
-    public bool ShowsCounter => HasTitleHelp && _analysis is { ShowCounter: true };
+    public bool ShowsCounter => HasTitleHelp && _host.SuggestShorterTitles && _analysis is { ShowCounter: true };
 
     /// <summary>"54 / 60".</summary>
     public string CounterText => _analysis is null ? string.Empty : _analysis.Length + " / " + TaskTitleHelp.SoftLimit;
@@ -154,7 +154,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
 
     public bool ShowsMarker => HasTitleHelp && _analysis?.Marker is not null && Text.Length > 3;
 
-    public bool ShowsSplit => HasTitleHelp && !ShowsMarker && CurrentSplit is not null;
+    public bool ShowsSplit => HasTitleHelp && _host.SuggestShorterTitles && !ShowsMarker && CurrentSplit is not null;
 
     /// <summary>"Move “handle long titles…” to notes".</summary>
     public string SplitButtonText => CurrentSplit is { } split ? "Move “" + Short(split.Tail, SplitTailShown) + "” to notes" : string.Empty;
@@ -393,7 +393,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
     private async Task AddAsync(string title, TaskTypedTitle parsed, string? note)
     {
         TaskBin destination = IsJot ? TaskBin.Sort : Destination;
-        var request = new AddBoxRequest(title, destination, _labelId ?? parsed.LabelId, TaskLabels.With(_tags, parsed.Tags) ?? [], note);
+        var request = new AddBoxRequest(title, destination, _labelId ?? parsed.LabelId, TaskLabels.With(_tags, parsed.Tags) ?? [], note, FromJot: IsJot);
         if (!await _host.AddFromBoxAsync(request))
         {
             return;

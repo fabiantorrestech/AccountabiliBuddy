@@ -22,8 +22,31 @@ public sealed partial class TasksViewModel : IAddBoxHost
     /// <summary>Jot it down, shared by the Today page and the Today column (Ctrl+J).</summary>
     public AddBoxViewModel Jot => _jot ??= new AddBoxViewModel(this, AddBoxKind.Jot);
 
-    /// <summary>This PC's Tasks settings (the user's project markers); set by the app. Null: no taught markers, nothing offered.</summary>
-    public TaskSettingsService? TaskSettings { get; set; }
+    private TaskSettingsService? _taskSettings;
+
+    /// <summary>
+    /// This PC's Tasks settings (the user's project markers, title help, the default time limit, how rows show labels and age); set by
+    /// the app. Null: no taught markers, nothing offered, the defaults. A change redraws the rows.
+    /// </summary>
+    public TaskSettingsService? TaskSettings
+    {
+        get => _taskSettings;
+        set
+        {
+            if (_taskSettings is not null)
+            {
+                _taskSettings.Changed -= OnTaskSettingsChanged;
+            }
+
+            _taskSettings = value;
+            if (value is not null)
+            {
+                value.Changed += OnTaskSettingsChanged;
+            }
+        }
+    }
+
+    bool IAddBoxHost.SuggestShorterTitles => TaskSettings?.Current.SuggestShorterTitles ?? true;
 
     /// <summary>Ctrl+J: the jot opens and takes the keyboard (the caller shows a page that has it first).</summary>
     public void OpenJot() => Jot.Open();
@@ -98,7 +121,9 @@ public sealed partial class TasksViewModel : IAddBoxHost
         // This session: into Queued first, then through the session's add (its cap); a full session leaves it in Queued.
         TaskBin bin = request.Destination is TaskBin.Session or TaskBin.Done ? TaskBin.Queued : request.Destination;
         Guid id = Guid.NewGuid();
-        if (!await _actions.AddAsync(id, request.Title, bin, request.LabelId, request.Tags, request.Note))
+        // Settings › Tasks › Default time limit: tasks typed in an add box start with it; a jotted thought doesn't.
+        int? timeLimit = request.FromJot ? null : TaskSettings?.Current.NewTaskTimeLimit;
+        if (!await _actions.AddAsync(id, request.Title, bin, request.LabelId, request.Tags, request.Note, estimateMinutes: timeLimit))
         {
             return false;
         }
@@ -114,6 +139,11 @@ public sealed partial class TasksViewModel : IAddBoxHost
         }
 
         return true;
+    }
+
+    private void OnTaskSettingsChanged(object? sender, EventArgs e)
+    {
+        QueueRefresh();
     }
 
     /// <summary>Today on the trusted clock (the jot's count).</summary>

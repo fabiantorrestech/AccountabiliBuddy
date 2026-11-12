@@ -9,7 +9,8 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// Loads and saves <see cref="TaskSettings"/> (document "tasks.settings", this PC only), kept per mode (ADR 69): AccountabiliBuddy and
 /// ProductaBuddy each have their own copy with the same defaults, and the active mode's is <see cref="Current"/>. Stricter changes apply
-/// at once; looser ones (more actions per session, pausing the timer when stepping away or on a side task) are refused while a session runs and otherwise
+/// at once; looser ones (more actions per session, pausing the timer when stepping away or on a side task, a session layout that shows
+/// more: Compact rows off, the Shelf shown, Grouped) are refused while a session runs and otherwise
 /// wait the looser-change wait (<see cref="LockSettings.LooseningDelay"/>, counted by the trusted clock and kept in the document so a
 /// restart doesn't skip it), taking effect only while no session runs; the same rules hold for either mode's copy (a backup restores
 /// both through here). A running session never gets looser from a change or a mode switch: it keeps the number of actions it started
@@ -201,12 +202,135 @@ public sealed class TaskSettingsService
     }
 
     /// <summary>
-    /// The session layout (Settings › Tasks › During a session, Phase 7): Compact rows and a hidden Shelf while a session runs, and its
-    /// Quiet or Grouped view. Display only, so no wait; a running session's layout keeps what it started with (nothing jumps).
+    /// "Compact rows" during a session (Settings › Tasks › During a session), in <paramref name="mode"/>'s copy. On is stricter (less on
+    /// screen): at once, and it drops a waiting off. Off is looser: it waits the looser-change wait and is refused while a session runs.
+    /// A running session's layout keeps what it started with either way (nothing jumps).
     /// </summary>
-    public Task SetSessionLayoutAsync(bool compactInSession, bool hideShelfInSession, SessionTaskView view, GuidanceMode? mode = null)
+    /// <returns>False when it was refused (off while a session runs).</returns>
+    public async Task<bool> SetCompactInSessionAsync(bool on, GuidanceMode? mode = null)
     {
-        return UpdateAsync(settings => settings with { CompactInSession = compactInSession, HideShelfInSession = hideShelfInSession, SessionView = view }, mode);
+        GuidanceMode target = mode ?? ActiveMode;
+        TaskSettings settings = await LoadForAsync(target);
+        if (on || !settings.CompactInSession)
+        {
+            await SaveForAsync(target, settings with { CompactInSession = on, PendingCompactInSession = null, PendingCompactFrom = null });
+            return true;
+        }
+
+        if (_sessions.State.IsActive)
+        {
+            return false;
+        }
+
+        if (settings.PendingCompactInSession == false && settings.PendingCompactFrom is not null)
+        {
+            return true;
+        }
+
+        await SaveForAsync(target, settings with { PendingCompactInSession = false, PendingCompactFrom = _time.GetUtcNow() + _looserWait() });
+        return true;
+    }
+
+    /// <summary>
+    /// "Hide the Shelf" during a session, with the rules of <see cref="SetCompactInSessionAsync"/>: hiding it is stricter (at once);
+    /// showing it is looser (waits, refused while a session runs).
+    /// </summary>
+    /// <returns>False when it was refused (showing the Shelf while a session runs).</returns>
+    public async Task<bool> SetHideShelfInSessionAsync(bool on, GuidanceMode? mode = null)
+    {
+        GuidanceMode target = mode ?? ActiveMode;
+        TaskSettings settings = await LoadForAsync(target);
+        if (on || !settings.HideShelfInSession)
+        {
+            await SaveForAsync(target, settings with { HideShelfInSession = on, PendingHideShelfInSession = null, PendingHideShelfFrom = null });
+            return true;
+        }
+
+        if (_sessions.State.IsActive)
+        {
+            return false;
+        }
+
+        if (settings.PendingHideShelfInSession == false && settings.PendingHideShelfFrom is not null)
+        {
+            return true;
+        }
+
+        await SaveForAsync(target, settings with { PendingHideShelfInSession = false, PendingHideShelfFrom = _time.GetUtcNow() + _looserWait() });
+        return true;
+    }
+
+    /// <summary>
+    /// "Session view" (Quiet or Grouped), with the rules of <see cref="SetCompactInSessionAsync"/>: Quiet (one row per action, the
+    /// default) is stricter and applies at once; Grouped (each task's other steps on screen) is looser: it waits and is refused while a
+    /// session runs.
+    /// </summary>
+    /// <returns>False when it was refused (Grouped while a session runs).</returns>
+    public async Task<bool> SetSessionViewAsync(SessionTaskView view, GuidanceMode? mode = null)
+    {
+        GuidanceMode target = mode ?? ActiveMode;
+        TaskSettings settings = await LoadForAsync(target);
+        if (!IsLooserView(settings.SessionView, view))
+        {
+            await SaveForAsync(target, settings with { SessionView = view, PendingSessionView = null, PendingSessionViewFrom = null });
+            return true;
+        }
+
+        if (_sessions.State.IsActive)
+        {
+            return false;
+        }
+
+        if (settings.PendingSessionView == view && settings.PendingSessionViewFrom is not null)
+        {
+            return true;
+        }
+
+        await SaveForAsync(target, settings with { PendingSessionView = view, PendingSessionViewFrom = _time.GetUtcNow() + _looserWait() });
+        return true;
+    }
+
+    /// <summary>Grouped is looser than Quiet (it puts more of each task on screen during a session).</summary>
+    public static bool IsLooserView(SessionTaskView from, SessionTaskView to)
+    {
+        return from == SessionTaskView.Quiet && to == SessionTaskView.Grouped;
+    }
+
+    /// <summary>How rows show their label (Dot, Pill before, Pill in details). Display only: at once.</summary>
+    public Task SetLabelStyleAsync(TaskLabelStyle style, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { LabelStyle = style }, mode);
+    }
+
+    /// <summary>The time limit new tasks from the add box start with (0 for none). It only fills a field, so at once.</summary>
+    public Task SetDefaultTimeLimitAsync(int minutes, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { DefaultTimeLimitMinutes = minutes }, mode);
+    }
+
+    /// <summary>The add box's "Suggest shorter titles" (the counter and "Move … to notes"). At once.</summary>
+    public Task SetSuggestShorterTitlesAsync(bool on, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { SuggestShorterTitles = on }, mode);
+    }
+
+    /// <summary>Rows say "untouched N wk" (on) or not. At once.</summary>
+    public Task SetShowAgeOnRowsAsync(bool on, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { ShowAgeOnRows = on }, mode);
+    }
+
+    /// <summary>
+    /// Settings › Tasks › Reset Tasks settings, for <paramref name="mode"/>'s copy (the active mode's by default): every value back to its
+    /// default through the same rules as a change made by hand (a looser default waits, or is refused while a session runs). The
+    /// project markers the user taught or declined are kept: they are learned from the user's titles, not settings.
+    /// </summary>
+    /// <returns>A note for the page (something waits or was refused), or null.</returns>
+    public async Task<string?> ResetAsync(GuidanceMode? mode = null)
+    {
+        GuidanceMode target = mode ?? ActiveMode;
+        TaskSettings current = await LoadForAsync(target);
+        return await RestoreAsync(TaskSettings.Default with { CustomMarkers = current.CustomMarkers, DeclinedMarkers = current.DeclinedMarkers }, target);
     }
 
     /// <summary>Whether new views pin highlighted tasks to the top.</summary>
@@ -281,6 +405,14 @@ public sealed class TaskSettingsService
         return UpdateAsync(settings => settings with { DeclinedMarkers = [.. (settings.DeclinedMarkers ?? []).Where(held => held != marker), marker] }, null);
     }
 
+    /// <summary>Settings › Tasks › Project markers: forgets a No, so the add box may offer that style again.</summary>
+    public Task ForgetDeclinedMarkerAsync(ProjectMarkerPattern marker)
+    {
+        return UpdateAsync(settings => settings with { DeclinedMarkers = NullWhenEmpty((settings.DeclinedMarkers ?? []).Where(held => held != marker).ToList()) }, null);
+    }
+
+    private static IReadOnlyList<ProjectMarkerPattern>? NullWhenEmpty(IReadOnlyList<ProjectMarkerPattern> markers) => markers.Count == 0 ? null : markers;
+
     private async Task UpdateAsync(Func<TaskSettings, TaskSettings> change, GuidanceMode? mode)
     {
         GuidanceMode target = mode ?? ActiveMode;
@@ -311,15 +443,19 @@ public sealed class TaskSettingsService
                 PinHighlights = wanted.PinHighlights,
                 CustomMarkers = wanted.CustomMarkers,
                 DeclinedMarkers = wanted.DeclinedMarkers,
-                CompactInSession = wanted.CompactInSession,
-                HideShelfInSession = wanted.HideShelfInSession,
-                SessionView = wanted.SessionView,
+                LabelStyle = wanted.LabelStyle,
+                DefaultTimeLimitMinutes = wanted.DefaultTimeLimitMinutes,
+                SuggestShorterTitles = wanted.SuggestShorterTitles,
+                ShowAgeOnRows = wanted.ShowAgeOnRows,
             },
             mode);
         bool actionsTaken = await SetSessionActionsAsync(wanted.SessionActions, mode);
         bool stepAwayTaken = await SetStepAwayAsync(wanted.StepAway, mode);
         bool sideTaskTaken = await SetSideTaskAsync(wanted.SideTask, mode);
-        if (!actionsTaken || !stepAwayTaken || !sideTaskTaken)
+        bool compactTaken = await SetCompactInSessionAsync(wanted.CompactInSession, mode);
+        bool shelfTaken = await SetHideShelfInSessionAsync(wanted.HideShelfInSession, mode);
+        bool viewTaken = await SetSessionViewAsync(wanted.SessionView, mode);
+        if (!actionsTaken || !stepAwayTaken || !sideTaskTaken || !compactTaken || !shelfTaken || !viewTaken)
         {
             return "Some Tasks settings weren't restored during a session (they would loosen it).";
         }
@@ -327,9 +463,12 @@ public sealed class TaskSettingsService
         TaskSettings after = await LoadForAsync(mode);
         bool waiting = (after.PendingSessionActions is not null && after.PendingSessionActions != before.PendingSessionActions)
             || (after.PendingStepAway is not null && after.PendingStepAway != before.PendingStepAway)
-            || (after.PendingSideTask is not null && after.PendingSideTask != before.PendingSideTask);
+            || (after.PendingSideTask is not null && after.PendingSideTask != before.PendingSideTask)
+            || (after.PendingCompactInSession is not null && after.PendingCompactInSession != before.PendingCompactInSession)
+            || (after.PendingHideShelfInSession is not null && after.PendingHideShelfInSession != before.PendingHideShelfInSession)
+            || (after.PendingSessionView is not null && after.PendingSessionView != before.PendingSessionView);
         return waiting
-            ? "Looser Tasks settings (more actions per session, pausing the timer when stepping away or on a side task) take effect after the countdown."
+            ? "Looser Tasks settings (more actions per session, pausing the timer when stepping away or on a side task, a session layout that shows more) take effect after the countdown."
             : null;
     }
 
@@ -357,6 +496,21 @@ public sealed class TaskSettingsService
         if (settings.PendingSideTask is StepAwayTimer sideWaiting && settings.PendingSideTaskFrom is DateTimeOffset sideFrom && now >= sideFrom)
         {
             applied = applied with { SideTask = sideWaiting, PendingSideTask = null, PendingSideTaskFrom = null };
+        }
+
+        if (settings.PendingCompactInSession is bool compact && settings.PendingCompactFrom is DateTimeOffset compactFrom && now >= compactFrom)
+        {
+            applied = applied with { CompactInSession = compact, PendingCompactInSession = null, PendingCompactFrom = null };
+        }
+
+        if (settings.PendingHideShelfInSession is bool hide && settings.PendingHideShelfFrom is DateTimeOffset hideFrom && now >= hideFrom)
+        {
+            applied = applied with { HideShelfInSession = hide, PendingHideShelfInSession = null, PendingHideShelfFrom = null };
+        }
+
+        if (settings.PendingSessionView is SessionTaskView view && settings.PendingSessionViewFrom is DateTimeOffset viewFrom && now >= viewFrom)
+        {
+            applied = applied with { SessionView = view, PendingSessionView = null, PendingSessionViewFrom = null };
         }
 
         if (applied != settings)
@@ -396,6 +550,9 @@ public sealed class TaskSettingsService
             SessionActions = Core.Tasks.SessionActions.ClampCap(settings.SessionActions),
             PendingSessionActions = settings.PendingSessionActions is int pending ? Core.Tasks.SessionActions.ClampCap(pending) : null,
             UntouchedWeeks = TaskUntouched.ClampWeeks(settings.UntouchedWeeks),
+            LabelStyle = Enum.IsDefined(settings.LabelStyle) ? settings.LabelStyle : TaskLabelStyle.Dot,
+            DefaultTimeLimitMinutes = Math.Clamp(settings.DefaultTimeLimitMinutes, 0, SessionChecklist.MaxEstimateMinutes),
+            SessionView = Enum.IsDefined(settings.SessionView) ? settings.SessionView : SessionTaskView.Quiet,
         };
     }
 }

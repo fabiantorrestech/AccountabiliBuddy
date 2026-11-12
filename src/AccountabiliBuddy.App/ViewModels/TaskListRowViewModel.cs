@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Tasks;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -119,8 +120,23 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The label's colour, drawn as the dot before its name; transparent with none.</summary>
     public IBrush CategoryBrush { get; init; }
 
-    /// <summary>The row shows a label dot and name (the label style's default, "dot + name").</summary>
+    /// <summary>The row has a label (shown as <see cref="LabelStyle"/> says).</summary>
     public bool HasCategory => !string.IsNullOrWhiteSpace(CategoryName);
+
+    /// <summary>How the label shows (Settings › Tasks › Labels › Label style); Dot by default.</summary>
+    public TaskLabelStyle LabelStyle { get; init; }
+
+    /// <summary>The label's dot and name at the row's right (Dot; a click opens the picker).</summary>
+    public bool ShowsLabelChip => HasCategory && LabelStyle == TaskLabelStyle.Dot;
+
+    /// <summary>The label as a tinted pill before the title (Pill before).</summary>
+    public bool ShowsLabelPillBefore => HasCategory && LabelStyle == TaskLabelStyle.PillBefore;
+
+    /// <summary>The label as a tinted pill at the start of the detail line (Pill in details).</summary>
+    public bool ShowsLabelPillInDetails => HasCategory && LabelStyle == TaskLabelStyle.PillInDetails;
+
+    /// <summary>The detail line shows: its bits, or the label's pill in details.</summary>
+    public bool ShowsDetailLine => HasBits || ShowsLabelPillInDetails;
 
     /// <summary>The row can have a label (every kind but Auto-saved): its chip, or the quiet "+ label" spot, opens the picker.</summary>
     public bool CanLabel => _labelMenu is not null;
@@ -282,7 +298,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             && CategoryColor == other.CategoryColor && StatusTag == other.StatusTag && DueOn == other.DueOn && SortTime == other.SortTime
             && HasToggle == other.HasToggle && CanLabel == other.CanLabel && IsQueued == other.IsQueued
             && NumberText == other.NumberText && Bits.SequenceEqual(other.Bits) && IsHighlighted == other.IsHighlighted
-            && TimeText == other.TimeText && CanDrag == other.CanDrag
+            && TimeText == other.TimeText && CanDrag == other.CanDrag && LabelStyle == other.LabelStyle
             && StepLetter == other.StepLetter && StepSourceTitle == other.StepSourceTitle && StepSourceLabel == other.StepSourceLabel
             && StepSourceId == other.StepSourceId && StepLinesSignature == other.StepLinesSignature
             && TaskRowAction.SameAs(LeftAction, other.LeftAction) && TaskRowAction.SameAs(RightAction, other.RightAction);
@@ -297,6 +313,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             CategoryName = CategoryName,
             CategoryColor = CategoryColor,
             CategoryBrush = CategoryBrush,
+            LabelStyle = LabelStyle,
             StatusTag = StatusTag,
             SortTime = SortTime,
             DueOn = DueOn,

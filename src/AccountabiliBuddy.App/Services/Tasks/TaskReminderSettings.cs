@@ -15,7 +15,10 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="Display">Toast card (default) or always full screen.</param>
 /// <param name="SnoozeShortcuts">The three snooze shortcuts; null for the defaults (Tonight 6:00 PM, Tomorrow 9:00 AM, Monday 9:00 AM).</param>
 /// <param name="DuringSession">"During a focus session": normal reminders wait until it ends (default) or remind quietly; Can't miss always rings.</param>
-/// <param name="NewReminderRule">The rule a new reminder starts at (a <see cref="TaskReminder"/> rule; "At start time" by default).</param>
+/// <param name="NewReminderRule">
+/// "New reminders start at" (Settings › Tasks › Reminders): a <see cref="TaskReminder"/> rule ("At start time" by default), or
+/// <see cref="NoNewReminder"/> for None.
+/// </param>
 /// <param name="NewRemindersTo">"Add new reminders to" (ADR 78): the per-task calendar switch's default when a task gets its first reminder or due date.</param>
 /// <param name="PickedCalendarId">
 /// Before the setting became the account's (<see cref="TaskAccountSettingsService.PickedCalendarId"/>): ADR 78's picked calendar on this
@@ -37,6 +40,9 @@ public sealed record TaskReminderSettings(
     string? PickedCalendarId = null,
     TaskDateOnlyEvent DateOnlyEvent = TaskDateOnlyEvent.TimedAtNine)
 {
+    /// <summary>"New reminders start at: None": tasks have no reminder until one is added.</summary>
+    public const string NoNewReminder = "none";
+
     public static TaskReminderSettings Default { get; } = new();
 
     /// <summary>The ring behaviour these settings give.</summary>

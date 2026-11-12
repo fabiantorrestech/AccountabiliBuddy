@@ -59,7 +59,10 @@ public sealed class TaskReminderSettingsService
 
     private static TaskReminderSettings Clamped(TaskReminderSettings settings)
     {
-        string[] rules = [TaskReminder.AtStart, TaskReminder.TenMinutesBefore, TaskReminder.OneHourBefore, TaskReminder.DayBeforeAtNine];
+        string[] rules =
+        [
+            TaskReminderSettings.NoNewReminder, TaskReminder.AtStart, TaskReminder.TenMinutesBefore, TaskReminder.OneHourBefore, TaskReminder.DayBeforeAtNine,
+        ];
         return settings with
         {
             Volume = Math.Clamp(settings.Volume, TaskReminderRingPolicy.MinVolume, 100),

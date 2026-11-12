@@ -15,10 +15,8 @@ public sealed partial class SettingsRowViewModel : ObservableObject
         GapBefore = gapBefore;
     }
 
+    /// <summary>Which page the row opens (what a search result inside it opens too).</summary>
     public SettingsSection Section { get; }
-
-    /// <summary>The row's place in the list (what a search result inside it opens).</summary>
-    public int Index => (int)Section;
 
     public string Name { get; }
 
@@ -38,7 +36,16 @@ public sealed partial class SettingsRowViewModel : ObservableObject
 
     /// <summary>Shown while the Settings search field has no filter, or this row's name or content matches it.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsShownInList))]
     public partial bool IsListed { get; set; } = true;
+
+    /// <summary>The page exists on this PC (Tasks needs the task list, ADR 76); false hides the row whatever the search.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsShownInList))]
+    public partial bool IsAvailable { get; set; } = true;
+
+    /// <summary>The row shows in the list: available and not filtered out by the search.</summary>
+    public bool IsShownInList => IsAvailable && IsListed;
 
     /// <summary>The lock on the right of the row: its guard parts are resting (view-only) while a focus session runs.</summary>
     [ObservableProperty]

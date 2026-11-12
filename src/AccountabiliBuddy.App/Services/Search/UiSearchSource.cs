@@ -1,4 +1,5 @@
 using System.Globalization;
+using AccountabiliBuddy.App.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.LogicalTree;
@@ -26,7 +27,7 @@ public static class UiSearchSource
                     continue;
                 }
 
-                (string path, int? group) = PlaceOf(control, page, tabName);
+                (string path, SettingsSection? group) = PlaceOf(control, page, tabName);
                 if (!seen.Add((text, path)))
                 {
                     continue;
@@ -39,7 +40,7 @@ public static class UiSearchSource
             // Words in the flyouts of buttons that opt in: not on the page until opened, so read from the flyout's own content.
             foreach (Control button in page.GetLogicalDescendants().OfType<Control>().Where(SearchArea.GetIndexesFlyout))
             {
-                (string path, int? group) = PlaceOf(button, page, tabName);
+                (string path, SettingsSection? group) = PlaceOf(button, page, tabName);
                 string kind = tab == SearchTabs.Settings ? SearchKinds.Setting : SearchKinds.App;
                 foreach (FlyoutBase flyout in FlyoutsOf(button))
                 {
@@ -138,10 +139,10 @@ public static class UiSearchSource
     }
 
     /// <summary>"Page › Area › Area" from the outside in, and the Settings row the control sits in, if any.</summary>
-    private static (string Path, int? Group) PlaceOf(Control control, Control page, string tabName)
+    private static (string Path, SettingsSection? Group) PlaceOf(Control control, Control page, string tabName)
     {
         var names = new List<string>();
-        int? group = null;
+        SettingsSection? group = null;
         for (ILogical? current = control; current is not null && !ReferenceEquals(current, page); current = current.LogicalParent)
         {
             if (current is not Control area)
@@ -154,9 +155,9 @@ public static class UiSearchSource
                 names.Insert(0, name);
             }
 
-            if (group is null && SearchArea.GetSettingsGroup(area) >= 0)
+            if (group is null && SearchArea.GetSettingsGroup(area) is SettingsSection inside)
             {
-                group = SearchArea.GetSettingsGroup(area);
+                group = inside;
             }
         }
 

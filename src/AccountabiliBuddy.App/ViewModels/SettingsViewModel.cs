@@ -1018,12 +1018,17 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string? DayBarStatus { get; set; }
 
-    /// <summary>The Settings list's rows in <see cref="SettingsSection"/> order; the one at <see cref="SelectedRowIndex"/> shows on the right.</summary>
+    /// <summary>The Settings list's rows, top to bottom; the one at <see cref="SelectedRowIndex"/> shows on the right.</summary>
     public IReadOnlyList<SettingsRowViewModel> Rows { get; } = new[]
     {
         new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny, "How your day starts, lunch, the day bar and where your calendars come from."),
         new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight, "Bedtime, wake time and the reminders before bed."),
         new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline, "Starting, stepping away, Pomodoro, escalation and ending early."),
+        // Between Focus sessions and Guards for now (Settings Placement); the one-page-per-tab order comes with the settings restructure.
+        new SettingsRowViewModel(SettingsSection.Tasks, "Tasks", Material.Icons.MaterialIconKind.CheckboxMarkedOutline, "Defaults for new tasks, labels, title help and the weekly tidy-up.")
+        {
+            IsAvailable = false,
+        },
         new SettingsRowViewModel(SettingsSection.Guards, "Guards", Material.Icons.MaterialIconKind.ShieldOutline, "Profiles and what each one allows, unlocks and Cold Turkey."),
         new SettingsRowViewModel(SettingsSection.AlertsAndOnScreen, "Alerts & on-screen", Material.Icons.MaterialIconKind.BellOutline, "Sounds, the noise player, headphones and what shows on screen."),
         new SettingsRowViewModel(SettingsSection.DevicesAndSync, "Devices & sync", Material.Icons.MaterialIconKind.Devices, "Everything stays on your devices and your own Google Drive."),
@@ -1034,21 +1039,68 @@ public sealed partial class SettingsViewModel : ObservableObject
         new SettingsRowViewModel(SettingsSection.About, "About", Material.Icons.MaterialIconKind.InformationOutline, "Version, updates and what this is for."),
     };
 
-    /// <summary>Which row shows; switching rows changes no setting.</summary>
+    /// <summary>Which row shows (its place in the list, for the list itself); switching rows changes no setting.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SelectedRow), nameof(UsesSettingsView), nameof(ShowsLockedBanner))]
+    [NotifyPropertyChangedFor(nameof(SelectedRow), nameof(SelectedSection), nameof(UsesSettingsView), nameof(ShowsLockedBanner))]
     public partial int SelectedRowIndex { get; set; } = -1;
+
+    /// <summary>The page showing, by identity (what the pages' <see cref="SettingsSectionIs"/> bindings read); null before the first.</summary>
+    public SettingsSection? SelectedSection => SelectedRow?.Section;
+
+    /// <summary>Shows <paramref name="section"/>'s page (a link, search, the sync light); nothing changes when it isn't in the list.</summary>
+    public void Select(SettingsSection section)
+    {
+        int index = IndexOf(section);
+        if (index >= 0)
+        {
+            SelectedRowIndex = index;
+        }
+    }
+
+    private int IndexOf(SettingsSection section)
+    {
+        for (int i = 0; i < Rows.Count; i++)
+        {
+            if (Rows[i].Section == section)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private SettingsRowViewModel RowOf(SettingsSection section) => Rows[IndexOf(section)];
 
     /// <summary>
     /// The row's content is the cards of SettingsView (Your day, Sleep, Focus sessions, Alerts &amp; on-screen, Appearance,
-    /// App &amp; data); the other rows (Guards, Devices &amp; sync, Connections, Setup, About) are pages of their own.
+    /// App &amp; data); the other rows (Tasks, Guards, Devices &amp; sync, Connections, Setup, About) are pages of their own.
     /// </summary>
-    public bool UsesSettingsView => SelectedRowIndex is (int)SettingsSection.YourDay or (int)SettingsSection.Sleep
-        or (int)SettingsSection.FocusSessions or (int)SettingsSection.AlertsAndOnScreen or (int)SettingsSection.Appearance
-        or (int)SettingsSection.AppAndData;
+    public bool UsesSettingsView => SelectedSection is SettingsSection.YourDay or SettingsSection.Sleep
+        or SettingsSection.FocusSessions or SettingsSection.AlertsAndOnScreen or SettingsSection.Appearance
+        or SettingsSection.AppAndData;
 
     /// <summary>The row showing; its name heads the right-hand side.</summary>
     public SettingsRowViewModel? SelectedRow => SelectedRowIndex >= 0 && SelectedRowIndex < Rows.Count ? Rows[SelectedRowIndex] : null;
+
+    /// <summary>
+    /// Settings › Tasks (ADR 76): set by the app when the task list is the source; the Tasks row shows only then. Its "During a session"
+    /// rows rest during a session like the other locked cards.
+    /// </summary>
+    public TaskSettingsViewModel? TasksPage
+    {
+        get => _tasksPage;
+        set
+        {
+            _tasksPage = value;
+            RowOf(SettingsSection.Tasks).IsAvailable = value is not null;
+            value?.SetLocked(IsLocked);
+            value?.Load();
+            OnPropertyChanged();
+        }
+    }
+
+    private TaskSettingsViewModel? _tasksPage;
 
     partial void OnSelectedRowIndexChanged(int value)
     {
@@ -1063,10 +1115,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     public partial string ListFilter { get; set; } = string.Empty;
 
     /// <summary>
-    /// The rows (by index) whose content holds the words typed in the Search field, from the same index as the global
+    /// The rows (by section) whose content holds the words typed in the Search field, from the same index as the global
     /// search; set by the window that holds the pages.
     /// </summary>
-    public Func<string, IReadOnlySet<int>>? RowsMatching { get; set; }
+    public Func<string, IReadOnlySet<SettingsSection>>? RowsMatching { get; set; }
 
     private readonly DispatcherTimer _filterTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private bool _filterTimerWired;
@@ -1103,17 +1155,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ApplyListFilter()
     {
         string query = ListFilter.Trim();
-        IReadOnlySet<int> inside = query.Length == 0 ? new HashSet<int>() : RowsMatching?.Invoke(query) ?? new HashSet<int>();
-        for (int i = 0; i < Rows.Count; i++)
+        IReadOnlySet<SettingsSection> inside = query.Length == 0 ? new HashSet<SettingsSection>() : RowsMatching?.Invoke(query) ?? new HashSet<SettingsSection>();
+        foreach (SettingsRowViewModel row in Rows)
         {
-            Rows[i].IsListed = query.Length == 0 || Rows[i].Name.Contains(query, StringComparison.OrdinalIgnoreCase) || inside.Contains(i);
+            row.IsListed = query.Length == 0 || row.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || inside.Contains(row.Section);
         }
     }
 
-    // The rows whose cards go view-only during a session (Calendars, the focus-session and guard settings, Computer type).
+    // The rows whose cards go view-only during a session (Calendars, the focus-session and guard settings, Tasks › During a session and
+    // its reset, Computer type).
     private static readonly SettingsSection[] LockedRows =
     [
-        SettingsSection.YourDay, SettingsSection.FocusSessions, SettingsSection.Guards, SettingsSection.AppAndData,
+        SettingsSection.YourDay, SettingsSection.FocusSessions, SettingsSection.Tasks, SettingsSection.Guards, SettingsSection.AppAndData,
     ];
 
     /// <summary>"Resting while you focus. Changes open again at 4:05 PM." plus the ways out (or when the session ends, for one with no set end); read by the resting banner.</summary>
@@ -1133,14 +1186,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     // Devices & sync (its switches and Leave) and Setup (revoking and deleting) rest too, but keep no lock in the list.
     private static readonly SettingsSection[] BannerRows = [.. LockedRows, SettingsSection.DevicesAndSync, SettingsSection.Setup];
 
-    public bool ShowsLockedBanner => IsLocked && SelectedRowIndex >= 0 && Array.IndexOf(BannerRows, (SettingsSection)SelectedRowIndex) >= 0;
+    public bool ShowsLockedBanner => IsLocked && SelectedSection is SettingsSection shown && Array.IndexOf(BannerRows, shown) >= 0;
 
     partial void OnIsLockedChanged(bool value)
     {
         foreach (SettingsSection section in LockedRows)
         {
-            Rows[(int)section].IsResting = value;
+            RowOf(section).IsResting = value;
         }
+
+        TasksPage?.SetLocked(value);
 
         OnPropertyChanged(nameof(ShowsLockedBanner));
         // A section that waited for the session to end saves now.

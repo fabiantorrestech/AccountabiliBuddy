@@ -243,10 +243,12 @@ public sealed class TaskActionsService
     /// <summary>
     /// A new task from the add box or Jot it down (<see cref="TaskActions.Add"/>), on the undo stack (undo deletes it). This session is
     /// refused there: the add box adds to Queued and then calls <see cref="MoveToSessionAsync"/>, so the cap decides.
+    /// <paramref name="estimateMinutes"/> is the new task's time limit (the add box passes Settings › Tasks › Default time limit).
     /// </summary>
-    public Task<bool> AddAsync(Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, string? origin = null)
+    public Task<bool> AddAsync(
+        Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, string? origin = null, int? estimateMinutes = null)
     {
-        return RunAsync(TaskActionKind.Add, 1, (lists, self, now) => TaskActions.Add(lists, id, title, bin, labelId, tags, note, origin, now, self));
+        return RunAsync(TaskActionKind.Add, 1, (lists, self, now) => TaskActions.Add(lists, id, title, bin, labelId, tags, note, origin, now, self, estimateMinutes));
     }
 
     // ---- removing ----

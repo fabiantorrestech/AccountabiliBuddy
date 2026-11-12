@@ -9,8 +9,8 @@
              x:DataType="vm:MainWindowViewModel">
     <!-- Settings as a list on the left (280, 220 on a narrow window) and the chosen row's page on the right, in one page card (design 5q).
          Each page has a display title, a Muted summary and its actions on the right. SettingsView holds the pages of Your day, Sleep,
-         Focus sessions, Alerts & on-screen, Appearance and App & data; Guards, Devices & sync, Connections, Setup and About are pages
-         of their own. One Save for the pages in SettingsView, kept here so it stays in reach; leaving Settings with unsaved changes asks first. -->
+         Focus sessions, Alerts & on-screen, Appearance and App & data; Tasks, Guards, Devices & sync, Connections, Setup and About are
+         pages of their own. Pages are picked by their section (SettingsSectionIs), never by their place in the list. One Save for the pages in SettingsView, kept here so it stays in reach; leaving Settings with unsaved changes asks first. -->
     <UserControl.Resources>
         <!-- Quiet colour on Settings: ticked boxes, chosen radios and sliders read in ink, not the accent. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -48,7 +48,7 @@
             <Setter Property="MinHeight" Value="44" />
             <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Margin" Value="{Binding RowMargin}" />
-            <Setter Property="IsVisible" Value="{Binding IsListed}" />
+            <Setter Property="IsVisible" Value="{Binding IsShownInList}" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
             <Setter Property="FontSize" Value="15" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -143,12 +143,18 @@
                         <ListBox x:Name="RowList" Classes="settingsList" ItemsSource="{Binding Settings.Rows}"
                                  SelectedIndex="{Binding Settings.SelectedRowIndex}" SelectionMode="AlwaysSelected"
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                            <!-- 6 DIP between rows (the settings row rules, 08). -->
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="6" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:SettingsRowViewModel">
                                     <!-- No column spacing: it would still be taken for the lock's empty column, and a long name ("Alerts & on-screen")
                                          clipped in the narrow rail. The gaps are margins that go with what they space. -->
                                     <Grid ColumnDefinitions="Auto,*,Auto" AutomationProperties.Name="{Binding Name}"
-                                          search:SearchArea.SettingsGroup="{Binding Index}">
+                                          search:SearchArea.SettingsGroup="{Binding Section}">
                                         <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="12,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                         <mi:MaterialIcon Grid.Column="2" Kind="LockOutline" Width="16" Height="16" Margin="8,0,0,0" IsVisible="{Binding IsResting}"
@@ -170,7 +176,7 @@
                         <TextBlock Classes="muted" FontSize="14" TextWrapping="Wrap" Text="{Binding Settings.SelectedRow.Summary}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom"
-                                IsVisible="{Binding Settings.Rows[5].IsSelected}">
+                                IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.DevicesAndSync}}">
                         <Button Classes="sRound" Command="{Binding Devices.ShowQrCodeCommand}" IsVisible="{Binding Devices.QrOn, FallbackValue=False}"
                                 ToolTip.Tip="Add a device: show today's QR codes" AutomationProperties.Name="Add a device">
                             <mi:MaterialIcon Kind="QrcodeScan" Width="22" Height="22" />
@@ -201,7 +207,7 @@
                     <Panel Classes="previewHost">
                         <Panel.IsVisible>
                             <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Path="Settings.Rows[4].IsSelected" />
+                                <Binding Path="Settings.SelectedSection" Converter="{x:Static vm:SettingsSectionIs.Instance}" ConverterParameter="{x:Static vm:SettingsSection.AlertsAndOnScreen}" />
                                 <Binding Path="Settings.OverlayPage" Converter="{x:Static ObjectConverters.IsNotNull}" />
                             </MultiBinding>
                         </Panel.IsVisible>
@@ -214,7 +220,7 @@
                     </Panel>
 
                     <!-- Guards: the profiles (list and detail), then the rows around them: Unlocks, Cold Turkey and the block setup. -->
-                    <ScrollViewer IsVisible="{Binding Settings.Rows[3].IsSelected}" search:SearchArea.Name="Guards" search:SearchArea.SettingsGroup="3"
+                    <ScrollViewer IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Guards}}" search:SearchArea.Name="Guards" search:SearchArea.SettingsGroup="Guards"
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Spacing="12" Margin="0,0,16,24">
                             <views:ProfilesView DataContext="{Binding Profiles}" />
@@ -252,16 +258,23 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <Panel IsVisible="{Binding Settings.Rows[5].IsSelected}" search:SearchArea.Name="Devices &amp; sync" search:SearchArea.SettingsGroup="5">
+                    <!-- Tasks (ADR 76): a page of its own, there only while the task list is the source (the row hides otherwise). -->
+                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Tasks}}" search:SearchArea.Name="Tasks" search:SearchArea.SettingsGroup="Tasks">
+                        <Panel IsVisible="{Binding Settings.TasksPage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <views:TaskSettingsView DataContext="{Binding Settings.TasksPage}" />
+                        </Panel>
+                    </Panel>
+
+                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.DevicesAndSync}}" search:SearchArea.Name="Devices &amp; sync" search:SearchArea.SettingsGroup="DevicesAndSync">
                         <views:DevicesView DataContext="{Binding Devices}" />
                     </Panel>
 
-                    <Panel IsVisible="{Binding Settings.Rows[6].IsSelected}" search:SearchArea.Name="Connections" search:SearchArea.SettingsGroup="6">
+                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Connections}}" search:SearchArea.Name="Connections" search:SearchArea.SettingsGroup="Connections">
                         <views:IntegrationsView DataContext="{Binding Integrations}" />
                     </Panel>
 
                     <!-- Setup, with the day plan assistant (it used to sit in the top bar on the Day plan tab). -->
-                    <DockPanel IsVisible="{Binding Settings.Rows[9].IsSelected}" search:SearchArea.Name="Setup" search:SearchArea.SettingsGroup="9">
+                    <DockPanel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Setup}}" search:SearchArea.Name="Setup" search:SearchArea.SettingsGroup="Setup">
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,16,12">
                             <Button Command="{Binding OpenDpAssistantCommand}" ToolTip.Tip="Set up your day plan step by step, with sensible defaults">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -274,7 +287,7 @@
                         <views:SetupView DataContext="{Binding Setup}" />
                     </DockPanel>
 
-                    <Panel IsVisible="{Binding Settings.Rows[10].IsSelected}" search:SearchArea.Name="About" search:SearchArea.SettingsGroup="10">
+                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.About}}" search:SearchArea.Name="About" search:SearchArea.SettingsGroup="About">
                         <views:AboutView DataContext="{Binding Settings.Updates}" />
                     </Panel>
                 </Grid>

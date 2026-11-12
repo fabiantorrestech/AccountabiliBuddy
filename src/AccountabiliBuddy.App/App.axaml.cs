@@ -1729,6 +1729,21 @@ public partial class App : Application
 
             // The session layout (Compact, the Shelf hidden, faded Queued), the ended notice and Hold to reset (Tasks redesign 3.6).
             tasksPage.UseSessionLayout(sessionLayout);
+
+            // Settings › Tasks: only while the task list is the source (its reminder settings, views and calendar export exist then).
+            if (_taskSettings is not null && _taskReminderSettings is not null)
+            {
+                mainViewModel.Settings.TasksPage = new TaskSettingsViewModel(
+                    _taskSettings, _taskReminderSettings, _taskCalendarExport, _taskViews, _taskAccount, time)
+                {
+                    OpenSection = mainViewModel.OpenSettings,
+                    OpenBrowser = OpenInBrowser,
+                    PomodoroFocusMinutes = () => (int)_configuration!.Current.PomodoroDefaults.FocusLength.TotalMinutes,
+                    StartSessionKeys = () => _quickSession?.Preferences.Hotkey ?? string.Empty,
+                    LooserWait = () => _configuration!.Current.Locks.LooseningDelay,
+                    Labels = tasksPage.CategoryEditor,
+                };
+            }
         }
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
         planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;

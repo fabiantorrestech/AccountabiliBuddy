@@ -49,11 +49,12 @@ public static class TaskActions
     /// A new task typed in the add box or jotted down, at the end of <paramref name="bin"/> (To sort, Next, Later or Queued), with its
     /// label (one that isn't live is left off), tags, note and origin; its number comes when the lists are normalized. This session is
     /// refused, as in <see cref="Move"/>: the add box adds such a task to Queued and moves it through the session's cap. Finished today,
-    /// a blank title or an id already taken do nothing.
+    /// a blank title or an id already taken do nothing. <paramref name="estimateMinutes"/> is its time limit (Settings › Tasks › Default
+    /// time limit; null or 0 for none, held to <see cref="SessionChecklist.MaxEstimateMinutes"/>).
     /// </summary>
     public static TaskActionResult Add(
         TaskLists lists, Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, string? origin,
-        DateTimeOffset now, Guid self)
+        DateTimeOffset now, Guid self, int? estimateMinutes = null)
     {
         string trimmed = title.Trim();
         if (trimmed.Length == 0 || bin is TaskBin.Session or TaskBin.Done || id == Guid.Empty || lists.Tasks.Any(item => item.Id == id))
@@ -66,6 +67,7 @@ public static class TaskActions
             id, trimmed, bin, TaskListRules.EndOf(lists, bin), now, now, now,
             LabelId: labelIsLive ? labelId : null,
             Tags: TaskLabels.Clean(tags),
+            EstimateMinutes: SessionChecklist.CleanEstimate(estimateMinutes),
             Note: SessionChecklist.CleanNote(note),
             Origin: string.IsNullOrWhiteSpace(origin) ? null : origin.Trim());
         List<SyncTaskItem> tasks = [.. lists.Tasks, new SyncTaskItem(task, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self)))];

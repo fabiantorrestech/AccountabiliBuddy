@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// This PC's Tasks settings (document "tasks.settings", device-local, kept per mode, ADR 69, 76, 77): AccountabiliBuddy's under that
 /// key, ProductaBuddy's under the key plus <see cref="ModeSettings.CompanionSuffix"/>, with the same defaults. Settings › Tasks shows
-/// them (Phase 7); until then only the defaults apply.
+/// and edits the active mode's copy (<c>TaskSettingsViewModel</c>).
 /// </summary>
 /// <param name="SessionActions">How many actions a session holds: <see cref="Core.Tasks.SessionActions.MinCap"/> to <see cref="Core.Tasks.SessionActions.MaxCap"/>, 3 by default.</param>
 /// <param name="NextStepTakesSlot">When a focused step is finished, the next open step of its task takes its place (on by default).</param>
@@ -32,6 +32,16 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="CompactInSession">Tasks switches to Compact rows while a session runs (on by default); the page's own Normal / Compact stays as it was.</param>
 /// <param name="HideShelfInSession">The Shelf hides while a session runs, its rail reading "hidden during session" (on by default).</param>
 /// <param name="SessionView">How This session lists a running session's actions: Quiet (default) or Grouped.</param>
+/// <param name="PendingCompactInSession">Compact rows turned off (looser), waiting for the looser-change wait to end; null when nothing waits.</param>
+/// <param name="PendingCompactFrom">When <paramref name="PendingCompactInSession"/> takes effect, unless a session runs then.</param>
+/// <param name="PendingHideShelfInSession">The Shelf shown during a session (looser), waiting; null when nothing waits.</param>
+/// <param name="PendingHideShelfFrom">When <paramref name="PendingHideShelfInSession"/> takes effect, unless a session runs then.</param>
+/// <param name="PendingSessionView">Grouped (looser than Quiet), waiting; null when nothing waits.</param>
+/// <param name="PendingSessionViewFrom">When <paramref name="PendingSessionView"/> takes effect, unless a session runs then.</param>
+/// <param name="LabelStyle">How rows show their label: Dot (default), Pill before the title, Pill in the detail line. Display only.</param>
+/// <param name="DefaultTimeLimitMinutes">The time limit a task typed in the add box starts with; 0 for none (25 by default, spec 02).</param>
+/// <param name="SuggestShorterTitles">The add box's title help: the counter from 50 characters and "Move … to notes" (on by default).</param>
+/// <param name="ShowAgeOnRows">Rows say "untouched N wk" once a task counts as untouched (on by default).</param>
 public sealed record TaskSettings(
     int SessionActions,
     bool NextStepTakesSlot,
@@ -52,7 +62,23 @@ public sealed record TaskSettings(
     IReadOnlyList<ProjectMarkerPattern>? DeclinedMarkers = null,
     bool CompactInSession = true,
     bool HideShelfInSession = true,
-    SessionTaskView SessionView = SessionTaskView.Quiet)
+    SessionTaskView SessionView = SessionTaskView.Quiet,
+    bool? PendingCompactInSession = null,
+    DateTimeOffset? PendingCompactFrom = null,
+    bool? PendingHideShelfInSession = null,
+    DateTimeOffset? PendingHideShelfFrom = null,
+    SessionTaskView? PendingSessionView = null,
+    DateTimeOffset? PendingSessionViewFrom = null,
+    TaskLabelStyle LabelStyle = TaskLabelStyle.Dot,
+    int DefaultTimeLimitMinutes = TaskSettings.StandardTimeLimitMinutes,
+    bool SuggestShorterTitles = true,
+    bool ShowAgeOnRows = true)
 {
+    /// <summary>Default time limit's default (spec 02: "default from Settings (25)"; Pomodoro's focus length is 25 too).</summary>
+    public const int StandardTimeLimitMinutes = 25;
+
     public static TaskSettings Default { get; } = new(Core.Tasks.SessionActions.DefaultCap, true, StepAway: StepAwayTimerPolicy.Default, SideTask: StepAwayTimerPolicy.Default);
+
+    /// <summary>The time limit a new task from the add box gets; null for none.</summary>
+    public int? NewTaskTimeLimit => DefaultTimeLimitMinutes > 0 ? DefaultTimeLimitMinutes : null;
 }

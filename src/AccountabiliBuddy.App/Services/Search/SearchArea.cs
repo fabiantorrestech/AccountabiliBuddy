@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
 
@@ -12,9 +13,9 @@ public sealed class SearchArea : AvaloniaObject
     public static readonly AttachedProperty<string?> NameProperty =
         AvaloniaProperty.RegisterAttached<SearchArea, Control, string?>("Name");
 
-    /// <summary>The Settings row index (<see cref="AccountabiliBuddy.App.ViewModels.SettingsSection"/>) of a row's content; -1 (the default) elsewhere.</summary>
-    public static readonly AttachedProperty<int> SettingsGroupProperty =
-        AvaloniaProperty.RegisterAttached<SearchArea, Control, int>("SettingsGroup", -1);
+    /// <summary>The Settings row (<see cref="SettingsSection"/>) a row's content belongs to; not set elsewhere.</summary>
+    public static readonly AttachedProperty<SettingsSection> SettingsGroupProperty =
+        AvaloniaProperty.RegisterAttached<SearchArea, Control, SettingsSection>("SettingsGroup");
 
     /// <summary>
     /// True on a button whose flyout(s) hold words search should find although they are not on the page until opened (Today's
@@ -40,7 +41,8 @@ public sealed class SearchArea : AvaloniaObject
 
     public static void SetName(Control control, string? value) => control.SetValue(NameProperty, value);
 
-    public static int GetSettingsGroup(Control control) => control.GetValue(SettingsGroupProperty);
+    /// <summary>The Settings row <paramref name="control"/> is the content of; null when it isn't one (the property was never set there).</summary>
+    public static SettingsSection? GetSettingsGroup(Control control) => control.IsSet(SettingsGroupProperty) ? control.GetValue(SettingsGroupProperty) : null;
 
-    public static void SetSettingsGroup(Control control, int value) => control.SetValue(SettingsGroupProperty, value);
+    public static void SetSettingsGroup(Control control, SettingsSection value) => control.SetValue(SettingsGroupProperty, value);
 }

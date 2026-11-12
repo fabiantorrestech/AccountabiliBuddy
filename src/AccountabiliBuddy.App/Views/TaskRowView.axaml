@@ -100,6 +100,20 @@
         <Style Selector="Button.catChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
         </Style>
+        <!-- Label style "Pill before" / "Pill in details" (Settings › Tasks): the label's name on a tint of its colour; a click opens the picker. -->
+        <Style Selector="Button.labelPill">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.labelPill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+
         <!-- Shown only while the pointer is on the row (or it is open): the "+ label" spot, the quick actions, the drag handle. -->
         <Style Selector="Panel.listItem :is(Control).onHover">
             <Setter Property="Opacity" Value="0" />
@@ -266,6 +280,15 @@
                         <DockPanel>
                             <mi:MaterialIcon DockPanel.Dock="Left" Kind="Star" Width="14" Height="14" Margin="0,0,5,0" Foreground="{DynamicResource Ab.Accent}"
                                              VerticalAlignment="Center" IsVisible="{Binding ShowsHighlightTint}" ToolTip.Tip="Highlighted" />
+                            <Button Classes="labelPill" DockPanel.Dock="Left" Margin="0,0,6,0" IsVisible="{Binding ShowsLabelPillBefore}" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
+                                <Panel>
+                                    <Border Background="{Binding CategoryBrush}" Opacity="0.18" CornerRadius="999" />
+                                    <StackPanel Orientation="Horizontal" Spacing="5" Margin="7,1,8,1">
+                                        <Ellipse Width="6" Height="6" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding CategoryName}" FontSize="12" MaxWidth="90" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Panel>
+                            </Button>
                             <Border DockPanel.Dock="Left" Classes="letterChip" Margin="0,0,6,0" IsVisible="{Binding HasStepLetter}">
                                 <TextBlock Text="{Binding StepLetter}" />
                             </Border>
@@ -318,7 +341,17 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <ItemsControl Classes="rowSub" ItemsSource="{Binding Bits}" IsVisible="{Binding HasBits}">
+                        <DockPanel Classes="rowSub" IsVisible="{Binding ShowsDetailLine}">
+                            <Button Classes="labelPill" DockPanel.Dock="Left" Margin="0,0,10,0" IsVisible="{Binding ShowsLabelPillInDetails}" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
+                                    <Panel>
+                                        <Border Background="{Binding CategoryBrush}" Opacity="0.18" CornerRadius="999" />
+                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="7,1,8,1">
+                                            <Ellipse Width="6" Height="6" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding CategoryName}" FontSize="12" MaxWidth="90" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Panel>
+                                </Button>
+                        <ItemsControl ItemsSource="{Binding Bits}" IsVisible="{Binding HasBits}" VerticalAlignment="Center">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel ItemSpacing="10" LineSpacing="2" />
@@ -343,10 +376,11 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </DockPanel>
                     </StackPanel>
-                    <!-- The label chip (a click opens the picker, the same as ⋯ › Label) or, on a row with none, the quiet "+ label". -->
+                    <!-- The label chip (Label style Dot; a click opens the picker, the same as ⋯ › Label) or, on a row with none, the quiet "+ label". -->
                     <Panel Grid.Column="2" Classes="categorySlot" VerticalAlignment="Center">
-                        <Button Classes="catChip" IsVisible="{Binding HasCategory}" Click="OnCategoryClick"
+                        <Button Classes="catChip" IsVisible="{Binding ShowsLabelChip}" Click="OnCategoryClick"
                                 AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />

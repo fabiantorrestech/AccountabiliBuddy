@@ -146,7 +146,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public void OpenSettings(SettingsSection section)
     {
         SelectedTab = SettingsTab;
-        Settings.SelectedRowIndex = (int)section;
+        Settings.Select(section);
     }
 
     [RelayCommand]

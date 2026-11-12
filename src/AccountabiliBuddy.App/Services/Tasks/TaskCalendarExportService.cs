@@ -225,6 +225,28 @@ public sealed class TaskCalendarExportService : IDisposable
         return _account.SetPickedCalendarAsync(googleCalendarId);
     }
 
+    /// <summary>The Google account events go to ("Google · name@example.com"); null when no Google account is connected.</summary>
+    public string? ExportAccountName => ExportSource()?.Name;
+
+    /// <summary>
+    /// The export account's calendars as last read (Settings › Tasks › picked calendar), "AB Reminders" left out; empty with no Google
+    /// account. Reads what the calendar sync already keeps: nothing is fetched.
+    /// </summary>
+    public IReadOnlyList<TaskPickableCalendar> PickableCalendars()
+    {
+        if (ExportSource() is not CalendarSource source)
+        {
+            return [];
+        }
+
+        string prefix = source.Id + "|";
+        return source.Calendars
+            .Where(calendar => calendar.Id.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(calendar => new TaskPickableCalendar(calendar.Id[prefix.Length..], calendar.Name))
+            .Where(calendar => calendar.GoogleId != _state.AppCalendarId)
+            .ToList();
+    }
+
     /// <summary>Writes what changed now (a run already going runs again after it).</summary>
     public async Task SyncNowAsync()
     {
