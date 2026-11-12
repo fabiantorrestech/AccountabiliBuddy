@@ -155,7 +155,9 @@ public sealed class TaskViewService
     public async Task EditAsync(Guid id, string name, string? icon, TaskViewConfig config)
     {
         await _store.ChangeAsync(this, (lists, _, now) => TaskViewEdits.Update(lists, id, name, icon, config, now));
-        if (ActiveId == id)
+
+        // A view deleted on another device meanwhile was not updated: its changes stay as they were.
+        if (ActiveId == id && Views.Any(view => view.Id == id))
         {
             Working = config;
         }

@@ -450,20 +450,22 @@ public static class TaskActions
         SyncTaskItem item = tasks[index];
         bool isTitle = conflict.Field == TaskConflict.TitleField;
         string? shown = isTitle ? item.Task.Title : item.Task.Note;
-        string? kept = keepOther ? conflict.OtherValue : shown;
-        if (isTitle && string.IsNullOrWhiteSpace(kept))
+        bool keptOther = keepOther;
+        if (keptOther && isTitle && string.IsNullOrWhiteSpace(conflict.OtherValue))
         {
-            kept = shown;
+            keptOther = false;
         }
 
+        string? kept = keptOther ? conflict.OtherValue : shown;
         tasks[index] = TaskEdits.Resolve(item, conflict, isTitle ? kept?.Trim() : SessionChecklist.CleanNote(kept), now, self);
-        return new TaskActionResult(lists with { Tasks = tasks }, keepOther ? "Kept the other version" : "Kept this version", [id]);
+        return new TaskActionResult(lists with { Tasks = tasks }, keptOther ? "Kept the other version" : "Kept this version", [id]);
     }
 
     /// <summary>
     /// "Keep both as separate tasks": the shown version stays on the task (the conflict closes as in <see cref="ResolveConflict"/>) and
     /// the other version becomes a new task <paramref name="newId"/> at the end of Queued, with the task's label, tags, time limit and
-    /// steps (new step ids, none in focus). Reminders, due date and highlight stay with the original only, so nothing rings twice.
+    /// steps (new step ids, none in focus), and on the same devices (a local or limited task's copy stays where the task is, ADR 72).
+    /// Reminders, due date and highlight stay with the original only, so nothing rings twice.
     /// </summary>
     public static TaskActionResult KeepBothVersions(TaskLists lists, Guid id, TaskConflict conflict, Guid newId, DateTimeOffset now, Guid self)
     {
@@ -489,7 +491,8 @@ public static class TaskActions
             Steps: steps is { Count: > 0 } ? steps : null,
             EstimateMinutes: source.EstimateMinutes,
             Note: note,
-            Origin: source.Number is TaskNumber number ? "Other version of " + number.Value : "Other version");
+            Origin: source.Number is TaskNumber number ? "Other version of " + number.Value : "Other version",
+            Devices: source.Devices);
         List<SyncTaskItem> tasks = [.. resolved.Lists.Tasks, new SyncTaskItem(copy, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self)))];
         return new TaskActionResult(resolved.Lists with { Tasks = tasks }, "Kept both · the other copy is in Queued", [id, newId]);
     }

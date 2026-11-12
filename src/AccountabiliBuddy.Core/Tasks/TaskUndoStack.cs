@@ -35,6 +35,16 @@ public sealed class TaskUndoStack
         return true;
     }
 
+    /// <summary>
+    /// Drops every entry that touched task <paramref name="id"/>: a change not on the stack (a "Changed on both devices" pick) came
+    /// after them, and undoing one would bring back the text the pick replaced.
+    /// </summary>
+    /// <returns>How many entries were dropped.</returns>
+    public int Forget(Guid id)
+    {
+        return _entries.RemoveAll(entry => entry.Tasks.ContainsKey(id));
+    }
+
     public void Clear()
     {
         _entries.Clear();

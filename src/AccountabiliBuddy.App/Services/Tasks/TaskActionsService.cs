@@ -263,18 +263,34 @@ public sealed class TaskActionsService
 
     /// <summary>
     /// Keeps one version of a title or note two devices changed (<see cref="TaskActions.ResolveConflict"/>). Not on the undo stack: an
-    /// undo would bring the old text back without the choice, so the other version would be lost.
+    /// undo would bring the old text back without the choice, so the other version would be lost. For the same reason the earlier
+    /// undo entries that touched the task are dropped once the pick is saved (<see cref="TaskUndoStack.Forget"/>).
     /// </summary>
-    public Task<bool> ResolveConflictAsync(Guid id, TaskConflict conflict, bool keepOther)
+    public async Task<bool> ResolveConflictAsync(Guid id, TaskConflict conflict, bool keepOther)
     {
-        return RunUnrecordedAsync((lists, self, now) => TaskActions.ResolveConflict(lists, id, conflict, keepOther, now, self));
+        bool changed = await RunUnrecordedAsync((lists, self, now) => TaskActions.ResolveConflict(lists, id, conflict, keepOther, now, self));
+        if (changed)
+        {
+            _undo.Forget(id);
+        }
+
+        return changed;
     }
 
-    /// <summary>"Keep both as separate tasks" (<see cref="TaskActions.KeepBothVersions"/>): the other version goes to Queued. Not on the undo stack either.</summary>
-    public Task<bool> KeepBothVersionsAsync(Guid id, TaskConflict conflict)
+    /// <summary>
+    /// "Keep both as separate tasks" (<see cref="TaskActions.KeepBothVersions"/>): the other version goes to Queued. Not on the undo
+    /// stack either, and the earlier undo entries that touched the task are dropped the same way.
+    /// </summary>
+    public async Task<bool> KeepBothVersionsAsync(Guid id, TaskConflict conflict)
     {
         Guid copyId = Guid.NewGuid();
-        return RunUnrecordedAsync((lists, self, now) => TaskActions.KeepBothVersions(lists, id, conflict, copyId, now, self));
+        bool changed = await RunUnrecordedAsync((lists, self, now) => TaskActions.KeepBothVersions(lists, id, conflict, copyId, now, self));
+        if (changed)
+        {
+            _undo.Forget(id);
+        }
+
+        return changed;
     }
 
     public Task<bool> SetLabelAsync(IReadOnlyList<Guid> ids, Guid? labelId)

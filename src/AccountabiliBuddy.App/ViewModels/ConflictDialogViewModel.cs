@@ -26,6 +26,8 @@ public sealed partial class ConflictDialogViewModel : ObservableObject
     private readonly TimeProvider _time;
     private readonly Guid _taskId;
     private TaskConflict? _conflict;
+    private string? _shownText;
+    private int _picked;
 
     public ConflictDialogViewModel(
         TaskStore store, TaskActionsService actions, Guid taskId, Func<Guid, (string Name, string Kind)?> deviceOf, Guid? self, TimeProvider time)
@@ -52,7 +54,7 @@ public sealed partial class ConflictDialogViewModel : ObservableObject
     [ObservableProperty]
     public partial string Head { get; set; }
 
-    /// <summary>"1 of 2" when the title and the note both wait; empty for one.</summary>
+    /// <summary>"1 of 2" when the title and the note both wait ("2 of 2" after the first pick); empty for one.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCount))]
     public partial string CountText { get; set; }
@@ -99,29 +101,38 @@ public sealed partial class ConflictDialogViewModel : ObservableObject
         }
     }
 
-    // The task's first open conflict, with the version shown now and the other one.
+    // The task's first open conflict (the title before the note), with the version shown now and the other one.
     private void Load()
     {
         SyncTaskItem? item = _store.Lists.Tasks.FirstOrDefault(candidate => candidate.Id == _taskId && candidate.Task.IsLive);
-        IReadOnlyList<TaskConflict> open = item?.Task.Conflicts ?? [];
-        TaskConflict? conflict = open.FirstOrDefault(candidate => candidate.Field is TaskConflict.TitleField or TaskConflict.NoteField);
+        List<TaskConflict> open = (item?.Task.Conflicts ?? [])
+            .Where(candidate => candidate.Field is TaskConflict.TitleField or TaskConflict.NoteField)
+            .OrderBy(candidate => candidate.Field == TaskConflict.TitleField ? 0 : 1)
+            .ToList();
+        TaskConflict? conflict = open.FirstOrDefault();
         if (item is null || conflict is null)
         {
             _conflict = null;
+            _shownText = null;
             IsGone = true;
             Versions = [];
             KeepBothCommand.NotifyCanExecuteChanged();
             return;
         }
 
-        bool sameAsBefore = _conflict == conflict;
-        _conflict = conflict;
-        IsGone = false;
-        TaskTitle = item.Task.Title;
         bool isTitle = conflict.Field == TaskConflict.TitleField;
         TaskField field = isTitle ? TaskField.Title : TaskField.Note;
+        string? shownText = TaskFieldValues.Text(item.Task, field);
+
+        // A sync that changed the shown value (the conflict still open) rebuilds the cards too.
+        bool sameAsBefore = _conflict == conflict && string.Equals(_shownText, shownText, StringComparison.Ordinal);
+        _conflict = conflict;
+        _shownText = shownText;
+        IsGone = false;
+        TaskTitle = item.Task.Title;
         Head = isTitle ? "Keep one version" : "Keep one version of the note";
-        CountText = open.Count > 1 ? "1 of " + open.Count : string.Empty;
+        int total = _picked + open.Count;
+        CountText = total > 1 ? (_picked + 1).ToString(CultureInfo.InvariantCulture) + " of " + total.ToString(CultureInfo.InvariantCulture) : string.Empty;
         if (sameAsBefore && Versions.Count == 2)
         {
             return;
@@ -131,7 +142,7 @@ public sealed partial class ConflictDialogViewModel : ObservableObject
         DateTimeOffset shownAt = stamp?.At ?? item.Task.EditedAt;
         bool shownIsNewer = shownAt >= conflict.OtherEditedAt;
         string what = isTitle ? "title" : "note";
-        ConflictVersionViewModel shown = Version(TaskFieldValues.Text(item.Task, field), stamp?.By ?? Guid.Empty, shownAt, what, shownIsNewer, keepOther: false);
+        ConflictVersionViewModel shown = Version(shownText, stamp?.By ?? Guid.Empty, shownAt, what, shownIsNewer, keepOther: false);
         ConflictVersionViewModel other = Version(conflict.OtherValue, conflict.OtherDeviceId, conflict.OtherEditedAt, what, !shownIsNewer, keepOther: true);
         Versions = shownIsNewer ? [shown, other] : [other, shown];
         KeepBothCommand.NotifyCanExecuteChanged();
@@ -190,13 +201,19 @@ public sealed partial class ConflictDialogViewModel : ObservableObject
         }
 
         IsBusy = true;
+        bool done;
         try
         {
-            await act(conflict);
+            done = await act(conflict);
         }
         finally
         {
             IsBusy = false;
+        }
+
+        if (done)
+        {
+            _picked++;
         }
 
         _conflict = null;

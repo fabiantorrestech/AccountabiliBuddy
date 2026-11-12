@@ -125,11 +125,42 @@ public static class TaskFieldMerge
             return new FieldPick(firstWins, firstWins ? stampA : stampB);
         }
 
+        TaskFieldStamp winnerStamp = firstWins ? stampA : stampB;
         TaskFieldStamp loserStamp = firstWins ? stampB : stampA;
         string? loserText = firstWins ? textB : textA;
         string fieldName = field == TaskField.Title ? TaskConflict.TitleField : TaskConflict.NoteField;
         var conflict = new TaskConflict(fieldName, loserText, loserStamp.By, loserStamp.At);
-        return new FieldPick(firstWins, firstWins ? stampA : stampB, conflict);
+
+        // The shown value keeps its own stamp but also remembers what the other version was made from: the task now carries that
+        // version as the conflict, so an older copy of it (a third device that synced in between) is already seen, and the user's
+        // pick (TaskEdits.Resolve, which builds on these bases) beats it instead of raising the conflict again. The other version's
+        // own value stays out, or the conflict would close at once.
+        IReadOnlyList<string>? bases = WinnerFirstBases(winnerStamp.Bases, loserStamp.Bases, TaskFieldValues.Hash(loserText));
+        return new FieldPick(firstWins, winnerStamp with { Bases = bases }, conflict);
+    }
+
+    // The winner's bases all stay; the loser's (but never the loser's own value) fill what is left of the ring, placed before the
+    // winner's (oldest first) so a later edit drops them first. The winner is the same whichever copy came first, so this is too.
+    private static IReadOnlyList<string>? WinnerFirstBases(IReadOnlyList<string>? winner, IReadOnlyList<string>? loser, string loserValue)
+    {
+        List<string> own = (winner ?? []).ToList();
+        if (own.Count > MaxBases)
+        {
+            own = own[^MaxBases..];
+        }
+
+        int room = MaxBases - own.Count;
+        List<string> borrowed = (loser ?? [])
+            .Where(hash => hash != loserValue && !Holds(own, hash))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (borrowed.Count > room)
+        {
+            borrowed = borrowed[^room..];
+        }
+
+        List<string> all = [.. borrowed, .. own];
+        return all.Count == 0 ? null : all;
     }
 
     // A final number beats a temporary one (the numbering device's word is final); otherwise the newer stamp.
