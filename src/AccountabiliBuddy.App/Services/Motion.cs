@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Navigation;
 using AccountabiliBuddy.Core.Storage;
 using Avalonia;
 using Avalonia.Animation;
@@ -144,6 +145,25 @@ public sealed class Motion
             page.Opacity = 1;
             lift.Y = 0;
         }
+    }
+
+    /// <summary>
+    /// A back / forward move's page slide (owner 2026-11-14): <paramref name="outgoing"/> fades out toward the left (forward) or right
+    /// (back), <paramref name="apply"/> puts the place back and returns the page now showing, which fades in from the other side
+    /// (<see cref="HistorySlidePlan"/>). Speeds follow Settings > Animations; with Animations Off the place is applied at once and
+    /// no transform is touched. The run can be cut short with <see cref="HistorySlideRun.FinishNow"/>.
+    /// </summary>
+    public HistorySlideRun HistorySlide(Control outgoing, Func<Control> apply, HistoryDirection direction)
+    {
+        var run = new HistorySlideRun(outgoing, apply, direction, Scale(HistorySlidePlan.OutDuration), Scale(HistorySlidePlan.InDuration));
+        if (!IsOn)
+        {
+            run.FinishNow();
+            return run;
+        }
+
+        run.Start();
+        return run;
     }
 
     private Animation Fade(AvaloniaProperty property, double from, double to) => new()

@@ -8,7 +8,7 @@
     <!-- The Shelf's columns (round 2 R3, change note §2, board Tasks-PC): Group by Bins shows To sort, Next and Later side by side, Label
          or Tag one column per group, None one list across the width. The columns share the width; when they'd get narrower than 300
          (many labels or tags) they keep 300 and the row of columns scrolls sideways. The page itself never scrolls: each column scrolls
-         on its own under its pinned header (TaskColumnView). The order is this PC's (Alt+← / Alt+→, the header grip). The page draws
+         on its own under its pinned header (TaskColumnView). The order is this PC's (Ctrl+Alt+← / Ctrl+Alt+→, the header grip). The page draws
          the header, the Today strip, the add row, the label chips and the tidy-up card above this. -->
     <ScrollViewer x:Name="ColumnsScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
         <ItemsControl ItemsSource="{Binding Panel.Sections}">

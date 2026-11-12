@@ -176,7 +176,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsCompact));
         if (!ReferenceEquals(_columnOrder, _layout.Current.ColumnOrder))
         {
-            // A column moved (Alt+←/→, the grip): the Shelf's columns follow at the next rebuild.
+            // A column moved (Ctrl+Alt+←/→, the grip): the Shelf's columns follow at the next rebuild.
             _columnOrder = _layout.Current.ColumnOrder;
             QueueRefresh();
         }

@@ -10,7 +10,7 @@
          list of Group by None. Its header stays pinned at the top (the shared section header rule, brief §3.4: 19 px icon, 16.5 px bold
          title, the count in a grey pill, "★ 1" for its highlighted tasks; the drag grip and "+" only on hover or keyboard focus); under it
          the column scrolls on its own (the page doesn't). A header click folds the column to "Folded · 4 tasks" (it keeps its width);
-         Alt+← / Alt+→ on the focused header, or dragging the grip onto another column, moves it (remembered on this PC). -->
+         Ctrl+Alt+← / Ctrl+Alt+→ on the focused header, or dragging the grip onto another column, moves it (remembered on this PC). -->
     <UserControl.Styles>
         <Style Selector="Border.taskColumn">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
@@ -66,7 +66,7 @@
             <Grid DockPanel.Dock="Top" Classes="abHoverHost" ColumnDefinitions="*,Auto,Auto" Margin="10,10,8,4">
                 <Button x:Name="HeaderButton" Classes="columnHeader" Command="{Binding ToggleCommand}" KeyDown="OnHeaderKeyDown"
                         ContextRequested="OnHeaderContextRequested" AutomationProperties.Name="{Binding ColumnName}"
-                        ToolTip.Tip="Click to fold or unfold · Alt+← / Alt+→ moves the column · right-click for Expand all and Collapse all">
+                        ToolTip.Tip="Click to fold or unfold · Ctrl+Alt+← / Ctrl+Alt+→ moves the column · right-click for Expand all and Collapse all">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
                                          IsVisible="{Binding ShowsFolded}" />
@@ -84,7 +84,7 @@
                     </StackPanel>
                 </Button>
                 <Border Grid.Column="1" Classes="columnGrip abHoverOnly" IsVisible="{Binding CanMoveColumn}"
-                        ToolTip.Tip="Drag to move the column (Alt+← / Alt+→ on its header)" AutomationProperties.Name="Drag to move the column"
+                        ToolTip.Tip="Drag to move the column (Ctrl+Alt+← / Ctrl+Alt+→ on its header)" AutomationProperties.Name="Drag to move the column"
                         PointerPressed="OnGripPressed" PointerMoved="OnGripMoved" PointerReleased="OnGripReleased" PointerCaptureLost="OnGripCaptureLost">
                     <mi:MaterialIcon Kind="DragHorizontalVariant" Width="17" Height="17" Foreground="{DynamicResource Ab.Muted}"
                                      HorizontalAlignment="Center" VerticalAlignment="Center" />

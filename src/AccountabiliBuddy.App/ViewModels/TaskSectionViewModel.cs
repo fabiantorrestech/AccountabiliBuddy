@@ -129,7 +129,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     public string StarText => StarCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>The column header's accessible name: "Next, 4 tasks, 1 highlighted · Alt+← or Alt+→ moves the column".</summary>
+    /// <summary>The column header's accessible name: "Next, 4 tasks, 1 highlighted · Ctrl+Alt+← or Ctrl+Alt+→ moves the column".</summary>
     public string ColumnName
     {
         get
@@ -154,7 +154,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsColumnDropTarget { get; set; }
 
-    /// <summary>Alt+←/→ on the header: the column moves one place left or right (remembered on this PC).</summary>
+    /// <summary>Ctrl+Alt+←/→ on the header: the column moves one place left or right (remembered on this PC).</summary>
     public Task MoveColumnAsync(int step) => _panel.MoveColumn?.Invoke(Key, step) ?? Task.CompletedTask;
 
     /// <summary>The header's grip let go over another column: this column takes that one's place.</summary>

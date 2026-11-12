@@ -31,7 +31,7 @@ public sealed partial class TasksViewModel
         }
     }
 
-    // Alt+←/→ on a column's header: one place left or right among the columns shown, stored for the grouping.
+    // Ctrl+Alt+←/→ on a column's header: one place left or right among the columns shown, stored for the grouping.
     private Task MoveColumnAsync(string key, int step)
     {
         return StoreColumnOrder(stored => TaskColumnOrder.MovedBy(ShownColumnKeys(), stored, key, step));
@@ -55,7 +55,7 @@ public sealed partial class TasksViewModel
         return order is null ? Task.CompletedTask : _layout.SetColumnOrderAsync(grouping, order);
     }
 
-    // The columns shown, in the order last stored: a second Alt+←/→ before the page has been rebuilt builds on the first.
+    // The columns shown, in the order last stored: a second Ctrl+Alt+←/→ before the page has been rebuilt builds on the first.
     private List<string> ShownColumnKeys()
     {
         string? grouping = Shelf.HasViews ? TaskColumnOrder.GroupingOf(Shelf.Grouping) : Core.Domain.TaskViewConfig.GroupBins;

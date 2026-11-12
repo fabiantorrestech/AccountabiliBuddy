@@ -9,7 +9,7 @@ using Avalonia.VisualTree;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// One Shelf column (round 2 R3). Code-behind: Alt+← / Alt+→ on the focused header move the column (the keyboard stays on its header
+/// One Shelf column (round 2 R3). Code-behind: Ctrl+Alt+← / Ctrl+Alt+→ on the focused header move the column (the keyboard stays on its header
 /// once the page has been rebuilt), the header's right-click menu (Expand all, Collapse all), and dragging the header's grip onto
 /// another column, which takes that column's place. The rows inside are a <see cref="TaskSectionView"/>: their drag, keyboard and
 /// selection are unchanged.
@@ -29,18 +29,11 @@ public partial class TaskColumnView : UserControl
         InitializeComponent();
     }
 
-    // ---- Alt+← / Alt+→ on the header ----
-
-    /// <summary>The visual is a column's header (or inside it), where Alt+← / Alt+→ move the column, not back / forward.</summary>
-    public static bool IsHeader(Visual visual)
-    {
-        TaskColumnView? column = visual as TaskColumnView ?? visual.FindAncestorOfType<TaskColumnView>();
-        return column is not null && (ReferenceEquals(column.HeaderButton, visual) || column.HeaderButton.IsVisualAncestorOf(visual));
-    }
+    // ---- Ctrl+Alt+← / Ctrl+Alt+→ on the header (Alt+← / Alt+→ alone are Back / Forward everywhere, owner 2026-11-14) ----
 
     private void OnHeaderKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyModifiers != KeyModifiers.Alt || e.Key is not (Key.Left or Key.Right) || DataContext is not TaskSectionViewModel { CanMoveColumn: true } column)
+        if (e.KeyModifiers != (KeyModifiers.Control | KeyModifiers.Alt) || e.Key is not (Key.Left or Key.Right) || DataContext is not TaskSectionViewModel { CanMoveColumn: true } column)
         {
             return;
         }

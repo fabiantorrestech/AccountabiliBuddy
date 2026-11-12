@@ -48,7 +48,7 @@ public static class TaskColumnOrder
     }
 
     /// <summary>
-    /// The order to store after <paramref name="key"/> moved <paramref name="step"/> places (Alt+←/→: -1 or 1) among the columns
+    /// The order to store after <paramref name="key"/> moved <paramref name="step"/> places (Ctrl+Alt+←/→: -1 or 1) among the columns
     /// <paramref name="shown"/>; null when it can't move (an end, or not shown).
     /// </summary>
     public static IReadOnlyList<string>? MovedBy(IReadOnlyList<string> shown, IReadOnlyList<string>? stored, string key, int step)

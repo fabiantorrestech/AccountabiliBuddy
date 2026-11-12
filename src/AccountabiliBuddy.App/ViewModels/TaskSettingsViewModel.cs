@@ -399,6 +399,8 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         new("Space", "Finish the task"),
         new("↑ / ↓", "Move within a list (each list is one Tab stop)"),
         new("Alt+↑ / Alt+↓", "Move the task up or down"),
+        new("Ctrl+Alt+← / Ctrl+Alt+→", "Move a Shelf column left or right (on its header)"),
+        new("Alt+← / Alt+→", "Back / forward (anywhere but a text box)"),
     ];
 
     // ---- Reset ----

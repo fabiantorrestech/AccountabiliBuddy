@@ -751,6 +751,23 @@
                     </Border>
                 </StackPanel>
 
+                <StackPanel Spacing="6" search:SearchArea.Name="Touchpad swipe" IsVisible="{Binding HasMotion}">
+                    <TextBlock Classes="sGroup" Text="Touchpad swipe" />
+                    <Border Classes="sPanel" DataContext="{Binding Motion}" x:DataType="vm:MotionViewModel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <Border Classes="sRow">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="sTitle" Text="Swipe direction" />
+                                        <TextBlock Classes="sHint" Text="{x:Static vm:MotionViewModel.SwipeHint}" />
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="1" ItemsSource="{x:Static vm:MotionViewModel.SwipeNames}" SelectedIndex="{Binding SwipeIndex}" MinWidth="140" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
                 <StackPanel Spacing="6" search:SearchArea.Name="Sounds when time is up">
                     <TextBlock Classes="sGroup" Text="Sounds when time is up" />
                     <Border Classes="sPanel">

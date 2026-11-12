@@ -4,8 +4,8 @@ namespace AccountabiliBuddy.App.Services.Navigation;
 
 /// <summary>
 /// Which inputs mean back / forward on the PC (owner 2026-11-14): the mouse's back and forward buttons (XButton1 / XButton2) anywhere
-/// in the main window, and Alt+← / Alt+→ when nothing that has the keyboard uses those keys. Text boxes keep them (the add box moves
-/// its split with them) and so do the Tasks column headers (they move the column); a key something already handled is left alone.
+/// in the main window, and Alt+← / Alt+→ everywhere except in a text box (the add box moves its split with them, a field moves its caret
+/// by word); a key something already handled is left alone. Ctrl+Alt+← / Ctrl+Alt+→ (not these) move a Tasks column.
 /// </summary>
 public static class NavigationKeys
 {

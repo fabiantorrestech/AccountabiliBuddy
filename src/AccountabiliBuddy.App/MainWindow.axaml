@@ -80,7 +80,22 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
         </Style>
-        <!-- Back / forward (owner 2026-11-14), at the far left of the title bar: quiet 28 x 32 arrows, Ink while there is somewhere to go,
+        <!-- The swipe bubble (NAV2): a 44 round bubble with a chevron at the page's edge while a two-finger swipe builds up; Surface with a Line
+             edge, the accent at the threshold, Faint while there is nowhere to go. Never takes the mouse. -->
+        <Style Selector="ContentControl#SwipeBubble">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ContentControl#SwipeBubble.filled">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="ContentControl#SwipeBubble.greyed">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <!-- Back / forward (owner 2026-11-14), at the far left of the title bar: quiet 28 x 32 chevrons, Ink while there is somewhere to go,
              Faint (greyed) while not, like a browser's. -->
         <Style Selector="Button.titleNav">
             <Setter Property="Width" Value="28" />
@@ -193,15 +208,15 @@
                      without its name); back / forward and the noise buttons keep their size (owner 2026-11-14). -->
                 <controls:GiveWayPanel x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" Margin="8,0,10,0" VerticalAlignment="Center">
                     <!-- Back / forward (owner 2026-11-14): always here, greyed while there is nowhere to go (Alt+← / Alt+→, the mouse's
-                         back / forward buttons). -->
+                         back / forward buttons, a touchpad's two-finger swipe). ‹ › chevrons like a browser's (NAV2). -->
                     <StackPanel x:Name="NavButtons" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button x:Name="BackButton" Classes="titleNav" Command="{Binding GoBackCommand}" chrome:WindowDecorationProperties.ElementRole="User"
-                                ToolTip.Tip="Back (Alt+←)" AutomationProperties.Name="Back">
-                            <mi:MaterialIcon Kind="ArrowLeft" Width="18" Height="18" />
+                                ToolTip.Tip="Back · Alt+←" AutomationProperties.Name="Back">
+                            <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" />
                         </Button>
                         <Button x:Name="ForwardButton" Classes="titleNav" Command="{Binding GoForwardCommand}" chrome:WindowDecorationProperties.ElementRole="User"
-                                ToolTip.Tip="Forward (Alt+→)" AutomationProperties.Name="Forward">
-                            <mi:MaterialIcon Kind="ArrowRight" Width="18" Height="18" />
+                                ToolTip.Tip="Forward · Alt+→" AutomationProperties.Name="Forward">
+                            <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" />
                         </Button>
                     </StackPanel>
                     <Border Classes="titleDivider" Height="18" Margin="8,0,10,0" controls:GiveWayPanel.IsDivider="True" />
@@ -394,6 +409,18 @@
                         </Panel>
                         <!-- Search matches on the page showing, drawn over it without taking clicks. -->
                         <controls:SearchHighlightLayer x:Name="Highlights" />
+                        <!-- The swipe bubble (NAV2): over the page at its left (back) or right (forward) edge, clipped to the page area. -->
+                        <Panel x:Name="SwipeLayer" IsVisible="False" IsHitTestVisible="False" ClipToBounds="True">
+                            <ContentControl x:Name="SwipeBubble" Width="44" Height="44" CornerRadius="22" BorderThickness="1" Padding="0"
+                                            HorizontalAlignment="Left" VerticalAlignment="Center"
+                                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsHitTestVisible="False"
+                                            AutomationProperties.AccessibilityView="Raw">
+                                <ContentControl.RenderTransform>
+                                    <TranslateTransform />
+                                </ContentControl.RenderTransform>
+                                <mi:MaterialIcon x:Name="SwipeIcon" Kind="ChevronLeft" Width="26" Height="26" />
+                            </ContentControl>
+                        </Panel>
                     </Grid>
                 </DockPanel>
             </Grid>

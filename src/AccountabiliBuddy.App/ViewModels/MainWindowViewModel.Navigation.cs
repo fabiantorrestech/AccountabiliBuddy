@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Back / forward on the PC (owner 2026-11-14): where the user has been (the tab; Settings' section, the open task on Tasks, the goal
-/// shown on Goals), the title bar's ← → buttons, the mouse's back / forward buttons and Alt+← / Alt+→. Going back or forward only
+/// shown on Goals), the title bar's ‹ › buttons, the mouse's back / forward buttons, Alt+← / Alt+→ and a touchpad's two-finger swipe (each plays the page slide). Going back or forward only
 /// shows a page the way the rail, a Settings row, a task row or a goal row would: every lock stays (Settings during a session shows
 /// locked as usual), and it is not a user action for anything else (no timer, wait or nudge reads it).
 /// </summary>
@@ -22,6 +22,15 @@ public sealed partial class MainWindowViewModel
 
     /// <summary>A modal dialog (or the unsaved-settings prompt) is open: back / forward do nothing. Set by the window.</summary>
     public Func<bool>? IsModalOpen { get; set; }
+
+    /// <summary>
+    /// A back / forward move is about to show its place. The window plays the page slide around it (calling the event's Apply once
+    /// the old page is out and marking it handled); with no handler the place is shown at once.
+    /// </summary>
+    public event EventHandler<HistoryNavigatingEventArgs>? HistoryNavigating;
+
+    /// <summary>Ends a back / forward page slide that is still running (its place is applied at once). Set by the window.</summary>
+    public Action? FinishHistoryMove { get; set; }
 
     public bool CanGoBack => Navigation.CanGoBack;
 
@@ -152,6 +161,8 @@ public sealed partial class MainWindowViewModel
     /// <summary>Goes back or forward one place (skipping places that are gone). Nothing happens while a modal dialog is open.</summary>
     public void Go(HistoryDirection direction)
     {
+        // A press during a slide finishes it at once, so the next move starts from where that one ends.
+        FinishHistoryMove?.Invoke();
         if (IsModalOpen?.Invoke() == true || ShowsLeavePrompt)
         {
             return;
@@ -171,7 +182,12 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        Show(place);
+        var navigating = new HistoryNavigatingEventArgs(direction, place.Tab == (MainTab)SelectedTab, () => Show(place));
+        HistoryNavigating?.Invoke(this, navigating);
+        if (!navigating.Handled)
+        {
+            navigating.Apply();
+        }
     }
 
     // Puts a place back the way the rail, a Settings row, a task row or a goal row would.

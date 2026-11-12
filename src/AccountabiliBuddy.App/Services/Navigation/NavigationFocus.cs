@@ -8,7 +8,4 @@ public enum NavigationFocus
 
     /// <summary>A text box (or something inside one): the keys stay the box's.</summary>
     TextInput,
-
-    /// <summary>A Tasks column header: Alt+← / Alt+→ move the column.</summary>
-    ColumnHeader,
 }
