@@ -43,6 +43,7 @@ fun SettingsDetailHost(
     SettingsPageFrame(category, onBack) {
         when (category) {
             SettingsCategory.YourDay -> YourDayPage(anchor, actions.onOpenPlan)
+            SettingsCategory.Goals -> GoalsSettingsPage(anchor, actions.onOpenConnections)
             SettingsCategory.Sleep -> SleepPage(
                 anchor, inputs.state.sleep, inputs.clock, inputs.health, actions.onSaveSleep, actions.onConnectHealth, actions.onAllowUsage,
                 inputs.wakeAlarm, inputs.wakeAlarmSummary,

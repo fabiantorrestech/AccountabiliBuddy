@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.goals
 import com.accountabilibuddy.companion.steps.StepsState
 import com.accountabilibuddy.shared.goals.GoalArea
 import com.accountabilibuddy.shared.goals.GoalFacts
+import com.accountabilibuddy.shared.goals.GoalDeepWorkWeekly
 import com.accountabilibuddy.shared.goals.GoalFactsBuilder
 import com.accountabilibuddy.shared.goals.GoalLists
 import com.accountabilibuddy.shared.goals.GoalWeekSummary
@@ -38,13 +39,14 @@ data class PhoneGoalsOverview(
             steps: StepsState?,
             now: Instant,
             zone: ZoneId,
+            weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
         ): PhoneGoalsOverview {
             val today = now.atZone(zone).toLocalDate()
             val pcDaily = PhoneDeepWork.pcDailyMinutes(goalFiles)
             val areas = lists.liveAreas
             val areaOrder = areas.withIndex().associate { (index, area) -> area.id to index }
             val goals = lists.liveGoals
-                .map { PhoneDeepWork.view(it, pcDaily) }
+                .map { PhoneDeepWork.view(it, pcDaily, weekly) }
                 .sortedWith(compareBy({ areaOrder[it.areaId] ?: Int.MAX_VALUE }, { it.position }))
             val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone)
             val facts = goals.map { GoalFactsBuilder.build(it, data, today, display.weekStart) }

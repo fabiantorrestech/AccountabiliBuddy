@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material3.Icon
@@ -49,6 +50,7 @@ import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbListRow
 import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
 import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.sheets.AbSheet
 import com.accountabilibuddy.companion.ui.sheets.AbSheetHeight
@@ -84,6 +86,10 @@ fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: Li
     var takesOpen by rememberSaveable { mutableStateOf(false) }
     var trackingOpen by rememberSaveable { mutableStateOf(false) }
     var logOpen by rememberSaveable { mutableStateOf(false) }
+    // Edit goal: step 1 from the menu; "Change the target" and the weight page's Target open step 2 (R6b2).
+    var editOpen by rememberSaveable { mutableStateOf(false) }
+    var editAtTarget by rememberSaveable { mutableStateOf(false) }
+    val weekly by app.goals.deepWork.state.collectAsStateWithLifecycle()
     var editDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedDay by rememberSaveable(goalId) { mutableStateOf<Long?>(null) }
 
@@ -111,7 +117,7 @@ fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: Li
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val isWeight = goal.target.unit == GoalUnit.Lb || goal.target.unit == GoalUnit.Kg
                     AbPrimaryButton(if (isWeight) "Log weight" else "Log a value", onClick = { logOpen = true }, modifier = Modifier.weight(1f))
-                    AbTonalButton("Target", onClick = { onMessage("Editing the target comes in the next update.") })
+                    AbTonalButton("Target", onClick = { editAtTarget = true; editOpen = true })
                 }
                 GoalReadingsCard(GoalReadings.of(goal, page.data.entries, zone), goal.target.unit, today, onEditDay = { editDay = it.toEpochDay() })
                 BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { onMessage("Reminders come in the next update.") })
@@ -119,6 +125,7 @@ fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: Li
         } else {
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GoalTilesRow(page.tiles, tint, onWhatItTakes = if (page.takes != null) ({ takesOpen = true }) else null)
+                if (goal.isDeepWork) weekly.pending?.let { DeepWorkPending(it, onCancel = { app.goals.deepWork.cancel() }) }
                 val shownDay = selectedDay?.let { LocalDate.ofEpochDay(it) }?.takeIf { it < today }
                 AbCard(verticalSpacing = 12.dp) {
                     GoalHeatmapCard(page, display.weekStart, display.heatmapLabels, tint, shownDay, onSelect = { day -> selectedDay = day.toEpochDay().takeIf { day < today } })
@@ -137,7 +144,10 @@ fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: Li
     }
 
     if (menuOpen) {
-        GoalMenuSheet(goalId, allReceived, received, onMessage, onDismiss = { menuOpen = false }, onDeleted = onBack)
+        GoalMenuSheet(goalId, allReceived, received, onMessage, onDismiss = { menuOpen = false }, onDeleted = onBack, onEdit = { menuOpen = false; editAtTarget = false; editOpen = true })
+    }
+    if (editOpen) {
+        GoalEditorSheets(goalId, allReceived, received, onMessage, onDismiss = { editOpen = false }, startAtTarget = editAtTarget)
     }
     if (takesOpen && page?.takes != null) {
         val takes = page.takes
@@ -146,7 +156,7 @@ fun GoalPageScreen(goalId: UUID, allReceived: List<ReceivedDevice>, received: Li
             takes.each?.let { AbSheetRow(it, onClick = null) }
             takes.pace?.let { AbSheetRow(it, onClick = null) }
             AbSheetRow(takes.verdict, onClick = null, subtitle = null)
-            AbSheetRow("Change the target", onClick = { onMessage("Editing the target comes in the next update."); takesOpen = false })
+            AbSheetRow("Change the target", onClick = { takesOpen = false; editAtTarget = true; editOpen = true })
         }
     }
     if (trackingOpen && page != null) {
@@ -216,5 +226,19 @@ private fun BottomRows(page: PhoneGoalPage, onTracking: () -> Unit, onReminders:
         if (page.goal.kind == GoalKind.Milestone) {
             AbListRow("Open its tasks", icon = Icons.Outlined.Checklist, subtitle = "Coming soon", showChevron = false)
         }
+    }
+}
+
+// A waiting lowering of Deep work's weekly target (brief §5.7): what it lowers to and when, "never during a session", with Cancel.
+// There is no "apply now": it applies by itself once its time has come and no session runs.
+@Composable
+private fun DeepWorkPending(pending: com.accountabilibuddy.shared.goals.GoalPendingChange, onCancel: () -> Unit) {
+    val at = pending.appliesAt.atZoneSameInstant(ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US))
+    val to = pending.amount?.let { GoalTexts.minutes(it) } ?: "no target"
+    AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), verticalSpacing = 0.dp) {
+        AbListRow(
+            "Weekly target lowers to $to at $at", icon = Icons.Outlined.Schedule, subtitle = "Never during a session",
+            showChevron = false, trailing = { AbTextButton("Cancel", onClick = onCancel) },
+        )
     }
 }

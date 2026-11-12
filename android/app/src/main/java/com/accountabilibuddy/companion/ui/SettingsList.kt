@@ -104,7 +104,7 @@ private fun SearchResults(results: List<SearchEntry>, resting: Boolean, onOpenRe
         results.forEachIndexed { index, entry ->
             AbListRow(
                 title = entry.title, icon = entry.category.icon, subtitle = "Settings › ${entry.category.title}",
-                onClick = { onOpenResult(entry) }, locked = resting && entry.category == SettingsCategory.Guards, divider = index < results.lastIndex,
+                onClick = { onOpenResult(entry) }, locked = resting && (entry.category == SettingsCategory.Guards || entry.category == SettingsCategory.Goals), divider = index < results.lastIndex,
             )
         }
     }
@@ -122,7 +122,7 @@ private fun CategoryCard(
         categories.forEachIndexed { index, category ->
             AbListRow(
                 title = category.title, icon = category.icon, subtitle = summaries[category]?.takeIf { it.isNotEmpty() },
-                onClick = { onOpen(category) }, locked = resting && category == SettingsCategory.Guards,
+                onClick = { onOpen(category) }, locked = resting && (category == SettingsCategory.Guards || category == SettingsCategory.Goals),
                 divider = index < categories.lastIndex,
                 modifier = if (category == selected) Modifier.background(Ab.colors.surface2, Ab.shapes.mediumShape) else Modifier,
             )
@@ -134,6 +134,7 @@ private fun settingsSummaries(inputs: SettingsListInputs, appearance: String, pe
     val sleep = inputs.state.sleep
     return mapOf(
         SettingsCategory.YourDay to "Lunch ${LunchStore.formatLength(inputs.lunchLengthMinutes)} · work hours and day types in Plan",
+        SettingsCategory.Goals to "Weekly review · default reminders · areas",
         SettingsCategory.Sleep to listOfNotNull(
             if (sleep.enabled) "Sleep mode on" else "Sleep mode off",
             "smart bedtime".takeIf { sleep.smartWorkdays || sleep.smartOffDays },

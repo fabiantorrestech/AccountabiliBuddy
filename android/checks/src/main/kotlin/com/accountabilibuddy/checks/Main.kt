@@ -43,6 +43,9 @@ private val checks: List<FixtureCheck> = listOf(
     GoalsUiTextsCheck(),
     // Round 2 R6b1: the goal page (tiles, day panel, source lines, What it takes, heatmap) against the PC's detail pane.
     GoalsUiDetailCheck(),
+    // Round 2 R6b2: the phone's Deep work weekly target (the looser-change wait) against the PC's GoalLowering fixtures.
+    GoalWeeklyParityCheck("lowering"),
+    GoalWeeklyParityCheck("lowering-apply"),
 )
 
 /**
@@ -53,6 +56,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "goals-store" to GoalListRulesCheck::run,
     // Round 2 R6b1: the readings list, the trend and the goal menu order (phone only: no C# twin).
     "goals-ui-page" to GoalsUiPageCheck::run,
+    // Round 2 R6b2: New / Edit goal rules, areas, the weekly target's wait and the Goals settings defaults (phone only).
+    "goals-ui-edit" to GoalsUiEditCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

@@ -600,7 +600,18 @@ class CompanionApp : Application() {
         com.accountabilibuddy.companion.ui.UiPrefs.load(this)
         // Round 2 R6: the Goals screen's choices, and the goals' first run (Work and Deep work, once; nothing else).
         com.accountabilibuddy.companion.goals.GoalDisplayPrefs.load(this)
+        com.accountabilibuddy.companion.goals.GoalSettingsPrefs.load(this)
         goals.onChanged = { autoBackup.soon() }
+        // Deep work's weekly target waits like any looser change: the mode, a running session (the check the removal lock uses) and the
+        // looser-change delay are read when a change is asked or settled (round 2 R6b2).
+        goals.deepWork.environment = {
+            com.accountabilibuddy.companion.goals.PhoneDeepWorkWeekly.Environment(
+                productaBuddy = guidance.state.value.mode == com.accountabilibuddy.companion.guidance.GuidanceMode.Companion,
+                sessionRunning = com.accountabilibuddy.companion.placement.GuardsLock.at(this, java.time.Instant.now()) != null,
+                now = java.time.OffsetDateTime.now(),
+                looserDelay = com.accountabilibuddy.companion.guidance.GuidanceStore.DELAY,
+            )
+        }
         com.accountabilibuddy.companion.goals.PhoneGoalsMigration.run(goals)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().

@@ -53,10 +53,11 @@ import java.util.UUID
  *
  * Working here: Tick / Untick today, Log a value / Add time by hand (a hand entry for today), Show on Today, Move to area, Pause / Resume
  * (at once, from today; Deep work refuses), Delete goal… (asks first; Deep work refuses). Their screens come later, so they say
- * "Coming in the next update": Start a session, Edit goal…, Reminders. Greyed with a reason: Open its tasks (Coming soon), Open in
+ * "Coming in the next update": Start a session, Reminders. Edit goal… opens the goal's sheets (R6b2). Greyed with a reason: Open its tasks (Coming soon), Open in
  * Beeminder (read on the PC), Deep work's Track time only (its target is the PC's, ADR 29).
  *
  * @param onDeleted Called after the goal is deleted (the goal page goes back to the list).
+ * @param onEdit Edit goal…: the caller closes this menu and opens the editor sheets ([GoalEditorSheets]).
  */
 @Composable
 fun GoalMenuSheet(
@@ -66,6 +67,7 @@ fun GoalMenuSheet(
     onMessage: (String) -> Unit,
     onDismiss: () -> Unit,
     onDeleted: () -> Unit = {},
+    onEdit: () -> Unit = {},
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val page = rememberGoalPage(goalId, allReceived, received).value
@@ -119,7 +121,8 @@ fun GoalMenuSheet(
             AbSheetRow(
                 item.title,
                 onClick = when (item.id) {
-                    GoalMenuItemId.StartSession, GoalMenuItemId.EditGoal, GoalMenuItemId.Reminders -> soon
+                    GoalMenuItemId.StartSession, GoalMenuItemId.Reminders -> soon
+                    GoalMenuItemId.EditGoal -> onEdit
                     GoalMenuItemId.TickToday -> ({ done(app.goals.addHandEntry(goalId, today, if (page.facts.todayState.hit) 0.0 else 1.0)) })
                     GoalMenuItemId.LogValue, GoalMenuItemId.AddTimeByHand -> ({ valueDialog = true })
                     GoalMenuItemId.MoveToArea -> ({ inAreas = true })

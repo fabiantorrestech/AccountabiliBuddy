@@ -8,6 +8,7 @@ import com.accountabilibuddy.companion.ui.SettingsCategory.Appearance
 import com.accountabilibuddy.companion.ui.SettingsCategory.Connections
 import com.accountabilibuddy.companion.ui.SettingsCategory.Devices
 import com.accountabilibuddy.companion.ui.SettingsCategory.FocusSessions
+import com.accountabilibuddy.companion.ui.SettingsCategory.Goals
 import com.accountabilibuddy.companion.ui.SettingsCategory.Guards
 import com.accountabilibuddy.companion.ui.SettingsCategory.Setup
 import com.accountabilibuddy.companion.ui.SettingsCategory.Sleep
@@ -26,6 +27,11 @@ object SettingsSearch {
         SearchEntry("Daily steps", YourDay, A.DAILY_STEPS, listOf("steps", "step count", "walk", "walking", "health connect", "goal", "track daily steps", "ring")),
         SearchEntry("Work hours and day types", YourDay, A.WORK_HOURS, listOf("work hours", "day types", "days off", "day parts", "plan", "workday")),
         SearchEntry("Calendar events in the day plan", YourDay, A.CALENDAR_EVENTS, listOf("calendar", "events", "meeting", "meetings", "keywords", "rules", "comms", "calendar permission")),
+
+        // Goals
+        SearchEntry("Weekly goals review", Goals, A.GOALS_REVIEW, listOf("review", "weekly", "snooze", "tidy-up", "tidy up", "day", "time")),
+        SearchEntry("Default goal reminders", Goals, A.GOALS_REMINDERS, listOf("reminders", "nudge", "skip when done", "behind", "pace")),
+        SearchEntry("Goal charts and areas", Goals, A.GOALS_CHARTS, listOf("week starts", "heatmap", "labels", "extra tiles", "streak", "total", "areas", "pausing")),
 
         // Sleep
         SearchEntry("Sleep times", Sleep, A.SLEEP_TIMES, listOf("sleep mode", "bedtime", "wake time", "weeknights", "weekend", "same every night", "night")),

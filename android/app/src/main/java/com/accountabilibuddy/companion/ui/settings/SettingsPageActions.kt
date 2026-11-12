@@ -19,6 +19,7 @@ data class SettingsPageActions(
     val onAllowUsage: () -> Unit,
     val onOpenSetup: () -> Unit,
     val onOpenDevices: () -> Unit,
+    val onOpenConnections: () -> Unit,
     val onOpenPlan: () -> Unit,
     val onOpenCurboxSetup: () -> Unit,
     val onOpenWhatsNew: () -> Unit,

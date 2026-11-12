@@ -16,6 +16,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  */
 enum class SettingsCategory(val key: String, val title: String, val icon: ImageVector) {
     YourDay("your-day", "Your day", SectionIcons.YourDay),
+    Goals("goals", "Goals", SectionIcons.Goals),
     Sleep("sleep", "Sleep", SectionIcons.Sleep),
     FocusSessions("focus-sessions", "Focus sessions", SectionIcons.FocusSessions),
     Guards("guards", "Guards", SectionIcons.Guards),
@@ -31,7 +32,7 @@ enum class SettingsCategory(val key: String, val title: String, val icon: ImageV
         fun fromKey(key: String?): SettingsCategory? = entries.firstOrNull { it.key == key }
 
         /** The pages in the first card of the list; the rest sit below a gap. */
-        val Main: List<SettingsCategory> = listOf(YourDay, Sleep, FocusSessions, Guards, Alerts, Devices, Connections, Appearance)
+        val Main: List<SettingsCategory> = listOf(YourDay, Goals, Sleep, FocusSessions, Guards, Alerts, Devices, Connections, Appearance)
         val Below: List<SettingsCategory> = listOf(AppAndData, Setup, About)
     }
 }

@@ -33,7 +33,8 @@ import kotlinx.serialization.json.JsonArray
  * - **Unreadable** when something stored can't be opened or read: never guessed at, rebuilt or written over; every change is refused.
  * - Items keep ids, positions, edit stamps and 30-day tombstones (no text), so syncing them later is a merge, not a migration.
  * - Deep work is kept whole on every change ([GoalDefaults.normalized]): built in, focus only, never paused, deleted or logged
- *   by hand; its daily target is the PC's (read only, ADR 29) and never stored here.
+ *   by hand; its daily target is the PC's (read only, ADR 29) and never stored here; its weekly target is [deepWork]'s, with the
+ *   looser-change wait.
  * - Other goals feed no guard: their changes apply at once in both modes (brief §5.7).
  * - A hand entry is stamped just after every other hand entry of that goal and day (Q423), so "your latest decision wins" never
  *   falls to the id tie-break.
@@ -50,6 +51,9 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
         _status = MutableStateFlow(status)
         _lists = MutableStateFlow(lists)
     }
+
+    /** Deep work's weekly target with its looser-change wait (plain, device-local; its daily target is the PC's). */
+    val deepWork: PhoneDeepWorkWeekly = PhoneDeepWorkWeekly(context)
 
     /** Whether the goals can be used. */
     val status: StateFlow<PhoneGoalStatus> = _status.asStateFlow()

@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.goals
 
 import com.accountabilibuddy.companion.steps.StepsState
 import com.accountabilibuddy.shared.goals.Goal
+import com.accountabilibuddy.shared.goals.GoalDeepWorkWeekly
 import com.accountabilibuddy.shared.goals.GoalExtraTiles
 import com.accountabilibuddy.shared.goals.GoalFacts
 import com.accountabilibuddy.shared.goals.GoalFactsBuilder
@@ -51,9 +52,10 @@ data class PhoneGoalPage(
             labels: List<String>,
             now: Instant,
             zone: ZoneId,
+            weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
         ): PhoneGoalPage? {
             val stored = lists.liveGoals.firstOrNull { it.id == goalId } ?: return null
-            val goal = PhoneDeepWork.view(stored, PhoneDeepWork.pcDailyMinutes(goalFiles))
+            val goal = PhoneDeepWork.view(stored, PhoneDeepWork.pcDailyMinutes(goalFiles), weekly)
             val today = now.atZone(zone).toLocalDate()
             val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone)
             val facts = GoalFactsBuilder.build(goal, data, today, display.weekStart)

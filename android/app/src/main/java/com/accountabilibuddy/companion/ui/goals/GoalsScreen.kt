@@ -72,10 +72,16 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
     val lists by app.goals.lists.collectAsStateWithLifecycle()
     val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
     val steps by app.steps.state.collectAsStateWithLifecycle()
+    val weeklyState by app.goals.deepWork.state.collectAsStateWithLifecycle()
     var areaFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
     // A hold on a row, or its ⋮: the goal menu (the same rows and order as the PC's).
     var menuGoal by rememberSaveable { mutableStateOf<String?>(null) }
+    // New goal (steps 1 and 2), Edit goal from the menu, Edit area (a goal sheet's own "+ Area" opens one over it), and Options › Areas.
+    var newGoalOpen by rememberSaveable { mutableStateOf(false) }
+    var editGoal by rememberSaveable { mutableStateOf<String?>(null) }
+    var areaSheet by rememberSaveable { mutableStateOf<String?>(null) }
+    var areasOpen by rememberSaveable { mutableStateOf(false) }
 
     // A new minute (today's numbers, a day change) recounts.
     val minute by produceState(Instant.now()) {
@@ -85,14 +91,14 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, display.weekStart, allReceived, received, steps, minute) {
+    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, display.weekStart, allReceived, received, steps, minute) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState
         }
         value = withContext(Dispatchers.Default) {
             runCatching {
-                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault())
+                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current())
             }.getOrNull()
         }
     }
@@ -133,7 +139,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
         val layout = GoalListLayout.of(shown, display, selectedArea)
 
         item(key = "chips") {
-            GoalAreaChips(shown.areas, selectedArea, onSelect = { areaFilter = it?.toString() }, onNewGoal = actions.onNewGoal)
+            GoalAreaChips(shown.areas, selectedArea, onSelect = { areaFilter = it?.toString() }, onNewGoal = { newGoalOpen = true })
         }
         item(key = "your-goals") {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -150,6 +156,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
                 onToggle = { area -> GoalDisplayPrefs.setCollapsed(context, area, !section.collapsed) },
                 actions = actions,
                 onMenu = { id -> menuGoal = id.toString() },
+                onEditArea = { id -> areaSheet = id.toString() },
             )
         }
         if (layout.pausedHidden > 0) {
@@ -162,7 +169,26 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
 
     menuGoal?.let { raw ->
         val id = runCatching { UUID.fromString(raw) }.getOrNull()
-        if (id == null) menuGoal = null else GoalMenuSheet(id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null })
+        if (id == null) menuGoal = null else GoalMenuSheet(id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null }, onEdit = { menuGoal = null; editGoal = id.toString() })
+    }
+    if (newGoalOpen) {
+        GoalEditorSheets(goalId = null, allReceived = allReceived, received = received, onMessage = actions.onMessage, onDismiss = { newGoalOpen = false })
+    }
+    editGoal?.let { raw ->
+        val id = runCatching { UUID.fromString(raw) }.getOrNull()
+        if (id == null) editGoal = null else GoalEditorSheets(goalId = id, allReceived = allReceived, received = received, onMessage = actions.onMessage, onDismiss = { editGoal = null })
+    }
+    areaSheet?.let { raw ->
+        // "new" makes an area; anything else is an area's id.
+        GoalAreaSheet(areaId = runCatching { UUID.fromString(raw) }.getOrNull(), onDismiss = { areaSheet = null }, onMessage = actions.onMessage)
+    }
+    if (areasOpen) {
+        GoalAreasSheet(
+            onDismiss = { areasOpen = false },
+            onEdit = { id -> areaSheet = id.toString() },
+            onNew = { areaSheet = "new" },
+            onMessage = actions.onMessage,
+        )
     }
     if (optionsOpen) {
         GoalsOptionsSheet(
@@ -172,7 +198,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
             onWeekStart = { GoalDisplayPrefs.setWeekStart(context, it) },
             onHeatmapLabels = { GoalDisplayPrefs.setHeatmapLabels(context, it) },
             onExtraTiles = { GoalDisplayPrefs.setExtraTiles(context, it) },
-            onOpenAreas = { optionsOpen = false; actions.onOpenAreas() },
+            onOpenAreas = { optionsOpen = false; areasOpen = true },
             onOpenGoalsSettings = { optionsOpen = false; actions.onOpenGoalsSettings() },
             onDismiss = { optionsOpen = false },
         )
@@ -181,14 +207,14 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
 
 // One soft block (brief §3.5: no dividers, rows apart by spacing): an area's header and its goals, or the one block of Current / All.
 @Composable
-private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions, onMenu: (UUID) -> Unit) {
+private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions, onMenu: (UUID) -> Unit, onEditArea: (UUID) -> Unit) {
     val scale = LocalMotionScale.current
     val area = section.area
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(20.dp)).background(Ab.colors.surface).padding(vertical = 4.dp),
     ) {
         if (area != null) {
-            GoalAreaHeader(area, section.rows.size, section.collapsed, onToggle = { onToggle(area.id) }, onEdit = { actions.onEditArea(area.id) })
+            GoalAreaHeader(area, section.rows.size, section.collapsed, onToggle = { onToggle(area.id) }, onEdit = { onEditArea(area.id) })
         }
         // Folding moves the blocks under it, so it eases (150-250 ms); with motion off it only fades (brief §3.12).
         val reduced = scale <= 0f

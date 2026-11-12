@@ -11,6 +11,13 @@ object SettingsAnchors {
     const val WORK_HOURS = "work-hours"
     const val CALENDAR_EVENTS = "calendar-events"
 
+    // Goals (round 2 R6b2)
+    const val GOALS_REVIEW = "goals-review"
+    const val GOALS_REMINDERS = "goals-reminders"
+    const val GOALS_CHARTS = "goals-charts"
+    const val GOALS_AREAS = "goals-areas"
+    const val GOALS_PAUSING = "goals-pausing"
+
     // Sleep
     const val SLEEP_TIMES = "sleep-times"
     const val WAKE_ALARM = "wake-alarm"

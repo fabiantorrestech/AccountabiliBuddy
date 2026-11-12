@@ -413,13 +413,10 @@ fun MainScreen(
                         received = syncReceived,
                         actions = com.accountabilibuddy.companion.ui.goals.GoalsActions(
                             onOpenStats = { nav.open(AppDestination.Stats) },
-                            // The sheets still to come (New goal, Edit area, Areas, Settings › Goals) say so for now.
-                            onNewGoal = { viewModel.message.value = "New goal comes in the next update." },
+                            // New goal, Edit goal, Edit area and Areas are sheets the Goals screen owns (R6b2).
                             onOpenGoal = { nav.open(AppDestination.Goals, it.toString()) },
                             onMessage = { viewModel.message.value = it },
-                            onEditArea = { viewModel.message.value = "Edit area comes in the next update." },
-                            onOpenAreas = { viewModel.message.value = "Areas come in the next update." },
-                            onOpenGoalsSettings = { viewModel.message.value = "Goals settings come in the next update." },
+                            onOpenGoalsSettings = { nav.open(AppDestination.Settings, SettingsCategory.Goals.key) },
                         ),
                     )
                 }
@@ -476,6 +473,7 @@ fun MainScreen(
                                 onAllowUsage = onAllowUsage,
                                 onOpenSetup = { showSetup = true },
                                 onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
+                                onOpenConnections = { nav.open(AppDestination.Settings, SettingsCategory.Connections.key) },
                                 onOpenPlan = { nav.select(AppDestination.Plan) },
                                 onOpenCurboxSetup = { nav.open(AppDestination.Settings, SettingsCategory.Guards.key, SettingsAnchors.CURBOX_SETUP) },
                                 onOpenWhatsNew = { whatsNewOpen = true },
