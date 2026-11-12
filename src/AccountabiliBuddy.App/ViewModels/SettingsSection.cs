@@ -7,6 +7,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public enum SettingsSection
 {
+    /// <summary>Round 2: the Today page's layout (Settings › Today); first, as the Tabs group's first row on the board.</summary>
+    Today,
     YourDay,
     Sleep,
     FocusSessions,

@@ -47,6 +47,9 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     /// </summary>
     public bool IsShelfGroup => Key is not ("session" or "queued" or "reminders" or "done");
 
+    /// <summary>This session (round 2: Today draws it in its own card, the folded sections under it).</summary>
+    public bool IsSessionSection => Key == "session";
+
     /// <summary>A Shelf group's count, in its grey pill.</summary>
     public bool ShowsCountPill => IsShelfGroup && HasHint;
 

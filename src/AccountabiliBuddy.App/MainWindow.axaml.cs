@@ -354,6 +354,13 @@ public partial class MainWindow : Window
             tasks.ToggleShelfCommand.Execute(null);
             e.Handled = true;
         }
+        else if (e.KeyModifiers == KeyModifiers.Control && e.Key is Key.OemPipe or Key.OemBackslash && viewModel.IsTodaySelected
+                 && viewModel.Session.Sidebar is { } sidebar)
+        {
+            // Ctrl+\ on Today (round 2): slide the Today sidebar over the list, or hide it to its rail.
+            sidebar.ToggleCommand.Execute(null);
+            e.Handled = true;
+        }
         else if (e.Key == Key.J && e.KeyModifiers == KeyModifiers.Control && viewModel.Tasks is { } jotPage)
         {
             // Ctrl+J: Jot it down, in the Today column while Tasks shows it, otherwise on the Today page.

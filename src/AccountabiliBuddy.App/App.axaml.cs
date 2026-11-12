@@ -108,6 +108,9 @@ public partial class App : Application
 
     // Which layout Tasks shows around a session ("Ended · switches next time"); read by the title bar's session control.
     private AccountabiliBuddy.App.Services.Tasks.SessionLayoutService? _sessionLayout;
+
+    // Round 2: how the PC's Today page is arranged ("today.layout", device-local; Settings › Today).
+    private AccountabiliBuddy.App.Services.Today.TodayLayoutService? _todayLayout;
     private AccountabiliBuddy.App.Services.Tasks.TaskViewService? _taskViews;
     private AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService? _taskTidyUp;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
@@ -1639,6 +1642,11 @@ public partial class App : Application
         // How the Tasks page and Today's task sections are laid out on this PC (density, split, folds, pins).
         var taskLayout = new AccountabiliBuddy.App.Services.Tasks.TaskLayoutStore(documents);
         taskLayout.LoadBlocking();
+        // Round 2: the Today page's layout (sidebar parts, Panel / Chip / Off, in and out of a session). Outside ProductaBuddy the lunch
+        // part can't be off.
+        var todayLayout = new AccountabiliBuddy.App.Services.Today.TodayLayoutService(documents, () => AppBrand.Name == AppBrand.CompanionName);
+        todayLayout.LoadBlocking();
+        _todayLayout = todayLayout;
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),
@@ -1732,6 +1740,14 @@ public partial class App : Application
             // The Tasks and Today headers' Options menus end with "Tasks settings" / "Today settings" (round 2, brief §3.3): Settings at
             // that section, behind Settings' own session locks.
             tasksPage.OpenSettings = mainViewModel.OpenSettings;
+            // Today's Options › Arrange cards… / Sidebar items and order…: Settings › Today scrolled to that part (round 2).
+            tasksPage.OpenSettingsArea = (section, area) =>
+            {
+                mainViewModel.OpenSettings(section);
+                mainViewModel.Settings.Select(section, area);
+            };
+            // Today's list follows Settings › Today (Show finished today).
+            tasksPage.UseTodayLayout(todayLayout);
             // Rows say "untouched N wk" after the Tasks setting's weeks; the open task's sync line reads the title bar's sync light.
             tasksPage.UntouchedWeeks = () => _taskSettings?.Current.UntouchedWeeks ?? AccountabiliBuddy.Core.Tasks.TaskUntouched.DefaultWeeks;
             tasksPage.SyncLight = () => mainViewModel.SyncLight;
@@ -1977,6 +1993,12 @@ public partial class App : Application
         quitGuard.LoadBlocking();
         // ADR 71: restoring this PC's settings changes the quit guard and PC-off through their services, so an old backup can't
         // loosen them at once (a looser part waits; leaving "All the time" needs the spare key).
+        // Round 2: Today's layout goes through its service, so the page redraws and the copy in memory isn't saved over it.
+        if (_todayLayout is { } restoredTodayLayout)
+        {
+            backups.DeviceRestorers[AccountabiliBuddy.App.Services.Today.TodayLayoutService.DocumentKey] = restoredTodayLayout.RestoreAsync;
+        }
+
         backups.DeviceRestorers["quit.guard"] = async value =>
         {
             if (System.Text.Json.JsonSerializer.Deserialize<QuitGuardSettings>(value, AccountabiliBuddy.Core.Sync.SyncJson.Options) is not { } wanted)
@@ -2128,6 +2150,20 @@ public partial class App : Application
         sessionViewModel.CalendarToday = new CalendarTodayViewModel(_configuration, effectivePlan, calendars, time, sessionViewModel.Day);
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);
         sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
+        // Round 2: the Today sidebar (Next up, Today's goals, Come back to, chips) over This session's list, and Settings › Today.
+        // Created once the cards it shows exist (Next up and the calendar lines are made just above).
+        sessionViewModel.Sidebar = new TodaySidebarViewModel(
+            sessionViewModel, todayLayout,
+            new AccountabiliBuddy.App.Services.Today.TodaySidebarState(todayLayout.Current.SidebarInSession, todayLayout.Current.SidebarOutside))
+        {
+            OpenSettings = () =>
+            {
+                mainViewModel.OpenSettings(SettingsSection.Today);
+                mainViewModel.Settings.Select(SettingsSection.Today, PageOptionsMenus.TodaySidebarArea);
+            },
+            OpenPlan = () => mainViewModel.SelectedTab = MainWindowViewModel.PlanTab,
+        };
+        mainViewModel.Settings.TodayPage = new TodaySettingsViewModel(todayLayout) { OpenSection = mainViewModel.OpenSettings };
         mainViewModel.Settings.Updates.OpenWhatsNew = ShowWhatsNew;
         mainViewModel.Settings.Updates.ShowEmergencyRelease = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.Emergency);
         mainViewModel.Settings.Updates.ShowNewSpareKey = () => ShowColdTurkeyKey(ColdTurkeyKeyMode.NewKey);

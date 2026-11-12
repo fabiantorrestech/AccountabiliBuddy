@@ -258,6 +258,14 @@
                         </StackPanel>
                     </ScrollViewer>
 
+                    <!-- Today (round 2): the Today page's layout, a page of its own (there once the app sets it). -->
+                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Today}}" search:SearchArea.Name="Today" search:SearchArea.SettingsGroup="Today"
+                           search:SearchArea.Skip="{Binding Settings.TodayPage, Converter={x:Static ObjectConverters.IsNull}}">
+                        <Panel IsVisible="{Binding Settings.TodayPage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <views:TodaySettingsView DataContext="{Binding Settings.TodayPage}" />
+                        </Panel>
+                    </Panel>
+
                     <!-- Tasks (ADR 76): a page of its own, there only while the task list is the source (the row hides otherwise, and search leaves it out). -->
                     <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Tasks}}" search:SearchArea.Name="Tasks" search:SearchArea.SettingsGroup="Tasks"
                            search:SearchArea.Skip="{Binding Settings.TasksPage, Converter={x:Static ObjectConverters.IsNull}}">

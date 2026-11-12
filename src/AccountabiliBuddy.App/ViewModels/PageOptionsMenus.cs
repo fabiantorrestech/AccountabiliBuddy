@@ -18,11 +18,14 @@ public static class PageOptionsMenus
     /// <summary>The Settings section each page's last Options row opens.</summary>
     public const SettingsSection TasksSettingsSection = SettingsSection.Tasks;
 
-    /// <summary>
-    /// Today has no Settings section of its own yet (Settings › Today is round 2's R2): its row opens Your day, where how the day
-    /// starts and ends lives today.
-    /// </summary>
-    public const SettingsSection TodaySettingsSection = SettingsSection.YourDay;
+    /// <summary>Today's settings row opens Settings › Today (round 2 R2; its first row links to Your day, how the day starts and ends).</summary>
+    public const SettingsSection TodaySettingsSection = SettingsSection.Today;
+
+    /// <summary>The Settings › Today group "Arrange cards…" scrolls to (its search area name).</summary>
+    public const string TodayCardsArea = "Today layout";
+
+    /// <summary>The Settings › Today group "Sidebar items and order…" scrolls to (its search area name).</summary>
+    public const string TodaySidebarArea = "Today sidebar";
 
     /// <summary>
     /// Tasks: Group by (the Shelf's), Rows (Normal / Compact, moved here from the header), View, filter and sort › (the Shelf's View
@@ -59,15 +62,27 @@ public static class PageOptionsMenus
     }
 
     /// <summary>
-    /// Today: its sections' Expand all / Collapse all, then Today settings ›. Round 2's R2 gives it its final rows (Cards, Today
-    /// sidebar; brief §4.2).
+    /// Today (round 2, brief §4.2, board Today-PC-Options): Cards › Arrange cards…, Show finished today ✓; Today sidebar › Show the
+    /// sidebar ✓ (Ctrl+\ in its note: menus show no keys), Sidebar items and order…; then Today settings ›. Arrange cards… and Sidebar
+    /// items and order… open Settings › Today scrolled to that part (no new dialog).
     /// </summary>
-    public static IReadOnlyList<TaskMenuEntry> Today(string expandText, MaterialIconKind expandIcon, ICommand toggleExpand, Action<SettingsSection> openSettings)
+    public static IReadOnlyList<TaskMenuEntry> Today(
+        bool showFinished,
+        ICommand toggleFinished,
+        bool sidebarOpen,
+        ICommand? toggleSidebar,
+        Action<SettingsSection> openSettings,
+        Action<string> openTodaySettingsAt)
     {
         return
         [
-            new TaskMenuEntry("Sections", IsHeading: true),
-            new TaskMenuEntry(expandText, toggleExpand, Icon: expandIcon),
+            new TaskMenuEntry("Cards", IsHeading: true),
+            new TaskMenuEntry("Arrange cards…", new RelayCommand(() => openTodaySettingsAt(TodayCardsArea)), Icon: MaterialIconKind.ViewDashboardEditOutline, OpensMore: true),
+            new TaskMenuEntry("Show finished today", toggleFinished, IsChecked: showFinished, Icon: MaterialIconKind.EyeOutline),
+            TaskMenuEntry.Separator,
+            new TaskMenuEntry("Today sidebar", IsHeading: true),
+            new TaskMenuEntry("Show the sidebar", toggleSidebar, IsChecked: sidebarOpen, Icon: MaterialIconKind.PageLayoutSidebarRight, Note: "Ctrl+\\ on Today"),
+            new TaskMenuEntry("Sidebar items and order…", new RelayCommand(() => openTodaySettingsAt(TodaySidebarArea)), Icon: MaterialIconKind.FormatListBulleted, OpensMore: true),
             TaskMenuEntry.Separator,
             SettingsRow(TodaySettingsText, TodaySettingsSection, "How the day starts and ends, the start-of-day card", openSettings),
         ];

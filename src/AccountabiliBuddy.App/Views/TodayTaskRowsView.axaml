@@ -130,7 +130,7 @@
                                                 <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                             </Border>
                                             <!-- The number stays level with the title's first line when the title wraps; the same top margin keeps a one-line row centred. -->
-                                            <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Top" Margin="0,15,0,0" />
+                                            <TextBlock Grid.Column="1" Classes="display muted" Text="{Binding Number}" FontSize="16" VerticalAlignment="Top" Margin="0,15,0,0" IsVisible="{Binding HasNumber}" />
                                             <TextBlock Grid.Column="2" Classes="rowTitle" Classes.stepDone="{Binding IsDone}" Text="{Binding Title}" FontSize="16" FontWeight="Normal"
                                                        TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,15" />
                                             <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StepsText}" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" />

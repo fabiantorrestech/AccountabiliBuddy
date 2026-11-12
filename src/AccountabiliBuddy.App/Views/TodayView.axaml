@@ -6,10 +6,13 @@
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.TodayView"
              x:DataType="vm:SessionViewModel">
-    <!-- The Today page (redesign): on the left "Today Tue 11/10" with Today's task sections (This session, Queued, Reminders due
-         today, Finished today: the Tasks page's rows and rules, spec 03 §B2); then a main card that is one thing at a time (idle:
-         start; planning; running; or the shutdown and welcome cards), and a 330-wide side column (the goal ring, next up, timers,
-         come back to, the session review). The rest is folded under "More today". On a narrow page the task sections sit on top. -->
+    <!-- The Today page (round 2, brief §4.2, CN §1 and §3 PC): "Today · Wed 11/11" with the page's Options; then the session card in a
+         340-wide slot on the left (SessionCardView: the ring, its line, Done · step / Step away / ⋯, the note line; or the start card)
+         and This session's list on the right (the current task tinted with Now and its steps open; Queued, Reminders due today and
+         Finished today folded under it). The same skeleton in and out of a session (rule 7). The Today sidebar (TodaySidebarView) slides
+         OVER the list from the right and hides to a rail during a session (rule 2: its rail's room is reserved, nothing moves). Under the
+         session card: the day's notices, "Seen while planning", the session review and the "More today" fold. The shutdown routine takes
+         the list's slot while it runs. "Jot it down · Ctrl+J" sits at the bottom left. -->
     <UserControl.Resources>
         <!-- Check boxes and the fold read in ink, not accent: accent is for the progress ring and the one main button. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -41,30 +44,6 @@
         <SolidColorBrush x:Key="ExpanderContentBorderBrush" Color="Transparent" />
     </UserControl.Resources>
     <UserControl.Styles>
-        <!-- The main card's padding (40 / 48); tighter on a narrow page so its action row stays in view at 900x560. -->
-        <Style Selector="Border.mainCard">
-            <Setter Property="Padding" Value="48,40" />
-        </Style>
-        <ContainerQuery Name="TodayPage" Query="max-width:940">
-            <Style Selector="Border.mainCard">
-                <Setter Property="Padding" Value="28,20" />
-            </Style>
-        </ContainerQuery>
-        <!-- Today's task sections: a 400-wide column on the left, or a band on top (scrolling inside) when the page is narrow. -->
-        <Style Selector="Border.todaySections">
-            <Setter Property="DockPanel.Dock" Value="Left" />
-            <Setter Property="Width" Value="400" />
-            <Setter Property="Margin" Value="0,0,14,0" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Ab.TasksRadius}" />
-        </Style>
-        <ContainerQuery Name="TodayRoot" Query="max-width:1300">
-            <Style Selector="Border.todaySections">
-                <Setter Property="DockPanel.Dock" Value="Top" />
-                <Setter Property="Width" Value="NaN" />
-                <Setter Property="MaxHeight" Value="320" />
-                <Setter Property="Margin" Value="0,0,6,14" />
-            </Style>
-        </ContainerQuery>
         <!-- A come-back's ✎ and "Add to tasks": small and flat, like the checklist's row buttons. -->
         <Style Selector="Button.comebackAction">
             <Setter Property="Padding" Value="6,0" />
@@ -135,201 +114,308 @@
         <Style Selector="controls|ProgressRing.stepsRing.met">
             <Setter Property="ArcBrush" Value="{DynamicResource Ab.Met}" />
         </Style>
+        <!-- This session's card on the right; the folded sections sit under it, outside the card. -->
+        <Style Selector="Border.sessionList">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="{DynamicResource Ab.CardBorderThickness}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
+            <Setter Property="Padding" Value="6,8,6,10" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
     </UserControl.Styles>
-    <DockPanel Container.Name="TodayRoot" Container.Sizing="Width">
-    <Border Classes="card todaySections" Padding="0" ClipToBounds="True" DataContext="{Binding TaskPage}"
-            IsVisible="{Binding $parent[views:TodayView].((vm:SessionViewModel)DataContext).TaskPage, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}"
-            Container.Name="TaskColumn" Container.Sizing="Width">
-        <DockPanel x:DataType="vm:TasksViewModel">
-            <!-- The page header (round 2, brief §3.3 / §4.2): "Today · Wed 11/11", Expand / collapse all (icon only), then the bordered
-                 Options (tune), last; its last row opens Today's settings. -->
-            <controls:PageHeader x:Name="TodayHeader" DockPanel.Dock="Top" Margin="26,18,14,6" Title="Today" Date="{Binding TodayDateText}"
-                                 OptionsRequested="OnTodayOptionsRequested">
-                <controls:PageHeader.Actions>
-                    <Button Classes="abHeaderIcon" Command="{Binding TodayTabPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayTabPanel.ExpandTip}"
-                            AutomationProperties.Name="{Binding TodayTabPanel.ExpandTip}">
-                        <mi:MaterialIcon Kind="{Binding TodayTabPanel.ExpandIcon}" Width="18" Height="18" />
-                    </Button>
-                </controls:PageHeader.Actions>
-            </controls:PageHeader>
-            <!-- Jot it down rests at the bottom (fainter during a session; Ctrl+J). -->
-            <views:JotBoxView DockPanel.Dock="Bottom" DataContext="{Binding Jot}" Margin="22,8,14,12" ZIndex="1" />
-            <!-- The page's toast (the Tasks page's, spec 03 §F): bottom-left of these sections, above Jot it down. Docked first at the
-                 bottom with no height of its own, so it floats over the rows without pushing them. -->
-            <Canvas DockPanel.Dock="Bottom" Height="0" ZIndex="20">
-                <views:TaskToastView DataContext="{Binding Toasts}" Canvas.Left="18" Canvas.Bottom="10" MaxWidth="364" />
-            </Canvas>
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl Margin="12,0,12,16" ItemsSource="{Binding TodayTabPanel.Sections}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:TaskSectionViewModel">
-                            <views:TaskSectionView />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
-        </DockPanel>
-    </Border>
-    <ScrollViewer x:Name="PageScroll" HorizontalScrollBarVisibility="Disabled">
-        <Grid ColumnDefinitions="*,338" ColumnSpacing="14" Margin="0,0,6,0" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}"
-              Container.Name="TodayPage" Container.Sizing="Width">
+    <Grid RowDefinitions="Auto,*,Auto" Container.Name="TodayRoot" Container.Sizing="Width">
+        <!-- The page header (round 2, brief §3.3): "Today · Wed 11/11", Expand / collapse all (icon only), then the bordered Options
+             (tune), last; its last row opens Settings › Today. -->
+        <controls:PageHeader x:Name="TodayHeader" Margin="27,21,44,9" Title="Today" DataContext="{Binding TaskPage}" x:DataType="vm:TasksViewModel"
+                             Date="{Binding TodayDateText, FallbackValue={x:Null}}" OptionsRequested="OnTodayOptionsRequested">
+            <controls:PageHeader.Actions>
+                <Button Classes="abHeaderIcon" Command="{Binding TodayTabPanel.ToggleExpandCommand, FallbackValue={x:Null}}"
+                        ToolTip.Tip="{Binding TodayTabPanel.ExpandTip, FallbackValue={x:Null}}"
+                        AutomationProperties.Name="{Binding TodayTabPanel.ExpandTip, FallbackValue={x:Null}}">
+                    <mi:MaterialIcon Kind="{Binding TodayTabPanel.ExpandIcon, FallbackValue=UnfoldMoreHorizontal}" Width="18" Height="18" />
+                </Button>
+            </controls:PageHeader.Actions>
+        </controls:PageHeader>
 
-            <!-- ===== The main column: the info banner, the main card, and the fold. ===== -->
-            <!-- At least the page's height, so the main card fills it; top-aligned, so a taller side column doesn't stretch it
-                 and its action row stays in view: the page scrolls as one. -->
-            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14" VerticalAlignment="Top" MinHeight="{Binding Viewport.Height, ElementName=PageScroll}">
+        <Panel Grid.Row="1">
+            <!-- The page scrolls as one; 30 DIP on the right are the sidebar rail's (reserved, so the rail never covers a row). -->
+            <ScrollViewer x:Name="PageScroll" HorizontalScrollBarVisibility="Disabled" Margin="0,0,30,0">
+                <Grid x:Name="Columns" ColumnDefinitions="340,*" ColumnSpacing="20" Margin="26,0,14,16">
 
-                <StackPanel Spacing="10">
-                    <!-- The error text (a failed Pomodoro start, a read-only settings file). -->
-                    <Border Classes="inner" Background="{DynamicResource Ab.InfoBg}" Padding="18,12"
-                            IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                        <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
-                    </Border>
+                    <!-- ===== Left: the session card (same slot in and out of a session), then the day's notices and the fold. ===== -->
+                    <StackPanel x:Name="CardColumn" Spacing="14" VerticalAlignment="Top">
+                        <views:SessionCardView x:Name="SessionCard" />
+                        <StackPanel Spacing="10">
+                            <!-- The error text (a failed Pomodoro start, a read-only settings file). -->
+                            <Border Classes="inner" Background="{DynamicResource Ab.InfoBg}" Padding="18,12"
+                                    IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap" />
+                            </Border>
 
-                    <!-- Waits running in the background (ADR 66): an armed end, an unlock or a new spare key, each with Cancel. -->
-                    <Border Classes="inner" DataContext="{Binding RunningWaits}" x:DataType="vm:RunningWaitsViewModel"
-                            IsVisible="{Binding HasWaits, FallbackValue=False}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                            <mi:MaterialIcon Kind="TimerSand" Width="20" Height="20" VerticalAlignment="Top" Margin="0,4,0,0" Foreground="{DynamicResource Ab.InfoInk}" />
-                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Rows}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:RunningWaitRowViewModel">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2">
-                                            <TextBlock Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                            <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" VerticalAlignment="Center" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Grid>
-                    </Border>
-
-                    <!-- The overlay was turned off with the Ctrl+Alt panel's Disable: Turn on here, or the switch in Settings. -->
-                    <Border Classes="inner" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
-                            IsVisible="{Binding IsOffFromPanel, FallbackValue=False}">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                            <mi:MaterialIcon Kind="Power" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="Overlay turned off from the panel" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="No timer over the taskbar and no Ctrl+Alt panel until you turn it on here." />
-                            </StackPanel>
-                            <Button Grid.Column="2" Content="Turn on" Command="{Binding TurnOnCommand}" VerticalAlignment="Center" />
-                        </Grid>
-                    </Border>
-
-                    <!-- Ctrl+Alt+H keeps the overlay hidden: a quiet line, not a card. -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="4,0" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
-                          IsVisible="{Binding IsHidden, FallbackValue=False}">
-                        <mi:MaterialIcon Kind="EyeOffOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding HiddenText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button Grid.Column="2" Classes="quiet" Content="Show" Command="{Binding ShowCommand}" FontSize="12" Padding="8,2" MinHeight="0" />
-                    </Grid>
-                </StackPanel>
-
-                <Border Grid.Row="1" Classes="card mainCard">
-                    <Panel>
-
-                        <!-- The shutdown routine (step 13): a stepped flow, one screen per step, each skippable. It takes the card's place. -->
-                        <Panel IsVisible="{Binding ShowsShutdown}">
-                            <StackPanel Spacing="16" DataContext="{Binding Shutdown}" x:DataType="vm:ShutdownCardViewModel">
+                            <!-- Waits running in the background (ADR 66): an armed end, an unlock or a new spare key, each with Cancel. -->
+                            <Border Classes="inner" DataContext="{Binding RunningWaits}" x:DataType="vm:RunningWaitsViewModel"
+                                    IsVisible="{Binding HasWaits, FallbackValue=False}">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                                    <mi:MaterialIcon Kind="WeatherSunset" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Grid.Column="1" Classes="display" Text="{Binding Title}" FontSize="32" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <mi:MaterialIcon Kind="TimerSand" Width="20" Height="20" VerticalAlignment="Top" Margin="0,4,0,0" Foreground="{DynamicResource Ab.InfoInk}" />
+                                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Rows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RunningWaitRowViewModel">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2">
+                                                    <TextBlock Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                    <Button Grid.Column="1" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </Grid>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Classes="faint" FontSize="12" Text="{Binding StepText}" />
-                                    <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap" />
-                                </StackPanel>
+                            </Border>
 
-                                <!-- 1. Empty your capture: each parked thought gets a home. -->
-                                <Border Classes="inner" IsVisible="{Binding IsCapture}">
-                                    <StackPanel Spacing="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <mi:MaterialIcon Kind="FlagOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                            <TextBlock Classes="section" Text="Come back to" VerticalAlignment="Center" />
-                                            <TextBlock Classes="muted" Text="{Binding ComebackCount}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <ItemsControl ItemsSource="{Binding Comebacks}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:ShutdownComebackRow">
-                                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,3">
-                                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                                        <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding DueDate}" IsVisible="{Binding AsksForDate}"
-                                                                            PlaceholderText="Due (optional)" AutomationProperties.Name="Due date" />
-                                                        <ComboBox Grid.Column="2" ItemsSource="{x:Static vm:ShutdownComebackRow.ChoiceNames}" SelectedIndex="{Binding ChoiceIndex}"
-                                                                  MinWidth="150" AutomationProperties.Name="What to do with it" />
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                            <!-- The overlay was turned off with the Ctrl+Alt panel's Disable: Turn on here, or the switch in Settings. -->
+                            <Border Classes="inner" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
+                                    IsVisible="{Binding IsOffFromPanel, FallbackValue=False}">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                    <mi:MaterialIcon Kind="Power" Width="20" Height="20" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Overlay turned off from the panel" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="No timer over the taskbar and no Ctrl+Alt panel until you turn it on here." />
                                     </StackPanel>
-                                </Border>
+                                    <Button Grid.Column="2" Content="Turn on" Command="{Binding TurnOnCommand}" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
 
-                                <!-- 2. Unfinished tasks: tick what's done, the rest carries over. -->
-                                <Border Classes="inner" IsVisible="{Binding IsUnfinished}">
-                                    <StackPanel Spacing="4">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                            <TextBlock Classes="section" Text="Left open" VerticalAlignment="Center" />
-                                            <TextBlock Classes="muted" Text="{Binding UnfinishedCount}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <ItemsControl ItemsSource="{Binding UnfinishedGroups}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:ShutdownTaskGroup">
-                                                    <StackPanel Spacing="2" Margin="0,4,0,0">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
-                                                            <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
-                                                        </StackPanel>
-                                                        <ItemsControl ItemsSource="{Binding Rows}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate x:DataType="vm:ShutdownTaskRow">
-                                                                    <CheckBox IsChecked="{Binding IsDone}" Content="{Binding Title}" />
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                            <!-- Ctrl+Alt+H keeps the overlay hidden: a quiet line, not a card. -->
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="4,0" DataContext="{Binding OverlayStatus}" x:DataType="vm:OverlayStatusViewModel"
+                                  IsVisible="{Binding IsHidden, FallbackValue=False}">
+                                <mi:MaterialIcon Kind="EyeOffOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding HiddenText}" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                <Button Grid.Column="2" Classes="quiet" Content="Show" Command="{Binding ShowCommand}" FontSize="12" Padding="8,2" MinHeight="0" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Seen while planning: the sites and apps with no rule noticed so far; planning stage only, once there is one. They are
+                             asked about together when planning ends. -->
+                        <Border Classes="card" DataContext="{Binding SeenWhilePlanning}" x:DataType="vm:SeenWhilePlanningViewModel"
+                                IsVisible="{Binding IsVisible, FallbackValue=False}">
+                            <StackPanel Spacing="12">
+                                <TextBlock Classes="section" Text="Seen while planning" />
+                                <TextBlock Text="{Binding Summary}" FontSize="14" TextWrapping="Wrap" />
+                                <ItemsControl ItemsSource="{Binding Subjects}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <Border Classes="count" Padding="13,7">
+                                                <TextBlock Text="{Binding}" FontSize="13" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- After a session: what it used with no rule, as rules (Distracting / Fine / Ignore). -->
+                        <Panel IsVisible="{Binding Review, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <views:SessionReviewView DataContext="{Binding Review}" />
+                        </Panel>
+
+                        <!-- ===== More today: what is not the day's main job, folded. ===== -->
+                        <Border Classes="card" Padding="10,6">
+                            <Expander HorizontalAlignment="Stretch" IsExpanded="False">
+                                <Expander.Header>
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <TextBlock Text="More today" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <Border Classes="count" IsVisible="{Binding MoreToday.HasAlert, FallbackValue=False}">
+                                            <TextBlock Text="{Binding MoreToday.AlertText, FallbackValue={x:Null}}" FontSize="12" FontWeight="SemiBold" />
+                                        </Border>
                                     </StackPanel>
-                                </Border>
-
-                                <!-- 3. Look ahead: Later items due soon and the calendar's next two weeks (read-only). -->
-                                <StackPanel Spacing="10" IsVisible="{Binding IsLookAhead}">
-                                    <Border Classes="inner" IsVisible="{Binding HasLaterDueSoon}">
-                                        <StackPanel Spacing="4">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <mi:MaterialIcon Kind="ClockOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                                <TextBlock Classes="section" Text="Later, due soon" VerticalAlignment="Center" />
+                                </Expander.Header>
+                                <StackPanel Spacing="10" Margin="0,8,0,4">
+                                    <!-- The day bar, the same one the main window shows on History. -->
+                                    <Expander DataContext="{Binding Day}" x:DataType="vm:DayBarViewModel" Header="Today's timeline"
+                                              HorizontalAlignment="Stretch" IsVisible="{Binding IsVisible, FallbackValue=False}">
+                                        <StackPanel Spacing="6" Margin="0,8,0,0">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
+                                                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
+                                                <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
+                                                <TextBlock Classes="muted" Text="{Binding SleepText}" />
                                             </StackPanel>
-                                            <ItemsControl ItemsSource="{Binding LaterDueSoon}">
+                                            <controls:DayBarControl Layout="{Binding Layout}" EventRequested="OnDayBarEvent" OpenProfileCommand="{Binding OpenProfileCommand}"
+                                                                    OpenDayPlanCommand="{Binding OpenDayPlanCommand}" AddSessionCommand="{Binding AddSessionCommand}" />
+                                            <TextBlock Classes="muted" Text="{Binding SummaryText}" FontSize="12" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Expander>
+
+                                    <!-- Migration assistant: after an upgrade that brought something to set up. -->
+                                    <Border Classes="inner" DataContext="{Binding WhatsNew}" x:DataType="vm:WhatsNewCardViewModel"
+                                            IsVisible="{Binding IsVisible, FallbackValue=False}">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="Set up" Command="{Binding SetUpCommand}" />
+                                            <Button Grid.Column="2" Classes="quiet" Content="Not now" Command="{Binding NotNowCommand}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Repeating weeks (ADR 47): which week of the cycle this one is. A switch that frees today's work waits like any looser plan change. -->
+                                    <Border Classes="inner" DataContext="{Binding Week}" x:DataType="vm:WeekCardViewModel"
+                                            IsVisible="{Binding IsVisible, FallbackValue=False}">
+                                        <StackPanel Spacing="6">
+                                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
+                                                <mi:MaterialIcon Kind="CalendarWeek" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <!-- Under the title and wrapping: the main column is only about 200 px inside the card in the real window. -->
+                                                <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Choices}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel ItemSpacing="4" LineSpacing="4" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:WeekChoiceViewModel">
+                                                            <!-- The current week is the filled one (ink on Surface, bold), not accent. -->
+                                                            <Button Content="{Binding Number}" Classes="week" Classes.current="{Binding IsCurrent}" MinWidth="40"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:WeekCardViewModel)DataContext).SetWeekCommand}"
+                                                                    CommandParameter="{Binding Number}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
+                                                       IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- A day off taken in the Pre-Work window: Undo if it was a mistake. -->
+                                    <Border Classes="inner" Padding="16,10" DataContext="{Binding DayOff}" x:DataType="vm:DayOffCardViewModel"
+                                            IsVisible="{Binding IsVisible, FallbackValue=False}">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <DockPanel>
+                                                <mi:MaterialIcon DockPanel.Dock="Left" Kind="Beach" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <Panel Width="8" DockPanel.Dock="Left" />
+                                                <TextBlock Text="Day off on this computer: no Pre-Work, work-hours guard or start nudges today." VerticalAlignment="Center" TextWrapping="Wrap" />
+                                            </DockPanel>
+                                            <Button Grid.Column="1" Content="Undo" Command="{Binding UndoCommand}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Cold Turkey: which of its blocks are on (read from its settings; nothing is changed there). -->
+                                    <Border Classes="inner" DataContext="{Binding ColdTurkey}" x:DataType="vm:ColdTurkeyStatusViewModel"
+                                            IsVisible="{Binding IsVisible, FallbackValue=False}">
+                                        <StackPanel Spacing="6">
+                                            <DockPanel>
+                                                <mi:MaterialIcon DockPanel.Dock="Left" Kind="Snowflake" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <Panel Width="8" DockPanel.Dock="Left" />
+                                                <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                            </DockPanel>
+                                            <ItemsControl ItemsSource="{Binding Blocks}">
                                                 <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:ShutdownLaterRow">
-                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,2">
-                                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
-                                                            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding DueText}" FontSize="12" VerticalAlignment="Center" />
+                                                    <DataTemplate x:DataType="vm:ColdTurkeyBlockRow">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                                                            <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding Name}" />
+                                                            <TextBlock Classes="muted" Text="{Binding StateText}" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
+                                                       Text="Read from Cold Turkey's settings; this app never changes them. Which blocks a profile expects is set in Profiles." />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Unlock: lift the blocks after a wait (options are set per profile). Folded away unless it's in progress. -->
+                                    <Expander DataContext="{Binding Unlock}" x:DataType="vm:UnlockViewModel" IsVisible="{Binding IsVisible}"
+                                              IsExpanded="{Binding !IsFormVisible, Mode=OneWay}" HorizontalAlignment="Stretch"
+                                              Header="Unlock (lift the blocks after a wait)">
+                                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                                            <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
+                                            <StackPanel Spacing="8" IsVisible="{Binding IsFormVisible}">
+                                                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                    <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" MinWidth="220" />
+                                                    <ComboBox ItemsSource="{Binding RelockChoices}" SelectedItem="{Binding SelectedRelock}" MinWidth="180" />
+                                                    <TextBox Text="{Binding RelockTimeText}" IsVisible="{Binding IsRelockTimeVisible}"
+                                                             PlaceholderText="e.g. 6pm" Width="100" />
+                                                </WrapPanel>
+                                                <TextBox Text="{Binding Reason}" PlaceholderText="{Binding ReasonHint}" />
+                                                <Button Content="Start unlock countdown" Command="{Binding RequestCommand}" HorizontalAlignment="Left" />
+                                            </StackPanel>
+                                            <Button Content="Cancel unlock" Command="{Binding CancelCommand}" IsVisible="{Binding IsWaiting}" HorizontalAlignment="Left" />
+                                            <Button Content="Lock again" Command="{Binding LockAgainCommand}" IsVisible="{Binding IsUnlocked}" HorizontalAlignment="Left" />
+                                            <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Expander>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- ===== Right: This session's list (or the shutdown routine while it runs). ===== -->
+                    <Panel Grid.Column="1" VerticalAlignment="Top">
+                        <Border Classes="card" Padding="28,24">
+                            <Border.IsVisible>
+                                <Binding Path="ShowsShutdown" />
+                            </Border.IsVisible>
+                            <Panel IsVisible="{Binding ShowsShutdown}">
+                                <StackPanel Spacing="16" DataContext="{Binding Shutdown}" x:DataType="vm:ShutdownCardViewModel">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <mi:MaterialIcon Kind="WeatherSunset" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                        <TextBlock Grid.Column="1" Classes="display" Text="{Binding Title}" FontSize="32" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="faint" FontSize="12" Text="{Binding StepText}" />
+                                        <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <!-- 1. Empty your capture: each parked thought gets a home. -->
+                                    <Border Classes="inner" IsVisible="{Binding IsCapture}">
+                                        <StackPanel Spacing="6">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="FlagOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Classes="section" Text="Come back to" VerticalAlignment="Center" />
+                                                <TextBlock Classes="muted" Text="{Binding ComebackCount}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <ItemsControl ItemsSource="{Binding Comebacks}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:ShutdownComebackRow">
+                                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,3">
+                                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                            <CalendarDatePicker Grid.Column="1" SelectedDate="{Binding DueDate}" IsVisible="{Binding AsksForDate}"
+                                                                                PlaceholderText="Due (optional)" AutomationProperties.Name="Due date" />
+                                                            <ComboBox Grid.Column="2" ItemsSource="{x:Static vm:ShutdownComebackRow.ChoiceNames}" SelectedIndex="{Binding ChoiceIndex}"
+                                                                      MinWidth="150" AutomationProperties.Name="What to do with it" />
                                                         </Grid>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </StackPanel>
                                     </Border>
-                                    <Border Classes="inner" IsVisible="{Binding HasCalendarAhead}">
+
+                                    <!-- 2. Unfinished tasks: tick what's done, the rest carries over. -->
+                                    <Border Classes="inner" IsVisible="{Binding IsUnfinished}">
                                         <StackPanel Spacing="4">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <mi:MaterialIcon Kind="CalendarMonthOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                                <TextBlock Classes="section" Text="On your calendar" VerticalAlignment="Center" />
+                                                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                <TextBlock Classes="section" Text="Left open" VerticalAlignment="Center" />
+                                                <TextBlock Classes="muted" Text="{Binding UnfinishedCount}" VerticalAlignment="Center" />
                                             </StackPanel>
-                                            <ItemsControl ItemsSource="{Binding CalendarAhead}">
+                                            <ItemsControl ItemsSource="{Binding UnfinishedGroups}">
                                                 <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:ShutdownAheadDay">
-                                                        <StackPanel Spacing="1" Margin="0,6,0,0">
-                                                            <TextBlock Classes="muted" Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" />
-                                                            <ItemsControl ItemsSource="{Binding Lines}">
+                                                    <DataTemplate x:DataType="vm:ShutdownTaskGroup">
+                                                        <StackPanel Spacing="2" Margin="0,4,0,0">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <Ellipse Width="8" Height="8" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                                                                <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
+                                                            </StackPanel>
+                                                            <ItemsControl ItemsSource="{Binding Rows}">
                                                                 <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate x:DataType="x:String">
-                                                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                                    <DataTemplate x:DataType="vm:ShutdownTaskRow">
+                                                                        <CheckBox IsChecked="{Binding IsDone}" Content="{Binding Title}" />
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
@@ -339,579 +425,227 @@
                                             </ItemsControl>
                                         </StackPanel>
                                     </Border>
-                                    <TextBlock Classes="muted" Text="Nothing is due soon and nothing is on your calendar for the next two weeks." TextWrapping="Wrap"
-                                               IsVisible="{Binding NothingAhead}" />
-                                </StackPanel>
 
-                                <!-- 4. Plan tomorrow: up to three tasks in tomorrow's day parts, and the quick path (tomorrow's first task). -->
-                                <StackPanel Spacing="10" IsVisible="{Binding IsPlanTomorrow}">
-                                    <Border Classes="inner" IsVisible="{Binding HasPlanRows}">
-                                        <StackPanel Spacing="8">
-                                            <TextBlock Classes="section" Text="Tomorrow's top tasks" />
-                                            <ItemsControl ItemsSource="{Binding PlanRows}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:ShutdownPlanRowViewModel">
-                                                        <StackPanel Spacing="0" Margin="0,0,0,6">
-                                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                                                <TextBox Text="{Binding Text}" PlaceholderText="A task for tomorrow" AutomationProperties.Name="A task for tomorrow"
-                                                                         controls:TaskSuggestions.Picker="{Binding Picker}" controls:TaskSuggestions.KeepsText="True" />
-                                                                <Button Grid.Column="1" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
-                                                                        ToolTip.Tip="Choose one of your tasks" AutomationProperties.Name="From your lists">
-                                                                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
-                                                                    <Button.Flyout>
-                                                                        <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
-                                                                            <views:ListPickerView DataContext="{Binding Picker}" />
-                                                                        </Flyout>
-                                                                    </Button.Flyout>
-                                                                </Button>
-                                                                <ComboBox Grid.Column="2" ItemsSource="{Binding Parts}" SelectedIndex="{Binding PartIndex}" MinWidth="190"
-                                                                          AutomationProperties.Name="Day part">
-                                                                    <ComboBox.ItemTemplate>
-                                                                        <DataTemplate x:DataType="vm:ShutdownPartChoice">
-                                                                            <TextBlock Text="{Binding Label}" />
-                                                                        </DataTemplate>
-                                                                    </ComboBox.ItemTemplate>
-                                                                </ComboBox>
+                                    <!-- 3. Look ahead: Later items due soon and the calendar's next two weeks (read-only). -->
+                                    <StackPanel Spacing="10" IsVisible="{Binding IsLookAhead}">
+                                        <Border Classes="inner" IsVisible="{Binding HasLaterDueSoon}">
+                                            <StackPanel Spacing="4">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <mi:MaterialIcon Kind="ClockOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                    <TextBlock Classes="section" Text="Later, due soon" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <ItemsControl ItemsSource="{Binding LaterDueSoon}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:ShutdownLaterRow">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,2">
+                                                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                                                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding DueText}" FontSize="12" VerticalAlignment="Center" />
                                                             </Grid>
-                                                            <views:TaskSuggestionsView DataContext="{Binding Picker}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Classes="inner" IsVisible="{Binding HasCalendarAhead}">
+                                            <StackPanel Spacing="4">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <mi:MaterialIcon Kind="CalendarMonthOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                    <TextBlock Classes="section" Text="On your calendar" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <ItemsControl ItemsSource="{Binding CalendarAhead}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:ShutdownAheadDay">
+                                                            <StackPanel Spacing="1" Margin="0,6,0,0">
+                                                                <TextBlock Classes="muted" Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" />
+                                                                <ItemsControl ItemsSource="{Binding Lines}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="x:String">
+                                                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Classes="muted" Text="Nothing is due soon and nothing is on your calendar for the next two weeks." TextWrapping="Wrap"
+                                                   IsVisible="{Binding NothingAhead}" />
+                                    </StackPanel>
+
+                                    <!-- 4. Plan tomorrow: up to three tasks in tomorrow's day parts, and the quick path (tomorrow's first task). -->
+                                    <StackPanel Spacing="10" IsVisible="{Binding IsPlanTomorrow}">
+                                        <Border Classes="inner" IsVisible="{Binding HasPlanRows}">
+                                            <StackPanel Spacing="8">
+                                                <TextBlock Classes="section" Text="Tomorrow's top tasks" />
+                                                <ItemsControl ItemsSource="{Binding PlanRows}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:ShutdownPlanRowViewModel">
+                                                            <StackPanel Spacing="0" Margin="0,0,0,6">
+                                                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                                    <TextBox Text="{Binding Text}" PlaceholderText="A task for tomorrow" AutomationProperties.Name="A task for tomorrow"
+                                                                             controls:TaskSuggestions.Picker="{Binding Picker}" controls:TaskSuggestions.KeepsText="True" />
+                                                                    <Button Grid.Column="1" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
+                                                                            ToolTip.Tip="Choose one of your tasks" AutomationProperties.Name="From your lists">
+                                                                        <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                                                        <Button.Flyout>
+                                                                            <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
+                                                                                <views:ListPickerView DataContext="{Binding Picker}" />
+                                                                            </Flyout>
+                                                                        </Button.Flyout>
+                                                                    </Button>
+                                                                    <ComboBox Grid.Column="2" ItemsSource="{Binding Parts}" SelectedIndex="{Binding PartIndex}" MinWidth="190"
+                                                                              AutomationProperties.Name="Day part">
+                                                                        <ComboBox.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:ShutdownPartChoice">
+                                                                                <TextBlock Text="{Binding Label}" />
+                                                                            </DataTemplate>
+                                                                        </ComboBox.ItemTemplate>
+                                                                    </ComboBox>
+                                                                </Grid>
+                                                                <views:TaskSuggestionsView DataContext="{Binding Picker}" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
+                                                           Text="A task waits on your Later list until its part starts, then joins that session's list." />
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Classes="muted" IsVisible="{Binding HasNoPlanParts}" TextWrapping="Wrap"
+                                                   Text="Tomorrow's plan has no parts to put a task in. You can still set tomorrow's first task below." />
+                                        <StackPanel Spacing="0">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)"
+                                                         AutomationProperties.Name="Tomorrow's first task"
+                                                         controls:TaskSuggestions.Picker="{Binding TomorrowPicker}" controls:TaskSuggestions.KeepsText="True" />
+                                                <Button Grid.Column="1" x:Name="TomorrowListButton" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
+                                                        ToolTip.Tip="Choose one of your tasks: it moves to the top of tomorrow's list" AutomationProperties.Name="From your lists">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                                        <TextBlock Text="From your lists" FontSize="13" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <Button.Flyout>
+                                                        <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
+                                                            <views:ListPickerView DataContext="{Binding TomorrowPicker}" />
+                                                        </Flyout>
+                                                    </Button.Flyout>
+                                                </Button>
+                                            </Grid>
+                                            <views:TaskSuggestionsView DataContext="{Binding TomorrowPicker}" />
+                                        </StackPanel>
+                                        <Button Classes="quiet" HorizontalAlignment="Left" Command="{Binding OpenPlanCommand}" Padding="8,4" AutomationProperties.Name="Open the Plan page">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <mi:MaterialIcon Kind="ViewAgendaOutline" Width="16" Height="16" />
+                                                <TextBlock Text="Edit tomorrow's plan" FontSize="13" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <!-- 5. Today in review: focus against the goal, drift, what got done, how did today go. -->
+                                    <Border Classes="inner" IsVisible="{Binding IsReview}">
+                                        <StackPanel Spacing="10" DataContext="{Binding Review}" x:DataType="vm:ShutdownReviewViewModel">
+                                            <StackPanel Spacing="2">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <mi:MaterialIcon Kind="TargetVariant" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                    <TextBlock Classes="section" Text="Focus" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding FocusText}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding DriftText}" IsVisible="{Binding HasDrift}" Classes="muted" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <StackPanel Spacing="2" IsVisible="{Binding HasDone}">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <mi:MaterialIcon Kind="CheckCircleOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                    <TextBlock Classes="section" Text="Done" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <ItemsControl ItemsSource="{Binding DoneLines}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="x:String">
+                                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                            <StackPanel Spacing="6">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <mi:MaterialIcon Kind="EmoticonNeutralOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                    <TextBlock Classes="section" Text="How did today go? (optional)" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <Button Classes="quiet" HorizontalAlignment="Left" Content="No feeling" Command="{Binding ClearFeelingCommand}"
+                                                        FontSize="12" Padding="8,2" MinHeight="0" AutomationProperties.Name="Take the feeling back" />
+                                                <ItemsControl ItemsSource="{Binding FeelingOptions}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:ShutdownFeelingOption">
+                                                            <RadioButton IsChecked="{Binding IsSelected}" Content="{Binding Label}" Margin="0,0,12,0" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBox Text="{Binding Note}" MaxLength="{x:Static vm:ShutdownReviewViewModel.MaxNoteLength}" PlaceholderText="One line about the day (stays sealed on this PC)"
+                                                         AutomationProperties.Name="A line about the day" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 6. Work over for today: what was checked. -->
+                                    <Border Classes="inner" IsVisible="{Binding IsClosing}">
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="section" Text="You checked" />
+                                            <ItemsControl ItemsSource="{Binding CheckedLines}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
+                                                            <mi:MaterialIcon Kind="CheckCircleOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                            <TextBlock Text="{Binding}" VerticalAlignment="Center" />
                                                         </StackPanel>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
-                                            <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
-                                                       Text="A task waits on your Later list until its part starts, then joins that session's list." />
+                                            <TextBlock Classes="muted" Text="Nothing was checked: you skipped every step." TextWrapping="Wrap" IsVisible="{Binding CheckedNothing}" />
                                         </StackPanel>
                                     </Border>
-                                    <TextBlock Classes="muted" IsVisible="{Binding HasNoPlanParts}" TextWrapping="Wrap"
-                                               Text="Tomorrow's plan has no parts to put a task in. You can still set tomorrow's first task below." />
-                                    <StackPanel Spacing="0">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBox Text="{Binding TomorrowTask}" PlaceholderText="Tomorrow's first task (it waits at the top of Today's checklist)"
-                                                     AutomationProperties.Name="Tomorrow's first task"
-                                                     controls:TaskSuggestions.Picker="{Binding TomorrowPicker}" controls:TaskSuggestions.KeepsText="True" />
-                                            <Button Grid.Column="1" x:Name="TomorrowListButton" Classes="quiet" Padding="8,4" VerticalAlignment="Center"
-                                                    ToolTip.Tip="Choose one of your tasks: it moves to the top of tomorrow's list" AutomationProperties.Name="From your lists">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
-                                                    <TextBlock Text="From your lists" FontSize="13" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                                <Button.Flyout>
-                                                    <Flyout Placement="BottomEdgeAlignedRight" Opening="OnTomorrowPickerOpening">
-                                                        <views:ListPickerView DataContext="{Binding TomorrowPicker}" />
-                                                    </Flyout>
-                                                </Button.Flyout>
-                                            </Button>
-                                        </Grid>
-                                        <views:TaskSuggestionsView DataContext="{Binding TomorrowPicker}" />
-                                    </StackPanel>
-                                    <Button Classes="quiet" HorizontalAlignment="Left" Command="{Binding OpenPlanCommand}" Padding="8,4" AutomationProperties.Name="Open the Plan page">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <mi:MaterialIcon Kind="ViewAgendaOutline" Width="16" Height="16" />
-                                            <TextBlock Text="Edit tomorrow's plan" FontSize="13" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Button>
+
+                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                        <Button Classes="primary pill" Content="Next" Command="{Binding NextCommand}" IsVisible="{Binding CanSkip}" />
+                                        <Button Classes="primary pill" Content="Finish" Command="{Binding FinishCommand}" IsVisible="{Binding IsClosing}" />
+                                        <Button Classes="pill" Content="Skip this step" Command="{Binding SkipStepCommand}" IsVisible="{Binding CanSkip}" />
+                                        <Button Classes="pill" Content="Not now" Command="{Binding NotNowCommand}" />
+                                    </WrapPanel>
                                 </StackPanel>
-
-                                <!-- 5. Today in review: focus against the goal, drift, what got done, how did today go. -->
-                                <Border Classes="inner" IsVisible="{Binding IsReview}">
-                                    <StackPanel Spacing="10" DataContext="{Binding Review}" x:DataType="vm:ShutdownReviewViewModel">
-                                        <StackPanel Spacing="2">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <mi:MaterialIcon Kind="TargetVariant" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                                <TextBlock Classes="section" Text="Focus" VerticalAlignment="Center" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding FocusText}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding DriftText}" IsVisible="{Binding HasDrift}" Classes="muted" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                        <StackPanel Spacing="2" IsVisible="{Binding HasDone}">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <mi:MaterialIcon Kind="CheckCircleOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                                <TextBlock Classes="section" Text="Done" VerticalAlignment="Center" />
-                                            </StackPanel>
-                                            <ItemsControl ItemsSource="{Binding DoneLines}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="x:String">
-                                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                        <StackPanel Spacing="6">
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <mi:MaterialIcon Kind="EmoticonNeutralOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                                <TextBlock Classes="section" Text="How did today go? (optional)" VerticalAlignment="Center" />
-                                            </StackPanel>
-                                            <Button Classes="quiet" HorizontalAlignment="Left" Content="No feeling" Command="{Binding ClearFeelingCommand}"
-                                                    FontSize="12" Padding="8,2" MinHeight="0" AutomationProperties.Name="Take the feeling back" />
-                                            <ItemsControl ItemsSource="{Binding FeelingOptions}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:ShutdownFeelingOption">
-                                                        <RadioButton IsChecked="{Binding IsSelected}" Content="{Binding Label}" Margin="0,0,12,0" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <TextBox Text="{Binding Note}" MaxLength="{x:Static vm:ShutdownReviewViewModel.MaxNoteLength}" PlaceholderText="One line about the day (stays sealed on this PC)"
-                                                     AutomationProperties.Name="A line about the day" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- 6. Work over for today: what was checked. -->
-                                <Border Classes="inner" IsVisible="{Binding IsClosing}">
-                                    <StackPanel Spacing="6">
-                                        <TextBlock Classes="section" Text="You checked" />
-                                        <ItemsControl ItemsSource="{Binding CheckedLines}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="x:String">
-                                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
-                                                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                                        <TextBlock Text="{Binding}" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <TextBlock Classes="muted" Text="Nothing was checked: you skipped every step." TextWrapping="Wrap" IsVisible="{Binding CheckedNothing}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                    <Button Classes="primary pill" Content="Next" Command="{Binding NextCommand}" IsVisible="{Binding CanSkip}" />
-                                    <Button Classes="primary pill" Content="Finish" Command="{Binding FinishCommand}" IsVisible="{Binding IsClosing}" />
-                                    <Button Classes="pill" Content="Skip this step" Command="{Binding SkipStepCommand}" IsVisible="{Binding CanSkip}" />
-                                    <Button Classes="pill" Content="Not now" Command="{Binding NotNowCommand}" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Panel>
-
-                        <!-- Everything else, while there is no shutdown card (a running session also takes the card's place). -->
-                        <Panel IsVisible="{Binding !ShowsShutdown}">
-
-                            <!-- New here: no profiles yet. -->
-                            <StackPanel Spacing="14" IsVisible="{Binding ShowsWelcome}">
-                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
-                                    <mi:MaterialIcon Kind="HandWave" Width="24" Height="24" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Grid.Column="1" Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="32" LineHeight="40" Padding="0,0,0,10" Margin="0,0,0,-10"
-                                               TextWrapping="Wrap" VerticalAlignment="Center" />
-                                </Grid>
-                                <TextBlock Classes="muted" TextWrapping="Wrap" MaxWidth="560"
-                                           Text="A profile says what counts as distracting while you focus (sites and apps to block). Start with the example, which blocks common time-wasters like YouTube, Reddit and social media; you can change it any time." />
-                                <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,4,0,0">
-                                    <Button Classes="primary pill" Content="Add the example profile" Command="{Binding AddExampleProfileCommand}" />
-                                    <Button Classes="pill" Content="Make my own in Profiles" Command="{Binding OpenProfilesCommand}" />
-                                </WrapPanel>
-                            </StackPanel>
-
-                            <!-- Running (and planning): Focus mode, in the card's one frame. -->
-                            <Panel IsVisible="{Binding IsSessionActive}">
-                                <views:FocusView DataContext="{Binding Focus}" />
                             </Panel>
-
-                            <!-- Idle: the headline, the next session's tasks, Start and the other ways to start. -->
-                            <views:IdleView IsVisible="{Binding ShowsStart}" />
-                        </Panel>
-                    </Panel>
-                </Border>
-
-                <!-- ===== More today: everything that is not the day's main job, folded. ===== -->
-                <Border Grid.Row="2" Classes="card" Padding="10,6">
-                    <Expander HorizontalAlignment="Stretch" IsExpanded="False">
-                        <Expander.Header>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <TextBlock Text="More today" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <Border Classes="count" IsVisible="{Binding MoreToday.HasAlert, FallbackValue=False}">
-                                    <TextBlock Text="{Binding MoreToday.AlertText}" FontSize="12" FontWeight="SemiBold" />
-                                </Border>
-                            </StackPanel>
-                        </Expander.Header>
-                        <StackPanel Spacing="10" Margin="0,8,0,4">
-
-                            <!-- The day bar, the same one the main window shows on History. -->
-                            <Expander DataContext="{Binding Day}" x:DataType="vm:DayBarViewModel" Header="Today's timeline"
-                                      HorizontalAlignment="Stretch" IsVisible="{Binding IsVisible, FallbackValue=False}">
-                                <StackPanel Spacing="6" Margin="0,8,0,0">
-                                    <Grid ColumnDefinitions="Auto,*">
-                                        <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" Margin="0,0,10,0" />
-                                        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" />
-                                    </Grid>
-                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSleep}">
-                                        <Ellipse Width="8" Height="8" Fill="{Binding SleepBrush}" VerticalAlignment="Center" />
-                                        <TextBlock Classes="muted" Text="{Binding SleepText}" />
-                                    </StackPanel>
-                                    <controls:DayBarControl Layout="{Binding Layout}" EventRequested="OnDayBarEvent" OpenProfileCommand="{Binding OpenProfileCommand}"
-                                                            OpenDayPlanCommand="{Binding OpenDayPlanCommand}" AddSessionCommand="{Binding AddSessionCommand}" />
-                                    <TextBlock Classes="muted" Text="{Binding SummaryText}" FontSize="12" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </Expander>
-
-                            <!-- Migration assistant: after an upgrade that brought something to set up. -->
-                            <Border Classes="inner" DataContext="{Binding WhatsNew}" x:DataType="vm:WhatsNewCardViewModel"
-                                    IsVisible="{Binding IsVisible, FallbackValue=False}">
-                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Content="Set up" Command="{Binding SetUpCommand}" />
-                                    <Button Grid.Column="2" Classes="quiet" Content="Not now" Command="{Binding NotNowCommand}" />
-                                </Grid>
-                            </Border>
-
-                            <!-- ADR 37: one-off days from three questions (kind of day, sleep, blocks). -->
-                            <Button Content="Plan day(s)…" Command="{Binding PlanDayCommand}" IsVisible="{Binding !IsSessionActive}" HorizontalAlignment="Left"
-                                    ToolTip.Tip="An adjusted workday or an off-day: its sleep and which blocks to lift" />
-
-                            <!-- Repeating weeks (ADR 47): which week of the cycle this one is. A switch that frees today's work waits like any looser plan change. -->
-                            <Border Classes="inner" DataContext="{Binding Week}" x:DataType="vm:WeekCardViewModel"
-                                    IsVisible="{Binding IsVisible, FallbackValue=False}">
-                                <StackPanel Spacing="6">
-                                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="6">
-                                        <mi:MaterialIcon Kind="CalendarWeek" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Text}" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                        <!-- Under the title and wrapping: the main column is only about 200 px inside the card in the real window. -->
-                                        <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Choices}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <WrapPanel ItemSpacing="4" LineSpacing="4" />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:WeekChoiceViewModel">
-                                                    <!-- The current week is the filled one (ink on Surface, bold), not accent. -->
-                                                    <Button Content="{Binding Number}" Classes="week" Classes.current="{Binding IsCurrent}" MinWidth="40"
-                                                            Command="{Binding $parent[ItemsControl].((vm:WeekCardViewModel)DataContext).SetWeekCommand}"
-                                                            CommandParameter="{Binding Number}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </Grid>
-                                    <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
-                                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Beeminder (ADR 43, read only): the user's goals, soonest due first; the drift colour when due today. -->
-                            <Border Classes="inner" DataContext="{Binding Beeminder}" x:DataType="vm:BeeminderViewModel"
-                                    IsVisible="{Binding HasToken, FallbackValue=False}">
-                                <StackPanel Spacing="6">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <mi:MaterialIcon Kind="Bee" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                            <TextBlock Text="Beeminder" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Status}" FontSize="11" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                                        <Button Grid.Column="2" Classes="quiet" Command="{Binding RefreshGoalsCommand}" Padding="6" MinHeight="0" MinWidth="0" ToolTip.Tip="{Binding RefreshTip}">
-                                            <mi:MaterialIcon Kind="Refresh" Width="16" Height="16" />
-                                        </Button>
-                                    </Grid>
-                                    <TextBlock Classes="muted" Text="No goals to show yet." IsVisible="{Binding !HasGoals}" />
-                                    <ItemsControl ItemsSource="{Binding Goals}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:BeeminderGoalRowViewModel">
-                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,2">
-                                                    <StackPanel>
-                                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                                        <TextBlock Classes="muted" Text="{Binding Needed}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasNeeded}" />
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding SafeText}" HorizontalAlignment="Right" Foreground="{DynamicResource Ab.Drift}" FontWeight="SemiBold" IsVisible="{Binding IsDueToday}" />
-                                                        <TextBlock Text="{Binding SafeText}" HorizontalAlignment="Right" IsVisible="{Binding !IsDueToday}" />
-                                                        <TextBlock Classes="faint" Text="{Binding DueText}" HorizontalAlignment="Right" FontSize="11" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- A day off taken in the Pre-Work window: Undo if it was a mistake. -->
-                            <Border Classes="inner" Padding="16,10" DataContext="{Binding DayOff}" x:DataType="vm:DayOffCardViewModel"
-                                    IsVisible="{Binding IsVisible, FallbackValue=False}">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                    <DockPanel>
-                                        <mi:MaterialIcon DockPanel.Dock="Left" Kind="Beach" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                        <Panel Width="8" DockPanel.Dock="Left" />
-                                        <TextBlock Text="Day off on this computer: no Pre-Work, work-hours guard or start nudges today." VerticalAlignment="Center" TextWrapping="Wrap" />
-                                    </DockPanel>
-                                    <Button Grid.Column="1" Content="Undo" Command="{Binding UndoCommand}" />
-                                </Grid>
-                            </Border>
-
-                            <!-- Cold Turkey: which of its blocks are on (read from its settings; nothing is changed there). -->
-                            <Border Classes="inner" DataContext="{Binding ColdTurkey}" x:DataType="vm:ColdTurkeyStatusViewModel"
-                                    IsVisible="{Binding IsVisible, FallbackValue=False}">
-                                <StackPanel Spacing="6">
-                                    <DockPanel>
-                                        <mi:MaterialIcon DockPanel.Dock="Left" Kind="Snowflake" Width="18" Height="18" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                        <Panel Width="8" DockPanel.Dock="Left" />
-                                        <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                    </DockPanel>
-                                    <ItemsControl ItemsSource="{Binding Blocks}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:ColdTurkeyBlockRow">
-                                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2">
-                                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" />
-                                                    <TextBlock Text="{Binding Name}" />
-                                                    <TextBlock Classes="muted" Text="{Binding StateText}" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
-                                               Text="Read from Cold Turkey's settings; this app never changes them. Which blocks a profile expects is set in Profiles." />
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Unlock: lift the blocks after a wait (options are set per profile). Folded away unless it's in progress. -->
-                            <Expander DataContext="{Binding Unlock}" x:DataType="vm:UnlockViewModel" IsVisible="{Binding IsVisible}"
-                                      IsExpanded="{Binding !IsFormVisible, Mode=OneWay}" HorizontalAlignment="Stretch"
-                                      Header="Unlock (lift the blocks after a wait)">
-                                <StackPanel Spacing="8" Margin="0,8,0,0">
-                                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
-                                    <StackPanel Spacing="8" IsVisible="{Binding IsFormVisible}">
-                                        <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                            <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" MinWidth="220" />
-                                            <ComboBox ItemsSource="{Binding RelockChoices}" SelectedItem="{Binding SelectedRelock}" MinWidth="180" />
-                                            <TextBox Text="{Binding RelockTimeText}" IsVisible="{Binding IsRelockTimeVisible}"
-                                                     PlaceholderText="e.g. 6pm" Width="100" />
-                                        </WrapPanel>
-                                        <TextBox Text="{Binding Reason}" PlaceholderText="{Binding ReasonHint}" />
-                                        <Button Content="Start unlock countdown" Command="{Binding RequestCommand}" HorizontalAlignment="Left" />
-                                    </StackPanel>
-                                    <Button Content="Cancel unlock" Command="{Binding CancelCommand}" IsVisible="{Binding IsWaiting}" HorizontalAlignment="Left" />
-                                    <Button Content="Lock again" Command="{Binding LockAgainCommand}" IsVisible="{Binding IsUnlocked}" HorizontalAlignment="Left" />
-                                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </Expander>
-                        </StackPanel>
-                    </Expander>
-                </Border>
-            </Grid>
-
-            <!-- ===== The side column: 330 wide. ===== -->
-            <StackPanel Grid.Column="1" Spacing="14" VerticalAlignment="Top" Margin="0,0,8,0">
-
-                <!-- Today's deep work against the daily goal: the ring (redesign phase 4). -->
-                <Border Classes="card" DataContext="{Binding Goal}" x:DataType="vm:GoalCardViewModel"
-                        IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Goal, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
-                    <StackPanel Spacing="12">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                            <!-- Ink while a session runs: the time-left ring beside the timer is then the screen's progress accent. -->
-                            <controls:ProgressRing Classes="goalRing" Classes.running="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Focus.IsRunningPhase, FallbackValue=False}"
-                                                   Width="56" Height="56" Thickness="8" Value="{Binding Fraction}"
-                                                   TrackBrush="{DynamicResource Ab.Surface2}" />
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Classes="display" Text="{Binding FocusedText}" FontSize="22" />
-                                <TextBlock Classes="muted" Text="{Binding OfGoalText}" FontSize="13" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <Button Grid.Column="2" Classes="quiet" Command="{Binding EditCommand}" ToolTip.Tip="Change the daily goal" Padding="6"
-                                    VerticalAlignment="Top" AutomationProperties.Name="Change the daily goal">
-                                <mi:MaterialIcon Kind="PencilOutline" Width="16" Height="16" />
-                            </Button>
-                        </Grid>
-                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsMet}">
-                            <mi:MaterialIcon Classes="met" Classes.quiet="{DynamicResource Ab.IsQuietColour}" Kind="CheckCircleOutline" Width="16" Height="16" VerticalAlignment="Center" />
-                            <TextBlock Text="Goal met" Foreground="{DynamicResource Ab.Met}" VerticalAlignment="Center" />
-                        </StackPanel>
-                        <!-- A Budget day's pace (ADR 47): the budget left and the day left for it; the waiting colour when the day can't hold it any more. -->
-                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsPaceOnTrack}">
-                            <mi:MaterialIcon Kind="TimerSand" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{DynamicResource Ab.Muted}" />
-                            <TextBlock Classes="muted" Text="{Binding PaceText}" FontSize="13" TextWrapping="Wrap" MaxWidth="240" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsPaceBehind}">
-                            <mi:MaterialIcon Classes="waiting" Classes.quiet="{DynamicResource Ab.IsQuietColour}" Kind="AlertOutline" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0" />
-                            <TextBlock Text="{Binding PaceText}" FontSize="13" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap" MaxWidth="240" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding PhoneText}" FontSize="13" Foreground="{DynamicResource Ab.Met}" TextWrapping="Wrap"
-                                   IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
-                                   IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        <StackPanel Spacing="8" IsVisible="{Binding IsEditing}">
-                            <WrapPanel ItemSpacing="8" LineSpacing="6">
-                                <TextBlock Text="Daily goal" VerticalAlignment="Center" />
-                                <NumericUpDown Value="{Binding GoalMinutes}" Minimum="30" Maximum="480" Increment="15" FormatString="0" Width="110" />
-                                <TextBlock Text="minutes" VerticalAlignment="Center" />
-                            </WrapPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="Save" Command="{Binding SaveCommand}" />
-                                <Button Content="Cancel" Command="{Binding CancelCommand}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-
-                <!-- ADR 58: what calendar events changed in today's guarded windows, with the day's other status lines. Quiet; gone when nothing changed. -->
-                <ItemsControl DataContext="{Binding CalendarToday}" x:DataType="vm:CalendarTodayViewModel" Margin="8,-6,8,0"
-                              ItemsSource="{Binding Lines}" IsVisible="{Binding HasLines, FallbackValue=False}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="x:String">
-                            <TextBlock Classes="muted" Text="{Binding}" FontSize="12" TextWrapping="Wrap" Margin="0,1" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!-- Daily steps a paired phone read from Health Connect (shown once a phone's file carries steps): the ring fills to the goal. -->
-                <Border Classes="card" DataContext="{Binding Steps}" x:DataType="vm:StepsCardViewModel"
-                        IsVisible="{Binding IsVisible, FallbackValue=False}">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
-                        <controls:ProgressRing Classes="stepsRing" Classes.met="{Binding IsMet}" Width="56" Height="56" Thickness="8"
-                                               Value="{Binding Fraction}" TrackBrush="{DynamicResource Ab.Surface2}" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="display" Text="{Binding CountText}" FontSize="18" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <mi:MaterialIcon Classes="met" Classes.quiet="{DynamicResource Ab.IsQuietColour}" Kind="CheckCircleOutline" Width="14" Height="14"
-                                                 VerticalAlignment="Center" IsVisible="{Binding IsMet}" />
-                                <TextBlock Classes="muted" Text="{Binding UpdatedText}" FontSize="13" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </StackPanel>
-                        <Button Grid.Column="2" Classes="quiet" Command="{Binding HideCommand}" ToolTip.Tip="Hide the daily steps card on this PC" Padding="6"
-                                VerticalAlignment="Top" AutomationProperties.Name="Hide the daily steps card">
-                            <mi:MaterialIcon Kind="EyeOffOutline" Width="16" Height="16" />
-                        </Button>
-                    </Grid>
-                </Border>
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0" DataContext="{Binding Steps}" x:DataType="vm:StepsCardViewModel"
-                            IsVisible="{Binding IsHidden, FallbackValue=False}">
-                    <mi:MaterialIcon Kind="Walk" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                    <TextBlock Classes="muted" Text="Daily steps hidden" FontSize="13" VerticalAlignment="Center" />
-                    <Button Classes="quiet" Content="Show" Command="{Binding ShowCommand}" />
-                </StackPanel>
-
-                <!-- Next up: the next two parts of today's plan. -->
-                <Border Classes="card" DataContext="{Binding NextUp}" x:DataType="vm:NextUpViewModel"
-                        IsVisible="{Binding HasRows, FallbackValue=False}">
-                    <StackPanel Spacing="12">
-                        <TextBlock Classes="section" Text="Next up" />
-                        <ItemsControl ItemsSource="{Binding Rows}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:NextUpRow">
-                                    <!-- A fixed 76 time column; both texts share a line height so their baselines sit together. -->
-                                    <Grid ColumnDefinitions="76,*" Margin="0,3">
-                                        <TextBlock Classes="muted numeral nextTime" Text="{Binding TimeText}" FontSize="13" LineHeight="21" VerticalAlignment="Top" Margin="0,2,0,0" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding Title}" FontSize="15" LineHeight="21" TextWrapping="Wrap" />
-                                            <TextBlock Classes="muted" Text="{Binding PlannedText}" IsVisible="{Binding HasPlanned}" FontSize="13" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <!-- Seen while planning: the sites and apps with no rule noticed so far; planning stage only, once there is one. They are
-                     asked about together when planning ends. -->
-                <Border Classes="card" DataContext="{Binding SeenWhilePlanning}" x:DataType="vm:SeenWhilePlanningViewModel"
-                        IsVisible="{Binding IsVisible, FallbackValue=False}">
-                    <StackPanel Spacing="12">
-                        <TextBlock Classes="section" Text="Seen while planning" />
-                        <TextBlock Text="{Binding Summary}" FontSize="14" TextWrapping="Wrap" />
-                        <ItemsControl ItemsSource="{Binding Subjects}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel ItemSpacing="6" LineSpacing="6" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="x:String">
-                                    <Border Classes="count" Padding="13,7">
-                                        <TextBlock Text="{Binding}" FontSize="13" />
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <!-- Come back to: parked ideas until ticked (idle and in Focus mode). Ctrl+Alt+N adds one from anywhere. -->
-                <Border Classes="card" DataContext="{Binding Comebacks}" x:DataType="vm:ComebacksViewModel"
-                        IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).Comebacks, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
-                    <StackPanel Spacing="10">
-                        <TextBlock Classes="section" Text="Come back to" />
-                        <ItemsControl ItemsSource="{Binding Items}">
-                            <ItemsControl.ItemTemplate>
-                                <!-- ✎ edits it in place (Enter or click away saves, Esc cancels); the list icon makes it a task at the end of the checklist. -->
-                                <DataTemplate x:DataType="vm:ComebackRowViewModel">
-                                    <StackPanel Spacing="4">
-                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,2">
-                                            <CheckBox Command="{Binding TickCommand}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Center" MinWidth="0" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" IsVisible="{Binding !IsEditing}" />
-                                            <TextBox Grid.Column="1" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" AutomationProperties.Name="Come-back text"
-                                                     PropertyChanged="OnComebackBoxPropertyChanged" LostFocus="OnComebackBoxLostFocus">
-                                                <TextBox.KeyBindings>
-                                                    <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
-                                                    <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
-                                                </TextBox.KeyBindings>
-                                            </TextBox>
-                                            <TextBlock Grid.Column="2" Classes="faint" Text="{Binding When}" FontSize="11" VerticalAlignment="Center" />
-                                            <Button Grid.Column="3" Classes="comebackAction" Command="{Binding BeginEditCommand}" ToolTip.Tip="Edit" AutomationProperties.Name="Edit"><mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" /></Button>
-                                            <Button Grid.Column="4" Classes="comebackAction" Command="{Binding AddToTasksCommand}" IsVisible="{Binding CanAddToTasks}"
-                                                    ToolTip.Tip="Add to tasks: it goes at the end of the checklist and leaves this list" AutomationProperties.Name="Add to tasks">
-                                                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
-                                            </Button>
-                                        </Grid>
-                                        <!-- A 4th task: a reason first (3 tasks per session). -->
-                                        <StackPanel Spacing="4" IsVisible="{Binding IsAskingOverLimit}">
-                                            <TextBlock Text="Keep it to 3. Add it anyway? Why (10+ characters, stays on this PC)" TextWrapping="Wrap" />
-                                            <TextBox Text="{Binding OverLimitReason}" />
-                                            <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap"
-                                                       IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Button Classes="small" Content="Add anyway" Command="{Binding ConfirmOverLimitCommand}" />
-                                                <Button Classes="small" Content="Cancel" Command="{Binding CancelOverLimitCommand}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBox Text="{Binding NewText}" PlaceholderText="{Binding PlaceholderText}" AutomationProperties.Name="Park an idea">
-                            <TextBox.KeyBindings>
-                                <KeyBinding Gesture="Enter" Command="{Binding AddCommand}" />
-                            </TextBox.KeyBindings>
-                        </TextBox>
-                        <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap" Text="{Binding HintText}" />
-                    </StackPanel>
-                </Border>
-
-                <!-- Timers & lunch, one compact card: the lunch line (flexible lunch, schema v8), then the timers and alarms. -->
-                <Border Classes="card" IsVisible="{Binding Timers, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <StackPanel Spacing="14">
-                        <Border DataContext="{Binding Lunch}" x:DataType="vm:LunchCardViewModel" IsVisible="{Binding IsVisible, FallbackValue=False}">
-                            <StackPanel Spacing="8">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <mi:MaterialIcon Kind="SilverwareForkKnife" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Text="{Binding Text}" FontSize="15" TextWrapping="Wrap" MaxWidth="240" />
-                                </StackPanel>
-                                <TextBlock Text="{Binding DeliveryText}" IsVisible="{Binding DeliveryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                           FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" MaxWidth="260" />
-                                <WrapPanel ItemSpacing="6" LineSpacing="6">
-                                    <Button Classes="quiet" Content="Start lunch" Command="{Binding StartCommand}" IsVisible="{Binding CanStart}" />
-                                    <Button Classes="quiet" Content="−5 min" Command="{Binding ShorterCommand}" IsVisible="{Binding IsOnLunch}" IsEnabled="{Binding CanShorten}"
-                                            ToolTip.Tip="End lunch 5 minutes sooner (never less than a minute from now); your other devices follow" />
-                                    <Button Classes="quiet" Content="+5 min" Command="{Binding LongerCommand}" IsVisible="{Binding IsOnLunch}"
-                                            ToolTip.Tip="5 more minutes of lunch; your other devices follow" />
-                                    <Button Classes="quiet" Content="I'm back" Command="{Binding BackCommand}" IsVisible="{Binding IsOnLunch}" />
-                                </WrapPanel>
-                            </StackPanel>
                         </Border>
-                        <views:TimersCardView DataContext="{Binding Timers}" />
-                    </StackPanel>
-                </Border>
+                        <!-- TodayPageScope: only here does the running row get its tint, Now badge and open steps. -->
+                        <StackPanel x:Name="TaskList" IsVisible="{Binding !ShowsShutdown}" views:TodayPageScope.IsToday="True"
+                                    Container.Name="TaskColumn" Container.Sizing="Width">
+                            <ItemsControl DataContext="{Binding TaskPage}" x:DataType="vm:TasksViewModel" ItemsSource="{Binding TodayTabPanel.Sections, FallbackValue={x:Null}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TaskSectionViewModel">
+                                        <Border Classes.sessionList="{Binding IsSessionSection}">
+                                            <views:TaskSectionView />
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Panel>
+                </Grid>
+            </ScrollViewer>
 
-                <!-- The noise player (it left the rail), when a sound is set up. -->
-                <Panel IsVisible="{Binding NoisePlayer, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <views:NoisePlayerView DataContext="{Binding NoisePlayer}" />
-                </Panel>
+            <!-- The Today sidebar: over the list (it covers nothing else: its empty room takes no clicks). -->
+            <views:TodaySidebarView x:Name="Sidebar" DataContext="{Binding Sidebar}" IsVisible="{Binding $parent[views:TodayView].((vm:SessionViewModel)DataContext).Sidebar, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
+        </Panel>
 
-                <!-- After a session: what it used with no rule, as rules (Distracting / Fine / Ignore). -->
-                <Panel IsVisible="{Binding Review, Converter={x:Static ObjectConverters.IsNotNull}}">
-                    <views:SessionReviewView DataContext="{Binding Review}" />
-                </Panel>
-            </StackPanel>
-        </Grid>
-    </ScrollViewer>
-    </DockPanel>
+        <!-- Jot it down rests at the bottom left (fainter during a session; Ctrl+J); the page's toast floats above it. -->
+        <Panel Grid.Row="2" DataContext="{Binding TaskPage}" x:DataType="vm:TasksViewModel" IsVisible="{Binding $parent[views:TodayView].((vm:SessionViewModel)DataContext).TaskPage, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+            <views:JotBoxView DataContext="{Binding Jot}" Margin="22,4,14,12" HorizontalAlignment="Left" MinWidth="240" MaxWidth="420" ZIndex="1" />
+            <Canvas Height="0" VerticalAlignment="Top" ZIndex="20">
+                <views:TaskToastView DataContext="{Binding Toasts}" Canvas.Left="18" Canvas.Bottom="6" MaxWidth="364" />
+            </Canvas>
+        </Panel>
+    </Grid>
 </UserControl>

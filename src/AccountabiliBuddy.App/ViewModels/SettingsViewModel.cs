@@ -232,7 +232,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(WakeSource));
             OnPropertyChanged(nameof(PcAlarmNote));
         };
-        SelectedRowIndex = 0;
+        SelectedRowIndex = IndexOf(SettingsSection.YourDay);
         _ready = true;
         RefreshUnsaved();
     }
@@ -1021,6 +1021,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The Settings list's rows, top to bottom; the one at <see cref="SelectedRowIndex"/> shows on the right.</summary>
     public IReadOnlyList<SettingsRowViewModel> Rows { get; } = new[]
     {
+        // Round 2: the Today page's layout (Settings › Today), first like the board's Tabs group; there once the app sets its page.
+        new SettingsRowViewModel(SettingsSection.Today, "Today", Material.Icons.MaterialIconKind.CalendarToday, "Today's layout: the sidebar, its parts and Finished today.")
+        {
+            IsAvailable = false,
+        },
         new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny, "How your day starts, lunch, the day bar and where your calendars come from."),
         new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight, "Bedtime, wake time and the reminders before bed."),
         new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline, "Starting, stepping away, Pomodoro, escalation and ending early."),
@@ -1117,6 +1122,35 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     private TaskSettingsViewModel? _tasksPage;
+
+    /// <summary>
+    /// Settings › Today (round 2): set by the app; the Today row shows only then. Not locked during a session: it only changes what
+    /// Today draws (the lunch chip still can't be turned off outside ProductaBuddy). A Today group asked for with
+    /// <see cref="Select(SettingsSection, string)"/> scrolls into view.
+    /// </summary>
+    public TodaySettingsViewModel? TodayPage
+    {
+        get => _todayPage;
+        set
+        {
+            _todayPage = value;
+            RowOf(SettingsSection.Today).IsAvailable = value is not null;
+            if (value is not null)
+            {
+                RevealRequested += (_, area) =>
+                {
+                    if (SelectedSection == SettingsSection.Today)
+                    {
+                        value.Reveal(area);
+                    }
+                };
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
+    private TodaySettingsViewModel? _todayPage;
 
     /// <summary>
     /// Alerts &amp; on-screen › Task reminders and Task reminders ring on (Tasks redesign Phase 7): set by the app when the task list is the

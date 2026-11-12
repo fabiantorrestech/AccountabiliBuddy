@@ -335,7 +335,26 @@ public sealed partial class TasksViewModel
         Guid id = task.Id;
         return MakeRow(
             new TaskRowKey(TaskRowKind.Session, id), task.Title, SessionLine(task), category?.Name, category?.Color,
-            number: number, isNow: id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true), stepLines: lines);
+            number: number, isNow: id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true), stepLines: lines,
+            nowSteps: id == runningId && lines.Count == 0 ? NowStepsOf(task) : null);
+    }
+
+    // Round 2 (Today's This session, brief §4.2): the running item's task with all its steps open, done ones struck, "done" / "in
+    // focus" at the right. Each box ticks or unticks its step (the same as the step list's box).
+    private IReadOnlyList<TodayNowStepViewModel> NowStepsOf(SessionTask task)
+    {
+        IReadOnlyCollection<Guid> focused = (IReadOnlyCollection<Guid>?)_tasks.Current.FocusedSteps?.ToHashSet() ?? [];
+        var steps = new List<TodayNowStepViewModel>();
+        for (int index = 0; index < task.Subtasks.Count; index++)
+        {
+            SessionSubtask step = task.Subtasks[index];
+            Guid stepId = step.Id;
+            bool done = step.IsDone;
+            steps.Add(new TodayNowStepViewModel(
+                TaskStepLetters.Of(index), step.Title, done, focused.Contains(stepId), new AsyncRelayCommand(() => _tasks.SetTickedAsync(stepId, !done))));
+        }
+
+        return steps;
     }
 
     // Quiet view: a focused step as its own row, with its letter chip and "↳ task · ● label · 142b ▾".
@@ -367,6 +386,7 @@ public sealed partial class TasksViewModel
             StepSourceBrush = TaskCategoryBrushes.Of(category?.Color),
             StepSourceId = idText,
             StepList = () => StepListFor(taskId),
+            NowSteps = current.CurrentId == stepId ? NowStepsOf(task) : [],
         };
     }
 

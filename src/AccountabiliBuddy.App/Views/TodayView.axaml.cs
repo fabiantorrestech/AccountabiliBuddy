@@ -83,28 +83,6 @@ public partial class TodayView : UserControl
         }
     }
 
-    // Editing a come-back: the box takes the keyboard as it opens, with the old text selected.
-    private void OnComebackBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property == IsVisibleProperty && sender is TextBox { IsVisible: true } box)
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                box.Focus();
-                box.SelectAll();
-            });
-        }
-    }
-
-    // Clicking away keeps the new text, like Enter; Escape has already closed the box, so nothing is saved then.
-    private void OnComebackBoxLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (sender is TextBox { DataContext: ComebackRowViewModel { IsEditing: true } row })
-        {
-            row.SaveEditCommand.Execute(null);
-        }
-    }
-
     // Options (tune) in the page header (round 2, brief §3.3): under the button, aligned to its right edge.
     private void OnTodayOptionsRequested(object? sender, RoutedEventArgs e)
     {

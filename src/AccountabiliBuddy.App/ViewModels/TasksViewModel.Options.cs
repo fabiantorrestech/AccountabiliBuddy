@@ -14,10 +14,33 @@ public sealed partial class TasksViewModel
             IsCompact, UseNormalRowsCommand, UseCompactRowsCommand, Shelf.HasViews ? Shelf.GroupMenu() : [], Shelf.ViewMenu(), OpenSettingsAt);
     }
 
-    /// <summary>The Today page's Options menu (<see cref="PageOptionsMenus.Today"/>): its last row opens Settings › Your day.</summary>
+    /// <summary>Opens Settings at a section scrolled to one of its groups (by search area name); set by the app. Null opens the section.</summary>
+    public Action<SettingsSection, string>? OpenSettingsArea { get; set; }
+
+    /// <summary>
+    /// The Today page's Options menu (<see cref="PageOptionsMenus.Today"/>): Cards and Today sidebar choices; its last row opens
+    /// Settings › Today.
+    /// </summary>
     public IReadOnlyList<TaskMenuEntry> TodayOptionsMenu()
     {
-        return PageOptionsMenus.Today(TodayTabPanel.ExpandTip, TodayTabPanel.ExpandIcon, TodayTabPanel.ToggleExpandCommand, OpenSettingsAt);
+        TodaySidebarViewModel? sidebar = _session.Sidebar;
+        return PageOptionsMenus.Today(
+            ShowsFinishedOnToday,
+            new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => _todayLayout?.SetShowFinishedTodayAsync(!ShowsFinishedOnToday) ?? Task.CompletedTask),
+            sidebar?.IsOpen ?? false,
+            sidebar?.ToggleCommand,
+            OpenSettingsAt,
+            area =>
+            {
+                if (OpenSettingsArea is { } openArea)
+                {
+                    openArea(PageOptionsMenus.TodaySettingsSection, area);
+                }
+                else
+                {
+                    OpenSettingsAt(PageOptionsMenus.TodaySettingsSection);
+                }
+            });
     }
 
     private void OpenSettingsAt(SettingsSection section)

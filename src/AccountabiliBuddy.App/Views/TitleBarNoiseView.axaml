@@ -36,6 +36,27 @@
         <Style Selector="Button.noiseIcon.open /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <!-- Repeat in the volume popover: quiet, Surface2 with ink while on. -->
+        <Style Selector="ToggleButton.noiseRepeat">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="ToggleButton.noiseRepeat /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ToggleButton.noiseRepeat:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ToggleButton.noiseRepeat:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
         <Style Selector="Button.noiseIcon:disabled">
             <Setter Property="Opacity" Value="0.4" />
         </Style>
@@ -131,6 +152,7 @@
             <Button x:Name="VolumeButton" Grid.Column="4" Classes="noiseIcon" Margin="2,0,0,0" AutomationProperties.Name="Noise volume" ToolTip.Tip="Noise volume (its own)">
                 <Button.Flyout>
                     <Flyout Placement="Bottom" ShowMode="Standard" FlyoutPresenterClasses="volumePopover">
+                        <StackPanel>
                         <Grid x:Name="VolumePanel" ColumnDefinitions="Auto,150,Auto,Auto" ColumnSpacing="10" Height="44">
                             <Grid.Resources>
                                 <!-- The slider's filled part and knob: the accent, as on the board. -->
@@ -153,6 +175,44 @@
                                          AutomationProperties.Name="Noise volume, type 0 to 100" />
                             </Panel>
                         </Grid>
+                        <!-- Round 2 (Q278): what only Today's noise card had, now that the card is gone: lock to headphones, repeat the
+                             folder, rename the sound (only how it's shown). Under the slider, so the slider stays where it was. -->
+                        <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="-14,0,-10,0" />
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="4" Height="38" IsEnabled="{Binding HasFiles}" IsVisible="{Binding !IsRenaming}">
+                            <Button Classes="noiseIcon" Command="{Binding ToggleLockCommand}" ToolTip.Tip="{Binding LockTip}"
+                                    AutomationProperties.Name="{Binding LockTip}" VerticalAlignment="Center">
+                                <mi:MaterialIcon Kind="{Binding LockIcon}" Width="15" Height="15" />
+                            </Button>
+                            <ToggleButton Grid.Column="1" Classes="noiseRepeat" IsChecked="{Binding Repeat}" ToolTip.Tip="Repeat the folder"
+                                          AutomationProperties.Name="Repeat the folder" VerticalAlignment="Center">
+                                <mi:MaterialIcon Kind="Repeat" Width="15" Height="15" />
+                            </ToggleButton>
+                            <Button Grid.Column="3" Classes="noiseIcon" Width="NaN" Padding="8,0" Command="{Binding StartRenameCommand}"
+                                    ToolTip.Tip="Rename (only how it's shown here)" AutomationProperties.Name="Rename the sound" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" VerticalAlignment="Center" />
+                                    <TextBlock Text="Rename" FontSize="12" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4" Height="38" IsVisible="{Binding IsRenaming}">
+                            <TextBox Text="{Binding RenameText}" FontSize="12" MinHeight="26" Padding="6,2" VerticalAlignment="Center"
+                                     AutomationProperties.Name="The sound's name">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding SaveRenameCommand}" />
+                                    <KeyBinding Gesture="Escape" Command="{Binding CancelRenameCommand}" />
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                            <Button Grid.Column="1" Classes="noiseIcon" Command="{Binding SaveRenameCommand}" ToolTip.Tip="Save" AutomationProperties.Name="Save the name"
+                                    VerticalAlignment="Center">
+                                <mi:MaterialIcon Kind="Check" Width="15" Height="15" />
+                            </Button>
+                            <Button Grid.Column="2" Classes="noiseIcon" Command="{Binding CancelRenameCommand}" ToolTip.Tip="Cancel" AutomationProperties.Name="Cancel renaming"
+                                    VerticalAlignment="Center">
+                                <mi:MaterialIcon Kind="Close" Width="15" Height="15" />
+                            </Button>
+                        </Grid>
+                        </StackPanel>
                     </Flyout>
                 </Button.Flyout>
                 <mi:MaterialIcon Kind="VolumeHigh" Width="15" Height="15" />

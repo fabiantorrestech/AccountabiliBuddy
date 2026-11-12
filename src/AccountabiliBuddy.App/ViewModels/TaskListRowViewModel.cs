@@ -89,6 +89,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     public bool HasTime => TimeText.Length > 0 && !IsNow;
 
+    /// <summary>The row has a time, now or not (Today shows it beside the running row's Now badge).</summary>
+    public bool HasTimeText => TimeText.Length > 0;
+
     /// <summary>The ← quick action ("Queue it for today", or the target "Put it in this session"); null for none.</summary>
     public TaskRowAction? LeftAction { get; init; }
 
@@ -278,6 +281,17 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     public bool HasStepLines => StepLines.Count > 0;
 
+    /// <summary>
+    /// Round 2 (Today's This session, brief §4.2): the running row's task's steps, all of them with their letters, done ones struck
+    /// through, "done" / "in focus" at the right. Only Today draws them (TaskRowView, <see cref="Views.TodayPageScope"/>); empty on
+    /// every other row and in the Grouped view (its step lines already show).
+    /// </summary>
+    public IReadOnlyList<TodayNowStepViewModel> NowSteps { get; init; } = [];
+
+    public bool HasNowSteps => NowSteps.Count > 0;
+
+    private string NowStepsSignature => string.Join("\u0001", NowSteps.Select(step => step.Signature));
+
     // What the step lines show, to tell whether a row built again draws the same.
     private string StepLinesSignature => string.Join("\u0001", StepLines.Select(line => line.Signature));
 
@@ -301,6 +315,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             && TimeText == other.TimeText && CanDrag == other.CanDrag && LabelStyle == other.LabelStyle
             && StepLetter == other.StepLetter && StepSourceTitle == other.StepSourceTitle && StepSourceLabel == other.StepSourceLabel
             && StepSourceId == other.StepSourceId && StepLinesSignature == other.StepLinesSignature
+            && NowStepsSignature == other.NowStepsSignature
             && TaskRowAction.SameAs(LeftAction, other.LeftAction) && TaskRowAction.SameAs(RightAction, other.RightAction);
     }
 

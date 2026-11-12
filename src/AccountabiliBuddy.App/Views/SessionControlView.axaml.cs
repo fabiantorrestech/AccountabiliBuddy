@@ -40,23 +40,38 @@ public partial class SessionControlView : UserControl
         };
         Pill.AddHandler(GotFocusEvent, OnPillGotFocus);
         Pill.AddHandler(LostFocusEvent, OnPillLostFocus);
-        if (MoreButton.Flyout is { } menu)
+        _menu.Opened += (_, _) =>
         {
-            menu.Opened += (_, _) =>
-            {
-                _menuOpen = true;
-                UpdateOpen();
-            };
-            menu.Closed += (_, _) =>
-            {
-                _menuOpen = false;
-                UpdateOpen();
-            };
-        }
+            _menuOpen = true;
+            UpdateOpen();
+        };
+        _menu.Closed += (_, _) =>
+        {
+            _menuOpen = false;
+            UpdateOpen();
+        };
     }
 
-    /// <summary>The ⌄ session menu, for the title bar's one-pop-up-at-a-time rule.</summary>
-    public Avalonia.Controls.Primitives.FlyoutBase? SessionMenu => MoreButton.Flyout;
+    // Round 2 (brief §3.6, §4.2): the Session menu in the shared menu look, one flyout refilled each time it opens (so the title bar's
+    // one-pop-up rule can hold it): "Session · ends 1:23 PM", Step away, Pause timer, Side task, Add 10 minutes │ End and mark the rest
+    // unfinished │ End session (red, last).
+    private readonly TaskMenuFlyout _menu = new() { Placement = Avalonia.Controls.PlacementMode.BottomEdgeAlignedRight };
+
+    /// <summary>The ⋯ session menu, for the title bar's one-pop-up-at-a-time rule.</summary>
+    public Avalonia.Controls.Primitives.FlyoutBase? SessionMenu => _menu;
+
+    // The ⋯ after the time: the menu, filled now so it matches the session as it is.
+    private void OnMoreClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        TaskMenus.Fill(_menu, _viewModel.MenuEntries());
+        _menu.ShowAt(MoreButton);
+        e.Handled = true;
+    }
 
     // Round 2 (brief §3.2, CN §1 rule 2): the control is centred in the title bar by its resting width; the extras (Step away, ⌄,
     // the end time) open to the left over the empty title bar, so the ring and the time never move when they open.

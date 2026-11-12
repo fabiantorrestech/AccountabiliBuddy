@@ -60,6 +60,17 @@ public sealed partial class NextUpViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HasRows { get; set; }
 
+    /// <summary>
+    /// Round 2 (the Today sidebar's Next up): today's parts (sleep left out) as pieces of a small bar from the first part's start to
+    /// the last part's end, each in its category's colour.
+    /// </summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<Controls.MiniDayBarSegment> Segments { get; set; } = [];
+
+    /// <summary>Where now sits on that bar (0 to 1), or -1 when today has no parts or now is outside them.</summary>
+    [ObservableProperty]
+    public partial double NowFraction { get; set; } = -1;
+
     private void Refresh()
     {
         DateTime now = _time.GetLocalNow().DateTime;
@@ -80,6 +91,32 @@ public sealed partial class NextUpViewModel : ObservableObject
         }
 
         HasRows = Rows.Count > 0;
+        RefreshBar(day, now);
+    }
+
+    // The mini day bar: every part of today but sleep, spread over the span from the first one's start to the last one's end.
+    private void RefreshBar(LocalWindow day, DateTime now)
+    {
+        List<PlannedPart> parts = DayWorkWindows.PartsIn(PlanInForce, day, now, _day?.FocusedOn, _day?.NightFallback)
+            .Where(part => part.Category.Behavior != CategoryBehavior.Sleep && part.Window.End > part.Window.Start)
+            .ToList();
+        if (parts.Count == 0)
+        {
+            Segments = [];
+            NowFraction = -1;
+            return;
+        }
+
+        DateTime start = parts.Min(part => part.Window.Start);
+        DateTime end = parts.Max(part => part.Window.End);
+        double span = (end - start).TotalMinutes;
+        Segments = parts
+            .Select(part => new Controls.MiniDayBarSegment(
+                (part.Window.Start - start).TotalMinutes / span,
+                (part.Window.End - start).TotalMinutes / span,
+                TaskCategoryBrushes.Of(part.Category.Color)))
+            .ToList();
+        NowFraction = now >= start && now <= end ? (now - start).TotalMinutes / span : -1;
     }
 
     private string PlannedTextFor(PlannedPart part)

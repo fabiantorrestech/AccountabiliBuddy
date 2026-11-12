@@ -220,6 +220,7 @@ public sealed partial class SessionViewModel : ObservableObject
                     if (e.PropertyName == nameof(DayBarViewModel.StatusText))
                     {
                         OnPropertyChanged(nameof(IdleNextText));
+                        OnPropertyChanged(nameof(IdleCardLine));
                     }
                 };
             }
@@ -243,6 +244,23 @@ public sealed partial class SessionViewModel : ObservableObject
             return text.Length == 0 || text.EndsWith('.') ? text : text + ".";
         }
     }
+
+    /// <summary>
+    /// Round 2 (Today's start card, brief §4.2): "Nothing running · next: Deep work at 1:00 PM", or "Nothing running" without a next
+    /// block.
+    /// </summary>
+    public string IdleCardLine
+    {
+        get
+        {
+            string next = IdleNextText.TrimEnd('.');
+            return next.Length == 0 ? "Nothing running" : $"Nothing running · next: {next}";
+        }
+    }
+
+    /// <summary>The Today sidebar (round 2): set by the app; null draws only its rail.</summary>
+    [ObservableProperty]
+    public partial TodaySidebarViewModel? Sidebar { get; set; }
 
     /// <summary>Today's "Next up" card: the next two plan parts (set by the app).</summary>
     public NextUpViewModel? NextUp { get; set; }

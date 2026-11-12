@@ -1,0 +1,417 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             x:Class="AccountabiliBuddy.App.Views.TodaySidebarView"
+             x:DataType="vm:TodaySidebarViewModel">
+    <!-- The Today sidebar (round 2, brief §4.2, CN §3 PC): panels, then chips, sliding OVER This session's list from the right (nothing
+         pushes, CN §1 rule 2); a 30-wide rail at the right edge is always there (reserved space) with ← and its name. Ctrl+\ on Today,
+         the header's › and the rail's ← toggle it. Each part is the existing Today card's view model (TodaySidebarViewModel). -->
+    <UserControl.Styles>
+        <Style Selector="Border#SidebarPanel">
+            <Setter Property="Width" Value="354" />
+            <Setter Property="Margin" Value="0,0,38,0" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.PopoverShadow}" />
+            <Setter Property="RenderTransform" Value="translateX(0px)" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <!-- Hidden: slid out past the rail and see-through; it takes no clicks (IsHitTestVisible in the panel). -->
+        <Style Selector="Border#SidebarPanel.hidden">
+            <Setter Property="RenderTransform" Value="translateX(420px)" />
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <!-- Quiet (in a session): faded until the pointer or the keyboard is on it. -->
+        <Style Selector="Border#SidebarPanel.quiet">
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Border#SidebarPanel.quiet:pointerover">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Border#SidebarPanel.quiet:focus-within">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <!-- A part: a soft block inside the sidebar. -->
+        <Style Selector="Border.sidePart">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,12" />
+        </Style>
+        <Style Selector="TextBlock.sideHead">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sideLink">
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sideLink /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.sideIcon">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.sideIcon /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.sideIcon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <!-- A chip: Timers 1, Lunch, Beeminder 1. -->
+        <Style Selector="Button.sideChip">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sideChip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.sideChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.comebackAction">
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="MinHeight" Value="22" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="controls|ProgressRing.stepsRing">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="controls|ProgressRing.stepsRing.met">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Met}" />
+        </Style>
+    </UserControl.Styles>
+    <UserControl.Resources>
+        <!-- A part's content, the same in its panel and in its chip's pop-up. -->
+        <DataTemplate x:Key="PartContent" x:DataType="vm:TodaySidebarPartViewModel">
+            <Panel>
+                <!-- Next up: the mini day bar, then the next three parts of today. -->
+                <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsNextUp, FallbackValue=False}" DataContext="{Binding Owner.NextUp}" x:DataType="vm:NextUpViewModel">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="sideHead" Text="Next up" />
+                        <Button Grid.Column="1" Classes="sideLink" Command="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).Owner.ShowPlanCommand, FallbackValue={x:Null}}"
+                                AutomationProperties.Name="Open the Plan page">
+                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                <TextBlock Text="Plan" VerticalAlignment="Center" />
+                                <mi:MaterialIcon Kind="ChevronRight" Width="14" Height="14" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                    <controls:MiniDayBar Segments="{Binding Segments}" NowFraction="{Binding NowFraction}" Height="14"
+                                         TrackBrush="{DynamicResource Ab.Surface2}" NowBrush="{DynamicResource Ab.Ink}" />
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:NextUpRow">
+                                <Grid ColumnDefinitions="72,*" Margin="0,3">
+                                    <TextBlock Classes="muted numeral" Text="{Binding TimeText}" FontSize="12" VerticalAlignment="Top" Margin="0,1,0,0" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Title}" FontSize="13.5" TextWrapping="Wrap" />
+                                        <TextBlock Classes="muted" Text="{Binding PlannedText}" IsVisible="{Binding HasPlanned}" FontSize="12" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="muted" FontSize="12.5" Text="Nothing else planned for today." IsVisible="{Binding !HasRows}" />
+                </StackPanel>
+
+                <!-- Today's goals: for now today's deep work against the daily goal (the Goals page, R5, brings the goals list). -->
+                <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsGoals, FallbackValue=False}" DataContext="{Binding Owner.TodayGoals}" x:DataType="vm:GoalCardViewModel">
+                    <TextBlock Classes="sideHead" Text="Today's goals" />
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                        <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource Ab.AccentSoft}" VerticalAlignment="Center">
+                            <mi:MaterialIcon Kind="TimerOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Accent}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Deep work" FontSize="13.5" FontWeight="Medium" />
+                            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
+                                <Run Text="{Binding FocusedText}" />
+                                <Run Text=" · " />
+                                <Run Text="{Binding OfGoalText}" />
+                            </TextBlock>
+                        </StackPanel>
+                        <Panel Grid.Column="2" Width="44" Height="6" VerticalAlignment="Center">
+                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="6" MinWidth="0" Width="44"
+                                         Foreground="{DynamicResource Ab.Accent}" Background="{DynamicResource Ab.Surface2}" AutomationProperties.Name="Deep work today" />
+                        </Panel>
+                        <Button Grid.Column="3" Classes="sideIcon" Command="{Binding EditCommand}" ToolTip.Tip="Change the daily goal"
+                                AutomationProperties.Name="Change the daily goal">
+                            <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" />
+                        </Button>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsMet}">
+                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="14" Height="14" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Met}" />
+                        <TextBlock Text="Goal met" FontSize="12.5" Foreground="{DynamicResource Ab.Met}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" Text="{Binding PaceText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding IsPaceOnTrack}" />
+                    <TextBlock Text="{Binding PaceText}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap" IsVisible="{Binding IsPaceBehind}" />
+                    <TextBlock Text="{Binding PhoneText}" FontSize="12" Foreground="{DynamicResource Ab.Met}" TextWrapping="Wrap"
+                               IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
+                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <StackPanel Spacing="8" IsVisible="{Binding IsEditing}">
+                        <WrapPanel ItemSpacing="8" LineSpacing="6">
+                            <TextBlock Text="Daily goal" VerticalAlignment="Center" />
+                            <NumericUpDown Value="{Binding GoalMinutes}" Minimum="30" Maximum="480" Increment="15" FormatString="0" Width="110" />
+                            <TextBlock Text="minutes" VerticalAlignment="Center" />
+                        </WrapPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save" Command="{Binding SaveCommand}" />
+                            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Come back to: parked ideas until ticked. Ctrl+Alt+N adds one from anywhere. -->
+                <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsComebacks, FallbackValue=False}" DataContext="{Binding Owner.Comebacks}" x:DataType="vm:ComebacksViewModel">
+                    <TextBlock Classes="sideHead" Text="Come back to" />
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ComebackRowViewModel">
+                                <StackPanel Spacing="4">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="0,2">
+                                        <CheckBox Command="{Binding TickCommand}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Center" MinWidth="0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13.5" TextWrapping="Wrap" VerticalAlignment="Center" IsVisible="{Binding !IsEditing}" />
+                                        <TextBox Grid.Column="1" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" AutomationProperties.Name="Come-back text"
+                                                 PropertyChanged="OnComebackBoxPropertyChanged" LostFocus="OnComebackBoxLostFocus">
+                                            <TextBox.KeyBindings>
+                                                <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                                <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                                            </TextBox.KeyBindings>
+                                        </TextBox>
+                                        <Button Grid.Column="2" Classes="comebackAction" Command="{Binding BeginEditCommand}" ToolTip.Tip="Edit" AutomationProperties.Name="Edit">
+                                            <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" />
+                                        </Button>
+                                        <Button Grid.Column="3" Classes="comebackAction" Command="{Binding AddToTasksCommand}" IsVisible="{Binding CanAddToTasks}"
+                                                ToolTip.Tip="Add to tasks: it goes at the end of the checklist and leaves this list" AutomationProperties.Name="Add to tasks">
+                                            <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
+                                        </Button>
+                                    </Grid>
+                                    <!-- Over the session's action cap: a reason first. -->
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsAskingOverLimit}">
+                                        <TextBlock Text="Keep it to 3. Add it anyway? Why (10+ characters, stays on this PC)" FontSize="12.5" TextWrapping="Wrap" />
+                                        <TextBox Text="{Binding OverLimitReason}" />
+                                        <TextBlock Text="{Binding OverLimitError}" Foreground="{DynamicResource Ab.Drift}" FontSize="12" TextWrapping="Wrap"
+                                                   IsVisible="{Binding OverLimitError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Button Classes="small" Content="Add anyway" Command="{Binding ConfirmOverLimitCommand}" />
+                                            <Button Classes="small" Content="Cancel" Command="{Binding CancelOverLimitCommand}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBox Text="{Binding NewText}" PlaceholderText="{Binding PlaceholderText}" AutomationProperties.Name="Park an idea">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding AddCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                    <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap" Text="{Binding HintText}" />
+                </StackPanel>
+
+                <!-- Timers and alarms (this PC only). -->
+                <StackPanel Spacing="8" IsVisible="{Binding IsTimers}">
+                    <TextBlock Classes="sideHead" Text="Timers" />
+                    <views:TimersCardView DataContext="{Binding Owner.Timers}" />
+                </StackPanel>
+
+                <!-- Lunch (flexible lunch): start it, or −5 / +5 / I'm back while on it. -->
+                <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsLunch, FallbackValue=False}" DataContext="{Binding Owner.Lunch}" x:DataType="vm:LunchCardViewModel">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="SilverwareForkKnife" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{DynamicResource Ab.Muted}" />
+                        <TextBlock Text="{Binding Text}" FontSize="13.5" TextWrapping="Wrap" MaxWidth="270" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding DeliveryText}" IsVisible="{Binding DeliveryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                               FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                    <WrapPanel ItemSpacing="6" LineSpacing="6">
+                        <Button Classes="quiet" Content="Start lunch" Command="{Binding StartCommand}" IsVisible="{Binding CanStart}" />
+                        <Button Classes="quiet" Content="−5 min" Command="{Binding ShorterCommand}" IsVisible="{Binding IsOnLunch}" IsEnabled="{Binding CanShorten}"
+                                ToolTip.Tip="End lunch 5 minutes sooner (never less than a minute from now); your other devices follow" />
+                        <Button Classes="quiet" Content="+5 min" Command="{Binding LongerCommand}" IsVisible="{Binding IsOnLunch}"
+                                ToolTip.Tip="5 more minutes of lunch; your other devices follow" />
+                        <Button Classes="quiet" Content="I'm back" Command="{Binding BackCommand}" IsVisible="{Binding IsOnLunch}" />
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- Beeminder (ADR 43, read only): the goals, soonest due first; the drift colour when due today. -->
+                <StackPanel Spacing="6" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsBeeminder, FallbackValue=False}" DataContext="{Binding Owner.Beeminder}" x:DataType="vm:BeeminderViewModel">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                        <TextBlock Classes="sideHead" Text="Beeminder" />
+                        <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Status}" FontSize="11" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Classes="sideIcon" Command="{Binding RefreshGoalsCommand}" ToolTip.Tip="{Binding RefreshTip}" AutomationProperties.Name="Refresh goals">
+                            <mi:MaterialIcon Kind="Refresh" Width="14" Height="14" />
+                        </Button>
+                    </Grid>
+                    <TextBlock Classes="muted" Text="No goals to show yet." FontSize="12.5" IsVisible="{Binding !HasGoals}" />
+                    <ItemsControl ItemsSource="{Binding Goals}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BeeminderGoalRowViewModel">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,2">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="Medium" TextWrapping="Wrap" />
+                                        <TextBlock Classes="muted" Text="{Binding Needed}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasNeeded}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding SafeText}" FontSize="12.5" HorizontalAlignment="Right" Foreground="{DynamicResource Ab.Drift}" FontWeight="SemiBold" IsVisible="{Binding IsDueToday}" />
+                                        <TextBlock Text="{Binding SafeText}" FontSize="12.5" HorizontalAlignment="Right" IsVisible="{Binding !IsDueToday}" />
+                                        <TextBlock Classes="faint" Text="{Binding DueText}" HorizontalAlignment="Right" FontSize="11" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- ADR 58: what calendar events changed in today's guarded windows. -->
+                <StackPanel Spacing="6" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsCalendarChanges, FallbackValue=False}" DataContext="{Binding Owner.CalendarToday}" x:DataType="vm:CalendarTodayViewModel">
+                    <TextBlock Classes="sideHead" Text="Calendar changes" />
+                    <ItemsControl ItemsSource="{Binding Lines}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="muted" Text="{Binding}" FontSize="12.5" TextWrapping="Wrap" Margin="0,1" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Daily steps a paired phone read from Health Connect: the ring fills to the goal. -->
+                <StackPanel Spacing="6" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsDailySteps, FallbackValue=False}" DataContext="{Binding Owner.Steps}" x:DataType="vm:StepsCardViewModel">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" IsVisible="{Binding IsVisible}">
+                        <controls:ProgressRing Classes="stepsRing" Classes.met="{Binding IsMet}" Width="40" Height="40" Thickness="6"
+                                               Value="{Binding Fraction}" TrackBrush="{DynamicResource Ab.Surface2}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CountText}" FontSize="13.5" FontWeight="Medium" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" Text="{Binding UpdatedText}" FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="sideIcon" Command="{Binding HideCommand}" ToolTip.Tip="Hide the daily steps on this PC"
+                                AutomationProperties.Name="Hide the daily steps">
+                            <mi:MaterialIcon Kind="EyeOffOutline" Width="14" Height="14" />
+                        </Button>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsHidden}">
+                        <mi:MaterialIcon Kind="Walk" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                        <TextBlock Classes="muted" Text="Daily steps hidden" FontSize="12.5" VerticalAlignment="Center" />
+                        <Button Classes="quiet" Content="Show" Command="{Binding ShowCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Panel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Panel>
+        <!-- The rail: always there at the right edge (reserved space), so opening or hiding the sidebar never moves the list. -->
+        <Border x:Name="Rail" Width="30" HorizontalAlignment="Right" VerticalAlignment="Stretch" BorderBrush="{DynamicResource Ab.Line}"
+                BorderThickness="1,0,0,0" Margin="0,0,0,8">
+            <StackPanel Spacing="12" Margin="0,8,0,0">
+                <Button Classes="sideIcon" HorizontalAlignment="Center" Command="{Binding ToggleCommand}" ToolTip.Tip="Show or hide the Today sidebar (Ctrl+\)"
+                        AutomationProperties.Name="Show or hide the Today sidebar">
+                    <mi:MaterialIcon Kind="ArrowLeft" Width="16" Height="16" />
+                </Button>
+                <LayoutTransformControl HorizontalAlignment="Center">
+                    <LayoutTransformControl.LayoutTransform>
+                        <RotateTransform Angle="90" />
+                    </LayoutTransformControl.LayoutTransform>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Today sidebar" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding RailNote}" FontSize="11.5" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </LayoutTransformControl>
+            </StackPanel>
+        </Border>
+
+        <!-- The panel: slides over the list from the right; hidden, it is past the rail, see-through and takes no clicks. -->
+        <Border x:Name="SidebarPanel" HorizontalAlignment="Right" VerticalAlignment="Stretch" Margin="0,0,38,8" ZIndex="5"
+                Classes.hidden="{Binding !IsOpen}" Classes.quiet="{Binding IsQuiet}" IsHitTestVisible="{Binding IsOpen}"
+                Focusable="False">
+            <Border.Transitions>
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.22" Easing="CubicEaseOut" />
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.18" />
+                </Transitions>
+            </Border.Transitions>
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="14,10,8,6">
+                    <TextBlock Text="Today sidebar" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Classes="faint" Text="{Binding HeaderNote, StringFormat='· {0}'}" FontSize="11.5" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Column="2" Classes="sideIcon" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Sidebar items and order"
+                            AutomationProperties.Name="Sidebar items and order">
+                        <mi:MaterialIcon Kind="FormatListBulleted" Width="15" Height="15" />
+                    </Button>
+                    <Button Grid.Column="3" Classes="sideIcon" Command="{Binding ToggleCommand}" ToolTip.Tip="Hide the sidebar (Ctrl+\)"
+                            AutomationProperties.Name="Hide the Today sidebar">
+                        <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" />
+                    </Button>
+                </Grid>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="10" Margin="12,0,12,14">
+                        <ItemsControl ItemsSource="{Binding Panels}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TodaySidebarPartViewModel">
+                                    <Border Classes="sidePart" IsVisible="{Binding IsAvailable}">
+                                        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource PartContent}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding Chips}" IsVisible="{Binding HasChips}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TodaySidebarPartViewModel">
+                                    <Button Classes="sideChip" IsVisible="{Binding IsAvailable}" AutomationProperties.Name="{Binding Title}" ToolTip.Tip="{Binding Info.About}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" Width="14" Height="14" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                            <TextBlock Text="{Binding Title}" FontSize="13" VerticalAlignment="Center" />
+                                            <TextBlock Classes="muted" Text="{Binding ChipCount}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasChipCount}" />
+                                        </StackPanel>
+                                        <Button.Flyout>
+                                            <Flyout Placement="TopEdgeAlignedLeft">
+                                                <ContentControl Width="320" Content="{Binding}" ContentTemplate="{StaticResource PartContent}" />
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Panel>
+</UserControl>

@@ -1,0 +1,144 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.TodaySettingsView"
+             x:DataType="vm:TodaySettingsViewModel">
+    <!-- Settings › Today (round 2, plan R2.3, board PC-Settings-Today): two layouts (in a session / not), the main column (always the
+         session card or Start, and This session), the sidebar's parts (Panel / Chip / Off; drag ≡ or Alt+↑/↓ to reorder) and the side
+         column in and out of a session. Saved at once; only what Today draws, so it isn't locked during a session. -->
+    <UserControl.Styles>
+        <Style Selector="mi|MaterialIcon.rowIcon">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Border.grip">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Focusable" Value="True" />
+        </Style>
+        <Style Selector="Border.grip:focus-visible">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+        <Style Selector="Border.partRow.dragging">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="Border.dropLine">
+            <Setter Property="Height" Value="2" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Margin" Value="12,0" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer x:Name="PageScroll" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,16,24" Spacing="12" MaxWidth="860" HorizontalAlignment="Left">
+            <TextBlock Classes="sHint" Text="Each state keeps its own layout. Drag ≡ to reorder." />
+            <ListBox Classes="segmented" HorizontalAlignment="Left" ItemsSource="{Binding StateChoices}" SelectedIndex="{Binding StateIndex}"
+                     AutomationProperties.Name="Which layout to edit" />
+
+            <!-- How the day starts and ends lives in Your day (the Options row's note). -->
+            <Border Classes="sPanel" search:SearchArea.Name="How the day starts and ends">
+                <Border Classes="sRow">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                        <mi:MaterialIcon Classes="rowIcon" Kind="WeatherSunny" />
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Classes="sTitle" Text="How the day starts and ends" />
+                            <TextBlock Classes="sHint" Text="The start-of-day card, Pre-Work, lunch and the shutdown routine: Your day." />
+                        </StackPanel>
+                        <Button Grid.Column="2" Content="Open Your day" Command="{Binding OpenYourDayCommand}" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+            </Border>
+
+            <!-- Main column: always shown; Finished today is the one card choice. -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Today layout">
+                <TextBlock Classes="sGroup" Text="Main column" />
+                <TextBlock Classes="sHint" Text="Always shown: the session card or Start, and This session" />
+                <Border Classes="sPanel">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="CheckAll" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Show finished today" />
+                                <TextBlock Classes="sHint" Text="The folded Finished today section under your tasks (both layouts)." />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding ShowFinishedToday}" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Show finished today" />
+                        </Grid>
+                    </Border>
+                </Border>
+            </StackPanel>
+
+            <!-- The sidebar's parts. -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Today sidebar">
+                <TextBlock Classes="sGroup" Text="Today sidebar" />
+                <TextBlock Classes="sHint" Text="Panel = in the side column · Chip = a button under the panels · Off = hidden" />
+                <TextBlock Classes="sHint" Text="{Binding ModeNote}" />
+                <Border Classes="sPanel">
+                    <ItemsControl x:Name="PartsList" ItemsSource="{Binding Parts}" Margin="0,0,0,-1">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TodayPartRowViewModel">
+                                <Border Classes="sRow partRow">
+                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
+                                        <Border Classes="grip" ToolTip.Tip="Drag to reorder (Alt+↑/↓)" AutomationProperties.Name="{Binding Title, StringFormat='Move {0}'}"
+                                                PointerPressed="OnGripPressed" PointerMoved="OnGripMoved" PointerReleased="OnGripReleased"
+                                                PointerCaptureLost="OnGripCaptureLost" KeyDown="OnGripKeyDown">
+                                            <mi:MaterialIcon Kind="DragHorizontalVariant" Width="16" Height="16" Foreground="{DynamicResource Ab.Faint}"
+                                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <mi:MaterialIcon Grid.Column="1" Classes="rowIcon" Kind="{Binding Icon}" />
+                                        <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                                            <TextBlock Classes="sTitle" Text="{Binding Title}" />
+                                            <TextBlock Classes="sHint" Text="{Binding About}" />
+                                            <TextBlock Classes="sHint" Text="{Binding LockNote}" IsVisible="{Binding HasLockNote}" Foreground="{DynamicResource Ab.InfoInk}" />
+                                        </StackPanel>
+                                        <ListBox Grid.Column="3" Classes="segmented" VerticalAlignment="Center" ItemsSource="{Binding PlaceNames}"
+                                                 SelectedIndex="{Binding PlaceIndex}" AutomationProperties.Name="{Binding Title, StringFormat='{}{0}: where it shows'}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+
+            <!-- The side column in and out of a session. -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Side column">
+                <TextBlock Classes="sGroup" Text="Side column" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="During a session" />
+                                    <TextBlock Classes="sHint" Text="A thin rail on the right; Ctrl+\ slides it over your tasks. Quiet: over them, faded." />
+                                </StackPanel>
+                                <ListBox Grid.Column="1" Classes="segmented" VerticalAlignment="Center" ItemsSource="{Binding InSessionChoices}"
+                                         SelectedIndex="{Binding InSessionIndex}" AutomationProperties.Name="The sidebar during a session" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Outside a session" />
+                                    <TextBlock Classes="sHint" Text="Stays open or hidden the way you left it, until the app restarts" />
+                                </StackPanel>
+                                <ListBox Grid.Column="1" Classes="segmented" VerticalAlignment="Center" ItemsSource="{Binding OutsideChoices}"
+                                         SelectedIndex="{Binding OutsideIndex}" AutomationProperties.Name="The sidebar outside a session" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Button HorizontalAlignment="Left" Content="Reset Today's layout" Command="{Binding ResetCommand}"
+                    ToolTip.Tip="Back to the standard layout, in a session and not" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

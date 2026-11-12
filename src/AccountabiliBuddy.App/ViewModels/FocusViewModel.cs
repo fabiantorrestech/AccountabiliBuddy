@@ -312,6 +312,17 @@ public sealed partial class FocusViewModel : ObservableObject
     }
 
     /// <summary>Reads the session again (also every second).</summary>
+    /// <summary>
+    /// Round 2 (Today's session card, brief §4.2): the line under the ring, "ends 1:23 PM · QS - Default" (12-hour), "break until …",
+    /// "since …" for no set end, or the away line while stepped away.
+    /// </summary>
+    [ObservableProperty]
+    public partial string EndsLineText { get; set; } = string.Empty;
+
+    /// <summary>The small word under the ring's time: "left", "so far" or "planning".</summary>
+    [ObservableProperty]
+    public partial string RingLabel { get; set; } = string.Empty;
+
     public void Refresh()
     {
         SessionState state = _sessions.State;
@@ -319,7 +330,7 @@ public sealed partial class FocusViewModel : ObservableObject
         EndSessionText = state.IsTest ? "End test" : "End session…";
         if (!state.IsActive)
         {
-            TimeLeftText = PhaseText = AwayText = SessionLineText = string.Empty;
+            TimeLeftText = PhaseText = AwayText = SessionLineText = EndsLineText = RingLabel = string.Empty;
             IsAway = false;
             IsSideTask = IsPlainAway = false;
             StepAwayText = "Step away";
@@ -344,6 +355,11 @@ public sealed partial class FocusViewModel : ObservableObject
             : state.PhaseEndsAt is DateTimeOffset phaseEnd
                 ? $"{what} · ends {TimeZoneInfo.ConvertTime(phaseEnd, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
                 : $"{what} · since {TimeZoneInfo.ConvertTime(state.PhaseStartedAt ?? now, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}";
+        string clockText(DateTimeOffset at) => TimeZoneInfo.ConvertTime(at, zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+        EndsLineText = state.IsAway && awayText.Length > 0 ? $"{awayText} · {profile}"
+            : state.PhaseEndsAt is DateTimeOffset cardEnd ? (state.IsEnforcing || state.IsPlanning ? $"ends {clockText(cardEnd)} · {profile}" : $"break until {clockText(cardEnd)} · {profile}")
+            : $"since {clockText(state.PhaseStartedAt ?? now)} · {profile}";
+        RingLabel = state.IsPlanning ? "planning" : state.PhaseEndsAt is null ? "so far" : "left";
         if (state.PhaseEndsAt is DateTimeOffset end)
         {
             TimeLeftText = SessionStatusFormatter.FormatDuration(end - clock);

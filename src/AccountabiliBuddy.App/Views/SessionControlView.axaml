@@ -34,7 +34,7 @@
             <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRingOnAccent}" />
         </Style>
 
-        <!-- The halves of the [Step away | ⌄] pill inside the running pill: quiet, on Surface. -->
+        <!-- The [Step away] pill inside the running pill and the ⋯ after the time: quiet, on Surface. -->
         <Style Selector="Button.sessionHalf">
             <Setter Property="Height" Value="28" />
             <Setter Property="CornerRadius" Value="0" />
@@ -135,7 +135,7 @@
         </Button>
 
         <!-- Running, paused or away: [extras] ring  32 min left. -->
-        <Border x:Name="Pill" IsVisible="{Binding IsRunningOrAway, FallbackValue=False}" Height="34" CornerRadius="17" Padding="4,0,13,0"
+        <Border x:Name="Pill" IsVisible="{Binding IsRunningOrAway, FallbackValue=False}" Height="34" CornerRadius="17" Padding="4,0,4,0"
                 Background="{DynamicResource Ab.Surface2}" BorderThickness="1">
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Border x:Name="Extras" ClipToBounds="True" VerticalAlignment="Center">
@@ -148,80 +148,12 @@
                     <StackPanel Orientation="Horizontal">
                         <Border Height="28" CornerRadius="14" Background="{DynamicResource Ab.Surface}" ClipToBounds="True">
                             <StackPanel Orientation="Horizontal">
-                                <Button Classes="sessionHalf" Padding="11,0,8,0" Command="{Binding MainActionCommand}"
+                                <Button Classes="sessionHalf" Padding="11,0,11,0" Command="{Binding MainActionCommand}"
                                         AutomationProperties.Name="{Binding MainActionText}">
                                     <StackPanel Orientation="Horizontal" Spacing="5">
                                         <mi:MaterialIcon Kind="{Binding MainActionIcon}" Width="15" Height="15" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding MainActionText}" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
                                     </StackPanel>
-                                </Button>
-                                <Border Width="1" Margin="0,6" Background="{DynamicResource Ab.Line}" />
-                                <Button x:Name="MoreButton" Classes="sessionHalf" Width="26" Padding="0" HorizontalContentAlignment="Center"
-                                        Foreground="{DynamicResource Ab.Muted}" AutomationProperties.Name="More session options"
-                                        ToolTip.Tip="More session options">
-                                    <mi:MaterialIcon Kind="ChevronDown" Width="16" Height="16" />
-                                    <Button.Flyout>
-                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                            <MenuItem Command="{Binding MainActionCommand}">
-                                                <MenuItem.Icon>
-                                                    <mi:MaterialIcon Kind="{Binding MainActionIcon}" />
-                                                </MenuItem.Icon>
-                                                <MenuItem.Header>
-                                                    <StackPanel>
-                                                        <TextBlock Text="{Binding MainActionText}" />
-                                                        <TextBlock Classes="menuSub" Text="{Binding MainActionSubText}" IsVisible="{Binding HasMainActionSub}" />
-                                                    </StackPanel>
-                                                </MenuItem.Header>
-                                            </MenuItem>
-                                            <MenuItem Command="{Binding PauseTimerCommand}" IsVisible="{Binding CanPause}">
-                                                <MenuItem.Icon>
-                                                    <mi:MaterialIcon Kind="Pause" />
-                                                </MenuItem.Icon>
-                                                <MenuItem.Header>
-                                                    <StackPanel>
-                                                        <TextBlock Text="Pause timer" />
-                                                        <TextBlock Classes="menuSub" Text="Freezes the countdown until Resume" />
-                                                    </StackPanel>
-                                                </MenuItem.Header>
-                                            </MenuItem>
-                                            <MenuItem Command="{Binding SideTaskCommand}" IsVisible="{Binding CanSideTask}">
-                                                <MenuItem.Icon>
-                                                    <mi:MaterialIcon Kind="CoffeeOutline" />
-                                                </MenuItem.Icon>
-                                                <MenuItem.Header>
-                                                    <StackPanel>
-                                                        <TextBlock Text="Side task…" />
-                                                        <TextBlock Classes="menuSub" Text="A small errand at the desk · 5, 10 or 15 min" />
-                                                    </StackPanel>
-                                                </MenuItem.Header>
-                                            </MenuItem>
-                                            <MenuItem Header="Add 10 minutes" Command="{Binding ExtendFocusCommand}" IsVisible="{Binding CanExtend}">
-                                                <MenuItem.Icon>
-                                                    <mi:MaterialIcon Kind="TimerPlusOutline" />
-                                                </MenuItem.Icon>
-                                            </MenuItem>
-                                            <Separator />
-                                            <MenuItem Command="{Binding EndToQueuedCommand}" IsVisible="{Binding CanEndToQueued}">
-                                                <MenuItem.Icon>
-                                                    <mi:MaterialIcon Kind="FlagCheckered" />
-                                                </MenuItem.Icon>
-                                                <MenuItem.Header>
-                                                    <StackPanel>
-                                                        <TextBlock Text="End and mark the rest unfinished…" />
-                                                        <TextBlock Classes="menuSub" Text="Unfinished tasks go back to Queued · same wait and reason" />
-                                                    </StackPanel>
-                                                </MenuItem.Header>
-                                            </MenuItem>
-                                            <MenuItem Command="{Binding EndSessionCommand}" Foreground="{DynamicResource Ab.Drift}">
-                                                <MenuItem.Icon>
-                                                    <mi:MaterialIcon Kind="StopCircleOutline" Foreground="{DynamicResource Ab.Drift}" />
-                                                </MenuItem.Icon>
-                                                <MenuItem.Header>
-                                                    <TextBlock Text="{Binding EndSessionText}" Foreground="{DynamicResource Ab.Drift}" />
-                                                </MenuItem.Header>
-                                            </MenuItem>
-                                        </MenuFlyout>
-                                    </Button.Flyout>
                                 </Button>
                             </StackPanel>
                         </Border>
@@ -243,6 +175,12 @@
                     <TextBlock Text="{Binding SecondaryText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium"
                                VerticalAlignment="Center" />
                 </StackPanel>
+                <!-- Round 2 (brief §4.2): "32 min left ⋯": the Session menu, anchored under the ⋯ and aligned to its right edge. -->
+                <Button x:Name="MoreButton" Classes="sessionHalf" Width="26" Height="26" Padding="0" CornerRadius="13" HorizontalContentAlignment="Center"
+                        VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" AutomationProperties.Name="Session menu"
+                        ToolTip.Tip="Session menu: step away, pause, add time, end" Click="OnMoreClick">
+                    <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" />
+                </Button>
             </StackPanel>
         </Border>
 

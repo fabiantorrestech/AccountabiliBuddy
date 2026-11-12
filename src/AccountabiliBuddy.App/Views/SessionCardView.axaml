@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.SessionCardView"
+             x:DataType="vm:SessionViewModel">
+    <!-- Today's session card (round 2, brief §4.2 Keep, CN §3 PC): the left slot, 340 wide, the same skeleton in and out of a session
+         (CN §1 rule 7). Running: the ring with the time, "ends 1:23 PM · <profile>", Done · <step> / Step away / ⋯ under it, then the
+         note line. Planning: the same ring, the planning question, I'm ready / ⋯. Idle: the planned length, "Nothing running · next:
+         …", Start session / ⋯ and "Ctrl+Shift+S starts it from anywhere". No profiles yet: the welcome. The task list is This session
+         on the right (CN §1 rule 6: the current task is not repeated here). Every button runs the command the old main card ran. -->
+    <UserControl.Styles>
+        <Style Selector="controls|ProgressRing.cardRing">
+            <Setter Property="Width" Value="168" />
+            <Setter Property="Height" Value="168" />
+            <Setter Property="Thickness" Value="10" />
+            <Setter Property="TrackBrush" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="controls|ProgressRing.cardRing.break">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Sleep}" />
+        </Style>
+        <Style Selector="controls|ProgressRing.cardRing.wrapUp">
+            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBlock.ringTime">
+            <Setter Property="FontSize" Value="44" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="LetterSpacing" Value="-1" />
+        </Style>
+        <Style Selector="TextBlock.ringLabel">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="TextBlock.cardLine">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.cardButton">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.cardMore">
+            <Setter Property="Width" Value="38" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.noteLine">
+            <Setter Property="Padding" Value="2,4" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.noteLine /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Border.keyChip">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+    <UserControl.Resources>
+        <!-- "A note for this session": one line, Enter keeps it for the session's review, Esc closes. -->
+        <Flyout x:Key="NoteFlyout" Placement="BottomEdgeAlignedLeft" Opened="OnNoteOpened">
+            <!-- Shown on a button inside the session part, whose data is the FocusViewModel. -->
+            <StackPanel Spacing="6" Width="300" x:DataType="vm:FocusViewModel">
+                <TextBox Text="{Binding Capture.Text, FallbackValue={x:Null}}" PlaceholderText="A note for this session (Enter keeps it)"
+                         AutomationProperties.Name="Note for this session" KeyDown="OnNoteKeyDown" />
+                <TextBlock Classes="muted" Text="{Binding Capture.Message, FallbackValue={x:Null}}" FontSize="12"
+                           IsVisible="{Binding Capture.Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
+            </StackPanel>
+        </Flyout>
+        <!-- Pomodoro (the start card's ⋯ › Pomodoro…). -->
+        <Flyout x:Key="PomodoroFlyout" Placement="BottomEdgeAlignedLeft">
+            <StackPanel Spacing="6" Width="300" x:DataType="vm:SessionViewModel">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <mi:MaterialIcon Kind="TimerOutline" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                    <TextBlock Text="Pomodoro" FontWeight="SemiBold" />
+                </StackPanel>
+                <TextBlock Classes="muted" Text="{Binding PomodoroSummary}" FontSize="13" TextWrapping="Wrap" />
+                <TextBlock Classes="muted" Text="Focus cycles (blank = until you stop it)" FontSize="13" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox Text="{Binding PomodoroCycles}" Width="90" AutomationProperties.Name="Focus cycles" />
+                    <Button Content="Start Pomodoro" Command="{Binding StartPomodoroCommand}" />
+                </StackPanel>
+                <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap"
+                           Text="Uses the profile picked under Profile, length, break. Pomodoro lengths are set in Settings." />
+            </StackPanel>
+        </Flyout>
+        <!-- Profile, length, break (the start card's ⋯ › Profile, length, break…): the quick-session popup's options. -->
+        <Flyout x:Key="StartOptionsFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnStartOptionsOpening">
+            <Panel Width="380" x:DataType="vm:SessionViewModel">
+                <views:QuickStartPanel DataContext="{Binding QuickStart}" ShowsTasks="False" ShowsStartRow="False" IsOptionsOnly="True" />
+            </Panel>
+        </Flyout>
+    </UserControl.Resources>
+
+    <Border Classes="card" Padding="24,26,24,18" search:SearchArea.Name="Session">
+        <Panel>
+            <!-- New here: no profiles yet. -->
+            <StackPanel Spacing="12" IsVisible="{Binding ShowsWelcome}">
+                <mi:MaterialIcon Kind="HandWave" Width="26" Height="26" HorizontalAlignment="Left" Foreground="{DynamicResource Ab.Muted}" />
+                <TextBlock Classes="display" Text="Welcome! Let's set up your first focus profile" FontSize="22" TextWrapping="Wrap" />
+                <TextBlock Classes="muted" FontSize="13" TextWrapping="Wrap"
+                           Text="A profile says what counts as distracting while you focus (sites and apps to block). Start with the example, which blocks common time-wasters like YouTube, Reddit and social media; you can change it any time." />
+                <StackPanel Spacing="8">
+                    <Button Classes="primary cardButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Add the example profile"
+                            Command="{Binding AddExampleProfileCommand}" />
+                    <Button Classes="cardButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Make my own in Profiles"
+                            Command="{Binding OpenProfilesCommand}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- A session (running or planning). -->
+            <StackPanel Spacing="14" DataContext="{Binding Focus}" x:DataType="vm:FocusViewModel" IsVisible="{Binding IsActive, FallbackValue=False}">
+                <Panel HorizontalAlignment="Center">
+                    <controls:ProgressRing Classes="cardRing" Classes.break="{Binding TimeRingIsBreak}" Classes.wrapUp="{Binding TimeRingIsWrapUp}"
+                                           Value="{Binding TimeLeftFraction}" AutomationProperties.Name="Share of this phase left" />
+                    <StackPanel VerticalAlignment="Center" Spacing="0">
+                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" MaxWidth="130">
+                            <TextBlock Classes="numeral ringTime" Text="{Binding TimeLeftText}" AutomationProperties.Name="Time left" />
+                        </Viewbox>
+                        <TextBlock Classes="ringLabel" Text="{Binding RingLabel}" />
+                    </StackPanel>
+                </Panel>
+                <TextBlock Classes="cardLine" Text="{Binding EndsLineText}" />
+
+                <!-- Planning: the question, then I'm ready / ⋯. -->
+                <StackPanel Spacing="10" IsVisible="{Binding IsPlanning}">
+                    <TextBlock Text="What are the three things this session is for?" FontSize="15" FontWeight="Medium" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" TextAlignment="Center" />
+                    <TextBlock Classes="cardLine" Text="{Binding PlanningText}" FontSize="12.5" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                        <Button Classes="primary cardButton" Content="I'm ready" Command="{Binding ReadyCommand}" IsVisible="{Binding CanReady}" />
+                        <Button Classes="cardButton" Content="{Binding StepAwayText}" Command="{Binding StepAwayCommand}" IsVisible="{Binding IsAway}" />
+                        <Button x:Name="PlanningMoreButton" Classes="cardMore" Click="OnSessionMoreClick" ToolTip.Tip="Interrupted, Side task, End session"
+                                AutomationProperties.Name="More session actions">
+                            <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Classes="cardLine" Text="or tick the first task to begin" FontSize="12.5" IsVisible="{Binding ShowsTickHint}" />
+                </StackPanel>
+
+                <!-- Running: Done · <step> / Step away / ⋯. -->
+                <StackPanel Spacing="8" IsVisible="{Binding !IsPlanning}">
+                    <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Center">
+                        <Button Classes="primary cardButton" Command="{Binding Checklist.DoneCurrentCommand, FallbackValue={x:Null}}"
+                                AutomationProperties.Name="Done: finish the current item"
+                                IsVisible="{Binding Checklist.CurrentTask, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="Check" Width="16" Height="16" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Checklist.DoneButtonText, FallbackValue=Done}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="primary cardButton" Content="End · all tasks done" Command="{Binding Checklist.EndAtOnceCommand, FallbackValue={x:Null}}"
+                                IsVisible="{Binding Checklist.CanEndAtOnce, FallbackValue=False}"
+                                ToolTip.Tip="Every task is ticked: the session ends now, with the reason &quot;All tasks done&quot;" />
+                        <Button Classes="cardButton" Command="{Binding StepAwayCommand}" IsVisible="{Binding HasStepAway}"
+                                ToolTip.Tip="A bathroom break: logged as away">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="HumanWalk" Width="16" Height="16" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding StepAwayText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="RunningMoreButton" Classes="cardMore" Click="OnSessionMoreClick" ToolTip.Tip="Interrupted, Side task, +10 minutes, End session"
+                                AutomationProperties.Name="More session actions">
+                            <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                        </Button>
+                    </WrapPanel>
+                    <TextBlock Classes="cardLine" FontSize="12.5" Text="{Binding ExtendMessage}"
+                               IsVisible="{Binding ExtendMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    <TextBlock Classes="cardLine" FontSize="12.5" Text="{Binding PhoneText}"
+                               IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+
+                <!-- The note line. -->
+                <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="0,4,0,0" />
+                <Button x:Name="NoteButton" Classes="noteLine" Click="OnNoteClick" IsVisible="{Binding Capture, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        AutomationProperties.Name="A note for this session">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" VerticalAlignment="Center" />
+                        <TextBlock Text="A note for this session" FontSize="13" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- Idle: the planned length, what's next, Start session / ⋯ and the shortcut. -->
+            <StackPanel Spacing="14" IsVisible="{Binding ShowsStart}">
+                <Panel HorizontalAlignment="Center">
+                    <controls:ProgressRing Classes="cardRing" Value="0" AutomationProperties.Name="Planned length" />
+                    <StackPanel VerticalAlignment="Center">
+                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" MaxWidth="130">
+                            <TextBlock Classes="numeral ringTime" Text="{Binding QuickStart.FocusLengthNumeral}" Foreground="{DynamicResource Ab.Muted}"
+                                       AutomationProperties.Name="Planned length" />
+                        </Viewbox>
+                        <TextBlock Classes="ringLabel" Text="planned" />
+                    </StackPanel>
+                </Panel>
+                <TextBlock Classes="cardLine" Text="{Binding IdleCardLine}" />
+                <!-- After the shutdown routine: "Work over for today", until the next work part. Nothing is locked by it. -->
+                <TextBlock Classes="cardLine" FontSize="12.5" Text="{Binding WorkOver.Line, FallbackValue={x:Null}}" IsVisible="{Binding ShowsWorkOver}" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                    <Button Classes="primary cardButton" Command="{Binding QuickStart.StartCommand}" AutomationProperties.Name="Start session"
+                            ToolTip.Tip="{Binding QuickStart.StartLabel}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <mi:MaterialIcon Kind="Play" Width="16" Height="16" VerticalAlignment="Center" />
+                            <TextBlock Text="Start session" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="StartMoreButton" Classes="cardMore" Click="OnStartMoreClick" search:SearchArea.IndexesFlyout="True"
+                            ToolTip.Tip="Other ways to start, Plan day(s), Start shutdown" AutomationProperties.Name="Other ways to start">
+                        <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                    </Button>
+                </StackPanel>
+                <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="0,4,0,0" />
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <Border Classes="keyChip">
+                        <TextBlock Classes="numeral muted" Text="Ctrl+Shift+S" FontSize="11" />
+                    </Border>
+                    <TextBlock Classes="muted" Text="starts it from anywhere" FontSize="13" VerticalAlignment="Center" />
+                </StackPanel>
+            </StackPanel>
+        </Panel>
+    </Border>
+</UserControl>

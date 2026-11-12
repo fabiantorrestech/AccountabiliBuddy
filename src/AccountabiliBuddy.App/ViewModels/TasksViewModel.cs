@@ -1248,7 +1248,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             : readyActions > 0 ? $"{readyActions} ready" : string.Empty;
         // The Tasks page's quiet sections stay faded while the session layout shows (also once it ended, until it switches back).
         ShowTodaySections(TodayPanel, sessionHint, withReminders: false, live || _layoutActive);
-        ShowTodaySections(TodayTabPanel, sessionHint, withReminders: true, live);
+        ShowTodaySections(TodayTabPanel, sessionHint, withReminders: true, live, withDone: ShowsFinishedOnToday);
         TodayRailText = $"{(live ? _tasks.ActionsUsed : readyActions)} in focus";
         TodayDateText = now.ToString("ddd M/d", CultureInfo.InvariantCulture);
         Jot.IsQuiet = live;
@@ -1259,7 +1259,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     }
 
     // This session, Queued, (Reminders due today,) Finished today, with their hints; This session is pinned open by default, the others are quieter and start folded.
-    private void ShowTodaySections(TaskSectionsPanelViewModel panel, string sessionHint, bool withReminders, bool live)
+    private void ShowTodaySections(TaskSectionsPanelViewModel panel, string sessionHint, bool withReminders, bool live, bool withDone = true)
     {
         TaskSectionViewModel session = panel.Section("session", _sessionRows, canPin: true);
         session.Title = "This session";
@@ -1283,7 +1283,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             sections.Add(reminders);
         }
 
-        sections.Add(done);
+        if (withDone)
+        {
+            sections.Add(done);
+        }
+
         panel.InSession = live;
         panel.Show(sections);
     }
@@ -1542,7 +1546,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         TaskRowKey key, string title, string subText, string? categoryName, string? categoryColor, int number = 0, bool isNow = false,
         bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "",
         Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true, DateTimeOffset sortTime = default, DateOnly? dueOn = null,
-        bool isQueued = false, IReadOnlyList<SessionStepLineViewModel>? stepLines = null)
+        bool isQueued = false, IReadOnlyList<SessionStepLineViewModel>? stepLines = null, IReadOnlyList<TodayNowStepViewModel>? nowSteps = null)
     {
         Action<TaskListRowViewModel, TaskRowClick> select = selectable ? OnRowClick : (_, _) => { };
         // Every kind of row but Auto-saved can have a category: its chip, or the quiet "+ category" spot, opens the picker.
@@ -1586,6 +1590,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             LabelStyle = TaskSettings?.Current.LabelStyle ?? TaskLabelStyle.Dot,
             StatusTag = statusTag,
             StepLines = stepLines ?? [],
+            NowSteps = nowSteps ?? [],
             SortTime = sortTime,
             DueOn = dueOn,
             IsQueued = isQueued,

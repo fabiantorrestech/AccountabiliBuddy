@@ -425,6 +425,33 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         return _tasks.Current.Shown is { } shown ? _tasks.ToggleAsync(shown.Task.Id) : Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Round 2 (Today's session card, CN §3): the current item's step letter ("b") when the current item is a step picked into focus,
+    /// else empty; Done then reads "Done · b".
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DoneButtonText))]
+    public partial string CurrentStepLetter { get; set; } = string.Empty;
+
+    /// <summary>The session card's Done: "Done · b" for a focused step, else "Done".</summary>
+    public string DoneButtonText => CurrentStepLetter.Length > 0 ? $"Done · {CurrentStepLetter}" : "Done";
+
+    /// <summary>
+    /// The session card's Done (CN §3: Done always finishes the current item): the focused step when the current item is a step,
+    /// else the task in front (and its steps), the same ticks as the rows' own boxes.
+    /// </summary>
+    [RelayCommand]
+    private Task DoneCurrentAsync()
+    {
+        SessionChecklist checklist = _tasks.Current;
+        if (checklist.Shown is not { } shown)
+        {
+            return Task.CompletedTask;
+        }
+
+        return shown.Subtask is { } step && step.Id == checklist.CurrentId ? _tasks.ToggleAsync(step.Id) : _tasks.ToggleAsync(shown.Task.Id);
+    }
+
     /// <summary>The on-screen bar's box by the subtask: ticks the subtask it shows.</summary>
     [RelayCommand]
     private Task TickCurrentSubtaskAsync()
@@ -512,6 +539,9 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         ProgressText = checklist.HasTasks ? $"{checklist.DoneCount}/{checklist.Tasks.Count}" : string.Empty;
         CurrentTaskText = checklist.Shown?.Task.Title ?? (checklist.AllDone ? "All tasks done" : string.Empty);
         CurrentSubtaskText = checklist.Shown?.Subtask?.Title ?? string.Empty;
+        CurrentStepLetter = checklist.Shown is { Subtask: { } focusedStep } shownNow && focusedStep.Id == checklist.CurrentId
+            ? AccountabiliBuddy.Core.Domain.TaskStepLetters.Of(shownNow.Task.Subtasks.ToList().FindIndex(step => step.Id == focusedStep.Id))
+            : string.Empty;
         Heading = Mode == ChecklistMode.Draft
             ? "What are you doing first? (optional)"
             : checklist.HasTasks ? $"Tasks · {ProgressText}" : "Tasks";

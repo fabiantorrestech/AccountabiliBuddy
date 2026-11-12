@@ -113,6 +113,19 @@ public static class TaskMenus
         flyout.ShowAt(button);
     }
 
+    /// <summary>
+    /// Fills a menu that is kept and shown again (the title bar's Session menu, held by the one-pop-up rule) with <paramref name="entries"/>
+    /// in the shared look, in place of what it held.
+    /// </summary>
+    public static void Fill(MenuFlyout flyout, IEnumerable<TaskMenuEntry> entries, Action<TaskMenuEntry>? viewAction = null)
+    {
+        flyout.Items.Clear();
+        foreach (Control item in Build(entries, viewAction))
+        {
+            flyout.Items.Add(item);
+        }
+    }
+
     // The control itself or its nearest ancestor that asked to be outlined while its menu is open; null for none.
     private static Control? MenuHostOf(Control control)
     {
