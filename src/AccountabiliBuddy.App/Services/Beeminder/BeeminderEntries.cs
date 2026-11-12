@@ -104,6 +104,6 @@ public static partial class BeeminderEntries
         return changed || removed > 0 ? lists with { Entries = entries } : lists;
     }
 
-    [GeneratedRegex("^[A-Za-z0-9_-]+$")]
+    [GeneratedRegex("^[A-Za-z0-9_-]+\\z")]
     private static partial Regex SlugPattern();
 }

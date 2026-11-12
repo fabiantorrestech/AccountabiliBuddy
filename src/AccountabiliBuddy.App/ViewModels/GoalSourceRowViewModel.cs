@@ -34,9 +34,19 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         SelectedCategory = Categories.FirstOrDefault(choice => rule.CalendarCategoryId is Guid id && choice.Key == id.ToString());
         App = rule.App ?? string.Empty;
         ScreenAtMost = rule.ScreenDirection != GoalDirection.AtLeast;
-        SelectedBeeminder = BeeminderGoals.FirstOrDefault(choice => choice.Key == rule.BeeminderSlug)
-            ?? BeeminderGoals.FirstOrDefault(choice => rule.BeeminderSlug is not null && choice.Text == rule.BeeminderSlug)
-            ?? (rule.BeeminderSlug is string slug ? new GoalChoice(slug, slug, Note: "Not in the cached list") : null);
+        // By key (the slug) first; by title only when exactly one Beeminder goal has it. A title that fits several goals is not guessed
+        // (the datapoint read skips that link too): the row says to pick the goal again.
+        List<GoalChoice> byTitle = rule.BeeminderSlug is null ? [] : BeeminderGoals.Where(choice => choice.Text == rule.BeeminderSlug).ToList();
+        GoalChoice? byKey = BeeminderGoals.FirstOrDefault(choice => choice.Key == rule.BeeminderSlug);
+        bool ambiguous = byKey is null && byTitle.Count > 1;
+        SelectedBeeminder = byKey
+            ?? (byTitle.Count == 1 ? byTitle[0] : null)
+            ?? (rule.BeeminderSlug is string slug ? new GoalChoice(slug, slug, Note: ambiguous ? PickAgainText : "Not in the cached list") : null);
+        if (ambiguous)
+        {
+            BeeminderProblemText = string.IsNullOrEmpty(BeeminderProblemText) ? PickAgainText : PickAgainText + "\n" + BeeminderProblemText;
+        }
+
         if (SelectedBeeminder is not null && !BeeminderGoals.Contains(SelectedBeeminder))
         {
             BeeminderGoals = [.. BeeminderGoals, SelectedBeeminder];
@@ -58,11 +68,13 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
 
     public IReadOnlyList<GoalChoice> BeeminderGoals { get; }
 
-    /// <summary>"Read 2:05 PM" (ADR 84); null before the first read or when the last one failed.</summary>
+    /// <summary>"Read 2:05 PM" (ADR 84): the last read that worked, also while a later one failed; null before the first.</summary>
     public string? BeeminderReadText { get; }
 
-    /// <summary>"Couldn't reach Beeminder · keeps the last values" after a failed read; null otherwise.</summary>
+    /// <summary>"Couldn't reach Beeminder · keeps the last values" after a failed read, and "Pick the Beeminder goal again" when this link's title fits several goals; null otherwise.</summary>
     public string? BeeminderProblemText { get; }
+
+    private const string PickAgainText = "Pick the Beeminder goal again";
 
     public string Title => _rule.Type switch
     {

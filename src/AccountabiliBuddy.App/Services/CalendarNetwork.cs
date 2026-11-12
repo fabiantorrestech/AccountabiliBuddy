@@ -215,10 +215,11 @@ public sealed class CalendarNetwork : IDisposable
     /// digits, "_" or "-" (anything else is refused before a request is made) and is escaped; the token travels as in
     /// <see cref="GetBeeminderGoalsAsync"/>. Errors carry only the status code; the address and the answer are never logged.
     /// </summary>
-    /// <param name="count">How many of the newest datapoints to ask for (Beeminder's "count", with "sort=daystamp").</param>
+    /// <param name="count">How many of the newest datapoints to ask for (Beeminder's "count", with "sort=daystamp"); with a page, how many per page.</param>
+    /// <param name="page">Null: the newest <paramref name="count"/>. 2 and up: that page of <paramref name="count"/> ("page" and "per"; Beeminder ignores "count" with a page).</param>
     /// <exception cref="ArgumentException">The slug is not a Beeminder slug (no request was made).</exception>
     /// <exception cref="HttpRequestException">Network error or an unsuccessful status code (status in the exception).</exception>
-    public async Task<JsonDocument> GetBeeminderDatapointsAsync(string authToken, string slug, int count, CancellationToken cancellationToken)
+    public async Task<JsonDocument> GetBeeminderDatapointsAsync(string authToken, string slug, int count, CancellationToken cancellationToken, int? page = null)
     {
         if (!Beeminder.BeeminderEntries.IsValidSlug(slug))
         {
@@ -226,7 +227,8 @@ public sealed class CalendarNetwork : IDisposable
         }
 
         var uri = new Uri(
-            BeeminderGoalsPrefix + Uri.EscapeDataString(slug) + "/datapoints.json?sort=daystamp&count=" + Math.Clamp(count, 1, 1000)
+            BeeminderGoalsPrefix + Uri.EscapeDataString(slug) + "/datapoints.json?sort=daystamp&"
+            + (page is int pageNumber ? "page=" + Math.Clamp(pageNumber, 1, 100) + "&per=" : "count=") + Math.Clamp(count, 1, 1000)
             + "&auth_token=" + Uri.EscapeDataString(authToken));
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);

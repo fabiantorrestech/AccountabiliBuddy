@@ -3851,7 +3851,7 @@ public partial class App : Application
         var beeminder = (_beeminder?.Goals ?? [])
             .Select(item => new GoalChoice(item.Key, item.Title, Note: $"{(item.Needed.Length > 0 ? item.Needed + " · " : string.Empty)}{item.SafeDays} safe days"))
             .ToList();
-        string? beeminderRead = _beeminderDatapoints is { Failed: false, LastReadAt: DateTimeOffset readAt }
+        string? beeminderRead = _beeminderDatapoints is { LastReadAt: DateTimeOffset readAt }
             ? $"Read {TimeZoneInfo.ConvertTime(readAt, data.Zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
             : null;
         string? beeminderProblem = _beeminderDatapoints is { Failed: true } ? "Couldn't reach Beeminder · keeps the last values" : null;

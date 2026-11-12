@@ -18,6 +18,18 @@ public sealed class BeeminderDatapointsService
 {
     private const int FirstReadCount = 300;
     private const int LaterReadCount = 100;
+
+    // Back-filled or edited older days are caught by always re-reading this many days back (not only since the newest stored day).
+    private const int TrailingDays = 14;
+
+    // Beeminder's "count" cuts by datapoints, not days: when the newest page is full and does not reach back far enough, older pages
+    // (page=2.. with per=count) are read, at most this many pages in all (the first is the count page) per goal and round.
+    private const int MaxPagesPerGoal = 5;
+
+    // A newly linked goal is kicked (read now) at most this often; a kick that finds a read under way is tried again shortly.
+    private static readonly TimeSpan KickMinimum = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan KickRetry = TimeSpan.FromSeconds(10);
+    private const int MaxBusyRetries = 6;
     private static readonly TimeSpan RateLimitPause = TimeSpan.FromMinutes(30);
 
     private readonly CalendarNetwork _network;
@@ -27,6 +39,7 @@ public sealed class BeeminderDatapointsService
     private DateTimeOffset _notBefore = DateTimeOffset.MinValue;
     private bool _reading;
     private DateTimeOffset _lastKickAt = DateTimeOffset.MinValue;
+    private bool _kickRunning;
     private HashSet<BeeminderLink> _readLinks = [];
 
     public BeeminderDatapointsService(CalendarNetwork network, GoalStore store, BeeminderService beeminder, TimeProvider time)
@@ -77,18 +90,21 @@ public sealed class BeeminderDatapointsService
 
             foreach (BeeminderLink link in links)
             {
-                BeeminderGoal? goal = goals.FirstOrDefault(item => string.Equals(item.Key, link.Key, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(item.Title, link.Key, StringComparison.Ordinal));
+                (BeeminderGoal? goal, bool ambiguous) = FindGoal(goals, link.Key);
                 string slug = goal is { Slug.Length: > 0 } ? goal.Slug : link.Key;
-                if (goal is null || !BeeminderEntries.IsValidSlug(slug))
+                if (ambiguous || goal is null || !BeeminderEntries.IsValidSlug(slug))
                 {
-                    continue; // Not in Beeminder's list (any more) or not a slug: nothing to ask, the last values stay.
+                    continue; // Not in Beeminder's list (any more), a title that fits two goals, or not a slug: nothing to ask, the last values stay.
                 }
 
-                if (!await ReadOneAsync(token, link, slug, goal.AggDay))
+                ReadOutcome outcome = await ReadOneAsync(token, link, slug, goal.AggDay);
+                if (outcome != ReadOutcome.Done)
                 {
                     failed = true;
-                    break; // One quiet failure is enough for this round (no timeout for every goal).
+                    if (outcome == ReadOutcome.StopRound)
+                    {
+                        break; // Network trouble, 429 or a 5xx: one quiet failure is enough for this round (no timeout for every goal).
+                    }
                 }
             }
 
@@ -106,40 +122,98 @@ public sealed class BeeminderDatapointsService
         }
     }
 
-    private async Task<bool> ReadOneAsync(string token, BeeminderLink link, string slug, string aggDay)
+    /// <summary>
+    /// The Beeminder goal a link points at: by slug first (a link made before ADR 84 stored the title, which is its key then); by title
+    /// only when exactly one Beeminder goal has that title. A title that fits several goals is ambiguous: no guess, the link is skipped.
+    /// </summary>
+    public static (BeeminderGoal? Goal, bool Ambiguous) FindGoal(IReadOnlyList<BeeminderGoal> goals, string key)
+    {
+        BeeminderGoal? bySlug = goals.FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (bySlug is not null)
+        {
+            return (bySlug, false);
+        }
+
+        List<BeeminderGoal> byTitle = goals.Where(item => string.Equals(item.Title, key, StringComparison.Ordinal)).ToList();
+        return byTitle.Count == 1 ? (byTitle[0], false) : (null, byTitle.Count > 1);
+    }
+
+    private enum ReadOutcome
+    {
+        Done,
+
+        /// <summary>This goal's read failed (a 4xx, an unreadable answer): the others are still read.</summary>
+        SkipLink,
+
+        /// <summary>The network, a 429 or a 5xx failed: the other goals would fail too, so the round stops.</summary>
+        StopRound,
+    }
+
+    private async Task<ReadOutcome> ReadOneAsync(string token, BeeminderLink link, string slug, string aggDay)
     {
         DateTimeOffset now = _time.GetUtcNow();
         DateOnly today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, _time.LocalTimeZone).DateTime);
         DateOnly? newest = BeeminderEntries.NewestDay(_store.Lists, link);
-        DateOnly from = newest ?? today.AddDays(-(int)BeeminderEntries.FirstRead.TotalDays);
-        IReadOnlyList<BeeminderDatapoint> points;
+        DateOnly floor = today.AddDays(-(int)BeeminderEntries.FirstRead.TotalDays);
+        DateOnly from = newest is null ? floor : DateOnly.FromDayNumber(Math.Min(newest.Value.DayNumber, today.AddDays(-TrailingDays).DayNumber));
+        if (from < floor)
+        {
+            from = floor;
+        }
+
+        int count = newest is null ? FirstReadCount : LaterReadCount;
+        var points = new List<BeeminderDatapoint>();
+        DateOnly coveredFrom = from;
         try
         {
-            using JsonDocument answer = await _network.GetBeeminderDatapointsAsync(
-                token, slug, newest is null ? FirstReadCount : LaterReadCount, CancellationToken.None);
-            points = BeeminderDatapointsParser.Parse(answer.RootElement);
+            for (int page = 1; page <= MaxPagesPerGoal; page++)
+            {
+                using JsonDocument answer = await _network.GetBeeminderDatapointsAsync(token, slug, count, CancellationToken.None, page == 1 ? null : page);
+                IReadOnlyList<BeeminderDatapoint> got = BeeminderDatapointsParser.Parse(answer.RootElement);
+                points.AddRange(got);
+                if (got.Count < count || got.Min(point => point.Day) < from)
+                {
+                    break; // Short page: all there is. Reaches back before the window: the window is whole.
+                }
+
+                if (page == MaxPagesPerGoal)
+                {
+                    // Full and still inside the window: its oldest day may be cut. Drop that day; the window starts the day after it.
+                    coveredFrom = got.Min(point => point.Day).AddDays(1);
+                }
+            }
         }
         catch (HttpRequestException ex)
         {
             if (ex.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 _notBefore = _time.GetUtcNow() + RateLimitPause;
+                return ReadOutcome.StopRound;
             }
 
-            return false;
+            return ex.StatusCode is HttpStatusCode status && (int)status is >= 400 and < 500 ? ReadOutcome.SkipLink : ReadOutcome.StopRound;
         }
-        catch (Exception ex) when (ex is TaskCanceledException or JsonException or ArgumentException)
+        catch (TaskCanceledException)
         {
-            return false;
+            return ReadOutcome.StopRound;
+        }
+        catch (Exception ex) when (ex is JsonException or ArgumentException)
+        {
+            return ReadOutcome.SkipLink;
         }
 
-        var days = points
-            .Where(point => point.Day >= from)
+        // A page that shifted between two calls repeats a datapoint: one per id (a point without an id is kept as it is).
+        List<BeeminderDatapoint> unique = points
+            .Where(point => point.Day >= coveredFrom)
+            .GroupBy(point => point.Id.Length > 0 ? point.Id : null)
+            .SelectMany(group => group.Key is null ? group : group.Take(1))
+            .ToList();
+        var days = unique
             .GroupBy(point => point.Day)
             .ToDictionary(group => group.Key, group => BeeminderDayValue.Of(aggDay, group.ToList()));
         await _store.ChangeAsync(this, (lists, at) =>
-            ActiveLinks(lists).Contains(link) ? BeeminderEntries.Apply(lists, link, from, days, at) : lists);
-        return true;
+            ActiveLinks(lists).Contains(link) ? BeeminderEntries.Apply(lists, link, coveredFrom, days, at) : lists);
+        return ReadOutcome.Done;
     }
 
     private IReadOnlyList<BeeminderLink> ActiveLinks(GoalLists lists) =>
@@ -152,11 +226,60 @@ public sealed class BeeminderDatapointsService
         _ = ReconcileAsync();
         IReadOnlyList<BeeminderLink> linked = BeeminderEntries.LinksOf(_store.Lists.LiveGoals);
         _readLinks.IntersectWith(linked); // an unlinked goal that is linked again is new again
-        if (!_reading && _beeminder.HasToken && _time.GetUtcNow() - _lastKickAt >= TimeSpan.FromMinutes(1)
-            && linked.Any(link => !_readLinks.Contains(link)))
+        if (NeedsKick())
         {
-            _lastKickAt = _time.GetUtcNow();
-            _ = _beeminder.RefreshAsync();
+            _ = KickAsync();
+        }
+    }
+
+    private bool NeedsKick() =>
+        _beeminder.HasToken && BeeminderEntries.LinksOf(_store.Lists.LiveGoals).Any(link => !_readLinks.Contains(link));
+
+    // At most one kick every 5 minutes. One that comes too soon waits for the minimum; one that finds a read under way (ours, or
+    // the goals read answering Busy) tries again shortly: a newly linked goal's kick is never dropped. One loop runs at a time and
+    // looks at the newest state on every turn.
+    private async Task KickAsync()
+    {
+        if (_kickRunning)
+        {
+            return;
+        }
+
+        _kickRunning = true;
+        try
+        {
+            int busy = 0;
+            while (NeedsKick())
+            {
+                TimeSpan wait = KickMinimum - (_time.GetUtcNow() - _lastKickAt);
+                if (wait > TimeSpan.Zero)
+                {
+                    await Task.Delay(wait);
+                    continue;
+                }
+
+                if (!_reading)
+                {
+                    _lastKickAt = _time.GetUtcNow();
+                    if (await _beeminder.RefreshAsync() != BeeminderRefresh.Busy)
+                    {
+                        return;
+                    }
+
+                    _lastKickAt = DateTimeOffset.MinValue; // nothing was asked, so the minimum does not hold the retry back
+                }
+
+                if (++busy > MaxBusyRetries)
+                {
+                    return;
+                }
+
+                await Task.Delay(KickRetry);
+            }
+        }
+        finally
+        {
+            _kickRunning = false;
         }
     }
 }
