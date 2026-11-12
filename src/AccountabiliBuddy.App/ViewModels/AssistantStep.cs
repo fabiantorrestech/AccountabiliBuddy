@@ -61,6 +61,24 @@ public enum AssistantStep
     /// <summary>Step 13: the shutdown routine, an optional end-of-day flow on Today, set in Settings › Your day (only as a new feature, not in the first run).</summary>
     ShutdownRoutine,
 
+    /// <summary>ADR 76: the Tasks redesign, an introduction (only as a new feature); the view chooser follows it.</summary>
+    TasksRedesign,
+
+    /// <summary>
+    /// ADR 76 (owner, 2026-11-11): where the account's Tasks view comes from: a backup file from this PC, the copy stored in the account,
+    /// or a fresh start. In the first run (once the task list is in use) and as a new feature, after <see cref="TasksRedesign"/>.
+    /// </summary>
+    TaskViewChooser,
+
+    /// <summary>
+    /// "Which devices should ring for reminders?" (13s): the account's "Task reminders ring on" list. In the first run after joining a
+    /// device group that has a phone, and as a new feature.
+    /// </summary>
+    TaskRingDevices,
+
+    /// <summary>ADR 78: task reminders to Google Calendar need one more OK from Google (Allow), or Nowhere (only as a new feature).</summary>
+    TaskCalendarExport,
+
     /// <summary>
     /// ADR 68: AccountabiliBuddy or ProductaBuddy, in the first run (ProductaBuddy preselected on a fresh install), as the full
     /// setup's last page, and as a new feature for upgraded installs.

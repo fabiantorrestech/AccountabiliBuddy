@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
         xmlns:views="using:AccountabiliBuddy.App.Views"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="AccountabiliBuddy.App.Views.SetupAssistantWindow"
         x:DataType="vm:SetupAssistantViewModel"
         Title="AccountabiliBuddy setup"
@@ -467,6 +468,67 @@
                     <TextBlock Classes="muted" TextWrapping="Wrap"
                                Text="Nothing changes until you set one. A change that makes the day stricter applies at once; a looser one, and any rule change, waits first and is refused during a focus session you started. Today says which parts came from the calendar. Hidden calendars still count." />
                     <Button Content="Open the calendar rules" Command="{Binding OpenCalendarRulesPageCommand}" HorizontalAlignment="Left" Classes="accent" />
+                </StackPanel>
+
+                <!-- ADR 76: the Tasks redesign (new feature); the view chooser follows -->
+                <StackPanel IsVisible="{Binding IsTasksRedesign}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Tasks is now one list. Today holds This session, Queued and Finished today; the Shelf holds To sort, Next and Later, with saved views. Tasks can have a label, #tags, steps with letters, a time limit, a private note, reminders and a due date." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Your lists came over as they were: the next session's tasks into This session and Queued, Later into Later, come-backs, parked thoughts and auto-saved tasks into To sort. A session now holds up to 3 actions (a task, or one step of a task); change it in Settings › Tasks. Undo with Ctrl+Z, find a task by its number with Ctrl+G." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap" Text="Next: where your Tasks view comes from." />
+                </StackPanel>
+
+                <!-- Where the account's Tasks view comes from (owner, 2026-11-11) -->
+                <StackPanel IsVisible="{Binding IsTaskViewChooser}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <views:TaskViewChooserView DataContext="{Binding TaskViewChooser}" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap" Text="You can change this any time in Settings › Tasks › New tasks › Start from another copy." />
+                </StackPanel>
+
+                <!-- 13s: which devices ring for task reminders (the account's list) -->
+                <StackPanel IsVisible="{Binding IsTaskRingDevices}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Task reminders ring on the devices you leave on, for every device of your account. A PC always rings for its own reminders; turn a phone off here if it shouldn't ring." />
+                    <Panel DataContext="{Binding TaskRingDevices}">
+                        <StackPanel x:DataType="vm:TaskReminderAlertsViewModel" Spacing="8">
+                            <ItemsControl ItemsSource="{Binding Devices}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:RingDeviceChoiceViewModel">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14" Margin="0,6">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" VerticalAlignment="Top" />
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                <TextBlock Classes="muted" Text="{Binding Status}" FontSize="12.5" />
+                                            </StackPanel>
+                                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Top" AutomationProperties.Name="{Binding Name}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding NoticeText}" IsVisible="{Binding HasNotice}" TextWrapping="Wrap"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+                    </Panel>
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Each label can ring on fewer devices in Settings › Tasks › Labels. Change this list any time in Settings › Alerts &amp; on-screen › Task reminders ring on." />
+                </StackPanel>
+
+                <!-- ADR 78: task reminders to Google Calendar need Google's OK (existing installs) -->
+                <StackPanel IsVisible="{Binding IsTaskCalendarExport}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Tasks with a reminder or a due date can go to Google Calendar, into a calendar of the app's own called “AB Reminders”: the title and the times only, never notes or steps. For that Google needs one more OK: Allow opens Google's page in your browser." />
+                    <Panel DataContext="{Binding TaskExport}">
+                        <StackPanel x:DataType="vm:TaskExportSetupViewModel" Spacing="10">
+                            <RadioButton IsChecked="{Binding IsGoogle}" Content="Add new reminders to Google Calendar" />
+                            <StackPanel Spacing="8" Margin="28,0,0,0" IsVisible="{Binding IsGoogle}">
+                                <TextBlock Classes="muted" Text="{Binding AccountText}" TextWrapping="Wrap" />
+                                <Button Content="Allow…" Command="{Binding AllowCommand}" IsVisible="{Binding HasAccount}" HorizontalAlignment="Left" Classes="accent" />
+                                <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                            </StackPanel>
+                            <RadioButton IsChecked="{Binding IsNowhere}" Content="Nowhere: keep reminders in the app only" />
+                        </StackPanel>
+                    </Panel>
+                    <TextBlock Classes="muted" TextWrapping="Wrap" Text="Change it any time in Settings › Tasks › Reminders › Add new reminders to." />
                 </StackPanel>
 
                 <!-- ADR 49: the look, a theme and light or dark -->

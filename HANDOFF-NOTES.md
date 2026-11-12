@@ -8,10 +8,11 @@ Branch `tasks-ui-overhaul` (worktree `AccountabiliBuddy-tasks-ui`). Bundle: `doc
 
 - [x] Phase 0 Orientation (this file)
 - [x] Phase 1 Shared model, migration, merge: **Core part done (M1)**; app wiring is M2 (below); Kotlin mirror is NOT in this run
-- [ ] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); undo, history, tidy-up, views, search, title help, bulk DONE (M2.3); reminders engine DONE (M3); calendar export BLOCKED, see Calendar)
+- [x] Phase 2 PC services (store DONE (M2.1); session cap DONE (M2.2); undo, history, tidy-up, views, search, title help, bulk DONE (M2.3); reminders engine DONE (M3); calendar export DONE (M3.3, ADR 78; was blocked, see Calendar))
 - [x] Phase 3 PC UI (3.1 title bar DONE (M4.1), 3.2 layout DONE (M4.2), 3.3 rows/open task DONE (M4.3; M4 review fixes), 3.4 add/jot DONE (M5.1), 3.5 menus and dialogs DONE (M5.2, M5.3), 3.6 session DONE (M5.4), 3.7 reminders DONE (M6.1), 3.8 keyboard/toasts DONE (M6.2))
-- [ ] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix): row-index fix and Settings › Tasks DONE (M7.1); Labels screen, Alerts › Task reminders and ring on DONE (M7.2)
-- Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half.
+- [x] Phase 7-PC Settings › Tasks, Labels, Alerts › Task reminders (+ `SettingsShellView` row-index fix): row-index fix and Settings › Tasks DONE (M7.1); Labels screen, Alerts › Task reminders and ring on DONE (M7.2); "During a focus session" row DONE (M7.3). The separate settings-restructure plan file is not written (deferred by the brief)
+- [x] Phase 8-PC SetupFeatures entries (Tasks redesign + view chooser, ringing devices 13s, Google Calendar re-consent; 0.1.131), the view chooser in the setup assistant and Settings, docs, final PC pass (M7.3, below)
+- Out of this run: Phases 4, 5, 6, 7-Android, 8 Android half (see "For the Android run").
 
 ## M1 done (Core only, app behaves as before)
 
@@ -472,3 +473,78 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Behaviour changes: the Shelf chips' + opens Settings › Tasks › Labels (was an inline editor under the chips; still so before the task list exists); Settings › Tasks' Labels row opens the screen (the embedded editor is gone); new labels start on the 12-colour set (was the 8-colour palette); a label's colour can keep an opacity; Alerts & on-screen shows two new groups.
 - Checks: Program.cs 612/612 (25 new m7t2/), AccountSettingsChecks 66/66 (19 new m7t2/ringOn), AppChecks 131/131 (35 new m7t2/), CalendarExportChecks 114/114. Build 0 errors; dev app started on dev data, running after 22 s, stopped. Questions 241-253.
 - Left for later: merging the two volumes (Q247); "During a focus session" row (Q252); system colour picker (Q246); the phone honouring `ringOn` (Android run); SetupFeatures (Phase 8); not checked by eye (Q253).
+
+## M7 task 3 done (During a focus session, setup entries, view chooser, docs, final pass)
+
+- [x] Alerts & on-screen › Task reminders › **During a focus session** (Wait until the session ends / Remind quietly; `TaskReminderAlertsViewModel.DuringSessionIndex`, row under How reminders show). Reading (Q254): Remind quietly lets reminders show during focus = the looser direction, so `TaskReminderSettingsService.SetDuringSessionAsync` applies the looser-change rule (refused in a session, else waits the looser-change wait, kept as `PendingDuringSession` + `PendingDuringSessionFrom` in `tasks.reminderSettings`, applied by `ApplyPendingIfReady` on the session tick while none runs); Wait is stricter, at once, and drops a waiting change. `UpdateAsync` never changes it; the backup restorer goes through the rule. Both modes (the document isn't per mode). The service takes the trusted clock, a session-running check and the looser wait (App); the one-argument constructor (checks) keeps a 10 min wait. `doc/hard-rules.md` ADR 76 sentence.
+- [x] View chooser (owner, 2026-11-11): `ViewModels/TaskViewChooserViewModel` + `Views/TaskViewChooserView` (Use a backup file from this PC: pick, password if sealed, `backups.Read` → `FromBackup`, its "Backup made …" and "chosen …" times; Use the copy stored in your account: `AccountCopy()`, "Chosen …" or "Kept from a device's earlier setting", off when the account holds neither field; Start fresh: `Fresh`), each with what it sets, one explanation line, times 12-hour local. Applied with `ApplyAsync` (a choice made now). Shown in Settings › Tasks › New tasks › **Start from another copy** (Choose… → inline chooser, Apply / Cancel; `TaskSettingsViewModel.ViewChooser`) and in the setup assistant (below). Q257.
+- [x] Setup assistant (`SetupAssistantViewModel.Tasks.cs`, `AssistantStep.TasksRedesign/TaskViewChooser/TaskRingDevices/TaskCalendarExport`, pages in `SetupAssistantWindow`): the first run asks "Where should your Tasks view come from?" after linking/restoring once the task list is in use (a just-joined PC reads the other devices' files first, then shows the account's copy), and "Which devices should ring for reminders?" after joining a group with a phone (`AssistantFlow.Steps(hasTaskList, ringChoice)`); What's new shows the intro, then the chooser (inserted after it), the ringing devices and Google Calendar's OK. The full setup (More › Setup) has none of the four (Q258). On a PC that has just joined, Start fresh with an empty account and Next on the ringing devices write nothing to the account (its copy may still be coming). Ringing devices reuse Alerts' switches (`TaskReminderAlertsViewModel`, now kept in `App._taskReminderAlerts`; `HasPhones`; `ConfirmRingOnAsync` = Next keeps the list as shown, stamped). Google Calendar's page: `ViewModels/TaskExportSetupViewModel` (Google with Allow… / Nowhere).
+- [x] SetupFeatures (`Services/Setup/SetupFeatures.cs`, version **0.1.131** = next after the branch's 0.1.130, Q255): `tasks.redesign` (task list in use; set up = a default view chosen for the account on any device), `tasks.ringDevices` (a phone in the list; set up = the account's ring-on list chosen), `tasks.calendarExport` (a Google account connected; set up = `TaskCalendarExportService.IsAllowed` or Nowhere). `IsAllowed` reads the new optional `AllowedFor` in `tasks.calendarExport` (set by Allow or by a run whose sign-in had calendar.app.created, cleared by one without). Refreshed on the account's, the export's and the reminder settings' changes. Q256.
+- [x] Docs: `doc/roadmap.md` (Tasks redesign PC done; Android next), `doc/hard-rules.md` (During a focus session rule; the chooser and the ringing-devices page). No ADR changed (index not regenerated). HANDOFF-QUESTIONS 254-261 and "Needs the owner".
+- Checks: AppChecks 163/163 (32 new m7t3: the During a focus session rule both ways, the wait kept over a restart, in-session refusal, the Alerts row's 12-hour pending line and refusal, ring-on confirm, the chooser's three choices incl. a sealed backup and a wrong password, the first-run and full flows), CalendarExportChecks 120/120 (6 new m7t3: not allowed without the scope, allowed after a run, read back, the page's Nowhere/Google and set-up check), AccountSettingsChecks 66/66, Program.cs 612/612. Build 0 errors; dev app started on dev data, running after 22 s, stopped; no error output.
+- Not built: the separate settings-restructure plan file (brief); a ringing-devices hook when linking from Settings › Devices & sync (no assistant there, Q258); "Make it its own task" and the Sync now toasts (found in the final pass, Q260).
+
+## Final PC pass (`08 Acceptance checklist.md`, PC items)
+
+✓ built · ◐ partly · ✗ not. "Not seen" = built and checked by the check programs and a dev-app start, never looked at on screen in the 3 themes × light/dark nor driven with a real mouse/keyboard (Q211, Q240, Q253, Q261).
+
+| # | Item | | Why / where |
+|---|---|---|---|
+| 1 | Copy matches the prototype word for word | ◐ | Copy taken from the specs and the prototype source; not compared side by side with the live prototype (not seen; Q261) |
+| 2 | Colours from tokens; 3 themes × light/dark look right | ◐ | Task views use theme tokens (`Ab.*`, `Ab.TasksRadius`, popover/alarm tokens in the 3 themes); the setup assistant window keeps its old local hex; the look is not seen (Q240, Q253) |
+| 3 | Sizes/radii/spacing within ±1 DIP | ◐ | Built from the spec's numbers (title bar 40, rows 44/32, toasts, rail 72); not measured on screen (Q12, Q95) |
+| 4 | Nothing jumps when toggling | ◐ | Hold-to-reset keeps its slot, the session control's hover part animates its width, the Shelf rail replaces the card in place (Q165); not seen |
+| 5 | Icons are the mapped Material glyphs | ◐ | Material.Icons.Avalonia only; not audited glyph by glyph against `06` |
+| 6 | Builds | ◐ | `dotnet build` 0 errors; Gradle not built (Android run) |
+| 7 | No task text in logs; new sync fields optional; older builds read the files | ✓ | Logs hold counts and codes only (`tasks-model.log`, `tasks-calendar.log`); new parts optional and lenient; old fields dual-written (Q9, Q10, Q241) |
+| 8 | Migration on a copy of a real DB | ◐ | Balanced and switched on the dev DB; counts checked in the check program; not run on a copy of the owner's real DB (Q16-Q31) |
+| 9 | Same merge result on PC and phone | ◐ | PC merge symmetric (300 random three-device rounds); the Kotlin twin is the Android run (Q173) |
+| 10 | 3-actions rule enforced for actions from other devices | ✓ | `AddRemoteAsync` over the cap → Queued (Q11) |
+| 11 | Bins and sections as `05` §1, faded .66/.40, pinned sections, Today sections menu | ✓ | M4.2 (Q99, Q107-Q110) |
+| 12 | Detail line order and omissions; label style; highlight tint + pin; untouched age; origin | ✓ | M4.3, M7.1 (Q113, Q114, Q227, Q228) |
+| 13 | Finish: strike 5 s with Undo, then collapse; steps finish the task; reopen rules | ◐ | Strike 1.5 s + fold 0.3 s, with the "Finished …" toast's Undo (Q119); the last step finishes the task with "All steps done" (`TaskActions`) |
+| 14 | Windows multi-select rules (PC) | ✓ | Ctrl/Shift/Ctrl+Shift click, Ctrl+A, Esc (Q122) |
+| 15 | Chips row, steps with letters, add step, notes, reminders line, sync line, ID chip copies "142 · title" | ✓ | M4.3, M5.2 (Q123, Q125) |
+| 16 | Step drag handle reorders; letters update; no Move up/down items | ✓ | Q124 (Alt+↑/↓ keys, no menu items) |
+| 17 | Make it its own task → toast with Undo + Show (flash 2.2 s) | ✗ | Not built (Q260) |
+| 18 | Rename first in the menu; F2; Copy ID last | ✓ | Q143, Q202 |
+| 19 | Start, step away, I'm back, pause/resume, add 10 min, end and mark, end (asks) | ✓ | M4.1, M5.4 (Q90-Q92, Q170) |
+| 20 | Session pill: one split pill [Step away · ⋯] | ✓ | Title-bar control, [Step away · ⌄] (Q91) |
+| 21 | Session full: incoming card, ⇄, Add anyway, swap → Queued, Undo explains | ◐ | Dialog, ⇄ and Add anyway built (Q166-Q169, Q175); no undo of a swap (Q167) |
+| 22 | Session ended notice with the italic line; switches next open / Switch now | ✓ | M5.4 (Q165, Q171, Q177) |
+| 23 | Toast stack (PC); Can't miss hold to dismiss; only Dismiss waits | ✓ | M6.1 (Q181-Q197, Q215) |
+| 24 | PC stack with ‹ › and All N | ✓ | M6.1 |
+| 25 | Open task always opens it; remaining via "Show →" | ✗ | Not on the PC cards (Q192: spec 03 §D has no Open; "Show →" is the phone's) |
+| 26 | Snooze picker: summary, fields, validation | ◐ | Summary line, month grid, typed time, natural typing, status line (Q157); no separate Month/Date/Year fields |
+| 27 | Ringing settings honoured (volume, rising, muted PC option, stop after, protection) | ✓ | M3 + M7.2; During a focus session M7.3 (Q254); silent/DND is phone-only |
+| 28 | Acting on one device stops it ringing everywhere after sync | ◐ | The PC writes and reads the stamped `reminders` field (whole-field merge, Q80); the phone side is the Android run |
+| 29 | Tidy-up card rules | ✓ | Q65, Q66 |
+| 30 | Tidy-up flow (← n / N →, fact chips, numbered decisions, Stop for now, "Tidied N of M") | ✓ | M5.3 (Q158) |
+| 31 | Sync card: header sync button, devices with green/red/grey icons, Devices for this task | ◐ | Sync light popover with check / red cloud (Q94); the Sync devices › menu offers all / this PC / one device only (Q145) |
+| 32 | Sync now toasts ("Syncing manually…" → "Synced just now · N devices up to date") | ✗ | Not built: the title bar's sync button keeps its old behaviour (Q260) |
+| 33 | Changed on both devices: newer first, Newer tag, Keep both | ✓ | M5.3 (Q156, Q173) |
+| 34 | Toasts: × and timer bar on every toast; durations; Ctrl+Z after | ✓ | M6.2 (Q198-Q201) |
+| 35 | Selection: "N selected" + View ⌄ pill, Select all icon, bulk bar, rename one by one applies at the end | ◐ | The PC uses Windows multi-select and the bulk right-click menu (Q122, Q144-Q147); Rename one by one applies at the end (Q160); no "N selected" pill or bulk bar on the PC |
+| 36 | Settings › Tasks groups and rows; icon/value rules; Labels screen with + and per-label rings; Add new reminders to (Google / Local or Windows / Nowhere) | ◐ | Built (M7.1, M7.2, M7.3); Windows Calendar not offered (Q224, ADR 78); "Changes during a session" row not built (Q232); the rest of the restructure deferred |
+
+Tally: ✓ 18 · ◐ 15 · ✗ 3 (phone/tablet-only items are in "For the Android run").
+
+## For the Android run
+
+Collected from these notes and HANDOFF-QUESTIONS (the phone keeps writing the old fields until then; the PC reads them and keeps dual-writing them).
+
+1. Kotlin mirror of the model: `TaskItem` and friends (bins, steps + letters, labels with `ringOn`/rgba, tags, reminders + occurrences, views, History log), `SyncTaskItem` + field stamps, the optional parts `tasks`/`labels`/`views`/`taskLog` (lenient read, cleaned like `SyncFileCodec`), and the same migration as `TaskMigration` (balanced counts, label id from the lowercased name; Q2, Q39).
+2. Kotlin `TaskFieldMerge` twin, field by field, including the conflict branch's winner-first bases union (`WinnerFirstBases`: the winner's bases kept, the loser's fill the 10-value ring, never the loser's own value; Q173) and the 2-minute clamp; Keep both copies `Devices` (M5 conflict fixes).
+3. `taskAccountSettings` part: default view, picked calendar and `ringOn` + `ringOnStamp`, merged field by field (`TaskAccountSettingsMerge`, adopted stamps older than any choice; Q241); a phone rings only when both the account's and the label's lists name it (null = every device; Q242; PCs Q243).
+4. Per-occurrence reminder merge (Q80): today the whole `reminders` field's newest stamp wins on both sides; changing it needs both twins at once. Acting on a reminder on the phone must stop it on the PC and back (08 Reminders).
+5. `awaySince` with the running-timer step-away mode in `SyncRunning` (Q60).
+6. "End and mark the rest unfinished": the phone's own "used ids" rule against `PastSettled` "moved" and the returned Queued tasks (Q170, Q174).
+7. Numbering: a phone-only group numbers on the phone; device ids compared as lower-case text (Q3, Q26); the PC keeps temporary numbers meanwhile.
+8. Per-task `devices` with 2+ entries (old fields can say only "everywhere" or one keeper; Q24) and the handover flow folded into `devices` (Q8, Q145).
+9. Old fields: `nextTasks` during a PC session (Q128), the `later` item's `bin` marker for Next (Q10), `autoSaved` only from `OldTaskFieldsWriter`; drop the dual-write one release after the phone writes the new parts.
+10. The session cap in actions from the phone (`AddRemoteAsync` already enforces it; the phone UI should show over-cap adds in Queued).
+11. Snooze shortcuts: the spec syncs them; the PC keeps them device-local in `tasks.reminderSettings` (Q76, Q157). Decide one home for both.
+12. Phone UI (Phases 4-6): the phone screens and sheets (two heights, From your lists, the filter sheet footer, draggable scrollbar), swipe targets, hold → lift, totals card, the full-screen alarm over the lock screen with "Open task" / "Show →" (Q192), Reminders due now, the permission banner, Sync card and conflict sheet, tablet two columns.
+13. Phase 7-Android: Settings › Tasks, the Labels screen, Alerts › Task reminders (+ silent/DND, During a focus session with the same looser-change rule, Q254) and Rings on.
+14. Phase 8-Android: phone SetupFeatures (`android/app/.../setup/SetupFeatures.kt`): Tasks redesign + the view chooser (same three choices, Q257), Task reminders incl. exact alarms / full-screen permission, ringing devices (13s picker, also when linking a new device).
+15. 08's phone-only items: phone tabs without counts, sheets' back arrow and heights, swipe, tablet pop-ups, `./gradlew assembleDebug`.

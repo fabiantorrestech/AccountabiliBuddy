@@ -5,7 +5,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 
 /// <summary>
 /// How this PC rings task reminders (document "tasks.reminderSettings", device-local, the same in both modes; ADR 76, spec 05 §7).
-/// Settings › Alerts &amp; on-screen › Task reminders shows them (Phase 7); until then only the defaults apply.
+/// Settings › Alerts &amp; on-screen › Task reminders shows them.
 /// </summary>
 /// <param name="Volume">Reminder volume, 10 to 100 (shared with the phone's setting by value, not synced).</param>
 /// <param name="RisingVolume">Rises over 30 s (on by default).</param>
@@ -25,6 +25,11 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// PC. Read once to take it over (<see cref="TaskAccountSettingsService.AdoptLegacyAsync"/>), then cleared; never written again.
 /// </param>
 /// <param name="DateOnlyEvent">"Tasks with a date but no time" (ADR 78): a timed event at 9:00 AM (default) or an all-day event.</param>
+/// <param name="PendingDuringSession">
+/// "Remind quietly" waiting to take effect: showing reminders during a focus session is the looser direction, so it waits the
+/// looser-change wait and takes effect only while no session runs (<see cref="TaskReminderSettingsService.SetDuringSessionAsync"/>).
+/// </param>
+/// <param name="PendingDuringSessionFrom">When <paramref name="PendingDuringSession"/> may take effect (trusted clock).</param>
 public sealed record TaskReminderSettings(
     int Volume = 70,
     bool RisingVolume = true,
@@ -38,7 +43,9 @@ public sealed record TaskReminderSettings(
     TaskReminderDuringSession DuringSession = TaskReminderDuringSession.WaitUntilEnd,
     TaskCalendarDestination NewRemindersTo = TaskCalendarDestination.GoogleCalendar,
     string? PickedCalendarId = null,
-    TaskDateOnlyEvent DateOnlyEvent = TaskDateOnlyEvent.TimedAtNine)
+    TaskDateOnlyEvent DateOnlyEvent = TaskDateOnlyEvent.TimedAtNine,
+    TaskReminderDuringSession? PendingDuringSession = null,
+    DateTimeOffset? PendingDuringSessionFrom = null)
 {
     /// <summary>"New reminders start at: None": tasks have no reminder until one is added.</summary>
     public const string NoNewReminder = "none";

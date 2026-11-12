@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.TaskViewChooserView"
+             x:DataType="vm:TaskViewChooserViewModel">
+    <!-- "Where should your Tasks view come from?" (owner, 2026-11-11): a backup file from this PC, the copy stored in the account, or a
+         fresh start, each with its time. Used by the setup assistant (applied on Next) and Settings › Tasks › New tasks (Apply). -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.chooserHint">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="TextBlock.chooserValue">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="10">
+        <TextBlock Classes="chooserHint" Text="{Binding ExplanationText}" />
+        <!-- Each choice: the radio with its name, then its time and what it sets (indented). The view model keeps the three exclusive. -->
+        <StackPanel Spacing="4">
+            <RadioButton IsChecked="{Binding IsBackupPicked}" Content="Use a backup file from this PC" FontWeight="SemiBold" />
+            <StackPanel Spacing="4" Margin="28,0,0,0">
+                <TextBlock Classes="chooserHint" Text="{Binding BackupText}" AutomationProperties.LiveSetting="Polite" />
+                <TextBlock Classes="chooserValue" Text="{Binding BackupWhat}" IsVisible="{Binding BackupWhat, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <Button Content="Choose a backup file…" Command="{Binding ChooseBackupFileCommand}" IsEnabled="{Binding !IsBusy}" HorizontalAlignment="Left" />
+                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding NeedsPassword}">
+                    <TextBox Text="{Binding Password}" PasswordChar="•" Width="220" PlaceholderText="Backup password"
+                             AutomationProperties.Name="Backup password" />
+                    <Button Content="Open" Command="{Binding OpenWithPasswordCommand}" IsEnabled="{Binding !IsBusy}" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <RadioButton IsChecked="{Binding IsAccountPicked}" IsEnabled="{Binding HasAccountCopy}" Content="Use the copy stored in your account" FontWeight="SemiBold" />
+            <StackPanel Spacing="4" Margin="28,0,0,0">
+                <TextBlock Classes="chooserHint" Text="{Binding AccountText}" />
+                <TextBlock Classes="chooserValue" Text="{Binding AccountWhat}" IsVisible="{Binding HasAccountCopy}" />
+            </StackPanel>
+        </StackPanel>
+        <StackPanel Spacing="4">
+            <RadioButton IsChecked="{Binding IsFreshPicked}" Content="Start fresh" FontWeight="SemiBold" />
+            <StackPanel Spacing="4" Margin="28,0,0,0">
+                <TextBlock Classes="chooserHint" Text="A brand new view, nothing carried over." />
+                <TextBlock Classes="chooserValue" Text="{Binding FreshWhat}" />
+            </StackPanel>
+        </StackPanel>
+        <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" FontSize="13" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap"
+                   AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+</UserControl>

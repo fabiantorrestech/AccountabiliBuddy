@@ -115,6 +115,8 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService? _taskCalendarExport;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService? _taskReminderSettings;
     private AccountabiliBuddy.App.Services.Tasks.TaskAccountSettingsService? _taskAccount;
+    // Settings › Alerts & on-screen › Task reminders (ring on); the setup assistant's "Which devices should ring?" page shows its switches.
+    private TaskReminderAlertsViewModel? _taskReminderAlerts;
     private AccountabiliBuddy.App.Services.Sync.SyncCoordinator? _syncCoordinator;
     private bool _windowsEndingHandled;
 
@@ -1076,6 +1078,14 @@ public partial class App : Application
             OtherBlockers = new WindowsOtherBlockerDetector(),
             OpenDpAssistant = () => _showDpAssistant?.Invoke(),
             OpenCalendarRules = () => _showCalendarRules?.Invoke(),
+            // ADR 76, 78 (Phase 8): the Tasks redesign's pages, only with the task list in use. A new chooser per assistant (its picked file).
+            TaskViewChooser = _taskAccount is not null && taskStore.IsActive
+                ? new TaskViewChooserViewModel(_taskAccount, _taskViews, backups.Read, time)
+                : null,
+            TaskRingDevices = taskStore.IsActive ? _taskReminderAlerts : null,
+            TaskExport = taskStore.IsActive && _taskCalendarExport is not null && _taskReminderSettings is not null
+                ? new TaskExportSetupViewModel(_taskCalendarExport, _taskReminderSettings) { OpenBrowser = OpenInBrowser }
+                : null,
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -1341,8 +1351,11 @@ public partial class App : Application
             _taskTidyUp = new AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService(taskStore, _taskActions, taskSettings, _sessions, documents, time);
             _taskTidyUp.LoadBlocking();
             // ADR 76: task reminders (due times, snooze, Can't miss, ringing); the volume guard first puts back what a crashed ring left raised.
-            var reminderSettings = new AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService(documents);
+            // "During a focus session": Remind quietly is the looser direction (waits, refused in a session); the rest applies at once.
+            var reminderSettings = new AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService(
+                documents, time, () => _sessions!.State.IsActive, () => _configuration!.Current.Locks.LooseningDelay);
             reminderSettings.LoadBlocking();
+            _sessions!.Ticked += (_, _) => reminderSettings.ApplyPendingIfReady();
             _taskReminderSettings = reminderSettings;
             _taskReminders = new AccountabiliBuddy.App.Services.Tasks.TaskReminderService(taskStore, reminderSettings, documents, time) { Actions = _taskActions };
             _taskReminders.LoadBlocking();
@@ -1762,6 +1775,8 @@ public partial class App : Application
                     StartSessionKeys = () => _quickSession?.Preferences.Hotkey ?? string.Empty,
                     LooserWait = () => _configuration!.Current.Locks.LooseningDelay,
                     LabelsScreen = labelsScreen,
+                    // "Start from another copy": a backup file from this PC, the account's copy or a fresh start (owner, 2026-11-11).
+                    ViewChooser = taskStore.IsActive && _taskAccount is not null ? new TaskViewChooserViewModel(_taskAccount, _taskViews, backups.Read, time) : null,
                 };
                 mainViewModel.Settings.TasksPage = taskSettingsPage;
                 if (labelsScreen is not null && labelService is not null && _taskReminders is not null && _taskAccount is not null)
@@ -1778,8 +1793,11 @@ public partial class App : Application
                     {
                         OpenLabels = OpenLabelsScreen,
                         OpenDevices = () => mainViewModel.OpenSettings(SettingsSection.DevicesAndSync),
+                        Clock = time,
+                        LooserWait = () => _configuration!.Current.Locks.LooseningDelay,
                     };
                     mainViewModel.Settings.TaskReminderAlerts = reminderAlerts;
+                    _taskReminderAlerts = reminderAlerts;
                     devices.RowsRefreshed += (_, _) =>
                     {
                         reminderAlerts.Load();
@@ -1990,8 +2008,10 @@ public partial class App : Application
             };
         }
 
-        // ADR 76, 78: the task reminder settings go through their service, so the ringer and the calendar export follow at once (a reminder
-        // setting loosens nothing about a session). An older backup's picked calendar is the account's now, taken over only where it has none.
+        // ADR 76, 78: the task reminder settings go through their service, so the ringer and the calendar export follow at once (a ring
+        // setting loosens nothing about a session); "During a focus session" follows its own rule (Remind quietly waits, refused in a
+        // session) and a waiting change in the backup is never taken over. An older backup's picked calendar is the account's now, taken
+        // over only where it has none.
         backups.DeviceRestorers[AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService.DocumentKey] = async value =>
         {
             if (_taskReminderSettings is null
@@ -2008,7 +2028,14 @@ public partial class App : Application
             }
 
             await _taskReminderSettings.UpdateAsync(_ => wanted);
-            return null;
+            if (!await _taskReminderSettings.SetDuringSessionAsync(wanted.DuringSession))
+            {
+                return "Task reminders' \"During a focus session\" wasn't restored during a focus session.";
+            }
+
+            return _taskReminderSettings.Current.PendingDuringSession is not null && wanted.DuringSession != _taskReminderSettings.Current.DuringSession
+                ? "Task reminders' \"Remind quietly\" takes effect after the countdown."
+                : null;
         };
 
         // ADR 76: the task store keeps these two in memory and saves them back, so a raw restore would be overwritten: it goes through the store.
@@ -2063,7 +2090,8 @@ public partial class App : Application
 
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
-            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!, _guidance!), BackupService.AppVersion);
+            documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!, _guidance!,
+                taskStore, taskAccount, _taskCalendarExport, _taskReminderSettings, () => _taskReminderAlerts?.HasPhones == true), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -2073,6 +2101,18 @@ public partial class App : Application
         quitGuard.Changed += (_, _) => setupFeatures.Refresh();
         _guidance!.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
+        // The Tasks redesign's features (Phase 8): a choice made on another device sets them up here too.
+        taskAccount.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
+        if (_taskCalendarExport is not null)
+        {
+            _taskCalendarExport.StatusChanged += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
+        }
+
+        if (_taskReminderSettings is not null)
+        {
+            _taskReminderSettings.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
+        }
+
         // The store raises this on any thread, inside a lock: only post.
         calendarOverlay.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);

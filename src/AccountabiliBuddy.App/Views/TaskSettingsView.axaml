@@ -360,6 +360,23 @@
                                 </ComboBox>
                             </Grid>
                         </Border>
+                        <Border Classes="sRow" IsVisible="{Binding HasViewChooser}" search:SearchArea.Name="Start from another copy">
+                            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="BackupRestore" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Start from another copy" />
+                                    <TextBlock Classes="sHint" Text="Use a backup file from this PC, the copy stored in your account, or start fresh. Sets the default view and the picked calendar for your account." />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Choose…" Command="{Binding StartChoosingCopyCommand}" IsVisible="{Binding !IsChoosingCopy}" VerticalAlignment="Top" />
+                                <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Spacing="10" Margin="0,10,0,0" IsVisible="{Binding IsChoosingCopy}">
+                                    <views:TaskViewChooserView DataContext="{Binding ViewChooser}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Classes="primary" Content="Apply" Command="{Binding ApplyChosenCopyCommand}" />
+                                        <Button Content="Cancel" Command="{Binding CancelChoosingCopyCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
                         <Border Classes="sRow" IsEnabled="False" search:SearchArea.Name="Effort ratings">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14" Opacity="0.55">
                                 <mi:MaterialIcon Classes="rowIcon" Kind="Gauge" />

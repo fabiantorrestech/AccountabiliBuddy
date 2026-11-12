@@ -128,7 +128,7 @@ public sealed class TaskCalendarExportService : IDisposable
     /// <summary>How many retries were scheduled in the last hour for a delete waiting on the picked calendar's event (at most 3).</summary>
     public int ConfirmRetriesScheduled => _confirmRetries.Count;
 
-    /// <summary><see cref="Problem"/> or <see cref="NeedsConsent"/> changed.</summary>
+    /// <summary><see cref="Problem"/>, <see cref="NeedsConsent"/> or <see cref="IsAllowed"/> changed.</summary>
     public event EventHandler? StatusChanged;
 
     /// <summary>"Sync task lists" is on (set by the app): only then does another device's pick count here.</summary>
@@ -224,6 +224,12 @@ public sealed class TaskCalendarExportService : IDisposable
     {
         return _account.SetPickedCalendarAsync(googleCalendarId);
     }
+
+    /// <summary>
+    /// The connected Google account's sign-in was last seen with the consent export needs (Allow pressed, or a run found it). For the
+    /// setup assistant's "set up?" check only; false with no Google account.
+    /// </summary>
+    public bool IsAllowed => ExportSource() is CalendarSource source && _state.AllowedFor == source.Id;
 
     /// <summary>The Google account events go to ("Google · name@example.com"); null when no Google account is connected.</summary>
     public string? ExportAccountName => ExportSource()?.Name;
@@ -352,7 +358,7 @@ public sealed class TaskCalendarExportService : IDisposable
                 Log($"export account changed; {_state.Records.Count} event(s) stay in the old account");
             }
 
-            _state = new TaskCalendarExportState(source.Id, null, new Dictionary<Guid, TaskCalendarRecord>());
+            _state = new TaskCalendarExportState(source.Id, null, new Dictionary<Guid, TaskCalendarRecord>(), _state.AllowedFor == source.Id ? source.Id : null);
             await SaveStateAsync();
         }
 
@@ -404,9 +410,12 @@ public sealed class TaskCalendarExportService : IDisposable
 
         if (!access.Has(GoogleCalendarClient.AppCreatedScope))
         {
+            await NoteAllowedAsync(null);
             SetStatus(AppConsentText, true);
             return false;
         }
+
+        await NoteAllowedAsync(source.Id);
 
         // After the scope check: without calendar.app.created every claim is refused, which would wrongly give the records up.
         if (_reclaimPending && _state.AppCalendarId is { } toReclaim)
@@ -739,6 +748,7 @@ public sealed class TaskCalendarExportService : IDisposable
             _calendars.SaveSource(current with { ProtectedSecret = Convert.ToBase64String(_protector.Protect(tokens.RefreshToken)) });
             _access = granted;
             _accessSourceId = source.Id;
+            await NoteAllowedAsync(source.Id);
             Log(includeEvents ? "allowed: app calendar and picked calendar" : "allowed: app calendar");
             SetStatus(null, false);
             _retryWait = null;
@@ -831,6 +841,19 @@ public sealed class TaskCalendarExportService : IDisposable
         _timer.Stop();
         _timer.Interval = wait < Debounce ? Debounce : wait;
         _timer.Start();
+    }
+
+    // Remembers whether the sign-in had the consent (only the assistant's check reads it); says so when it changed.
+    private async Task NoteAllowedAsync(string? sourceId)
+    {
+        if (_state.AllowedFor == sourceId)
+        {
+            return;
+        }
+
+        _state = _state with { AllowedFor = sourceId };
+        await SaveStateAsync();
+        StatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void SetStatus(string? problem, bool needsConsent)

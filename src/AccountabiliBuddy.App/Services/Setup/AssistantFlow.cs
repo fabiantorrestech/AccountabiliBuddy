@@ -4,7 +4,8 @@ namespace AccountabiliBuddy.App.Services.Setup;
 
 /// <summary>
 /// Which pages the setup assistant shows, in order. The first run asks three questions (what kind of computer, link to
-/// your other devices, a daily goal); the full setup (More → Setup) keeps every page for imports and browsers.
+/// your other devices, a daily goal), plus where the Tasks view comes from and, after joining a group with a phone, which devices ring
+/// for task reminders; the full setup (More → Setup) keeps every page for imports and browsers.
 /// </summary>
 public static class AssistantFlow
 {
@@ -16,8 +17,10 @@ public static class AssistantFlow
     /// <param name="hasColdTurkey">Cold Turkey is installed: the full setup offers to hold its keys (ADR 39).</param>
     /// <param name="needsSpareKey">No spare key written down yet: the spare key page follows.</param>
     /// <param name="hasRestore">This PC is in a device group and backups can be opened (ADR 55): "Restore from an older device" follows linking.</param>
+    /// <param name="hasTaskList">The task list is in use (ADR 76): the first run asks where the Tasks view comes from.</param>
+    /// <param name="ringChoice">Joined a device group that has a phone: the first run asks which devices ring for task reminders (13s).</param>
     public static IReadOnlyList<AssistantStep> Steps(bool quick, bool hasIdentity, bool hasTypes, bool hasUsage, bool joined,
-        bool hasColdTurkey = false, bool needsSpareKey = false, bool hasRestore = false)
+        bool hasColdTurkey = false, bool needsSpareKey = false, bool hasRestore = false, bool hasTaskList = false, bool ringChoice = false)
     {
         if (quick)
         {
@@ -35,6 +38,17 @@ public static class AssistantFlow
             if (hasRestore)
             {
                 steps.Add(AssistantStep.Restore);
+            }
+
+            // After linking and restoring: the account's copy may have come with the other devices' files by then.
+            if (hasTaskList)
+            {
+                steps.Add(AssistantStep.TaskViewChooser);
+            }
+
+            if (hasTaskList && joined && ringChoice)
+            {
+                steps.Add(AssistantStep.TaskRingDevices);
             }
 
             // ADR 68: always asked. Left as shown, a device that joined a group follows the mode its devices chose; a choice made
@@ -58,6 +72,7 @@ public static class AssistantFlow
             .Where(step => step != AssistantStep.CalendarRules)
             .Where(step => step != AssistantStep.ShutdownRoutine)
             .Where(step => step != AssistantStep.QuitSafeguard)
+            .Where(step => step is not (AssistantStep.TasksRedesign or AssistantStep.TaskViewChooser or AssistantStep.TaskRingDevices or AssistantStep.TaskCalendarExport))
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
             .Where(step => step != AssistantStep.Restore || hasRestore)

@@ -16,6 +16,11 @@
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
+        <Style Selector="TextBlock.sPending">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.InfoInk}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
         <Style Selector="mi|MaterialIcon.rowIcon">
             <Setter Property="Width" Value="20" />
             <Setter Property="Height" Value="20" />
@@ -102,6 +107,19 @@
                             </StackPanel>
                             <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding DisplayChoices}" SelectedIndex="{Binding DisplayIndex}"
                                      AutomationProperties.Name="How reminders show" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="During a focus session">
+                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="TimerSandPaused" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="During a focus session" />
+                                <TextBlock Classes="sHint" Text="Reminders that come due wait and ring when it ends, or show quietly with the bell once. Can't miss always rings." />
+                            </StackPanel>
+                            <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding DuringSessionChoices}" SelectedIndex="{Binding DuringSessionIndex}"
+                                     AutomationProperties.Name="During a focus session" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="sPending" Margin="0,6,0,0" Text="{Binding DuringSessionNote}"
+                                       IsVisible="{Binding HasDuringSessionNote}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                         </Grid>
                     </Border>
                     <Border Classes="sRow" search:SearchArea.Name="Snooze shortcuts">

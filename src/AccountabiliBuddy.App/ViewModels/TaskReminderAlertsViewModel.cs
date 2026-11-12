@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Tasks;
@@ -12,15 +13,18 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// Settings › Alerts &amp; on-screen › <b>Task reminders</b> and <b>Task reminders ring on</b> (spec 03 §D, 05 §7, Settings Restructure
 /// Plan, prototype's taskrem/taskring groups). Task reminders: Volume (its own row for now; merging it with the chimes' volume is
 /// deferred), Rising volume, Ring even when the PC is muted, Accidental dismiss protection + Wait before dismiss, Stop ringing after,
-/// How reminders show, Snooze shortcuts (Edit: the snooze picker's editor) and the test rings (Ring one always; Ring 6 and Can't miss in
-/// development builds only). Each row saves at once through <see cref="TaskReminderSettingsService.UpdateAsync"/> (this PC only; a ring
-/// setting loosens nothing about a session, so it isn't locked, like the chimes). Test rings show made-up tasks and write nothing.
+/// How reminders show, During a focus session, Snooze shortcuts (Edit: the snooze picker's editor) and the test rings (Ring one always;
+/// Ring 6 and Can't miss in development builds only). Each ring row saves at once through <see cref="TaskReminderSettingsService.UpdateAsync"/>
+/// (this PC only; a ring setting loosens nothing about a session, so it isn't locked, like the chimes). During a focus session goes through
+/// <see cref="TaskReminderSettingsService.SetDuringSessionAsync"/>: "Remind quietly" waits the looser-change wait (shown under the row)
+/// and is refused during a session. Test rings show made-up tasks and write nothing.
 /// Ring on: one switch per device (the account's list, synced; a PC stays on: it always rings for its own reminders), the per-label
 /// summary (→ Tasks › Labels) and Your devices (→ Devices &amp; sync).
 /// </summary>
 public sealed partial class TaskReminderAlertsViewModel : ObservableObject
 {
     private static readonly TaskReminderDisplay[] Displays = [TaskReminderDisplay.Toast, TaskReminderDisplay.FullScreen];
+    private static readonly TaskReminderDuringSession[] DuringSessionValues = [TaskReminderDuringSession.WaitUntilEnd, TaskReminderDuringSession.RemindQuietly];
 
     private readonly TaskReminderSettingsService _settings;
     private readonly TaskReminderService _reminders;
@@ -44,7 +48,7 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
         _account = account;
         _labels = labels;
         _devices = devices;
-        ShortcutsText = PerLabelText = RisingHint = string.Empty;
+        ShortcutsText = PerLabelText = RisingHint = DuringSessionNote = string.Empty;
         settings.Changed += (_, _) => Dispatcher.UIThread.Post(Load);
         account.Changed += (_, _) => Dispatcher.UIThread.Post(Load);
         labels.Changed += (_, _) => Dispatcher.UIThread.Post(Load);
@@ -58,6 +62,12 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
 
     /// <summary>"Your devices": opens Devices &amp; sync.</summary>
     public Action? OpenDevices { get; init; }
+
+    /// <summary>The trusted clock: the time a waiting "Remind quietly" takes effect, in 12-hour local time.</summary>
+    public TimeProvider Clock { get; init; } = TimeProvider.System;
+
+    /// <summary>How long a looser change waits (Focus sessions › Looser changes), for the waiting line.</summary>
+    public Func<TimeSpan>? LooserWait { get; init; }
 
 
     // ---- Task reminders ----
@@ -94,6 +104,19 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
     [ObservableProperty]
     public partial int DisplayIndex { get; set; }
 
+    public IReadOnlyList<string> DuringSessionChoices { get; } = ["Wait until the session ends", "Remind quietly"];
+
+    /// <summary>"During a focus session": 0 = Wait until the session ends (default), 1 = Remind quietly.</summary>
+    [ObservableProperty]
+    public partial int DuringSessionIndex { get; set; }
+
+    /// <summary>The waiting "Remind quietly" and when it takes effect, or why a change was refused; empty for none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDuringSessionNote))]
+    public partial string DuringSessionNote { get; set; }
+
+    public bool HasDuringSessionNote => DuringSessionNote.Length > 0;
+
     /// <summary>"Tonight 6:00 PM · Tomorrow 9:00 AM · Monday 9:00 AM".</summary>
     [ObservableProperty]
     public partial string ShortcutsText { get; set; }
@@ -126,6 +149,18 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
 
     public bool HasNotice => NoticeText.Length > 0;
 
+    /// <summary>A phone is in the list: the only devices whose switch can move (the setup assistant's page shows only then).</summary>
+    public bool HasPhones => Devices.Any(choice => !choice.Device.IsPc);
+
+    /// <summary>
+    /// "Which devices should ring for reminders?" answered as shown (the setup assistant's Next): the account's list is chosen now, so it
+    /// counts as set up on every device (<see cref="TaskAccountSettingsEdits.IsChosen"/>).
+    /// </summary>
+    public Task ConfirmRingOnAsync()
+    {
+        return _account.SetRingOnAsync(_account.RingOn);
+    }
+
     /// <summary>"None: every label rings on the devices above", or each label that rings on fewer.</summary>
     [ObservableProperty]
     public partial string PerLabelText { get; set; }
@@ -145,6 +180,8 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
             ProtectIndex = IndexOf(TaskReminderRingPolicy.ProtectChoices, current.DismissProtectSeconds);
             StopAfterIndex = IndexOf(TaskReminderRingPolicy.StopAfterChoices, current.StopAfterMinutes);
             DisplayIndex = Math.Max(0, Array.IndexOf(Displays, current.Display));
+            DuringSessionIndex = Math.Max(0, Array.IndexOf(DuringSessionValues, current.DuringSession));
+            DuringSessionNote = PendingDuringSessionText(current);
             ShortcutsText = string.Join(" · ", current.Shortcuts.Select(TaskSnooze.Label));
             LoadDevices();
         }
@@ -175,6 +212,7 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
         }
 
         _shownDevices = devices;
+        OnPropertyChanged(nameof(HasPhones));
         PerLabelText = TaskRingText.PerLabel(_labels.Labels, devices);
     }
 
@@ -232,6 +270,43 @@ public sealed partial class TaskReminderAlertsViewModel : ObservableObject
         {
             Save(current => current with { Display = Displays[value] });
         }
+    }
+
+    partial void OnDuringSessionIndexChanged(int value)
+    {
+        if (_loading || value < 0 || value >= DuringSessionValues.Length)
+        {
+            return;
+        }
+
+        _ = SetDuringSessionAsync(DuringSessionValues[value]);
+    }
+
+    private async Task SetDuringSessionAsync(TaskReminderDuringSession wanted)
+    {
+        bool taken = await _settings.SetDuringSessionAsync(wanted);
+        Load();
+        if (!taken)
+        {
+            DuringSessionNote = "Not during a session: reminding during a session would loosen it. Wait until the session ends applies at once.";
+        }
+    }
+
+    // "Remind quietly at 4:05 PM (looser changes wait 10 min; never while a session runs)."
+    private string PendingDuringSessionText(TaskReminderSettings current)
+    {
+        if (current.PendingDuringSession != TaskReminderDuringSession.RemindQuietly || current.PendingDuringSessionFrom is not DateTimeOffset at)
+        {
+            return string.Empty;
+        }
+
+        DateTime local = TimeZoneInfo.ConvertTime(at, Clock.LocalTimeZone).DateTime;
+        DateTime today = TimeZoneInfo.ConvertTime(Clock.GetUtcNow(), Clock.LocalTimeZone).Date;
+        string clock = local.Date == today
+            ? local.ToString("h:mm tt", CultureInfo.InvariantCulture)
+            : local.ToString("ddd M/d h:mm tt", CultureInfo.InvariantCulture);
+        string wait = LooserWait?.Invoke() is TimeSpan length && length > TimeSpan.Zero ? $" (looser changes wait {Math.Round(length.TotalMinutes):0} min" : " (looser changes wait";
+        return $"Remind quietly at {clock}{wait}; never while a session runs).";
     }
 
     private void Save(Func<TaskReminderSettings, TaskReminderSettings> change)

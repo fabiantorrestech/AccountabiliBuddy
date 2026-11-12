@@ -322,6 +322,40 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string DefaultViewHint { get; set; }
 
+    /// <summary>
+    /// "Start from another copy" under Default view: the chooser (a backup file from this PC, the copy stored in the account, or a fresh
+    /// start) shown inline; null without the task list.
+    /// </summary>
+    public TaskViewChooserViewModel? ViewChooser { get; init; }
+
+    public bool HasViewChooser => ViewChooser is not null;
+
+    [ObservableProperty]
+    public partial bool IsChoosingCopy { get; set; }
+
+    [RelayCommand]
+    private void StartChoosingCopy()
+    {
+        ViewChooser?.Refresh();
+        IsChoosingCopy = ViewChooser is not null;
+    }
+
+    [RelayCommand]
+    private void CancelChoosingCopy()
+    {
+        IsChoosingCopy = false;
+    }
+
+    [RelayCommand]
+    private async Task ApplyChosenCopyAsync()
+    {
+        if (ViewChooser is not null && await ViewChooser.ApplyAsync())
+        {
+            IsChoosingCopy = false;
+            Load();
+        }
+    }
+
     // ---- Shelf ----
 
     [ObservableProperty]

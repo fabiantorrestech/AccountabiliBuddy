@@ -9,10 +9,15 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="SourceId">The connected Google account (calendar source id) the events are in; null before the first export.</param>
 /// <param name="AppCalendarId">The Google id of the app's own "AB Reminders" calendar; null until found or made.</param>
 /// <param name="Records">The events this PC wrote, by task id: the only events it ever changes or deletes.</param>
+/// <param name="AllowedFor">
+/// The calendar source id whose sign-in last showed the consent export needs (Allow, or a run that saw it); null when not seen or taken
+/// back. Only for the setup assistant's "set up?" check: export itself always checks the sign-in's scopes.
+/// </param>
 public sealed record TaskCalendarExportState(
     string? SourceId,
     string? AppCalendarId,
-    IReadOnlyDictionary<Guid, TaskCalendarRecord> Records)
+    IReadOnlyDictionary<Guid, TaskCalendarRecord> Records,
+    string? AllowedFor = null)
 {
     public static TaskCalendarExportState Empty { get; } = new(null, null, new Dictionary<Guid, TaskCalendarRecord>());
 }

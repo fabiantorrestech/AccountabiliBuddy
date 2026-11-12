@@ -11,8 +11,35 @@ public static class SetupFeatures
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
         SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard,
-        ShutdownService shutdown, GuidanceModeService guidance) => new[]
+        ShutdownService shutdown, GuidanceModeService guidance, Tasks.TaskStore taskStore, Tasks.TaskAccountSettingsService taskAccount,
+        Tasks.TaskCalendarExportService? taskExport, Tasks.TaskReminderSettingsService? taskReminderSettings, Func<bool> hasPhones) => new[]
     {
+        // ADR 76: the Tasks redesign (Phase 8). Its page is an introduction; "where your Tasks view comes from" follows it (set up once a
+        // default view was chosen for the account, on any device).
+        new SetupFeature(
+            "tasks.redesign", "0.1.131",
+            "Tasks: one list with Today and the Shelf",
+            "Today holds This session, Queued and Finished today; the Shelf holds To sort, Next and Later with saved views. Labels, #tags, steps, reminders and a weekly tidy-up. Pick where your Tasks view comes from: a backup file from this PC, the copy stored in your account, or a fresh start.",
+            IsRelevant: () => taskStore.IsActive,
+            IsSetUp: () => Core.Tasks.TaskAccountSettingsEdits.IsChosen(taskAccount.Current.DefaultViewStamp),
+            Step: ViewModels.AssistantStep.TasksRedesign),
+        // 13s: which devices ring for task reminders, the account's list (only phones can be turned off, so only with a phone linked).
+        new SetupFeature(
+            "tasks.ringDevices", "0.1.131",
+            "Task reminders: which devices ring",
+            "Task reminders ring on this PC and on the phones you leave on, for your whole account. Each label can ring on fewer devices.",
+            IsRelevant: () => taskStore.IsActive && hasPhones(),
+            IsSetUp: () => Core.Tasks.TaskAccountSettingsEdits.IsChosen(taskAccount.Current.RingOnStamp),
+            Step: ViewModels.AssistantStep.TaskRingDevices),
+        // ADR 78: task reminders to Google Calendar need one more OK from Google on installs that connected Google before.
+        new SetupFeature(
+            "tasks.calendarExport", "0.1.131",
+            "Task reminders in Google Calendar",
+            "Tasks with a reminder or a due date can go to an \"AB Reminders\" calendar of the app's own (title and times only). Google needs one more OK for it, or choose Nowhere.",
+            IsRelevant: () => taskStore.IsActive && taskExport?.ExportAccountName is not null,
+            IsSetUp: () => taskExport is null || taskExport.IsAllowed
+                || taskReminderSettings?.Current.NewRemindersTo == Core.Tasks.TaskCalendarDestination.Nowhere,
+            Step: ViewModels.AssistantStep.TaskCalendarExport),
         new SetupFeature(
             "guidance.mode", "0.1.129",
             "ProductaBuddy: a companion without the guarding",

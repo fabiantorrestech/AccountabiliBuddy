@@ -346,7 +346,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsRestore), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
-        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsQuitSafeguard), nameof(IsShutdownRoutine), nameof(IsGuidance), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText))]
+        nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsQuitSafeguard), nameof(IsShutdownRoutine), nameof(IsGuidance), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText),
+        nameof(IsTasksRedesign), nameof(IsTaskViewChooser), nameof(IsTaskRingDevices), nameof(IsTaskCalendarExport))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -367,6 +368,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         {
             _ = LoadBackupsAsync();
         }
+
+        OnTaskStepShown(value);
     }
 
     /// <summary>Opening a removed device's backup and bringing its history in (ADR 55); null skips the Restore step.</summary>
@@ -659,6 +662,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.PanelCtrlAlt => "The Ctrl+Alt panel",
         AssistantStep.CalendarRules => "Calendar events can shape your guarded windows",
         AssistantStep.Appearance => "Appearance: three themes, light and dark on a schedule",
+        AssistantStep.TasksRedesign => "Tasks: one list with Today and the Shelf",
+        AssistantStep.TaskViewChooser => "Where should your Tasks view come from?",
+        AssistantStep.TaskRingDevices => "Which devices should ring for reminders?",
+        AssistantStep.TaskCalendarExport => "Task reminders in Google Calendar",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -696,6 +703,8 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.PanelCtrlAlt => "Finish",
         AssistantStep.CalendarRules => "Finish",
         AssistantStep.Appearance => "Finish",
+        AssistantStep.TasksRedesign or AssistantStep.TaskViewChooser or AssistantStep.TaskRingDevices or AssistantStep.TaskCalendarExport
+            => IsLastPage(Step) ? "Finish" : "Next",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
         _ => "Next",
@@ -900,6 +909,16 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             case AssistantStep.Appearance:
                 Appearance?.ConfirmTheme();
                 GoToNextQuickStep();
+                break;
+            case AssistantStep.TasksRedesign:
+            case AssistantStep.TaskViewChooser:
+            case AssistantStep.TaskRingDevices:
+            case AssistantStep.TaskCalendarExport:
+                if (await FinishTaskStepAsync())
+                {
+                    GoToNextQuickStep();
+                }
+
                 break;
             default:
                 CloseRequested?.Invoke(this, EventArgs.Empty);
@@ -1421,12 +1440,18 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 steps.Insert(steps.IndexOf(AssistantStep.ColdTurkeyKeys) + 1, AssistantStep.SpareKey);
             }
 
+            // The Tasks redesign's introduction leads to the view chooser.
+            if (steps.Contains(AssistantStep.TasksRedesign) && TaskViewChooser is not null && !steps.Contains(AssistantStep.TaskViewChooser))
+            {
+                steps.Insert(steps.IndexOf(AssistantStep.TasksRedesign) + 1, AssistantStep.TaskViewChooser);
+            }
+
             steps.Add(AssistantStep.Done);
             return steps;
         }
 
         return AssistantFlow.Steps(IsQuick, Identity is not null, Types is not null, HasUsage, _joined,
-            HasColdTurkey, NeedsSpareKeyPage, CanRestore).ToList();
+            HasColdTurkey, NeedsSpareKeyPage, CanRestore, TaskViewChooser is not null, OffersRingChoice).ToList();
     }
 
     // As NextAsync: the spare key page follows only when no key is written down yet and a block is ticked.
