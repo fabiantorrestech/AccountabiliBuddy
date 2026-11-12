@@ -90,18 +90,29 @@ object GoalCounting {
     private fun latestHand(entries: List<GoalEntry>): GoalEntry? =
         entries.filter { it.source == GoalEntrySource.Hand }.sortedWith(latestFirst).firstOrNull()
 
-    // An Amount day: the latest hand edit, else the first reading (by its time, then edit time, then id). Second: by hand.
-    private fun amountValue(dayEntries: List<GoalEntry>, readable: Set<GoalEntrySource>): Pair<Double?, Boolean> {
+    /**
+     * The entry that decides an Amount goal's value on a day: the latest hand edit, else the first reading of a switched-on source (by
+     * its time, then edit time, then id); null when none counts (and always for Deep work). The goal page marks it "charted".
+     */
+    fun decidingEntry(goal: Goal, dayEntries: List<GoalEntry>): GoalEntry? =
+        if (goal.isDeepWork) null else decidingEntry(dayEntries, readableSources(goal))
+
+    private fun decidingEntry(dayEntries: List<GoalEntry>, readable: Set<GoalEntrySource>): GoalEntry? {
         val hand = latestHand(dayEntries)
         if (hand != null) {
-            return hand.value to true
+            return hand
         }
 
-        val first = dayEntries
+        return dayEntries
             .filter { it.source != GoalEntrySource.Hand && it.source in readable }
             .sortedWith(compareBy<GoalEntry> { it.time ?: LocalTime.MIN }.thenBy { it.editedAt.toInstant() }.thenBy { it.id.toString() })
             .firstOrNull()
-        return first?.value to false
+    }
+
+    // An Amount day: the latest hand edit, else the first reading (by its time, then edit time, then id). Second: by hand.
+    private fun amountValue(dayEntries: List<GoalEntry>, readable: Set<GoalEntrySource>): Pair<Double?, Boolean> {
+        val deciding = decidingEntry(dayEntries, readable)
+        return deciding?.value to (deciding?.source == GoalEntrySource.Hand)
     }
 
     private fun wholeMinutes(windows: List<GoalWindow>): Double = floor(GoalTimeline.union(windows).sumOf { it.minutes } + 1e-9)

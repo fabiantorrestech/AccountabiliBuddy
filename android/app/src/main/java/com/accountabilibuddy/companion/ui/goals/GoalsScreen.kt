@@ -74,6 +74,8 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
     val steps by app.steps.state.collectAsStateWithLifecycle()
     var areaFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
+    // A hold on a row, or its ⋮: the goal menu (the same rows and order as the PC's).
+    var menuGoal by rememberSaveable { mutableStateOf<String?>(null) }
 
     // A new minute (today's numbers, a day change) recounts.
     val minute by produceState(Instant.now()) {
@@ -147,6 +149,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
                 noPcGoal = shown.pcDailyMinutes == null,
                 onToggle = { area -> GoalDisplayPrefs.setCollapsed(context, area, !section.collapsed) },
                 actions = actions,
+                onMenu = { id -> menuGoal = id.toString() },
             )
         }
         if (layout.pausedHidden > 0) {
@@ -157,6 +160,10 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
         }
     }
 
+    menuGoal?.let { raw ->
+        val id = runCatching { UUID.fromString(raw) }.getOrNull()
+        if (id == null) menuGoal = null else GoalMenuSheet(id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null })
+    }
     if (optionsOpen) {
         GoalsOptionsSheet(
             display = display,
@@ -174,7 +181,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
 
 // One soft block (brief §3.5: no dividers, rows apart by spacing): an area's header and its goals, or the one block of Current / All.
 @Composable
-private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions) {
+private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions, onMenu: (UUID) -> Unit) {
     val scale = LocalMotionScale.current
     val area = section.area
     Column(
@@ -202,7 +209,7 @@ private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UU
                         facts = facts,
                         noPcGoal = noPcGoal,
                         onOpen = { actions.onOpenGoal(facts.goal.id) },
-                        onMenu = { actions.onGoalMenu(facts.goal.id) },
+                        onMenu = { onMenu(facts.goal.id) },
                     )
                 }
             }

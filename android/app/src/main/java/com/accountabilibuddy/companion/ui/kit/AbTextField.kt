@@ -27,6 +27,8 @@ fun AbTextField(
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     isError: Boolean = false,
+    /** A number box asks for the number keyboard. */
+    keyboardType: androidx.compose.ui.text.input.KeyboardType = androidx.compose.ui.text.input.KeyboardType.Unspecified,
 ) {
     val colors = Ab.colors
     OutlinedTextField(
@@ -38,7 +40,7 @@ fun AbTextField(
         textStyle = Ab.type.body,
         shape = Ab.shapes.mediumShape,
         singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(capitalization = capitalization),
+        keyboardOptions = KeyboardOptions(capitalization = capitalization, keyboardType = keyboardType),
         visualTransformation = visualTransformation,
         isError = isError,
         colors = OutlinedTextFieldDefaults.colors(

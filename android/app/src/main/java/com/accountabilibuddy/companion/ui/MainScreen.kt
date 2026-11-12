@@ -400,20 +400,29 @@ fun MainScreen(
                     onDiscardPlanEdit = viewModel::discardDayPlanEdit,
                 )
                 // Round 2 R6.1: Goals takes Stats' slot in the bar; its header's Stats pill opens the Stats screen (unchanged).
-                AppDestination.Goals -> com.accountabilibuddy.companion.ui.goals.GoalsScreen(
-                    allReceived = syncAllReceived,
-                    received = syncReceived,
-                    actions = com.accountabilibuddy.companion.ui.goals.GoalsActions(
-                        onOpenStats = { nav.open(AppDestination.Stats) },
-                        // R6b builds these sheets (New goal, the goal's page, the goal menu, Edit area, Areas, Settings › Goals).
-                        onNewGoal = { viewModel.message.value = "New goal comes in the next update." },
-                        onOpenGoal = { viewModel.message.value = "A goal's page comes in the next update." },
-                        onGoalMenu = { viewModel.message.value = "The goal menu comes in the next update." },
-                        onEditArea = { viewModel.message.value = "Edit area comes in the next update." },
-                        onOpenAreas = { viewModel.message.value = "Areas come in the next update." },
-                        onOpenGoalsSettings = { viewModel.message.value = "Goals settings come in the next update." },
-                    ),
-                )
+                AppDestination.Goals -> {
+                    // A goal's page is the Goals place with the goal's id as its detail (back goes to the list).
+                    val openGoal = shown.detail?.let { runCatching { java.util.UUID.fromString(it) }.getOrNull() }
+                    if (openGoal != null) {
+                        com.accountabilibuddy.companion.ui.goals.GoalPageScreen(
+                            goalId = openGoal, allReceived = syncAllReceived, received = syncReceived,
+                            onBack = { nav.back() }, onMessage = { viewModel.message.value = it },
+                        )
+                    } else com.accountabilibuddy.companion.ui.goals.GoalsScreen(
+                        allReceived = syncAllReceived,
+                        received = syncReceived,
+                        actions = com.accountabilibuddy.companion.ui.goals.GoalsActions(
+                            onOpenStats = { nav.open(AppDestination.Stats) },
+                            // The sheets still to come (New goal, Edit area, Areas, Settings › Goals) say so for now.
+                            onNewGoal = { viewModel.message.value = "New goal comes in the next update." },
+                            onOpenGoal = { nav.open(AppDestination.Goals, it.toString()) },
+                            onMessage = { viewModel.message.value = it },
+                            onEditArea = { viewModel.message.value = "Edit area comes in the next update." },
+                            onOpenAreas = { viewModel.message.value = "Areas come in the next update." },
+                            onOpenGoalsSettings = { viewModel.message.value = "Goals settings come in the next update." },
+                        ),
+                    )
+                }
                 AppDestination.Stats -> StatsScreen(state, syncAllReceived, syncReceived, health, onConnectHealth, viewModel::refreshSleep, phoneUsage, onAllowUsage, routeView = shown.detail)
                 AppDestination.Settings -> {
                     // Curbox's status shows only in Settings (Connections): ask it when Settings opens, or the app comes back to it.
