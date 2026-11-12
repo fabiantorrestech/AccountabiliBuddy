@@ -3,7 +3,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>What the title bar's session control shows (Tasks redesign `03` §A).</summary>
 public enum SessionControlState
 {
-    /// <summary>No session: the "Start session" pill with its Ctrl+Shift+S chip.</summary>
+    /// <summary>No session: the "Start session" pill (its shortcut in the tooltip).</summary>
     Idle,
 
     /// <summary>A session runs (focus, planning, a break, or the timer paused): the ring and the time left.</summary>

@@ -10,7 +10,7 @@
     <!-- Today's session card (round 2, brief §4.2 Keep, CN §3 PC): the left slot, 340 wide, the same skeleton in and out of a session
          (CN §1 rule 7). Running: the ring with the time, "ends 1:23 PM · <profile>", Done · <step> / Step away / ⋯ under it, then the
          note line. Planning: the same ring, the planning question, I'm ready / ⋯. Idle: the planned length, "Nothing running · next:
-         …", Start session / ⋯ and "Ctrl+Shift+S starts it from anywhere". No profiles yet: the welcome. The task list is This session
+         …", Start session / ⋯ (the shortcut shows only in the title bar Start button's tooltip, owner 2026-11-14). No profiles yet: the welcome. The task list is This session
          on the right (CN §1 rule 6: the current task is not repeated here). Every button runs the command the old main card ran. -->
     <UserControl.Styles>
         <Style Selector="controls|ProgressRing.cardRing">
@@ -66,13 +66,6 @@
         <Style Selector="Button.noteLine /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="Border.keyChip">
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="4" />
-            <Setter Property="Padding" Value="5,1" />
-            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </UserControl.Styles>
     <UserControl.Resources>
@@ -227,13 +220,6 @@
                             ToolTip.Tip="Other ways to start, Plan day(s), Start shutdown" AutomationProperties.Name="Other ways to start">
                         <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
                     </Button>
-                </StackPanel>
-                <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="0,4,0,0" />
-                <StackPanel Orientation="Horizontal" Spacing="7">
-                    <Border Classes="keyChip">
-                        <TextBlock Classes="numeral muted" Text="Ctrl+Shift+S" FontSize="11" />
-                    </Border>
-                    <TextBlock Classes="muted" Text="starts it from anywhere" FontSize="13" VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>
         </Panel>

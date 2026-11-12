@@ -6,7 +6,7 @@
              x:Class="AccountabiliBuddy.App.Views.SessionControlView"
              x:DataType="vm:SessionControlViewModel">
     <UserControl.Styles>
-        <!-- Idle: the accent "Start session" pill, 34 tall, with the Ctrl+Shift+S chip. -->
+        <!-- Idle: the accent "Start session" pill, 34 tall; its shortcut shows only in the tooltip (owner 2026-11-14). -->
         <Style Selector="Button.sessionStart">
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="12,0,8,0" />
@@ -127,10 +127,6 @@
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <mi:MaterialIcon Kind="Play" Width="17" Height="17" VerticalAlignment="Center" />
                 <TextBlock Text="Start session" VerticalAlignment="Center" />
-                <Panel VerticalAlignment="Center">
-                    <Border CornerRadius="5" Background="{DynamicResource Ab.OnAccent}" Opacity="0.18" />
-                    <TextBlock Classes="numeral" Text="Ctrl+Shift+S" FontSize="10.5" Margin="6,2" VerticalAlignment="Center" />
-                </Panel>
             </StackPanel>
         </Button>
 
