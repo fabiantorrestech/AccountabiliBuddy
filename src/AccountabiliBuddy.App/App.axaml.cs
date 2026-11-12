@@ -1402,6 +1402,8 @@ public partial class App : Application
         _goals = new AccountabiliBuddy.App.Services.Goals.GoalsService(
             goalStore, goal, _sessions!, time, () => guidance.IsCompanion, goalLowerWaits, () => _configuration!.Current.Locks.LooseningDelay);
         guidance.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _goals.ModeChangedAsync());
+        // ADR 71: the goals go in backups with the task lists, readable inside the file (notes and reasons only with a password).
+        backups.Goals = AccountabiliBuddy.App.Services.Backup.BackupAccess.Goals(goalStore);
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         pastSettled.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         handovers.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -2093,8 +2095,9 @@ public partial class App : Application
                 : null;
         };
 
-        // Round 2 R4: the goals go through their store (sealed lists opened with this PC's key and merged in; display preferences as
-        // they are) and Deep work's weekly target through its rules: a lower one, none or Track time only waits like a change made here.
+        // Round 2 R4: the goals page's settings go through their store (display preferences as they are) and Deep work's weekly target
+        // through its rules (a lower one, none or Track time only waits like a change made here). The sealed goal lists that the first
+        // goals build put in device backups are still taken in, through the store (opened with this PC's key, never written raw).
         if (_goals is { } restoredGoals)
         {
             foreach (string goalsKey in AccountabiliBuddy.App.Services.Goals.GoalStore.SealedKeys)

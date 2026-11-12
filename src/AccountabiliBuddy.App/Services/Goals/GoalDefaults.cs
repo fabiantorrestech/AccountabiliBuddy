@@ -54,10 +54,4 @@ public static class GoalDefaults
             DeletedAt = null,
         };
     }
-
-    /// <summary>Whether a source may be chosen for a goal on this PC now (not "Coming soon": plan §3b 2, ADR 81).</summary>
-    public static bool IsChoosable(GoalSourceRule source)
-    {
-        return GoalSources.AvailabilityOf(source.Type) != GoalSourceAvailability.ComingSoon;
-    }
 }

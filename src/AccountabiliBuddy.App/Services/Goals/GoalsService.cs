@@ -35,7 +35,8 @@ public sealed class GoalsService
     private readonly Func<bool> _lowerWaitsNow;
     private readonly Func<TimeSpan> _looserWait;
     private bool _writingDaily;
-    private bool _applying;
+    // Every Deep work change runs alone: a raise asked for while a lowering applies is never lost under it (review fix).
+    private readonly SemaphoreSlim _deepWorkGate = new(1, 1);
     private bool _wasProductaBuddy;
 
     /// <param name="daily">The "goal" document: Deep work's daily target.</param>
@@ -55,7 +56,7 @@ public sealed class GoalsService
         _looserWait = looserWait;
         _wasProductaBuddy = isProductaBuddy();
         _sessions.Ticked += (_, _) => _ = ApplyPendingIfReadyAsync();
-        _daily.Changed += (_, _) => _ = DailyChangedElsewhereAsync();
+        _daily.Changed += (_, _) => DailyChangedElsewhere();
     }
 
     public GoalStore Store => _store;
@@ -98,10 +99,149 @@ public sealed class GoalsService
 
     private bool SessionRunning => _sessions.State.IsActive;
 
-    // ---- Deep work ----
+    // ---- Deep work (one change at a time: _deepWorkGate) ----
 
     /// <summary>Deep work's daily target (the "goal" document). Raising applies at once; lowering follows the Deep work rule.</summary>
-    public async Task<GoalChangeResult> SetDeepWorkDailyAsync(int minutes)
+    public Task<GoalChangeResult> SetDeepWorkDailyAsync(int minutes) => GatedAsync(() => SetDailyGatedAsync(minutes));
+
+    /// <summary>Deep work's weekly target in minutes (null = none). Raising or adding applies at once; lowering or removing follows the Deep work rule.</summary>
+    public Task<GoalChangeResult> SetDeepWorkWeeklyAsync(int? minutes) => GatedAsync(() => SetWeeklyGatedAsync(minutes));
+
+    /// <summary>
+    /// "Track time only, no target" (on) removes Deep work's daily and weekly targets on the Goals screens: a lowering, so it follows the
+    /// Deep work rule. Off brings the daily target back (stricter, at once; the weekly one stays none). The guards keep the "goal"
+    /// document's minutes either way (Q374).
+    /// </summary>
+    public Task<GoalChangeResult> SetTrackTimeOnlyAsync(bool on) => GatedAsync(() => SetTrackTimeOnlyGatedAsync(on));
+
+    /// <summary>Cancel on a waiting Deep work change (the Target tile, Edit goal).</summary>
+    public Task CancelDeepWorkPendingAsync(DeepWorkTargetKind kind)
+    {
+        return GatedAsync(async () =>
+        {
+            if (_store.IsReady)
+            {
+                DeepWorkGoalSettings settings = _store.DeepWork;
+                await _store.SetDeepWorkAsync(kind switch
+                {
+                    DeepWorkTargetKind.Daily => settings with { PendingDaily = null },
+                    DeepWorkTargetKind.Weekly => settings with { PendingWeekly = null },
+                    _ => settings with { PendingTrackTimeOnly = null },
+                });
+            }
+
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// Waiting Deep work changes that may apply now do (<see cref="GoalLowering.CanApply"/>): their time has come, no session runs
+    /// (outside ProductaBuddy mode) and the work-hours rule doesn't hold them; one made in ProductaBuddy mode seen in AccountabiliBuddy
+    /// mode restarts its full delay first. Runs on every session tick; a tick that finds another Deep work change under way skips.
+    /// </summary>
+    public async Task ApplyPendingIfReadyAsync()
+    {
+        if (!_store.IsReady || !_store.DeepWork.HasPending || !await _deepWorkGate.WaitAsync(0))
+        {
+            return;
+        }
+
+        try
+        {
+            await ApplyPendingGatedAsync();
+        }
+        finally
+        {
+            _deepWorkGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The mode changed (ADR 68). Into AccountabiliBuddy mode, a change still waiting (made in ProductaBuddy mode, where it only waited
+    /// for the work-hours rule) waits the full looser-change wait from now, so the switch never makes a lowering land sooner.
+    /// </summary>
+    public Task ModeChangedAsync()
+    {
+        return GatedAsync(async () =>
+        {
+            bool productaBuddy = _isProductaBuddy();
+            bool intoGuarding = _wasProductaBuddy && !productaBuddy;
+            _wasProductaBuddy = productaBuddy;
+            if (!intoGuarding || !_store.IsReady || !_store.DeepWork.HasPending)
+            {
+                return true;
+            }
+
+            DateTimeOffset earliest = Now + _looserWait();
+            GoalPendingChange? Later(GoalPendingChange? pending) =>
+                pending is not null && (pending.AppliesAt < earliest || pending.MadeInProductaBuddy)
+                    ? pending with { AppliesAt = pending.AppliesAt < earliest ? earliest : pending.AppliesAt, MadeInProductaBuddy = false }
+                    : pending;
+            DeepWorkGoalSettings settings = _store.DeepWork;
+            await _store.SetDeepWorkAsync(settings with
+            {
+                PendingDaily = Later(settings.PendingDaily),
+                PendingWeekly = Later(settings.PendingWeekly),
+                PendingTrackTimeOnly = Later(settings.PendingTrackTimeOnly),
+            });
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// "goals.deepWork" from a backup's device settings (ADR 71; plan §3b 6), through the same rules as a change made here: a lower weekly
+    /// target, no weekly target or Track time only waits (or is refused during a session); a raise applies at once; a waiting change is
+    /// never in a backup (and one in an older backup is never taken over). Returns a note for the restore summary, or null.
+    /// </summary>
+    public async Task<string?> RestoreDeepWorkAsync(JsonElement value)
+    {
+        if (!_store.IsReady)
+        {
+            return "Deep work's weekly target wasn't restored: this PC's goals aren't ready yet.";
+        }
+
+        DeepWorkGoalSettings? wanted;
+        try
+        {
+            wanted = value.Deserialize<DeepWorkGoalSettings>(GoalStore.DocumentJson);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            wanted = null;
+        }
+
+        if (wanted is null)
+        {
+            return "Deep work's weekly target in this backup couldn't be read; this PC's was kept.";
+        }
+
+        List<GoalChangeResult> results = await GatedAsync(async () =>
+        {
+            var steps = new List<GoalChangeResult>();
+            if (wanted.TrackTimeOnly)
+            {
+                steps.Add(await SetTrackTimeOnlyGatedAsync(true));
+            }
+            else
+            {
+                steps.Add(await SetTrackTimeOnlyGatedAsync(false));
+                steps.Add(await SetWeeklyGatedAsync(wanted.WeeklyMinutes));
+            }
+
+            return steps;
+        });
+
+        if (results.Contains(GoalChangeResult.RefusedDuringSession))
+        {
+            return "Deep work's weekly target wasn't restored during a session (it would loosen it).";
+        }
+
+        return results.Contains(GoalChangeResult.Waiting)
+            ? "Deep work's lower weekly target (or Track time only) from the backup waits the looser-change countdown and never starts during a session."
+            : null;
+    }
+
+    private async Task<GoalChangeResult> SetDailyGatedAsync(int minutes)
     {
         if (!_store.IsReady || _store.Lists.DeepWorkRecord is not Goal record)
         {
@@ -109,12 +249,10 @@ public sealed class GoalsService
         }
 
         int wanted = Math.Clamp(minutes, MinDailyMinutes, MaxDailyMinutes);
-        DeepWorkGoalSettings settings = _store.DeepWork;
         // Setting a daily target ends Track time only: adding a target is stricter, at once.
-        if (settings.TrackTimeOnly || settings.PendingTrackTimeOnly is not null)
+        if (_store.DeepWork is { } held && (held.TrackTimeOnly || held.PendingTrackTimeOnly is not null))
         {
-            settings = settings with { TrackTimeOnly = false, PendingTrackTimeOnly = null };
-            await _store.SetDeepWorkAsync(settings);
+            await _store.SetDeepWorkAsync(held with { TrackTimeOnly = false, PendingTrackTimeOnly = null });
         }
 
         // The guards read the "goal" document's minutes, so lower or not is judged against them.
@@ -123,19 +261,19 @@ public sealed class GoalsService
         switch (decision.Outcome)
         {
             case GoalChangeOutcome.Unchanged:
-                await _store.SetDeepWorkAsync(settings with { PendingDaily = null });
+                await _store.SetDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
                 return GoalChangeResult.Unchanged;
             case GoalChangeOutcome.ApplyNow:
                 await WriteDailyAsync(wanted);
                 await _store.SetDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
                 return GoalChangeResult.Applied;
             default:
-                return await KeepWaitingAsync(settings, settings.PendingDaily, decision.Pending(wanted)!, pending => settings with { PendingDaily = pending });
+                return await KeepWaitingAsync(
+                    settings => settings.PendingDaily, decision.Pending(wanted)!, (settings, pending) => settings with { PendingDaily = pending });
         }
     }
 
-    /// <summary>Deep work's weekly target in minutes (null = none). Raising or adding applies at once; lowering or removing follows the Deep work rule.</summary>
-    public async Task<GoalChangeResult> SetDeepWorkWeeklyAsync(int? minutes)
+    private async Task<GoalChangeResult> SetWeeklyGatedAsync(int? minutes)
     {
         if (!_store.IsReady || _store.Lists.DeepWorkRecord is not Goal record)
         {
@@ -143,35 +281,30 @@ public sealed class GoalsService
         }
 
         int? wanted = minutes is int value ? Math.Clamp(value, MinWeeklyMinutes, MaxWeeklyMinutes) : null;
-        DeepWorkGoalSettings settings = _store.DeepWork;
-        if (wanted is not null && (settings.TrackTimeOnly || settings.PendingTrackTimeOnly is not null))
+        if (wanted is not null && _store.DeepWork is { } held && (held.TrackTimeOnly || held.PendingTrackTimeOnly is not null))
         {
             // A weekly target ends Track time only: stricter, at once.
-            settings = settings with { TrackTimeOnly = false, PendingTrackTimeOnly = null };
-            await _store.SetDeepWorkAsync(settings);
+            await _store.SetDeepWorkAsync(held with { TrackTimeOnly = false, PendingTrackTimeOnly = null });
         }
 
+        DeepWorkGoalSettings settings = _store.DeepWork;
         var current = new GoalTarget(GoalPeriod.Week, settings.TrackTimeOnly ? null : settings.WeeklyMinutes, GoalUnit.Minutes);
         GoalChangeDecision decision = GoalLowering.Decide(record, current, wanted, _isProductaBuddy(), _lowerWaitsNow(), Now, _looserWait());
         switch (decision.Outcome)
         {
             case GoalChangeOutcome.Unchanged:
-                await _store.SetDeepWorkAsync(settings with { PendingWeekly = null });
+                await _store.SetDeepWorkAsync(_store.DeepWork with { PendingWeekly = null });
                 return GoalChangeResult.Unchanged;
             case GoalChangeOutcome.ApplyNow:
-                await _store.SetDeepWorkAsync(settings with { WeeklyMinutes = wanted, PendingWeekly = null });
+                await _store.SetDeepWorkAsync(_store.DeepWork with { WeeklyMinutes = wanted, PendingWeekly = null });
                 return GoalChangeResult.Applied;
             default:
-                return await KeepWaitingAsync(settings, settings.PendingWeekly, decision.Pending(wanted)!, pending => settings with { PendingWeekly = pending });
+                return await KeepWaitingAsync(
+                    held => held.PendingWeekly, decision.Pending(wanted)!, (held, pending) => held with { PendingWeekly = pending });
         }
     }
 
-    /// <summary>
-    /// "Track time only, no target" (on) removes Deep work's daily and weekly targets on the Goals screens: a lowering, so it follows the
-    /// Deep work rule. Off brings the daily target back (stricter, at once; the weekly one stays none). The guards keep the "goal"
-    /// document's minutes either way (Q374).
-    /// </summary>
-    public async Task<GoalChangeResult> SetTrackTimeOnlyAsync(bool on)
+    private async Task<GoalChangeResult> SetTrackTimeOnlyGatedAsync(bool on)
     {
         if (!_store.IsReady || _store.Lists.DeepWorkRecord is not Goal record)
         {
@@ -199,167 +332,69 @@ public sealed class GoalsService
         GoalChangeDecision decision = GoalLowering.Decide(record, current, null, _isProductaBuddy(), _lowerWaitsNow(), Now, _looserWait());
         if (decision.Outcome == GoalChangeOutcome.ApplyNow)
         {
-            await _store.SetDeepWorkAsync(TrackingTimeOnly(settings));
+            await _store.SetDeepWorkAsync(TrackingTimeOnly(_store.DeepWork));
             return GoalChangeResult.Applied;
         }
 
-        return await KeepWaitingAsync(settings, settings.PendingTrackTimeOnly, decision.Pending(null)!, pending => settings with { PendingTrackTimeOnly = pending });
+        return await KeepWaitingAsync(
+            held => held.PendingTrackTimeOnly, decision.Pending(null)!, (held, pending) => held with { PendingTrackTimeOnly = pending });
     }
 
-    /// <summary>Cancel on a waiting Deep work change (the Target tile, Edit goal).</summary>
-    public async Task CancelDeepWorkPendingAsync(DeepWorkTargetKind kind)
+    private async Task ApplyPendingGatedAsync()
     {
-        if (!_store.IsReady)
+        if (!_store.IsReady || !_store.DeepWork.HasPending)
         {
             return;
         }
 
-        DeepWorkGoalSettings settings = _store.DeepWork;
-        await _store.SetDeepWorkAsync(kind switch
-        {
-            DeepWorkTargetKind.Daily => settings with { PendingDaily = null },
-            DeepWorkTargetKind.Weekly => settings with { PendingWeekly = null },
-            _ => settings with { PendingTrackTimeOnly = null },
-        });
-    }
-
-    /// <summary>
-    /// Waiting Deep work changes that may apply now do (<see cref="GoalLowering.CanApply"/>): their time has come, no session runs
-    /// (outside ProductaBuddy mode) and the work-hours rule doesn't hold them. Runs on every session tick.
-    /// </summary>
-    public async Task ApplyPendingIfReadyAsync()
-    {
-        if (!_store.IsReady || _applying || !_store.DeepWork.HasPending)
-        {
-            return;
-        }
-
-        _applying = true;
-        try
-        {
-            DateTimeOffset now = Now;
-            bool productaBuddy = _isProductaBuddy();
-            bool session = SessionRunning;
-            bool lowerWaits = _lowerWaitsNow();
-            bool Ready(GoalPendingChange? pending) => pending is not null && GoalLowering.CanApply(pending, now, session, productaBuddy, lowerWaits);
-
-            DeepWorkGoalSettings settings = _store.DeepWork;
-            if (!productaBuddy)
-            {
-                // A change made in ProductaBuddy mode seen in AccountabiliBuddy mode (a switch this service didn't see, e.g. while the
-                // app was closed) waits the full delay from now first (GoalLowering.IntoAccountabiliBuddy).
-                GoalPendingChange? Restarted(GoalPendingChange? pending) => pending is null ? null : GoalLowering.IntoAccountabiliBuddy(pending, now, _looserWait());
-                settings = settings with
-                {
-                    PendingDaily = Restarted(settings.PendingDaily),
-                    PendingWeekly = Restarted(settings.PendingWeekly),
-                    PendingTrackTimeOnly = Restarted(settings.PendingTrackTimeOnly),
-                };
-            }
-
-            if (Ready(settings.PendingTrackTimeOnly))
-            {
-                settings = TrackingTimeOnly(settings);
-            }
-
-            if (Ready(settings.PendingWeekly))
-            {
-                settings = settings with { WeeklyMinutes = settings.PendingWeekly!.Amount is double weekly ? (int?)(int)weekly : null, PendingWeekly = null };
-            }
-
-            if (Ready(settings.PendingDaily))
-            {
-                // Still a lowering of what the guards read (a later raise elsewhere drops it before this; checked again here).
-                if (settings.PendingDaily!.Amount is double daily && daily < _daily.Current.DailyMinutes)
-                {
-                    await WriteDailyAsync((int)daily);
-                }
-
-                settings = settings with { PendingDaily = null };
-            }
-
-            await _store.SetDeepWorkAsync(settings);
-        }
-        finally
-        {
-            _applying = false;
-        }
-    }
-
-    /// <summary>
-    /// The mode changed (ADR 68). Into AccountabiliBuddy mode, a change still waiting (made in ProductaBuddy mode, where it only waited
-    /// for the work-hours rule) waits the full looser-change wait from now, so the switch never makes a lowering land sooner.
-    /// </summary>
-    public async Task ModeChangedAsync()
-    {
+        DateTimeOffset now = Now;
         bool productaBuddy = _isProductaBuddy();
-        bool intoGuarding = _wasProductaBuddy && !productaBuddy;
-        _wasProductaBuddy = productaBuddy;
-        if (!intoGuarding || !_store.IsReady || !_store.DeepWork.HasPending)
-        {
-            return;
-        }
+        bool session = SessionRunning;
+        bool lowerWaits = _lowerWaitsNow();
+        bool Ready(GoalPendingChange? pending) => pending is not null && GoalLowering.CanApply(pending, now, session, productaBuddy, lowerWaits);
 
-        DateTimeOffset earliest = Now + _looserWait();
-        GoalPendingChange? Later(GoalPendingChange? pending) =>
-            pending is not null && (pending.AppliesAt < earliest || pending.MadeInProductaBuddy)
-                ? pending with { AppliesAt = pending.AppliesAt < earliest ? earliest : pending.AppliesAt, MadeInProductaBuddy = false }
-                : pending;
         DeepWorkGoalSettings settings = _store.DeepWork;
-        await _store.SetDeepWorkAsync(settings with
+        if (!productaBuddy)
         {
-            PendingDaily = Later(settings.PendingDaily),
-            PendingWeekly = Later(settings.PendingWeekly),
-            PendingTrackTimeOnly = Later(settings.PendingTrackTimeOnly),
-        });
-    }
-
-    /// <summary>
-    /// "goals.deepWork" from a backup's device settings (ADR 71; plan §3b 6), through the same rules as a change made here: a lower weekly
-    /// target, no weekly target or Track time only waits (or is refused during a session); a raise applies at once; a waiting change in
-    /// the backup is never taken over. Returns a note for the restore summary, or null.
-    /// </summary>
-    public async Task<string?> RestoreDeepWorkAsync(JsonElement value)
-    {
-        if (!_store.IsReady)
-        {
-            return "Deep work's weekly target wasn't restored: this PC's goals aren't ready yet.";
+            // A change made in ProductaBuddy mode seen in AccountabiliBuddy mode (a switch this service didn't see, e.g. while the
+            // app was closed) waits the full delay from now first (GoalLowering.IntoAccountabiliBuddy).
+            GoalPendingChange? Restarted(GoalPendingChange? pending) => pending is null ? null : GoalLowering.IntoAccountabiliBuddy(pending, now, _looserWait());
+            settings = settings with
+            {
+                PendingDaily = Restarted(settings.PendingDaily),
+                PendingWeekly = Restarted(settings.PendingWeekly),
+                PendingTrackTimeOnly = Restarted(settings.PendingTrackTimeOnly),
+            };
         }
 
-        DeepWorkGoalSettings? wanted;
-        try
+        if (Ready(settings.PendingTrackTimeOnly))
         {
-            wanted = value.Deserialize<DeepWorkGoalSettings>(GoalStore.DocumentJson);
-        }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException)
-        {
-            wanted = null;
+            settings = TrackingTimeOnly(settings);
         }
 
-        if (wanted is null)
+        if (Ready(settings.PendingWeekly))
         {
-            return "Deep work's weekly target in this backup couldn't be read; this PC's was kept.";
+            settings = settings with { WeeklyMinutes = settings.PendingWeekly!.Amount is double weekly ? (int?)(int)weekly : null, PendingWeekly = null };
         }
 
-        var results = new List<GoalChangeResult>();
-        if (wanted.TrackTimeOnly)
+        int? dailyTo = null;
+        if (Ready(settings.PendingDaily))
         {
-            results.Add(await SetTrackTimeOnlyAsync(true));
-        }
-        else
-        {
-            results.Add(await SetTrackTimeOnlyAsync(false));
-            results.Add(await SetDeepWorkWeeklyAsync(wanted.WeeklyMinutes));
+            // Still a lowering of what the guards read (a later raise elsewhere drops it before this; checked again here).
+            if (settings.PendingDaily!.Amount is double daily && daily < _daily.Current.DailyMinutes)
+            {
+                dailyTo = (int)daily;
+            }
+
+            settings = settings with { PendingDaily = null };
         }
 
-        if (results.Contains(GoalChangeResult.RefusedDuringSession))
+        // Deep work's own values first (nothing else changes them while the gate is held), then the "goal" document.
+        await _store.SetDeepWorkAsync(settings);
+        if (dailyTo is int lowered)
         {
-            return "Deep work's weekly target wasn't restored during a session (it would loosen it).";
+            await WriteDailyAsync(lowered);
         }
-
-        return results.Contains(GoalChangeResult.Waiting)
-            ? "Deep work's lower weekly target (or Track time only) from the backup waits the looser-change countdown and never starts during a session."
-            : null;
     }
 
     // ---- Other goals, areas, entries, reminders, reviews (apply at once: they feed no guard) ----
@@ -373,7 +408,7 @@ public sealed class GoalsService
         }
 
         if (goal.BuiltIn || goal.Id == Goal.DeepWorkId || _store.Lists.Goals.Any(item => item.Id == goal.Id)
-            || !IsLiveArea(goal.AreaId) || !goal.Sources.All(GoalDefaults.IsChoosable))
+            || !IsLiveArea(goal.AreaId) || !goal.Sources.All(rule => GoalSources.AllowedFor(goal with { BuiltIn = false }, rule.Type)))
         {
             return GoalChangeResult.NotAllowed;
         }
@@ -433,7 +468,7 @@ public sealed class GoalsService
         }
         else
         {
-            if (goal.BuiltIn || !goal.Sources.All(GoalDefaults.IsChoosable))
+            if (goal.BuiltIn || !goal.Sources.All(rule => GoalSources.AllowedFor(goal with { BuiltIn = false }, rule.Type)))
             {
                 return GoalChangeResult.NotAllowed;
             }
@@ -536,7 +571,7 @@ public sealed class GoalsService
 
         await _store.ChangeAsync(source, (lists, now) => lists with
         {
-            Goals = Replace(lists.Goals, item => item.Id == goalId, goal with { Name = string.Empty, Notes = null, DeletedAt = now, EditedAt = now }),
+            Goals = Replace(lists.Goals, item => item.Id == goalId, goal with { Name = string.Empty, Notes = null, Sources = [], DeletedAt = now, EditedAt = now }),
             Entries = lists.Entries.Select(entry => entry.GoalId == goalId && entry.IsLive ? entry with { DeletedAt = now, EditedAt = now } : entry).ToList(),
             Reminders = lists.Reminders.Select(reminder => reminder.GoalId == goalId && reminder.IsLive
                 ? reminder with { Reason = null, DeletedAt = now, EditedAt = now }
@@ -688,8 +723,9 @@ public sealed class GoalsService
 
     // ---- helpers ----
 
+    // Keeps a looser change waiting (refused during a session outside ProductaBuddy mode); built on Deep work's values as they are now.
     private async Task<GoalChangeResult> KeepWaitingAsync(
-        DeepWorkGoalSettings settings, GoalPendingChange? held, GoalPendingChange wanted, Func<GoalPendingChange, DeepWorkGoalSettings> with)
+        Func<DeepWorkGoalSettings, GoalPendingChange?> held, GoalPendingChange wanted, Func<DeepWorkGoalSettings, GoalPendingChange, DeepWorkGoalSettings> with)
     {
         if (!_isProductaBuddy() && SessionRunning)
         {
@@ -697,13 +733,27 @@ public sealed class GoalsService
         }
 
         // A wait already running for the same value keeps its time.
-        if (held is not null && Nullable.Equals(held.Amount, wanted.Amount))
+        DeepWorkGoalSettings settings = _store.DeepWork;
+        if (held(settings) is { } running && Nullable.Equals(running.Amount, wanted.Amount))
         {
             return GoalChangeResult.Waiting;
         }
 
-        await _store.SetDeepWorkAsync(with(wanted));
+        await _store.SetDeepWorkAsync(with(settings, wanted));
         return GoalChangeResult.Waiting;
+    }
+
+    private async Task<T> GatedAsync<T>(Func<Task<T>> change)
+    {
+        await _deepWorkGate.WaitAsync();
+        try
+        {
+            return await change();
+        }
+        finally
+        {
+            _deepWorkGate.Release();
+        }
     }
 
     private static DeepWorkGoalSettings TrackingTimeOnly(DeepWorkGoalSettings settings)
@@ -724,16 +774,25 @@ public sealed class GoalsService
         }
     }
 
-    // The daily goal was set somewhere else (the goal card, the start-of-day card, another PC, a restore): that later choice wins, so a
-    // waiting lower value from here is dropped rather than landing over it.
-    private async Task DailyChangedElsewhereAsync()
+    // The daily goal was set somewhere else (the goal card, the start-of-day card, another PC, a restore): that later choice wins, so the
+    // waiting lower value seen at that moment is dropped rather than landing over it (one asked for after it stays). This service's own
+    // write is told apart at once, before waiting for the gate.
+    private void DailyChangedElsewhere()
     {
-        if (_writingDaily || !_store.IsReady || _store.DeepWork.PendingDaily is null)
+        if (_writingDaily || !_store.IsReady || _store.DeepWork.PendingDaily is not GoalPendingChange seen)
         {
             return;
         }
 
-        await _store.SetDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
+        _ = GatedAsync(async () =>
+        {
+            if (_store.DeepWork.PendingDaily == seen)
+            {
+                await _store.SetDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
+            }
+
+            return true;
+        });
     }
 
     private static bool SameGoal(Goal left, Goal right)

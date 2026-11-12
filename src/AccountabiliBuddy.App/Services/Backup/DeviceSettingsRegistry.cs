@@ -17,9 +17,8 @@ public static class DeviceSettingsRegistry
         "stats.view", "history.hidden", "history.hiddenDistractions", "history.names", "dailySteps", "enforcement.limit",
         "setup.computerType", "classify.exemptionProfiles", "dpAssistant", "planHelperDismissed", "updates", "backup.auto.settings",
         "tasks.viewSearches", "tasks.categoryIds", "tasks.settings", "tasks.reminderSettings", "tasks.layout", "today.layout",
-        // Round 2 R4: this PC's goals, device-local until ADR 79 (the five lists sealed with this PC's key; restored through the goals
-        // store, Deep work's weekly target through its waiting rule).
-        "goals.items", "goals.areas", "goals.entries", "goals.reminders", "goals.reviews", "goals.deepWork", "goals.ui", "goals.settings",
+        // Round 2 R4: the goals page's device settings (Deep work's weekly target restored through its waiting rule).
+        "goals.deepWork", "goals.ui", "goals.settings",
     ];
 
     /// <summary>Restored through their services in synced settings, so the edit reaches the other devices.</summary>
@@ -30,6 +29,12 @@ public static class DeviceSettingsRegistry
         ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted",
          "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast", "tasks.items", "tasks.labels", "tasks.views", "tasks.log",
          "tasks.account"];
+
+    /// <summary>
+    /// Round 2 R4: the goal lists (sealed at rest with this PC's key); they go in backups with the task lists, readable inside the
+    /// backup (<see cref="GoalsExport"/>), never as sealed blobs.
+    /// </summary>
+    public static IReadOnlyList<string> GoalKeys { get; } = ["goals.items", "goals.areas", "goals.entries", "goals.reminders", "goals.reviews"];
 
     /// <summary>The calendars part (sources with their secrets, in-app events).</summary>
     public static IReadOnlyList<string> CalendarKeys { get; } = ["calendar.sources", "calendar.events"];
@@ -45,7 +50,7 @@ public static class DeviceSettingsRegistry
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
         "tasks.model", "tasks.modelAttempt", "tasks.running", "tasks.tidyUp",
         "tasks.reminderMissed", "tasks.volumeRestore", "tasks.calendarExport",
-        "goals.model", "goals.modelAttempt",
+        "goals.model", "goals.modelAttempt", "goals.deepWork.pending",
     ];
 
     // Whole families of state: the sync machinery (identity, keys, received files, settings), dev switches.
@@ -57,7 +62,7 @@ public static class DeviceSettingsRegistry
 
     /// <summary>Stored keys that belong to no list (a new document someone forgot to classify).</summary>
     public static IReadOnlyList<string> Unclassified(IEnumerable<string> storedKeys) =>
-        storedKeys.Where(key => !IsDevice(key) && !SyncedKeys.Contains(key) && !TaskKeys.Contains(key) && !CalendarKeys.Contains(key)
+        storedKeys.Where(key => !IsDevice(key) && !SyncedKeys.Contains(key) && !TaskKeys.Contains(key) && !GoalKeys.Contains(key) && !CalendarKeys.Contains(key)
                                 && !StateKeys.Contains(key) && !StatePrefixes.Any(prefix => key.StartsWith(prefix, StringComparison.Ordinal)))
             .ToList();
 }

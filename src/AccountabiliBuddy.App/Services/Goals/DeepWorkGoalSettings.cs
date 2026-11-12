@@ -3,10 +3,11 @@ using AccountabiliBuddy.Core.Goals;
 namespace AccountabiliBuddy.App.Services.Goals;
 
 /// <summary>
-/// The built-in Deep work goal's own values on this PC (document "goals.deepWork", device-local: plan R4.4, the "goal" document travels
-/// in sync files, so adding a field there would be a new synced field). Its daily target is not here: that stays the "goal" document
-/// (<see cref="GoalService"/>, ADR 29). Holds no private text, so it isn't sealed. A device setting in backups, restored through the
-/// Deep work rules (<see cref="GoalsService.RestoreDeepWorkAsync"/>): a lower weekly target or "Track time only" in a backup waits.
+/// The built-in Deep work goal's own values on this PC, device-local (plan R4.4: the "goal" document travels in sync files, so adding a
+/// field there would be a new synced field). Its daily target is not here: that stays the "goal" document (<see cref="GoalService"/>,
+/// ADR 29). Held together in memory, stored in two plain documents (no private text): the weekly target and Track time only in
+/// "goals.deepWork" (a device setting in backups, restored through the Deep work rules, <see cref="GoalsService.RestoreDeepWorkAsync"/>)
+/// and the waiting changes in "goals.deepWork.pending" (state of the moment: never in a backup, ADR 71).
 /// </summary>
 /// <param name="WeeklyMinutes">The weekly target in minutes; null = none (the default).</param>
 /// <param name="TrackTimeOnly">

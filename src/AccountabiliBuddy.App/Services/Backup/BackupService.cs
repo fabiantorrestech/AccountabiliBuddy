@@ -66,6 +66,9 @@ public sealed class BackupService
     /// <summary>ADR 71: the task lists in their sync form. Set by the app.</summary>
     public TaskListsAccess? Tasks { get; set; }
 
+    /// <summary>Round 2 R4: this PC's goals, carried with the task lists part (notes only with a password). Set by the app.</summary>
+    public GoalsAccess? Goals { get; set; }
+
     /// <summary>
     /// ADR 71: device settings with a looser-change wait of their own (quit guard, PC-off), restored through their services so an
     /// old backup can't loosen them at once. Each returns a note to show, or null. Set by the app.
@@ -246,6 +249,11 @@ public sealed class BackupService
             summary.Add(await Tasks.Import(tasks, overwrite));
         }
 
+        if (parts.HasFlag(BackupParts.TaskLists) && content.Goals is JsonElement goals && Goals is not null)
+        {
+            summary.Add(await Goals.Import(goals, overwrite));
+        }
+
         return new RestoreResult(needsRestart, safetyBackup, summary);
     }
 
@@ -315,9 +323,10 @@ public sealed class BackupService
         }
 
         JsonElement? tasks = parts.HasFlag(BackupParts.TaskLists) && Tasks is not null ? Tasks.Export() : null;
+        JsonElement? goals = parts.HasFlag(BackupParts.TaskLists) && Goals is not null ? Goals.Export(includeSecrets) : null;
 
         return new BackupContent(_time.GetUtcNow(), AppVersion, includeSecrets, profiles, settings, googleClientSecret, sources, events, history,
-            Synced: synced, Device: device, Tasks: tasks);
+            Synced: synced, Device: device, Tasks: tasks, Goals: goals);
     }
 
     // Fields sealed to this PC (DPAPI) don't travel: the Google client secret goes in plain text only with a password (as in the
@@ -367,7 +376,9 @@ public sealed class BackupService
         int written = 0;
         var notes = new List<string>();
         // Only this PC's device settings are written, whatever else the file contains.
-        foreach ((string key, JsonElement value) in content.Device!.Where(entry => DeviceSettingsRegistry.IsDevice(entry.Key)))
+        // The first goals build put the sealed goal lists here: still taken in through their restorers (never written raw).
+        foreach ((string key, JsonElement value) in content.Device!.Where(entry =>
+                     DeviceSettingsRegistry.IsDevice(entry.Key) || (DeviceSettingsRegistry.GoalKeys.Contains(entry.Key) && DeviceRestorers.ContainsKey(entry.Key))))
         {
             if (!overwrite && await _documents.LoadAsync<JsonElement?>(key) is not null)
             {

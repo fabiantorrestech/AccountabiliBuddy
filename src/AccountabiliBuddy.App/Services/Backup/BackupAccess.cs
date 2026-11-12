@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AccountabiliBuddy.App.Services.Goals;
 using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Sync;
@@ -57,6 +58,53 @@ public static class BackupAccess
                 return await guidance.RequestCompanionAsync()
                     ? $"{AppBrand.CompanionName} takes effect after the usual wait."
                     : $"{AppBrand.CompanionName} wasn't restored: a focus session is running. Choose it in Settings afterwards.";
+            });
+    }
+
+    /// <summary>
+    /// This PC's goals with the task lists (round 2 R4 review; the way task lists travel): readable inside the backup so it restores on
+    /// another PC; notes and reasons only in a file with a password; a restore goes through the goals store's guards and is re-sealed
+    /// with this PC's key there.
+    /// </summary>
+    public static GoalsAccess Goals(GoalStore store)
+    {
+        return new GoalsAccess(
+            Export: includeSecrets =>
+            {
+                if (!store.IsReady)
+                {
+                    return null;
+                }
+
+                GoalLists lists = store.Lists;
+                var export = new GoalsExport(
+                    lists.Areas,
+                    includeSecrets ? lists.Goals : lists.Goals.Select(goal => goal with { Notes = null }).ToList(),
+                    lists.Entries,
+                    includeSecrets ? lists.Reminders : lists.Reminders.Select(reminder => reminder with { Reason = null }).ToList(),
+                    includeSecrets ? lists.Reviews : lists.Reviews.Select(review => review with { Notes = null }).ToList(),
+                    IncludesNotes: includeSecrets);
+                return JsonSerializer.SerializeToElement(export, SyncJson.Options);
+            },
+            Import: async (value, restore) =>
+            {
+                GoalsExport? export;
+                try
+                {
+                    export = value.Deserialize<GoalsExport>(SyncJson.Options);
+                }
+                catch (Exception ex) when (ex is JsonException or NotSupportedException)
+                {
+                    export = null;
+                }
+
+                if (export is null)
+                {
+                    return "The goals in this backup couldn't be read; this PC's goals were kept.";
+                }
+
+                var lists = new GoalLists(export.Areas ?? [], export.Goals ?? [], export.Entries ?? [], export.Reminders ?? [], export.Reviews ?? []);
+                return await store.ImportAsync(lists, replace: restore, includesNotes: export.IncludesNotes);
             });
     }
 

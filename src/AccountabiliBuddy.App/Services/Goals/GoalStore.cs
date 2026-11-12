@@ -11,11 +11,14 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// <summary>
 /// This PC's goals (round 2 R4.3; brief §5.1, §5.2): areas, goals, entries, reminders and weekly reviews, each list a DPAPI-sealed
 /// document ("goals.items", "goals.areas", "goals.entries", "goals.reminders", "goals.reviews") written together in one transaction,
-/// plus three plain device-local documents: Deep work's weekly target and waiting changes ("goals.deepWork", <see cref="DeepWorkGoalSettings"/>),
-/// the page's UI state ("goals.ui") and its Options › Charts ("goals.settings"). Nothing here syncs until ADR 79 is accepted; the items
-/// keep their ids, positions, edit stamps and tombstones so turning sync on later is a merge. Names, notes and reasons are private
-/// text: sealed at rest, never logged. The rules (Deep work, the looser-change wait) are in <see cref="GoalsService"/>; this class only
-/// keeps Deep work's record whole (<see cref="GoalDefaults.Normalized"/>) and prunes 30-day tombstones. Use from the UI thread only.
+/// plus plain device-local documents: Deep work's weekly target and Track time only ("goals.deepWork", a device setting), Deep work's
+/// waiting changes ("goals.deepWork.pending", state: never in a backup), the page's UI state ("goals.ui") and its Options › Charts
+/// ("goals.settings"). Nothing here syncs until ADR 79 is accepted; the items keep their ids, positions, edit stamps and tombstones so
+/// turning sync on later is a merge. Names, notes and reasons are private text: sealed at rest, never logged. The lists go in backups
+/// with the task lists (<see cref="Backup.GoalsExport"/>, <see cref="ImportAsync"/>), never as sealed blobs. The rules (Deep work, the
+/// looser-change wait) are in <see cref="GoalsService"/>; this class keeps the lists whole on every change: Deep work one and complete
+/// (<see cref="GoalDefaults.Normalized"/>), no other goal built in, no live goal in a dead area, 30-day tombstones pruned. Use from the
+/// UI thread only.
 /// </summary>
 public sealed class GoalStore
 {
@@ -25,6 +28,9 @@ public sealed class GoalStore
     public const string RemindersKey = "goals.reminders";
     public const string ReviewsKey = "goals.reviews";
     public const string DeepWorkKey = "goals.deepWork";
+
+    /// <summary>Deep work's waiting changes: state of the moment, never in a backup (hard rule: backups hold no pending changes).</summary>
+    public const string DeepWorkPendingKey = "goals.deepWork.pending";
     public const string UiKey = "goals.ui";
     public const string SettingsKey = "goals.settings";
     public const string MarkerKey = "goals.model";
@@ -63,6 +69,7 @@ public sealed class GoalStore
 
     public GoalLists Lists => _lists;
 
+    /// <summary>Deep work's values in memory: the device setting and the waiting changes, stored in two documents.</summary>
     public DeepWorkGoalSettings DeepWork { get; private set; } = DeepWorkGoalSettings.Default;
 
     public GoalUiPreferences Ui { get; private set; } = GoalUiPreferences.Default;
@@ -71,6 +78,9 @@ public sealed class GoalStore
 
     /// <summary>Raised after any change was kept (lists, Deep work's values, the page's preferences).</summary>
     public event EventHandler<GoalStoreChangedEventArgs>? Changed;
+
+    /// <summary>How the document store writes plain documents (camelCase); a backup's copy of one reads with the same.</summary>
+    public static JsonSerializerOptions DocumentJson { get; } = new(JsonSerializerDefaults.Web);
 
     private DateTimeOffset Now => _time.GetUtcNow();
 
@@ -109,8 +119,7 @@ public sealed class GoalStore
         {
             GoalLists lists = ReadLists();
             // Deep work's values are part of the rule (a weekly target, a waiting change): unreadable is never taken as "none".
-            DeepWorkGoalSettings deepWork = Task.Run(() => _store.LoadAsync<DeepWorkGoalSettings>(DeepWorkKey)).GetAwaiter().GetResult()
-                ?? DeepWorkGoalSettings.Default;
+            DeepWorkGoalSettings deepWork = ReadDeepWork();
             _lists = Normalize(lists, lists, Now);
             DeepWork = deepWork;
             Ui = LoadDisplay(UiKey, GoalUiPreferences.Default).Clamped();
@@ -133,8 +142,7 @@ public sealed class GoalStore
     {
         GoalLists normalized = Normalize(lists, lists, Now);
         // Read before the marker is written: a Deep work document that can't be read stops the run with no marker.
-        DeepWorkGoalSettings deepWork = Task.Run(() => _store.LoadAsync<DeepWorkGoalSettings>(DeepWorkKey)).GetAwaiter().GetResult()
-            ?? DeepWorkGoalSettings.Default;
+        DeepWorkGoalSettings deepWork = ReadDeepWork();
         Task.Run(() => SaveListsAsync(normalized, withMarker: true)).GetAwaiter().GetResult();
         _lists = normalized;
         DeepWork = deepWork;
@@ -144,7 +152,7 @@ public sealed class GoalStore
 
     /// <summary>
     /// A change to the lists: <paramref name="change"/> gets them and the time and returns the new lists, which are kept whole (Deep work,
-    /// tombstones), saved in one transaction and announced. Does nothing unless the goals are ready.
+    /// areas, tombstones), saved in one transaction and announced. Does nothing unless the goals are ready.
     /// </summary>
     /// <returns>Whether the lists changed.</returns>
     public async Task<bool> ChangeAsync(object? source, Func<GoalLists, DateTimeOffset, GoalLists> change, bool fromBackup = false)
@@ -159,7 +167,7 @@ public sealed class GoalStore
         GoalLists after = Normalize(before, change(before, now), now);
         if (Signature(after) == Signature(before))
         {
-            await _saving;
+            // Nothing to save: an earlier save's failure belongs to the change that asked for it, not to this one.
             return false;
         }
 
@@ -170,7 +178,10 @@ public sealed class GoalStore
         return true;
     }
 
-    /// <summary>Saves Deep work's values (the rules decide them in <see cref="GoalsService"/>). Does nothing unless the goals are ready.</summary>
+    /// <summary>
+    /// Saves Deep work's values (the rules decide them in <see cref="GoalsService"/>, one change at a time): the weekly target and Track
+    /// time only in "goals.deepWork", the waiting changes in "goals.deepWork.pending", in one transaction. Does nothing unless ready.
+    /// </summary>
     public async Task SetDeepWorkAsync(DeepWorkGoalSettings settings, object? source = null)
     {
         if (!IsReady || settings == DeepWork)
@@ -179,7 +190,7 @@ public sealed class GoalStore
         }
 
         DeepWork = settings;
-        Task save = Queue(() => _store.SaveAsync(DeepWorkKey, settings));
+        Task save = Queue(() => SaveDeepWorkAsync(settings));
         Changed?.Invoke(this, new GoalStoreChangedEventArgs(source, false));
         await save;
     }
@@ -215,10 +226,29 @@ public sealed class GoalStore
     }
 
     /// <summary>
-    /// One sealed list from a backup's device settings (ADR 71): opened with this PC's key and merged in, the backup's live items stamped
-    /// now so they come back over later edits and deletions; items made since stay and the backup's deletions are not taken. Deep work
-    /// takes only its name, icon, colour, Show on Today, extra tiles and notes from it. A list sealed on another PC or Windows account
-    /// can't be opened: this PC's goals stay as they are. Returns a note for the restore summary, or null.
+    /// A backup's goals (ADR 71, with the task lists) taken in through the same guards as the screens: areas first; Deep work keeps its
+    /// place, sources and targets (only its name, icon, colour, Show on Today, extra tiles and notes come in) and takes no entries; no
+    /// other goal comes in built in, or with a source that isn't allowed now ("Coming soon", all focus); a goal whose area isn't there
+    /// goes to "Work". With <paramref name="replace"/> the backup's live items are stamped now and win; otherwise the newest edit wins.
+    /// The backup's deletions are never taken. A backup made without a password has no notes or reasons
+    /// (<paramref name="includesNotes"/> false): this PC's stay. Re-sealed with this PC's key when saved. Returns a note for the summary.
+    /// </summary>
+    public async Task<string> ImportAsync(GoalLists backup, bool replace, bool includesNotes)
+    {
+        if (!IsReady)
+        {
+            return "Goals weren't restored: this PC's goals aren't ready yet.";
+        }
+
+        int live = backup.Goals.Count(goal => goal.IsLive && !goal.IsDeepWork);
+        await ChangeAsync(null, (lists, now) => Imported(lists, backup, replace, includesNotes, now), fromBackup: true);
+        return replace ? $"Goals restored ({live} from the backup)." : $"Goals merged ({live} in the backup; the newest edit of each kept).";
+    }
+
+    /// <summary>
+    /// One sealed list from a backup made by the first goals build (device settings, DPAPI blob; plan R4 review): opened with this PC's
+    /// key and taken in like <see cref="ImportAsync"/> (restore). A blob sealed on another PC or Windows account, or a damaged one, leaves
+    /// this PC's goals as they are, with a note saying which.
     /// </summary>
     public async Task<string?> RestoreListAsync(string key, JsonElement value)
     {
@@ -227,47 +257,31 @@ public sealed class GoalStore
             return "Goals weren't restored: this PC's goals aren't ready yet.";
         }
 
-        string? json = Unseal(value);
+        (string? json, bool damaged) = Unseal(value);
         if (json is null)
         {
-            return "Goals in this backup were sealed on another PC or Windows account and can't be opened here; this PC's goals were kept.";
+            return damaged
+                ? "Goals in this backup are damaged and couldn't be read; this PC's goals were kept."
+                : "Goals in this backup were sealed on another PC or Windows account and can't be opened here; this PC's goals were kept.";
         }
 
         try
         {
-            int restored = 0;
-            await ChangeAsync(null, (lists, now) =>
+            GoalLists partial = key switch
             {
-                switch (key)
-                {
-                    case ItemsKey:
-                        List<Goal> goals = Parse<Goal>(json);
-                        restored = goals.Count(goal => goal.IsLive);
-                        return lists with { Goals = MergeGoals(lists.Goals, goals, now) };
-                    case AreasKey:
-                        List<GoalArea> areas = Parse<GoalArea>(json);
-                        restored = areas.Count(area => area.IsLive);
-                        return lists with { Areas = Merge(lists.Areas, areas, area => area.Id, area => area.IsLive, area => area with { EditedAt = now }) };
-                    case EntriesKey:
-                        return lists with { Entries = Merge(lists.Entries, Parse<GoalEntry>(json), entry => entry.Id, entry => entry.IsLive, entry => entry with { EditedAt = now }) };
-                    case RemindersKey:
-                        return lists with { Reminders = Merge(lists.Reminders, Parse<GoalReminder>(json), reminder => reminder.Id, reminder => reminder.IsLive, reminder => reminder with { EditedAt = now }) };
-                    case ReviewsKey:
-                        return lists with { Reviews = Merge(lists.Reviews, Parse<GoalReviewRecord>(json), review => review.Id, review => review.IsLive, review => review with { EditedAt = now }) };
-                    default:
-                        return lists;
-                }
-            }, fromBackup: true);
-            return key switch
-            {
-                ItemsKey => $"Goals restored ({restored} from the backup).",
-                AreasKey => $"Goal areas restored ({restored} from the backup).",
-                _ => null,
+                ItemsKey => GoalLists.Empty with { Goals = Parse<Goal>(json) },
+                AreasKey => GoalLists.Empty with { Areas = Parse<GoalArea>(json) },
+                EntriesKey => GoalLists.Empty with { Entries = Parse<GoalEntry>(json) },
+                RemindersKey => GoalLists.Empty with { Reminders = Parse<GoalReminder>(json) },
+                ReviewsKey => GoalLists.Empty with { Reviews = Parse<GoalReviewRecord>(json) },
+                _ => GoalLists.Empty,
             };
+            string note = await ImportAsync(partial, replace: true, includesNotes: true);
+            return key is ItemsKey ? note : null;
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException)
         {
-            return "Goals in this backup couldn't be read; this PC's goals were kept.";
+            return "Goals in this backup are damaged and couldn't be read; this PC's goals were kept.";
         }
     }
 
@@ -298,57 +312,113 @@ public sealed class GoalStore
         return null;
     }
 
-    /// <summary>How the document store writes plain documents (camelCase); a backup's copy of one reads with the same.</summary>
-    public static JsonSerializerOptions DocumentJson { get; } = new(JsonSerializerDefaults.Web);
-
-    // Deep work stays whole and stays one; tombstones older than TombstoneKept go. A change can never take Deep work away.
+    // Deep work stays whole and stays one; no other goal is built in; a live goal never sits in a dead area (it goes to "Work", which
+    // comes back if needed); tombstones older than TombstoneKept go. A change can never take Deep work away.
     private static GoalLists Normalize(GoalLists before, GoalLists after, DateTimeOffset now)
     {
         DateTimeOffset cutoff = now - TombstoneKept;
-        List<Goal> goals = after.Goals.Where(goal => goal.Id != Goal.DeepWorkId).ToList();
+        List<Goal> goals = after.Goals.Where(goal => goal.Id != Goal.DeepWorkId).Select(goal => goal.BuiltIn ? goal with { BuiltIn = false } : goal).ToList();
         Goal? deepWork = after.Goals.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId) ?? before.Goals.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId);
         if (deepWork is not null)
         {
             goals.Insert(0, GoalDefaults.Normalized(deepWork));
         }
 
+        List<GoalArea> areas = after.Areas.ToList();
+        HashSet<Guid> liveAreas = areas.Where(area => area.IsLive).Select(area => area.Id).ToHashSet();
+        if (goals.Any(goal => goal.IsLive && !liveAreas.Contains(goal.AreaId)))
+        {
+            int work = areas.FindIndex(area => area.Id == GoalDefaults.WorkAreaId);
+            if (work < 0)
+            {
+                areas.Add(GoalDefaults.NewWorkArea(now) with { Position = areas.Count == 0 ? 0 : areas.Max(area => area.Position) + 1 });
+            }
+            else if (!areas[work].IsLive)
+            {
+                areas[work] = GoalDefaults.NewWorkArea(now) with { Position = areas[work].Position };
+            }
+
+            liveAreas.Add(GoalDefaults.WorkAreaId);
+            goals = goals.Select(goal => goal.IsLive && !liveAreas.Contains(goal.AreaId) ? goal with { AreaId = GoalDefaults.WorkAreaId, EditedAt = now } : goal).ToList();
+        }
+
         return new GoalLists(
-            after.Areas.Where(area => area.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
+            areas.Where(area => area.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
             goals.Where(goal => goal.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
             after.Entries.Where(entry => entry.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
             after.Reminders.Where(reminder => reminder.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
             after.Reviews.Where(review => review.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList());
     }
 
-    private static List<Goal> MergeGoals(IReadOnlyList<Goal> current, IReadOnlyList<Goal> backup, DateTimeOffset now)
+    private static GoalLists Imported(GoalLists lists, GoalLists backup, bool replace, bool includesNotes, DateTimeOffset now)
     {
-        Goal? ownDeepWork = current.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId);
-        List<Goal> merged = Merge(current, backup.Where(goal => goal.Id != Goal.DeepWorkId).ToList(), goal => goal.Id, goal => goal.IsLive, goal => goal with { EditedAt = now });
-        if (ownDeepWork is not null && backup.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId && goal.IsLive) is { } backupDeepWork)
+        // Restore: the backup's items stamped now, so they win over later edits; merge: they keep their own edit time.
+        DateTimeOffset Stamp(DateTimeOffset edited) => replace ? now : edited;
+
+        // Areas first, so the goals below find theirs (Normalize sends any that still can't to "Work").
+        List<GoalArea> areas = Merge(lists.Areas, backup.Areas, area => area.Id, area => area.IsLive, area => area.EditedAt, replace,
+            (incoming, _) => incoming with { EditedAt = Stamp(incoming.EditedAt) });
+
+        Goal? ownDeepWork = lists.Goals.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId);
+        List<Goal> incomingGoals = backup.Goals
+            .Where(goal => !goal.IsDeepWork)
+            .Select(goal => goal with { Sources = goal.Sources.Where(rule => GoalSources.AllowedFor(goal, rule.Type)).ToList() })
+            .ToList();
+        List<Goal> goals = Merge(lists.Goals, incomingGoals, goal => goal.Id, goal => goal.IsLive, goal => goal.EditedAt, replace,
+            (incoming, held) => incoming with { EditedAt = Stamp(incoming.EditedAt), Notes = includesNotes ? incoming.Notes : held?.Notes });
+        if (ownDeepWork is not null && backup.Goals.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId && goal.IsLive) is { } backupDeepWork
+            && (replace || backupDeepWork.EditedAt > ownDeepWork.EditedAt))
         {
             // Only what the user may change on Deep work; its place, sources and targets stay this PC's.
-            Goal restored = ownDeepWork with
+            goals[goals.FindIndex(goal => goal.Id == Goal.DeepWorkId)] = ownDeepWork with
             {
                 Name = backupDeepWork.Name,
                 Icon = backupDeepWork.Icon,
                 Color = backupDeepWork.Color,
                 ShowOnToday = backupDeepWork.ShowOnToday,
                 ExtraTiles = backupDeepWork.ExtraTiles,
-                Notes = backupDeepWork.Notes,
+                Notes = includesNotes ? backupDeepWork.Notes : ownDeepWork.Notes,
                 EditedAt = now,
             };
-            merged[merged.FindIndex(goal => goal.Id == Goal.DeepWorkId)] = restored;
         }
 
-        return merged;
+        // Deep work counts focus only: no entry comes in for it.
+        List<GoalEntry> entries = Merge(lists.Entries, backup.Entries.Where(entry => entry.GoalId != Goal.DeepWorkId).ToList(),
+            entry => entry.Id, entry => entry.IsLive, entry => entry.EditedAt, replace, (incoming, _) => incoming with { EditedAt = Stamp(incoming.EditedAt) });
+        List<GoalReminder> reminders = Merge(lists.Reminders, backup.Reminders, reminder => reminder.Id, reminder => reminder.IsLive,
+            reminder => reminder.EditedAt, replace, (incoming, held) => incoming with { EditedAt = Stamp(incoming.EditedAt), Reason = includesNotes ? incoming.Reason : held?.Reason });
+        List<GoalReviewRecord> reviews = Merge(lists.Reviews, backup.Reviews, review => review.Id, review => review.IsLive,
+            review => review.EditedAt, replace, (incoming, held) => incoming with { EditedAt = Stamp(incoming.EditedAt), Notes = includesNotes ? incoming.Notes : held?.Notes });
+        return new GoalLists(areas, goals, entries, reminders, reviews);
     }
 
-    // The backup's live items replace this PC's copies (stamped now); this PC's other items stay; the backup's tombstones are ignored.
-    private static List<T> Merge<T>(IReadOnlyList<T> current, IReadOnlyList<T> backup, Func<T, Guid> id, Func<T, bool> live, Func<T, T> stamp)
+    // The backup's live items come in (stamped now by take); with replace they always win, otherwise only over an older edit. This PC's
+    // other items stay; the backup's tombstones are ignored (an old backup never deletes).
+    private static List<T> Merge<T>(
+        IReadOnlyList<T> current, IReadOnlyList<T> backup, Func<T, Guid> id, Func<T, bool> live, Func<T, DateTimeOffset> editedAt, bool replace,
+        Func<T, T?, T> take)
+        where T : class
     {
-        Dictionary<Guid, T> restored = backup.Where(live).GroupBy(id).ToDictionary(group => group.Key, group => stamp(group.First()));
-        var merged = current.Select(item => restored.Remove(id(item), out T? fromBackup) ? fromBackup! : item).ToList();
-        merged.AddRange(restored.Values);
+        var merged = current.ToList();
+        foreach (T incoming in backup.Where(live).GroupBy(id).Select(group => group.First()))
+        {
+            int index = merged.FindIndex(item => id(item) == id(incoming));
+            T? held = index < 0 ? null : merged[index];
+            if (held is not null && !replace && editedAt(held) >= editedAt(incoming))
+            {
+                continue;
+            }
+
+            if (index < 0)
+            {
+                merged.Add(take(incoming, null));
+            }
+            else
+            {
+                merged[index] = take(incoming, held);
+            }
+        }
+
         return merged;
     }
 
@@ -360,6 +430,35 @@ public sealed class GoalStore
             LoadList<GoalEntry>(EntriesKey),
             LoadList<GoalReminder>(RemindersKey),
             LoadList<GoalReviewRecord>(ReviewsKey));
+    }
+
+    // The device setting and the waiting changes. The first goals build kept the waiting changes in "goals.deepWork"; they move to their
+    // state document once (both written in one transaction), so a backup of the device setting never holds one.
+    private DeepWorkGoalSettings ReadDeepWork()
+    {
+        DeepWorkGoalSettings stored = Task.Run(() => _store.LoadAsync<DeepWorkGoalSettings>(DeepWorkKey)).GetAwaiter().GetResult()
+            ?? DeepWorkGoalSettings.Default;
+        StoredPending? pending = Task.Run(() => _store.LoadAsync<StoredPending>(DeepWorkPendingKey)).GetAwaiter().GetResult();
+        if (pending is not null)
+        {
+            return stored with { PendingDaily = pending.PendingDaily, PendingWeekly = pending.PendingWeekly, PendingTrackTimeOnly = pending.PendingTrackTimeOnly };
+        }
+
+        if (stored.HasPending)
+        {
+            Task.Run(() => SaveDeepWorkAsync(stored)).GetAwaiter().GetResult();
+        }
+
+        return stored;
+    }
+
+    private Task SaveDeepWorkAsync(DeepWorkGoalSettings settings)
+    {
+        return _store.SaveAllAsync(
+        [
+            new(DeepWorkKey, new StoredDeepWork(settings.WeeklyMinutes, settings.TrackTimeOnly)),
+            new(DeepWorkPendingKey, new StoredPending(settings.PendingDaily, settings.PendingWeekly, settings.PendingTrackTimeOnly)),
+        ]);
     }
 
     private Task QueueSave(GoalLists lists)
@@ -416,21 +515,26 @@ public sealed class GoalStore
         return (JsonSerializer.Deserialize<List<T>>(json, SyncJson.Options) ?? []).Where(item => item is not null).ToList();
     }
 
-    // A backup's copy of a sealed document; null when this PC can't open it.
-    private string? Unseal(JsonElement value)
+    // A backup's copy of a sealed document: its JSON, or why not. Damaged = not a sealed document or not base64 (this PC's protector
+    // returns null for a blob it can't open, whether another PC's or a corrupted one, so those read as "another PC").
+    private (string? Json, bool Damaged) Unseal(JsonElement value)
     {
         try
         {
             if (value.Deserialize<Stored>(DocumentJson) is not { Data: { Length: > 0 } data })
             {
-                return null;
+                return (null, true);
             }
 
-            return _protector.Unprotect(Convert.FromBase64String(data));
+            return (_protector.Unprotect(Convert.FromBase64String(data)), false);
         }
-        catch (Exception ex) when (ex is JsonException or FormatException or CryptographicException or NotSupportedException)
+        catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException)
         {
-            return null;
+            return (null, true);
+        }
+        catch (CryptographicException)
+        {
+            return (null, false);
         }
     }
 
@@ -462,4 +566,10 @@ public sealed class GoalStore
     private sealed record Stored(string Data);
 
     private sealed record Marker(int Model);
+
+    // "goals.deepWork" as stored: the device setting only.
+    private sealed record StoredDeepWork(int? WeeklyMinutes, bool TrackTimeOnly);
+
+    // "goals.deepWork.pending": the waiting changes (state).
+    private sealed record StoredPending(GoalPendingChange? PendingDaily, GoalPendingChange? PendingWeekly, GoalPendingChange? PendingTrackTimeOnly);
 }
