@@ -70,12 +70,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _configuration = configuration;
         _time = time;
         _layout = layout;
-        Undo = new UndoBarViewModel(tasks);
+        Toasts = new TaskToastViewModel(tasks);
         CategoryEditor = new CategoryEditorViewModel(tasks);
         TodayPanel = new TaskSectionsPanelViewModel("today", layout);
         TodayTabPanel = new TaskSectionsPanelViewModel("todaytab", layout);
         Shelf = new ShelfViewModel(new TaskSectionsPanelViewModel("shelf", layout), () => IsShelfShown = false, ToggleToday, () => IsTodayHidden);
         _finishes.Changed += OnFinishChanged;
+        _finishes.Started += OnFinishStarted;
         foreach (TaskSectionsPanelViewModel panel in new[] { TodayPanel, TodayTabPanel, Shelf.Panel })
         {
             panel.Drop = DropAsync;
@@ -113,6 +114,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _actions = actions;
         _reminders = reminders;
         Shelf.UseTaskModel(store, views, tidyUp, actions, _time);
+        Toasts.Use(actions, store);
         store.Changed += OnStoreChanged;
         reminders.PendingChanged += OnStoreChanged;
         QueueRefresh();
@@ -224,8 +226,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>The Notebook, restyled as the Archive row at the bottom.</summary>
     public NotebookViewModel Archive { get; }
 
-    /// <summary>The bar after a delete: "Deleted “…” · Undo".</summary>
-    public UndoBarViewModel Undo { get; }
+    /// <summary>The page's toast (Tasks and Today): every task action's, a delete's, a tick's "Finished …", with Undo and Ctrl+Z.</summary>
+    public TaskToastViewModel Toasts { get; }
 
     /// <summary>The Categories button's editor: rename, recolour, add and delete (the same rows as Today's tag button).</summary>
     public CategoryEditorViewModel CategoryEditor { get; }
@@ -333,7 +335,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             _session.Focus.PropertyChanged -= OnFocusPropertyChanged;
         }
 
-        Undo.Dispose();
+        Toasts.Dispose();
         Detail?.Dispose();
     }
 

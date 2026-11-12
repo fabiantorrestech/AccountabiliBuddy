@@ -46,13 +46,14 @@ public static class TaskMenus
 
     /// <summary>
     /// Puts <paramref name="text"/> on the clipboard of <paramref name="visual"/>'s window (Copy ID: "142 · title", the user's own
-    /// text, copied only where they asked). Another app holding the clipboard means nothing is copied.
+    /// text, copied only where they asked) and says so in the Tasks toast ("Copied 142 · …"). Another app holding the clipboard means
+    /// nothing is copied (false).
     /// </summary>
-    public static async Task CopyAsync(Visual visual, string text)
+    public static async Task<bool> CopyAsync(Visual visual, string text)
     {
-        if (TopLevel.GetTopLevel(visual)?.Clipboard is not { } clipboard)
+        if (TopLevel.GetTopLevel(visual) is not { Clipboard: { } clipboard } window)
         {
-            return;
+            return false;
         }
 
         try
@@ -62,7 +63,15 @@ public static class TaskMenus
         catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
         {
             // Another app holds the clipboard: nothing is copied.
+            return false;
         }
+
+        if (window.DataContext is MainWindowViewModel { Tasks: { } tasks })
+        {
+            tasks.Toasts.Say(AccountabiliBuddy.Core.Tasks.TaskToasts.Copied(text));
+        }
+
+        return true;
     }
 
     /// <summary>Opens a menu of <paramref name="entries"/> under or beside <paramref name="button"/>; <paramref name="closed"/> runs once it closes.</summary>

@@ -22,6 +22,13 @@ public partial class TasksView : UserControl
     public static readonly Avalonia.Data.Converters.IValueConverter ShownOpacity =
         new Avalonia.Data.Converters.FuncValueConverter<bool, double>(shown => shown ? 1 : 0);
 
+    /// <summary>The toast's place: 18 in from the card's left and bottom, lifted above Jot it down while the Today column shows it.</summary>
+    public static readonly Avalonia.Data.Converters.IValueConverter ToastMargin =
+        new Avalonia.Data.Converters.FuncValueConverter<bool, Thickness>(todayShows => new Thickness(18, 0, 0, todayShows ? JotClearance : 18));
+
+    // Jot it down's band at the bottom of the Today column (its pill and margins) plus the toast's own 18.
+    private const double JotClearance = 64;
+
     // The narrowest a shown column gets.
     private const double ColumnMinWidth = 280;
 
@@ -84,6 +91,7 @@ public partial class TasksView : UserControl
             _subscribed.DeleteManyRequested -= OnDeleteManyRequested;
             _subscribed.ConflictRequested -= OnConflictRequested;
             _subscribed.SessionFullRequested -= OnSessionFullRequested;
+            _subscribed.FocusRowRequested -= OnFocusRowRequested;
         }
 
         _subscribed = DataContext as TasksViewModel;
@@ -95,10 +103,26 @@ public partial class TasksView : UserControl
             _subscribed.DeleteManyRequested += OnDeleteManyRequested;
             _subscribed.ConflictRequested += OnConflictRequested;
             _subscribed.SessionFullRequested += OnSessionFullRequested;
+            _subscribed.FocusRowRequested += OnFocusRowRequested;
             _subscribed.IsOnScreen = IsEffectivelyVisible && VisualRoot is not null;
         }
 
         ApplyColumns();
+    }
+
+    // Ctrl+G opened a task: once the page shows it (the tab switch, the Shelf, an unfolded section), its row takes the keyboard.
+    private void OnFocusRowRequested(object? sender, TaskRowKey key)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            Button? row = this.GetVisualDescendants().OfType<Button>()
+                .FirstOrDefault(button => button.Classes.Contains("listRow") && button.IsEffectivelyVisible && button.DataContext is TaskListRowViewModel candidate && candidate.Key == key);
+            if (row is not null)
+            {
+                row.Focus(NavigationMethod.Tab);
+                row.BringIntoView();
+            }
+        }, DispatcherPriority.Background);
     }
 
     // ---- The dialogs (spec 03 §C): over the window, the keyboard back where it was once they close ----
@@ -377,23 +401,16 @@ public partial class TasksView : UserControl
         }
     }
 
-    // The ID chip: "142 · title" on the clipboard (the title is the user's own text, copied only where they asked).
+    // The ID chip: "142 · title" on the clipboard (the title is the user's own text, copied only where they asked); the toast says so.
     private async void OnCopyIdClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button { DataContext: TaskDetailViewModel detail } || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+        if (sender is not Button { DataContext: TaskDetailViewModel detail })
         {
             return;
         }
 
         e.Handled = true;
-        try
-        {
-            await clipboard.SetTextAsync(detail.CopyText);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
-        {
-            // Another app holds the clipboard: nothing is copied.
-        }
+        await TaskMenus.CopyAsync(this, detail.CopyText);
     }
 
     // ---- Dragging a step by its handle among its task's steps (the letters follow on the rebuild); Alt+↑/↓ on a step too ----

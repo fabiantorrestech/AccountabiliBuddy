@@ -160,10 +160,13 @@ public sealed class TaskActionsService
         return new TaskMoveOutcome(moved, needsRoom);
     }
 
-    /// <summary>Raises <see cref="Toast"/> for something done outside the actions here (the swap dialog, the session layout): not on the undo stack.</summary>
-    public void Say(string text)
+    /// <summary>
+    /// Raises <see cref="Toast"/> for something done outside the actions here (the swap dialog, the session layout): not on the undo stack.
+    /// <paramref name="explains"/> keeps it longer (what a swap did).
+    /// </summary>
+    public void Say(string text, bool explains = false)
     {
-        Announce(text, canUndo: false);
+        Announce(text, canUndo: false, explains);
     }
 
     /// <summary>
@@ -467,7 +470,7 @@ public sealed class TaskActionsService
         int touched = popped.Tasks.Keys.Union(popped.Log.Keys).Count();
         if (skipped.Count > 0 && skipped.Count >= touched)
         {
-            Announce(TaskToasts.ChangedSince, canUndo: false);
+            Announce(TaskToasts.ChangedSince, canUndo: false, explains: true);
             return new TaskUndoOutcome(false, [], skipped);
         }
 
@@ -478,14 +481,18 @@ public sealed class TaskActionsService
             noRoom.AddRange(_session is null ? sessionIds : outcome.NeedsRoom);
         }
 
-        Announce(noRoom.Count > 0 ? "No room in this session · put in Queued" : skipped.Count > 0 ? TaskToasts.PartlyChangedSince : TaskToasts.Undone, canUndo: false);
+        // "Undone" is plain; what it couldn't put back is an explanation (it stays longer).
+        Announce(
+            noRoom.Count > 0 ? "No room in this session · put in Queued" : skipped.Count > 0 ? TaskToasts.PartlyChangedSince : TaskToasts.Undone,
+            canUndo: false,
+            explains: noRoom.Count > 0 || skipped.Count > 0);
         return new TaskUndoOutcome(true, noRoom, skipped);
     }
 
     /// <summary>Shows a toast for something another service did (the tidy-up's "Tidied 4 of 5 tasks").</summary>
-    public void Announce(string text, bool canUndo)
+    public void Announce(string text, bool canUndo, bool explains = false)
     {
-        Toast?.Invoke(this, new TaskToastEventArgs(text, canUndo));
+        Toast?.Invoke(this, new TaskToastEventArgs(text, canUndo, explains));
     }
 
     // Runs a pure action over the lists; when it changed something, keeps it on the undo stack and raises its toast.

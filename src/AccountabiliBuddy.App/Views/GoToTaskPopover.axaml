@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.GoToTaskPopover"
+             x:DataType="vm:GoToTaskViewModel">
+    <!-- Ctrl+G: "Go to task", the ID box (number font), and a hint line that turns into what went wrong ("No task 142"). -->
+    <StackPanel Spacing="8" Margin="14,12,14,12">
+        <TextBlock Text="Go to task" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" />
+        <TextBox x:Name="Box" Text="{Binding Text}" PlaceholderText="142 or 142b" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="14"
+                 AutomationProperties.Name="Task ID">
+            <TextBox.KeyBindings>
+                <KeyBinding Gesture="Enter" Command="{Binding GoCommand}" />
+                <KeyBinding Gesture="Escape" Command="{Binding CloseCommand}" />
+            </TextBox.KeyBindings>
+        </TextBox>
+        <TextBlock Classes="muted" Text="Type a task ID and press Enter · Esc closes" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding !HasProblem}" />
+        <TextBlock Text="{Binding Problem}" FontSize="12" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" IsVisible="{Binding HasProblem}"
+                   AutomationProperties.LiveSetting="Polite" />
+    </StackPanel>
+</UserControl>

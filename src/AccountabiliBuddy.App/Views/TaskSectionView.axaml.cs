@@ -12,7 +12,8 @@ namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
 /// One section of a task panel. Code-behind: the header's right-click menu, dragging a row by its handle within this section or into
-/// another one on the page, Alt+↑/↓ (the keyboard stays on the moved row), and Ctrl+A / Esc for the selection.
+/// another one on the page, Alt+↑/↓ (the keyboard stays on the moved row), Ctrl+A / Esc for the selection, and the rows' roving focus
+/// (13k): the rows are one Tab stop that remembers the row last used, ↑/↓ move between them and Shift+↑/↓ extend the selection.
 /// </summary>
 public partial class TaskSectionView : UserControl
 {
@@ -26,9 +27,93 @@ public partial class TaskSectionView : UserControl
     private TaskSectionViewModel? _subscribed;
     private TaskRowKey? _refocus;
 
+    // The place of the row that had the keyboard last: when that row leaves (deleted, ticked away) while the keyboard was being used on
+    // it, the keyboard goes to the row now there.
+    private int _activeIndex = -1;
+    private bool _activeByKeyboard;
+
     public TaskSectionView()
     {
         InitializeComponent();
+        // Tab comes back to the row that had the keyboard last (a click on a row counts too).
+        RowsList.AddHandler(GotFocusEvent, OnRowsGotFocus, RoutingStrategies.Bubble, handledEventsToo: true);
+    }
+
+    // ---- Roving focus (13k) ----
+
+    private void OnRowsGotFocus(object? sender, FocusChangedEventArgs e)
+    {
+        if (RowButtonOf(e.Source as Visual) is { } button)
+        {
+            KeyboardNavigation.SetTabOnceActiveElement(RowsList, button);
+            _activeIndex = RowButtons().ToList().IndexOf(button);
+            _activeByKeyboard = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional;
+        }
+    }
+
+    /// <summary>↑/↓: the keyboard goes to the row above or below in this section (it stops at the ends). False when there is none.</summary>
+    internal bool FocusNeighbour(TaskListRowViewModel row, int step)
+    {
+        if (Neighbour(row, step) is not { } button)
+        {
+            return false;
+        }
+
+        button.Focus(NavigationMethod.Directional);
+        button.BringIntoView();
+        return true;
+    }
+
+    /// <summary>
+    /// Shift+↑/↓: the selection grows (or shrinks) to the row above or below, from the row it started at, as Shift+click does; the keyboard
+    /// moves with it. A focused step's row is never selected: the keyboard only moves.
+    /// </summary>
+    internal void ExtendByKey(TaskListRowViewModel row, int step)
+    {
+        if (Neighbour(row, step) is not { DataContext: TaskListRowViewModel next } button || DataContext is not TaskSectionViewModel section)
+        {
+            return;
+        }
+
+        if (row.OwnerKey is null && next.OwnerKey is null)
+        {
+            if (!row.IsPicked)
+            {
+                section.Click(row, TaskRowClick.Toggle);
+            }
+
+            section.Click(next, TaskRowClick.Range);
+        }
+
+        button.Focus(NavigationMethod.Directional);
+        button.BringIntoView();
+    }
+
+    // The row button <paramref name="step"/> places away from the row's, skipping rows that are folding away.
+    private Button? Neighbour(TaskListRowViewModel row, int step)
+    {
+        List<Button> buttons = RowButtons().Where(button => button.DataContext is TaskListRowViewModel { IsCollapsing: false } || button.DataContext == row).ToList();
+        int index = buttons.FindIndex(button => ReferenceEquals(button.DataContext, row));
+        int to = index + step;
+        return index < 0 || to < 0 || to >= buttons.Count ? null : buttons[to];
+    }
+
+    private IEnumerable<Button> RowButtons()
+    {
+        return RowsList.GetVisualDescendants().OfType<Button>().Where(button => button.Classes.Contains("listRow") && button.IsEffectivelyVisible);
+    }
+
+    private Button? RowButtonOf(Visual? visual)
+    {
+        for (Visual? current = visual; current is not null && !ReferenceEquals(current, RowsList); current = current.GetVisualParent())
+        {
+            if (current is Button button && button.Classes.Contains("listRow"))
+            {
+                return button;
+            }
+        }
+
+        return null;
     }
 
     // Right-click (or the menu key) on a header: Expand all, Collapse all and the Pinned open switches.
@@ -101,6 +186,25 @@ public partial class TaskSectionView : UserControl
 
     private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        // The row Tab returns to left the section: Tab lands on the first row again. When it had the keyboard (nothing has it now),
+        // the row now in its place takes it, so Del, Space or ↑/↓ can go on from there.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (KeyboardNavigation.GetTabOnceActiveElement(RowsList) is not Visual active || RowsList.IsVisualAncestorOf(active))
+            {
+                return;
+            }
+
+            KeyboardNavigation.SetTabOnceActiveElement(RowsList, null);
+            bool keyboardFell = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is null or TopLevel;
+            List<Button> buttons = RowButtons().ToList();
+            if (keyboardFell && _activeByKeyboard && _activeIndex >= 0 && buttons.Count > 0)
+            {
+                Button next = buttons[Math.Min(_activeIndex, buttons.Count - 1)];
+                next.Focus(NavigationMethod.Directional);
+            }
+        }, DispatcherPriority.Loaded);
+
         if (_refocus is not TaskRowKey key)
         {
             return;

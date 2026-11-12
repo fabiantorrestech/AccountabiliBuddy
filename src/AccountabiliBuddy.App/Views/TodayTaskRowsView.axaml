@@ -362,8 +362,7 @@
             </StackPanel>
         </Border>
 
-        <!-- After a delete: "Deleted “…” · Undo" for 10 seconds (the task also waits in Archive > Recently deleted). -->
-        <local:UndoBarView DataContext="{Binding Undo}" />
+        <!-- After a delete the page's toast says "Deleted “…” · Undo" (Tasks redesign 3.8); the task also waits in Archive > Recently deleted. -->
 
         <!-- Ticked tasks, folded. -->
         <Expander Header="{Binding DoneHeader}" IsVisible="{Binding HasDone}" IsExpanded="False" HorizontalAlignment="Stretch" Padding="8,4">

@@ -665,7 +665,7 @@ public sealed partial class TasksViewModel
                 return $"Still no room for “{TaskToasts.Short(incoming.Title)}”, and “{TaskToasts.Short(owner?.Title ?? choice.Title)}” is in Queued now.";
             }
 
-            _actions.Say("Swapped · " + left);
+            _actions.Say("Swapped · " + left, explains: true);
             return null;
         }
 
@@ -696,7 +696,7 @@ public sealed partial class TasksViewModel
             await _actions.ReorderAsync(incoming.TaskId, before);
         }
 
-        _actions.Say($"Swapped · “{TaskToasts.Short(choice.Title)}” → Queued");
+        _actions.Say($"Swapped · “{TaskToasts.Short(choice.Title)}” → Queued", explains: true);
         return null;
     }
 

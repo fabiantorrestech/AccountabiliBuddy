@@ -51,6 +51,25 @@
         <Style Selector="Button.listRow.picked /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
         </Style>
+        <!-- Keyboard focus (13k): a 2 px accent ring 2 px off the row, only when the keyboard put it there (never on a click). -->
+        <Style Selector="Button.listRow:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="Border.focusRing">
+            <Setter Property="IsVisible" Value="False" />
+            <Setter Property="Margin" Value="-4" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Button.listRow:focus-visible Border.focusRing">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <!-- A row is one stop for the keyboard: its own buttons take clicks, not Tab (Space ticks, the menu key opens the menu). -->
+        <Style Selector="Button.listRow Button, Button.listRow CheckBox">
+            <Setter Property="IsTabStop" Value="False" />
+        </Style>
         <Style Selector="Border.tint">
             <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
             <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
@@ -233,6 +252,8 @@
             <Border Classes="ring" IsVisible="{Binding IsPicked}" />
             <Button x:Name="RowButton" Classes="listRow" Classes.selected="{Binding IsSelected}" Classes.picked="{Binding IsPicked}" Click="OnRowClick"
                     AutomationProperties.Name="{Binding Title}">
+                <Panel>
+                <Border Classes="focusRing" />
                 <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,22" Margin="0,0,4,0">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" MinWidth="22" VerticalAlignment="Center">
                         <TextBlock Classes="muted" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
@@ -369,6 +390,7 @@
                         <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
                     </Border>
                 </Grid>
+                </Panel>
             </Button>
         </Panel>
         <Border Classes="dropLine" IsVisible="{Binding ShowsLineBelow}" Margin="8,0" />

@@ -152,6 +152,11 @@
             </Grid>
             <!-- Jot it down rests at the bottom (fainter during a session; Ctrl+J). -->
             <views:JotBoxView DockPanel.Dock="Bottom" DataContext="{Binding Jot}" Margin="22,8,14,12" ZIndex="1" />
+            <!-- The page's toast (the Tasks page's, spec 03 §F): bottom-left of these sections, above Jot it down. Docked first at the
+                 bottom with no height of its own, so it floats over the rows without pushing them. -->
+            <Canvas DockPanel.Dock="Bottom" Height="0" ZIndex="20">
+                <views:TaskToastView DataContext="{Binding Toasts}" Canvas.Left="18" Canvas.Bottom="10" MaxWidth="364" />
+            </Canvas>
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl Margin="12,0,12,16" ItemsSource="{Binding TodayTabPanel.Sections}">
                     <ItemsControl.ItemTemplate>

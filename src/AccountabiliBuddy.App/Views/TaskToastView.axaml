@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.TaskToastView"
+             x:DataType="vm:TaskToastViewModel">
+    <!-- The Tasks toast (spec 03 §F, 05 §14): Surface, 1 px line, radius pr, 13 DIP text, Undo (accent text) with its Ctrl+Z hint, ×,
+         and a 3 px accent timer bar along the bottom edge that shrinks over the toast's life. The pointer on it holds the timer. -->
+    <UserControl.Styles>
+        <Style Selector="Button.toastUndo">
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.toastUndo /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.toastUndo:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.toastClose">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.toastClose /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Button.toastClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="Card" IsVisible="{Binding IsVisible}" HorizontalAlignment="Left" VerticalAlignment="Bottom" MinWidth="260" MaxWidth="520"
+            Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
+            CornerRadius="{DynamicResource Ab.PopoverRadius}" BoxShadow="{DynamicResource Ab.PopoverShadow}" ClipToBounds="True">
+        <Panel>
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" Margin="14,10,10,12">
+                <TextBlock Text="{Binding Text}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextWrapping="Wrap" VerticalAlignment="Center"
+                           AutomationProperties.LiveSetting="Polite" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding HasUndo}">
+                    <Button Classes="toastUndo" Content="Undo" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" ToolTip.Tip="Undo (Ctrl+Z)" />
+                    <TextBlock Classes="muted" Text="Ctrl+Z" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="11" FontWeight="Medium"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="toastClose" Command="{Binding DismissCommand}" AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss">
+                    <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
+                </Button>
+            </Grid>
+            <!-- The timer bar: full width when the toast appears, nothing when it goes (scaled from the left). -->
+            <Border x:Name="Bar" Height="3" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Background="{DynamicResource Ab.Accent}"
+                    RenderTransformOrigin="0%,50%" IsHitTestVisible="False" />
+        </Panel>
+    </Border>
+</UserControl>

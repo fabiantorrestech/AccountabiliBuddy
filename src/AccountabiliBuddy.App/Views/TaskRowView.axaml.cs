@@ -15,8 +15,10 @@ namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
 /// One task row (<see cref="TaskListRowViewModel"/>). Code-behind: a click passes its modifier keys (Ctrl / Shift: Windows selection)
-/// to the section it sits in, right-click and ⋯ open the row's menu, the label picker opens from its chip, Alt+↑/↓ move the row, the
-/// drag handle hands its pointer to the section (<see cref="TaskSectionView"/>), and a ticked row folds away (height and opacity).
+/// to the section it sits in, right-click, the menu key and ⋯ open the row's menu, the label picker opens from its chip, the row's keys
+/// (13k: ↑/↓ move the keyboard, Shift+↑/↓ extend the selection, Space ticks, Ctrl+Space adds it to the selection, Alt+↑/↓ move the
+/// row; Enter opens it, as a click), the drag handle hands its pointer to the section (<see cref="TaskSectionView"/>), and a ticked
+/// row folds away (height and opacity).
 /// </summary>
 public partial class TaskRowView : UserControl
 {
@@ -31,6 +33,9 @@ public partial class TaskRowView : UserControl
         InitializeComponent();
         // The row button handles its own presses; the modifiers are read on the way down, before it does.
         RowButton.AddHandler(PointerPressedEvent, OnRowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        // Space is the row's tick, not a click: taken before the button presses itself (and its release, which would click).
+        RowButton.AddHandler(KeyDownEvent, OnRowSpaceDown, RoutingStrategies.Tunnel);
+        RowButton.AddHandler(KeyUpEvent, OnRowSpaceUp, RoutingStrategies.Tunnel);
     }
 
     private TaskSectionView? Section => this.FindAncestorOfType<TaskSectionView>();
@@ -209,7 +214,9 @@ public partial class TaskRowView : UserControl
             SectionModel?.ClearSelection();
         }
 
-        TaskMenus.ShowEntries(RowButton, row.BuildContextMenu(), PlacementMode.Pointer, OnMenuViewAction);
+        // From the menu key or Shift+F10 there is no pointer: the menu opens under the row.
+        PlacementMode placement = e.TryGetPosition(RowButton, out _) ? PlacementMode.Pointer : PlacementMode.BottomEdgeAlignedLeft;
+        TaskMenus.ShowEntries(RowButton, row.BuildContextMenu(), placement, OnMenuViewAction);
         e.Handled = true;
     }
 
@@ -232,13 +239,73 @@ public partial class TaskRowView : UserControl
         }
     }
 
-    // Alt+↑/↓ moves the row one place in its section (reorder and renumber); Ctrl+A and Esc are the section's.
+    // ↑/↓ move the keyboard to the row above or below; Shift+↑/↓ extend the selection; Alt+↑/↓ move the row one place in its section
+    // (reorder and renumber). Ctrl+A and Esc are the section's; Del, F2, H and Ctrl+Z the window's (Services/TaskShortcuts).
     private void OnRowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyModifiers == KeyModifiers.Alt && e.Key is Key.Up or Key.Down && DataContext is TaskListRowViewModel { CanDrag: true } row && Section is { } section)
+        if (e.Key is not (Key.Up or Key.Down) || DataContext is not TaskListRowViewModel row || Section is not { } section)
         {
-            section.MoveByKey(row, e.Key == Key.Up ? -1 : 1);
+            return;
+        }
+
+        int step = e.Key == Key.Up ? -1 : 1;
+        if (e.KeyModifiers == KeyModifiers.Alt && row.CanDrag)
+        {
+            section.MoveByKey(row, step);
             e.Handled = true;
+        }
+        else if (e.KeyModifiers == KeyModifiers.None)
+        {
+            section.FocusNeighbour(row, step);
+            e.Handled = true; // at an end too: the list doesn't scroll away under the keyboard
+        }
+        else if (e.KeyModifiers == KeyModifiers.Shift)
+        {
+            section.ExtendByKey(row, step);
+            e.Handled = true;
+        }
+    }
+
+    // Space on the row: tick it (a second Space while it is struck through takes it back). Ctrl+Space: add it to the selection, or take
+    // it out (Ctrl+click). Only the row itself: a button inside it that has the keyboard after a click keeps its own Space.
+    private void OnRowSpaceDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Space || !ReferenceEquals(e.Source, RowButton) || DataContext is not TaskListRowViewModel row)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (e.KeyModifiers == KeyModifiers.Control)
+        {
+            if (row.OwnerKey is null)
+            {
+                Click(row, TaskRowClick.Toggle);
+            }
+        }
+        else if (e.KeyModifiers == KeyModifiers.None && row.ToggleCommand is { } tick && tick.CanExecute(null))
+        {
+            tick.Execute(null);
+        }
+    }
+
+    private void OnRowSpaceUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space && ReferenceEquals(e.Source, RowButton))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void Click(TaskListRowViewModel row, TaskRowClick click)
+    {
+        if (SectionModel is { } section)
+        {
+            section.Click(row, click);
+        }
+        else
+        {
+            row.Click(click);
         }
     }
 

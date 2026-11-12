@@ -15,6 +15,9 @@ public sealed class TaskFinishQueue
     /// <summary>A task's tick started, began to fold, was taken back or stored: its rows should show <see cref="IsPending"/> and <see cref="IsFolding"/>.</summary>
     public event EventHandler<TaskRowKey>? Changed;
 
+    /// <summary>A tick began its wait (not a second tick taking one back): the page shows its "Finished …" toast with Undo at once.</summary>
+    public event EventHandler<TaskRowKey>? Started;
+
     /// <summary>The task's tick is waiting (struck through).</summary>
     public bool IsPending(TaskRowKey key) => _pending.ContainsKey(key);
 
@@ -44,6 +47,7 @@ public sealed class TaskFinishQueue
         var pending = new Pending(new CancellationTokenSource(), commit);
         _pending[key] = pending;
         Changed?.Invoke(this, key);
+        Started?.Invoke(this, key);
         try
         {
             await Task.Delay(hold, pending.Cancel.Token);

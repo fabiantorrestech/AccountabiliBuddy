@@ -99,7 +99,7 @@ public sealed class TaskStore
 
     public event EventHandler<TaskStoreChangedEventArgs>? Changed;
 
-    /// <summary>A text for the screen to show later (no screen takes it yet): an old list's delete was ignored because another device moved the task.</summary>
+    /// <summary>A toast for the Tasks pages (their toast shows it): an old list's delete was ignored because another device moved the task.</summary>
     public event EventHandler<TaskToastEventArgs>? Notice;
 
     private Guid Self => SelfId() ?? Guid.Empty;
@@ -217,7 +217,7 @@ public sealed class TaskStore
         // A running session's task that goes to a list (Move to Later, Park) comes back with what it had, under its own id.
         foreach (TaskItem stale in TaskListRules.StaleDeletes(changed, _lists.Tasks, Now))
         {
-            Notice?.Invoke(this, new TaskToastEventArgs(TaskToasts.MovedElsewhere(stale), canUndo: false));
+            Notice?.Invoke(this, new TaskToastEventArgs(TaskToasts.MovedElsewhere(stale), canUndo: false, explains: true));
         }
 
         TaskLists withHeld = WithHeldBack(_lists, LiveIds(changed), out bool heldTaken);

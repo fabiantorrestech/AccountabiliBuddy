@@ -14,6 +14,12 @@ public static partial class TaskSearch
     [GeneratedRegex(@"^\d+[a-z]{0,4}$")]
     private static partial Regex IdPattern();
 
+    /// <summary>The query is a task ID ("142", "142b", case and outer spaces ignored): <see cref="Find"/> then matches by number only.</summary>
+    public static bool IsId(string query)
+    {
+        return IdPattern().IsMatch(query.Trim().ToLowerInvariant());
+    }
+
     /// <summary>The hits for <paramref name="query"/> in list order (a task, then its matching steps); none for a blank query.</summary>
     public static IReadOnlyList<TaskSearchHit> Find(IEnumerable<TaskItem> tasks, string query)
     {

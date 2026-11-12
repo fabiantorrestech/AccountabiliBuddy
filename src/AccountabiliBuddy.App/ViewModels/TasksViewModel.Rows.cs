@@ -187,6 +187,49 @@ public sealed partial class TasksViewModel
         }
     }
 
+    // A tick began its wait: "Finished “…”" with Undo shows at once (spec 05 §5). Undo takes the waiting tick back, or once it is stored
+    // reopens the task (the same as unticking it). A focused step's row is left to its own toast (it ticks a step, not the task).
+    private void OnFinishStarted(object? sender, TaskRowKey key)
+    {
+        if (AllRows().FirstOrDefault(row => row.Key == key && row.OwnerKey is null) is not { } row)
+        {
+            return;
+        }
+
+        string text = TaskToasts.FinishedTitle(row.Title);
+        Toasts.Show(text, TaskToastLength.WithUndo, () => UndoTickAsync(key, text));
+    }
+
+    private async Task UndoTickAsync(TaskRowKey key, string text)
+    {
+        if (_finishes.Cancel(key))
+        {
+            return;
+        }
+
+        if (_actions is not null)
+        {
+            // Stored as the newest action: Ctrl+Z's own undo takes it back (and off the stack); otherwise (the session's checklist
+            // ticked it, or newer actions came since) it is reopened.
+            if (_actions.NextUndoText == text)
+            {
+                await _actions.UndoAsync();
+            }
+            else
+            {
+                await _actions.ReopenAsync([key.Id]);
+            }
+
+            return;
+        }
+
+        // The older lists (no task list): the ticked row's own untick.
+        if (AllRows().FirstOrDefault(row => row.Key == key && row.IsTicked) is { ToggleCommand: { } untick } && untick.CanExecute(null))
+        {
+            untick.Execute(null);
+        }
+    }
+
     /// <summary>The app is quitting: every tick still waiting out its strike-and-fold is stored now.</summary>
     public Task FlushPendingFinishesAsync() => _finishes.FlushAsync();
 

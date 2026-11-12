@@ -59,7 +59,8 @@
         <views:AddBoxView DataContext="{Binding AddBox}" IsVisible="{Binding $parent[views:TaskSectionView].((vm:TaskSectionViewModel)DataContext).IsAdding, FallbackValue=False}"
                           Margin="28,0,6,4" ZIndex="1" />
 
-        <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding ShowsRows}">
+        <!-- The rows are one Tab stop (roving focus, 13k): Tab lands on the row last used (else the first), ↑/↓ move inside. -->
+        <ItemsControl x:Name="RowsList" ItemsSource="{Binding Rows}" IsVisible="{Binding ShowsRows}" KeyboardNavigation.TabNavigation="Once">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:TaskListRowViewModel">
                     <views:TaskRowView />

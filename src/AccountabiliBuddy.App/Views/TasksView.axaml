@@ -343,9 +343,6 @@
                 <!-- Jot it down at the bottom of the column (fainter during a session; Ctrl+J). -->
                 <views:JotBoxView DockPanel.Dock="Bottom" DataContext="{Binding Jot}" Margin="22,8,16,12" ZIndex="1" />
 
-                <!-- The Undo bar after a delete (10 seconds); the item stays in Archive > Recently deleted. -->
-                <views:UndoBarView DockPanel.Dock="Bottom" DataContext="{Binding Undo}" Margin="22,6,16,14" />
-
                 <!-- A picker's "New category…": its name; Enter makes it and applies it. -->
                 <Border DockPanel.Dock="Top" Margin="22,0,16,8" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding IsNamingCategory}">
@@ -746,5 +743,12 @@
                 </Button>
             </Panel>
         </Border>
+
+        <!-- The toast (spec 03 §F): bottom-left of the Tasks card, above Jot it down while the Today column shows; over the Shelf when
+             Today is folded away. Only the toast takes clicks: the panel around it has no background. -->
+        <Panel Grid.Column="1" Grid.ColumnSpan="3" HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="20"
+               Margin="{Binding ShowsToday, Converter={x:Static views:TasksView.ToastMargin}}">
+            <views:TaskToastView DataContext="{Binding Toasts}" />
+        </Panel>
     </Grid>
 </UserControl>

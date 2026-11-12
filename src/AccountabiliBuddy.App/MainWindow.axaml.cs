@@ -1,4 +1,5 @@
 using AccountabiliBuddy.App.Controls;
+using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.Services.Search;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
@@ -34,6 +35,9 @@ public partial class MainWindow : Window
     private static readonly TimeSpan SyncLeaveGrace = TimeSpan.FromMilliseconds(300);
 
     private readonly DispatcherTimer _syncHoverTimer = new() { Interval = SyncHoverDelay };
+
+    // The Tasks keyboard map's window keys (Ctrl+G, Ctrl+Z, Del, F2, H, Esc's last steps).
+    private readonly TaskShortcuts _taskShortcuts;
     private readonly DispatcherTimer _syncLeaveTimer = new() { Interval = SyncLeaveGrace };
 
     // A click on the sync light pins its popover open until a click elsewhere; hovering alone leaves it to close on leave.
@@ -58,6 +62,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Ctrl+G's prompt opens under the title bar's search.
+        _taskShortcuts = new TaskShortcuts(tasks => GoToTaskPopover.ShowAt(SearchButton, tasks.GoToTask));
         AddHandler(DragDrop.DropEvent, OnDrop);
         // A click away from the search flyout closes it, whatever it holds.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -352,6 +358,10 @@ public partial class MainWindow : Window
         {
             viewModel.Search?.ClearCommand.Execute(null);
             viewModel.IsSearchOpen = false;
+            e.Handled = true;
+        }
+        else if (_taskShortcuts.Handle(e, viewModel, FocusManager?.GetFocusedElement()))
+        {
             e.Handled = true;
         }
     }

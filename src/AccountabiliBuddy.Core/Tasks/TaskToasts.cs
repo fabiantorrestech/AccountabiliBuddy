@@ -43,7 +43,19 @@ public static class TaskToasts
 
     public static string Finished(IReadOnlyList<TaskItem> tasks)
     {
-        return tasks.Count == 1 ? "Finished “" + Short(tasks[0].Title) + "”" : tasks.Count + " tasks finished";
+        return tasks.Count == 1 ? FinishedTitle(tasks[0].Title) : tasks.Count + " tasks finished";
+    }
+
+    /// <summary>"Finished “Draft Q4…”": the toast a row's tick shows at once (the same text the stored finish raises).</summary>
+    public static string FinishedTitle(string title)
+    {
+        return "Finished “" + Short(title) + "”";
+    }
+
+    /// <summary>Copy ID: "Copied 142 · Draft Q4…" (<paramref name="copied"/> is what went on the clipboard, "142 · title").</summary>
+    public static string Copied(string copied)
+    {
+        return "Copied " + Short(copied);
     }
 
     public static string BackIn(TaskBin bin)
