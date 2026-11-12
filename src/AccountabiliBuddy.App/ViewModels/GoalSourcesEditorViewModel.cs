@@ -141,7 +141,7 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         Available("screenTime", "Screen time", "Time in an app or category on your phone", MaterialIconKind.Monitor, GoalSourceType.ScreenTime, "Measured on your phone");
         if (_lookups.BeeminderConnected)
         {
-            Available("beeminder", "Beeminder", "Read one of your goals from the list this PC keeps", MaterialIconKind.Bee, GoalSourceType.Beeminder, "Read · Send coming soon");
+            Available("beeminder", "Beeminder", "Counts one of your Beeminder goals day by day on this PC", MaterialIconKind.Bee, GoalSourceType.Beeminder, "Read · Send coming soon");
         }
 
         void Soon(string key, string title, string text, MaterialIconKind icon, GoalSourceType? type = null)

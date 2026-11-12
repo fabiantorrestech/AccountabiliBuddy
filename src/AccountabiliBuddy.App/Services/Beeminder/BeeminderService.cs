@@ -60,6 +60,12 @@ public sealed class BeeminderService : IDisposable
 
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// Called with the token and the goals right after a read that worked (ADR 84: the datapoints of the linked goals are read then).
+    /// It must keep the token to itself, and a failure inside it never fails the goals read.
+    /// </summary>
+    public Func<string, IReadOnlyList<BeeminderGoal>, Task>? GoalsRead { get; set; }
+
     /// <summary>The user asked for a read (Refresh, Test) and it worked; the sync file is sealed again even if the goals look the same.</summary>
     public event EventHandler? ReadOnRequest;
 
@@ -127,6 +133,7 @@ public sealed class BeeminderService : IDisposable
             Problem = null;
             _tokenRejected = false;
             await SaveAsync(new Stored(Convert.ToBase64String(_protector.Protect(trimmed)), goals.ToList(), _time.GetUtcNow()));
+            await NotifyGoalsReadAsync(trimmed, goals);
             return null;
         }
         finally
@@ -184,6 +191,7 @@ public sealed class BeeminderService : IDisposable
             }
 
             await SaveAsync(_state with { Goals = goals.ToList(), FetchedAt = _time.GetUtcNow() });
+            await NotifyGoalsReadAsync(token, goals);
             if (userAsked)
             {
                 ReadOnRequest?.Invoke(this, EventArgs.Empty);
@@ -194,6 +202,23 @@ public sealed class BeeminderService : IDisposable
         finally
         {
             _busy = false;
+        }
+    }
+
+    private async Task NotifyGoalsReadAsync(string token, IReadOnlyList<BeeminderGoal> goals)
+    {
+        if (GoalsRead is not { } hook)
+        {
+            return;
+        }
+
+        try
+        {
+            await hook(token, goals);
+        }
+        catch (Exception)
+        {
+            // The datapoints are a quiet extra: whatever went wrong there keeps the last values and never fails the goals read.
         }
     }
 

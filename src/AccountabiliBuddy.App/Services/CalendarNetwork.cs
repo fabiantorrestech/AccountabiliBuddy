@@ -17,7 +17,7 @@ namespace AccountabiliBuddy.App.Services;
 /// opted-in tasks' title and times as events in the app's own "AB Reminders" calendar, see <see cref="GoogleCalendarWriter"/>),
 /// and Google Drive calls for the
 /// user's own sealed sync files (scope drive.file: only files the app made), and read-only GETs of the user's Beeminder
-/// goals with the personal auth token they pasted (ADR 43), and the user's own sealed relay (ADR 46): HTTPS only, to
+/// goals and datapoints with the personal auth token they pasted (ADR 43, 84), and the user's own sealed relay (ADR 46): HTTPS only, to
 /// the one address the user typed, with either that address's certificate pinned by its SHA-256 fingerprint (a
 /// mismatch fails the call; there is never a fallback to an unpinned connection) or a normal certificate check when no
 /// pin is set. Relay calls carry the bearer token in the Authorization header only and never follow a redirect.
@@ -29,8 +29,9 @@ public sealed class CalendarNetwork : IDisposable
     // A calendar file larger than this is not a calendar anyone plans with; refuse rather than fill memory.
     private const long MaxResponseBytes = 20 * 1024 * 1024;
 
-    // ADR 43: the one Beeminder address the app ever calls.
+    // ADR 43: the Beeminder goals address; ADR 84 adds one more, a goal's datapoints (see GetBeeminderDatapointsAsync).
     private const string BeeminderGoalsAddress = "https://www.beeminder.com/api/v1/users/me/goals.json";
+    private const string BeeminderGoalsPrefix = "https://www.beeminder.com/api/v1/users/me/goals/";
 
     // A sealed sync file is at most 4 MiB on the relay; its listing and answers are far smaller than this.
     private const long MaxRelayResponseBytes = 5 * 1024 * 1024;
@@ -204,6 +205,29 @@ public sealed class CalendarNetwork : IDisposable
     public async Task<JsonDocument> GetBeeminderGoalsAsync(string authToken, CancellationToken cancellationToken)
     {
         var uri = new Uri(BeeminderGoalsAddress + "?auth_token=" + Uri.EscapeDataString(authToken));
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
+        return await ReadJsonAsync(response, cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the newest datapoints of one of the user's Beeminder goals (ADR 84): one GET, nothing written. The slug must be letters,
+    /// digits, "_" or "-" (anything else is refused before a request is made) and is escaped; the token travels as in
+    /// <see cref="GetBeeminderGoalsAsync"/>. Errors carry only the status code; the address and the answer are never logged.
+    /// </summary>
+    /// <param name="count">How many of the newest datapoints to ask for (Beeminder's "count", with "sort=daystamp").</param>
+    /// <exception cref="ArgumentException">The slug is not a Beeminder slug (no request was made).</exception>
+    /// <exception cref="HttpRequestException">Network error or an unsuccessful status code (status in the exception).</exception>
+    public async Task<JsonDocument> GetBeeminderDatapointsAsync(string authToken, string slug, int count, CancellationToken cancellationToken)
+    {
+        if (!Beeminder.BeeminderEntries.IsValidSlug(slug))
+        {
+            throw new ArgumentException("Not a Beeminder goal slug.", nameof(slug));
+        }
+
+        var uri = new Uri(
+            BeeminderGoalsPrefix + Uri.EscapeDataString(slug) + "/datapoints.json?sort=daystamp&count=" + Math.Clamp(count, 1, 1000)
+            + "&auth_token=" + Uri.EscapeDataString(authToken));
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         using HttpResponseMessage response = await _http.SendAsync(request, cancellationToken);
         return await ReadJsonAsync(response, cancellationToken);

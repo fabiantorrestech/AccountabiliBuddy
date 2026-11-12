@@ -26,6 +26,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         Labels = lookups.Labels;
         Categories = lookups.CalendarCategories;
         BeeminderGoals = lookups.BeeminderGoals;
+        BeeminderReadText = lookups.BeeminderReadText;
+        BeeminderProblemText = lookups.BeeminderProblemText;
         Automatic = rule.Automatic;
         SelectedLabel = Labels.FirstOrDefault(choice => rule.LabelId is Guid id && choice.Key == id.ToString());
         Tag = rule.Tag ?? string.Empty;
@@ -33,6 +35,7 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         App = rule.App ?? string.Empty;
         ScreenAtMost = rule.ScreenDirection != GoalDirection.AtLeast;
         SelectedBeeminder = BeeminderGoals.FirstOrDefault(choice => choice.Key == rule.BeeminderSlug)
+            ?? BeeminderGoals.FirstOrDefault(choice => rule.BeeminderSlug is not null && choice.Text == rule.BeeminderSlug)
             ?? (rule.BeeminderSlug is string slug ? new GoalChoice(slug, slug, Note: "Not in the cached list") : null);
         if (SelectedBeeminder is not null && !BeeminderGoals.Contains(SelectedBeeminder))
         {
@@ -54,6 +57,12 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     public IReadOnlyList<GoalChoice> Categories { get; }
 
     public IReadOnlyList<GoalChoice> BeeminderGoals { get; }
+
+    /// <summary>"Read 2:05 PM" (ADR 84); null before the first read or when the last one failed.</summary>
+    public string? BeeminderReadText { get; }
+
+    /// <summary>"Couldn't reach Beeminder · keeps the last values" after a failed read; null otherwise.</summary>
+    public string? BeeminderProblemText { get; }
 
     public string Title => _rule.Type switch
     {
@@ -78,7 +87,7 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         GoalSourceType.HealthSteps => "Measured on your phone (Health Connect, Pixel Watch through it). Daily steps already reach this PC.",
         GoalSourceType.HealthSleep or GoalSourceType.ScreenTime => "Measured on your phone: counted there only for now.",
         GoalSourceType.CalendarCategory => "Time in events of this day plan category. This PC only; it never counts as focus or for a guard.",
-        GoalSourceType.Beeminder => SelectedBeeminder?.Note is string note ? $"Reads its goal · {note} · Send and Both coming soon" : "Reads its goal · Send and Both coming soon",
+        GoalSourceType.Beeminder => SelectedBeeminder?.Note is string note ? $"Counts its daily values on this PC · {note}" : "Counts its daily values on this PC",
         _ => string.Empty,
     };
 

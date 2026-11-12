@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0084](0084-read-beeminder-datapoints-for-goals.md) | Read Beeminder datapoints for goals | Accepted (owner, 2026-11-14) | — |
 | [0083](0083-sync-the-shelf-page-order.md) | Sync the Shelf page order | Proposed | — |
 | [0082](0082-more-session-actions-from-the-phone.md) | More session actions from the phone | Proposed | — |
 | [0081](0081-read-weight-from-health-connect.md) | Read weight from Health Connect | Proposed | — |

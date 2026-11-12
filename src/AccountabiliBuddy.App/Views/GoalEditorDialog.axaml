@@ -439,6 +439,10 @@
                                                         <Border Classes="pill" Opacity="0.45" ToolTip.Tip="Coming soon"><TextBlock Text="Both" /></Border>
                                                         <TextBlock Classes="muted" FontSize="12" Text="Send and Both coming soon" VerticalAlignment="Center" Margin="6,0,0,0" />
                                                     </StackPanel>
+                                                    <TextBlock Classes="muted" FontSize="12" Text="{Binding BeeminderReadText}"
+                                                               IsVisible="{Binding BeeminderReadText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                    <TextBlock FontSize="12" Foreground="{DynamicResource Ab.Waiting}" Text="{Binding BeeminderProblemText}" TextWrapping="Wrap"
+                                                               IsVisible="{Binding BeeminderProblemText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                 </StackPanel>
                                                 <TextBlock FontSize="12" Foreground="{DynamicResource Ab.Waiting}" Text="{Binding Missing}"
                                                            IsVisible="{Binding Missing, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" />

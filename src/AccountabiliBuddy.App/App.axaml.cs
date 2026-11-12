@@ -191,6 +191,7 @@ public partial class App : Application
     private KeptPastStore? _keptPast;
     private PastSettledStore? _pastSettled;
     private AccountabiliBuddy.App.Services.Beeminder.BeeminderService? _beeminder;
+    private AccountabiliBuddy.App.Services.Beeminder.BeeminderDatapointsService? _beeminderDatapoints;
     private SessionNotesStore? _sessionNotes;
     private CaptureService? _capture;
     private WorkGateService? _workGate;
@@ -1408,6 +1409,10 @@ public partial class App : Application
         _goals = new AccountabiliBuddy.App.Services.Goals.GoalsService(
             goalStore, goal, _sessions!, time, () => guidance.IsCompanion, goalLowerWaits, () => _configuration!.Current.Locks.LooseningDelay);
         guidance.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _goals.ModeChangedAsync());
+        // ADR 84: a goal with a Beeminder source in direction Read counts that goal's datapoints day by day, read after each goals read
+        // (the 30-minute schedule, Today and Goals opening) while a token is set; the entries stay on this PC and leave with the link or the token.
+        _beeminderDatapoints = new AccountabiliBuddy.App.Services.Beeminder.BeeminderDatapointsService(_calendarNetwork, goalStore, _beeminder!, time);
+        _ = _beeminderDatapoints.ReconcileAsync();
         // ADR 71: the goals go in backups with the task lists, readable inside the file (notes and reasons only with a password).
         backups.Goals = AccountabiliBuddy.App.Services.Backup.BackupAccess.Goals(goalStore);
         // Round 2 R5: what the Goals page and Today's goals count from: this PC's counted sessions with their checklists (the day bar's
@@ -2039,7 +2044,7 @@ public partial class App : Application
         // Beeminder (ADR 43): every 30 minutes, and again when Today opens with an answer a few minutes old.
         mainViewModel.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab) && mainViewModel.SelectedTab == (int)MainTab.Today)
+            if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab) && mainViewModel.SelectedTab is (int)MainTab.Today or (int)MainTab.Goals)
             {
                 _beeminder!.RefreshIfStale();
             }
@@ -3745,7 +3750,7 @@ public partial class App : Application
 
         _mainWindow.Activate();
 
-        if (_mainWindow.DataContext is MainWindowViewModel { SelectedTab: (int)MainTab.Today })
+        if (_mainWindow.DataContext is MainWindowViewModel { SelectedTab: (int)MainTab.Today or (int)MainTab.Goals })
         {
             _beeminder?.RefreshIfStale();
         }
@@ -3844,9 +3849,13 @@ public partial class App : Application
             .Select(category => new GoalChoice(category.Id.ToString(), category.Name, Brush: GoalIcons.Brush(category.Color)))
             .ToList();
         var beeminder = (_beeminder?.Goals ?? [])
-            .Select(item => new GoalChoice(item.Title, item.Title, Note: $"{(item.Needed.Length > 0 ? item.Needed + " · " : string.Empty)}{item.SafeDays} safe days"))
+            .Select(item => new GoalChoice(item.Key, item.Title, Note: $"{(item.Needed.Length > 0 ? item.Needed + " · " : string.Empty)}{item.SafeDays} safe days"))
             .ToList();
-        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion);
+        string? beeminderRead = _beeminderDatapoints is { Failed: false, LastReadAt: DateTimeOffset readAt }
+            ? $"Read {TimeZoneInfo.ConvertTime(readAt, data.Zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
+            : null;
+        string? beeminderProblem = _beeminderDatapoints is { Failed: true } ? "Couldn't reach Beeminder · keeps the last values" : null;
+        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem);
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
         if (suggested is not null)
         {

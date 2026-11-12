@@ -39,7 +39,7 @@ public static class BeeminderGoalsParser
             int safeDays = Number(item, "safebuf") is double buffer
                 ? (int)Math.Floor(buffer)
                 : (int)Math.Floor((dueAt - now).TotalDays);
-            goals.Add(new BeeminderGoal(title, NeededOf(item), safeDays, dueAt));
+            goals.Add(new BeeminderGoal(title, NeededOf(item), safeDays, dueAt, Text(item, "slug") ?? string.Empty, Text(item, "aggday") ?? string.Empty));
         }
 
         return goals.OrderBy(goal => goal.DueAt).ToList();
