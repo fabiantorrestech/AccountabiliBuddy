@@ -84,10 +84,13 @@ public static class TaskReminderCard
         return DayAndTime(at, now, zone);
     }
 
-    /// <summary>The italic "Add to Queued" nudge shows: snoozed 3 times or more and the task isn't already in today's plan.</summary>
+    /// <summary>
+    /// The italic "Add to Queued" nudge shows: snoozed 3 times or more and the task isn't already in today's plan. Never on a Can't
+    /// miss: Add to Queued handles the reminder at once, and a Can't miss is only dismissed by its wait and hold.
+    /// </summary>
     public static bool ShowsNudge(TaskReminderEntry entry, TaskBin? bin)
     {
-        return entry.SnoozeCount >= NudgeAfterSnoozes && bin is TaskBin.Sort or TaskBin.Next or TaskBin.Later;
+        return !entry.CantMiss && entry.SnoozeCount >= NudgeAfterSnoozes && bin is TaskBin.Sort or TaskBin.Next or TaskBin.Later;
     }
 
     /// <summary>

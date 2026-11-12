@@ -17,7 +17,8 @@ public interface IReminderStackHost
     /// <summary>"Pick a time…": the Snooze until… dialog.</summary>
     void PickTime();
 
-    void Dismiss();
+    /// <param name="held">The dismiss button was held its full time (a Can't miss is dismissed only that way).</param>
+    void Dismiss(bool held);
 
     /// <summary>‹ and ›: the previous or next card of the stack.</summary>
     void Move(int delta);

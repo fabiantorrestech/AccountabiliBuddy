@@ -183,9 +183,10 @@ public sealed class TaskReminderService : IDisposable
     }
 
     /// <summary>
-    /// "Start a session" / "Work on it now": the reminder counts as started and the task goes into This session through the session's
-    /// own add (its cap holds: a full session raises <see cref="SessionFull"/> and leaves the task where it is). A session isn't
-    /// started or changed here: the normal start path is the user's.
+    /// "Start a session" / "Work on it now": the task goes into This session through the session's own add (its cap holds) and the
+    /// reminder counts as started. A full session raises <see cref="SessionFull"/>, leaves the task where it is and the reminder up
+    /// (it keeps ringing until the user acts on it; a swap in the dialog doesn't handle it). A session isn't started or changed here:
+    /// the normal start path is the user's.
     /// </summary>
     /// <returns>True when the task is now in This session (false for a test ring, a full session, or no task actions).</returns>
     public async Task<bool> StartAsync(TaskReminderEntry entry)
@@ -195,32 +196,39 @@ public sealed class TaskReminderService : IDisposable
             return false;
         }
 
+        // Written before the move: in a running session the task the move takes in is held by the session (out of the list), so its
+        // reminder could no longer be written. When it finds no room, the state it had is put back.
+        TaskReminderOccurrence? before = OccurrenceOf(entry);
         await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Start(lists, entry, now, self).Lists);
         bool movedIn = false;
         if (Actions is not null)
         {
             TaskMoveOutcome outcome = await Actions.MoveToSessionAsync([entry.TaskId]);
-            if (outcome.NeedsRoom.Count > 0)
-            {
-                SessionFull?.Invoke(this, entry.TaskId);
-            }
-            else
-            {
-                movedIn = true;
-            }
+            movedIn = outcome.NeedsRoom.Count == 0;
+        }
+
+        if (!movedIn)
+        {
+            await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Unstart(lists, entry, before, now, self).Lists);
         }
 
         Refresh();
+        if (!movedIn && Actions is not null)
+        {
+            SessionFull?.Invoke(this, entry.TaskId);
+        }
+
         return movedIn;
     }
 
     /// <summary>
     /// "Add to Queued" on the snoozed-3-times nudge: the task moves to Queued (the task actions' move, undoable like any move) and this
-    /// reminder is handled as dismissed. A deliberate move, so it doesn't wait out dismiss protection (only Dismiss waits).
+    /// reminder is handled as dismissed. A deliberate move, so it doesn't wait out dismiss protection (only Dismiss waits). Never for a
+    /// Can't miss: only its own wait and hold dismiss it (the nudge isn't offered for one).
     /// </summary>
     public async Task QueueAsync(TaskReminderEntry entry)
     {
-        if (EndTest(entry))
+        if (entry.CantMiss || EndTest(entry))
         {
             return;
         }
@@ -232,6 +240,13 @@ public sealed class TaskReminderService : IDisposable
 
         await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Dismiss(lists, entry, now, self).Lists);
         Refresh();
+    }
+
+    // The occurrence's state as the task holds it now (null: none written yet).
+    private TaskReminderOccurrence? OccurrenceOf(TaskReminderEntry entry)
+    {
+        return TaskOf(entry.TaskId)?.Reminders?.FirstOrDefault(reminder => reminder.Id == entry.ReminderId)
+            ?.Occurrences?.FirstOrDefault(occurrence => occurrence.Due == entry.Due);
     }
 
     /// <summary>The ring time ran out with nobody acting: it is not rung again (and stays on the task as it is).</summary>

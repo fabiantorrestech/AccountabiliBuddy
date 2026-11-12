@@ -19,6 +19,9 @@ public sealed class TaskShortcuts
 {
     private readonly Action<TasksViewModel> _openGoTo;
 
+    // Del is down: its key repeats don't delete one row after another.
+    private bool _deleteHeld;
+
     /// <param name="openGoTo">Opens Ctrl+G's prompt for the page.</param>
     public TaskShortcuts(Action<TasksViewModel> openGoTo)
     {
@@ -57,6 +60,22 @@ public sealed class TaskShortcuts
             return false;
         }
 
+        if (e.Key == Key.Delete && _deleteHeld)
+        {
+            return true;
+        }
+
+        // Inside the open task's own parts (a step's controls) Del, F2 and H aren't for the whole task.
+        if (e.Key is Key.Delete or Key.F2 or Key.H && InOpenTaskPart(focused))
+        {
+            return false;
+        }
+
+        if (e.Key == Key.Delete)
+        {
+            _deleteHeld = true;
+        }
+
         return e.Key switch
         {
             Key.Escape => tasks.Escape(onTasks),
@@ -65,6 +84,45 @@ public sealed class TaskShortcuts
             Key.H => Run(tasks.ShortcutMenu(RowOf(focused), onTasks), "H", header => header is "Highlight" or "Remove highlight"),
             _ => false,
         };
+    }
+
+    /// <summary>A key went up (anywhere in the window, handled or not): Del can act again.</summary>
+    public void KeyReleased(Key key)
+    {
+        if (key == Key.Delete)
+        {
+            _deleteHeld = false;
+        }
+    }
+
+    /// <summary>The window lost the keyboard: a key let go elsewhere never came back up here.</summary>
+    public void Reset()
+    {
+        _deleteHeld = false;
+    }
+
+    // The keyboard is on something inside the open task that belongs to one of its parts (a step row, whose own view model is
+    // between it and the task's), not on the open task itself or a row.
+    private static bool InOpenTaskPart(IInputElement? focused)
+    {
+        bool inPart = false;
+        for (Visual? visual = focused as Visual; visual is not null; visual = visual.GetVisualParent())
+        {
+            switch ((visual as StyledElement)?.DataContext)
+            {
+                case TaskListRowViewModel:
+                    return false;
+                case TaskDetailViewModel:
+                    return inPart;
+                case null:
+                    break;
+                default:
+                    inPart = true;
+                    break;
+            }
+        }
+
+        return false;
     }
 
     // The entry the menu labels with this key ("Del", "F2", "H"), or the older menus' entry of that name; run when it can.

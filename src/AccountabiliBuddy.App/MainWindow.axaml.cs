@@ -64,6 +64,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         // Ctrl+G's prompt opens under the title bar's search.
         _taskShortcuts = new TaskShortcuts(tasks => GoToTaskPopover.ShowAt(SearchButton, tasks.GoToTask));
+        // Del's key repeats are ignored until it comes up (seen even when something handled it), or the window loses the keyboard.
+        AddHandler(KeyUpEvent, (_, e) => _taskShortcuts.KeyReleased(e.Key), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        Deactivated += (_, _) => _taskShortcuts.Reset();
         AddHandler(DragDrop.DropEvent, OnDrop);
         // A click away from the search flyout closes it, whatever it holds.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);

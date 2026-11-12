@@ -49,6 +49,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     private IReadOnlyList<TaskReminderEntry> _shown = [];
     private int _index;
     private bool _listView;
+    private HashSet<string> _listKeys = [];
     private string? _shownKey;
     private DateTimeOffset _shownSince;
 
@@ -155,9 +156,10 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         _ = ActAsync(entry => _picker.ShowAsync(owner, entry));
     }
 
-    public void Dismiss()
+    public void Dismiss(bool held)
     {
-        if (Shown is not TaskReminderEntry entry || DismissState(entry).Waiting)
+        // The wait first; a Can't miss also needs the full hold, whoever asks (not only its button).
+        if (Shown is not TaskReminderEntry entry || DismissState(entry) is { } state && (state.Waiting || (state.Hold > TimeSpan.Zero && !held)))
         {
             return;
         }
@@ -173,6 +175,9 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
 
     public void ShowList(bool list)
     {
+        // "Snooze all" and "Dismiss all" act only on the reminders that were there when the list opened (one coming in meanwhile is
+        // seen first).
+        _listKeys = list ? _shown.Select(entry => entry.Key).ToHashSet() : [];
         _listView = list;
         Present();
     }
@@ -187,7 +192,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     public void SnoozeAll()
     {
         DateTimeOffset until = TaskSnooze.FromNow(_reminders.Now, SnoozeAllMinutes);
-        _ = ActOnAllAsync(_shown, entry => _reminders.SnoozeAsync(entry, until));
+        _ = ActOnAllAsync(ListedNow(), entry => _reminders.SnoozeAsync(entry, until));
     }
 
     public void DismissAll()
@@ -197,7 +202,13 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
             return;
         }
 
-        _ = ActOnAllAsync(TaskReminderCard.DismissAll(_shown), _reminders.DismissAsync);
+        _ = ActOnAllAsync(TaskReminderCard.DismissAll(ListedNow()), _reminders.DismissAsync);
+    }
+
+    // The list's reminders that were already there when it opened.
+    private IReadOnlyList<TaskReminderEntry> ListedNow()
+    {
+        return _listView ? _shown.Where(entry => _listKeys.Contains(entry.Key)).ToList() : [];
     }
 
     // ---- following the due list ----
@@ -269,6 +280,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         if (_fullScreen || pending.Count < 2)
         {
             _listView = false;
+            _listKeys = [];
         }
 
         TaskReminderEntry shown = pending[_index];

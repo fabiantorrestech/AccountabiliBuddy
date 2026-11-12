@@ -437,3 +437,13 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Behaviour changes: every task action now shows a toast (before: none showed); a delete's Undo bar on the Tasks page and on Today's checklist is the toast now (6 s, was 10 s); Space on a focused row ticks it (it used to open it like Enter); the rows' inner buttons left the Tab order; ↑/↓ on a row move the keyboard instead of scrolling the list; Copy ID says "Copied …".
 - Checks: Program.cs 580/580 (11 new m6t2/), AppChecks 62/62 (4 new m6t2: an action's toast has Undo, plain Undone, a changed-since undo explains, Say keeps the flag). Build 0 errors; dev app started on dev data, running after 22 s, no exception.
 - Left for later: the "Show →" action pill (Q192) and "N more reminders waiting" (8 s length exists); deleting the unused `UndoBarView`/`UndoBarViewModel` (Q209, owner's yes); not driven by keyboard on screen nor checked by eye in the 3 themes × light/dark (Q211).
+
+## M6 milestone review fixes
+
+- [x] Blocking 1: the snoozed-3-times nudge never shows for a Can't miss and `TaskReminderService.QueueAsync` never handles one; the ringer's `Dismiss(held)` refuses an unheld Can't miss (the button passes `ReminderDismissButton.HoldCompleted`). `doc/hard-rules.md` sentence updated. Q215.
+- [x] 2: a Start whose task finds This session full puts the occurrence back (Core `TaskReminderActions.Unstart`): the reminder stays up and ringing, then "This session is full" opens. Q214.
+- [ ] 3: not changed (the Today page's toast already covers deletes from the session checklist on `FocusView`/`IdleView`; the bar would double it). Evidence in Q212; Q209 updated.
+- [x] 4: the toast stack window is only the card's size (370 wide; gaps by placement; 30 DIP above only while tilted cards show). Q196, Q213.
+- [x] 5: Ctrl+G switches to the Tasks page when the task is found. Q217.
+- [x] 6 and nits: a hold ends on the window's deactivation; no fill timer on hidden copies; Snooze all / Dismiss all only the reminders listed when the list opened; Space on a row and Del act once per press; Del / F2 / H don't act on the whole task from inside its step controls. Q216, Q218, Q219.
+- Checks: Program.cs 584/584 (4 new m6rev), AppChecks 64/64 (2 new m6rev: a full-session Start keeps the reminder up and offers the swap; a Can't miss is never queued). Build 0 errors; dev app started on dev data, running after 22 s.

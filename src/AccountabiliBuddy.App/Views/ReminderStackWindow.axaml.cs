@@ -17,7 +17,11 @@ public partial class ReminderStackWindow : Window
     // DIP; with an auto-hiding taskbar the work area reaches the screen's edge, but the taskbar still pops up over it.
     private const double AutoHideTaskbarHeight = 64;
 
-    private const double EstimatedHeight = 230;
+    private const double EstimatedHeight = 200;
+
+    // DIP between the card and the work area's right and bottom edges (spec 03 §D), and above a toast it lifts over.
+    private const double EdgeGap = 18;
+    private const double ToastGap = 10;
 
     public ReminderStackWindow()
     {
@@ -42,9 +46,10 @@ public partial class ReminderStackWindow : Window
         PixelRect work = screen.WorkingArea;
         int width = (int)Math.Ceiling(widthDip * scaling);
         int height = (int)Math.Ceiling(heightDip * scaling);
-        int bottom = work.Bottom == screen.Bounds.Bottom ? work.Bottom - (int)Math.Ceiling(AutoHideTaskbarHeight * scaling) : work.Bottom;
-        int left = work.Right - width;
-        bottom = LiftAboveToasts(left, width, bottom, height);
+        int bottom = (work.Bottom == screen.Bounds.Bottom ? work.Bottom - (int)Math.Ceiling(AutoHideTaskbarHeight * scaling) : work.Bottom)
+            - (int)Math.Ceiling(EdgeGap * scaling);
+        int left = work.Right - width - (int)Math.Ceiling(EdgeGap * scaling);
+        bottom = LiftAboveToasts(left, width, bottom, height, (int)Math.Ceiling(ToastGap * scaling));
 
         var position = new PixelPoint(left, Math.Max(work.Y, bottom - height));
         if (Position != position)
@@ -67,7 +72,7 @@ public partial class ReminderStackWindow : Window
     }
 
     // The bottom edge moves up past every toast of the app that sits in the stack's column (each one found moves it again).
-    private static int LiftAboveToasts(int left, int width, int bottom, int height)
+    private static int LiftAboveToasts(int left, int width, int bottom, int height, int gap)
     {
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
@@ -82,10 +87,10 @@ public partial class ReminderStackWindow : Window
             foreach (PixelRect toast in toasts)
             {
                 bool sameColumn = toast.X < left + width && left < toast.Right;
-                bool overlaps = toast.Y < bottom && bottom - height < toast.Bottom;
-                if (sameColumn && overlaps && toast.Y < bottom)
+                bool overlaps = toast.Y - gap < bottom && bottom - height < toast.Bottom;
+                if (sameColumn && overlaps && toast.Y - gap < bottom)
                 {
-                    bottom = toast.Y;
+                    bottom = toast.Y - gap;
                     moved = true;
                 }
             }

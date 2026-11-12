@@ -34,10 +34,14 @@ public sealed class ReminderDismissButton : Button
     public static readonly StyledProperty<Func<DateTimeOffset>?> ClockProperty =
         AvaloniaProperty.Register<ReminderDismissButton, Func<DateTimeOffset>?>(nameof(Clock));
 
+    /// <summary>The command parameter a completed hold passes, so the ringer knows a Can't miss was held (a click passes CommandParameter).</summary>
+    public const string HoldCompleted = "held";
+
     // A wait the fill already shows is not restarted for a tick's small difference (the card reads the clock once a second).
     private static readonly TimeSpan RestartAbove = TimeSpan.FromMilliseconds(400);
 
     private readonly DispatcherTimer _frame = new() { Interval = TimeSpan.FromMilliseconds(33) };
+    private Window? _window;
     private FillPhase _phase;
     private DateTimeOffset _phaseStart;
     private TimeSpan _phaseLength;
@@ -140,10 +144,32 @@ public sealed class ReminderDismissButton : Button
         }
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _window = TopLevel.GetTopLevel(this) as Window;
+        if (_window is not null)
+        {
+            _window.Deactivated += OnWindowDeactivated;
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _frame.Stop();
+        if (_window is not null)
+        {
+            _window.Deactivated -= OnWindowDeactivated;
+            _window = null;
+        }
+
+        StopFill();
+    }
+
+    // The key or button may be let go in another window: the hold ends with the window's activation.
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        CancelHold();
     }
 
     // A click never dismisses a Can't miss: only a full hold does.
@@ -225,7 +251,7 @@ public sealed class ReminderDismissButton : Button
     private void FollowWait()
     {
         TimeSpan left = WaitLeft;
-        if (left <= TimeSpan.Zero || WaitTotal <= TimeSpan.Zero)
+        if (left <= TimeSpan.Zero || WaitTotal <= TimeSpan.Zero || !IsEffectivelyVisible)
         {
             if (_phase == FillPhase.Wait)
             {
@@ -255,7 +281,7 @@ public sealed class ReminderDismissButton : Button
 
     private void StartHold()
     {
-        if (Clock is null)
+        if (Clock is null || !IsEffectivelyVisible)
         {
             return;
         }
@@ -287,7 +313,8 @@ public sealed class ReminderDismissButton : Button
 
     private void OnFrame()
     {
-        if (_phase == FillPhase.None || _phaseLength <= TimeSpan.Zero)
+        // A hidden copy (another screen's dimmed window, the stack's list view) doesn't tick; the next second's wait restarts it if shown.
+        if (_phase == FillPhase.None || _phaseLength <= TimeSpan.Zero || !IsEffectivelyVisible)
         {
             StopFill();
             return;
@@ -303,9 +330,9 @@ public sealed class ReminderDismissButton : Button
 
         FillPhase finished = _phase;
         StopFill();
-        if (finished == FillPhase.Hold && IsEffectivelyEnabled && Command is ICommand command && command.CanExecute(CommandParameter))
+        if (finished == FillPhase.Hold && IsEffectivelyEnabled && Command is ICommand command && command.CanExecute(HoldCompleted))
         {
-            command.Execute(CommandParameter);
+            command.Execute(HoldCompleted);
         }
     }
 }

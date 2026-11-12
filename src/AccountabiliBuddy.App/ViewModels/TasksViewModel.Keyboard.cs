@@ -59,7 +59,7 @@ public sealed partial class TasksViewModel
     }
 
     /// <summary>
-    /// Ctrl+G: opens the task with this ID ("142", or "142b" for its step) on the Tasks page: the Shelf or Today column shows if it was
+    /// Ctrl+G: opens the task with this ID ("142", or "142b" for its step) on the Tasks page (switching to it from any other page): the Shelf or Today column shows if it was
     /// hidden, its section unfolds, the task opens and its row takes the keyboard. Null when it opened; otherwise what to say ("No task
     /// 142"). Only tasks the page lists can open (the Shelf's view may leave one out: it says so).
     /// </summary>
@@ -108,6 +108,8 @@ public sealed partial class TasksViewModel
                     SelectRow(row);
                 }
 
+                // From another page the window switches to Tasks first; the row takes the keyboard once the page shows it.
+                OpenRequested?.Invoke(this, EventArgs.Empty);
                 FocusRowRequested?.Invoke(this, row.Key);
                 return null;
             }

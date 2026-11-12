@@ -32,6 +32,18 @@ public static class TaskReminderActions
         return Write(lists, entry, now, self, existing => new TaskReminderOccurrence(entry.Due, TaskReminderStatus.Started, null, existing?.SnoozeCount ?? 0));
     }
 
+    /// <summary>
+    /// A "Start session" / "Work on it now" whose task found no room in This session: the occurrence goes back to what it was before
+    /// (<paramref name="before"/>; null: it had no state yet, so it is up again), so the reminder keeps ringing. Only a Started state is
+    /// put back; anything another device wrote meanwhile stays.
+    /// </summary>
+    public static TaskActionResult Unstart(TaskLists lists, TaskReminderEntry entry, TaskReminderOccurrence? before, DateTimeOffset now, Guid self)
+    {
+        return Write(lists, entry, now, self, existing => existing is { Status: TaskReminderStatus.Started }
+            ? before ?? new TaskReminderOccurrence(entry.Due, TaskReminderStatus.Up, null, existing.SnoozeCount)
+            : existing!);
+    }
+
     private static TaskActionResult Write(
         TaskLists lists, TaskReminderEntry entry, DateTimeOffset now, Guid self, Func<TaskReminderOccurrence?, TaskReminderOccurrence> change)
     {

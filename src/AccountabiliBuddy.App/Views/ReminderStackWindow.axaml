@@ -6,13 +6,14 @@
         x:Class="AccountabiliBuddy.App.Views.ReminderStackWindow"
         x:DataType="vm:ReminderStackViewModel"
         Title="Task reminder"
-        Width="428" SizeToContent="Height"
+        Width="370" SizeToContent="Height"
         WindowDecorations="None" CanResize="False"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False"
         WindowStartupLocation="Manual"
         TransparencyLevelHint="Transparent" Background="Transparent">
     <!-- Spec 03 §D (P7, P8, P12): the toast stack at the bottom right of the screen (370 wide, right 18, bottom 18). The window is
-         transparent around the card so the tilted cards behind it and the Snooze menu above it fit; it grows upwards. -->
+         only as big as what it shows (Avalonia's clear window parts still take clicks): 370 wide, with room above the card only for the
+         tilted cards behind it and the open Snooze menu; it grows upwards. The tilt's corners past the card's sides are clipped. -->
     <Window.Styles>
         <Style Selector="Button.remAccent">
             <Setter Property="Height" Value="32" />
@@ -128,6 +129,11 @@
         <Style Selector="Button.remRow.shown /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <!-- Room above the card for the tilted cards behind it, only while they show (the window is no bigger than what it shows:
+             a clear part of a window still takes clicks). -->
+        <Style Selector="Grid.remDeck.behind">
+            <Setter Property="Margin" Value="0,30,0,0" />
+        </Style>
         <Style Selector="Border.remBehind">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
@@ -137,9 +143,9 @@
         </Style>
     </Window.Styles>
 
-    <StackPanel Margin="40,40,18,18" Width="370" Spacing="8" VerticalAlignment="Bottom">
+    <StackPanel Width="370" Spacing="6" VerticalAlignment="Bottom">
         <!-- The Snooze menu, above the card (spec 03 §D). -->
-        <Border IsVisible="{Binding IsSnoozeOpen}" Width="250" HorizontalAlignment="Center" Margin="0,0,0,32"
+        <Border IsVisible="{Binding IsSnoozeOpen}" Width="250" HorizontalAlignment="Center"
                 Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
                 CornerRadius="{DynamicResource Ab.PopoverRadius}" BoxShadow="{DynamicResource Ab.PopoverShadow}" Padding="4">
             <StackPanel Spacing="1">
@@ -173,7 +179,7 @@
             </StackPanel>
         </Border>
 
-        <Grid>
+        <Grid Classes="remDeck" Classes.behind="{Binding ShowsBehindNear}">
             <!-- Up to 3 tilted cards behind the front one: −4°, 3°, −1.5° (the farthest first). -->
             <Border Classes="remBehind" IsVisible="{Binding ShowsBehindFar}" RenderTransform="rotate(-4deg) translate(-6px,-24px)" />
             <Border Classes="remBehind" IsVisible="{Binding ShowsBehindMid}" RenderTransform="rotate(3deg) translate(4px,-16px)" />

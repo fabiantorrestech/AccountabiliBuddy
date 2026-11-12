@@ -197,11 +197,15 @@ public sealed partial class ReminderStackViewModel : ObservableObject
         _host.PickTime();
     }
 
-    [RelayCommand(CanExecute = nameof(CanDismiss))]
-    private void Dismiss()
+    /// <summary>
+    /// Dismiss: a click, or a full hold (the button then passes <see cref="Controls.ReminderDismissButton.HoldCompleted"/>); the
+    /// ringer refuses a Can't miss that wasn't held.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanDismissWith))]
+    private void Dismiss(object? parameter)
     {
         IsSnoozeOpen = false;
-        _host.Dismiss();
+        _host.Dismiss(Equals(parameter, Controls.ReminderDismissButton.HoldCompleted));
     }
 
     [RelayCommand]
@@ -268,6 +272,8 @@ public sealed partial class ReminderStackViewModel : ObservableObject
     }
 
     private bool CanDismissAllNow() => CanAct && CanDismissAll;
+
+    private bool CanDismissWith(object? parameter) => CanDismiss;
 
     private void SnoozeFor(int minutes)
     {

@@ -28,6 +28,9 @@ public partial class TaskRowView : UserControl
     private bool _pointerClick;
     private TaskListRowViewModel? _row;
 
+    // Space is down on the row: its key repeats don't tick and untick the row again and again.
+    private bool _spaceHeld;
+
     public TaskRowView()
     {
         InitializeComponent();
@@ -36,6 +39,7 @@ public partial class TaskRowView : UserControl
         // Space is the row's tick, not a click: taken before the button presses itself (and its release, which would click).
         RowButton.AddHandler(KeyDownEvent, OnRowSpaceDown, RoutingStrategies.Tunnel);
         RowButton.AddHandler(KeyUpEvent, OnRowSpaceUp, RoutingStrategies.Tunnel);
+        RowButton.LostFocus += (_, _) => _spaceHeld = false;
     }
 
     private TaskSectionView? Section => this.FindAncestorOfType<TaskSectionView>();
@@ -276,6 +280,12 @@ public partial class TaskRowView : UserControl
         }
 
         e.Handled = true;
+        if (_spaceHeld)
+        {
+            return;
+        }
+
+        _spaceHeld = true;
         if (e.KeyModifiers == KeyModifiers.Control)
         {
             if (row.OwnerKey is null)
@@ -291,6 +301,11 @@ public partial class TaskRowView : UserControl
 
     private void OnRowSpaceUp(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Space)
+        {
+            _spaceHeld = false;
+        }
+
         if (e.Key == Key.Space && ReferenceEquals(e.Source, RowButton))
         {
             e.Handled = true;
