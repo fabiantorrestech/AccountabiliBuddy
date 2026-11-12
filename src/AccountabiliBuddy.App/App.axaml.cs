@@ -1074,6 +1074,7 @@ public partial class App : Application
             HasSyncMethod = () => syncSettings.Current is { } sync
                 && ((sync.FolderOn && !string.IsNullOrWhiteSpace(sync.FolderPath)) || sync.DriveOn || sync.RelayOn),
             Goal = goal,
+            SetDailyGoal = minutes => SetDailyGoalAsync(goal, minutes),
             StartNudge = _startNudge,
             Appearance = new AppearanceViewModel(appTheme),
             WorkHours = _workHours,
@@ -1423,6 +1424,25 @@ public partial class App : Application
         // Today's goals on the Today sidebar: the goals with Show on Today (R5 replaces R2a's Deep-work-only hook); Deep work's card keeps
         // the daily goal's edit and lines.
         sessionViewModel.TodayGoals = new TodayGoalsViewModel(sessionViewModel.Goal, _goals, goalData);
+        // Q375: every older daily-goal screen (the goal card, the start-of-day card, the day plan and setup assistants) sets the goal through
+        // the goals' one rule: raising at once; lowering waits the looser-change delay and never starts during a session outside PB.
+        sessionViewModel.Goal.SetDailyGoal = minutes => SetDailyGoalAsync(goal, minutes);
+        startOfDay.SetDailyGoal = minutes => SetDailyGoalAsync(goal, minutes);
+        // R5.7 (plan §3b 7): Google Calendar goal sources count the time in events of a day plan category, as ADR 58 classifies them, from
+        // the events this PC already keeps. Goal counts only: never focus totals, Stats or a guard. Rebuilt only when the calendars, the
+        // classifications or the plan change.
+        IReadOnlyDictionary<Guid, IReadOnlyList<LocalWindow>>? goalCalendar = null;
+        void ForgetGoalCalendar()
+        {
+            goalCalendar = null;
+            Dispatcher.UIThread.Post(goalData.Recompute);
+        }
+
+        goalData.CalendarWindows = () => goalCalendar ??= AccountabiliBuddy.App.Services.Goals.GoalCalendarWindows.From(
+            calendars.AllEvents(), _configuration!.Current.DayPlan, calendarOverlay.Classifications, calendarOverlay.Rules.Active);
+        calendars.Changed += (_, _) => ForgetGoalCalendar();
+        calendarOverlay.Changed += (_, _) => ForgetGoalCalendar();
+        _configuration.Changed += (_, _) => ForgetGoalCalendar();
         Func<Guid, string?> goalLabelName = labelId => sessionTasks.Categories.FirstOrDefault(category => category.Id == labelId)?.Name
             ?? sessionTasks.Categories.FirstOrDefault(category => AccountabiliBuddy.Core.Domain.TaskLabel.IdFor(category.Name) == labelId)?.Name;
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -1768,10 +1788,56 @@ public partial class App : Application
         // (New goal, Edit goal, areas, the weekly review) and Settings › Goals are R5b's (hooks).
         var goalsPage = new GoalsViewModel(_goals, goalData, () => guidance.IsCompanion, goalLabelName)
         {
-            OpenStats = _ => mainViewModel.SelectedTab = MainWindowViewModel.StatsTab,
-            OpenGoalsSettings = () => mainViewModel.SelectedTab = MainWindowViewModel.SettingsTab,
+            OpenGoalsSettings = () => mainViewModel.OpenSettings(SettingsSection.Goals),
+            SessionPresets = () => _configuration!.Current.Profiles
+                .Select(profile => new GoalSessionPreset(profile.Id, profile.Name, profile.Id == _quickSession!.CountUpProfileId))
+                .ToList(),
+            // The usual start (QuickSessionService: the remembered length, the session rules); refused while one runs.
+            StartPreset = profileId => Task.FromResult<string?>(_sessions!.State.IsActive
+                ? "A session is already running."
+                : _quickSession!.StartQuick(profileId) ? null : "The session couldn't start (its profile or the session rules held it)."),
+            OpenStartControls = () => _quickSession!.Show(),
+            SessionRunning = () => _sessions!.State.IsActive,
+            // Opens Beeminder's site in the user's browser: the app itself makes no connection for it.
+            OpenInBrowser = address => OpenInBrowser(new Uri(address)),
         };
+        // Stats for the goal shown: its year with paused stretches hatched over Stats' own views (R5.4); Stats alone without a goal.
+        goalsPage.OpenStats = goalId =>
+        {
+            if (goalId is Guid shownId && goalsPage.Facts.FirstOrDefault(facts => facts.Goal.Id == shownId) is { } shownFacts)
+            {
+                string? areaName = _goals.Lists.Areas.FirstOrDefault(area => area.Id == shownFacts.Goal.AreaId && area.IsLive)?.Name;
+                statsViewModel.ShowGoal(new StatsGoalHistoryViewModel(shownFacts, goalData.Current, _goals.Store.PageSettings, areaName));
+            }
+
+            mainViewModel.SelectedTab = MainWindowViewModel.StatsTab;
+        };
+        goalsPage.NewGoalRequested += async (_, _) => await ShowGoalEditorAsync(goalData, null, GoalEditSection.Basics, false, sessionTasks, guidance);
+        goalsPage.EditGoalRequested += async (_, request) => await ShowGoalEditorAsync(goalData, request.GoalId, request.Section, request.FocusActive, sessionTasks, guidance);
+        goalsPage.EditAreaRequested += async (_, areaId) =>
+        {
+            if (_goals.Lists.Areas.FirstOrDefault(area => area.Id == areaId && area.IsLive) is { } editedArea)
+            {
+                await GoalAreaDialog.ShowAsync(VisibleMainWindow(), new GoalAreaEditorViewModel(_goals, editedArea));
+            }
+        };
+        goalsPage.AreasRequested += async (_, _) => await GoalAreasDialog.ShowAsync(VisibleMainWindow(), _goals);
         mainViewModel.Goals = goalsPage;
+        if (_goals.Store.IsReady)
+        {
+            mainViewModel.Settings.GoalsPage = new GoalsSettingsViewModel(_goals)
+            {
+                OpenAreas = () => _ = GoalAreasDialog.ShowAsync(VisibleMainWindow(), _goals),
+                OpenIntegrations = () => mainViewModel.OpenSettings(SettingsSection.Connections),
+            };
+        }
+
+        // Settings › Goals › "Run the tidy-up straight after": the tidy-up moves to the review's day and its own card stops showing.
+        if (_taskTidyUp is { } tidyUp)
+        {
+            tidyUp.FollowsReviewOn = () => _goals.Store.PageSettings is { ReviewSettings.TidyUpAfter: true } goalSettings ? goalSettings.ReviewDay : null;
+            _goals.Store.Changed += (_, _) => tidyUp.NotifyChanged();
+        }
         guidance.Changed += (_, _) => Dispatcher.UIThread.Post(goalsPage.MarkChanged);
         // "Ended · switches next time": opening Tasks again switches it back to planning; header clicks on its sections are forgotten.
         mainViewModel.PropertyChanged += (_, args) =>
@@ -2284,6 +2350,7 @@ public partial class App : Application
             {
                 Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime),
                 GoalLowerWaits = goalLowerWaits,
+                SetDailyGoal = minutes => SetDailyGoalAsync(goal, minutes),
                 WorkHoursGuardOn = () => _workHours?.Settings.On == true,
                 HasLinkedPhone = () => receivedDevices.Active.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
                 RefreshProgress = () => _deepWork?.CheckNow(),
@@ -3658,6 +3725,62 @@ public partial class App : Application
             .FirstOrDefault(planned => planned.Part.Id == slot.PartId && DateOnly.FromDateTime(planned.Window.Start) == slot.Date);
         return part?.Window.Start ?? slot.StartsAt;
     }
+
+    // Q375: the older daily-goal screens set the goal through GoalsService's one rule and get back what to tell the user (null: applied).
+    private async Task<string?> SetDailyGoalAsync(GoalService daily, int minutes)
+    {
+        if (_goals is not { } goals)
+        {
+            // Only before the goals service exists (never once the window is up): the stricter half of the rule, raising only.
+            if (minutes > daily.Current.DailyMinutes)
+            {
+                await daily.SetAsync(minutes);
+                return null;
+            }
+
+            return minutes == daily.Current.DailyMinutes ? null : "Lowering the goal isn't possible right now. Raising it is fine.";
+        }
+
+        return goals.DailyGoalNote(await goals.SetDailyGoalAsync(minutes));
+    }
+
+    // New goal (goalId null) or Edit goal at a section, over the main window (round 2 R5.4). Labels, day plan categories and Beeminder's
+    // cached goals are read as it opens; nothing is fetched.
+    private async Task ShowGoalEditorAsync(
+        AccountabiliBuddy.App.Services.Goals.GoalSourceDataService data, Guid? goalId, GoalEditSection section, bool focusActive,
+        SessionTasksService sessionTasks, GuidanceModeService guidance)
+    {
+        if (_goals is not { } goals || !goals.Store.IsReady)
+        {
+            return;
+        }
+
+        AccountabiliBuddy.Core.Goals.Goal? goal = goalId is Guid id ? goals.Lists.Goals.FirstOrDefault(item => item.Id == id && item.IsLive) : null;
+        if (goalId is not null && goal is null)
+        {
+            return;
+        }
+
+        var labels = sessionTasks.Categories
+            .Select(category => new GoalChoice(AccountabiliBuddy.Core.Domain.TaskLabel.IdFor(category.Name).ToString(), category.Name,
+                Brush: GoalIcons.Brush(category.Color)))
+            .ToList();
+        var categories = _configuration!.Current.DayPlan.Categories
+            .Select(category => new GoalChoice(category.Id.ToString(), category.Name, Brush: GoalIcons.Brush(category.Color)))
+            .ToList();
+        var beeminder = (_beeminder?.Goals ?? [])
+            .Select(item => new GoalChoice(item.Title, item.Title, Note: $"{(item.Needed.Length > 0 ? item.Needed + " · " : string.Empty)}{item.SafeDays} safe days"))
+            .ToList();
+        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion);
+        var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
+        Guid? created = await GoalEditorDialog.ShowAsync(VisibleMainWindow(), editor, goals);
+        if (created is Guid made && GoalsPageOfWindow() is { } page)
+        {
+            page.Select(made);
+        }
+    }
+
+    private GoalsViewModel? GoalsPageOfWindow() => (_mainWindow?.DataContext as MainWindowViewModel)?.Goals;
 
     private static bool OpenInBrowser(Uri uri)
     {

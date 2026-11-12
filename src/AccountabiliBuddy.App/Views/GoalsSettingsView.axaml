@@ -1,0 +1,191 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.GoalsSettingsView"
+             x:DataType="vm:GoalsSettingsViewModel">
+    <!-- Settings › Goals (round 2 R5.6, brief §4.7): weekly review, default reminders, charts, extra tiles default, areas, connections and
+         the pausing rules. This PC's "goals.settings", saved at once; display and suggestions only, so not locked during a session. -->
+    <UserControl.Styles>
+        <Style Selector="mi|MaterialIcon.rowIcon">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,16,24" Spacing="18" MaxWidth="860" HorizontalAlignment="Left">
+            <TextBlock Classes="sHint" Text="Goals are suggestions on this PC: nothing here locks, waits or feeds a guard." TextWrapping="Wrap" />
+
+            <!-- Weekly review -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Weekly goals review">
+                <TextBlock Classes="sGroup" Text="Weekly review" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CalendarCheck" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="When it comes" />
+                                    <TextBlock Classes="sHint" Text="{Binding ReviewSummary}" TextWrapping="Wrap" />
+                                    <TextBlock Classes="sHint" Foreground="{DynamicResource Ab.Waiting}" Text="{Binding ReviewTimeProblem}" IsVisible="{Binding HasReviewTimeProblem}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" ItemsSource="{Binding ReviewDayChoices}" SelectedIndex="{Binding ReviewDayIndex}" MinWidth="160" VerticalAlignment="Top"
+                                          AutomationProperties.Name="Weekly review day" />
+                                <TextBox Grid.Column="3" Text="{Binding ReviewTimeText}" Width="110" VerticalAlignment="Top" AutomationProperties.Name="Weekly review time" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="AlarmSnooze" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Snooze for" />
+                                    <TextBlock Classes="sHint" Text="In AccountabiliBuddy mode it asks again after the snooze; in ProductaBuddy mode a snooze stays snoozed." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding SnoozeChoices}" SelectedIndex="{Binding SnoozeIndex}"
+                                         AutomationProperties.Name="Snooze length" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Tidy-up after the review">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="Broom" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Run the tidy-up straight after" />
+                                    <TextBlock Classes="sHint" Text="The weekly tidy-up moves to the review's day and its own card stops showing." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding TidyUpAfter}" VerticalAlignment="Top" AutomationProperties.Name="Run the tidy-up straight after the review" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Default reminders -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Default goal reminders">
+                <TextBlock Classes="sGroup" Text="Default reminders" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="BellCheckOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Skip when the goal is already done" />
+                                    <TextBlock Classes="sHint" Text="Checked when a reminder would ring. New goals start with this; each goal can change it." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding SkipWhenDone}" VerticalAlignment="Top" AutomationProperties.Name="Skip when the goal is already done" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="TrendingDown" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Nudge when the week falls behind · AccountabiliBuddy mode" />
+                                    <TextBlock Classes="sHint" Text="One nudge the morning after a goal drops below pace. On by default." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding NudgeAccountabiliBuddy}" VerticalAlignment="Top" AutomationProperties.Name="Nudge when behind in AccountabiliBuddy mode" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="TrendingDown" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Nudge when the week falls behind · ProductaBuddy mode" />
+                                    <TextBlock Classes="sHint" Text="Off by default: ProductaBuddy is the quieter version." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding NudgeProductaBuddy}" VerticalAlignment="Top" AutomationProperties.Name="Nudge when behind in ProductaBuddy mode" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Charts and tiles -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Goal charts">
+                <TextBlock Classes="sGroup" Text="Charts" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CalendarWeekBegin" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Week starts on" />
+                                    <TextBlock Classes="sHint" Text="Every goal's week, streak and heatmap (also in Goals Options)." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding WeekStartChoices}" SelectedIndex="{Binding WeekStartIndex}"
+                                         AutomationProperties.Name="Week starts on" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="FormatListText" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Heatmap day labels" />
+                                    <TextBlock Classes="sHint" Text="The weekday names beside the heatmap." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding LabelChoices}" SelectedIndex="{Binding LabelsIndex}"
+                                         AutomationProperties.Name="Heatmap day labels" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Extra tiles">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="ViewDashboardOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Extra tiles on every goal" />
+                                    <TextBlock Classes="sHint" Text="Streak and Total live in Stats; switch them on here for every goal, or per goal in Edit goal › On screen." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" IsChecked="{Binding StreakTile}" Content="Streak" VerticalAlignment="Top" />
+                                <CheckBox Grid.Column="3" IsChecked="{Binding TotalTile}" Content="Total" VerticalAlignment="Top" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Areas and connections -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Goal areas">
+                <TextBlock Classes="sGroup" Text="Areas and connections" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="ShapeOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Areas" />
+                                    <TextBlock Classes="sHint" Text="{Binding AreasText}" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Edit areas…" Command="{Binding AreasCommand}" VerticalAlignment="Top" />
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow" search:SearchArea.Name="Goal connections">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="PuzzleOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Connections" />
+                                    <TextBlock Classes="sHint" Text="{Binding ConnectionsText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="Open Integrations" Command="{Binding IntegrationsCommand}" VerticalAlignment="Top" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Pausing rules -->
+            <StackPanel Spacing="6" search:SearchArea.Name="Pausing goals">
+                <TextBlock Classes="sGroup" Text="Pausing" />
+                <Border Classes="sPanel">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="PauseCircleOutline" />
+                            <TextBlock Grid.Column="1" Classes="sHint" Text="{Binding PausingRules}" TextWrapping="Wrap" />
+                        </Grid>
+                    </Border>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

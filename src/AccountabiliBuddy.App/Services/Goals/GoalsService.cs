@@ -95,6 +95,15 @@ public sealed class GoalsService
 
     private DateTimeOffset Now => _time.GetUtcNow();
 
+    /// <summary>A looser Deep work change would be refused now: a session runs outside ProductaBuddy mode (the screens say so first).</summary>
+    public bool LooserChangeRefusedNow => !_isProductaBuddy() && SessionRunning;
+
+    /// <summary>Whether the app is in ProductaBuddy mode (the screens' wording).</summary>
+    public bool IsProductaBuddy => _isProductaBuddy();
+
+    /// <summary>The looser-change wait in effect ("waits 10 min").</summary>
+    public TimeSpan LooserWait => _looserWait();
+
     private DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(Now, TimeZoneInfo.Local).DateTime);
 
     private bool SessionRunning => _sessions.State.IsActive;
@@ -103,6 +112,67 @@ public sealed class GoalsService
 
     /// <summary>Deep work's daily target (the "goal" document). Raising applies at once; lowering follows the Deep work rule.</summary>
     public Task<GoalChangeResult> SetDeepWorkDailyAsync(int minutes) => GatedAsync(() => SetDailyGatedAsync(minutes));
+
+    /// <summary>
+    /// The daily goal from the older screens (the goal card, the start-of-day card, the day plan assistant, the setup assistant; Q375):
+    /// one rule for every way in, the stricter one. With the goals ready this is <see cref="SetDeepWorkDailyAsync"/> (raising at once;
+    /// lowering waits the looser-change delay and never during a session outside ProductaBuddy mode, and the work-hours rule holds it).
+    /// When this PC's goals aren't ready or can't be read, a raise (or no change) is still written at once through the "goal" document,
+    /// and a lowering is refused (<see cref="GoalChangeResult.NotAvailable"/>): it can't wait without a place to keep the wait, and
+    /// lowering at once would be looser than the rule.
+    /// </summary>
+    public async Task<GoalChangeResult> SetDailyGoalAsync(int minutes)
+    {
+        int wanted = Math.Clamp(minutes, MinDailyMinutes, MaxDailyMinutes);
+        if (_store.IsReady && _store.Lists.DeepWorkRecord is not null)
+        {
+            return await SetDeepWorkDailyAsync(wanted);
+        }
+
+        int current = _daily.Current.DailyMinutes;
+        if (wanted == current)
+        {
+            return GoalChangeResult.Unchanged;
+        }
+
+        if (wanted < current)
+        {
+            return GoalChangeResult.NotAvailable;
+        }
+
+        await _daily.SetAsync(wanted);
+        return GoalChangeResult.Applied;
+    }
+
+    /// <summary>
+    /// What an older daily-goal screen says after <see cref="SetDailyGoalAsync"/> (null when it applied or nothing changed):
+    /// "Lowering the goal to 1h waits until 2:14 PM…", "…not during a session", or why it can't be lowered now.
+    /// </summary>
+    public string? DailyGoalNote(GoalChangeResult result)
+    {
+        switch (result)
+        {
+            case GoalChangeResult.Waiting when _store.DeepWork.PendingDaily is GoalPendingChange pending:
+            {
+                string to = pending.Amount is double amount ? GoalTexts.Minutes(amount) : "no target";
+                string at = GoalTexts.Time(pending.AppliesAt, _time.LocalTimeZone);
+                return pending.AppliesAt <= Now
+                    ? $"Lowering the goal to {to} waits until today's work hours are over (raising it is fine)."
+                    : $"Lowering the goal to {to} waits until {at} and never happens during a session (raising it is fine). Cancel it on Goals › Deep work.";
+            }
+
+            case GoalChangeResult.Waiting:
+                return "Lowering the goal waits like any looser change (raising it is fine).";
+            case GoalChangeResult.RefusedDuringSession:
+                return "Lowering the goal can't start during a session. Raising it is fine.";
+            case GoalChangeResult.NotAvailable:
+                return "Lowering the goal isn't possible right now: this PC's goals aren't ready. Raising it is fine.";
+            case GoalChangeResult.NotAllowed:
+                return "That goal can't be set here.";
+            default:
+                return null;
+        }
+    }
 
     /// <summary>Deep work's weekly target in minutes (null = none). Raising or adding applies at once; lowering or removing follows the Deep work rule.</summary>
     public Task<GoalChangeResult> SetDeepWorkWeeklyAsync(int? minutes) => GatedAsync(() => SetWeeklyGatedAsync(minutes));

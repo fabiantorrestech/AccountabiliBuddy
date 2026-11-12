@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             x:Class="AccountabiliBuddy.App.Views.StatsGoalHistoryView"
+             x:DataType="vm:StatsGoalHistoryViewModel">
+    <!-- One goal in Stats (round 2 R5.4): its year as the goals heatmap draws it (paused days hatched), its paused stretches in words
+         ("Paused Sep 14 – Oct 30"), its age and streak; × goes back to Stats' own views. -->
+    <StackPanel Spacing="16">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource Ab.Surface2}">
+                <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" Foreground="{Binding ColourBrush}" />
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <TextBlock Classes="muted" Text="{Binding Subtitle}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="abHeaderIcon" Command="{Binding CloseCommand}" ToolTip.Tip="Back to all of Stats" AutomationProperties.Name="Back to all of Stats">
+                <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
+            </Button>
+        </Grid>
+
+        <WrapPanel ItemSpacing="16" LineSpacing="6">
+            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding AgeText}" />
+            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding StreakText}" />
+        </WrapPanel>
+
+        <!-- Paused stretches: their own state, hatched, never a miss. -->
+        <StackPanel Spacing="6" IsVisible="{Binding HasPausedStretches}">
+            <ItemsControl ItemsSource="{Binding PausedStretches}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel ItemSpacing="8" LineSpacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <Border CornerRadius="999" Padding="10,4" BorderThickness="1" BorderBrush="{DynamicResource Ab.Line}" Background="{DynamicResource Ab.Surface2}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Width="12" Height="12" CornerRadius="3" ClipToBounds="True" BorderThickness="1" BorderBrush="{DynamicResource Ab.Faint}">
+                                    <Border.Background>
+                                        <VisualBrush TileMode="Tile" DestinationRect="0,0,4,4" SourceRect="0,0,4,4">
+                                            <VisualBrush.Visual>
+                                                <Canvas Width="4" Height="4">
+                                                    <Line StartPoint="0,4" EndPoint="4,0" Stroke="{DynamicResource Ab.Muted}" StrokeThickness="1" />
+                                                </Canvas>
+                                            </VisualBrush.Visual>
+                                        </VisualBrush>
+                                    </Border.Background>
+                                </Border>
+                                <TextBlock Text="{Binding}" FontSize="12.5" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="muted" FontSize="12" Text="{Binding PausedNote}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- The goal's year (the goals heatmap: paused days hatched). -->
+        <StackPanel x:Name="HeatmapHost" Spacing="10" DataContext="{Binding Heatmap}" x:DataType="vm:GoalHeatmapViewModel">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Classes="muted" Text="{Binding Dates}" FontSize="13" VerticalAlignment="Center" />
+                <Button Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding PreviousCommand}" ToolTip.Tip="Earlier" AutomationProperties.Name="Earlier">
+                    <mi:MaterialIcon Kind="ChevronLeft" Width="16" Height="16" />
+                </Button>
+                <Button Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding NextCommand}" ToolTip.Tip="Later" AutomationProperties.Name="Later">
+                    <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" />
+                </Button>
+            </StackPanel>
+            <controls:HeatmapControl x:Name="GoalYear" HorizontalAlignment="Left" Cells="{Binding Cells}" ColumnCount="{Binding Columns}" RowCount="7"
+                                     RowLabels="{Binding RowLabels}" RowLabelWidth="{Binding RowLabelWidth}" ColumnSpans="{Binding MonthLabels}"
+                                     Dividers="{Binding Dividers}" FixedCellSize="15" CellGap="3"
+                                     EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{Binding RampBrush}" LabelBrush="{DynamicResource Ab.Muted}"
+                                     LineBrush="{DynamicResource Ab.Faint}" TodayRingBrush="{DynamicResource Ab.Accent}" SelectedRingBrush="{DynamicResource Ab.Ink}"
+                                     TodayDate="{Binding Today}" AutomationProperties.Name="Goal year heatmap" />
+            <WrapPanel ItemSpacing="14" LineSpacing="6">
+                <controls:HeatLegend EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{Binding RampBrush}" LabelBrush="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                <TextBlock Classes="muted" FontSize="12" Text="{Binding LegendNote}" VerticalAlignment="Center" />
+            </WrapPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

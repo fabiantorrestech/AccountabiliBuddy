@@ -70,6 +70,12 @@ public sealed partial class DpAssistantViewModel : ObservableObject
     /// <summary>True while lowering the goal has to wait (work left today under the work-hours guard); set by the app.</summary>
     public Func<bool> GoalLowerWaits { get; init; } = () => false;
 
+    /// <summary>
+    /// Sets the daily goal through the goals' one rule (Q375: <see cref="Services.Goals.GoalsService.SetDailyGoalAsync"/>); returns what to
+    /// tell the user, or null when it applied. Set by the app; without it the older rule holds (lowering refused while work is left today).
+    /// </summary>
+    public Func<int, Task<string?>>? SetDailyGoal { get; init; }
+
     /// <summary>This PC guards work hours (the goal lifts the guard once met); set by the app.</summary>
     public Func<bool> WorkHoursGuardOn { get; init; } = () => false;
 
@@ -825,7 +831,11 @@ public sealed partial class DpAssistantViewModel : ObservableObject
             notes.Add($"Held for {minutes} minutes: {held}. Your current plan keeps applying until then; a banner counts it down and can cancel it.");
         }
 
-        if (GoalMinutes < _goal.Current.DailyMinutes && GoalLowerWaits())
+        if (GoalMinutes < _goal.Current.DailyMinutes && SetDailyGoal is not null)
+        {
+            notes.Add($"The goal stays at {DpAssistantReview.Hours(_goal.Current.DailyMinutes)} for now: lowering it waits like any looser change and never during a session (raising it applies at once).");
+        }
+        else if (GoalMinutes < _goal.Current.DailyMinutes && GoalLowerWaits())
         {
             notes.Add($"The goal stays at {DpAssistantReview.Hours(_goal.Current.DailyMinutes)} until today's work hours are over: lowering it waits (raising it applies at once).");
         }
@@ -894,7 +904,14 @@ public sealed partial class DpAssistantViewModel : ObservableObject
             {
                 planChanged ? _configuration.DayPlanWaitText ?? "Your day plan is saved." : "Your day plan is unchanged.",
             };
-            if (GoalMinutes != _goal.Current.DailyMinutes)
+            if (GoalMinutes != _goal.Current.DailyMinutes && SetDailyGoal is { } setDaily)
+            {
+                // One rule (Q375): raising at once; lowering waits and never starts during a session.
+                string? note = await setDaily(GoalMinutes);
+                RefreshProgress();
+                saved.Add(note ?? $"The daily goal is {DpAssistantReview.Hours(GoalMinutes)}.");
+            }
+            else if (GoalMinutes != _goal.Current.DailyMinutes)
             {
                 if (GoalMinutes < _goal.Current.DailyMinutes && GoalLowerWaits())
                 {

@@ -152,6 +152,9 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         NotesPreview = HasNotes ? (notes.Length > 280 ? notes[..280].TrimEnd() + "…" : notes) : "No notes yet. Why it matters, links: add them in Edit goal › Notes.";
     }
 
+    /// <summary>The day panel goes back to today (the goal menu's Log a value… / Add time by hand…).</summary>
+    public void ShowToday() => ShowDay(null);
+
     /// <summary>Nothing to show (no goals, or goals not ready).</summary>
     public void Clear()
     {

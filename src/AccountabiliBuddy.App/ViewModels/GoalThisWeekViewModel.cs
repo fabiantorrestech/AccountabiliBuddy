@@ -93,6 +93,12 @@ public sealed partial class GoalThisWeekViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNotDue));
     }
 
+    /// <summary>"Sundays · about 4 min, then the tidy-up" from Settings › Goals' review day and its tidy-up-after option.</summary>
+    public static string ReviewText(DayOfWeek day, bool tidyUpAfter)
+    {
+        return tidyUpAfter ? $"{day}s · about 4 min, then the tidy-up" : $"{day}s · about 4 min";
+    }
+
     [RelayCommand]
     private void JumpToBehind()
     {

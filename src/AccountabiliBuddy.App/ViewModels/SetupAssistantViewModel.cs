@@ -109,6 +109,12 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     /// <summary>The daily focus goal the first run asks for; null skips saving it.</summary>
     public GoalService? Goal { get; init; }
 
+    /// <summary>
+    /// Sets the daily goal through the goals' one rule (Q375: <see cref="Services.Goals.GoalsService.SetDailyGoalAsync"/>); returns what to
+    /// tell the user, or null when it applied. Set by the app; without it the goal is written as before.
+    /// </summary>
+    public Func<int, Task<string?>>? SetDailyGoal { get; init; }
+
     /// <summary>Work hours on this computer (ADR 28), offered with the Personal type; null hides the offer.</summary>
     public WorkHoursGuard? WorkHours { get; init; }
 
@@ -798,12 +804,18 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
 
                 break;
             case AssistantStep.Goal:
-                if (Goal is not null)
+                string? goalNote = null;
+                if (SetDailyGoal is { } setDaily)
+                {
+                    // One rule (Q375): raising at once; lowering waits and never starts during a session.
+                    goalNote = await setDaily(GoalMinutes);
+                }
+                else if (Goal is not null)
                 {
                     await Goal.SetAsync(GoalMinutes);
                 }
 
-                Summary = $"Aiming for {GoalText(GoalMinutes)} of focus a day.";
+                Summary = goalNote is null ? $"Aiming for {GoalText(GoalMinutes)} of focus a day." : $"Aiming for {GoalText(GoalMinutes)} of focus a day. {goalNote}";
                 Step = AssistantStep.Done;
                 break;
             case AssistantStep.Import:

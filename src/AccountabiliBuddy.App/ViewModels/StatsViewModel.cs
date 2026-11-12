@@ -247,6 +247,37 @@ public sealed partial class StatsViewModel : ObservableObject
     [ObservableProperty]
     public partial StatsDayPanel? Day { get; set; }
 
+    /// <summary>
+    /// One goal's history (round 2 R5.4: the Goals header's Stats with a goal shown), drawn over Stats' own views until its × or another
+    /// view chip; null when Stats shows its own views. Paused stretches are hatched there (change note §4a).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsGoalHistory), nameof(ShowsViews))]
+    public partial StatsGoalHistoryViewModel? GoalHistory { get; set; }
+
+    public bool ShowsGoalHistory => GoalHistory is not null;
+
+    public bool ShowsViews => GoalHistory is null;
+
+    /// <summary>Shows one goal's history over the views (the Goals page's Stats button).</summary>
+    public void ShowGoal(StatsGoalHistoryViewModel history)
+    {
+        history.CloseRequested += (_, _) =>
+        {
+            if (ReferenceEquals(GoalHistory, history))
+            {
+                GoalHistory = null;
+            }
+        };
+        GoalHistory = history;
+    }
+
+    partial void OnViewChanged(StatsViewKind value)
+    {
+        // Picking one of Stats' own views leaves the goal's history.
+        GoalHistory = null;
+    }
+
     /// <summary>"Oct 26 – Nov 1", or the day for the Day range.</summary>
     [ObservableProperty]
     public partial string RangeText { get; set; } = string.Empty;

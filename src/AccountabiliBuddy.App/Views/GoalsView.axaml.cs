@@ -37,6 +37,7 @@ public partial class GoalsView : UserControl
         {
             _subscribed.DetailMenuRequested -= OnDetailMenuRequested;
             _subscribed.BringIntoViewRequested -= OnBringIntoViewRequested;
+            _subscribed.ConfirmRequested -= OnConfirmRequested;
         }
 
         _subscribed = DataContext as GoalsViewModel;
@@ -44,6 +45,7 @@ public partial class GoalsView : UserControl
         {
             _subscribed.DetailMenuRequested += OnDetailMenuRequested;
             _subscribed.BringIntoViewRequested += OnBringIntoViewRequested;
+            _subscribed.ConfirmRequested += OnConfirmRequested;
         }
     }
 
@@ -53,6 +55,12 @@ public partial class GoalsView : UserControl
         {
             ShowGoalMenu(DetailPane.MenuAnchor, id, false);
         }
+    }
+
+    // Delete goal…, Track time only, a session that didn't start: asked or said in a small dialog over the page.
+    private async void OnConfirmRequested(object? sender, GoalConfirmRequest request)
+    {
+        await GoalConfirmDialog.ShowAsync(this, request);
     }
 
     private void OnBringIntoViewRequested(object? sender, Guid id)

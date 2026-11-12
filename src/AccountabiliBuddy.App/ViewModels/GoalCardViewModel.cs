@@ -113,6 +113,13 @@ public sealed partial class GoalCardViewModel : ObservableObject, IDisposable
     /// <summary>True while lowering the goal has to wait (the work-hours guard has work left today: earned time).</summary>
     public Func<bool>? LowerWaits { get; init; }
 
+    /// <summary>
+    /// Sets the daily goal through the goals' one rule (Q375: <see cref="Services.Goals.GoalsService.SetDailyGoalAsync"/>): raising at once,
+    /// lowering waits the looser-change delay and never during a session outside ProductaBuddy mode. Returns what to tell the user, or
+    /// null when it applied. Set by the app; without it the card keeps its older rule (lowering refused while work is left today).
+    /// </summary>
+    public Func<int, Task<string?>>? SetDailyGoal { get; set; }
+
     [RelayCommand]
     private void Edit()
     {
@@ -124,6 +131,16 @@ public sealed partial class GoalCardViewModel : ObservableObject, IDisposable
     private async Task SaveAsync()
     {
         int minutes = (int)Math.Clamp(GoalMinutes ?? 60, 30, 480);
+        if (SetDailyGoal is { } setDaily)
+        {
+            // One rule (Q375): a lowering that waits closes the editor and says when it lands; one that can't start says why.
+            Message = await setDaily(minutes);
+            IsEditing = false;
+            _deepWork.CheckNow();
+            Refresh();
+            return;
+        }
+
         if (minutes < _goal.Current.DailyMinutes && LowerWaits?.Invoke() == true)
         {
             Message = "Lowering the goal waits until today's work hours are over (raising it is fine).";

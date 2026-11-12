@@ -1,0 +1,56 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.GoalAreasDialog"
+                        x:DataType="vm:GoalAreasViewModel"
+                        Title="Areas"
+                        Icon="/Assets/app-icon.png"
+                        Width="460">
+    <!-- Goals Options › Areas (round 2 R5.4): every area in order with its goal count; ↑ ↓ reorder, ✎ edits (name, icon, colour), + adds. -->
+    <StackPanel Margin="22,20" Spacing="12">
+        <StackPanel Spacing="2">
+            <TextBlock Classes="dlgTitle" Text="Areas" />
+            <TextBlock Classes="dlgSub" Text="Reorder, rename and pick icons. Changes apply at once." />
+        </StackPanel>
+        <ScrollViewer MaxHeight="420" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GoalAreaRowViewModel">
+                        <Border Classes="abSoftBlock" Padding="12,8" Margin="0,0,0,6">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" Foreground="{Binding Brush}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Classes="muted" FontSize="12" Text="{Binding CountText}" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Classes="abHeaderIcon" Command="{Binding MoveUpCommand}" IsEnabled="{Binding CanMoveUp}" ToolTip.Tip="Move up"
+                                        AutomationProperties.Name="{Binding Name, StringFormat='Move {0} up'}">
+                                    <mi:MaterialIcon Kind="ArrowUp" Width="16" Height="16" />
+                                </Button>
+                                <Button Grid.Column="3" Classes="abHeaderIcon" Command="{Binding MoveDownCommand}" IsEnabled="{Binding CanMoveDown}" ToolTip.Tip="Move down"
+                                        AutomationProperties.Name="{Binding Name, StringFormat='Move {0} down'}">
+                                    <mi:MaterialIcon Kind="ArrowDown" Width="16" Height="16" />
+                                </Button>
+                                <Button Grid.Column="4" Classes="abHeaderIcon" Command="{Binding EditCommand}" ToolTip.Tip="Edit area"
+                                        AutomationProperties.Name="{Binding Name, StringFormat='Edit {0}'}">
+                                    <mi:MaterialIcon Kind="PencilOutline" Width="16" Height="16" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <Button Classes="dialogStart" Command="{Binding AddAreaCommand}" AutomationProperties.Name="Add an area">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <mi:MaterialIcon Kind="Plus" Width="16" Height="16" />
+                    <TextBlock Text="Add an area" />
+                </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Classes="primary" Content="Done" Click="OnDone" />
+        </Grid>
+    </StackPanel>
+</views:TaskDialogWindow>

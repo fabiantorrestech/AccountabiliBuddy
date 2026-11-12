@@ -41,6 +41,12 @@ public sealed class StartOfDayAssistant
     /// <summary>True while lowering the goal has to wait (work left today under the work-hours guard). Set by the app.</summary>
     public Func<bool> GoalLowerWaits { get; set; } = () => false;
 
+    /// <summary>
+    /// Sets the daily goal through the goals' one rule (Q375: <see cref="Goals.GoalsService.SetDailyGoalAsync"/>); returns what to tell the
+    /// user, or null when it applied. Set by the app; without it the older rule holds (lowering refused while work is left today).
+    /// </summary>
+    public Func<int, Task<string?>>? SetDailyGoal { get; set; }
+
     /// <summary>Read today's progress again after the goal changed. Set by the app.</summary>
     public Action RefreshProgress { get; set; } = () => { };
 
@@ -107,7 +113,17 @@ public sealed class StartOfDayAssistant
     {
         int minutes = (int)Math.Clamp(Math.Round(hours * 2, MidpointRounding.AwayFromZero) * 30, MinMinutes, MaxMinutes);
         var notes = new List<string>();
-        if (minutes != _goal.Current.DailyMinutes)
+        if (minutes != _goal.Current.DailyMinutes && SetDailyGoal is { } setDaily)
+        {
+            // One rule (Q375): raising at once; lowering waits and never starts during a session.
+            if (await setDaily(minutes) is string note)
+            {
+                notes.Add(note);
+            }
+
+            RefreshProgress();
+        }
+        else if (minutes != _goal.Current.DailyMinutes)
         {
             if (minutes < _goal.Current.DailyMinutes && GoalLowerWaits())
             {

@@ -424,6 +424,9 @@
 
                 <ScrollViewer x:Name="ViewScroll" Grid.Row="2" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" AllowAutoHide="False">
                     <Panel>
+                        <!-- Round 2 R5.4: one goal's history from the Goals page's Stats (paused stretches hatched); × goes back to the views. -->
+                        <views:StatsGoalHistoryView DataContext="{Binding GoalHistory}" IsVisible="{Binding $parent[UserControl].((vm:StatsViewModel)DataContext).ShowsGoalHistory, FallbackValue=False}" VerticalAlignment="Top" />
+                        <Panel IsVisible="{Binding ShowsViews}">
                         <ContentControl Content="{Binding Overview}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsOverview}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                         <ContentControl Content="{Binding Consistency}" ContentTemplate="{StaticResource ConsistencyPanel}" IsVisible="{Binding ShowsConsistency}" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" />
                         <ContentControl Content="{Binding Intensity}" ContentTemplate="{StaticResource IntensityPanel}" IsVisible="{Binding ShowsIntensity}" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" />
@@ -434,6 +437,7 @@
                         <ContentControl Content="{Binding StepsPanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsSteps}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                         <ContentControl Content="{Binding ReviewsPanel}" ContentTemplate="{StaticResource BarPanel}" IsVisible="{Binding ShowsReviews}" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
                         <TextBlock Classes="muted" Text="{Binding EmptyText}" IsVisible="{Binding ShowsEmpty}" FontSize="15" TextWrapping="Wrap" Margin="0,40,0,0" HorizontalAlignment="Center" />
+                        </Panel>
                     </Panel>
                 </ScrollViewer>
             </Grid>

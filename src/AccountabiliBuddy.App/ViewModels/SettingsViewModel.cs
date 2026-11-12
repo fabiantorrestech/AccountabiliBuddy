@@ -1026,6 +1026,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             IsAvailable = false,
         },
+        // Round 2 R5.6: Settings › Goals, after Today (brief §4.7); there once the app sets its page.
+        new SettingsRowViewModel(SettingsSection.Goals, "Goals", Material.Icons.MaterialIconKind.TrackChanges, "The weekly review, default reminders, charts and areas.")
+        {
+            IsAvailable = false,
+        },
         new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny, "How your day starts, lunch, the day bar and where your calendars come from."),
         new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight, "Bedtime, wake time and the reminders before bed."),
         new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline, "Starting, stepping away, Pomodoro, escalation and ending early."),
@@ -1151,6 +1156,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     private TodaySettingsViewModel? _todayPage;
+
+    /// <summary>
+    /// Settings › Goals (round 2 R5.6): set by the app once the goals are set up; the Goals row shows only then. Not locked during a
+    /// session: it changes what the Goals page draws and when suggestions come, nothing a guard reads.
+    /// </summary>
+    public GoalsSettingsViewModel? GoalsPage
+    {
+        get => _goalsPage;
+        set
+        {
+            _goalsPage = value;
+            RowOf(SettingsSection.Goals).IsAvailable = value is not null;
+            OnPropertyChanged();
+        }
+    }
+
+    private GoalsSettingsViewModel? _goalsPage;
 
     /// <summary>
     /// Alerts &amp; on-screen › Task reminders and Task reminders ring on (Tasks redesign Phase 7): set by the app when the task list is the

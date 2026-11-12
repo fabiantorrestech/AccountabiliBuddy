@@ -267,6 +267,13 @@
                     </Panel>
 
                     <!-- Tasks (ADR 76): a page of its own, there only while the task list is the source (the row hides otherwise, and search leaves it out). -->
+                    <!-- Goals (round 2 R5.6): the weekly review, default reminders, charts, areas; there once the app sets it. -->
+                    <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Goals}}" search:SearchArea.Name="Goals" search:SearchArea.SettingsGroup="Goals"
+                           search:SearchArea.Skip="{Binding Settings.GoalsPage, Converter={x:Static ObjectConverters.IsNull}}">
+                        <Panel IsVisible="{Binding Settings.GoalsPage, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <views:GoalsSettingsView DataContext="{Binding Settings.GoalsPage}" />
+                        </Panel>
+                    </Panel>
                     <Panel IsVisible="{Binding Settings.SelectedSection, Converter={x:Static vm:SettingsSectionIs.Instance}, ConverterParameter={x:Static vm:SettingsSection.Tasks}}" search:SearchArea.Name="Tasks" search:SearchArea.SettingsGroup="Tasks"
                            search:SearchArea.Skip="{Binding Settings.TasksPage, Converter={x:Static ObjectConverters.IsNull}}">
                         <Panel IsVisible="{Binding Settings.TasksPage, Converter={x:Static ObjectConverters.IsNotNull}}">

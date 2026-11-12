@@ -1,0 +1,658 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        xmlns:svc="using:AccountabiliBuddy.App.Services.Goals"
+                        x:Class="AccountabiliBuddy.App.Views.GoalEditorDialog"
+                        x:DataType="vm:GoalEditorViewModel"
+                        Title="{Binding HeaderTitle}"
+                        Icon="/Assets/app-icon.png"
+                        Width="940">
+    <!-- Edit goal and New goal (round 2 R5.4; boards Goals-PC-Edit, Goals-PC-New, Goals-PC-Edit-Reminders): the header (icon chip, title,
+         subtitle, ×), the left nav (sections, or New goal's five steps), the section on the right, and the footer (Edit: Active, the only
+         place that pauses; Delete goal…; Cancel; Save. New: Step N of 5; Back; Create now after Target; Next or Create). -->
+    <views:TaskDialogWindow.Styles>
+        <Style Selector="Button.navItem">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,9" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+        </Style>
+        <Style Selector="Button.navItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Button.navItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+        </Style>
+        <Style Selector="Button.navItem.current /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.SectionBlock}" />
+        </Style>
+        <Style Selector="TextBlock.secTitle">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.capsHead">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="LetterSpacing" Value="0.4" />
+        </Style>
+        <Style Selector="TextBlock.fieldHead">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Border.sourceRow">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,12" />
+        </Style>
+        <Style Selector="Border.tile">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="12,11" />
+            <Setter Property="Width" Value="200" />
+        </Style>
+        <Style Selector="Border.tile.soon">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <Style Selector="Border.iconChip">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.pill">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.pill TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource Ab.NumeralFont}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Border.takes">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,11" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.takes.green">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Border.takes.amber">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AmberLine}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.AmberFill}" />
+        </Style>
+        <Style Selector="Border.pbBadge">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="7,1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="ListBox.picker">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="ListBox.picker > ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="ListBox.picker > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+    </views:TaskDialogWindow.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        <!-- Header -->
+        <Border x:Name="EditorHeader" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,0,0,1" Padding="20,16">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                <Border Width="38" Height="38" CornerRadius="10" Background="{Binding HeaderSoftBrush}">
+                    <mi:MaterialIcon Kind="{Binding HeaderIcon}" Width="20" Height="20" Foreground="{Binding HeaderBrush}" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding HeaderTitle}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Classes="muted" Text="{Binding HeaderSub}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="abHeaderIcon" Command="{Binding CancelCommand}" ToolTip.Tip="Close" AutomationProperties.Name="Close">
+                    <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" ColumnDefinitions="244,*">
+            <!-- Left nav -->
+            <Border x:Name="EditorNav" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,0,1,0" Padding="12,16">
+                <DockPanel>
+                    <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Nav}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:GoalEditorNavItem">
+                                <Button Classes="navItem" Classes.current="{Binding IsCurrent}"
+                                        Command="{Binding $parent[ItemsControl].((vm:GoalEditorViewModel)DataContext).GoToCommand, FallbackValue={x:Null}}"
+                                        CommandParameter="{Binding Section}" AutomationProperties.Name="{Binding Title}">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <mi:MaterialIcon Kind="{Binding ShownIcon}" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0"
+                                                         Foreground="{DynamicResource Ab.Muted}" />
+                                        <StackPanel Grid.Column="1" Spacing="1">
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13.5" />
+                                            <TextBlock Classes="muted" Text="{Binding Sub}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Background="{DynamicResource Ab.Surface2}" CornerRadius="12" Padding="12,10"
+                            IsVisible="{Binding IsEdit}">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                <mi:MaterialIcon Kind="NoteTextOutline" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
+                                <TextBlock Grid.Column="1" Classes="muted" Text="Notes" FontSize="12" />
+                                <Button Grid.Column="2" Classes="quiet" Padding="4,0" MinHeight="0" Content="Edit" FontSize="12" Command="{Binding GoToCommand}"
+                                        CommandParameter="{x:Static vm:GoalEditSection.Notes}" />
+                            </Grid>
+                            <TextBlock Text="{Binding Notes}" FontSize="12.5" TextWrapping="Wrap" MaxLines="5" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </DockPanel>
+            </Border>
+
+            <!-- Sections -->
+            <ScrollViewer x:Name="EditorSection" Grid.Column="1" HorizontalScrollBarVisibility="Disabled" Padding="22,18,22,18">
+                <Panel>
+                    <!-- Basics -->
+                    <StackPanel Spacing="14" IsVisible="{Binding IsBasics}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="secTitle" Text="Basics" />
+                            <TextBlock Classes="muted" Text="Name, kind, icon, colour and area. The icon and colour show everywhere the goal appears." TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="fieldHead" Text="Name" />
+                            <TextBox Classes="dialogStart" Text="{Binding Name}" MaxLength="80" PlaceholderText="Spanish" AutomationProperties.Name="Goal name" />
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="fieldHead" Text="Kind" />
+                            <ListBox Classes="segmented" HorizontalAlignment="Left" ItemsSource="{Binding KindChoices}" SelectedIndex="{Binding KindIndex}"
+                                     IsEnabled="{Binding CanChangeKind}" AutomationProperties.Name="Goal kind" />
+                            <TextBlock Classes="muted" FontSize="12" Text="{Binding KindHint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="fieldHead" Text="Icon" />
+                            <ListBox Classes="picker" ItemsSource="{Binding Icons}" SelectedItem="{Binding SelectedIcon}" AutomationProperties.Name="Goal icon">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:GoalChoice">
+                                        <Border Width="36" Height="36" ToolTip.Tip="{Binding Text}">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="fieldHead" Text="Colour" />
+                            <TextBlock Classes="muted" FontSize="12" Text="Tints the icon chip and the heatmap; never text on its own." />
+                            <ListBox Classes="picker" ItemsSource="{Binding Colours}" SelectedItem="{Binding SelectedColour}" AutomationProperties.Name="Goal colour">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:GoalChoice">
+                                        <Border Width="30" Height="30" Padding="5" ToolTip.Tip="{Binding Text}">
+                                            <Ellipse Fill="{Binding Brush}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="fieldHead" Text="Area" />
+                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                <ListBox Classes="picker" ItemsSource="{Binding Areas}" SelectedItem="{Binding SelectedArea}" AutomationProperties.Name="Area">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:GoalChoice">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,7">
+                                                <mi:MaterialIcon Kind="{Binding Icon}" Width="16" Height="16" Foreground="{Binding Brush}" />
+                                                <TextBlock Text="{Binding Text}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Button Command="{Binding NewAreaCommand}" AutomationProperties.Name="New area">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
+                                        <TextBlock Text="New area" />
+                                    </StackPanel>
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Target -->
+                    <Panel IsVisible="{Binding IsTargetSection}">
+                    <StackPanel Spacing="14" DataContext="{Binding Target}" x:DataType="vm:GoalTargetEditorViewModel">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="secTitle" Text="Target" />
+                            <TextBlock Classes="muted" Text="How much, how often, and an optional finish line." />
+                        </StackPanel>
+
+                        <!-- Deep work: its daily and weekly targets (through its waiting rule). -->
+                        <StackPanel Spacing="12" IsVisible="{Binding IsDeepWork}">
+                            <Grid ColumnDefinitions="160,Auto,Auto" ColumnSpacing="10">
+                                <TextBlock Classes="fieldHead" Text="Each day" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="1" Classes="dialogStart" Value="{Binding DailyMinutes}" Minimum="30" Maximum="480" Increment="15" FormatString="0" Width="130"
+                                               AutomationProperties.Name="Daily target in minutes" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="min a day (what the guards and the goal unlock read)" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasDailyPending}">
+                                <TextBlock Text="{Binding DailyPending}" Foreground="{DynamicResource Ab.Waiting}" FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Classes="quiet" Content="Cancel" Command="{Binding CancelPendingCommand}" CommandParameter="{x:Static svc:DeepWorkTargetKind.Daily}" />
+                            </Grid>
+                            <Grid ColumnDefinitions="160,Auto,Auto" ColumnSpacing="10">
+                                <TextBlock Classes="fieldHead" Text="Each week (optional)" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="1" Value="{Binding WeeklyHours}" Minimum="0.5" Maximum="56" Increment="0.5" FormatString="0.#" Width="130"
+                                               AutomationProperties.Name="Weekly target in hours" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="h a week (on Goals only)" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasWeeklyPending}">
+                                <TextBlock Text="{Binding WeeklyPending}" Foreground="{DynamicResource Ab.Waiting}" FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Classes="quiet" Content="Cancel" Command="{Binding CancelPendingCommand}" CommandParameter="{x:Static svc:DeepWorkTargetKind.Weekly}" />
+                            </Grid>
+                            <TextBlock Classes="muted" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding TrackTimeOnly}"
+                                       Text="Tracking only: no target on Goals. Setting a daily or weekly target ends it at once (that's stricter)." />
+                            <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasTrackTimeOnlyPending}">
+                                <TextBlock Text="{Binding TrackTimeOnlyPending}" Foreground="{DynamicResource Ab.Waiting}" FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <Button Grid.Column="1" Classes="quiet" Content="Cancel" Command="{Binding CancelPendingCommand}" CommandParameter="{x:Static svc:DeepWorkTargetKind.TrackTimeOnly}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Every other goal -->
+                        <StackPanel Spacing="12" IsVisible="{Binding IsNotDeepWork}">
+                            <Grid ColumnDefinitions="140,*" ColumnSpacing="10">
+                                <TextBlock Classes="fieldHead" Text="How often" VerticalAlignment="Center" />
+                                <ListBox Grid.Column="1" Classes="segmented" HorizontalAlignment="Left" ItemsSource="{Binding PeriodChoices}" SelectedIndex="{Binding PeriodIndex}"
+                                         AutomationProperties.Name="How often" />
+                            </Grid>
+                            <Grid ColumnDefinitions="140,Auto,Auto" ColumnSpacing="10" IsVisible="{Binding IsDailyHabit}">
+                                <TextBlock Classes="fieldHead" Text="Ticks itself at" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="1" Classes="dialogStart" Value="{Binding ThresholdMinutes}" Minimum="1" Maximum="1440" Increment="5" FormatString="0" Width="130"
+                                               PlaceholderText="By hand" AutomationProperties.Name="Ticks itself at minutes" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="min of its time sources (empty: ticked by hand only)" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid ColumnDefinitions="140,Auto,Auto" ColumnSpacing="10" IsVisible="{Binding ShowsTimesPerPeriod}">
+                                <TextBlock Classes="fieldHead" Text="Times" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="1" Value="{Binding Amount}" Minimum="1" Maximum="31" Increment="1" FormatString="0" Width="130"
+                                               AutomationProperties.Name="Times per period" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding AmountCaption, StringFormat='times · {0}'}" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid ColumnDefinitions="140,Auto,Auto" ColumnSpacing="10" IsVisible="{Binding ShowsAmount}">
+                                <TextBlock Classes="fieldHead" Text="{Binding AmountCaption}" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="1" Classes="dialogStart" Value="{Binding Amount}" Minimum="0" Maximum="1000000" Increment="5" FormatString="0.#" Width="130"
+                                               AutomationProperties.Name="Amount each period" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding AmountUnitText}" VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid ColumnDefinitions="140,*" ColumnSpacing="10" IsVisible="{Binding ShowsUnit}">
+                                <TextBlock Classes="fieldHead" Text="Counted in" VerticalAlignment="Center" />
+                                <ListBox Grid.Column="1" Classes="segmented" HorizontalAlignment="Left" ItemsSource="{Binding UnitChoices}" SelectedIndex="{Binding UnitIndex}"
+                                         AutomationProperties.Name="Unit" />
+                            </Grid>
+                            <Grid ColumnDefinitions="140,*" ColumnSpacing="10" IsVisible="{Binding ShowsDirection}">
+                                <TextBlock Classes="fieldHead" Text="Direction" VerticalAlignment="Center" />
+                                <ListBox Grid.Column="1" Classes="segmented" HorizontalAlignment="Left" ItemsSource="{Binding DirectionChoices}" SelectedIndex="{Binding DirectionIndex}"
+                                         AutomationProperties.Name="Direction" />
+                            </Grid>
+                            <Grid ColumnDefinitions="140,Auto,Auto" ColumnSpacing="10" IsVisible="{Binding ShowsWeeklyDays}">
+                                <TextBlock Classes="fieldHead" Text="On how many days" VerticalAlignment="Center" />
+                                <NumericUpDown Grid.Column="1" Value="{Binding WeeklyDays}" Minimum="1" Maximum="31" Increment="1" FormatString="0" Width="130"
+                                               PlaceholderText="Optional" AutomationProperties.Name="On how many days" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="days of the period (empty: the period's total counts)" VerticalAlignment="Center" />
+                            </Grid>
+
+                            <TextBlock Classes="capsHead" Text="LONG-TERM TARGET · OPTIONAL" Margin="0,6,0,0" />
+                            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10">
+                                <TextBlock Classes="fieldHead" Text="Reach" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                    <NumericUpDown Value="{Binding TargetAmount}" Minimum="0" Maximum="1000000" Increment="1" FormatString="0.#" Width="130"
+                                                   PlaceholderText="None" AutomationProperties.Name="Long-term target" />
+                                    <TextBlock Classes="muted" Text="{Binding TargetUnitText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Classes="fieldHead" Text="By" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <CalendarDatePicker Grid.Column="3" SelectedDate="{Binding TargetDate}" CustomDateFormatString="ddd M/d/yyyy" SelectedDateFormat="Custom"
+                                                    PlaceholderText="No date" Width="170" AutomationProperties.Name="Long-term target date" />
+                            </Grid>
+                            <Border Classes="takes" DataContext="{Binding WhatItTakes}"
+                                    Classes.green="{Binding IsGreen}" Classes.amber="{Binding IsAmber}" IsVisible="{Binding IsAvailable}" x:DataType="vm:GoalWhatItTakesViewModel">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="What it takes" FontWeight="SemiBold" />
+                                    <TextBlock FontSize="12.5" Text="{Binding Remaining}" TextWrapping="Wrap" />
+                                    <TextBlock FontSize="12.5" Text="{Binding Each}" IsVisible="{Binding HasEach}" TextWrapping="Wrap" />
+                                    <TextBlock FontSize="12.5" Text="{Binding Pace}" IsVisible="{Binding HasPace}" TextWrapping="Wrap" />
+                                    <TextBlock FontSize="12.5" FontWeight="SemiBold" Text="{Binding Verdict}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Foreground="{DynamicResource Ab.Waiting}" FontSize="12.5" TextWrapping="Wrap" />
+                        <TextBlock Classes="muted" FontSize="12" Text="{Binding Footnote}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    </Panel>
+
+
+                    <!-- Tracking & sources -->
+                    <Panel IsVisible="{Binding IsSources}">
+                    <StackPanel Spacing="12" DataContext="{Binding Sources}" x:DataType="vm:GoalSourcesEditorViewModel">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="secTitle" Text="Tracking &amp; sources" />
+                            <TextBlock Classes="muted" TextWrapping="Wrap"
+                                       Text="Where progress for this goal comes from. Sources add up; overlapping time counts once, and your own edits win over a sync." />
+                        </StackPanel>
+                        <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="12" Padding="14,10" IsVisible="{Binding IsDeepWork}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                <mi:MaterialIcon Kind="LockOutline" Width="16" Height="16" VerticalAlignment="Top" Margin="0,1,0,0" />
+                                <TextBlock Grid.Column="1" FontSize="12.5" Text="{Binding LockedReason}" TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+                        <TextBlock Classes="capsHead" Text="{Binding CountText}" />
+                        <TextBlock Classes="muted" FontSize="12.5" Text="Nothing counts toward this goal yet: add a source below." IsVisible="{Binding IsEmpty}" />
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GoalSourceRowViewModel">
+                                    <Border Classes="sourceRow" Margin="0,0,0,8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                                            <Border Classes="iconChip" VerticalAlignment="Top">
+                                                <mi:MaterialIcon Kind="{Binding Icon}" Width="17" Height="17" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="6">
+                                                <StackPanel Spacing="1">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                                    <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Detail}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <ComboBox ItemsSource="{Binding Labels}" SelectedItem="{Binding SelectedLabel}" IsVisible="{Binding ShowsLabel}" MinWidth="220"
+                                                          PlaceholderText="Pick a label" AutomationProperties.Name="Label">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:GoalChoice">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Ellipse Width="9" Height="9" Fill="{Binding Brush}" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Text}" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                                <TextBlock Classes="muted" FontSize="12" IsVisible="{Binding HasNoLabels}" Text="No labels on this PC yet: make one on Tasks." />
+                                                <TextBox Text="{Binding Tag}" IsVisible="{Binding ShowsTag}" PlaceholderText="#study" MaxWidth="260" HorizontalAlignment="Left"
+                                                         AutomationProperties.Name="Tag" />
+                                                <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" IsVisible="{Binding ShowsCategory}" MinWidth="220"
+                                                          PlaceholderText="Pick a day plan category" AutomationProperties.Name="Calendar category">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:GoalChoice">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <Ellipse Width="9" Height="9" Fill="{Binding Brush}" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Text}" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                                <TextBlock Classes="muted" FontSize="12" IsVisible="{Binding HasNoCategories}" Text="No day plan categories yet: add them in Plan." />
+                                                <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowsApp}">
+                                                    <TextBox Text="{Binding App}" PlaceholderText="App or category" Width="220" AutomationProperties.Name="App or category" />
+                                                    <CheckBox IsChecked="{Binding ScreenAtMost}" Content="At most (unchecked: at least)" />
+                                                </StackPanel>
+                                                <StackPanel Spacing="6" IsVisible="{Binding ShowsBeeminder}">
+                                                    <ComboBox ItemsSource="{Binding BeeminderGoals}" SelectedItem="{Binding SelectedBeeminder}" MinWidth="260"
+                                                              PlaceholderText="Pick one of your Beeminder goals" AutomationProperties.Name="Beeminder goal">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:GoalChoice">
+                                                                <StackPanel Spacing="1">
+                                                                    <TextBlock Text="{Binding Text}" />
+                                                                    <TextBlock Classes="muted" FontSize="11.5" Text="{Binding Note}" IsVisible="{Binding HasNote}" />
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <TextBlock Classes="muted" FontSize="12" Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <Border Classes="pill"><TextBlock Text="Read" /></Border>
+                                                        <Border Classes="pill" Opacity="0.45" ToolTip.Tip="Coming soon"><TextBlock Text="Send" /></Border>
+                                                        <Border Classes="pill" Opacity="0.45" ToolTip.Tip="Coming soon"><TextBlock Text="Both" /></Border>
+                                                        <TextBlock Classes="muted" FontSize="12" Text="Send and Both coming soon" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                <TextBlock FontSize="12" Foreground="{DynamicResource Ab.Waiting}" Text="{Binding Missing}"
+                                                           IsVisible="{Binding Missing, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding Automatic}" IsVisible="{Binding ShowsSwitch}" VerticalAlignment="Top"
+                                                      ToolTip.Tip="Counts by itself" AutomationProperties.Name="{Binding Title, StringFormat='{}{0} counts by itself'}" />
+                                            <Button Grid.Column="3" Classes="abHeaderIcon" Command="{Binding RemoveCommand}" IsVisible="{Binding IsEditable}" VerticalAlignment="Top"
+                                                    ToolTip.Tip="Remove this source" AutomationProperties.Name="{Binding Title, StringFormat='Remove {0}'}">
+                                                <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="capsHead" Text="ADD A SOURCE" />
+                            <TextBlock Classes="muted" FontSize="12" Text="Connect once in Settings › Connections, then pick what counts per goal" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding Tiles}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="10" LineSpacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GoalSourceTileViewModel">
+                                    <Border Classes="tile" ToolTip.Tip="{Binding Tooltip}">
+                                        <StackPanel Spacing="6">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="{Binding Icon}" Width="17" Height="17" />
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Classes="muted" FontSize="12" Text="{Binding Text}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="muted" FontSize="11.5" Text="{Binding Note}" IsVisible="{Binding HasNote}" />
+                                            <Button HorizontalAlignment="Left" Command="{Binding AddCommand}" Content="{Binding ButtonText}"
+                                                    AutomationProperties.Name="{Binding Title, StringFormat='Add {0}'}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="capsHead" Text="COMING SOON" />
+                        <ItemsControl ItemsSource="{Binding SoonTiles}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="10" LineSpacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GoalSourceTileViewModel">
+                                    <Border Classes="tile soon" ToolTip.Tip="{Binding Tooltip}" AutomationProperties.Name="{Binding Title, StringFormat='{}{0}, coming soon'}">
+                                        <StackPanel Spacing="6">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <mi:MaterialIcon Kind="{Binding Icon}" Width="17" Height="17" />
+                                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Classes="muted" FontSize="12" Text="{Binding Text}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="muted" FontSize="12" Text="Coming soon…" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="muted" FontSize="12" Text="{Binding RuleLine}" />
+                    </StackPanel>
+                    </Panel>
+
+
+                    <!-- Reminders -->
+                    <Panel IsVisible="{Binding IsRemindersSection}">
+                    <StackPanel Spacing="12" DataContext="{Binding Reminders}" x:DataType="vm:GoalRemindersEditorViewModel">
+                        <StackPanel Spacing="2">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Classes="secTitle" Text="Reminders" />
+                                <Border Classes="pbBadge" IsVisible="{Binding IsProductaBuddy}" VerticalAlignment="Center">
+                                    <TextBlock Text="PB" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Classes="muted" Text="{Binding Lead}" />
+                        </StackPanel>
+                        <TextBlock Classes="muted" FontSize="12.5" Text="No reminders yet." IsVisible="{Binding IsEmpty}" />
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GoalReminderEditRow">
+                                    <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,0,0,1" Padding="0,8">
+                                        <StackPanel Spacing="8">
+                                            <Grid ColumnDefinitions="22,Auto,Auto,96,*,Auto,Auto" ColumnSpacing="10">
+                                                <TextBlock Classes="muted" Text="{Binding NumberText}" VerticalAlignment="Center" />
+                                                <Border Grid.Column="1" Classes="pill"><TextBlock Text="{Binding DayPill}" /></Border>
+                                                <Border Grid.Column="2" Classes="pill"><TextBlock Text="{Binding TimePill}" /></Border>
+                                                <TextBlock Grid.Column="3" Classes="muted" Text="{Binding RepeatText}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="4" Text="{Binding Reason}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                <Button Grid.Column="5" Classes="abHeaderIcon" Command="{Binding EditCommand}" ToolTip.Tip="Change this reminder"
+                                                        AutomationProperties.Name="{Binding NumberText, StringFormat='Change reminder {0}'}">
+                                                    <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" />
+                                                </Button>
+                                                <Button Grid.Column="6" Classes="abHeaderIcon" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this reminder"
+                                                        AutomationProperties.Name="{Binding NumberText, StringFormat='Remove reminder {0}'}">
+                                                    <mi:MaterialIcon Kind="Close" Width="15" Height="15" />
+                                                </Button>
+                                            </Grid>
+                                            <WrapPanel ItemSpacing="10" LineSpacing="8" Margin="32,0,0,0" IsVisible="{Binding IsEditing}">
+                                                <ComboBox ItemsSource="{Binding DayChoices}" SelectedIndex="{Binding DayIndex}" MinWidth="160" AutomationProperties.Name="Which days" />
+                                                <CalendarDatePicker SelectedDate="{Binding Date}" IsVisible="{Binding ShowsDate}" CustomDateFormatString="ddd M/d/yyyy"
+                                                                    SelectedDateFormat="Custom" Width="160" AutomationProperties.Name="Date" />
+                                                <TextBox Text="{Binding TimeText}" Width="110" PlaceholderText="8:00 PM" AutomationProperties.Name="Time" />
+                                                <TextBox Text="{Binding Reason}" Width="260" MaxLength="120" PlaceholderText="Why (if not done yet)" AutomationProperties.Name="Reason" />
+                                                <TextBlock Text="{Binding Problem}" Foreground="{DynamicResource Ab.Waiting}" FontSize="12" VerticalAlignment="Center"
+                                                           IsVisible="{Binding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button HorizontalAlignment="Left" Command="{Binding AddReminderCommand}" AutomationProperties.Name="Add a reminder">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
+                                <TextBlock Text="Add a reminder" />
+                            </StackPanel>
+                        </Button>
+                        <TextBlock Classes="capsHead" Text="RULES" Margin="0,6,0,0" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="1">
+                                <TextBlock Text="Skip when the goal is already done" />
+                                <TextBlock Classes="muted" FontSize="12" Text="{Binding SkipNote}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding SkipWhenDone}" AutomationProperties.Name="Skip when the goal is already done" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="1">
+                                <TextBlock Text="Nudge when the week falls behind" />
+                                <TextBlock Classes="muted" FontSize="12" Text="{Binding NudgeNote}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Classes="sw" IsChecked="{Binding NudgeWhenBehind}" AutomationProperties.Name="Nudge when the week falls behind" />
+                        </Grid>
+                    </StackPanel>
+                    </Panel>
+
+
+                    <!-- On screen -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsOnScreen}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="secTitle" Text="On screen" />
+                            <TextBlock Classes="muted" Text="Where this goal shows and which extra tiles its page has." />
+                        </StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="1">
+                                <TextBlock Text="Show on Today" />
+                                <TextBlock Classes="muted" FontSize="12" Text="On Today's goals card." />
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Classes="sw dialogStart" IsChecked="{Binding ShowOnToday}" AutomationProperties.Name="Show on Today" />
+                        </Grid>
+                        <TextBlock Classes="capsHead" Text="EXTRA TILES" Margin="0,6,0,0" />
+                        <CheckBox IsChecked="{Binding UseDefaultTiles}" Content="{Binding DefaultTilesText}" />
+                        <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding !UseDefaultTiles}">
+                            <CheckBox IsChecked="{Binding StreakTile}" Content="Streak" />
+                            <CheckBox IsChecked="{Binding TotalTile}" Content="Total" />
+                        </StackPanel>
+                        <TextBlock Classes="muted" FontSize="12" Text="Streak and Total live in Stats; switched on, they join this goal's tiles after Target." TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- Notes -->
+                    <StackPanel Spacing="12" IsVisible="{Binding IsNotesSection}">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="secTitle" Text="Notes" />
+                            <TextBlock Classes="muted" Text="Why it matters, links, details. Previewed on the goal's page; kept on this PC only." />
+                        </StackPanel>
+                        <TextBox Classes="dialogStart" Text="{Binding Notes}" AcceptsReturn="True" TextWrapping="Wrap" Height="220" MaxLength="4000"
+                                 PlaceholderText="Aim: a 10-minute conversation by March." AutomationProperties.Name="Notes" />
+                        <StackPanel Spacing="4" IsVisible="{Binding HasNoteLinks}">
+                            <TextBlock Classes="capsHead" Text="LINKS" />
+                            <ItemsControl ItemsSource="{Binding NoteLinks}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2">
+                                            <mi:MaterialIcon Kind="LinkVariant" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
+                                            <TextBlock Text="{Binding}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+                </Panel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Footer -->
+        <Border x:Name="EditorFooter" Grid.Row="2" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" Padding="20,12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="{Binding Message}" IsVisible="{Binding HasMessage}" Foreground="{DynamicResource Ab.Waiting}" FontSize="12.5" TextWrapping="Wrap" />
+                <!-- Edit -->
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10" IsVisible="{Binding IsEdit}">
+                    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <CheckBox x:Name="ActiveSwitch" Classes="sw" IsChecked="{Binding IsActive}" IsEnabled="{Binding CanPause}" AutomationProperties.Name="Active" />
+                        <TextBlock Text="Active" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" FontSize="12.5" Text="{Binding ActiveNote}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="danger" Content="Delete goal…" Command="{Binding DeleteCommand}" IsVisible="{Binding CanDelete}" />
+                    <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelCommand}" />
+                    <Button Grid.Column="4" Classes="primary" Content="Save" Command="{Binding SaveCommand}" IsEnabled="{Binding !IsBusy}" />
+                </Grid>
+                <!-- New -->
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="10" IsVisible="{Binding IsNew}">
+                    <TextBlock Classes="muted" Text="{Binding StepText}" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="Back" Command="{Binding BackCommand}" IsVisible="{Binding CanGoBack}" />
+                    <Button Grid.Column="3" Content="Create now" Command="{Binding CreateCommand}" IsVisible="{Binding CanCreateNow}"
+                            ToolTip.Tip="Make the goal now; the other steps can be filled in later" />
+                    <Button Grid.Column="4" Classes="primary" Content="{Binding NextText}" Command="{Binding NextCommand}" IsVisible="{Binding ShowsNext}" />
+                    <Button Grid.Column="5" Classes="primary" Content="Create" Command="{Binding CreateCommand}" IsVisible="{Binding IsLastStep}" IsEnabled="{Binding !IsBusy}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</views:TaskDialogWindow>

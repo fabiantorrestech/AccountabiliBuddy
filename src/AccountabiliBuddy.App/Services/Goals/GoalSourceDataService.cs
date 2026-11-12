@@ -66,6 +66,12 @@ public sealed class GoalSourceDataService
     /// <summary>Today on this PC's clock (the trusted clock the app is given).</summary>
     public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(Now, Zone).DateTime);
 
+    /// <summary>
+    /// "Google Calendar" sources (PC only, plan §3b 7): each day plan category's calendar time as local windows
+    /// (<see cref="GoalCalendarWindows"/>); null = none. Set by the app; read on every recompute. Goal counts only, never focus totals.
+    /// </summary>
+    public Func<IReadOnlyDictionary<Guid, IReadOnlyList<LocalWindow>>?>? CalendarWindows { get; set; }
+
     /// <summary>Raised after <see cref="Current"/> changed.</summary>
     public event EventHandler? Changed;
 
@@ -103,7 +109,7 @@ public sealed class GoalSourceDataService
             focus.AddRange(GoalFocusAttribution.FromSynced(device, now, zone));
         }
 
-        Current = new GoalSourceData(focus, _store.Lists.Entries, zone);
+        Current = new GoalSourceData(focus, _store.Lists.Entries, zone, CalendarWindows?.Invoke());
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

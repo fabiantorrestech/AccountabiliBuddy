@@ -42,6 +42,25 @@ public sealed class TaskTidyUpService
         };
     }
 
+    /// <summary>
+    /// Settings › Goals › "Run the tidy-up straight after the weekly review" (round 2 R5.6, change note §4): the review's day while that
+    /// option is on, else null. While on, the tidy-up moves to the review's day and its own card stops showing (the review runs it).
+    /// Set by the app; read live.
+    /// </summary>
+    public Func<DayOfWeek?>? FollowsReviewOn { get; set; }
+
+    /// <summary>The tidy-up runs straight after the weekly goals review (its own card doesn't show).</summary>
+    public bool FollowsReview => FollowsReviewOn?.Invoke() is not null;
+
+    /// <summary>The day the tidy-up belongs to: the weekly review's while it follows the review, else Settings › Tasks' day.</summary>
+    public DayOfWeek TidyUpDay => FollowsReviewOn?.Invoke() ?? _settings.Current.TidyUpDay;
+
+    /// <summary>Something the card depends on changed outside this service (Settings › Goals): the Shelf asks again.</summary>
+    public void NotifyChanged()
+    {
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>The running tidy-up; null while none runs.</summary>
     public TidyUpPlan? Plan { get; private set; }
 
@@ -60,14 +79,39 @@ public sealed class TaskTidyUpService
         }
     }
 
-    /// <summary>The card to show on the Shelf, or null (off, not due, nothing untouched, a session runs, or a tidy-up is already open).</summary>
+    /// <summary>
+    /// The card to show on the Shelf, or null (off, not due, nothing untouched, a session runs, a tidy-up is already open, or it follows the
+    /// weekly goals review).
+    /// </summary>
     public TidyUpCard? Card()
     {
+        if (FollowsReview)
+        {
+            // Settings › Goals: the weekly goals review runs the tidy-up straight after, on its day; no card of its own.
+            return null;
+        }
+
         TaskSettings settings = _settings.Current;
         int weeks = TaskUntouched.ClampWeeks(settings.UntouchedWeeks);
         int count = TaskUntouched.Of(_store.Lists, weeks, _time.GetUtcNow()).Count;
         bool due = Plan is null && TaskTidyUp.IsDue(settings.TidyUpOn, Today(), settings.TidyUpDay, _handledFor, _sessions.State.IsActive, count);
         return due ? TaskTidyUp.Card(count, weeks, settings.TidyUpDay) : null;
+    }
+
+    /// <summary>
+    /// Whether the weekly goals review should offer "Then the tidy-up" now: it follows the review, it is on, this week (from the review's
+    /// day) isn't handled yet, no session runs and some tasks are untouched. The same rule as the card, on the review's day.
+    /// </summary>
+    public bool IsDueAfterReview()
+    {
+        if (!FollowsReview)
+        {
+            return false;
+        }
+
+        TaskSettings settings = _settings.Current;
+        int count = TaskUntouched.Of(_store.Lists, TaskUntouched.ClampWeeks(settings.UntouchedWeeks), _time.GetUtcNow()).Count;
+        return Plan is null && TaskTidyUp.IsDue(settings.TidyUpOn, Today(), TidyUpDay, _handledFor, _sessions.State.IsActive, count);
     }
 
     /// <summary>Begins the tidy-up over the untouched tasks; null when none are untouched or a session runs.</summary>
@@ -125,7 +169,7 @@ public sealed class TaskTidyUpService
 
     private async Task MarkHandledAsync()
     {
-        _handledFor = TaskTidyUp.PeriodStart(Today(), _settings.Current.TidyUpDay);
+        _handledFor = TaskTidyUp.PeriodStart(Today(), TidyUpDay);
         try
         {
             await _documents.SaveAsync(DocumentKey, new Handled(_handledFor));

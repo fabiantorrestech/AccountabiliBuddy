@@ -21,4 +21,7 @@ public enum SettingsSection
     AppAndData,
     Setup,
     About,
+
+    /// <summary>Round 2 R5.6: Settings › Goals (its row sits after Today; the value is last so no other section's number changes).</summary>
+    Goals,
 }
