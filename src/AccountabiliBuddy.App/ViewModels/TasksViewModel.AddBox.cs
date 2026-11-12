@@ -120,7 +120,7 @@ public sealed partial class TasksViewModel : IAddBoxHost
     public DateOnly Today => DateOnly.FromDateTime(LocalNow());
 
     // Before the task list is the source, or while it can't be opened: the old lists, as the old add row and the Shelf's "+" did. A note
-    // (the split's tail) is kept: on the session list's task, or, since a come-back can't hold one, the task goes to Later with it.
+    // (the split's tail) is kept: on the session list's task, or folded into a come-back's text (a come-back has no note of its own).
     private async Task AddToOldListsAsync(AddBoxRequest request)
     {
         TaskLabel? label = LiveLabels().FirstOrDefault(candidate => candidate.Id == request.LabelId);
@@ -129,8 +129,8 @@ public sealed partial class TasksViewModel : IAddBoxHost
         bool hasNote = !string.IsNullOrWhiteSpace(request.Note);
         switch (request.Destination)
         {
-            case TaskBin.Sort when !hasNote:
-                await _comebacks.AddAsync(request.Title, label?.Name, color, tags);
+            case TaskBin.Sort:
+                await _comebacks.AddAsync(hasNote ? request.Title + " — " + request.Note!.Trim() : request.Title, label?.Name, color, tags);
                 break;
             case TaskBin.Session or TaskBin.Queued when !SessionIsFull:
                 HashSet<Guid> before = _tasks.Current.Tasks.Select(task => task.Id).ToHashSet();

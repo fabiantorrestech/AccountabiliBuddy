@@ -36,6 +36,9 @@ public sealed class LaterStore
 
     // ADR 76: the task list this list is a view of (null before the migration), and the items as last read from it.
     private TaskStore? _tasks;
+
+    /// <summary>An add was refused: the task list can't be opened, so nothing could be kept (the app says so; nothing is dropped unseen).</summary>
+    public event EventHandler? AddRefused;
     private Dictionary<Guid, string> _shown = [];
 
     public LaterStore(SqliteJsonDocumentStore store, IDataProtector protector, TimeProvider time)
@@ -146,6 +149,13 @@ public sealed class LaterStore
         labels = TaskLabels.With(labels, typedLabels ?? []);
         if (trimmed.Length == 0)
         {
+            return null;
+        }
+
+        if (_tasks is { IsActive: false })
+        {
+            // The task list can't be opened (nothing is saved): say so rather than drop it unseen, as Come back to does.
+            AddRefused?.Invoke(this, EventArgs.Empty);
             return null;
         }
 

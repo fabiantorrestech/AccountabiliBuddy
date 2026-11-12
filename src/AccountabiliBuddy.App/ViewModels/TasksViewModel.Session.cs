@@ -652,13 +652,17 @@ public sealed partial class TasksViewModel
                 if (stepOnly && slot.StepId is Guid outStep)
                 {
                     await _tasks.FocusStepAsync(outStep);
-                }
-                else
-                {
-                    await _actions.MoveToSessionAsync([slot.TaskId]);
+                    return stillNoRoom;
                 }
 
-                return stillNoRoom;
+                if ((await _actions.MoveToSessionAsync([slot.TaskId])).Moved > 0)
+                {
+                    // Back in the session it was taken off from: no longer "taken off open" (ADR 25), as an undo does.
+                    await _tasks.CountBackFromSwapAsync();
+                    return stillNoRoom;
+                }
+
+                return $"Still no room for “{TaskToasts.Short(incoming.Title)}”, and “{TaskToasts.Short(owner?.Title ?? choice.Title)}” is in Queued now.";
             }
 
             _actions.Say("Swapped · " + left);

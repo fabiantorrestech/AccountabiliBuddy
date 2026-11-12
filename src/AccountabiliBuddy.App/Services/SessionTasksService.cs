@@ -1413,7 +1413,10 @@ public sealed partial class SessionTasksService : IDisposable
             // History keeps each task's category name and colour as they were, so deleting a category later loses nothing.
             // "End and mark the rest unfinished": the open tasks go back to Queued as the same tasks, so the record leaves them out (a task
             // id is in one record at most) and counts them as taken off open (ADR 25; the review's number).
-            SessionChecklist labelled = SessionConsumed.Recorded(Current with { Tasks = Labelled(Current) }) with { FocusedSteps = null, ActionCap = null };
+            // Only when they can go back (the task list is open); otherwise the record keeps them, open, as a plain end does.
+            SessionChecklist full = Current with { Tasks = Labelled(Current) };
+            SessionChecklist recorded = _taskStore is { IsActive: true } ? SessionConsumed.Recorded(full) : full with { UnfinishedToQueued = false };
+            SessionChecklist labelled = recorded with { FocusedSteps = null, ActionCap = null };
             _history = [.. _history.Where(item => KeptInHistory(item, cutoff)), labelled];
             await _store.SaveAsync(HistoryKey, _history.Select(Sealed).ToList());
         }
@@ -1441,7 +1444,7 @@ public sealed partial class SessionTasksService : IDisposable
     // The open tasks of a session ended with "End and mark the rest unfinished" (none otherwise, or before the task list).
     private async Task ReturnUnfinishedToQueuedAsync(SessionChecklist ended)
     {
-        if (_taskStore is null || ended.SessionStart is null)
+        if (_taskStore is not { IsActive: true } || ended.SessionStart is null)
         {
             return;
         }
@@ -1481,6 +1484,18 @@ public sealed partial class SessionTasksService : IDisposable
         }
 
         return Current.Tasks.Count(task => !task.IsDone);
+    }
+
+    /// <summary>
+    /// A swap's task came back after the newcomer wasn't let in after all: it no longer counts as taken off open (ADR 25), as an undo that
+    /// brings an open task back does. Only while a session runs.
+    /// </summary>
+    public async Task CountBackFromSwapAsync()
+    {
+        if (IsLive && Current.DroppedOpen > 0)
+        {
+            await SetAsync(Current.WithOneLessDropped());
+        }
     }
 
     /// <summary>

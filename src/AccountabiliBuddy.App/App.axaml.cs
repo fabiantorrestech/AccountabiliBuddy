@@ -1301,6 +1301,7 @@ public partial class App : Application
                 "Your task lists couldn't be opened, so new tasks can't be kept on this PC for now. Rebuild them first."));
             _comebacks!.AddRefused += ShowNotKept;
             autoSaved.AddRefused += ShowNotKept;
+            _later!.AddRefused += ShowNotKept;
             Dispatcher.UIThread.Post(() => presenter.ShowChoice(
                 "Your task lists couldn't be opened",
                 "Tasks aren't shown, saved or synced on this PC for now. Rebuild them from the lists as they were when this version first "
