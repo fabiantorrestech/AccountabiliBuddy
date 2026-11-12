@@ -43,11 +43,7 @@ public static class DeepWork
         var windows = new List<LocalWindow>();
         foreach ((SessionRecord record, DateTimeOffset end, bool _) in FocusDayBuilder.CountedRecords(records, isOmitted, sessionRunning, now))
         {
-            var session = new LocalWindow(FocusDayBuilder.Local(record.StartedAt, zone), FocusDayBuilder.Local(end, zone));
-            IEnumerable<LocalWindow> away = (record.Away ?? [])
-                .Where(stretch => stretch.From < end)
-                .Select(stretch => new LocalWindow(FocusDayBuilder.Local(stretch.From, zone), FocusDayBuilder.Local(stretch.To < end ? stretch.To : end, zone)));
-            windows.AddRange(DayTimeline.Subtract([session], away));
+            windows.AddRange(SessionWindows(record, end, zone));
         }
 
         foreach (SyncSession other in others)
@@ -60,6 +56,21 @@ public static class DeepWork
         }
 
         return DayTimeline.Union(windows);
+    }
+
+    /// <summary>
+    /// One counted session's focus as local windows: its span up to <paramref name="end"/> minus every stretch it was away
+    /// (breaks, interruptions, side tasks, planning, time marked distracted, the PC off, the paused timer). The one rule for
+    /// what a session's counted focus is, shared by <see cref="Windows"/> and the goals' focus attribution
+    /// (<see cref="Goals.GoalFocusAttribution"/>).
+    /// </summary>
+    internal static IReadOnlyList<LocalWindow> SessionWindows(SessionRecord record, DateTimeOffset end, TimeZoneInfo zone)
+    {
+        var session = new LocalWindow(FocusDayBuilder.Local(record.StartedAt, zone), FocusDayBuilder.Local(end, zone));
+        IEnumerable<LocalWindow> away = (record.Away ?? [])
+            .Where(stretch => stretch.From < end)
+            .Select(stretch => new LocalWindow(FocusDayBuilder.Local(stretch.From, zone), FocusDayBuilder.Local(stretch.To < end ? stretch.To : end, zone)));
+        return DayTimeline.Subtract([session], away);
     }
 
     /// <summary>Each date from <paramref name="from"/> to <paramref name="to"/> with the part of <paramref name="focused"/> inside it.</summary>
