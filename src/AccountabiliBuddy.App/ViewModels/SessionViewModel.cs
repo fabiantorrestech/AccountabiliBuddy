@@ -145,6 +145,12 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Today's deep work against the daily goal (redesign phase 4); null hides the card.</summary>
     public GoalCardViewModel? Goal { get; set; }
 
+    /// <summary>
+    /// Today's goals on the Today sidebar (round 2 R5): the goals with Show on Today, plus <see cref="Goal"/> for Deep work's daily goal.
+    /// Set by the app before the sidebar is made; null where there are no goals (the sidebar then falls back to <see cref="Goal"/>).
+    /// </summary>
+    public TodayGoalsViewModel? TodayGoals { get; set; }
+
     /// <summary>The "This is week N of M" switch (ADR 47); shows only while the weeks repeat in a cycle of more than one.</summary>
     public WeekCardViewModel? Week { get; set; }
 

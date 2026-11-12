@@ -140,10 +140,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public const int PlanTab = (int)MainTab.Plan;
     public const int StatsTab = (int)MainTab.Stats;
     public const int SettingsTab = (int)MainTab.Settings;
+    public const int GoalsTab = (int)MainTab.Goals;
 
     partial void OnSelectedTabChanged(int oldValue, int newValue)
     {
         Stats?.SetTabSelected(newValue == StatsTab);
+        Goals?.SetShown(newValue == GoalsTab);
 
         OnPropertyChanged(nameof(IsTodaySelected));
         OnPropertyChanged(nameof(IsTasksSelected));
@@ -151,6 +153,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(IsStatsSelected));
         OnPropertyChanged(nameof(IsSettingsSelected));
         OnPropertyChanged(nameof(IsActivitySelected));
+        OnPropertyChanged(nameof(IsGoalsSelected));
     }
 
     public bool IsTodaySelected => SelectedTab == (int)MainTab.Today;
@@ -164,6 +167,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsSettingsSelected => SelectedTab == (int)MainTab.Settings;
 
     public bool IsActivitySelected => SelectedTab == (int)MainTab.Activity;
+
+    public bool IsGoalsSelected => SelectedTab == (int)MainTab.Goals;
 
     /// <summary>A rail item was clicked.</summary>
     [RelayCommand]
@@ -321,6 +326,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     /// <summary>The Stats page (History's details are in its "Day details" fold); set by the app.</summary>
     public StatsViewModel? Stats { get; init; }
+
+    /// <summary>The Goals page (round 2 R5); set by the app once the goals are made. Null shows an empty page.</summary>
+    [ObservableProperty]
+    public partial GoalsViewModel? Goals { get; set; }
 
     /// <summary>
     /// The top-right refresh: syncs now by every method that's on, reads calendars again and reloads the day bar and

@@ -1,0 +1,339 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:goals="using:AccountabiliBuddy.App.Services.Goals"
+             x:Class="AccountabiliBuddy.App.Views.GoalListView"
+             x:DataType="vm:GoalListViewModel">
+    <!-- The Goals list pane (round 2 R5.2, change note §4a): the This week card stays at the top (the list scrolls under it), then "Your
+         goals" (folds the list) with the view switch By area / Current / All, then soft area blocks (18 px apart, no borders, no row
+         dividers), each row: icon chip, name, "↳ target", the one number or a status pill, the kind's visual, ⋯ on hover or focus. Paused
+         goals only in All (faded, last). In a small window the pane collapses to its icons. -->
+    <UserControl.Styles>
+        <Style Selector="Border.weekCard">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+        <Style Selector="Border.weekSegment">
+            <Setter Property="Height" Value="7" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.weekSegment.onTrack">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Border.weekSegment.behind">
+            <Setter Property="Background" Value="{DynamicResource Ab.AmberLine}" />
+        </Style>
+        <!-- The view switch: a small segmented control; the chosen one raised in the surface colour. -->
+        <Style Selector="Border.viewSwitch">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="2" />
+        </Style>
+        <Style Selector="Border.viewSwitch Button">
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Border.viewSwitch Button /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Border.viewSwitch Button.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.viewSwitch Button.on">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <!-- A goal row: transparent at rest, lighter on hover (Ab.RowHover: white in Instrument light), the accent's soft tint when shown. -->
+        <Style Selector="Button.goalRow">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.goalRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.goalRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.goalRow.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        </Style>
+        <Style Selector="Panel.goalRowHost.paused">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="Border.iconChip">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.mutedPill">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.mutedPill TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.areaHead">
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.areaHead /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.textLink">
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.textLink /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.textLink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <!-- The row's menu button sits over the visual's right end: it carries the surface colour so the visual doesn't show through. -->
+        <Style Selector="Button.rowMore /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        </Style>
+        <Style Selector="Button.compactIcon">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="44" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.compactIcon /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.compactIcon.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- ===== The full list ===== -->
+        <DockPanel IsVisible="{Binding IsFull}">
+            <!-- This week (fixed; the list scrolls under it). -->
+            <Border x:Name="ThisWeekCard" DockPanel.Dock="Top" Classes="weekCard" DataContext="{Binding ThisWeek}" x:DataType="vm:GoalThisWeekViewModel">
+                <StackPanel Spacing="10">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="This week" FontSize="12.5" FontWeight="SemiBold" />
+                        <TextBlock Classes="muted" FontSize="12.5" Text="{Binding RangeText}" />
+                    </StackPanel>
+                    <WrapPanel ItemSpacing="10" LineSpacing="4">
+                        <TextBlock Classes="numeral" FontSize="24" Text="{Binding CountText}" VerticalAlignment="Center" />
+                        <TextBlock Text="on track" FontSize="14" VerticalAlignment="Center" />
+                        <Button Classes="textLink" Padding="0" IsVisible="{Binding HasBehind}" Command="{Binding JumpToBehindCommand}"
+                                ToolTip.Tip="Show the goal that's behind" AutomationProperties.Name="{Binding BehindText}" VerticalAlignment="Center">
+                            <Border Classes="abPill amber">
+                                <TextBlock FontSize="12" Text="{Binding BehindText}" />
+                            </Border>
+                        </Button>
+                        <TextBlock Classes="muted" FontSize="12.5" Text="{Binding NotDueText}" IsVisible="{Binding HasNotDue}" VerticalAlignment="Center" />
+                    </WrapPanel>
+                    <ItemsControl ItemsSource="{Binding Segments}" AutomationProperties.Name="This week's goals by status">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:GoalWeekSegment">
+                                <Border Classes="weekSegment" Classes.onTrack="{Binding IsOnTrack}" Classes.behind="{Binding IsBehind}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="0,2" />
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                        <mi:MaterialIcon Kind="TrackChanges" Width="18" Height="18" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="Weekly review" FontSize="13.5" FontWeight="SemiBold" />
+                            <TextBlock Classes="muted" FontSize="12" Text="{Binding ReviewNote}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Column="2" Command="{Binding SnoozeReviewCommand}" ToolTip.Tip="Snooze the weekly review" AutomationProperties.Name="Snooze the weekly review">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="AlarmSnooze" Width="15" Height="15" />
+                                <TextBlock Text="Snooze" />
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="3" Classes="primary" Content="Start" Command="{Binding StartReviewCommand}" AutomationProperties.Name="Start the weekly review" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- "Your goals": folds the list; the view switch, remembered. -->
+            <Grid x:Name="YourGoalsHeader" DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="0,14,0,8">
+                <Button Classes="areaHead" Command="{Binding ToggleGoalsCommand}" ToolTip.Tip="{Binding GoalsToggleTip}" AutomationProperties.Name="{Binding GoalsToggleTip}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="ChevronDown" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}">
+                            <mi:MaterialIcon.RenderTransform>
+                                <RotateTransform Angle="{Binding GoalsCaretAngle}" />
+                            </mi:MaterialIcon.RenderTransform>
+                        </mi:MaterialIcon>
+                        <TextBlock Text="YOUR GOALS" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" LetterSpacing="0.6" />
+                        <TextBlock Classes="muted" FontSize="12.5" FontFeatures="+tnum" Text="{Binding Count}" />
+                    </StackPanel>
+                </Button>
+                <Border Grid.Column="2" Classes="viewSwitch">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="By area" Classes.on="{Binding IsByArea}" Command="{Binding SetViewCommand}" CommandParameter="{x:Static goals:GoalListView.ByArea}" AutomationProperties.Name="Show goals by area" />
+                        <Button Content="Current" Classes.on="{Binding IsCurrent}" Command="{Binding SetViewCommand}" CommandParameter="{x:Static goals:GoalListView.Current}" AutomationProperties.Name="Show current goals" />
+                        <Button Content="All" Classes.on="{Binding IsAll}" Command="{Binding SetViewCommand}" CommandParameter="{x:Static goals:GoalListView.All}" AutomationProperties.Name="Show all goals" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <ScrollViewer x:Name="ListScroll" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="10" Margin="0,0,0,12">
+                    <TextBlock Classes="muted" FontSize="12.5" TextWrapping="Wrap" Text="{Binding HiddenText}" IsVisible="{Binding IsGoalsClosed}" Margin="6,4" />
+                    <ItemsControl x:Name="BlockList" ItemsSource="{Binding Blocks}" IsVisible="{Binding IsGoalsOpen}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Classes="abBlocks" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:GoalAreaBlockViewModel">
+                                <StackPanel Spacing="8">
+                                    <!-- The area header: 16.5 px bold, its icon, a count pill; ✎ on hover or keyboard focus (Edit area). A click folds it. -->
+                                    <Grid Classes="abHoverHost" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsHeader}">
+                                        <Button Classes="areaHead" HorizontalAlignment="Left" Command="{Binding ToggleFoldCommand}"
+                                                ToolTip.Tip="{Binding FoldTip}" AutomationProperties.Name="{Binding Title}">
+                                            <StackPanel Orientation="Horizontal" Spacing="9">
+                                                <mi:MaterialIcon Classes="abSectionIcon" Kind="{Binding Icon}" />
+                                                <TextBlock Classes="abSectionTitle" Text="{Binding Title}" />
+                                                <Border Classes="abCountPill">
+                                                    <TextBlock Text="{Binding CountText}" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1" Classes="abHeaderIcon abHoverOnly" Command="{Binding EditCommand}"
+                                                ToolTip.Tip="{Binding EditTip}" AutomationProperties.Name="{Binding EditTip}">
+                                            <mi:MaterialIcon Kind="PencilOutline" Width="16" Height="16" />
+                                        </Button>
+                                    </Grid>
+                                    <Border Classes="abSoftBlock" IsVisible="{Binding ShowsRows}">
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Spacing="2" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:GoalRowViewModel">
+                                                    <Panel Classes="goalRowHost abMenuHost abHoverHost" Classes.paused="{Binding IsPaused}" ContextRequested="OnRowContextRequested">
+                                                        <Button Classes="goalRow" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                                                AutomationProperties.Name="{Binding AccessibleName}">
+                                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                                                                <Border Classes="iconChip">
+                                                                    <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" Foreground="{Binding ColourBrush}" />
+                                                                </Border>
+                                                                <!-- Name and the target line: trimmed to their column, so nothing draws over the number. -->
+                                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" ClipToBounds="True">
+                                                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                                                    <DockPanel>
+                                                                        <TextBlock DockPanel.Dock="Left" Classes="abSubLine" Text="{Binding SubLine}" />
+                                                                        <Border DockPanel.Dock="Left" Classes="abChip" Margin="6,0,0,0" IsVisible="{Binding IsBuiltIn}">
+                                                                            <TextBlock Text="Built in" />
+                                                                        </Border>
+                                                                        <TextBlock Classes="abSubLine" Margin="6,0,0,0" Text="{Binding PausedSince}" IsVisible="{Binding IsPaused}" />
+                                                                    </DockPanel>
+                                                                </StackPanel>
+                                                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                                    <TextBlock Classes="numeral" FontSize="13" Text="{Binding Number}" IsVisible="{Binding ShowsNumber}" VerticalAlignment="Center" />
+                                                                    <Border Classes="abPill amber" IsVisible="{Binding IsPillAmber}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                            <mi:MaterialIcon Kind="TimerSandEmpty" Width="12" Height="12" VerticalAlignment="Center" />
+                                                                            <TextBlock FontSize="12" Text="{Binding Pill}" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                    <Border Classes="mutedPill" IsVisible="{Binding IsPillMuted}">
+                                                                        <TextBlock Text="{Binding Pill}" />
+                                                                    </Border>
+                                                                </StackPanel>
+                                                                <Panel Grid.Column="3" Width="64" VerticalAlignment="Center">
+                                                                    <controls:MarkedBar IsVisible="{Binding ShowsBar}" Fraction="{Binding BarFraction}" FillBrush="{Binding ColourBrush}"
+                                                                                        TrackBrush="{DynamicResource Ab.Surface2}" />
+                                                                    <controls:DayStateCellsView IsVisible="{Binding ShowsStrip}" Cells="{Binding Cells}" CellWidth="3" CellGap="1.5" CellHeight="16"
+                                                                                                HorizontalAlignment="Right" FillBrush="{Binding ColourBrush}"
+                                                                                                TodayBrush="{DynamicResource Ab.Accent}" LineBrush="{DynamicResource Ab.Faint}" />
+                                                                    <controls:DayStateCellsView IsVisible="{Binding ShowsDots}" Cells="{Binding Cells}" Dots="True" CellWidth="6" CellGap="3"
+                                                                                                HorizontalAlignment="Right" FillBrush="{Binding ColourBrush}"
+                                                                                                TodayBrush="{DynamicResource Ab.Accent}" LineBrush="{DynamicResource Ab.Line}" />
+                                                                    <controls:DayStateCellsView IsVisible="{Binding ShowsDayBars}" Cells="{Binding Cells}" Heights="{Binding BarHeights}" CellWidth="5"
+                                                                                                CellGap="3" CellHeight="20" HorizontalAlignment="Right" FillBrush="{Binding ColourBrush}"
+                                                                                                TodayBrush="{DynamicResource Ab.Accent}" LineBrush="{DynamicResource Ab.Faint}" />
+                                                                    <controls:SparklineView IsVisible="{Binding ShowsTrend}" Values="{Binding Trend}" StrokeBrush="{Binding ColourBrush}" />
+                                                                </Panel>
+                                                            </Grid>
+                                                        </Button>
+                                                        <!-- ⋯ on hover or keyboard focus: the goal menu (also right-click, the Menu key, Shift+F10). -->
+                                                        <Button Classes="abHeaderIcon abHoverOnly rowMore" Width="28" Height="28" HorizontalAlignment="Right" Margin="0,0,6,0"
+                                                                Click="OnRowMoreClick" ToolTip.Tip="Goal menu" AutomationProperties.Name="Goal menu">
+                                                            <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" />
+                                                        </Button>
+                                                        <Border Classes="abMenuRing" CornerRadius="12" />
+                                                    </Panel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Classes="textLink" HorizontalAlignment="Left" Margin="6,0" IsVisible="{Binding HasPausedLink}" Command="{Binding ShowAllCommand}"
+                            Content="{Binding PausedLinkText}" AutomationProperties.Name="{Binding PausedLinkText}" />
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+
+        <!-- ===== Collapsed to icons (a small window): each goal's icon; a click shows it. ===== -->
+        <ScrollViewer IsVisible="{Binding IsCompact}" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding ShownRows}" Margin="0,4">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="6" HorizontalAlignment="Center" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GoalRowViewModel">
+                        <Button Classes="compactIcon" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                ToolTip.Tip="{Binding AccessibleName}" AutomationProperties.Name="{Binding AccessibleName}">
+                            <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" Foreground="{Binding ColourBrush}" />
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Panel>
+</UserControl>

@@ -15,6 +15,15 @@ public static class GoalStrip14
             .ToList();
     }
 
+    /// <summary>
+    /// One day's cell by the strip's rule (hit, partial, missed, paused, not due, today with its progress), for other day views of
+    /// the same states (the week dots, the This period tile, the goal heatmap).
+    /// </summary>
+    public static GoalStripCell CellOf(Goal goal, GoalDayState state, DateOnly today)
+    {
+        return Cell(goal, state, today);
+    }
+
     private static GoalStripCell Cell(Goal goal, GoalDayState state, DateOnly today)
     {
         bool isToday = state.Day == today;

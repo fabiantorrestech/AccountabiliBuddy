@@ -15,4 +15,9 @@ public enum MainTab
 
     /// <summary>Only with ACCOUNTABILIBUDDY_DEV_TOOLS=1.</summary>
     Activity,
+
+    /// <summary>
+    /// Goals (round 2 R5): in the rail after Stats (the PC keeps Stats in the rail); last here so every older page keeps its number.
+    /// </summary>
+    Goals,
 }

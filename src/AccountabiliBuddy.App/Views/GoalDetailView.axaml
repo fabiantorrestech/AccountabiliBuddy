@@ -1,0 +1,410 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:core="using:AccountabiliBuddy.Core.Goals"
+             x:Class="AccountabiliBuddy.App.Views.GoalDetailView"
+             x:DataType="vm:GoalDetailViewModel">
+    <!-- The goal detail pane (round 2 R5.3, change note §4a). It reflows by its own width, never the window's (TileRowPanel, SideSlotPanel):
+         tiles of at least 230 px, the Target tile wrapping to its own row first; the day panel beside the heatmap, or under it below about
+         700 px; the bottom cards in two columns, then stacked. Once anything stacks the pane scrolls, vertically only. -->
+    <UserControl.Styles>
+        <Style Selector="Border.detailPane">
+            <Setter Property="Background" Value="{DynamicResource Ab.SectionBlock}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.CardRadius}" />
+        </Style>
+        <Style Selector="Border.goalTile, Border.dayPanel, Border.bottomCard">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="Padding" Value="16,14" />
+        </Style>
+        <Style Selector="Border.tileChip">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <Style Selector="Border.tileChip mi|MaterialIcon">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Border.statusPill">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="8,1" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.statusPill TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Border.statusPill.teal">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        </Style>
+        <Style Selector="Border.statusPill.teal TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Border.statusPill.amber">
+            <Setter Property="Background" Value="{DynamicResource Ab.AmberFill}" />
+        </Style>
+        <Style Selector="Border.statusPill.amber TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+        </Style>
+        <Style Selector="Border.pbBadge">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.pbBadge TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Border.timePill">
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.timePill TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontFeatures" Value="+tnum" />
+        </Style>
+        <Style Selector="Button.rangeButton">
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Button.rangeButton /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.rangeButton.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.rangeButton.on">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.link">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.link /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Border.ringSample">
+            <Setter Property="Width" Value="13" />
+            <Setter Property="Height" Value="13" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="DetailCard" Classes="detailPane">
+        <Panel>
+            <TextBlock Classes="muted" Text="No goal to show." Margin="22" IsVisible="{Binding !HasGoal}" />
+            <ScrollViewer x:Name="DetailScroll" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasGoal}">
+                <StackPanel x:Name="DetailBody" Margin="20,16,20,20" Spacing="16">
+                    <!-- Title: the name, then "15 min a day · Learning · daily habit · 6 months going" (the age underlined, its tooltip the dates). -->
+                    <Grid x:Name="DetailTitle" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding Name}" FontSize="24" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <WrapPanel>
+                                <TextBlock Text="{Binding TargetText}" FontSize="13" FontWeight="SemiBold" />
+                                <TextBlock Classes="muted" Text="{Binding MiddleText}" FontSize="13" />
+                                <TextBlock x:Name="AgeText" Text="{Binding AgeText}" FontSize="13" FontWeight="SemiBold" Focusable="True"
+                                           ToolTip.Tip="{Binding AgeTip}" AutomationProperties.HelpText="{Binding AgeTip}" AutomationProperties.Name="{Binding AgeText}">
+                                    <TextBlock.TextDecorations>
+                                        <TextDecorationCollection>
+                                            <TextDecoration Location="Underline" StrokeThickness="1" StrokeDashArray="1,2" Stroke="{DynamicResource Ab.Ink}" />
+                                        </TextDecorationCollection>
+                                    </TextBlock.TextDecorations>
+                                </TextBlock>
+                            </WrapPanel>
+                        </StackPanel>
+                        <Button Grid.Column="1" VerticalAlignment="Top" Command="{Binding RequestEditCommand}" CommandParameter="{x:Static vm:GoalEditSection.Basics}"
+                                ToolTip.Tip="Edit goal" AutomationProperties.Name="Edit goal">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" />
+                                <TextBlock Text="Edit" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MenuButton" Grid.Column="2" Classes="abHeaderIcon" VerticalAlignment="Top" Command="{Binding OpenMenuCommand}"
+                                ToolTip.Tip="Goal menu" AutomationProperties.Name="Goal menu">
+                            <mi:MaterialIcon Kind="DotsVertical" Width="18" Height="18" />
+                        </Button>
+                    </Grid>
+
+                    <!-- Tiles by horizon: Today → This period → Target (≥ 230 px each; Target wraps first). -->
+                    <ItemsControl x:Name="Tiles" ItemsSource="{Binding Tiles}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <controls:TileRowPanel MinTileWidth="230" Spacing="12" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:GoalTileViewModel">
+                                <Border Classes="goalTile" AutomationProperties.Name="{Binding TileName}" AutomationProperties.HelpText="{Binding AccessibleName}">
+                                    <StackPanel Spacing="10">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                                            <Border Classes="tileChip">
+                                                <mi:MaterialIcon Kind="{Binding Icon}" />
+                                            </Border>
+                                            <StackPanel Grid.Column="1">
+                                                <WrapPanel ItemSpacing="6">
+                                                    <TextBlock Classes="numeral" FontSize="22" Text="{Binding Big}" VerticalAlignment="Bottom" />
+                                                    <TextBlock Classes="muted numeral" FontSize="14" Text="{Binding Of}" IsVisible="{Binding HasOf}" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                                                </WrapPanel>
+                                                <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Caption}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <controls:MarkedBar IsVisible="{Binding ShowsBar}" Fraction="{Binding Fraction}" Mark="{Binding Mark}" FillBrush="{Binding ColourBrush}"
+                                                            TrackBrush="{DynamicResource Ab.Surface2}" MarkBrush="{DynamicResource Ab.Ink}" />
+                                        <controls:PeriodSegmentsView IsVisible="{Binding ShowsSegments}" Cells="{Binding Segments}" FillBrush="{Binding ColourBrush}"
+                                                                     TrackBrush="{DynamicResource Ab.Surface2}" TodayBrush="{DynamicResource Ab.Accent}"
+                                                                     LabelBrush="{DynamicResource Ab.Muted}" TodayLabelBrush="{DynamicResource Ab.Ink}" />
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <WrapPanel ItemSpacing="6">
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" Text="{Binding Status}" IsVisible="{Binding IsStatusTeal}" />
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Ab.AmberInk}" Text="{Binding Status}" IsVisible="{Binding IsStatusAmber}" />
+                                                <TextBlock Classes="muted" FontSize="12" Text="{Binding Foot}" IsVisible="{Binding HasFoot}" TextWrapping="Wrap" />
+                                            </WrapPanel>
+                                            <Button x:Name="WhatItTakesLink" Grid.Column="1" Classes="link" IsVisible="{Binding IsTarget}"
+                                                    Command="{Binding WhatItTakes.ToggleCommand, FallbackValue={x:Null}}"
+                                                    IsEnabled="{Binding WhatItTakes.IsAvailable, FallbackValue=False}"
+                                                    AutomationProperties.Name="What it takes">
+                                                <TextBlock Text="What it takes ›" FontSize="12" FontWeight="SemiBold" />
+                                            </Button>
+                                            <Popup Grid.Column="1" PlacementTarget="{Binding #WhatItTakesLink}" Placement="BottomEdgeAlignedRight" IsLightDismissEnabled="True"
+                                                   IsOpen="{Binding WhatItTakes.IsOpen, Mode=TwoWay, FallbackValue=False}">
+                                                <Border Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
+                                                        CornerRadius="{DynamicResource Ab.PopoverRadius}" BoxShadow="{DynamicResource Ab.PopoverShadow}" Padding="16,14" Width="320"
+                                                        DataContext="{Binding WhatItTakes}"
+                                                        x:DataType="vm:GoalWhatItTakesViewModel">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock Text="What it takes" FontSize="14" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding Remaining}" FontSize="13" TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Each}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasEach}" />
+                                                        <TextBlock Classes="muted" Text="{Binding Pace}" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding HasPace}" />
+                                                        <TextBlock Text="{Binding Verdict}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Met}" IsVisible="{Binding IsGreen}" />
+                                                        <TextBlock Text="{Binding Verdict}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource Ab.AmberInk}" IsVisible="{Binding IsAmber}" />
+                                                        <Button Classes="link" HorizontalAlignment="Left" Command="{Binding ChangeTargetCommand}" AutomationProperties.Name="Change the target">
+                                                            <TextBlock Text="Change the target" FontSize="12.5" FontWeight="SemiBold" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding HasPending}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <mi:MaterialIcon Kind="TimerSandEmpty" Width="14" Height="14" Foreground="{DynamicResource Ab.Waiting}" VerticalAlignment="Center" />
+                                                <TextBlock FontSize="12" Foreground="{DynamicResource Ab.Waiting}" Text="{Binding Pending}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Classes="link" Command="{Binding CancelPendingCommand}" AutomationProperties.Name="Cancel the waiting change">
+                                                <TextBlock Text="Cancel" FontSize="12" FontWeight="SemiBold" />
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- The heatmap: range and ‹ › (wrap to a second line rather than overflow), the grid and its day panel slot. -->
+                    <StackPanel x:Name="HeatmapSection" Spacing="10" DataContext="{Binding Heatmap}" x:DataType="vm:GoalHeatmapViewModel">
+                        <WrapPanel x:Name="HeatmapHeader" ItemSpacing="10" LineSpacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Classes="muted" Text="{Binding Dates}" FontSize="13" VerticalAlignment="Center" />
+                                <Button Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding PreviousCommand}" ToolTip.Tip="Earlier" AutomationProperties.Name="Earlier">
+                                    <mi:MaterialIcon Kind="ChevronLeft" Width="16" Height="16" />
+                                </Button>
+                                <Button Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding NextCommand}" ToolTip.Tip="Later" AutomationProperties.Name="Later">
+                                    <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" />
+                                </Button>
+                            </StackPanel>
+                            <Border Classes="timePill" Padding="2" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" Background="{DynamicResource Ab.Surface}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Classes="rangeButton" Classes.on="{Binding IsOneMonth}" Content="1 month" Command="{Binding SetRangeCommand}" CommandParameter="{x:Static core:GoalHeatmapRange.OneMonth}" />
+                                    <Button Classes="rangeButton" Classes.on="{Binding IsThreeMonths}" Content="3 months" Command="{Binding SetRangeCommand}" CommandParameter="{x:Static core:GoalHeatmapRange.ThreeMonths}" />
+                                    <Button Classes="rangeButton" Classes.on="{Binding IsSixMonths}" Content="6 months" Command="{Binding SetRangeCommand}" CommandParameter="{x:Static core:GoalHeatmapRange.SixMonths}" />
+                                    <Button Classes="rangeButton" Classes.on="{Binding IsYear}" Content="Year" Command="{Binding SetRangeCommand}" CommandParameter="{x:Static core:GoalHeatmapRange.Year}" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                        <controls:SideSlotPanel x:Name="HeatmapSlot" StackBelow="700" SideMinWidth="200" SideMaxWidth="280" Spacing="16">
+                            <StackPanel x:Name="HeatmapHost" Spacing="12">
+                                <controls:HeatmapControl x:Name="GoalHeatmap" HorizontalAlignment="Left" Cells="{Binding Cells}" ColumnCount="{Binding Columns}" RowCount="7"
+                                                         RowLabels="{Binding RowLabels}" RowLabelWidth="{Binding RowLabelWidth}" ColumnSpans="{Binding MonthLabels}"
+                                                         Dividers="{Binding Dividers}" FixedCellSize="15" CellGap="3"
+                                                         EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{Binding RampBrush}" LabelBrush="{DynamicResource Ab.Muted}"
+                                                         LineBrush="{DynamicResource Ab.Faint}" TodayRingBrush="{DynamicResource Ab.Accent}" SelectedRingBrush="{DynamicResource Ab.Ink}"
+                                                         TodayDate="{Binding Today}" SelectedDate="{Binding SelectedDay}" CellCommand="{Binding PickDayCommand}"
+                                                         AutomationProperties.Name="Goal heatmap" />
+                                <WrapPanel ItemSpacing="14" LineSpacing="6">
+                                    <controls:HeatLegend EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{Binding RampBrush}" LabelBrush="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                    <TextBlock Classes="muted" FontSize="12" Text="{Binding LegendNote}" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Border Classes="ringSample" BorderBrush="{DynamicResource Ab.Accent}" />
+                                        <TextBlock Classes="muted" FontSize="12" Text="Today" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Border Classes="ringSample" BorderBrush="{DynamicResource Ab.Ink}" />
+                                        <TextBlock Classes="muted" FontSize="12" Text="Selected" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                            <!-- The day panel: a fixed slot, today by default; a clicked cell shows that day with Back to today. -->
+                            <Border x:Name="DayPanel" Classes="dayPanel" DataContext="{Binding $parent[UserControl].((vm:GoalDetailViewModel)DataContext).DayPanel, FallbackValue={x:Null}}"
+                                    x:DataType="vm:GoalDayPanelViewModel" AutomationProperties.Name="Day panel">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="{Binding Title}" FontSize="13.5" FontWeight="SemiBold" />
+                                        <Button Grid.Column="1" Classes="link" IsVisible="{Binding IsPast}" Command="{Binding BackToTodayCommand}" AutomationProperties.Name="Back to today">
+                                            <TextBlock Text="Back to today" FontSize="12" FontWeight="SemiBold" />
+                                        </Button>
+                                    </Grid>
+                                    <WrapPanel ItemSpacing="6">
+                                        <TextBlock Classes="numeral" FontSize="22" Text="{Binding Big}" VerticalAlignment="Bottom" />
+                                        <TextBlock Classes="muted" FontSize="13" Text="{Binding Of}" IsVisible="{Binding HasOf}" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                                    </WrapPanel>
+                                    <Border Classes="statusPill" Classes.teal="{Binding IsTeal}" Classes.amber="{Binding IsAmber}">
+                                        <TextBlock Text="{Binding Status}" />
+                                    </Border>
+                                    <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Source}" TextWrapping="Wrap" />
+                                    <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                        <Button Classes="primary" Command="{Binding TickCommand}" IsVisible="{Binding CanTick}" Content="{Binding TickText}"
+                                                AutomationProperties.Name="{Binding TickText}" />
+                                        <Button Command="{Binding EditCommand}" IsVisible="{Binding CanEdit}" AutomationProperties.Name="Edit this day">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" />
+                                                <TextBlock Text="Edit" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                    <StackPanel Spacing="6" IsVisible="{Binding IsEditing}">
+                                        <TextBlock Classes="muted" FontSize="12" Text="{Binding EditCaption}" TextWrapping="Wrap" />
+                                        <NumericUpDown Value="{Binding EditValue}" Minimum="0" Maximum="100000" Increment="1" FormatString="0.#" AutomationProperties.Name="{Binding EditCaption}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Classes="primary" Content="Save" Command="{Binding SaveEditCommand}" />
+                                            <Button Content="Cancel" Command="{Binding CancelEditCommand}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <TextBlock Classes="muted" FontSize="12" Text="{Binding Note}" TextWrapping="Wrap" IsVisible="{Binding HasNote}" />
+                                    <TextBlock FontSize="12" Foreground="{DynamicResource Ab.Waiting}" Text="{Binding Message}" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
+                                </StackPanel>
+                            </Border>
+                        </controls:SideSlotPanel>
+                    </StackPanel>
+
+                    <!-- The bottom cards: two columns when there's room, then stacked. Edit goal (R5b) opens from ✎ and +. -->
+                    <controls:TileRowPanel x:Name="BottomCards" MinTileWidth="300" Spacing="12">
+                        <Border x:Name="ProgressCard" Classes="bottomCard" AutomationProperties.Name="Progress tracking">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                                    <Border Classes="tileChip">
+                                        <mi:MaterialIcon Kind="ChartLineVariant" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="Progress tracking" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding RequestEditCommand}"
+                                            CommandParameter="{x:Static vm:GoalEditSection.TrackingAndSources}" ToolTip.Tip="Edit tracking and sources" AutomationProperties.Name="Edit tracking and sources">
+                                        <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" />
+                                    </Button>
+                                    <Button Grid.Column="3" Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding RequestEditCommand}"
+                                            CommandParameter="{x:Static vm:GoalEditSection.TrackingAndSources}" ToolTip.Tip="Add a source" AutomationProperties.Name="Add a source">
+                                        <mi:MaterialIcon Kind="Plus" Width="16" Height="16" />
+                                    </Button>
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding ProgressLines}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:GoalSourceLine">
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,2">
+                                                <TextBlock Text="•" FontSize="13" Classes.faint="{Binding IsComingSoon}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap" Classes.faint="{Binding IsComingSoon}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="RemindersCard" Classes="bottomCard" AutomationProperties.Name="Reminders">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+                                    <Border Classes="tileChip">
+                                        <mi:MaterialIcon Kind="BellOutline" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="Reminders" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Border Grid.Column="2" Classes="pbBadge" IsVisible="{Binding IsProductaBuddy}" ToolTip.Tip="ProductaBuddy mode: suggestions only">
+                                        <TextBlock Text="PB" />
+                                    </Border>
+                                    <Button Grid.Column="3" Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding RequestEditCommand}"
+                                            CommandParameter="{x:Static vm:GoalEditSection.Reminders}" ToolTip.Tip="Edit reminders" AutomationProperties.Name="Edit reminders">
+                                        <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" />
+                                    </Button>
+                                    <Button Grid.Column="4" Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding RequestEditCommand}"
+                                            CommandParameter="{x:Static vm:GoalEditSection.Reminders}" ToolTip.Tip="Add a reminder" AutomationProperties.Name="Add a reminder">
+                                        <mi:MaterialIcon Kind="Plus" Width="16" Height="16" />
+                                    </Button>
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding Reminders}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="8" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:GoalReminderRow">
+                                            <Grid ColumnDefinitions="18,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                                <TextBlock Classes="muted" FontSize="12.5" Text="{Binding NumberText}" VerticalAlignment="Center" />
+                                                <Border Grid.Column="1" Classes="timePill"><TextBlock Text="{Binding DayText}" /></Border>
+                                                <Border Grid.Column="2" Classes="timePill"><TextBlock Text="{Binding TimeText}" /></Border>
+                                                <mi:MaterialIcon Grid.Column="3" Kind="{Binding RepeatIcon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" ToolTip.Tip="{Binding RepeatTip}" />
+                                                <TextBlock Grid.Column="4" Text="{Binding Reason}" FontSize="12.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Classes="muted" FontSize="12.5" Text="No reminders yet." IsVisible="{Binding !HasReminders}" />
+                                <TextBlock Classes="muted" FontSize="12" Text="{Binding RemindersFoot}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="NotesCard" Classes="bottomCard" AutomationProperties.Name="Notes">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                    <Border Classes="tileChip">
+                                        <mi:MaterialIcon Kind="NoteTextOutline" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="Notes" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding RequestEditCommand}"
+                                            CommandParameter="{x:Static vm:GoalEditSection.Notes}" ToolTip.Tip="Edit notes" AutomationProperties.Name="Edit notes">
+                                        <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" />
+                                    </Button>
+                                </Grid>
+                                <TextBlock Text="{Binding NotesPreview}" FontSize="13" TextWrapping="Wrap" Classes.muted="{Binding !HasNotes}" MaxHeight="120" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Border>
+                    </controls:TileRowPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Panel>
+    </Border>
+</UserControl>

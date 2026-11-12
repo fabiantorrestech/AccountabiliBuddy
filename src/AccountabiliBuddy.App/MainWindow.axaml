@@ -306,7 +306,7 @@
             </StackPanel>
 
             <Grid Grid.Row="2" ColumnDefinitions="72,*">
-                <!-- The rail, 72 wide (60-wide items): Today, Tasks, Plan, Stats at the top; "N resting" (while a session runs) and Settings at the
+                <!-- The rail, 72 wide (60-wide items): Today, Tasks, Plan, Stats, Goals at the top; "N resting" (while a session runs) and Settings at the
                      bottom. Every item shows in a session too: the locks stay where they were. -->
                 <Grid Background="{DynamicResource Ab.Bg}" RowDefinitions="Auto,*,Auto" Margin="0,10,0,20">
                     <StackPanel Spacing="6">
@@ -318,6 +318,9 @@
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Plan}" />
                         <controls:RailButton Label="Stats" Icon="ChartTimelineVariant" IsSelected="{Binding IsStatsSelected}" AutomationProperties.Name="Stats"
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Stats}" />
+                        <!-- Round 2 R5: Goals after Stats (the PC keeps Stats in the rail; the other items don't move). -->
+                        <controls:RailButton Label="Goals" Icon="TrackChanges" IsSelected="{Binding IsGoalsSelected}" AutomationProperties.Name="Goals"
+                                             Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Goals}" />
                     </StackPanel>
                     <StackPanel Grid.Row="2" Spacing="6" VerticalAlignment="Bottom">
                         <controls:RailButton Classes="resting" Label="{Binding RestingText}" Icon="LockOutline" IsVisible="{Binding ShowsResting}"
@@ -342,6 +345,7 @@
                             <views:StatsView DataContext="{Binding Stats}" IsVisible="False" />
                             <views:SettingsShellView IsVisible="False" />
                             <views:ActivityView DataContext="{Binding Activity}" IsVisible="False" />
+                            <views:GoalsView DataContext="{Binding Goals}" IsVisible="False" />
                         </Panel>
                         <!-- Search matches on the page showing, drawn over it without taking clicks. -->
                         <controls:SearchHighlightLayer x:Name="Highlights" />

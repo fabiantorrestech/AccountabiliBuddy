@@ -141,49 +141,90 @@
                     <TextBlock Classes="muted" FontSize="12.5" Text="Nothing else planned for today." IsVisible="{Binding !HasRows}" />
                 </StackPanel>
 
-                <!-- Today's goals: for now today's deep work against the daily goal (the Goals page, R5, brings the goals list). -->
-                <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsGoals, FallbackValue=False}" DataContext="{Binding Owner.TodayGoals}" x:DataType="vm:GoalCardViewModel">
+                <!-- Today's goals (round 2 R5): the goals with Show on Today (the Goals page's number and bar), then Deep work's daily goal
+                     card lines (its edit, met, pace, phone, waiting); only that card's row when this PC has no goals yet. -->
+                <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsGoals, FallbackValue=False}" DataContext="{Binding Owner.TodayGoals}" x:DataType="vm:TodayGoalsViewModel">
                     <TextBlock Classes="sideHead" Text="Today's goals" />
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                        <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource Ab.AccentSoft}" VerticalAlignment="Center">
-                            <mi:MaterialIcon Kind="TimerOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Accent}" />
-                        </Border>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="Deep work" FontSize="13.5" FontWeight="Medium" />
-                            <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
-                                <Run Text="{Binding FocusedText}" />
-                                <Run Text=" · " />
-                                <Run Text="{Binding OfGoalText}" />
-                            </TextBlock>
-                        </StackPanel>
-                        <Panel Grid.Column="2" Width="44" Height="6" VerticalAlignment="Center">
-                            <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="6" MinWidth="0" Width="44"
-                                         Foreground="{DynamicResource Ab.Accent}" Background="{DynamicResource Ab.Surface2}" AutomationProperties.Name="Deep work today" />
-                        </Panel>
-                        <Button Grid.Column="3" Classes="sideIcon" Command="{Binding EditCommand}" ToolTip.Tip="Change the daily goal"
-                                AutomationProperties.Name="Change the daily goal">
-                            <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" />
-                        </Button>
-                    </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsMet}">
-                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="14" Height="14" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Met}" />
-                        <TextBlock Text="Goal met" FontSize="12.5" Foreground="{DynamicResource Ab.Met}" VerticalAlignment="Center" />
+                    <Panel IsVisible="{Binding ShowsCardOnly}">
+                    <StackPanel Spacing="8" DataContext="{Binding DeepWork}" x:DataType="vm:GoalCardViewModel">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                            <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource Ab.AccentSoft}" VerticalAlignment="Center">
+                                <mi:MaterialIcon Kind="TimerOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Accent}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Deep work" FontSize="13.5" FontWeight="Medium" />
+                                <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
+                                    <Run Text="{Binding FocusedText}" />
+                                    <Run Text=" · " />
+                                    <Run Text="{Binding OfGoalText}" />
+                                </TextBlock>
+                            </StackPanel>
+                            <Panel Grid.Column="2" Width="44" Height="6" VerticalAlignment="Center">
+                                <ProgressBar Minimum="0" Maximum="1" Value="{Binding Fraction}" Height="6" MinWidth="0" Width="44"
+                                             Foreground="{DynamicResource Ab.Accent}" Background="{DynamicResource Ab.Surface2}" AutomationProperties.Name="Deep work today" />
+                            </Panel>
+                            <Button Grid.Column="3" Classes="sideIcon" Command="{Binding EditCommand}" ToolTip.Tip="Change the daily goal"
+                                    AutomationProperties.Name="Change the daily goal">
+                                <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" />
+                            </Button>
+                        </Grid>
                     </StackPanel>
-                    <TextBlock Classes="muted" Text="{Binding PaceText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding IsPaceOnTrack}" />
-                    <TextBlock Text="{Binding PaceText}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap" IsVisible="{Binding IsPaceBehind}" />
-                    <TextBlock Text="{Binding PhoneText}" FontSize="12" Foreground="{DynamicResource Ab.Met}" TextWrapping="Wrap"
-                               IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
-                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <StackPanel Spacing="8" IsVisible="{Binding IsEditing}">
-                        <WrapPanel ItemSpacing="8" LineSpacing="6">
-                            <TextBlock Text="Daily goal" VerticalAlignment="Center" />
-                            <NumericUpDown Value="{Binding GoalMinutes}" Minimum="30" Maximum="480" Increment="15" FormatString="0" Width="110" />
-                            <TextBlock Text="minutes" VerticalAlignment="Center" />
-                        </WrapPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <Button Content="Save" Command="{Binding SaveCommand}" />
-                            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                    </Panel>
+                    <ItemsControl ItemsSource="{Binding Rows}" x:Name="TodayGoalRows">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TodayGoalRowViewModel">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10" AutomationProperties.Name="{Binding Name}">
+                                    <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource Ab.Surface2}" VerticalAlignment="Center">
+                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="16" Height="16" Foreground="{Binding ColourBrush}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Classes="muted" FontSize="12" FontFeatures="+tnum" Text="{Binding Number}" />
+                                            <Border Classes="abPill amber" IsVisible="{Binding IsBehind}">
+                                                <TextBlock Text="Behind" FontSize="11" />
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <controls:MarkedBar Grid.Column="2" Width="44" VerticalAlignment="Center" IsVisible="{Binding ShowsBar}" Fraction="{Binding Fraction}"
+                                                        FillBrush="{Binding ColourBrush}" TrackBrush="{DynamicResource Ab.Surface2}" />
+                                    <Button Grid.Column="3" Classes="sideIcon" IsVisible="{Binding IsDeepWork}"
+                                            Command="{Binding $parent[ItemsControl].((vm:TodayGoalsViewModel)DataContext).DeepWork.EditCommand, FallbackValue={x:Null}}"
+                                            ToolTip.Tip="Change the daily goal" AutomationProperties.Name="Change the daily goal">
+                                        <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" />
+                                    </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="muted" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding ShowsEmpty}"
+                               Text="No goals on Today. Turn on Show on Today in a goal's menu on the Goals page." />
+                    <StackPanel Spacing="8" DataContext="{Binding DeepWork}" x:DataType="vm:GoalCardViewModel" IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsMet}">
+                            <mi:MaterialIcon Kind="CheckCircleOutline" Width="14" Height="14" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Met}" />
+                            <TextBlock Text="Goal met" FontSize="12.5" Foreground="{DynamicResource Ab.Met}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Classes="muted" Text="{Binding PaceText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding IsPaceOnTrack}" />
+                        <TextBlock Text="{Binding PaceText}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap" IsVisible="{Binding IsPaceBehind}" />
+                        <TextBlock Text="{Binding PhoneText}" FontSize="12" Foreground="{DynamicResource Ab.Met}" TextWrapping="Wrap"
+                                   IsVisible="{Binding PhoneText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <TextBlock Text="{Binding Message}" FontSize="12" Foreground="{DynamicResource Ab.Waiting}" TextWrapping="Wrap"
+                                   IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <StackPanel Spacing="8" IsVisible="{Binding IsEditing}">
+                            <WrapPanel ItemSpacing="8" LineSpacing="6">
+                                <TextBlock Text="Daily goal" VerticalAlignment="Center" />
+                                <NumericUpDown Value="{Binding GoalMinutes}" Minimum="30" Maximum="480" Increment="15" FormatString="0" Width="110" />
+                                <TextBlock Text="minutes" VerticalAlignment="Center" />
+                            </WrapPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="Save" Command="{Binding SaveCommand}" />
+                                <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.GoalsView"
+             x:DataType="vm:GoalsViewModel">
+    <!-- The Goals page on the PC (round 2 R5, brief §4.4, change note §4a, boards Goals-PC and Goals-PC-Small). One card, like Tasks: the page
+         header "Goals · Thu 11/12" (+ New goal, Stats, then Options, last), then the list pane, one splitter, and the detail pane. The list is
+         360 to 560 px (default 470, remembered); it shrinks first so the detail keeps about 760 px, and collapses to its icons below that. -->
+    <Border x:Name="GoalsCard" Classes="card" Padding="0" ClipToBounds="True">
+        <DockPanel>
+            <controls:PageHeader x:Name="GoalsHeader" DockPanel.Dock="Top" Margin="26,20,16,0" Title="Goals" Date="{Binding DateText}"
+                                 OptionsRequested="OnOptionsRequested">
+                <controls:PageHeader.Actions>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="NewGoalButton" Classes="primary" Command="{Binding NewGoalCommand}" AutomationProperties.Name="New goal" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="Plus" Width="16" Height="16" />
+                                <TextBlock Text="New goal" FontWeight="SemiBold" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="StatsButton" Command="{Binding StatsCommand}" ToolTip.Tip="Stats for this goal" AutomationProperties.Name="Stats" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="ChartTimelineVariant" Width="16" Height="16" />
+                                <TextBlock Text="Stats" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </controls:PageHeader.Actions>
+            </controls:PageHeader>
+
+            <Border DockPanel.Dock="Top" Margin="26,9,16,0" Padding="14,10" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.InfoBg}"
+                    IsVisible="{Binding !IsReady}">
+                <TextBlock Text="{Binding NotReadyText}" TextWrapping="Wrap" Foreground="{DynamicResource Ab.InfoInk}" />
+            </Border>
+
+            <controls:SplitPanesPanel x:Name="Panes" Margin="26,9,16,16" IsVisible="{Binding IsReady}"
+                                      ListWidth="{Binding #Splitter.Value}" MinListWidth="360" KeepDetailWidth="760" CollapseDetailBelow="480" CollapsedListWidth="60">
+                <views:GoalListView x:Name="ListPane" DataContext="{Binding List}" />
+                <controls:PaneSplitter x:Name="Splitter" Width="16" Value="{Binding ListWidth}" Minimum="360" Maximum="560" DefaultValue="470" KeyStep="10"
+                                       GripBrush="{DynamicResource Ab.Faint}" AutomationProperties.Name="Goal list width"
+                                       ToolTip.Tip="Drag to resize · double-click resets · ← → with the keyboard" />
+                <views:GoalDetailView x:Name="DetailPane" DataContext="{Binding Detail}" />
+            </controls:SplitPanesPanel>
+        </DockPanel>
+    </Border>
+</UserControl>

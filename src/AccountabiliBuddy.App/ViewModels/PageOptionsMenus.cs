@@ -112,6 +112,70 @@ public static class PageOptionsMenus
         ];
     }
 
+    /// <summary>
+    /// Goals (round 2 R5, brief §4.3, §4.4, CN §4a): List › Show goals (By area / Current / All), Sort (Your order), Areas…; Charts › Week
+    /// starts on (Mon / Sun / Sat), Heatmap day labels (All / Some / None), Extra tiles (Streak, Total: the default for goals without
+    /// their own); then Goals settings ›, last. Areas… and Goals settings › open R5b's Edit areas and Settings › Goals through hooks.
+    /// </summary>
+    public static IReadOnlyList<TaskMenuEntry> Goals(
+        AccountabiliBuddy.App.Services.Goals.GoalListView view,
+        Func<AccountabiliBuddy.App.Services.Goals.GoalListView, Task> setView,
+        AccountabiliBuddy.Core.Goals.GoalWeekStart weekStart,
+        Func<AccountabiliBuddy.Core.Goals.GoalWeekStart, Task> setWeekStart,
+        AccountabiliBuddy.App.Services.Goals.GoalHeatmapLabels labels,
+        Func<AccountabiliBuddy.App.Services.Goals.GoalHeatmapLabels, Task> setLabels,
+        AccountabiliBuddy.Core.Goals.GoalExtraTiles extraTiles,
+        Func<AccountabiliBuddy.Core.Goals.GoalExtraTiles, Task> setExtraTiles,
+        Action openAreas,
+        Action openGoalsSettings)
+    {
+        static string ViewName(AccountabiliBuddy.App.Services.Goals.GoalListView value) => value switch
+        {
+            AccountabiliBuddy.App.Services.Goals.GoalListView.Current => "Current",
+            AccountabiliBuddy.App.Services.Goals.GoalListView.All => "All",
+            _ => "By area",
+        };
+
+        static string WeekName(AccountabiliBuddy.Core.Goals.GoalWeekStart value) => value switch
+        {
+            AccountabiliBuddy.Core.Goals.GoalWeekStart.Monday => "Mon",
+            AccountabiliBuddy.Core.Goals.GoalWeekStart.Saturday => "Sat",
+            _ => "Sun",
+        };
+
+        List<TaskMenuEntry> views = Enum.GetValues<AccountabiliBuddy.App.Services.Goals.GoalListView>()
+            .Select(value => new TaskMenuEntry(ViewName(value), new AsyncRelayCommand(() => setView(value)), IsChecked: value == view))
+            .ToList();
+        List<TaskMenuEntry> weeks = new[] { AccountabiliBuddy.Core.Goals.GoalWeekStart.Monday, AccountabiliBuddy.Core.Goals.GoalWeekStart.Sunday, AccountabiliBuddy.Core.Goals.GoalWeekStart.Saturday }
+            .Select(value => new TaskMenuEntry(WeekName(value), new AsyncRelayCommand(() => setWeekStart(value)), IsChecked: value == weekStart))
+            .ToList();
+        List<TaskMenuEntry> dayLabels = Enum.GetValues<AccountabiliBuddy.App.Services.Goals.GoalHeatmapLabels>()
+            .Select(value => new TaskMenuEntry(value.ToString(), new AsyncRelayCommand(() => setLabels(value)), IsChecked: value == labels))
+            .ToList();
+        List<TaskMenuEntry> tiles =
+        [
+            new TaskMenuEntry("Streak", new AsyncRelayCommand(() => setExtraTiles(extraTiles with { Streak = !extraTiles.Streak })), IsChecked: extraTiles.Streak),
+            new TaskMenuEntry("Total", new AsyncRelayCommand(() => setExtraTiles(extraTiles with { Total = !extraTiles.Total })), IsChecked: extraTiles.Total),
+        ];
+        string tilesValue = extraTiles is { Streak: true, Total: true } ? "Streak, Total" : extraTiles.Streak ? "Streak" : extraTiles.Total ? "Total" : "Off";
+        return
+        [
+            new TaskMenuEntry("List", IsHeading: true),
+            new TaskMenuEntry("Show goals", Children: views, Icon: MaterialIconKind.FormatListBulleted, Value: ViewName(view)),
+            new TaskMenuEntry("Sort", Children: [new TaskMenuEntry("Your order", IsChecked: true)], Icon: MaterialIconKind.Sort, Value: "Your order"),
+            new TaskMenuEntry("Areas…", new RelayCommand(openAreas), Icon: MaterialIconKind.ShapeOutline, OpensMore: true),
+            TaskMenuEntry.Separator,
+            new TaskMenuEntry("Charts", IsHeading: true),
+            new TaskMenuEntry("Week starts on", Children: weeks, Icon: MaterialIconKind.CalendarCheck, Value: WeekName(weekStart)),
+            new TaskMenuEntry("Heatmap day labels", Children: dayLabels, Icon: MaterialIconKind.FormatLetterCase, Value: labels.ToString()),
+            new TaskMenuEntry("Extra tiles", Children: tiles, Icon: MaterialIconKind.ViewDashboardOutline, Value: tilesValue, Note: "For goals without their own choice"),
+            TaskMenuEntry.Separator,
+            new TaskMenuEntry(GoalsSettingsText, new RelayCommand(openGoalsSettings), Icon: MaterialIconKind.Cog, Note: "Weekly review, reminders, charts, areas", OpensMore: true),
+        ];
+    }
+
+    public const string GoalsSettingsText = "Goals settings";
+
     /// <summary>A page's settings row: always last in its Options menu; opens Settings at <paramref name="section"/>.</summary>
     public static TaskMenuEntry SettingsRow(string text, SettingsSection section, string? note, Action<SettingsSection> openSettings)
     {

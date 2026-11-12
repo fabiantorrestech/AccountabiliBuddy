@@ -25,7 +25,7 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
         _layout = layout;
         _state = state;
         NextUp = session.NextUp;
-        TodayGoals = session.Goal;
+        TodayGoals = session.TodayGoals ?? (session.Goal is { } deepWorkCard ? TodayGoalsViewModel.CardOnly(deepWorkCard) : null);
         Comebacks = session.Comebacks;
         Timers = session.Timers;
         Lunch = session.Lunch;
@@ -80,10 +80,10 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
     public NextUpViewModel? NextUp { get; }
 
     /// <summary>
-    /// Today's goals. Round 2 hook: for now today's deep work against the daily goal (<see cref="GoalCardViewModel"/>); the Goals page
-    /// (round 2 R5) replaces this with the goals shown on Today (icon, name, sub-line, progress, Log or ring).
+    /// Today's goals (round 2 R5): the goals with Show on Today (icon, name, the one number, a bar), with Deep work's daily goal card for
+    /// its edit and lines; only that card when there are no goals on this PC.
     /// </summary>
-    public GoalCardViewModel? TodayGoals { get; }
+    public TodayGoalsViewModel? TodayGoals { get; }
 
     public ComebacksViewModel? Comebacks { get; }
 

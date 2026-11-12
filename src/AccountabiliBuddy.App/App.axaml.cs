@@ -1404,6 +1404,27 @@ public partial class App : Application
         guidance.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _goals.ModeChangedAsync());
         // ADR 71: the goals go in backups with the task lists, readable inside the file (notes and reasons only with a password).
         backups.Goals = AccountabiliBuddy.App.Services.Backup.BackupAccess.Goals(goalStore);
+        // Round 2 R5: what the Goals page and Today's goals count from: this PC's counted sessions with their checklists (the day bar's
+        // records and omitted-session rule), each other device's synced sessions, and the goals' own entries. The log is read again when
+        // it is written; a received file, a goal change, the daily goal or a minute of focus only recompute. Never read by a guard.
+        var goalData = new AccountabiliBuddy.App.Services.Goals.GoalSourceDataService(
+            async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
+            () => receivedDevices.Devices.Select(device => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed([device])),
+            start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.LabelledForSync(checklist) : null,
+            omittedSessions.IsOmitted,
+            () => _sessions!.State.IsRealSession,
+            goalStore,
+            time);
+        _recorder!.LogChanged += (_, _) => Dispatcher.UIThread.Post(() => _ = goalData.ReloadAsync());
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
+        _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
+        goal.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
+        _ = goalData.ReloadAsync();
+        // Today's goals on the Today sidebar: the goals with Show on Today (R5 replaces R2a's Deep-work-only hook); Deep work's card keeps
+        // the daily goal's edit and lines.
+        sessionViewModel.TodayGoals = new TodayGoalsViewModel(sessionViewModel.Goal, _goals, goalData);
+        Func<Guid, string?> goalLabelName = labelId => sessionTasks.Categories.FirstOrDefault(category => category.Id == labelId)?.Name
+            ?? sessionTasks.Categories.FirstOrDefault(category => AccountabiliBuddy.Core.Domain.TaskLabel.IdFor(category.Name) == labelId)?.Name;
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         pastSettled.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         handovers.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -1743,6 +1764,15 @@ public partial class App : Application
                 OffersEndToQueued = () => sessionTasks.CanEndToQueued,
             },
         };
+        // Round 2 R5: the Goals page (after Stats in the rail). Stats can't filter by goal yet, so its button opens Stats; the dialogs
+        // (New goal, Edit goal, areas, the weekly review) and Settings › Goals are R5b's (hooks).
+        var goalsPage = new GoalsViewModel(_goals, goalData, () => guidance.IsCompanion, goalLabelName)
+        {
+            OpenStats = _ => mainViewModel.SelectedTab = MainWindowViewModel.StatsTab,
+            OpenGoalsSettings = () => mainViewModel.SelectedTab = MainWindowViewModel.SettingsTab,
+        };
+        mainViewModel.Goals = goalsPage;
+        guidance.Changed += (_, _) => Dispatcher.UIThread.Post(goalsPage.MarkChanged);
         // "Ended · switches next time": opening Tasks again switches it back to planning; header clicks on its sections are forgotten.
         mainViewModel.PropertyChanged += (_, args) =>
         {
