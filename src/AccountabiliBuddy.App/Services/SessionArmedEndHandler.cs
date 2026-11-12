@@ -21,19 +21,17 @@ public sealed class SessionArmedEndHandler : IArmedEndHandler
     public bool IsStillDue(ArmedEnd end) => _sessions.State.IsActive && _sessions.State.ProfileId == end.ProfileId;
 
     /// <summary>"End and mark the rest unfinished": tells the session's tasks just before the end (set by the app; null before the task list).</summary>
-    public Func<Task>? MarkRestUnfinished { get; set; }
+    public Func<Task<int>>? MarkRestUnfinished { get; set; }
 
     public async Task<string> ApplyAsync(ArmedEnd end, string reason)
     {
-        bool toQueued = end.UnfinishedToQueued && MarkRestUnfinished is not null;
-        if (toQueued)
-        {
-            await MarkRestUnfinished!();
-        }
-
+        int returned = end.UnfinishedToQueued && MarkRestUnfinished is not null ? await MarkRestUnfinished() : 0;
         _sessions.EndSession(reason);
-        return toQueued
-            ? "Your focus session ended early, as you confirmed. Its unfinished tasks are back in Queued."
-            : "Your focus session ended early, as you confirmed.";
+        return returned switch
+        {
+            0 => "Your focus session ended early, as you confirmed.",
+            1 => "Your focus session ended early, as you confirmed. Its unfinished task is back in Queued.",
+            _ => $"Your focus session ended early, as you confirmed. Its {returned} unfinished tasks are back in Queued.",
+        };
     }
 }

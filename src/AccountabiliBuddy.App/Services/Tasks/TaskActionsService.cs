@@ -92,12 +92,22 @@ public sealed class TaskActionsService
             // when This session has room for its actions (the same cap; "Add anyway" is the session add's own, so it stays there).
             if (task.Bin == TaskBin.Queued && _session.IsInDraft(id))
             {
-                if (!_session.HasDraftRoomFor(task.ActionCount)
-                    && (overLimitReason is null || !await _session.RecordOverLimitAddAsync(overLimitReason)))
+                bool fits = _session.HasDraftRoomFor(task.ActionCount);
+                if (!fits && overLimitReason is null)
                 {
                     needsRoom.Add(id);
+                    continue;
                 }
-                else if (await _store.ChangeAsync(null, (current, self, now) => TaskActions.PlaceInSession(current, id, now, self).Lists))
+
+                // An over-limit add is recorded only when it is needed and the move will happen (it is still a Queued task).
+                if (!fits && (!TaskActions.PlaceInSession(_store.Lists, id, _time.GetUtcNow(), Guid.Empty).Changed
+                    || !await _session.RecordOverLimitAddAsync(overLimitReason!)))
+                {
+                    needsRoom.Add(id);
+                    continue;
+                }
+
+                if (await _store.ChangeAsync(null, (current, self, now) => TaskActions.PlaceInSession(current, id, now, self).Lists))
                 {
                     moved++;
                 }
@@ -116,7 +126,9 @@ public sealed class TaskActionsService
                     continue;
                 }
 
-                if (!_session.IsAtActionLimit && !await _session.RecordOverLimitAddAsync(overLimitReason))
+                // Recorded only when the add will go ahead (a title to add); a blank one adds nothing and records nothing.
+                if (!_session.IsAtActionLimit
+                    && (SourceOf(task, lists).Title.Trim().Length == 0 || !await _session.RecordOverLimitAddAsync(overLimitReason)))
                 {
                     needsRoom.Add(id);
                     continue;
@@ -439,7 +451,7 @@ public sealed class TaskActionsService
         IReadOnlyList<Guid> skipped = [];
         await _store.ChangeAsync(null, (lists, self, now) =>
         {
-            (TaskUndoEntry entry, sessionIds, skipped) = TaskUndoRules.ForRestore(popped, lists, id => _session?.IsInChecklist(id) == true || _store.IsHeld(id));
+            (TaskUndoEntry entry, sessionIds, skipped) = TaskUndoRules.ForRestore(popped, lists, id => _session?.IsInRunningChecklist(id) == true || _store.IsHeld(id));
             return TaskUndoRules.Restore(lists, entry, self, now);
         });
         // Undoing a Bring back puts its Recently deleted entries back too (the task is gone again, so they can restore it), but not those

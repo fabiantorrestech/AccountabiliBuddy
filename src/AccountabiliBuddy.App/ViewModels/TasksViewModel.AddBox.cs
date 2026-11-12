@@ -116,19 +116,30 @@ public sealed partial class TasksViewModel : IAddBoxHost
         return true;
     }
 
-    // Before the task list is the source, or while it can't be opened: the old lists, as the old add row and the Shelf's "+" did.
+    /// <summary>Today on the trusted clock (the jot's count).</summary>
+    public DateOnly Today => DateOnly.FromDateTime(LocalNow());
+
+    // Before the task list is the source, or while it can't be opened: the old lists, as the old add row and the Shelf's "+" did. A note
+    // (the split's tail) is kept: on the session list's task, or, since a come-back can't hold one, the task goes to Later with it.
     private async Task AddToOldListsAsync(AddBoxRequest request)
     {
         TaskLabel? label = LiveLabels().FirstOrDefault(candidate => candidate.Id == request.LabelId);
         string? color = label is null ? null : TaskLabelColors.Opaque(label.Color);
         IReadOnlyList<string>? tags = request.Tags.Count == 0 ? null : request.Tags;
+        bool hasNote = !string.IsNullOrWhiteSpace(request.Note);
         switch (request.Destination)
         {
-            case TaskBin.Sort:
+            case TaskBin.Sort when !hasNote:
                 await _comebacks.AddAsync(request.Title, label?.Name, color, tags);
                 break;
             case TaskBin.Session or TaskBin.Queued when !SessionIsFull:
+                HashSet<Guid> before = _tasks.Current.Tasks.Select(task => task.Id).ToHashSet();
                 await _tasks.AddAsync(request.Title, null, CategoryIdOf(request.LabelId));
+                if (hasNote && _tasks.Current.Tasks.FirstOrDefault(task => !before.Contains(task.Id)) is { } added)
+                {
+                    await _tasks.SetNoteAsync(added.Id, request.Note);
+                }
+
                 break;
             default:
                 await _later.AddAsync(request.Title, null, label?.Name, color, null, request.Note, null, labels: tags);

@@ -33,4 +33,7 @@ public interface IAddBoxHost
 
     /// <summary>Adds the task. False when nothing was added (the box keeps the text).</summary>
     Task<bool> AddFromBoxAsync(AddBoxRequest request);
+
+    /// <summary>Today's date on the trusted clock, in the PC's time zone (the jot's "N today").</summary>
+    DateOnly Today { get; }
 }

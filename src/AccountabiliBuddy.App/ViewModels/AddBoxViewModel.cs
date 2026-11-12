@@ -125,7 +125,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
     public double PillOpacity => IsQuiet ? 0.45 : 0.8;
 
     /// <summary>"· 4 today"; empty before the first jot of the day.</summary>
-    public string JotCountText => _jotted > 0 && _jottedOn == DateOnly.FromDateTime(DateTime.Now) ? "· " + _jotted + " today" : string.Empty;
+    public string JotCountText => _jotted > 0 && _jottedOn == _host.Today ? "· " + _jotted + " today" : string.Empty;
 
     // ---- chips ----
 
@@ -402,7 +402,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
         FocusRequested?.Invoke(this, EventArgs.Empty);
         if (IsJot)
         {
-            DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+            DateOnly today = _host.Today;
             _jotted = _jottedOn == today ? _jotted + 1 : 1;
             _jottedOn = today;
             OnPropertyChanged(nameof(JotCountText));

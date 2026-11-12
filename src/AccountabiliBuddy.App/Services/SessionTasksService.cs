@@ -1411,13 +1411,15 @@ public sealed partial class SessionTasksService : IDisposable
         {
             DateTimeOffset cutoff = _time.GetUtcNow() - HistoryKept;
             // History keeps each task's category name and colour as they were, so deleting a category later loses nothing.
-            SessionChecklist labelled = Current with { Tasks = Labelled(Current), FocusedSteps = null, ActionCap = null };
+            // "End and mark the rest unfinished": the open tasks go back to Queued as the same tasks, so the record leaves them out (a task
+            // id is in one record at most) and counts them as taken off open (ADR 25; the review's number).
+            SessionChecklist labelled = SessionConsumed.Recorded(Current with { Tasks = Labelled(Current) }) with { FocusedSteps = null, ActionCap = null };
             _history = [.. _history.Where(item => KeptInHistory(item, cutoff)), labelled];
             await _store.SaveAsync(HistoryKey, _history.Select(Sealed).ToList());
         }
 
         // "End and mark the rest unfinished": the open tasks go back to Queued as the same tasks (with what they had at the start),
-        // and leave "Unfinished from past sessions" (the shared settle record), before the held copies are let go.
+        // before the held copies are let go. They are in no record, so nothing offers them from past sessions.
         await ReturnUnfinishedToQueuedAsync(Current);
 
         // The next session's list: empty, unless another device added tasks to it while this session ran (ADR 48); a task of
@@ -1453,13 +1455,6 @@ public sealed partial class SessionTasksService : IDisposable
         // Sent as this service's own change, then read back here (the draft shows them in Queued).
         await _taskStore.PutBackAsync(this, returned, TaskBin.Queued);
         ReadFromTaskStore();
-        if (PastSettled is not null)
-        {
-            foreach (SessionTask task in returned)
-            {
-                await PastSettled.SetAsync(task.Id, SyncPastSettled.Moved);
-            }
-        }
     }
 
     /// <summary>
@@ -1472,12 +1467,71 @@ public sealed partial class SessionTasksService : IDisposable
     /// The user's end of the running session was confirmed with "End and mark the rest unfinished" (after its wait and reason, or armed
     /// with them): once it ends, its open tasks go back to Queued. Called just before the end itself; it changes nothing about the end.
     /// </summary>
-    public async Task MarkRestUnfinishedAtEndAsync()
+    /// <returns>How many open tasks will go back to Queued (0: nothing to send back, the end is a plain one).</returns>
+    public async Task<int> MarkRestUnfinishedAtEndAsync()
     {
-        if (CanEndToQueued && !Current.UnfinishedToQueued)
+        if (!CanEndToQueued)
+        {
+            return 0;
+        }
+
+        if (!Current.UnfinishedToQueued)
         {
             await SetAsync(Current with { UnfinishedToQueued = true });
         }
+
+        return Current.Tasks.Count(task => !task.IsDone);
+    }
+
+    /// <summary>
+    /// The task or step is in the running session's checklist (not the next session's list): undo leaves such a task alone (the session
+    /// holds it). A draft task of This session or Queued is an ordinary task of the list.
+    /// </summary>
+    public bool IsInRunningChecklist(Guid id)
+    {
+        return Current.SessionStart is not null && IsInChecklist(id);
+    }
+
+    /// <summary>
+    /// "This session is full", before a swap: whether freeing <paramref name="slot"/> lets the incoming task in through the session's add
+    /// (no action free at the cap is refused there) or brings the incoming step into focus. False when the place is gone.
+    /// </summary>
+    public bool SwapAdmits(SessionSlot slot, Guid? incomingStepId)
+    {
+        if (Current.SessionStart is null || Current.Tasks.All(task => task.Id != slot.TaskId))
+        {
+            return false;
+        }
+
+        (SessionChecklist swapped, _) = SessionActions.SwapOut(Current, slot);
+        if (ReferenceEquals(swapped, Current))
+        {
+            return false;
+        }
+
+        if (incomingStepId is Guid stepId)
+        {
+            int allowance = _sessions.State.IsTest ? int.MaxValue : ActionAllowance;
+            return SessionActions.Focus(swapped, stepId, allowance).Result == SessionFocusResult.Focused;
+        }
+
+        return _sessions.State.IsTest || SessionActions.Used(swapped) < ActionCap;
+    }
+
+    /// <summary>
+    /// "This session is full" before a start: whether moving the draft's task <paramref name="outgoingId"/> to Queued leaves This session room
+    /// for <paramref name="incomingActions"/> actions (the same count as <see cref="HasDraftRoomFor"/>).
+    /// </summary>
+    public bool DraftSwapAdmits(Guid outgoingId, int incomingActions)
+    {
+        if (Current.SessionStart is not null)
+        {
+            return false;
+        }
+
+        Dictionary<Guid, TaskItem> stored = StoredDraftItems();
+        int outgoing = stored.TryGetValue(outgoingId, out TaskItem? item) && !item.IsDone ? item.ActionCount : 1;
+        return HasDraftRoomFor(incomingActions - outgoing);
     }
 
     private async Task SetAsync(SessionChecklist checklist)

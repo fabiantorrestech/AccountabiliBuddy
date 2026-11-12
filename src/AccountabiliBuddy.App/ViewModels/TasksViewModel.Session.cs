@@ -228,13 +228,17 @@ public sealed partial class TasksViewModel
 
         TimeSpan left = layout.NoticeLeft ?? TimeSpan.Zero;
         EndedCountdown = Math.Clamp(left.TotalMilliseconds / SessionLayoutService.NoticeCountdown.TotalMilliseconds, 0, 1);
-        if (shown && _noticeTimer is null)
+
+        // The countdown ticks only while the notice is on screen (a closed Tasks page, or the app in the tray for days, costs nothing);
+        // coming back on screen reads it again (IsOnScreen, the service's Changed).
+        bool ticking = shown && IsOnScreen;
+        if (ticking && _noticeTimer is null)
         {
             _noticeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _noticeTimer.Tick += (_, _) => RefreshEndedNotice();
             _noticeTimer.Start();
         }
-        else if (!shown && _noticeTimer is not null)
+        else if (!ticking && _noticeTimer is not null)
         {
             _noticeTimer.Stop();
             _noticeTimer = null;
@@ -555,8 +559,11 @@ public sealed partial class TasksViewModel
         SessionChecklist current = _tasks.Current;
         if (current.SessionStart is null)
         {
+            // Only the draft's tasks whose move to Queued leaves room for the incoming one's actions.
+            int incomingActions = IncomingActions(incoming);
             return _tasks.DraftSessionTasks()
                 .Select((task, index) => new SessionSlotChoice(index + 1, null, task.Id, task.Title, string.Empty, ColorOf(task)))
+                .Where(choice => _tasks.DraftSwapAdmits(choice.TaskId, incomingActions))
                 .ToList();
         }
 
@@ -568,6 +575,12 @@ public sealed partial class TasksViewModel
             if (incoming.StepId is not null && slot.TaskId == incoming.TaskId && slots.Count(other => other.TaskId == slot.TaskId) < 2)
             {
                 // Its only focused step: swapping it would send the whole task (and the incoming step) to Queued.
+                continue;
+            }
+
+            if (!_tasks.SwapAdmits(slot, incoming.StepId))
+            {
+                // Freeing this place wouldn't let it in (over the cap already with approved adds, say).
                 continue;
             }
 
@@ -589,56 +602,110 @@ public sealed partial class TasksViewModel
 
     private string? ColorOf(SessionTask task) => _tasks.Categories.FirstOrDefault(candidate => candidate.Id == task.CategoryId)?.Color;
 
-    // A swap: the place is freed (its task to Queued, or the step out of focus), the incoming one comes in through the session's own add
-    // (or focus) and takes the freed place's number (it goes in front of the task that followed it).
-    private async Task<bool> SwapInAsync(SessionIncomingItem incoming, SessionSlotChoice choice)
+    // A swap: checked first (nothing moves unless freeing that place lets the incoming one in), then the place is freed (its task to
+    // Queued, or the step out of focus), the incoming one comes in through the session's own add (or focus) and takes the freed place's
+    // number (it goes in front of the task that followed it). Null when done; otherwise why not.
+    private async Task<string?> SwapInAsync(SessionIncomingItem incoming, SessionSlotChoice choice)
     {
+        const string Gone = "That one already left this session.";
+        string stillNoRoom = $"Still no room for “{TaskToasts.Short(incoming.Title)}”: nothing was moved.";
         if (_actions is null)
         {
-            return false;
+            return Gone;
         }
 
-        string leaving = choice.Title;
         if (choice.Slot is SessionSlot slot)
         {
+            if (!_tasks.SwapAdmits(slot, incoming.StepId))
+            {
+                return _tasks.IsInChecklist(slot.TaskId) ? stillNoRoom : Gone;
+            }
+
             Guid? follower = SessionActions.FollowerOf(_tasks.Current, slot);
+            SessionTask? owner = _tasks.Current.Tasks.FirstOrDefault(task => task.Id == slot.TaskId);
             if (!await _tasks.SwapOutAsync(slot))
             {
-                return false;
+                return Gone;
             }
 
+            bool admitted;
             if (incoming.StepId is Guid stepId)
             {
-                await _tasks.FocusStepAsync(stepId);
+                admitted = await _tasks.FocusStepAsync(stepId) == SessionFocusResult.Focused;
             }
-            else if ((await _actions.MoveToSessionAsync([incoming.TaskId])).Moved > 0)
+            else
             {
-                await _tasks.PlaceBeforeAsync(incoming.TaskId, follower == incoming.TaskId ? null : follower);
+                admitted = (await _actions.MoveToSessionAsync([incoming.TaskId])).Moved > 0;
+                if (admitted)
+                {
+                    await _tasks.PlaceBeforeAsync(incoming.TaskId, follower == incoming.TaskId ? null : follower);
+                }
             }
 
-            _actions.Say(slot.StepId is not null && _tasks.IsInChecklist(slot.TaskId)
-                ? $"Swapped · {TaskToasts.Short(leaving)} is out of focus"
-                : $"Swapped · “{TaskToasts.Short(leaving)}” → Queued");
-            return true;
+            // A step that only left focus is still the task's; a task that left is in Queued: the toast names it whole.
+            bool stepOnly = slot.StepId is not null && _tasks.IsInChecklist(slot.TaskId);
+            string left = stepOnly ? $"{TaskToasts.Short(choice.Title)} is out of focus" : $"“{TaskToasts.Short(owner?.Title ?? choice.Title)}” → Queued";
+            if (!admitted)
+            {
+                // Something changed between the check and the swap (another device): what was swapped out takes its freed place back
+                // through the same cap-checked paths, so nothing is stranded and nothing goes over the cap.
+                if (stepOnly && slot.StepId is Guid outStep)
+                {
+                    await _tasks.FocusStepAsync(outStep);
+                }
+                else
+                {
+                    await _actions.MoveToSessionAsync([slot.TaskId]);
+                }
+
+                return stillNoRoom;
+            }
+
+            _actions.Say("Swapped · " + left);
+            return null;
         }
 
-        // Before a start: the draft's task goes to Queued and the incoming one takes its place in This session's order.
+        // Before a start: the draft's task goes to Queued and the incoming one takes its place in This session's order; checked first.
         List<SessionTask> draft = _tasks.DraftSessionTasks().ToList();
         int at = draft.FindIndex(task => task.Id == choice.TaskId);
         if (at < 0)
         {
-            return false;
+            return Gone;
+        }
+
+        if (!_tasks.DraftSwapAdmits(choice.TaskId, IncomingActions(incoming)))
+        {
+            return stillNoRoom;
         }
 
         Guid? next = at + 1 < draft.Count ? draft[at + 1].Id : null;
         await _actions.MoveAsync([choice.TaskId], TaskBin.Queued);
-        if ((await _actions.MoveToSessionAsync([incoming.TaskId])).Moved > 0 && next is Guid before)
+        if ((await _actions.MoveToSessionAsync([incoming.TaskId])).Moved == 0)
+        {
+            // Not let in after all: the draft's task goes back to This session (it fitted there a moment ago), nothing stranded.
+            await _actions.MoveToSessionAsync([choice.TaskId]);
+            return stillNoRoom;
+        }
+
+        if (next is Guid before)
         {
             await _actions.ReorderAsync(incoming.TaskId, before);
         }
 
-        _actions.Say($"Swapped · “{TaskToasts.Short(leaving)}” → Queued");
-        return true;
+        _actions.Say($"Swapped · “{TaskToasts.Short(choice.Title)}” → Queued");
+        return null;
+    }
+
+    // The places the incoming task needs (its focused steps, at least one); a step needs one.
+    private int IncomingActions(SessionIncomingItem incoming)
+    {
+        if (incoming.StepId is not null)
+        {
+            return 1;
+        }
+
+        TaskItem? task = _store?.Lists.Tasks.FirstOrDefault(item => item.Id == incoming.TaskId && item.Task.IsLive)?.Task;
+        return task?.ActionCount ?? 1;
     }
 
     // "Add anyway" with its reason: the over-limit add as everywhere (recorded and counted; too short adds nothing).
@@ -656,6 +723,13 @@ public sealed partial class TasksViewModel
 
         if (incoming.StepId is Guid stepId)
         {
+            // A place may have come free meanwhile (a tick here or on the phone): then it simply comes into focus, nothing is recorded.
+            SessionFocusResult first = await _tasks.FocusStepAsync(stepId);
+            if (first != SessionFocusResult.Full)
+            {
+                return first == SessionFocusResult.Focused ? AddToTodayResult.Added : AddToTodayResult.NothingToAdd;
+            }
+
             if (!await _tasks.RecordOverLimitAddAsync(reason))
             {
                 return AddToTodayResult.ReasonTooShort;

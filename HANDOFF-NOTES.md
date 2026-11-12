@@ -403,3 +403,13 @@ None exists. `Core/Sync/SyncDeviceCard.cs` (DeviceId, Name, Kind `pc`/`phone`/`w
 - Checks: Program.cs 542/542 (14 new m5conf: S2-S4, ring cap, a loser value in its own bases, 300 random three-device symmetry rounds); AppChecks 39/39 (4 new m5conf: rename, phone conflict, pick, Ctrl+Z leaves the pick; fails without the fix). Build 0 errors.
 - Found, not fixed: with no session running, `UndoAsync` skips every Queued (and Session) task, because `SessionTasksService.IsInChecklist` also matches the draft checklist (which mirrors Queued + This session through the old `nextTasks` mapping): undoing an edit to a Queued task outside a session says "Can't undo · it changed since". The new AppCheck uses a Later task for that reason.
 - For the Android run: the Kotlin `TaskFieldMerge` twin gets the same conflict-branch bases change (Q173); Keep both on the phone copies `Devices`.
+
+## M5 milestone review fixes
+
+- [x] Blocking 1: an end with "End and mark the rest unfinished" leaves the returned open tasks out of its record (`SessionConsumed.Recorded`: done tasks only, the returned ones counted in `DroppedOpen`) and writes no `PastSettled` "moved"; a returned task left open in a later session shows under Unfinished from past sessions again, and task ids stay unique across records. `doc/hard-rules.md` sentence updated. Q174.
+- [x] 2: the swap dialog offers only places whose swap admits the newcomer (`SwapAdmits`, `DraftSwapAdmits`), checks again before moving, and if it still isn't let in puts back what it swapped out and says "Still no room"; the toast names the whole task when the whole task went to Queued. Q175.
+- [x] 3: Add anyway records the over-limit reason only when it is needed and the add will happen (a step tries the free place first; the Queued draft path checks the place first). Q176.
+- [x] 4: the ended notice's timer runs only while the notice is on screen. Q177.
+- [x] Undo bug: undo treats only the running checklist as held (`IsInRunningChecklist`); Ctrl+Z works on Queued and This session tasks with no session running. Q178.
+- [x] Nits: the armed end's notice counts the returned tasks; "End and mark the rest unfinished" while a plain end is armed adds the outcome to it (`ArmedEndService.AddUnfinishedToQueued`); jot "N today" from the trusted clock; the old-list add keeps the note. Q179, Q180.
+- Checks: Program.cs 545/545 (3 new m5rev/end); AppChecks 50/50 (11 new m5rev: the later-session Unfinished case and unique ids, the record shape, undo of a Queued and a This session rename with no session, an unneeded reason not recorded, draft and running swap admission, a step admitted by a swap). Build 0 errors; dev app started on dev data, running after 22 s.

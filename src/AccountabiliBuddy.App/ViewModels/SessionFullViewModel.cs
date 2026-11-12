@@ -18,20 +18,20 @@ public sealed partial class SessionFullViewModel : ObservableObject
 {
     private readonly IReadOnlyList<SessionIncomingItem> _incoming;
     private readonly Func<SessionIncomingItem, IReadOnlyList<SessionSlotChoice>> _slotsFor;
-    private readonly Func<SessionIncomingItem, SessionSlotChoice, Task<bool>> _swap;
+    private readonly Func<SessionIncomingItem, SessionSlotChoice, Task<string?>> _swap;
     private readonly Func<SessionIncomingItem, string, Task<AddToTodayResult>> _addAnyway;
     private readonly Func<SessionIncomingItem, bool> _stillWaiting;
     private int _at;
 
     /// <param name="incoming">What wants a place, in order.</param>
-    /// <param name="slotsFor">This session's places that can make room for one of them, as they are now.</param>
-    /// <param name="swap">Frees the place and brings the incoming one in; false when that place is gone (the rows are read again).</param>
+    /// <param name="slotsFor">This session's places whose swap would let that one in, as they are now (none: only Add anyway).</param>
+    /// <param name="swap">Frees the place and brings the incoming one in; null when done, else why not (nothing moved; the rows are read again).</param>
     /// <param name="addAnyway">Adds it over the limit with the reason (the session add's own rules); its result as the reason card reads it.</param>
     /// <param name="stillWaiting">Whether it still needs a place (it may have been moved or finished meanwhile).</param>
     public SessionFullViewModel(
         IReadOnlyList<SessionIncomingItem> incoming,
         Func<SessionIncomingItem, IReadOnlyList<SessionSlotChoice>> slotsFor,
-        Func<SessionIncomingItem, SessionSlotChoice, Task<bool>> swap,
+        Func<SessionIncomingItem, SessionSlotChoice, Task<string?>> swap,
         Func<SessionIncomingItem, string, Task<AddToTodayResult>> addAnyway,
         Func<SessionIncomingItem, bool> stillWaiting)
     {
@@ -80,7 +80,7 @@ public sealed partial class SessionFullViewModel : ObservableObject
 
     public ObservableCollection<SessionFullSlotViewModel> Slots { get; } = new();
 
-    /// <summary>"That one already left this session." after a swap that found its place gone.</summary>
+    /// <summary>Why the last swap didn't happen ("That one already left this session.", "Still no room …").</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNote))]
     public partial string Note { get; set; }
@@ -154,14 +154,14 @@ public sealed partial class SessionFullViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            if (await _swap(item, choice))
+            if (await _swap(item, choice) is not string problem)
             {
                 Next();
                 return;
             }
 
-            Note = "That one already left this session.";
             Show();
+            Note = problem;
         }
         finally
         {
@@ -204,5 +204,11 @@ public sealed partial class SessionFullViewModel : ObservableObject
             SessionSlotChoice chosen = choice;
             Slots.Add(new SessionFullSlotViewModel(chosen, new AsyncRelayCommand(() => SwapAsync(chosen))));
         }
+
+        HasNoSwap = Slots.Count == 0;
     }
+
+    /// <summary>No single swap makes room for this one (it needs more places than one frees): only Add anyway.</summary>
+    [ObservableProperty]
+    public partial bool HasNoSwap { get; set; }
 }

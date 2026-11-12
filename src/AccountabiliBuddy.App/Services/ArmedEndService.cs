@@ -85,6 +85,25 @@ public sealed class ArmedEndService : IDisposable
         return end;
     }
 
+    /// <summary>
+    /// The armed end of <paramref name="kind"/> (a session end) also sends the session's open tasks back to Queued when it applies ("End and
+    /// mark the rest unfinished" asked while it waits). Its wait, reason and time stay as they are. False when none is armed.
+    /// </summary>
+    public bool AddUnfinishedToQueued(ArmedEndKind kind)
+    {
+        if (kind != ArmedEndKind.EndSession || Find(kind) is not ArmedEnd armed)
+        {
+            return false;
+        }
+
+        if (!armed.UnfinishedToQueued)
+        {
+            Save([.. _ends.Select(end => end.Id == armed.Id ? end with { UnfinishedToQueued = true } : end)]);
+        }
+
+        return true;
+    }
+
     /// <summary>Cancels one still waiting (always allowed: it is the stricter direction).</summary>
     /// <returns>False when it is no longer armed (applied, dropped or cancelled already).</returns>
     public bool Cancel(Guid id)

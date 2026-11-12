@@ -40,6 +40,19 @@ public static class SessionConsumed
         }
     }
 
+    /// <summary>
+    /// The record an ended checklist leaves: as it is, except that with "End and mark the rest unfinished" its open tasks (back in Queued as
+    /// the same tasks) are left out, so a task id is in one record at most, and are counted as taken off open (<see cref="SessionChecklist.DroppedOpen"/>,
+    /// ADR 25: the record never reads "all done").
+    /// </summary>
+    public static SessionChecklist Recorded(SessionChecklist ended)
+    {
+        int returned = ReturnedToQueued(ended).Count;
+        return returned == 0
+            ? ended
+            : ended with { Tasks = ended.Tasks.Where(task => task.IsDone).ToList(), DroppedOpen = ended.DroppedOpen + returned };
+    }
+
     /// <summary>The open tasks an ended session sends back to Queued: none unless it ended with "End and mark the rest unfinished".</summary>
     public static IReadOnlyList<SessionTask> ReturnedToQueued(SessionChecklist ended)
     {

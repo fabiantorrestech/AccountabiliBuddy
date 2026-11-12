@@ -89,6 +89,8 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <TextBlock Classes="muted" Text="No single swap makes room for it: it needs more places than one frees." FontSize="12.5" TextWrapping="Wrap"
+                       IsVisible="{Binding HasNoSwap}" />
             <TextBlock Classes="muted" Text="{Binding Note}" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding HasNote}" />
             <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
                 <Button Classes="subtle" Command="{Binding AddAnywayCommand}" ToolTip.Tip="Over the limit, with a reason (kept on this PC, counted for the review)"

@@ -25,7 +25,7 @@ public sealed class SessionEndFlow
     /// "End and mark the rest unfinished" (Tasks redesign): the session's tasks are told just before the end, so its open tasks go back to
     /// Queued (set by the app; null before the task list, when the option isn't offered).
     /// </summary>
-    public Func<Task>? MarkRestUnfinished { get; set; }
+    public Func<Task<int>>? MarkRestUnfinished { get; set; }
 
     /// <param name="owner">Window to center the dialog on, or null when invoked from the tray with no window open.</param>
     /// <param name="unfinishedToQueued">
@@ -50,9 +50,15 @@ public sealed class SessionEndFlow
             return true;
         }
 
-        // Already armed: nothing to ask again; the countdown on Today and the tile has Cancel.
+        // Already armed: nothing to ask again; the countdown on Today and the tile has Cancel. Asked again as "End and mark the rest
+        // unfinished": the armed end takes that outcome (its wait and reason stay as they are).
         if (_armedEnds.Find(ArmedEndKind.EndSession) is not null)
         {
+            if (toQueued)
+            {
+                _armedEnds.AddUnfinishedToQueued(ArmedEndKind.EndSession);
+            }
+
             return false;
         }
 
