@@ -376,12 +376,16 @@ public sealed partial class TasksViewModel
         TaskCategory? category = _tasks.Categories.FirstOrDefault(candidate => candidate.Id == task.CategoryId);
         string taskNumberText = NumberTextOf(task.Id, item);
         string idText = taskNumberText.Length > 0 ? taskNumberText + letter : string.Empty;
-        int? minutes = item?.Steps?.FirstOrDefault(candidate => candidate.Id == stepId)?.EstimateMinutes;
+        // The step's own time limit, else its task's (boards B-PC-Idle / B-PC-Session: every row has its time at the right).
+        int? minutes = item?.Steps?.FirstOrDefault(candidate => candidate.Id == stepId)?.EstimateMinutes ?? item?.EstimateMinutes ?? task.EstimateMinutes;
         var key = new TaskRowKey(TaskRowKind.Session, stepId);
         var owner = new TaskRowKey(TaskRowKind.Session, task.Id);
+        // The running item (board B-PC-Session: tinted, Now, its steps open): the step the session shows, also when none was picked
+        // (the first open step of the first open task). Never before a session (the preview's rows are not running).
+        bool isNow = _tasks.IsLive && current.Shown?.Subtask?.Id == stepId;
         Guid taskId = task.Id;
         return new TaskListRowViewModel(
-            key, step.Title, string.Empty, (_, _) => OpenOwner(owner), number, current.CurrentId == stepId,
+            key, step.Title, string.Empty, (_, _) => OpenOwner(owner), number, isNow,
             () => _tasks.SetTickedAsync(stepId, true), menu: () => MenuFor(owner))
         {
             OwnerKey = owner,
@@ -391,12 +395,13 @@ public sealed partial class TasksViewModel
             NumberText = idText,
             TimeText = minutes is int stepMinutes ? EstimateText.Of(stepMinutes) : string.Empty,
             StepLetter = letter,
-            StepSourceTitle = TaskToasts.Short(task.Title),
+            // The whole title: the row trims it with "…" only when it runs out of room (it used to be cut to the toast's short form).
+            StepSourceTitle = task.Title,
             StepSourceLabel = category?.Name ?? string.Empty,
             StepSourceBrush = TaskCategoryBrushes.Of(category?.Color),
             StepSourceId = idText,
             StepList = () => StepListFor(taskId),
-            NowSteps = current.CurrentId == stepId ? NowStepsOf(task) : [],
+            NowSteps = isNow ? NowStepsOf(task) : [],
         };
     }
 

@@ -362,10 +362,9 @@
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Tasks}" />
                         <controls:RailButton Label="Plan" Icon="ViewAgendaOutline" IsSelected="{Binding IsPlanSelected}" AutomationProperties.Name="Plan"
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Plan}" />
-                        <controls:RailButton Label="Stats" Icon="ChartTimelineVariant" IsSelected="{Binding IsStatsSelected}" AutomationProperties.Name="Stats"
-                                             Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Stats}" />
-                        <!-- Round 2 R5: Goals after Stats (the PC keeps Stats in the rail; the other items don't move). -->
-                        <controls:RailButton Label="Goals" Icon="TrackChanges" IsSelected="{Binding IsGoalsSelected}" AutomationProperties.Name="Goals"
+                        <!-- Round 2 (owner 2026-11-14, Q394 reversed; change note §4): Goals takes Stats' slot. Stats opens from the Goals
+                             header's Stats button (and Search, Back / Forward), so Goals stays lit while Stats shows. -->
+                        <controls:RailButton Label="Goals" Icon="TrackChanges" IsSelected="{Binding IsGoalsRailSelected}" AutomationProperties.Name="Goals"
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Goals}" />
                     </StackPanel>
                     <StackPanel Grid.Row="2" Spacing="6" VerticalAlignment="Bottom">

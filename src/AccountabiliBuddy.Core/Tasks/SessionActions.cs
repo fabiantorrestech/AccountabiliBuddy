@@ -115,6 +115,18 @@ public static class SessionActions
     }
 
     /// <summary>
+    /// The focus a session starts with: <paramref name="planned"/> (the steps marked for focus in the task list), then every task with
+    /// steps and none in focus gets its first open steps (<see cref="Joined"/>), then the focus is trimmed to
+    /// <paramref name="allowance"/> (<see cref="FittedToCap"/>). One rule for the start itself and for Today's list before a session
+    /// (round 2 board B-PC-Idle: the next steps are rows before the session starts), so the session focuses exactly what was shown.
+    /// </summary>
+    public static SessionChecklist StartFocus(SessionChecklist checklist, IEnumerable<Guid> planned, int allowance)
+    {
+        SessionChecklist focused = WithFocus(checklist, planned);
+        return FittedToCap(Joined(focused, focused.Tasks.Select(task => task.Id), allowance), allowance);
+    }
+
+    /// <summary>
     /// Ticks or unticks the task or step <paramref name="id"/> (<see cref="SessionChecklist.Toggle"/>). A focused step that is
     /// finished leaves focus, and with <paramref name="nextStepTakesSlot"/> the next open step of its task (after it, else the first)
     /// takes its place. An unticked step comes back out of focus (its task holds a place either way).

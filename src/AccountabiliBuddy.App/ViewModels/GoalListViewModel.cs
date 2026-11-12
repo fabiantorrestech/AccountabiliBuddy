@@ -24,6 +24,9 @@ public sealed partial class GoalListViewModel : ObservableObject
     private readonly Func<GoalListView, Task> _setView;
     private readonly Func<Guid, Task> _toggleArea;
     private string _structure = string.Empty;
+    private string _chipsKey = string.Empty;
+    private Guid? _areaFilter;
+    private (IReadOnlyList<GoalFacts> Facts, GoalLists Lists, GoalUiPreferences Ui, DateOnly Today, GoalWeekStart WeekStart)? _last;
 
     public GoalListViewModel(Action<GoalRowViewModel> select, Func<GoalListView, Task> setView, Func<Guid, Task> toggleArea, Action jumpToBehind)
     {
@@ -90,8 +93,25 @@ public sealed partial class GoalListViewModel : ObservableObject
     /// Takes the goals' facts for today, the lists (areas, order, pauses) and the page's UI state, and updates the rows in place,
     /// rebuilding the blocks only when their content changed.
     /// </summary>
+    /// <summary>The area chips under the page header: All, then each area that has a goal (board Goals-PC).</summary>
+    public ObservableCollection<GoalAreaChipViewModel> AreaChips { get; } = [];
+
+    /// <summary>The area the chips row shows alone (this visit only); null = All.</summary>
+    public Guid? AreaFilter => _areaFilter;
+
+    /// <summary>Picks an area chip (null = All) and redraws the list.</summary>
+    public void PickArea(Guid? areaId)
+    {
+        _areaFilter = areaId;
+        if (_last is { } last)
+        {
+            Update(last.Facts, last.Lists, last.Ui, last.Today, last.WeekStart);
+        }
+    }
+
     public void Update(IReadOnlyList<GoalFacts> facts, GoalLists lists, GoalUiPreferences ui, DateOnly today, GoalWeekStart weekStart)
     {
+        _last = (facts, lists, ui, today, weekStart);
         View = ui.ListView;
         Dictionary<Guid, GoalFacts> byId = facts.ToDictionary(item => item.Goal.Id);
         foreach (Guid gone in _rows.Keys.Where(id => !byId.ContainsKey(id)).ToList())
@@ -111,8 +131,33 @@ public sealed partial class GoalListViewModel : ObservableObject
         }
 
         ThisWeek.Update(facts, today, weekStart);
-        List<GoalFacts> active = facts.Where(item => !item.IsPaused).ToList();
-        List<GoalFacts> paused = facts.Where(item => item.IsPaused).ToList();
+        // The area chips (board Goals-PC): an area that lost its last goal, or was deleted, falls back to All.
+        List<GoalArea> chipAreas = lists.LiveAreas.Where(area => facts.Any(item => item.Goal.AreaId == area.Id)).ToList();
+        if (_areaFilter is Guid picked && chipAreas.All(area => area.Id != picked))
+        {
+            _areaFilter = null;
+        }
+
+        string chipsKey = string.Join("|", chipAreas.Select(area => $"{area.Id}:{area.Name}:{area.Icon}")) + "@" + _areaFilter;
+        if (chipsKey != _chipsKey)
+        {
+            _chipsKey = chipsKey;
+            AreaChips.Clear();
+            AreaChips.Add(new GoalAreaChipViewModel(null, "All", null, _areaFilter is null, new RelayCommand(() => PickArea(null))));
+            foreach (GoalArea area in chipAreas)
+            {
+                Guid areaId = area.Id;
+                AreaChips.Add(new GoalAreaChipViewModel(areaId, area.Name, GoalIcons.Of(area.Icon), _areaFilter == areaId, new RelayCommand(() => PickArea(areaId))));
+            }
+        }
+
+        // Options › List › Sort "Behind first": the goals behind this period lead their group; the rest keep your order.
+        IEnumerable<GoalFacts> ordered = ui.Sort == GoalListSort.BehindFirst
+            ? facts.OrderBy(item => item.Status == GoalPeriodStatus.Behind ? 0 : 1)
+            : facts;
+        List<GoalFacts> inArea = ordered.Where(item => _areaFilter is null || item.Goal.AreaId == _areaFilter).ToList();
+        List<GoalFacts> active = inArea.Where(item => !item.IsPaused).ToList();
+        List<GoalFacts> paused = inArea.Where(item => item.IsPaused).ToList();
         HashSet<Guid> collapsed = (ui.CollapsedAreas ?? []).ToHashSet();
         var blocks = new List<(Guid? AreaId, string Title, string Icon, bool Folded, List<Guid> Ids)>();
         switch (View)
@@ -136,7 +181,7 @@ public sealed partial class GoalListViewModel : ObservableObject
                 break;
         }
 
-        Count = View == GoalListView.All ? facts.Count : active.Count;
+        Count = View == GoalListView.All ? inArea.Count : active.Count;
         HiddenText = $"{GoalTexts.Plural(Count, "goal")} hidden · the This week card still counts them";
         PausedLinkText = View == GoalListView.ByArea && paused.Count > 0 ? $"{GoalTexts.Plural(paused.Count, "paused goal")} · show them in All" : null;
         OnPropertyChanged(nameof(HasPausedLink));

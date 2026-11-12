@@ -11,11 +11,19 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class MoreTodayViewModel : ObservableObject
 {
     private readonly SessionViewModel _session;
+    private readonly AccountabiliBuddy.App.Services.Today.TodayLayoutService? _layout;
 
     /// <param name="session">The Today view model, with its cards already set.</param>
-    public MoreTodayViewModel(SessionViewModel session)
+    /// <param name="layout">Settings › Today (its "Show More today" switch); null = the card always shows.</param>
+    public MoreTodayViewModel(SessionViewModel session, AccountabiliBuddy.App.Services.Today.TodayLayoutService? layout = null)
     {
         _session = session;
+        _layout = layout;
+        if (layout is not null)
+        {
+            layout.Changed += (_, _) => OnPropertyChanged(nameof(ShowsCard));
+        }
+
         session.Unlock.PropertyChanged += OnCardChanged;
         if (session.WhatsNew is { } whatsNew)
         {
@@ -38,14 +46,24 @@ public sealed partial class MoreTodayViewModel : ObservableObject
 
     /// <summary>How many cards in the fold need a look; 0 = none, so the header shows no count.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasAlert), nameof(AlertText))]
+    [NotifyPropertyChangedFor(nameof(HasAlert), nameof(AlertText), nameof(ShowsCard))]
     public partial int AlertCount { get; set; }
 
     public bool HasAlert => AlertCount > 0;
 
+    /// <summary>
+    /// The fold card is on the page (round 2 boards draw nothing under the session card): when Settings › Today turned it on, while a
+    /// card inside needs a look, and whenever the unlock card has something to offer or show (a way out is never hidden).
+    /// </summary>
+    public bool ShowsCard => _layout is null || _layout.Current.ShowMoreToday || HasAlert || _session.Unlock.IsVisible;
+
     public string AlertText => AlertCount.ToString();
 
-    private void OnCardChanged(object? sender, PropertyChangedEventArgs e) => Refresh();
+    private void OnCardChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        Refresh();
+        OnPropertyChanged(nameof(ShowsCard));
+    }
 
     private void OnGoalsChanged(object? sender, NotifyCollectionChangedEventArgs e) => Refresh();
 

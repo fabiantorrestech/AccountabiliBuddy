@@ -29,7 +29,12 @@ public sealed partial class SettingsRowViewModel : ObservableObject
     /// <summary>A little air above it: the rows under the gap are App &amp; data, Setup and About.</summary>
     public bool GapBefore { get; }
 
-    public Avalonia.Thickness RowMargin => GapBefore ? new Avalonia.Thickness(0, 14, 0, 0) : new Avalonia.Thickness(0);
+    /// <summary>A small muted head above this row, starting a group of the list (board PC-Settings-Today: "Tabs", "Everywhere"); null for none.</summary>
+    public string? GroupHead { get; init; }
+
+    public bool HasGroupHead => GroupHead is not null;
+
+    public Avalonia.Thickness RowMargin => HasGroupHead ? new Avalonia.Thickness(0, 30, 0, 0) : GapBefore ? new Avalonia.Thickness(0, 14, 0, 0) : new Avalonia.Thickness(0);
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }

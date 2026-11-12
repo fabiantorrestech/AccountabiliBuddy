@@ -63,6 +63,46 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
+        <!-- Today's goals (board B-PC-Idle): a habit's tick circle (22, a line; the accent with a check once today is hit) and Log. -->
+        <Style Selector="Button.goalTick">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.goalTick /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="Button.goalTick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.goalTick.hit /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.goalLog">
+            <Setter Property="Padding" Value="11,3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <!-- Come back to (board B-PC-Idle: plain tick rows): a row's Edit and Add to Tasks show on hover or keyboard focus only. -->
+        <Style Selector="Grid.comebackRow Button.comebackAction">
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="Grid.comebackRow:pointerover Button.comebackAction">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Grid.comebackRow:focus-within Button.comebackAction">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
         <Style Selector="Button.sideIcon">
             <Setter Property="Width" Value="28" />
             <Setter Property="Height" Value="28" />
@@ -144,7 +184,15 @@
                 <!-- Today's goals (round 2 R5): the goals with Show on Today (the Goals page's number and bar), then Deep work's daily goal
                      card lines (its edit, met, pace, phone, waiting); only that card's row when this PC has no goals yet. -->
                 <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsGoals, FallbackValue=False}" DataContext="{Binding Owner.TodayGoals}" x:DataType="vm:TodayGoalsViewModel">
-                    <TextBlock Classes="sideHead" Text="Today's goals" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="sideHead" Text="Today's goals" />
+                        <Button x:Name="GoalsLink" Grid.Column="1" Classes="sideLink" Command="{Binding ShowGoalsCommand}" AutomationProperties.Name="Open the Goals page">
+                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                <TextBlock Text="Goals" VerticalAlignment="Center" />
+                                <mi:MaterialIcon Kind="ChevronRight" Width="14" Height="14" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
                     <Panel IsVisible="{Binding ShowsCardOnly}">
                     <StackPanel Spacing="8" DataContext="{Binding DeepWork}" x:DataType="vm:GoalCardViewModel">
                         <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
@@ -178,7 +226,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:TodayGoalRowViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10" AutomationProperties.Name="{Binding Name}">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="10" AutomationProperties.Name="{Binding Name}">
                                     <Border Width="30" Height="30" CornerRadius="8" Background="{DynamicResource Ab.Surface2}" VerticalAlignment="Center">
                                         <mi:MaterialIcon Kind="{Binding Icon}" Width="16" Height="16" Foreground="{Binding ColourBrush}" />
                                     </Border>
@@ -193,7 +241,16 @@
                                     </StackPanel>
                                     <controls:MarkedBar Grid.Column="2" Width="44" VerticalAlignment="Center" IsVisible="{Binding ShowsBar}" Fraction="{Binding Fraction}"
                                                         FillBrush="{Binding ColourBrush}" TrackBrush="{DynamicResource Ab.Surface2}" />
-                                    <Button Grid.Column="3" Classes="sideIcon" IsVisible="{Binding IsDeepWork}"
+                                    <!-- The kind's control (board B-PC-Idle): a habit's tick circle, an amount goal's Log. -->
+                                    <Button Grid.Column="3" Classes="goalTick" Classes.hit="{Binding IsHit}" IsVisible="{Binding CanTick}"
+                                            Command="{Binding $parent[ItemsControl].((vm:TodayGoalsViewModel)DataContext).TickGoalCommand, FallbackValue={x:Null}}"
+                                            CommandParameter="{Binding Id}" ToolTip.Tip="{Binding TickTip}" AutomationProperties.Name="{Binding TickTip}">
+                                        <mi:MaterialIcon Kind="Check" Width="13" Height="13" IsVisible="{Binding IsHit}" />
+                                    </Button>
+                                    <Button Grid.Column="4" Classes="goalLog" Content="Log" IsVisible="{Binding CanLog}" VerticalAlignment="Center"
+                                            Command="{Binding $parent[ItemsControl].((vm:TodayGoalsViewModel)DataContext).LogGoalCommand, FallbackValue={x:Null}}"
+                                            CommandParameter="{Binding Id}" ToolTip.Tip="Log today's value on the Goals page" AutomationProperties.Name="{Binding LogName}" />
+                                    <Button Grid.Column="5" Classes="sideIcon" IsVisible="{Binding IsDeepWork}"
                                             Command="{Binding $parent[ItemsControl].((vm:TodayGoalsViewModel)DataContext).DeepWork.EditCommand, FallbackValue={x:Null}}"
                                             ToolTip.Tip="Change the daily goal" AutomationProperties.Name="Change the daily goal">
                                         <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" />
@@ -236,7 +293,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ComebackRowViewModel">
                                 <StackPanel Spacing="4">
-                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="0,2">
+                                    <Grid Classes="comebackRow" Background="Transparent" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="0,2">
                                         <CheckBox Command="{Binding TickCommand}" ToolTip.Tip="Done: tick it off" VerticalAlignment="Center" MinWidth="0" />
                                         <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13.5" TextWrapping="Wrap" VerticalAlignment="Center" IsVisible="{Binding !IsEditing}" />
                                         <TextBox Grid.Column="1" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" AutomationProperties.Name="Come-back text"

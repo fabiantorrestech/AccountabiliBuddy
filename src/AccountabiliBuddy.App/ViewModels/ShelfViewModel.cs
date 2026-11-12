@@ -73,7 +73,7 @@ public sealed partial class ShelfViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HasTidyCard { get; set; }
 
-    /// <summary>"Weekly tidy-up · 5 untouched for 3+ weeks".</summary>
+    /// <summary>"5 tasks untouched for 3+ weeks".</summary>
     [ObservableProperty]
     public partial string TidyTitle { get; set; }
 

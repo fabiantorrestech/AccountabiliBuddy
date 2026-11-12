@@ -153,6 +153,10 @@
                                 <DataTemplate x:DataType="vm:SettingsRowViewModel">
                                     <!-- No column spacing: it would still be taken for the lock's empty column, and a long name ("Alerts & on-screen")
                                          clipped in the narrow rail. The gaps are margins that go with what they space. -->
+                                    <Panel>
+                                    <!-- The group's head ("Tabs", "Everywhere") sits in the room the row's top margin leaves; it takes no clicks. -->
+                                    <TextBlock Classes="muted" Text="{Binding GroupHead}" IsVisible="{Binding HasGroupHead}" FontSize="12" FontWeight="SemiBold"
+                                               Margin="0,-36,0,0" VerticalAlignment="Top" IsHitTestVisible="False" />
                                     <Grid ColumnDefinitions="Auto,*,Auto" AutomationProperties.Name="{Binding Name}"
                                           search:SearchArea.SettingsGroup="{Binding Section}">
                                         <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
@@ -160,6 +164,7 @@
                                         <mi:MaterialIcon Grid.Column="2" Kind="LockOutline" Width="16" Height="16" Margin="8,0,0,0" IsVisible="{Binding IsResting}"
                                                          Foreground="{DynamicResource Ab.Faint}" ToolTip.Tip="Resting while you focus" />
                                     </Grid>
+                                    </Panel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>

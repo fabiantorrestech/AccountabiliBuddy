@@ -75,7 +75,7 @@
             <Rectangle Stroke="{DynamicResource Ab.Line}" StrokeThickness="1" StrokeDashArray="4,3" RadiusX="17" RadiusY="17" IsHitTestVisible="False" />
             <Button Classes="jotPill" Command="{Binding OpenCommand}" ToolTip.Tip="Jot it down (Ctrl+J)" AutomationProperties.Name="Jot it down">
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                    <mi:MaterialIcon Kind="Plus" Width="15" Height="15" VerticalAlignment="Center" />
                     <TextBlock Text="Jot it down" VerticalAlignment="Center" />
                     <Border CornerRadius="4" Padding="5,1" Background="{DynamicResource Ab.Surface2}" VerticalAlignment="Center">
                         <TextBlock Text="Ctrl+J" FontSize="10.5" FontWeight="Medium" FontFamily="{DynamicResource Ab.NumeralFont}" />

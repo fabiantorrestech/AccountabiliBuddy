@@ -598,7 +598,7 @@ public sealed class GoalStore
 
     private static bool Same(GoalUiPreferences left, GoalUiPreferences right)
     {
-        return left.ListWidth == right.ListWidth && left.ListView == right.ListView
+        return left.ListWidth == right.ListWidth && left.ListView == right.ListView && left.Sort == right.Sort
             && (left.CollapsedAreas ?? []).SequenceEqual(right.CollapsedAreas ?? []);
     }
 

@@ -470,15 +470,16 @@
                                 </TextBox>
                             </Grid>
                         </Border>
-                        <WrapPanel Grid.Column="1" ItemSpacing="6" LineSpacing="6" VerticalAlignment="Center" IsVisible="{Binding Shelf.HasViews}">
-                            <WrapPanel.Opacity>
+                        <!-- "+" keeps its place before the first chip when the chips wrap (board Tasks-PC: one row with the add box and Search). -->
+                        <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="6" VerticalAlignment="Center" IsVisible="{Binding Shelf.HasViews}">
+                            <Grid.Opacity>
                                 <Binding Path="IsShelfShown" Converter="{x:Static views:TasksView.ShownOpacity}" />
-                            </WrapPanel.Opacity>
-                            <Button Classes="labelChip" Padding="7,5" Command="{Binding Shelf.ToggleManageLabelsCommand}" ToolTip.Tip="Labels: add, rename, recolour or delete"
+                            </Grid.Opacity>
+                            <Button Classes="labelChip" Padding="7,5" VerticalAlignment="Top" Command="{Binding Shelf.ToggleManageLabelsCommand}" ToolTip.Tip="Labels: add, rename, recolour or delete"
                                     AutomationProperties.Name="Labels" IsHitTestVisible="{Binding IsShelfShown}">
                                 <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
                             </Button>
-                            <ItemsControl ItemsSource="{Binding Shelf.LabelChips}" IsHitTestVisible="{Binding IsShelfShown}">
+                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Shelf.LabelChips}" IsHitTestVisible="{Binding IsShelfShown}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel ItemSpacing="6" LineSpacing="6" />
@@ -495,7 +496,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                        </WrapPanel>
+                        </Grid>
                     </Grid>
                     <views:AddBoxView DataContext="{Binding AddBox}" VerticalAlignment="Top" />
                 </Panel>

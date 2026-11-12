@@ -357,6 +357,30 @@ public sealed partial class SessionTasksService : IDisposable
         return Current.SessionStart is null ? ThisSessionDraftTasks(StoredDraftItems()).Where(task => !task.IsDone).ToList() : [];
     }
 
+    /// <summary>
+    /// No session runs: This session's tasks with the focus a session started now would give them (the steps marked for focus in the
+    /// task list, then the first open steps while places are free: <see cref="SessionActions.StartFocus"/>, the start's own rule), so
+    /// Today can list the next steps as rows before the session (round 2 board B-PC-Idle). Nothing is saved. Null while a session runs.
+    /// </summary>
+    public SessionChecklist? StartPreview()
+    {
+        if (Current.SessionStart is not null)
+        {
+            return null;
+        }
+
+        Dictionary<Guid, TaskItem> stored = StoredDraftItems();
+        List<SessionTask> joining = ThisSessionDraftTasks(stored);
+        List<Guid> planned = joining
+            .SelectMany(task => stored.TryGetValue(task.Id, out TaskItem? item) ? item.Steps ?? [] : [])
+            .Where(step => step.Focus && !step.IsDone)
+            .Select(step => step.Id)
+            .ToList();
+        // "Add anyway" adds made on the draft belong to the session that starts next (as the start counts them).
+        int allowance = (Settings?.SessionActions ?? SessionActions.DefaultCap) + _overLimit.Count(entry => entry.SessionStart is null);
+        return SessionActions.StartFocus(Current with { Tasks = joining }, planned, allowance);
+    }
+
     /// <summary>No session runs and the next session's list holds the task (in This session or in Queued).</summary>
     public bool IsInDraft(Guid id)
     {
@@ -1346,10 +1370,9 @@ public sealed partial class SessionTasksService : IDisposable
 
         await TombstoneNextTasksAsync(joiningIds);
         SessionChecklist started = (Current with { Tasks = joining }).Started(start) with { ActionCap = Settings?.SessionActions ?? SessionActions.DefaultCap };
-        started = SessionActions.WithFocus(started, planned);
-        int allowance = AllowanceOf(started);
         // Tasks with steps and none in focus get their first open steps in focus while places are free; extra focus is trimmed to fit.
-        started = SessionActions.FittedToCap(SessionActions.Joined(started, started.Tasks.Select(task => task.Id), allowance), allowance);
+        // The same rule as StartPreview (Today's list before the session), so the session focuses what Today showed.
+        started = SessionActions.StartFocus(started, planned, AllowanceOf(started));
         await SetAsync(started);
         if (NeedsPick)
         {

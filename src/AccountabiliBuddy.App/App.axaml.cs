@@ -1879,6 +1879,17 @@ public partial class App : Application
             }
         };
         mainViewModel.Goals = goalsPage;
+        // Today's goals on the sidebar (board B-PC-Idle): the tick circle and Log run the goal menu's own quick-log actions; "Goals ›" opens the page.
+        if (sessionViewModel.TodayGoals is { } todayGoals)
+        {
+            todayGoals.Tick = id => goalsPage.TickTodayAsync(id);
+            todayGoals.Log = id =>
+            {
+                mainViewModel.SelectedTab = MainWindowViewModel.GoalsTab;
+                goalsPage.LogToday(id);
+            };
+            todayGoals.OpenGoals = () => mainViewModel.SelectedTab = MainWindowViewModel.GoalsTab;
+        }
         if (_goals.Store.IsReady)
         {
             mainViewModel.Settings.GoalsPage = new GoalsSettingsViewModel(_goals)
@@ -2352,7 +2363,7 @@ public partial class App : Application
         sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks) { GuardedPlan = guardedPlan };
         sessionViewModel.CalendarToday = new CalendarTodayViewModel(_configuration, effectivePlan, calendars, time, sessionViewModel.Day);
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);
-        sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel);
+        sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel, todayLayout);
         // Round 2: the Today sidebar (Next up, Today's goals, Come back to, chips) over This session's list, and Settings › Today.
         // Created once the cards it shows exist (Next up and the calendar lines are made just above).
         sessionViewModel.Sidebar = new TodaySidebarViewModel(

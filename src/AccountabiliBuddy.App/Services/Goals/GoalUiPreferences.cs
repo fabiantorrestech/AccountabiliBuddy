@@ -7,7 +7,8 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// <param name="CollapsedAreas">Ids of the folded areas (an area's <c>collapsed</c> is per device, Q369).</param>
 /// <param name="ListWidth">The list pane's width in px (360 to 560, default 470; brief §4.4).</param>
 /// <param name="ListView">By area, Current or All.</param>
-public sealed record GoalUiPreferences(IReadOnlyList<Guid>? CollapsedAreas, int ListWidth, GoalListView ListView)
+/// <param name="Sort">Your order (default) or Behind first, inside each group.</param>
+public sealed record GoalUiPreferences(IReadOnlyList<Guid>? CollapsedAreas, int ListWidth, GoalListView ListView, GoalListSort Sort = GoalListSort.YourOrder)
 {
     public const int MinListWidth = 360;
     public const int MaxListWidth = 560;
@@ -23,6 +24,7 @@ public sealed record GoalUiPreferences(IReadOnlyList<Guid>? CollapsedAreas, int 
             CollapsedAreas = (CollapsedAreas ?? []).Distinct().ToList(),
             ListWidth = ListWidth <= 0 ? DefaultListWidth : Math.Clamp(ListWidth, MinListWidth, MaxListWidth),
             ListView = Enum.IsDefined(ListView) ? ListView : GoalListView.ByArea,
+            Sort = Enum.IsDefined(Sort) ? Sort : GoalListSort.YourOrder,
         };
     }
 }

@@ -151,7 +151,7 @@
                                         <TextBlock Classes="muted" Text="{Binding Sub}" FontSize="12" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                        <Border Classes="dlgTag soft" IsVisible="{Binding IsSuggested}">
+                                        <Border Classes="dlgTag accentSoft" IsVisible="{Binding IsSuggested}">
                                             <TextBlock Text="Suggested" />
                                         </Border>
                                         <Border Classes="dlgTag" IsVisible="{Binding IsChosen}">

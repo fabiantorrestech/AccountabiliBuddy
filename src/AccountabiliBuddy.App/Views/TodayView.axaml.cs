@@ -85,9 +85,26 @@ public partial class TodayView : UserControl
         }, DispatcherPriority.Background);
     }
 
+    // The Today sidebar rests on its rail in a window narrower than Settings › Today's "Show it when the window is at least".
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        TellSidebarWidth();
+    }
+
+    private void TellSidebarWidth()
+    {
+        double width = TopLevel.GetTopLevel(this)?.ClientSize.Width ?? Bounds.Width;
+        if (width > 0 && DataContext is SessionViewModel { Sidebar: { } sidebar })
+        {
+            sidebar.SetWindowWidth(width);
+        }
+    }
+
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+        TellSidebarWidth();
         if (_subscribed is not null)
         {
             _subscribed.PropertyChanged -= OnSessionPropertyChanged;

@@ -42,25 +42,12 @@
             <ListBox Classes="segmented" HorizontalAlignment="Left" ItemsSource="{Binding StateChoices}" SelectedIndex="{Binding StateIndex}"
                      AutomationProperties.Name="Which layout to edit" />
 
-            <!-- How the day starts and ends lives in Your day (the Options row's note). -->
-            <Border Classes="sPanel" search:SearchArea.Name="How the day starts and ends">
-                <Border Classes="sRow">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                        <mi:MaterialIcon Classes="rowIcon" Kind="WeatherSunny" />
-                        <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Classes="sTitle" Text="How the day starts and ends" />
-                            <TextBlock Classes="sHint" Text="The start-of-day card, Pre-Work, lunch and the shutdown routine: Your day." />
-                        </StackPanel>
-                        <Button Grid.Column="2" Content="Open Your day" Command="{Binding OpenYourDayCommand}" VerticalAlignment="Center" />
-                    </Grid>
-                </Border>
-            </Border>
-
             <!-- Main column: always shown; Finished today is the one card choice. -->
             <StackPanel Spacing="6" search:SearchArea.Name="Today layout">
                 <TextBlock Classes="sGroup" Text="Main column" />
                 <TextBlock Classes="sHint" Text="Always shown: the session card or Start, and This session" />
                 <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
                     <Border Classes="sRow">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                             <mi:MaterialIcon Classes="rowIcon" Kind="CheckAll" />
@@ -72,6 +59,19 @@
                                       AutomationProperties.Name="Show finished today" />
                         </Grid>
                     </Border>
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="UnfoldMoreHorizontal" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Show More today" />
+                                <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                           Text="The folded card under the session card: today's timeline, the week, a day off, Cold Turkey. Off, it still shows while something in it needs a look or a profile offers an unlock." />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding ShowMoreToday}" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Show More today" />
+                        </Grid>
+                    </Border>
+                    </StackPanel>
                 </Border>
             </StackPanel>
 
@@ -131,6 +131,56 @@
                                 </StackPanel>
                                 <ListBox Grid.Column="1" Classes="segmented" VerticalAlignment="Center" ItemsSource="{Binding OutsideChoices}"
                                          SelectedIndex="{Binding OutsideIndex}" AutomationProperties.Name="The sidebar outside a session" />
+                            </Grid>
+                        </Border>
+                        <!-- Board PC-Settings-Today: "Show it when the window is at least · 1280 px". -->
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Show it when the window is at least" />
+                                    <TextBlock Classes="sHint" TextWrapping="Wrap" Text="Outside a session, narrower windows keep it on its rail so it never covers your tasks; Ctrl+\ still slides it over" />
+                                </StackPanel>
+                                <ComboBox x:Name="MinWidthBox" Grid.Column="1" VerticalAlignment="Center" MinWidth="120" ItemsSource="{Binding MinWidthChoices}"
+                                          SelectedIndex="{Binding MinWidthIndex}" AutomationProperties.Name="Show the sidebar when the window is at least" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- More (board PC-Settings-Today): how the day starts and ends lives in Your day. -->
+            <StackPanel Spacing="6" search:SearchArea.Name="How the day starts and ends">
+                <TextBlock Classes="sGroup" Text="More" />
+                <Border Classes="sPanel">
+                    <StackPanel Margin="0,0,0,-1">
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="WeatherSunny" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Starting the day" />
+                                    <TextBlock Classes="sHint" Text="{Binding StartOfDayText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Command="{Binding OpenYourDayCommand}" VerticalAlignment="Center" AutomationProperties.Name="Starting the day: open Your day">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="Your day" VerticalAlignment="Center" />
+                                        <mi:MaterialIcon Kind="ChevronRight" Width="14" Height="14" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="WeatherSunset" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="End of the workday" />
+                                    <TextBlock Classes="sHint" Text="{Binding EndOfDayText}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Command="{Binding OpenYourDayCommand}" VerticalAlignment="Center" AutomationProperties.Name="End of the workday: open Your day">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="Your day" VerticalAlignment="Center" />
+                                        <mi:MaterialIcon Kind="ChevronRight" Width="14" Height="14" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                             </Grid>
                         </Border>
                     </StackPanel>

@@ -11,13 +11,28 @@ namespace AccountabiliBuddy.App.Services.Today;
 /// <param name="SidebarInSession">The sidebar during a session (default: hidden to the rail).</param>
 /// <param name="SidebarOutside">The sidebar outside a session (default: remembered until the app restarts).</param>
 /// <param name="ShowFinishedToday">Today's list shows the folded "Finished today" section (Options › Cards).</param>
+/// <param name="ShowMoreToday">
+/// The folded "More today" card under the session card always shows (round 2 design fix: the boards draw nothing there, so it is off by
+/// default; the card still shows by itself while something in it needs a look or a profile offers an unlock).
+/// </param>
+/// <param name="SidebarMinWidth">
+/// Outside a session the sidebar rests on its rail while the window is narrower than this many DIP (board PC-Settings-Today, "Show it
+/// when the window is at least 1280 px"); 0 = at any width.
+/// </param>
 public sealed record TodayLayoutPreferences(
     IReadOnlyList<TodayPartChoice>? OutsideSession = null,
     IReadOnlyList<TodayPartChoice>? InSession = null,
     TodaySidebarInSession SidebarInSession = TodaySidebarInSession.Hidden,
     TodaySidebarOutside SidebarOutside = TodaySidebarOutside.Remember,
-    bool ShowFinishedToday = true)
+    bool ShowFinishedToday = true,
+    bool ShowMoreToday = false,
+    int SidebarMinWidth = TodayLayoutPreferences.DefaultSidebarMinWidth)
 {
+    public const int DefaultSidebarMinWidth = 1280;
+
+    /// <summary>The widths Settings › Today offers (0 = any width).</summary>
+    public static IReadOnlyList<int> SidebarMinWidths { get; } = [0, 1024, 1280, 1440, 1600];
+
     public static TodayLayoutPreferences Default { get; } = new();
 
     /// <summary>The layout for a state of the day, as stored (null for the defaults).</summary>

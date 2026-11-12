@@ -9,6 +9,28 @@
     <!-- The Goals page on the PC (round 2 R5, brief §4.4, change note §4a, boards Goals-PC and Goals-PC-Small). One card, like Tasks: the page
          header "Goals · Thu 11/12" (+ New goal, Stats, then Options, last), then the list pane, one splitter, and the detail pane. The list is
          360 to 560 px (default 470, remembered); it shrinks first so the detail keeps about 760 px, and collapses to its icons below that. -->
+    <UserControl.Styles>
+        <Style Selector="Button.areaChip">
+            <Setter Property="Padding" Value="12,5" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.areaChip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.areaChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.areaChip.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
     <Border x:Name="GoalsCard" Classes="card" Padding="0" ClipToBounds="True">
         <DockPanel>
             <controls:PageHeader x:Name="GoalsHeader" DockPanel.Dock="Top" Margin="26,20,16,0" Title="Goals" Date="{Binding DateText}"
@@ -30,6 +52,33 @@
                     </StackPanel>
                 </controls:PageHeader.Actions>
             </controls:PageHeader>
+
+            <!-- The area chips (boards Goals-PC, Goals-PC-Small; owner 2026-11-14, Q395 reversed): "+" opens Areas, All, then each area
+                 with a goal; a pick shows that area alone for this visit. They wrap, so nothing scrolls sideways in a small window. -->
+            <Grid x:Name="AreaChips" DockPanel.Dock="Top" Margin="26,10,16,0" ColumnDefinitions="Auto,*" ColumnSpacing="6" IsVisible="{Binding IsReady}">
+                <Button Classes="areaChip" Padding="7,5" VerticalAlignment="Top" Command="{Binding ShowAreasCommand}" ToolTip.Tip="Areas: add, rename, pick icons, reorder"
+                        AutomationProperties.Name="Areas">
+                    <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
+                </Button>
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding List.AreaChips}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:GoalAreaChipViewModel">
+                            <Button Classes="areaChip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Text}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <mi:MaterialIcon Kind="{Binding IconOrDefault}" Width="14" Height="14" VerticalAlignment="Center" IsVisible="{Binding HasIcon}"
+                                                     Foreground="{DynamicResource Ab.Muted}" />
+                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
 
             <Border DockPanel.Dock="Top" Margin="26,9,16,0" Padding="14,10" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.InfoBg}"
                     IsVisible="{Binding !IsReady}">

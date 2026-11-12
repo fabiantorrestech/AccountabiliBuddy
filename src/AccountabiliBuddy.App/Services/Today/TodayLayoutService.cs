@@ -95,6 +95,13 @@ public sealed class TodayLayoutService
 
     public Task SetShowFinishedTodayAsync(bool show) => UpdateAsync(current => current with { ShowFinishedToday = show });
 
+    public Task SetShowMoreTodayAsync(bool show) => UpdateAsync(current => current with { ShowMoreToday = show });
+
+    /// <summary>One of <see cref="TodayLayoutPreferences.SidebarMinWidths"/>; anything else changes nothing.</summary>
+    public Task SetSidebarMinWidthAsync(int width) => TodayLayoutPreferences.SidebarMinWidths.Contains(width)
+        ? UpdateAsync(current => current with { SidebarMinWidth = width })
+        : Task.CompletedTask;
+
     /// <summary>Back to the board's layout in both states.</summary>
     public Task ResetAsync() => UpdateAsync(_ => TodayLayoutPreferences.Default);
 

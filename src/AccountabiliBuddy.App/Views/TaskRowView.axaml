@@ -3,6 +3,7 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.TaskRowView"
              x:DataType="vm:TaskListRowViewModel">
     <!-- One task row, the same in the Shelf's columns and Today's sections (spec 03 §B): the number (This
@@ -390,6 +391,22 @@
             <Setter Property="MinWidth" Value="16" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <!-- The running row with its steps open (board B-PC-Session): number, box, Now and time stay on the title's line, and the
+             letter chip keeps its look on the tint. -->
+        <Style Selector="StackPanel.rowEnd">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Grid.rowGrid.nowOpen > StackPanel.leadCell">
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="10,1,0,0" />
+        </Style>
+        <Style Selector="Grid.rowGrid.nowOpen > StackPanel.rowEnd">
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style Selector="Grid.rowGrid.nowOpen Border.letterChip">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        </Style>
         <Style Selector="Border.letterChip TextBlock">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
@@ -467,7 +484,7 @@
                     AutomationProperties.Name="{Binding Title}">
                 <Panel>
                 <Border Classes="focusRing" />
-                <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,0,4,0">
+                <Grid Classes="rowGrid" Classes.nowOpen="{Binding HasNowSteps}" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,0,4,0">
                     <StackPanel Grid.Column="0" Classes="leadCell" Orientation="Horizontal" Spacing="6" MinWidth="22">
                         <Button Classes="leadDot" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="{Binding LeadDotTip}"
                                 IsVisible="{Binding $self.(views:TaskColumnScope.IsColumn)}" IsEnabled="{Binding CanLabel}">
@@ -507,21 +524,26 @@
                              under the title: a step "↳ task · ● label · 142b", a task "● label · 25 min"; a missing part goes with its dot. The
                              amber Overdue pill and the sync-problem cloud still show; a step's ▾ (its live step list) on hover or focus. -->
                         <Panel Classes="todayOnly rowSub">
-                            <DockPanel IsVisible="{Binding HasTodayLine}" AutomationProperties.Name="{Binding TodayLineText}">
-                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="{Binding TodayParent}" FontSize="12" MaxWidth="260"
+                            <!-- One line for every row, the same size and left edge (design fix round 2): the step's "↳ task" trims only when the
+                                 line runs out of room; the other parts keep their width. -->
+                            <controls:PriorityRowPanel IsVisible="{Binding HasTodayLine}" AutomationProperties.Name="{Binding TodayLineText}">
+                                <!-- The "↳" is drawn as an icon: the text glyph comes from a fallback font, smaller and lower than the line. -->
+                                <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,0,4,0" Foreground="{DynamicResource Ab.Muted}"
+                                                 VerticalAlignment="Center" IsVisible="{Binding HasTodayParent}" />
+                                <TextBlock Classes="muted" Text="{Binding StepSourceTitle}" FontSize="12" controls:PriorityRowPanel.Shrinks="True"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="{Binding HasTodayParent}" />
-                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
+                                <TextBlock Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
                                            IsVisible="{Binding ShowsTodayDotAfterParent}" />
-                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasTodayLabel}">
+                                <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasTodayLabel}">
                                     <Ellipse Width="7" Height="7" Fill="{Binding TodayLabelBrush}" VerticalAlignment="Center" />
                                     <TextBlock Classes="muted" Text="{Binding TodayLabel}" FontSize="12" MaxWidth="120" TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
-                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
+                                <TextBlock Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
                                            IsVisible="{Binding ShowsTodayDotBeforeTail}" />
-                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="{Binding TodayTail}" FontSize="12" MaxWidth="280"
+                                <TextBlock Classes="muted" Text="{Binding TodayTail}" FontSize="12" MaxWidth="280"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="{Binding HasTodayTail}" />
-                                <ItemsControl DockPanel.Dock="Left" ItemsSource="{Binding TodayFlags}" IsVisible="{Binding HasTodayFlags}" Margin="8,0,0,0"
+                                <ItemsControl ItemsSource="{Binding TodayFlags}" IsVisible="{Binding HasTodayFlags}" Margin="8,0,0,0"
                                               VerticalAlignment="Center" ItemTemplate="{StaticResource RowBitTemplate}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -529,13 +551,12 @@
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                 </ItemsControl>
-                                <Button DockPanel.Dock="Left" Classes="rowTool onHover" Width="22" Height="20" Margin="2,0,0,0" Click="OnStepListClick"
+                                <Button Classes="rowTool onHover" Width="20" Height="16" MinHeight="0" Padding="0" Margin="2,0,0,0" Click="OnStepListClick"
                                         IsVisible="{Binding IsStepRow}" ToolTip.Tip="Its steps: tick, bring into focus, add"
                                         AutomationProperties.Name="Show the task's steps">
                                     <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" />
                                 </Button>
-                                <Panel />
-                            </DockPanel>
+                            </controls:PriorityRowPanel>
                         </Panel>
                         <Panel Classes="tasksOnly">
                         <TextBlock Classes="muted rowSub" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding ShowsSubText}" />
@@ -662,7 +683,7 @@
                         </Button>
                     </Panel>
                     <!-- This session's time (number font), or "Now" on the running task; on Today the running task has a Now badge and keeps its time. -->
-                    <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="3" Classes="rowEnd" Orientation="Horizontal" Spacing="8">
                         <Border Classes="nowBadge" VerticalAlignment="Center">
                             <Border.IsVisible>
                                 <MultiBinding Converter="{x:Static BoolConverters.And}">

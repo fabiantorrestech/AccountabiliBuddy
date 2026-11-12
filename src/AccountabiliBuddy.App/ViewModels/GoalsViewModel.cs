@@ -87,6 +87,13 @@ public sealed partial class GoalsViewModel : ObservableObject
     /// <summary>R5b hook: Options › Areas….</summary>
     public event EventHandler? AreasRequested;
 
+    /// <summary>The area chips row's "+" (board Goals-PC): the Areas dialog, where an area is added.</summary>
+    [RelayCommand]
+    private void ShowAreas()
+    {
+        AreasRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>The weekly review's timing and answers (set by the app; the This week card's review row reads it).</summary>
     public GoalReviewService? Review { get; set; }
 
@@ -232,7 +239,9 @@ public sealed partial class GoalsViewModel : ObservableObject
             settings.HeatmapLabels, labels => _goals.SetPageSettingsAsync(settings with { HeatmapLabels = labels }, this),
             settings.ExtraTiles ?? GoalExtraTiles.None, tiles => _goals.SetPageSettingsAsync(settings with { ExtraTiles = tiles }, this),
             () => AreasRequested?.Invoke(this, EventArgs.Empty),
-            () => OpenGoalsSettings?.Invoke());
+            () => OpenGoalsSettings?.Invoke(),
+            store.Ui.Sort,
+            sort => _goals.SetUiPreferencesAsync(_goals.Store.Ui with { Sort = sort }, this));
     }
 
     /// <summary>
@@ -285,7 +294,8 @@ public sealed partial class GoalsViewModel : ObservableObject
                 ? new TaskMenuEntry("Set a target again…", new RelayCommand(() => RequestEdit(id, GoalEditSection.Target)), Icon: MaterialIconKind.FlagOutline,
                     Note: "Raising applies at once", OpensMore: true)
                 : new TaskMenuEntry("Track time only, no target", new RelayCommand(() => ConfirmRequested?.Invoke(this, GoalConfirmPrompts.TrackTimeOnly(_goals))),
-                    Icon: MaterialIconKind.TimerOutline, Note: "Keeps counting focus · lowering waits"));
+                    Icon: MaterialIconKind.TimerOutline,
+                    Note: "Built-in: keeps counting focus time without a daily or weekly target. It can't be deleted."));
         }
         else
         {

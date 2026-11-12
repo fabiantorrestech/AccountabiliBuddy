@@ -261,7 +261,9 @@
                                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1" ClipToBounds="True">
                                                                     <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                                                                     <DockPanel>
-                                                                        <TextBlock DockPanel.Dock="Left" Classes="abSubLine" Text="{Binding SubLine}" />
+                                                                        <mi:MaterialIcon DockPanel.Dock="Left" Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,0,4,0"
+                                                                                         Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                                        <TextBlock DockPanel.Dock="Left" Classes="abSubLine" Text="{Binding SubText}" AutomationProperties.Name="{Binding SubLine}" />
                                                                         <Border DockPanel.Dock="Left" Classes="abChip" Margin="6,0,0,0" IsVisible="{Binding IsBuiltIn}">
                                                                             <TextBlock Text="Built in" />
                                                                         </Border>

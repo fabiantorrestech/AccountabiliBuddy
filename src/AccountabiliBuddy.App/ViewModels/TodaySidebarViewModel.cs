@@ -59,6 +59,7 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
         _layout.Changed += (_, _) =>
         {
             _state.SettingsChanged(_layout.Current.SidebarInSession, _layout.Current.SidebarOutside);
+            ApplyWidth();
             Rebuild();
         };
         _state.SettingsChanged(_layout.Current.SidebarInSession, _layout.Current.SidebarOutside);
@@ -131,11 +132,32 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
     /// <summary>Open during a session with "Quiet": faded until the pointer or the keyboard is on it.</summary>
     public bool IsQuiet => _state.IsQuiet;
 
-    /// <summary>The rail's vertical note: "hidden during session" in a session, else how to show it.</summary>
-    public string RailNote => _state.InSession ? "hidden during session" : "Ctrl+\\ to show";
+    /// <summary>
+    /// The vertical note beside "Today sidebar" (boards B-PC-Idle, B-PC-Session): what Ctrl+\ does now, "to hide" while the sidebar is
+    /// open; with only the rail showing, "hidden during session" in a session and "to show" outside one.
+    /// </summary>
+    public string RailNote => _state.IsOpen ? "Ctrl+\\ to hide" : _state.InSession ? "hidden during session" : "Ctrl+\\ to show";
 
     /// <summary>The header's muted note.</summary>
     public string HeaderNote => _state.InSession ? "Ctrl+\\ hides it again" : "slides over, hides in a session";
+
+    private double _windowWidth = double.NaN;
+
+    /// <summary>
+    /// The main window's width in DIP (the Today page tells it): narrower than Settings › Today's "Show it when the window is at least",
+    /// the sidebar rests on its rail outside a session.
+    /// </summary>
+    public void SetWindowWidth(double width)
+    {
+        _windowWidth = width;
+        ApplyWidth();
+    }
+
+    private void ApplyWidth()
+    {
+        int least = _layout.Current.SidebarMinWidth;
+        _state.NarrowChanged(least > 0 && !double.IsNaN(_windowWidth) && _windowWidth < least);
+    }
 
     /// <summary>Opens Settings › Today scrolled to the sidebar's parts (set by the app).</summary>
     public Action? OpenSettings { get; set; }

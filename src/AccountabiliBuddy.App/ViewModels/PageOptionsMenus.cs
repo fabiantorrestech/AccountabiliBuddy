@@ -127,8 +127,11 @@ public static class PageOptionsMenus
         AccountabiliBuddy.Core.Goals.GoalExtraTiles extraTiles,
         Func<AccountabiliBuddy.Core.Goals.GoalExtraTiles, Task> setExtraTiles,
         Action openAreas,
-        Action openGoalsSettings)
+        Action openGoalsSettings,
+        AccountabiliBuddy.App.Services.Goals.GoalListSort sort = AccountabiliBuddy.App.Services.Goals.GoalListSort.YourOrder,
+        Func<AccountabiliBuddy.App.Services.Goals.GoalListSort, Task>? setSortOrNull = null)
     {
+        Func<AccountabiliBuddy.App.Services.Goals.GoalListSort, Task> setSort = setSortOrNull ?? (_ => Task.CompletedTask);
         static string ViewName(AccountabiliBuddy.App.Services.Goals.GoalListView value) => value switch
         {
             AccountabiliBuddy.App.Services.Goals.GoalListView.Current => "Current",
@@ -143,9 +146,7 @@ public static class PageOptionsMenus
             _ => "Sun",
         };
 
-        List<TaskMenuEntry> views = Enum.GetValues<AccountabiliBuddy.App.Services.Goals.GoalListView>()
-            .Select(value => new TaskMenuEntry(ViewName(value), new AsyncRelayCommand(() => setView(value)), IsChecked: value == view))
-            .ToList();
+        // Board Goals-PC › Options: Charts first, then List, each choice inline (a segmented control), then Goals settings.
         List<TaskMenuEntry> weeks = new[] { AccountabiliBuddy.Core.Goals.GoalWeekStart.Monday, AccountabiliBuddy.Core.Goals.GoalWeekStart.Sunday, AccountabiliBuddy.Core.Goals.GoalWeekStart.Saturday }
             .Select(value => new TaskMenuEntry(WeekName(value), new AsyncRelayCommand(() => setWeekStart(value)), IsChecked: value == weekStart))
             .ToList();
@@ -158,17 +159,31 @@ public static class PageOptionsMenus
             new TaskMenuEntry("Total", new AsyncRelayCommand(() => setExtraTiles(extraTiles with { Total = !extraTiles.Total })), IsChecked: extraTiles.Total),
         ];
         string tilesValue = extraTiles is { Streak: true, Total: true } ? "Streak, Total" : extraTiles.Streak ? "Streak" : extraTiles.Total ? "Total" : "Off";
+        bool byArea = view == AccountabiliBuddy.App.Services.Goals.GoalListView.ByArea;
+        List<TaskMenuEntry> groups =
+        [
+            new TaskMenuEntry("Area", new AsyncRelayCommand(() => setView(AccountabiliBuddy.App.Services.Goals.GoalListView.ByArea)), IsChecked: byArea),
+            // One list: Current (the goals that ask for something); a list already on All stays there.
+            new TaskMenuEntry("None", new AsyncRelayCommand(() => byArea ? setView(AccountabiliBuddy.App.Services.Goals.GoalListView.Current) : Task.CompletedTask), IsChecked: !byArea),
+        ];
+        List<TaskMenuEntry> sorts =
+        [
+            new TaskMenuEntry("Your order", new AsyncRelayCommand(() => setSort(AccountabiliBuddy.App.Services.Goals.GoalListSort.YourOrder)),
+                IsChecked: sort == AccountabiliBuddy.App.Services.Goals.GoalListSort.YourOrder),
+            new TaskMenuEntry("Behind first", new AsyncRelayCommand(() => setSort(AccountabiliBuddy.App.Services.Goals.GoalListSort.BehindFirst)),
+                IsChecked: sort == AccountabiliBuddy.App.Services.Goals.GoalListSort.BehindFirst),
+        ];
         return
         [
-            new TaskMenuEntry("List", IsHeading: true),
-            new TaskMenuEntry("Show goals", Children: views, Icon: MaterialIconKind.FormatListBulleted, Value: ViewName(view)),
-            new TaskMenuEntry("Sort", Children: [new TaskMenuEntry("Your order", IsChecked: true)], Icon: MaterialIconKind.Sort, Value: "Your order"),
-            new TaskMenuEntry("Areas…", new RelayCommand(openAreas), Icon: MaterialIconKind.ShapeOutline, OpensMore: true),
-            TaskMenuEntry.Separator,
             new TaskMenuEntry("Charts", IsHeading: true),
-            new TaskMenuEntry("Week starts on", Children: weeks, Icon: MaterialIconKind.CalendarCheck, Value: WeekName(weekStart)),
-            new TaskMenuEntry("Heatmap day labels", Children: dayLabels, Icon: MaterialIconKind.FormatLetterCase, Value: labels.ToString()),
-            new TaskMenuEntry("Extra tiles", Children: tiles, Icon: MaterialIconKind.ViewDashboardOutline, Value: tilesValue, Note: "For goals without their own choice"),
+            new TaskMenuEntry("Week starts on", Segments: weeks, Note: "Heatmaps, week bars and weekly counts"),
+            new TaskMenuEntry("Heatmap day labels", Segments: dayLabels, Note: "Every row, or every other row"),
+            new TaskMenuEntry("Extra tiles", Children: tiles, Value: tilesValue, Note: "For goals without their own choice"),
+            TaskMenuEntry.Separator,
+            new TaskMenuEntry("List", IsHeading: true),
+            new TaskMenuEntry("Group by", Segments: groups, Note: "Areas you made, or one list"),
+            new TaskMenuEntry("Sort", Segments: sorts, Note: "Within each group"),
+            new TaskMenuEntry("Areas", new RelayCommand(openAreas), Note: "Rename, pick icons, reorder, add", OpensMore: true),
             TaskMenuEntry.Separator,
             new TaskMenuEntry(GoalsSettingsText, new RelayCommand(openGoalsSettings), Icon: MaterialIconKind.Cog, Note: "Weekly review, reminders, charts, areas", OpensMore: true),
         ];

@@ -223,7 +223,7 @@
                         </Panel>
 
                         <!-- ===== More today: what is not the day's main job, folded. ===== -->
-                        <Border Classes="card" Padding="10,6">
+                        <Border x:Name="MoreTodayCard" Classes="card" Padding="10,6" IsVisible="{Binding MoreToday.ShowsCard, FallbackValue=True}">
                             <Expander HorizontalAlignment="Stretch" IsExpanded="False">
                                 <Expander.Header>
                                     <StackPanel Orientation="Horizontal" Spacing="10">

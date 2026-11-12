@@ -433,8 +433,9 @@
                                                     </ComboBox>
                                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                                         <TextBlock Classes="muted" FontSize="12" Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                        <Border Classes="pill"><TextBlock Text="Read" /></Border>
+                                                        <!-- Board Goals-PC-Edit: Send · Read · Both, in that order (Read is the one that works today). -->
                                                         <Border Classes="pill" Opacity="0.45" ToolTip.Tip="Coming soon"><TextBlock Text="Send" /></Border>
+                                                        <Border Classes="pill"><TextBlock Text="Read" /></Border>
                                                         <Border Classes="pill" Opacity="0.45" ToolTip.Tip="Coming soon"><TextBlock Text="Both" /></Border>
                                                         <TextBlock Classes="muted" FontSize="12" Text="Send and Both coming soon" VerticalAlignment="Center" Margin="6,0,0,0" />
                                                     </StackPanel>
@@ -639,7 +640,7 @@
                         <TextBlock Text="Active" FontWeight="SemiBold" VerticalAlignment="Center" />
                         <TextBlock Classes="muted" FontSize="12.5" Text="{Binding ActiveNote}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                    <Button Grid.Column="2" Classes="danger" Content="Delete goal…" Command="{Binding DeleteCommand}" IsVisible="{Binding CanDelete}" />
+                    <Button Grid.Column="2" Classes="dangerText" Content="Delete goal…" Command="{Binding DeleteCommand}" IsVisible="{Binding CanDelete}" />
                     <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelCommand}" />
                     <Button Grid.Column="4" Classes="primary" Content="Save" Command="{Binding SaveCommand}" IsEnabled="{Binding !IsBusy}" />
                 </Grid>

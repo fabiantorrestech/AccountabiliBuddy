@@ -1144,24 +1144,39 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             sessionRows.AddRange(LiveSessionRows(current, stored, runningId));
         }
 
-        foreach (SessionTask task in live ? Enumerable.Empty<SessionTask>() : current.Tasks.Where(task => !task.IsDone))
+        // Before a session (round 2 board B-PC-Idle, Q517): This session lists what a session started now would focus, one row per
+        // place: a task with open steps shows its next steps (letter chip, "↳ task · ● label · 142b"), the rule the start itself uses
+        // (SessionActions.StartFocus), so starting focuses exactly these rows. Queued tasks stay whole rows.
+        if (!live)
         {
-            TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
-            Guid id = task.Id;
-            bool queued = !live && stored.TryGetValue(id, out TaskItem? item) && item.Bin == TaskBin.Queued;
-            if (queued)
+            SessionChecklist preview = _tasks.StartPreview() ?? current;
+            foreach (SessionSlot slot in SessionActions.Slots(preview))
             {
+                SessionTask task = preview.Tasks.First(candidate => candidate.Id == slot.TaskId);
+                if (slot.StepId is Guid stepId)
+                {
+                    sessionRows.Add(StepRow(preview, task, stepId, slot.Number, stored));
+                    continue;
+                }
+
+                TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
+                Guid id = task.Id;
+                sessionRows.Add(MakeRow(
+                    new TaskRowKey(TaskRowKind.Session, id), task.Title, SessionLine(task), category?.Name, category?.Color,
+                    number: slot.Number, isNow: id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true),
+                    checklistMinutes: task.EstimateMinutes));
+            }
+
+            readyActions = sessionRows.Count;
+            HashSet<Guid> inPreview = preview.Tasks.Select(task => task.Id).ToHashSet();
+            foreach (SessionTask task in current.Tasks.Where(task => !task.IsDone && !inPreview.Contains(task.Id)))
+            {
+                TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
+                Guid id = task.Id;
                 queuedRows.Add(MakeRow(
                     new TaskRowKey(TaskRowKind.Session, id), task.Title, SessionLine(task), category?.Name, category?.Color,
                     categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true), isQueued: true));
-                continue;
             }
-
-            readyActions += stored.TryGetValue(id, out TaskItem? inSession) ? inSession.ActionCount : 1;
-            sessionRows.Add(MakeRow(
-                new TaskRowKey(TaskRowKind.Session, id), task.Title, SessionLine(task), category?.Name, category?.Color,
-                number: sessionRows.Count + 1, isNow: id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true),
-                checklistMinutes: task.EstimateMinutes));
         }
 
         if (live)

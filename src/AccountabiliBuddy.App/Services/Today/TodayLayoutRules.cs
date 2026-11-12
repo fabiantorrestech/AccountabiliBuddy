@@ -58,6 +58,7 @@ public static class TodayLayoutRules
         InSession = stored.InSession is null ? null : Resolve(stored.InSession),
         SidebarInSession = Enum.IsDefined(stored.SidebarInSession) ? stored.SidebarInSession : TodaySidebarInSession.Hidden,
         SidebarOutside = Enum.IsDefined(stored.SidebarOutside) ? stored.SidebarOutside : TodaySidebarOutside.Remember,
+        SidebarMinWidth = TodayLayoutPreferences.SidebarMinWidths.Contains(stored.SidebarMinWidth) ? stored.SidebarMinWidth : TodayLayoutPreferences.DefaultSidebarMinWidth,
     };
 
     /// <summary>Off is offered for the part: not for the lunch chip outside ProductaBuddy.</summary>

@@ -184,7 +184,7 @@
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <!-- A check box drawn as a switch (Settings pages): Surface2 track, an ink fill when on, never the accent. -->
+    <!-- A check box drawn as a switch (Settings pages): Surface2 track, the accent when on (round 2 boards). -->
     <Style Selector="CheckBox.sw">
         <Setter Property="Padding" Value="0" />
         <Setter Property="MinHeight" Value="26" />
@@ -203,13 +203,13 @@
         </Setter>
     </Style>
     <Style Selector="CheckBox.sw:checked /template/ Border#SwTrack">
-        <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
     </Style>
     <Style Selector="CheckBox.sw:checked /template/ Ellipse#SwKnob">
         <Setter Property="HorizontalAlignment" Value="Right" />
         <Setter Property="Margin" Value="0,0,3,0" />
-        <Setter Property="Fill" Value="{DynamicResource Ab.Bg}" />
+        <Setter Property="Fill" Value="{DynamicResource Ab.OnAccent}" />
     </Style>
     <Style Selector="CheckBox.sw:pointerover /template/ Border#SwTrack">
         <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
@@ -307,6 +307,26 @@
         <Setter Property="Foreground" Value="White" />
         <Setter Property="Opacity" Value="0.8" />
     </Style>
+    <!-- A destructive button that is not the dialog's main one (board Goals-PC-Edit, "Delete goal…"): the secondary button's surface
+         and line, the text in the drift red. -->
+    <Style Selector="Button.dangerText">
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.dangerText /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+    </Style>
+    <Style Selector="Button.dangerText:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+    </Style>
+    <Style Selector="Button.dangerText:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+    </Style>
+    <!-- Buttons that paint their own ground in a view's styles keep no line (the secondary button's 1 px line is for plain buttons). -->
+    <Style Selector="Button.current, Button.endedSwitch, Button.findArrow, Button.foot, Button.icon, Button.on, Button.remAccent, Button.row, Button.searchItem, Button.sendStep">
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
     <Style Selector="Border.dlgTag">
         <Setter Property="CornerRadius" Value="999" />
         <Setter Property="Padding" Value="7,1" />
@@ -323,6 +343,13 @@
     </Style>
     <Style Selector="Border.dlgTag.soft TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+    <!-- "Suggested" (board Goals-PC-Review): the accent tint with accent text. -->
+    <Style Selector="Border.dlgTag.accentSoft">
+        <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+    </Style>
+    <Style Selector="Border.dlgTag.accentSoft TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
     </Style>
 
     <!-- ===== Round 2 shared chrome (brief §3.3-3.6, §3.8, §3.12; plan R1.3-R1.5). Every value is a theme token. ===== -->
@@ -533,6 +560,33 @@
         <Setter Property="FontWeight" Value="Medium" />
         <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
     </Style>
+    <!-- A menu entry's inline choices (board Goals-PC › Options): a Surface2 track, the choice in force on the surface, semibold. -->
+    <Style Selector="Border.abMenuSegs">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="2" />
+    </Style>
+    <Style Selector="Button.abMenuSeg">
+        <Setter Property="Padding" Value="9,3" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.abMenuSeg /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.abMenuSeg:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.abMenuSeg.selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <Style Selector="TextBlock.abMenuValue">
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
@@ -549,6 +603,8 @@
     </Style>
     <Style Selector="TextBlock.abMenuNote">
         <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="MaxWidth" Value="300" />
         <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
     </Style>
     <Style Selector="TextBlock.abMenuDanger">

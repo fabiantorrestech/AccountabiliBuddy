@@ -1021,24 +1021,27 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The Settings list's rows, top to bottom; the one at <see cref="SelectedRowIndex"/> shows on the right.</summary>
     public IReadOnlyList<SettingsRowViewModel> Rows { get; } = new[]
     {
-        // Round 2: the Today page's layout (Settings › Today), first like the board's Tabs group; there once the app sets its page.
+        // Round 2 design fix (board PC-Settings-Today): two groups. "Tabs" holds one page per tab (Today, Tasks, Your day for the Plan
+        // tab, Goals; each is there once the app sets its page); "Everywhere" holds the app-wide pages.
         new SettingsRowViewModel(SettingsSection.Today, "Today", Material.Icons.MaterialIconKind.CalendarToday, "Today's layout: the sidebar, its parts and Finished today.")
         {
             IsAvailable = false,
+            GroupHead = "Tabs",
         },
-        // Round 2 R5.6: Settings › Goals, after Today (brief §4.7); there once the app sets its page.
-        new SettingsRowViewModel(SettingsSection.Goals, "Goals", Material.Icons.MaterialIconKind.TrackChanges, "The weekly review, default reminders, charts and areas.")
-        {
-            IsAvailable = false,
-        },
-        new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny, "How your day starts, lunch, the day bar and where your calendars come from."),
-        new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight, "Bedtime, wake time and the reminders before bed."),
-        new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline, "Starting, stepping away, Pomodoro, escalation and ending early."),
-        // Between Focus sessions and Guards for now (Settings Placement); the one-page-per-tab order comes with the settings restructure.
         new SettingsRowViewModel(SettingsSection.Tasks, "Tasks", Material.Icons.MaterialIconKind.CheckboxMarkedOutline, "Defaults for new tasks, labels, title help and the weekly tidy-up.")
         {
             IsAvailable = false,
         },
+        new SettingsRowViewModel(SettingsSection.YourDay, "Your day", Material.Icons.MaterialIconKind.WeatherSunny, "How your day starts, lunch, the day bar and where your calendars come from."),
+        new SettingsRowViewModel(SettingsSection.Goals, "Goals", Material.Icons.MaterialIconKind.TrackChanges, "The weekly review, default reminders, charts and areas.")
+        {
+            IsAvailable = false,
+        },
+        new SettingsRowViewModel(SettingsSection.FocusSessions, "Focus sessions", Material.Icons.MaterialIconKind.TimerOutline, "Starting, stepping away, Pomodoro, escalation and ending early.")
+        {
+            GroupHead = "Everywhere",
+        },
+        new SettingsRowViewModel(SettingsSection.Sleep, "Sleep", Material.Icons.MaterialIconKind.WeatherNight, "Bedtime, wake time and the reminders before bed."),
         new SettingsRowViewModel(SettingsSection.Guards, "Guards", Material.Icons.MaterialIconKind.ShieldOutline, "Profiles and what each one allows, unlocks and Cold Turkey."),
         new SettingsRowViewModel(SettingsSection.AlertsAndOnScreen, "Alerts & on-screen", Material.Icons.MaterialIconKind.BellOutline, "Sounds, the noise player, headphones and what shows on screen."),
         new SettingsRowViewModel(SettingsSection.DevicesAndSync, "Devices & sync", Material.Icons.MaterialIconKind.Devices, "Everything stays on your devices and your own Google Drive."),

@@ -30,7 +30,11 @@ public sealed partial class GoalRowViewModel : ObservableObject
 
     /// <summary>"↳ 2h a day".</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SubText))]
     public partial string SubLine { get; set; } = string.Empty;
+
+    /// <summary>The sub-line without its leading "↳ " (the row draws the arrow as an icon, level with the text).</summary>
+    public string SubText => SubLine.StartsWith("↳ ", StringComparison.Ordinal) ? SubLine[2..] : SubLine;
 
     [ObservableProperty]
     public partial bool IsBuiltIn { get; set; }

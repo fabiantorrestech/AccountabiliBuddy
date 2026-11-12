@@ -48,6 +48,23 @@ public sealed partial class TodaySettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowFinishedToday { get; set; }
 
+    [ObservableProperty]
+    public partial bool ShowMoreToday { get; set; }
+
+    /// <summary>"Any width", "1024 px", "1280 px"…: the window width from which the sidebar shows outside a session.</summary>
+    public IReadOnlyList<string> MinWidthChoices { get; } = TodayLayoutPreferences.SidebarMinWidths
+        .Select(width => width == 0 ? "Any width" : width.ToString(System.Globalization.CultureInfo.InvariantCulture) + " px")
+        .ToList();
+
+    [ObservableProperty]
+    public partial int MinWidthIndex { get; set; }
+
+    /// <summary>The More group's "Starting the day" line (board PC-Settings-Today); both rows open Settings › Your day.</summary>
+    public string StartOfDayText { get; set; } = "Start-of-day assistant, Pre-Work and lunch";
+
+    /// <summary>The More group's "End of the workday" line.</summary>
+    public string EndOfDayText { get; set; } = "Shutdown routine and its reminder";
+
     /// <summary>The note under the lunch row's rule: which mode the app is in.</summary>
     public string ModeNote => _layout.IsProductaBuddy
         ? "ProductaBuddy mode: every part can be turned off."
@@ -101,6 +118,22 @@ public sealed partial class TodaySettingsViewModel : ObservableObject
         }
     }
 
+    partial void OnShowMoreTodayChanged(bool value)
+    {
+        if (!_loading)
+        {
+            _ = _layout.SetShowMoreTodayAsync(value);
+        }
+    }
+
+    partial void OnMinWidthIndexChanged(int value)
+    {
+        if (!_loading && value >= 0 && value < TodayLayoutPreferences.SidebarMinWidths.Count)
+        {
+            _ = _layout.SetSidebarMinWidthAsync(TodayLayoutPreferences.SidebarMinWidths[value]);
+        }
+    }
+
     partial void OnShowFinishedTodayChanged(bool value)
     {
         if (!_loading)
@@ -117,6 +150,8 @@ public sealed partial class TodaySettingsViewModel : ObservableObject
         InSessionIndex = (int)current.SidebarInSession;
         OutsideIndex = (int)current.SidebarOutside;
         ShowFinishedToday = current.ShowFinishedToday;
+        ShowMoreToday = current.ShowMoreToday;
+        MinWidthIndex = Math.Max(0, TodayLayoutPreferences.SidebarMinWidths.ToList().IndexOf(current.SidebarMinWidth));
         bool isProductaBuddy = _layout.IsProductaBuddy;
         List<TodayPartRowViewModel> rows = _layout.Parts(EditsInSession)
             .Where(choice => TodayParts.ByKey(choice.Key) is not null)

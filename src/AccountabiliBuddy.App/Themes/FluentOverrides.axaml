@@ -9,9 +9,16 @@
             <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource Ab.BgColor}" />
             <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ButtonBackground" Color="{DynamicResource Ab.Surface2Color}" />
-            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{DynamicResource Ab.LineColor}" />
+            <!-- Secondary buttons (round 2 boards, brief §3: Stats, Edit, Snooze, Step away, Cancel, Back): the surface with a 1 px line;
+                 hover and press go one step greyer. Filled (.primary, .danger) and quiet buttons set their own in AbStyles. -->
+            <SolidColorBrush x:Key="ButtonBackground" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ButtonBorderBrush" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="{DynamicResource Ab.LineColor}" />
             <SolidColorBrush x:Key="ButtonForeground" Color="{DynamicResource Ab.InkColor}" />
             <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{DynamicResource Ab.InkColor}" />
             <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{DynamicResource Ab.InkColor}" />
@@ -24,33 +31,40 @@
             <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource Ab.SurfaceColor}" />
-            <!-- ToggleSwitch: Surface2 track, an ink fill when on (never the accent), the knob muted off and page-ground on. -->
+            <!-- ToggleSwitch: Surface2 track, the accent when on (round 2 boards), the knob muted off and page-ground on. -->
             <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{DynamicResource Ab.LineColor}" />
             <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="{DynamicResource Ab.FaintColor}" />
             <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="{DynamicResource Ab.FaintColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{DynamicResource Ab.AccentColor}" />
             <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="{DynamicResource Ab.MutedColor}" />
             <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="{DynamicResource Ab.MutedColor}" />
             <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="{DynamicResource Ab.MutedColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource Ab.BgColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{DynamicResource Ab.BgColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{DynamicResource Ab.OnAccentColor}" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <SolidColorBrush x:Key="SystemRegionBrush" Color="{DynamicResource Ab.BgColor}" />
             <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ButtonBackground" Color="{DynamicResource Ab.Surface2Color}" />
-            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{DynamicResource Ab.LineColor}" />
+            <!-- Secondary buttons (round 2 boards, brief §3: Stats, Edit, Snooze, Step away, Cancel, Back): the surface with a 1 px line;
+                 hover and press go one step greyer. Filled (.primary, .danger) and quiet buttons set their own in AbStyles. -->
+            <SolidColorBrush x:Key="ButtonBackground" Color="{DynamicResource Ab.SurfaceColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{DynamicResource Ab.Surface2Color}" />
+            <SolidColorBrush x:Key="ButtonBorderBrush" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{DynamicResource Ab.LineColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{DynamicResource Ab.FaintColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="{DynamicResource Ab.LineColor}" />
             <SolidColorBrush x:Key="ButtonForeground" Color="{DynamicResource Ab.InkColor}" />
             <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{DynamicResource Ab.InkColor}" />
             <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{DynamicResource Ab.InkColor}" />
@@ -63,25 +77,25 @@
             <SolidColorBrush x:Key="TextControlBackground" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{DynamicResource Ab.SurfaceColor}" />
             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{DynamicResource Ab.SurfaceColor}" />
-            <!-- ToggleSwitch: Surface2 track, an ink fill when on (never the accent), the knob muted off and page-ground on. -->
+            <!-- ToggleSwitch: Surface2 track, the accent when on (round 2 boards), the knob muted off and page-ground on. -->
             <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="{DynamicResource Ab.Surface2Color}" />
             <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{DynamicResource Ab.LineColor}" />
             <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="{DynamicResource Ab.FaintColor}" />
             <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="{DynamicResource Ab.FaintColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{DynamicResource Ab.InkColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{DynamicResource Ab.InkColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="{DynamicResource Ab.AccentColor}" />
             <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="{DynamicResource Ab.MutedColor}" />
             <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="{DynamicResource Ab.MutedColor}" />
             <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="{DynamicResource Ab.MutedColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource Ab.BgColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{DynamicResource Ab.BgColor}" />
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{DynamicResource Ab.BgColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="{DynamicResource Ab.OnAccentColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="{DynamicResource Ab.OnAccentColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

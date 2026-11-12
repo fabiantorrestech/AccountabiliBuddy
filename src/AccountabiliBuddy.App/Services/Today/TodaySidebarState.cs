@@ -16,6 +16,7 @@ public sealed class TodaySidebarState
     private bool _rememberedOpen = true;
     private TodaySidebarInSession _inSessionChoice;
     private TodaySidebarOutside _outsideChoice;
+    private bool _narrow;
 
     public TodaySidebarState(TodaySidebarInSession inSessionChoice = TodaySidebarInSession.Hidden, TodaySidebarOutside outsideChoice = TodaySidebarOutside.Remember)
     {
@@ -39,7 +40,8 @@ public sealed class TodaySidebarState
     public void Toggle()
     {
         IsOpen = !IsOpen;
-        if (!_inSession && _outsideChoice == TodaySidebarOutside.Remember)
+        // In a narrow window the sidebar rests on its rail whatever was remembered, so a peek there is not remembered either.
+        if (!_inSession && !_narrow && _outsideChoice == TodaySidebarOutside.Remember)
         {
             _rememberedOpen = IsOpen;
         }
@@ -81,7 +83,29 @@ public sealed class TodaySidebarState
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool OutsideStart() => _outsideChoice switch
+    /// <summary>
+    /// The window got narrower or wider than Settings › Today's "Show it when the window is at least" (board PC-Settings-Today): outside
+    /// a session a narrow window puts the sidebar on its rail, so it never covers the tasks there (Ctrl+\ still slides it over); wide
+    /// again, it goes back to the outside choice. In a session nothing changes (the session's choice rules).
+    /// </summary>
+    public void NarrowChanged(bool narrow)
+    {
+        if (narrow == _narrow)
+        {
+            return;
+        }
+
+        _narrow = narrow;
+        if (_inSession)
+        {
+            return;
+        }
+
+        IsOpen = OutsideStart();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool OutsideStart() => !_narrow && _outsideChoice switch
     {
         TodaySidebarOutside.Open => true,
         TodaySidebarOutside.Rail => false,

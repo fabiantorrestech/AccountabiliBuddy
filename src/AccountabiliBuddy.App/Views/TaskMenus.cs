@@ -150,6 +150,12 @@ public static class TaskMenus
                 continue;
             }
 
+            if (entry.Segments is { Count: > 0 } segments)
+            {
+                yield return SegmentsItem(entry, segments);
+                continue;
+            }
+
             var item = new MenuItem { Header = HeaderOf(entry), Command = entry.Command, Tag = entry };
             AutomationProperties.SetName(item, AccessibleName(entry));
             if (entry.IsHeading)
@@ -185,6 +191,64 @@ public static class TaskMenus
     }
 
     // What a screen reader says: the text, then what it is set to ("Move, Next"), then "(chosen)" for the ticked one.
+    // An entry whose choices sit inline at its right (board Goals-PC › Options): a click on a choice picks it and the menu stays open;
+    // Enter (or a click on the row itself) moves to the next choice, so the keyboard reaches every one.
+    private static MenuItem SegmentsItem(TaskMenuEntry entry, IReadOnlyList<TaskMenuEntry> segments)
+    {
+        var buttons = new List<Button>();
+        var strip = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+        void Pick(int index)
+        {
+            for (int at = 0; at < buttons.Count; at++)
+            {
+                buttons[at].Classes.Set("selected", at == index);
+            }
+
+            if (segments[index].Command is { } command && command.CanExecute(null))
+            {
+                command.Execute(null);
+            }
+        }
+
+        for (int index = 0; index < segments.Count; index++)
+        {
+            int at = index;
+            var button = new Button { Content = segments[index].Header, Focusable = false, Classes = { "abMenuSeg" } };
+            button.Classes.Set("selected", segments[index].IsChecked);
+            AutomationProperties.SetName(button, entry.Header + ": " + segments[index].Header);
+            button.Click += (_, e) =>
+            {
+                Pick(at);
+                e.Handled = true;
+            };
+            buttons.Add(button);
+            strip.Children.Add(button);
+        }
+
+        var row = new DockPanel { LastChildFill = true };
+        var right = new Border { Classes = { "abMenuSegs" }, Child = strip, Margin = new Thickness(18, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(right, Dock.Right);
+        row.Children.Add(right);
+        var lines = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        lines.Children.Add(new TextBlock { Text = entry.Header });
+        if (entry.Note is { Length: > 0 } note)
+        {
+            lines.Children.Add(Text(note, "abMenuNote"));
+        }
+
+        row.Children.Add(lines);
+        var item = new MenuItem { Header = row, Tag = entry, StaysOpenOnClick = true };
+        item.Click += (_, _) => Pick((buttons.FindIndex(button => button.Classes.Contains("selected")) + 1) % buttons.Count);
+        string chosen = segments.FirstOrDefault(segment => segment.IsChecked)?.Header ?? string.Empty;
+        AutomationProperties.SetName(item, $"{entry.Header}: {chosen}. Enter picks the next choice.");
+        if (entry.Icon is { } kind)
+        {
+            item.Icon = MenuIcon(kind, "Ab.Muted");
+        }
+
+        return item;
+    }
+
     private static string AccessibleName(TaskMenuEntry entry)
     {
         string name = entry.Value is { Length: > 0 } value ? $"{entry.Header}, {value}" : entry.Header;

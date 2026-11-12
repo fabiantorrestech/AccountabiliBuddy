@@ -23,11 +23,14 @@ public sealed partial class GoalDetailViewModel : ObservableObject
     private GoalFacts? _facts;
     private GoalSourceData? _data;
 
+    private readonly Func<DateTimeOffset> _now;
+
     public GoalDetailViewModel(
         Func<GoalEntry, Task<GoalChangeResult>> saveEntry, Func<DeepWorkTargetKind, Task> cancelPending, Func<DateTimeOffset> now, Func<Guid, string?> labelName)
     {
         _cancelPending = cancelPending;
         _labelName = labelName;
+        _now = now;
         Heatmap = new GoalHeatmapViewModel();
         DayPanel = new GoalDayPanelViewModel(saveEntry, now, labelName);
         WhatItTakes = new GoalWhatItTakesViewModel();
@@ -143,7 +146,7 @@ public sealed partial class GoalDetailViewModel : ObservableObject
 
         ShowDay(sameGoal ? Heatmap.SelectedDay : null);
         ProgressLines = SourceLines(goal, facts);
-        Reminders = ReminderRows(lists.Reminders.Where(item => item.GoalId == goal.Id && item.IsLive).OrderBy(item => item.Position), facts.Today);
+        Reminders = ReminderRows(lists.Reminders.Where(item => item.GoalId == goal.Id && item.IsLive).OrderBy(item => item.Position), facts.Today, _now().LocalDateTime);
         HasReminders = Reminders.Count > 0;
         IsProductaBuddy = productaBuddy;
         RemindersFoot = productaBuddy ? "Suggestions only: nothing locks or waits." : "They ring like task reminders. Nothing locks or waits.";
@@ -472,8 +475,44 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         return lines;
     }
 
-    private static IReadOnlyList<GoalReminderRow> ReminderRows(IEnumerable<GoalReminder> reminders, DateOnly today)
+    // When the reminder rings next, from its day rule and time; null when it never will again (a date or a "today" that has passed).
+    public static DateTime? NextRing(GoalReminder reminder, DateTime now)
     {
+        DateOnly today = DateOnly.FromDateTime(now);
+        DateTime At(DateOnly day) => day.ToDateTime(reminder.Time);
+        switch (reminder.Days)
+        {
+            case GoalReminderDays.EveryDay:
+                return At(today) > now ? At(today) : At(today.AddDays(1));
+            case GoalReminderDays.Today:
+            case GoalReminderDays.Date:
+                return reminder.Date is DateOnly date && At(date) > now ? At(date) : null;
+            case GoalReminderDays.Weekdays:
+                for (int ahead = 0; ahead <= 7; ahead++)
+                {
+                    DateOnly day = today.AddDays(ahead);
+                    if ((reminder.Weekdays ?? []).Any(weekday => (DayOfWeek)weekday == day.DayOfWeek) && At(day) > now)
+                    {
+                        return At(day);
+                    }
+                }
+
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    private static IReadOnlyList<GoalReminderRow> ReminderRows(IEnumerable<GoalReminder> reminders, DateOnly today, DateTime now)
+    {
+        reminders = reminders.ToList();
+        // The board's "Next" badge: the reminder that rings soonest from now.
+        GoalReminder? next = reminders
+            .Select(reminder => (Reminder: reminder, At: NextRing(reminder, now)))
+            .Where(pair => pair.At is not null)
+            .OrderBy(pair => pair.At)
+            .Select(pair => pair.Reminder)
+            .FirstOrDefault();
         var rows = new List<GoalReminderRow>();
         foreach (GoalReminder reminder in reminders)
         {
@@ -488,7 +527,7 @@ public sealed partial class GoalDetailViewModel : ObservableObject
             string time = reminder.Time.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
             bool repeats = reminder.Repeat && reminder.Days != GoalReminderDays.Date;
             rows.Add(new GoalReminderRow(rows.Count + 1, day, time, repeats ? MaterialIconKind.Repeat : MaterialIconKind.CalendarCheck,
-                repeats ? "Repeats" : "Once", reminder.Reason ?? string.Empty));
+                repeats ? "Repeats" : "Once", reminder.Reason ?? string.Empty, ReferenceEquals(reminder, next)));
         }
 
         return rows;

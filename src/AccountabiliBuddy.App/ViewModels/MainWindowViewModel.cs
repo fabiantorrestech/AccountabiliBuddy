@@ -151,6 +151,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(IsTasksSelected));
         OnPropertyChanged(nameof(IsPlanSelected));
         OnPropertyChanged(nameof(IsStatsSelected));
+        OnPropertyChanged(nameof(IsGoalsRailSelected));
         OnPropertyChanged(nameof(IsSettingsSelected));
         OnPropertyChanged(nameof(IsActivitySelected));
         OnPropertyChanged(nameof(IsGoalsSelected));
@@ -163,6 +164,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsPlanSelected => SelectedTab == (int)MainTab.Plan;
 
     public bool IsStatsSelected => SelectedTab == (int)MainTab.Stats;
+
+    /// <summary>The rail's Goals item: lit on Goals and on Stats, which has no rail item of its own (it opens from the Goals header).</summary>
+    public bool IsGoalsRailSelected => SelectedTab is (int)MainTab.Goals or (int)MainTab.Stats;
 
     public bool IsSettingsSelected => SelectedTab == (int)MainTab.Settings;
 

@@ -356,7 +356,8 @@ public sealed partial class GoalReviewViewModel : ObservableObject
 
         if (suggestion.ProjectedFinish is DateOnly finish)
         {
-            facts.Add(new GoalReviewFact($"At this pace: {finish.ToString("MMM d", CultureInfo.InvariantCulture)}"));
+            // The app's date form (brief §3.11), the same as the card's own target line.
+            facts.Add(new GoalReviewFact($"At this pace: {GoalTexts.Date(finish, _today)}"));
         }
 
         if (facts.Count == 0)

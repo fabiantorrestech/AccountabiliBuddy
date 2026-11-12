@@ -22,6 +22,11 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// menus have no shortcut letters (brief §3.6, CN §4b).
 /// </param>
 /// <param name="Note">A muted second line under the text ("How the day starts and ends, the start-of-day card").</param>
+/// <param name="Segments">
+/// The entry's choices drawn inline at the right as a small segmented control (round 2 board Goals-PC › Options: "Week starts on
+/// Mon · Sun · Sat"): each has its text, its command and <see cref="IsChecked"/> for the one in force. Clicking one picks it and keeps the
+/// menu open; Enter on the entry moves to the next choice.
+/// </param>
 /// <param name="OpensMore">Opens a panel or another page (Reminders &amp; due date, "Tasks settings"): drawn with › like a submenu, and → opens it too.</param>
 public sealed record TaskMenuEntry(
     string Header,
@@ -38,7 +43,8 @@ public sealed record TaskMenuEntry(
     string? Value = null,
     string? Shortcut = null,
     string? Note = null,
-    bool OpensMore = false)
+    bool OpensMore = false,
+    IReadOnlyList<TaskMenuEntry>? Segments = null)
 {
     public static TaskMenuEntry Separator { get; } = new(string.Empty, IsSeparator: true);
 

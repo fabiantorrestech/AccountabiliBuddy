@@ -69,6 +69,16 @@
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
         </Style>
+        <Style Selector="Border.nextBadge">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="7,1" />
+        </Style>
+        <Style Selector="Border.nextBadge TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
         <Style Selector="Border.timePill">
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="Padding" Value="8,2" />
@@ -201,10 +211,23 @@
                                                         DataContext="{Binding WhatItTakes}"
                                                         x:DataType="vm:GoalWhatItTakesViewModel">
                                                     <StackPanel Spacing="8">
-                                                        <TextBlock Text="What it takes" FontSize="14" FontWeight="SemiBold" />
-                                                        <TextBlock Text="{Binding Remaining}" FontSize="13" TextWrapping="Wrap" />
-                                                        <TextBlock Text="{Binding Each}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasEach}" />
-                                                        <TextBlock Classes="muted" Text="{Binding Pace}" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding HasPace}" />
+                                                        <!-- Board Goals-PC: "To hit 50h by Sun 1/31", "15h 50m to go · 81 days left", then Each day / Each week /
+                                                             Your pace as labelled rows, "At this pace you hit 50h around Sun 1/10", the verdict. -->
+                                                        <StackPanel Spacing="1">
+                                                            <TextBlock Text="{Binding Head}" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                                            <TextBlock Classes="muted" Text="{Binding Remaining}" FontSize="12" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="vm:GoalWhatItTakesRow">
+                                                                    <Grid ColumnDefinitions="74,*" ColumnSpacing="10" Margin="0,4">
+                                                                        <TextBlock Classes="muted" Text="{Binding Label}" FontSize="12" VerticalAlignment="Bottom" Margin="0,0,0,1" />
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Value}" FontSize="14" FontWeight="SemiBold" FontFeatures="+tnum" TextWrapping="Wrap" />
+                                                                    </Grid>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                        <TextBlock Classes="muted" Text="{Binding Pace}" FontSize="12" TextWrapping="Wrap" Margin="84,-4,0,0" IsVisible="{Binding HasPace}" />
                                                         <TextBlock Text="{Binding Verdict}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource Ab.Met}" IsVisible="{Binding IsGreen}" />
                                                         <TextBlock Text="{Binding Verdict}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource Ab.AmberInk}" IsVisible="{Binding IsAmber}" />
                                                         <Button Classes="link" HorizontalAlignment="Left" Command="{Binding ChangeTargetCommand}" AutomationProperties.Name="Change the target">
@@ -235,10 +258,10 @@
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 <TextBlock Classes="muted" Text="{Binding Dates}" FontSize="13" VerticalAlignment="Center" />
-                                <Button Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding PreviousCommand}" ToolTip.Tip="Earlier" AutomationProperties.Name="Earlier">
+                                <Button Width="28" Height="28" Padding="0" MinWidth="0" MinHeight="0" Command="{Binding PreviousCommand}" ToolTip.Tip="Earlier" AutomationProperties.Name="Earlier">
                                     <mi:MaterialIcon Kind="ChevronLeft" Width="16" Height="16" />
                                 </Button>
-                                <Button Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding NextCommand}" ToolTip.Tip="Later" AutomationProperties.Name="Later">
+                                <Button Width="28" Height="28" Padding="0" MinWidth="0" MinHeight="0" Command="{Binding NextCommand}" ToolTip.Tip="Later" AutomationProperties.Name="Later">
                                     <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" />
                                 </Button>
                             </StackPanel>
@@ -324,7 +347,16 @@
                                     <Border Classes="tileChip">
                                         <mi:MaterialIcon Kind="ChartLineVariant" />
                                     </Border>
-                                    <TextBlock Grid.Column="1" Text="Progress tracking" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <TextBlock Text="Progress tracking" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <!-- Board Goals-PC: the ⓘ beside the title. -->
+                                        <Border Background="Transparent" VerticalAlignment="Center" Focusable="True"
+                                                ToolTip.Tip="The metrics we use and how we track progress in this goal."
+                                                AutomationProperties.Name="About progress tracking"
+                                                AutomationProperties.HelpText="The metrics we use and how we track progress in this goal.">
+                                            <mi:MaterialIcon Kind="InformationOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Faint}" />
+                                        </Border>
+                                    </StackPanel>
                                     <Button Grid.Column="2" Classes="abHeaderIcon" Width="28" Height="28" Command="{Binding RequestEditCommand}"
                                             CommandParameter="{x:Static vm:GoalEditSection.TrackingAndSources}" ToolTip.Tip="Edit tracking and sources" AutomationProperties.Name="Edit tracking and sources">
                                         <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" />
@@ -373,12 +405,15 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:GoalReminderRow">
-                                            <Grid ColumnDefinitions="18,Auto,Auto,Auto,*" ColumnSpacing="8">
+                                            <Grid ColumnDefinitions="18,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
                                                 <TextBlock Classes="muted" FontSize="12.5" Text="{Binding NumberText}" VerticalAlignment="Center" />
                                                 <Border Grid.Column="1" Classes="timePill"><TextBlock Text="{Binding DayText}" /></Border>
                                                 <Border Grid.Column="2" Classes="timePill"><TextBlock Text="{Binding TimeText}" /></Border>
                                                 <mi:MaterialIcon Grid.Column="3" Kind="{Binding RepeatIcon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" ToolTip.Tip="{Binding RepeatTip}" />
                                                 <TextBlock Grid.Column="4" Text="{Binding Reason}" FontSize="12.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <Border Grid.Column="5" Classes="nextBadge" IsVisible="{Binding IsNext}" VerticalAlignment="Center" ToolTip.Tip="Rings next">
+                                                    <TextBlock Text="Next" />
+                                                </Border>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
