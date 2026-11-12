@@ -144,8 +144,8 @@ internal fun PhoneToday(
                     onMore = { sessionMenu = true },
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
                 )
-            } else if (canStartHere(pc, locked) && pc.name != null) {
-                StartActionBar(pc.name, onStart, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp))
+            } else if (canStartHere(pc, locked)) {
+                StartActionBar(pc.startName, onStart, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp))
             }
             if (showNoiseBar) {
                 HorizontalDivider(color = Ab.colors.line, thickness = 1.dp)

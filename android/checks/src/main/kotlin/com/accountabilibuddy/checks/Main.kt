@@ -6,6 +6,7 @@ import kotlin.system.exitProcess
 /** Every Kotlin parity check; add one per fixture file the C# checks write. */
 private val checks: List<FixtureCheck> = listOf(
     PlannedTieTextCheck(),
+    StepLettersCheck(),
 )
 
 /**

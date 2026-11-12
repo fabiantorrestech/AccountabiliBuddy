@@ -140,9 +140,9 @@ fun TodayPane(
     }
 
     val pcState = pc.state
-    if (starting && pcState != null && pc.name != null) {
+    if (starting && pcState != null && pc.hasPc) {
         StartOnPcDialog(
-            pcState, pc.name,
+            pcState, pc.startName,
             onStart = { profileId, minutes, countUp ->
                 starting = false
                 actions.onStartOnPc(profileId, minutes, countUp)

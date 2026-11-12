@@ -26,6 +26,9 @@ class TodayPc(
     val offMinutesToday: Int = 0,
 ) {
     val hasPc: Boolean get() = name != null
+
+    /** The PC's name for Start ("Start on Work PC"); "your PC" when its file names none. */
+    val startName: String get() = name?.takeIf { it.isNotBlank() } ?: "your PC"
 }
 
 /** What the Today buttons do. The shell wires each to the existing action; the pane never decides anything itself. */

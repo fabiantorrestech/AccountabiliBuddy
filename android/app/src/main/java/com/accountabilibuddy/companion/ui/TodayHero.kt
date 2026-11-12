@@ -115,7 +115,7 @@ fun IdleHero(
             // The settings rest for a PC session whose file is out of date (not the phone's own test session: a real session comes
             // first, so Start stays).
             locked -> MutedLine("Start comes back when the session ends or the PC syncs.")
-            else -> AbPrimaryButton("Start on ${pc.name}", onClick = onStart, modifier = Modifier.fillMaxWidth())
+            else -> AbPrimaryButton("Start on ${pc.startName}", onClick = onStart, modifier = Modifier.fillMaxWidth())
         }
     }
 }

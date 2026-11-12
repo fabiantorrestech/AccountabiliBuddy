@@ -23,7 +23,7 @@ import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
- * The action bar in Today's thumb zone during a session (brief §4.1, CN §3): Done · step (or · task), Step away / I'm back, and ⋯ for
+ * The action bar in Today's thumb zone during a session (brief §4.1, CN §3): Done ("Done · b" for a step), Step away / I'm back, and ⋯ for
  * the Session menu. Done finishes the current item ([CurrentItem]); with nothing to finish (planning, a break, every task ticked) it
  * stays in its place, greyed, so the other buttons don't move (CN §1 rule 3).
  */
@@ -31,11 +31,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 fun SessionActionBar(current: CurrentItem?, canDone: Boolean, onDone: () -> Unit, stepAway: StepAwayState?, onMore: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         AbPrimaryButton(
-            text = when {
-                current == null -> "Done"
-                current.isStep -> "Done · step"
-                else -> "Done · task"
-            },
+            text = current?.doneLabel ?: "Done",
             onClick = onDone, enabled = current != null && canDone, icon = Icons.Outlined.Check, modifier = Modifier.weight(1.15f),
         )
         AbTonalButton(

@@ -37,6 +37,10 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     private val audio = context.getSystemService(AudioManager::class.java)
     private var player: MediaPlayer? = null
     private var preparedIndex = -1
+
+    // A sound being prepared should start once ready; cleared by a pause in the meantime, so a sound picked while playing (Next,
+    // the Today picker) that is paused before it is ready stays paused.
+    private var startWhenPrepared = false
     private var files: List<NoiseFile> = emptyList()
     private var index = -1
     private var session: MediaSession? = null
@@ -176,6 +180,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
     }
 
     private fun stopPlayback() {
+        startWhenPrepared = false
         player?.takeIf { runCatching { it.isPlaying }.getOrDefault(false) }?.pause()
         pausedForFocus = false
         abandonFocus()
@@ -301,8 +306,11 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
             created.setOnCompletionListener { if (!store.settings.value.repeat) next() }
             created.setOnPreparedListener { ready ->
                 preparedIndex = target
-                // Headphones may have gone while it was preparing: never start through the speaker.
-                if (startWhenReady && !lockedOut()) {
+                // Headphones may have gone while it was preparing: never start through the speaker. A pause while it was preparing
+                // ([stopPlayback]) cleared the start.
+                val start = startWhenPrepared && !lockedOut()
+                startWhenPrepared = false
+                if (start) {
                     ready.start()
                     playing(true)
                 } else {
@@ -314,6 +322,7 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
                 true
             }
             player = created
+            startWhenPrepared = startWhenReady
             store.save(settings.copy(lastFile = file.name))
             created.prepareAsync()
         } catch (e: Exception) {

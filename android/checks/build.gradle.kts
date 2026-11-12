@@ -12,6 +12,7 @@ plugins {
 // an Android library, so a JVM project can't depend on it.
 val sharedSources = listOf(
     "com/accountabilibuddy/shared/sync/TaskPlannedFor.kt",
+    "com/accountabilibuddy/shared/sync/TaskStepLetters.kt",
 )
 
 java {

@@ -6,7 +6,7 @@ Date: 2026-11-12
 
 Proposed
 
-Amends [42. Control PC sessions and plan edits through sync files](0042-control-pc-sessions-and-plan-edits-through-sync-files.md) (three new action kinds; the transport, the results list and the end-early flow stay as they are). Builds on [77. Step away keeps the timer running with blocking on](0077-step-away-keeps-the-timer-running-with-blocking-on.md) for what Pause timer means.
+Amends [42. Control PC sessions and plan edits through sync files](0042-control-pc-sessions-and-plan-edits-through-sync-files.md) (four new action kinds; the transport, the results list and the end-early flow stay as they are). Builds on [77. Step away keeps the timer running with blocking on](0077-step-away-keeps-the-timer-running-with-blocking-on.md) for what Pause timer means.
 
 ## Context
 

@@ -56,7 +56,7 @@ fun SessionMenuSheet(
         val away = stepAway?.away == true
         AbSheetRow(
             title = if (away) "I'm back" else "Step away",
-            subtitle = stepAway?.text ?: if (away) "Back to the session on $pc" else "Timer keeps running · logged as away",
+            subtitle = stepAway?.text ?: if (away) "Back to the session on $pc" else "Logged as away",
             icon = Icons.AutoMirrored.Outlined.DirectionsWalk,
             enabled = stepAway != null && !stepAway.sending,
             onClick = {
