@@ -345,7 +345,7 @@ public sealed partial class TasksViewModel
         return MakeRow(
             new TaskRowKey(TaskRowKind.Session, id), task.Title, SessionLine(task), category?.Name, category?.Color,
             number: number, isNow: id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true), stepLines: lines,
-            nowSteps: id == runningId && lines.Count == 0 ? NowStepsOf(task) : null);
+            nowSteps: id == runningId && lines.Count == 0 ? NowStepsOf(task) : null, checklistMinutes: task.EstimateMinutes);
     }
 
     // Round 2 (Today's This session, brief §4.2): the running item's task with all its steps open, done ones struck, "done" / "in
@@ -374,7 +374,8 @@ public sealed partial class TasksViewModel
         string letter = TaskStepLetters.Of(index);
         TaskItem? item = stored.TryGetValue(task.Id, out TaskItem? held) ? held : null;
         TaskCategory? category = _tasks.Categories.FirstOrDefault(candidate => candidate.Id == task.CategoryId);
-        string idText = item?.Number is TaskNumber taskNumber ? taskNumber.Value.ToString(CultureInfo.InvariantCulture) + letter : string.Empty;
+        string taskNumberText = NumberTextOf(task.Id, item);
+        string idText = taskNumberText.Length > 0 ? taskNumberText + letter : string.Empty;
         int? minutes = item?.Steps?.FirstOrDefault(candidate => candidate.Id == stepId)?.EstimateMinutes;
         var key = new TaskRowKey(TaskRowKind.Session, stepId);
         var owner = new TaskRowKey(TaskRowKind.Session, task.Id);

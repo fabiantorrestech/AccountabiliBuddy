@@ -264,7 +264,13 @@ public sealed partial class ShelfViewModel : ObservableObject
     }
 
     /// <summary>History (the View menu's "History…"): a fresh list of the last 30 days; null before the task list exists.</summary>
-    public TaskHistoryViewModel? History() => _actions is null ? null : new TaskHistoryViewModel(_actions, _time);
+    public TaskHistoryViewModel? History() => _actions is null ? null : new TaskHistoryViewModel(_actions, _time, HistoryLabel);
+
+    // A History row's label: the task list's live label with that id.
+    private AccountabiliBuddy.Core.Domain.TaskLabel? HistoryLabel(Guid? labelId)
+    {
+        return labelId is Guid id ? _store?.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id) : null;
+    }
 
     /// <summary>The reshuffle button by the Shelf's title: a new shuffled order, kept with the view until the next one.</summary>
     [RelayCommand]

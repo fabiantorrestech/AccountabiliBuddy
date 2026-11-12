@@ -18,10 +18,14 @@ public sealed partial class TaskHistoryViewModel : ObservableObject
     private readonly TaskActionsService _actions;
     private readonly TimeProvider _time;
 
-    public TaskHistoryViewModel(TaskActionsService actions, TimeProvider time)
+    private readonly Func<Guid?, TaskLabel?> _labelOf;
+
+    /// <param name="labelOf">Finds a task's label (its name and colour) by id; none: the rows show no label.</param>
+    public TaskHistoryViewModel(TaskActionsService actions, TimeProvider time, Func<Guid?, TaskLabel?>? labelOf = null)
     {
         _actions = actions;
         _time = time;
+        _labelOf = labelOf ?? (_ => null);
         Refresh();
     }
 
@@ -53,10 +57,35 @@ public sealed partial class TaskHistoryViewModel : ObservableObject
     {
         DateTime local = TimeZoneInfo.ConvertTime(entry.When, _time.LocalTimeZone).DateTime;
         string when = local.ToString("ddd M/d", CultureInfo.InvariantCulture) + " " + TaskSnooze.Clock(TimeOnly.FromDateTime(local));
+        // The sub-line, as a Tasks page row has it: time limit, #tags, then when it finished or was deleted (the label's name leads).
+        var bits = new List<TaskRowBit>();
+        if (entry.Task.EstimateMinutes is int minutes)
+        {
+            bits.Add(new TaskRowBit(EstimateText.Of(minutes), MaterialIconKind.TimerOutline, "Time limit"));
+        }
+
+        foreach (string tag in entry.Task.Tags ?? [])
+        {
+            bits.Add(new TaskRowBit("#" + tag, IsChip: true, Tone: TaskRowBitTone.Ink));
+        }
+
+        MaterialIconKind whenIcon = entry.Kind switch
+        {
+            TaskHistoryKind.Finished => MaterialIconKind.Check,
+            TaskHistoryKind.Archived => MaterialIconKind.ArchiveOutline,
+            _ => MaterialIconKind.DeleteOutline,
+        };
+        bits.Add(new TaskRowBit(what + when, whenIcon));
+        TaskLabel? label = _labelOf(entry.Task.LabelId);
         return new TaskHistoryRowViewModel(entry.Task.Title, what + when, action, icon, new AsyncRelayCommand(async () =>
         {
             await run();
             Refresh();
-        }));
+        }))
+        {
+            LabelName = label?.Name ?? string.Empty,
+            LabelBrush = label is null ? Avalonia.Media.Brushes.Transparent : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color)),
+            Bits = bits,
+        };
     }
 }

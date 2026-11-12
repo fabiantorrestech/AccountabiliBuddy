@@ -21,10 +21,13 @@
             <Setter Property="BorderThickness" Value="1.5" />
             <Setter Property="Cursor" Value="Ibeam" />
         </Style>
-        <Style Selector="Border.addPill.resting">
+        <!-- At rest the pill is always 160 wide, empty or holding a draft (greyed, clipped): leaving the box never leaves an odd-sized
+             box behind and nothing around it moves (PC fixes, owner 0.1.132). -->
+        <Style Selector="Border.addPill">
             <Setter Property="Width" Value="160" />
         </Style>
         <Style Selector="Border.addPill.expanded">
+            <Setter Property="Width" Value="NaN" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Padding" Value="18,4,6,4" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />

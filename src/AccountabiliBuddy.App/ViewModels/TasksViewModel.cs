@@ -1130,6 +1130,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         CategoryEditor.Refresh(_tasks.Categories);
         Dictionary<Guid, TaskItem> stored = StoredTasks();
         _rebuildStored = stored;
+        RememberNumbers(stored.Values);
         _nextReminders = NextReminders();
 
         // This session: the open tasks, numbered as the session runs them. With no session running the next session's list also
@@ -1159,7 +1160,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             readyActions += stored.TryGetValue(id, out TaskItem? inSession) ? inSession.ActionCount : 1;
             sessionRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Session, id), task.Title, SessionLine(task), category?.Name, category?.Color,
-                number: sessionRows.Count + 1, isNow: id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true)));
+                number: sessionRows.Count + 1, isNow: id == runningId, categoryId: task.CategoryId, toggle: () => _tasks.SetTickedAsync(id, true),
+                checklistMinutes: task.EstimateMinutes));
         }
 
         if (live)
@@ -1215,9 +1217,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             PickedCount = _picked.Count;
         }
 
-        string sessionHint = live
-            ? $"{_tasks.ActionsUsed}/{_tasks.ActionCap} in focus"
-            : readyActions > 0 ? $"{readyActions} ready" : string.Empty;
+        // "3 ready · 60 min" / "1/3 · 75 min" (round 2 boards): the open tasks' time limits added up, the queued ones left out.
+        int sessionMinutes = current.Tasks
+            .Where(task => !task.IsDone && (live || !queuedRows.Any(row => row.Id == task.Id)))
+            .Sum(task => task.EstimateMinutes ?? 0);
+        string sessionHint = TodaySessionHint.Of(live, _tasks.ActionsUsed, _tasks.ActionCap, readyActions, sessionMinutes);
         ShowTodaySections(TodayTabPanel, sessionHint, withReminders: true, live, withDone: ShowsFinishedOnToday);
         // The Tasks page's Today strip: counts only, no timer (change note §2).
         string stripSession = live ? $"{_tasks.ActionsUsed}/{_tasks.ActionCap}" : readyActions > 0 ? $"{readyActions} ready" : "empty";
@@ -1529,7 +1533,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         TaskRowKey key, string title, string subText, string? categoryName, string? categoryColor, int number = 0, bool isNow = false,
         bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "",
         Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true, DateTimeOffset sortTime = default, DateOnly? dueOn = null,
-        bool isQueued = false, IReadOnlyList<SessionStepLineViewModel>? stepLines = null, IReadOnlyList<TodayNowStepViewModel>? nowSteps = null)
+        bool isQueued = false, IReadOnlyList<SessionStepLineViewModel>? stepLines = null, IReadOnlyList<TodayNowStepViewModel>? nowSteps = null,
+        int? checklistMinutes = null)
     {
         Action<TaskListRowViewModel, TaskRowClick> select = selectable ? OnRowClick : (_, _) => { };
         // Every kind of row but Auto-saved can have a category: its chip, or the quiet "+ category" spot, opens the picker.
@@ -1540,7 +1545,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         string labels = LabelsText(LabelsOf(key));
         string kept = LocalToOf(key) is Guid keeper && keeper == SelfId?.Invoke() ? "only on this PC" : string.Empty;
         subText = string.Join(" · ", new[] { subText, labels, kept }.Where(part => part.Length > 0));
-        RowExtras extras = ExtrasOf(key, item, isQueued, isTicked, selectable);
+        RowExtras extras = ExtrasOf(key, item, isQueued, isTicked, selectable, checklistMinutes);
         // DIAG (slow tick, remove): the whole tick, from the click to the last store change it awaited.
         Func<Task>? original = toggle;
         Func<Task>? timedToggle = original is null ? null : async () =>

@@ -34,26 +34,61 @@
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
         </Style>
+        <Style Selector="mi|MaterialIcon.chevron">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+        </Style>
+        <!-- Today (round 2, owner fix after 0.1.132; boards B-PC-Idle / B-PC-Session; TodayView marks its list "todayRows"): "This session"
+             in 13 semibold muted with its "3 ready · 60 min", no chevron or pin; the folded sections in 13 muted with a small ›, their
+             count after the name, no icon. -->
+        <Style Selector="StackPanel.todayRows mi|MaterialIcon.chevron">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+        </Style>
+        <Style Selector="StackPanel.todayRows StackPanel.session mi|MaterialIcon.chevron">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.pinSlot">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.smallIconSlot">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="StackPanel.todayRows TextBlock.sectionTitle">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="StackPanel.todayRows StackPanel.quiet TextBlock.sectionTitle">
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
+        <Style Selector="StackPanel.todayRows StackPanel.quiet TextBlock.hint">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
     </UserControl.Styles>
 
     <StackPanel Opacity="{Binding Fade}" Classes.compact="{Binding IsCompact}" Spacing="2" Margin="0,4,0,2">
         <Grid Classes="abHoverHost" ColumnDefinitions="*,Auto" IsVisible="{Binding $parent[views:TaskSectionView].ShowsHeader}">
             <Button Classes="sectionHeader" Command="{Binding ToggleCommand}" ContextRequested="OnHeaderContextRequested"
                     AutomationProperties.Name="{Binding Title}" ToolTip.Tip="Click to fold or unfold · right-click for Expand all, Collapse all and Pinned open">
-                <StackPanel Classes.quiet="{Binding IsQuiet}" Orientation="Horizontal" Spacing="6">
-                    <mi:MaterialIcon Kind="{Binding Chevron}" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                    <mi:MaterialIcon Kind="{Binding IconKind}" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}"
-                                     VerticalAlignment="Center" IsVisible="{Binding ShowsSmallIcon}" />
+                <StackPanel Classes.quiet="{Binding IsQuiet}" Classes.session="{Binding IsSessionSection}" Orientation="Horizontal" Spacing="6">
+                    <mi:MaterialIcon Classes="chevron" Kind="{Binding Chevron}" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    <Panel Classes="smallIconSlot" VerticalAlignment="Center">
+                        <mi:MaterialIcon Kind="{Binding IconKind}" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}"
+                                         VerticalAlignment="Center" IsVisible="{Binding ShowsSmallIcon}" />
+                    </Panel>
                     <mi:MaterialIcon Classes="abSectionIcon" Kind="{Binding IconKind}" IsVisible="{Binding ShowsSectionIcon}" />
                     <Ellipse Width="9" Height="9" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
                     <TextBlock Classes.sectionTitle="{Binding !IsShelfGroup}" Classes.abSectionTitle="{Binding IsShelfGroup}" Text="{Binding Title}"
                                VerticalAlignment="Center" />
-                    <TextBlock Classes="faint" Text="{Binding Hint}" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding ShowsHintText}" />
+                    <TextBlock Classes="faint hint" Text="{Binding Hint}" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding ShowsHintText}" />
                     <Border Classes="abCountPill" IsVisible="{Binding ShowsCountPill}">
                         <TextBlock Text="{Binding Hint}" />
                     </Border>
-                    <mi:MaterialIcon Kind="PinOutline" Width="13" Height="13" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center"
-                                     IsVisible="{Binding ShowsPin}" ToolTip.Tip="Pinned open" />
+                    <Panel Classes="pinSlot" VerticalAlignment="Center">
+                        <mi:MaterialIcon Kind="PinOutline" Width="13" Height="13" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center"
+                                         IsVisible="{Binding ShowsPin}" ToolTip.Tip="Pinned open" />
+                    </Panel>
                 </StackPanel>
             </Button>
             <Button Grid.Column="1" Classes="quiet abHoverOnly" Padding="5" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding HasAdd}"

@@ -35,6 +35,7 @@ internal sealed class AddBoxInput
         if (_model is not null)
         {
             _model.FocusRequested -= OnFocusRequested;
+            _model.LeaveRequested -= OnLeaveRequested;
             _model.CaretRequested -= OnCaretRequested;
         }
 
@@ -42,6 +43,7 @@ internal sealed class AddBoxInput
         if (_model is not null)
         {
             _model.FocusRequested += OnFocusRequested;
+            _model.LeaveRequested += OnLeaveRequested;
             _model.CaretRequested += OnCaretRequested;
         }
     }
@@ -82,6 +84,20 @@ internal sealed class AddBoxInput
     }
 
     private void OnFocusRequested(object? sender, EventArgs e) => FocusBox();
+
+    private void OnLeaveRequested(object? sender, EventArgs e) => Leave();
+
+    /// <summary>
+    /// The box lets go of the keyboard (Esc, or a click anywhere off it): it folds back to its pill through the usual lost-focus path,
+    /// and what was typed stays as a draft. Nothing happens while one of its own menus is open or the keyboard is elsewhere.
+    /// </summary>
+    public void Leave()
+    {
+        if (_box.IsFocused && !_menuOpen)
+        {
+            TopLevel.GetTopLevel(_box)?.FocusManager?.Focus(null);
+        }
+    }
 
     private void OnCaretRequested(object? sender, int caret)
     {

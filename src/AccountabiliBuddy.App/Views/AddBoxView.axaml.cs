@@ -28,6 +28,37 @@ public partial class AddBoxView : UserControl
         _input.Attach(DataContext as AddBoxViewModel);
     }
 
+    // PC fixes (owner, 0.1.132): a press anywhere off the box folds it back to its pill, also on something that takes no keyboard
+    // focus (the page's background, a header). Presses in its own menus and lists are other top levels and never arrive here.
+    private TopLevel? _topLevel;
+
+    protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel?.AddHandler(PointerPressedEvent, OnAnyPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        _topLevel?.RemoveHandler(PointerPressedEvent, OnAnyPointerPressed);
+        _topLevel = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnAnyPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (Box.IsFocused && !IsInside(e.Source as Avalonia.Visual))
+        {
+            _input.Leave();
+        }
+    }
+
+    private bool IsInside(Avalonia.Visual? source)
+    {
+        return source is not null && (ReferenceEquals(source, this) || Avalonia.VisualTree.VisualExtensions.IsVisualAncestorOf(this, source));
+    }
+
     private void OnPillPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!Box.IsFocused)

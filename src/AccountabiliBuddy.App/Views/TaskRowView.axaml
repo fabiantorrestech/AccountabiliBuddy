@@ -24,6 +24,23 @@
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{DynamicResource Ab.InkColor}" />
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="{DynamicResource Ab.InkColor}" />
         <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="{DynamicResource Ab.InkColor}" />
+        <!-- One piece of the detail line (also Today's flags): icon and words, a tag chip, the amber pill, or the sync-problem cloud. -->
+        <DataTemplate x:Key="RowBitTemplate" x:DataType="vm:TaskRowBit">
+            <Panel VerticalAlignment="Center">
+                <Border Classes="bit" Classes.chip="{Binding IsChip}" Classes.ink="{Binding IsInk}" Classes.faint="{Binding IsFaint}"
+                        Classes.drift="{Binding IsDrift}" Classes.abPill="{Binding IsAmber}" Classes.amber="{Binding IsAmber}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center" IsVisible="{Binding IsPlain}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                        <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasText}" />
+                    </StackPanel>
+                </Border>
+                <!-- The sync-problem cloud: "Changed on both devices". -->
+                <Button Classes="rowTool conflictBit" IsVisible="{Binding OpensConflict}" Click="OnConflictClick" Width="20" Height="20"
+                        ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="Changed on both devices: pick a version">
+                    <mi:MaterialIcon Kind="{Binding IconKind}" Width="14" Height="14" Foreground="{DynamicResource Ab.Drift}" />
+                </Button>
+            </Panel>
+        </DataTemplate>
     </UserControl.Resources>
     <UserControl.Styles>
         <Style Selector="CheckBox">
@@ -272,6 +289,60 @@
         <Style Selector="TextBlock.rowTitle.done">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
+        <Style Selector="TextBlock.mainTitle">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="FontWeight" Value="Medium" />
+        </Style>
+
+        <!-- ===== Today (round 2, owner fix after 0.1.132; boards B-PC-Idle / B-PC-Session). TodayView marks its list "todayRows". ===== -->
+        <!-- Today's indented sub-line replaces the Tasks page's detail line, plain line and step line; the label lives in it, so the
+             label slot at the right goes. -->
+        <Style Selector="Panel.todayOnly">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.todayOnly">
+            <Setter Property="IsVisible" Value="True" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.tasksOnly">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.categorySlot">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <!-- The running row: its title 16 semibold, its number in the accent (the tint, outline and Now badge are above). -->
+        <Style Selector="StackPanel.todayRows Panel.listItem.now TextBlock.mainTitle">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.listItem.now TextBlock.rowNumber">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <!-- Row actions on hover or keyboard focus only (brief §3.5): the open arrow, ⋯ and the drag handle float over the row's right end
+             on a Surface2 chip, so the time stays where the board has it and nothing moves. -->
+        <Style Selector="StackPanel.todayRows Border.rowTools">
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Grid.ColumnSpan" Value="4" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Padding" Value="4,0,0,0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.listItem:pointerover Border.rowTools">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Panel.listItem:focus-within Border.rowTools">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="StackPanel.todayRows Button.listRow.selected Border.rowTools">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
 
         <!-- The detail line's pieces: Muted, or Ink / Faint / Drift; tags as Surface2 chips. -->
         <Style Selector="Border.bit">
@@ -379,7 +450,7 @@
     <StackPanel x:Name="RowRoot" Spacing="0">
         <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
         <!-- abMenuHost: the row gets an accent outline (Border.abMenuRing) while its menu is open (round 2, brief §3.6). -->
-        <Panel Classes="listItem abMenuHost" ContextRequested="OnRowContextRequested" KeyDown="OnRowKeyDown">
+        <Panel Classes="listItem abMenuHost" Classes.now="{Binding IsNow}" ContextRequested="OnRowContextRequested" KeyDown="OnRowKeyDown">
             <!-- Round 2 (Today only, brief §4.2): the running row is tinted and outlined in the accent. -->
             <Border Classes="nowTint">
                 <Border.IsVisible>
@@ -405,7 +476,7 @@
                                 <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.2" IsVisible="{Binding !HasCategory}" />
                             </Panel>
                         </Button>
-                        <TextBlock Classes="muted" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
+                        <TextBlock Classes="muted rowNumber" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
                                    MinWidth="12" IsVisible="{Binding IsNumbered}" />
                         <CheckBox IsChecked="{Binding ShowsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
                                   MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Finish"
@@ -415,7 +486,8 @@
                         <DockPanel>
                             <mi:MaterialIcon DockPanel.Dock="Left" Kind="Star" Width="14" Height="14" Margin="0,0,5,0" Foreground="{DynamicResource Ab.AmberInk}"
                                              VerticalAlignment="Center" IsVisible="{Binding ShowsHighlightTint}" ToolTip.Tip="Highlighted" />
-                            <Button Classes="labelPill" DockPanel.Dock="Left" Margin="0,0,6,0" IsVisible="{Binding ShowsLabelPillBefore}" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
+                            <Panel Classes="tasksOnly" DockPanel.Dock="Left">
+                            <Button Classes="labelPill" Margin="0,0,6,0" IsVisible="{Binding ShowsLabelPillBefore}" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
                                 <Panel>
                                     <Border Background="{Binding CategoryBrush}" Opacity="0.18" CornerRadius="999" />
                                     <StackPanel Orientation="Horizontal" Spacing="5" Margin="7,1,8,1">
@@ -424,14 +496,52 @@
                                     </StackPanel>
                                 </Panel>
                             </Button>
+                            </Panel>
                             <Border DockPanel.Dock="Left" Classes="letterChip" Margin="0,0,6,0" IsVisible="{Binding HasStepLetter}">
                                 <TextBlock Text="{Binding StepLetter}" />
                             </Border>
-                            <TextBlock Classes="rowTitle" Classes.done="{Binding ShowsTicked}" Text="{Binding Title}" FontSize="14.5" FontWeight="Medium"
+                            <TextBlock Classes="rowTitle mainTitle" Classes.done="{Binding ShowsTicked}" Text="{Binding Title}"
                                        TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Tip}" />
                         </DockPanel>
+                        <!-- Round 2 (Today only, owner fix after 0.1.132; boards B-PC-Idle / B-PC-Session): the details on one indented line
+                             under the title: a step "↳ task · ● label · 142b", a task "● label · 25 min"; a missing part goes with its dot. The
+                             amber Overdue pill and the sync-problem cloud still show; a step's ▾ (its live step list) on hover or focus. -->
+                        <Panel Classes="todayOnly rowSub">
+                            <DockPanel IsVisible="{Binding HasTodayLine}" AutomationProperties.Name="{Binding TodayLineText}">
+                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="{Binding TodayParent}" FontSize="12" MaxWidth="260"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="{Binding HasTodayParent}" />
+                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
+                                           IsVisible="{Binding ShowsTodayDotAfterParent}" />
+                                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasTodayLabel}">
+                                    <Ellipse Width="7" Height="7" Fill="{Binding TodayLabelBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Classes="muted" Text="{Binding TodayLabel}" FontSize="12" MaxWidth="120" TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
+                                           IsVisible="{Binding ShowsTodayDotBeforeTail}" />
+                                <TextBlock DockPanel.Dock="Left" Classes="muted" Text="{Binding TodayTail}" FontSize="12" MaxWidth="280"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="{Binding HasTodayTail}" />
+                                <ItemsControl DockPanel.Dock="Left" ItemsSource="{Binding TodayFlags}" IsVisible="{Binding HasTodayFlags}" Margin="8,0,0,0"
+                                              VerticalAlignment="Center" ItemTemplate="{StaticResource RowBitTemplate}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <Button DockPanel.Dock="Left" Classes="rowTool onHover" Width="22" Height="20" Margin="2,0,0,0" Click="OnStepListClick"
+                                        IsVisible="{Binding IsStepRow}" ToolTip.Tip="Its steps: tick, bring into focus, add"
+                                        AutomationProperties.Name="Show the task's steps">
+                                    <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" />
+                                </Button>
+                                <Panel />
+                            </DockPanel>
+                        </Panel>
+                        <Panel Classes="tasksOnly">
                         <TextBlock Classes="muted rowSub" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding ShowsSubText}" />
+                        </Panel>
                         <!-- A focused step (Quiet view): "↳ task · ● label · 142b ▾", also in Compact; ▾ opens the live step list. -->
+                        <Panel Classes="tasksOnly">
                         <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding IsStepRow}">
                             <TextBlock Classes="muted" Text="↳" FontSize="12" VerticalAlignment="Center" />
                             <TextBlock Classes="muted" Text="{Binding StepSourceTitle}" FontSize="12" MaxWidth="220" TextTrimming="CharacterEllipsis"
@@ -451,6 +561,7 @@
                                 </StackPanel>
                             </Button>
                         </StackPanel>
+                        </Panel>
                         <!-- Round 2 (Today only): the running task's steps open, with letters; a done step struck; "done" / "in focus" at the right. -->
                         <ItemsControl ItemsSource="{Binding NowSteps}" Margin="0,6,0,0">
                             <ItemsControl.IsVisible>
@@ -498,6 +609,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Panel Classes="tasksOnly">
                         <DockPanel Classes="rowSub">
                             <DockPanel.IsVisible>
                                 <MultiBinding Converter="{x:Static views:TaskRowView.DetailLineShown}">
@@ -524,32 +636,15 @@
                                         </StackPanel>
                                     </Panel>
                                 </Button>
-                        <ItemsControl ItemsSource="{Binding Bits}" IsVisible="{Binding HasBits}" VerticalAlignment="Center">
+                        <ItemsControl ItemsSource="{Binding Bits}" IsVisible="{Binding HasBits}" VerticalAlignment="Center" ItemTemplate="{StaticResource RowBitTemplate}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel ItemSpacing="10" LineSpacing="2" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:TaskRowBit">
-                                    <Panel VerticalAlignment="Center">
-                                        <Border Classes="bit" Classes.chip="{Binding IsChip}" Classes.ink="{Binding IsInk}" Classes.faint="{Binding IsFaint}"
-                                                Classes.drift="{Binding IsDrift}" Classes.abPill="{Binding IsAmber}" Classes.amber="{Binding IsAmber}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center" IsVisible="{Binding IsPlain}">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
-                                                <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasText}" />
-                                            </StackPanel>
-                                        </Border>
-                                        <!-- The sync-problem cloud: "Changed on both devices". -->
-                                        <Button Classes="rowTool conflictBit" IsVisible="{Binding OpensConflict}" Click="OnConflictClick" Width="20" Height="20"
-                                                ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="Changed on both devices: pick a version">
-                                            <mi:MaterialIcon Kind="{Binding IconKind}" Width="14" Height="14" Foreground="{DynamicResource Ab.Drift}" />
-                                        </Button>
-                                    </Panel>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         </DockPanel>
+                        </Panel>
                     </StackPanel>
                     <!-- The label chip (Label style Dot; a click opens the picker, the same as ⋯ › Label) or, on a row with none, the quiet "+ label". -->
                     <Panel Grid.Column="2" Classes="categorySlot" VerticalAlignment="Center">

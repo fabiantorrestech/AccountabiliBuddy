@@ -80,6 +80,9 @@ public sealed partial class AddBoxViewModel : ObservableObject
     /// <summary>Raised when the box changed its own text and the caret should go to this place.</summary>
     public event EventHandler<int>? CaretRequested;
 
+    /// <summary>Raised when the main box should let go of the keyboard and fold back to its pill (Esc); its text stays as a draft.</summary>
+    public event EventHandler? LeaveRequested;
+
     /// <summary>Raised when a Shelf bin's box or the jot closes (Esc, or left empty).</summary>
     public event EventHandler? Closed;
 
@@ -336,7 +339,8 @@ public sealed partial class AddBoxViewModel : ObservableObject
 
         if (Kind == AddBoxKind.Main)
         {
-            Reset();
+            // PC fixes (owner, 0.1.132): Esc folds the box back to its pill; what was typed stays as a draft (it no longer empties it).
+            LeaveRequested?.Invoke(this, EventArgs.Empty);
             return;
         }
 

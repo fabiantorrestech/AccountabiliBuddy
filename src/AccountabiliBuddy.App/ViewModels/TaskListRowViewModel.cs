@@ -276,6 +276,68 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The row is a focused step of the running session: its "↳ task · ● label · 142b ▾" line shows (also in Compact).</summary>
     public bool IsStepRow => StepSourceTitle.Length > 0;
 
+    // ---- Today's sub-line (round 2, owner fix after 0.1.132; boards B-PC-Idle, B-PC-Session) ----
+    // Every row on Today reads its details on one indented line under the title: a step "↳ <task> · ● <label> · 142b", a task
+    // "● <label> · 25 min" (or its own line: "Finished 10:05 AM", "3:00 PM · 10 min before"). A part that is missing is left out with
+    // its dot. Only Today draws it (TaskRowView, TodayPageScope); the Tasks page keeps its detail line.
+
+    /// <summary>Today's line, first part: "↳ " and the step's task (shortened); empty on task rows.</summary>
+    public string TodayParent => IsStepRow ? "↳ " + StepSourceTitle : string.Empty;
+
+    public bool HasTodayParent => TodayParent.Length > 0;
+
+    /// <summary>Today's line: the label's name (after its dot); a step's task's label on a step row.</summary>
+    public string TodayLabel => (IsStepRow ? StepSourceLabel : CategoryName) ?? string.Empty;
+
+    public bool HasTodayLabel => !string.IsNullOrWhiteSpace(TodayLabel);
+
+    /// <summary>The label's colour for Today's line.</summary>
+    public IBrush TodayLabelBrush => IsStepRow ? StepSourceBrush : CategoryBrush;
+
+    /// <summary>Today's line, last part: a step's ID ("142b"), else the row's own line (time limit, steps left, finished, reminder).</summary>
+    public string TodayTail => IsStepRow ? StepSourceId : SubText;
+
+    public bool HasTodayTail => TodayTail.Length > 0;
+
+    /// <summary>The dot between the task and the label.</summary>
+    public bool ShowsTodayDotAfterParent => HasTodayParent && (HasTodayLabel || HasTodayTail);
+
+    /// <summary>The dot between the label and the last part.</summary>
+    public bool ShowsTodayDotBeforeTail => HasTodayLabel && HasTodayTail;
+
+    /// <summary>What Today's line must still warn about: the amber "Overdue 3 d" pill and the sync-problem cloud.</summary>
+    public IReadOnlyList<TaskRowBit> TodayFlags => Bits.Where(bit => bit.IsAmber || bit.OpensConflict).ToList();
+
+    public bool HasTodayFlags => Bits.Any(bit => bit.IsAmber || bit.OpensConflict);
+
+    /// <summary>Today's line shows (any part of it).</summary>
+    public bool HasTodayLine => HasTodayParent || HasTodayLabel || HasTodayTail || HasTodayFlags;
+
+    /// <summary>Today's line as words, e.g. "↳ Electron App · ● ePT · 142b" (its accessible name; the checks read it).</summary>
+    public string TodayLineText
+    {
+        get
+        {
+            var parts = new List<string>(3);
+            if (HasTodayParent)
+            {
+                parts.Add(TodayParent);
+            }
+
+            if (HasTodayLabel)
+            {
+                parts.Add("● " + TodayLabel);
+            }
+
+            if (HasTodayTail)
+            {
+                parts.Add(TodayTail);
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
     /// <summary>Makes the step list (▾ on a step's line): its task's steps, tick, bring into focus, add a step. Null where there is none.</summary>
     public Func<StepListViewModel?>? StepList { get; init; }
 

@@ -35,6 +35,10 @@ public sealed class TaskPopoverFlyout : Flyout
             flyout.MinWidth = _width;
             flyout.MaxWidth = _width;
             flyout.Padding = new Thickness(0);
+            // A fixed-width popover scrolls up and down only: its content gets the popover's own width, so a long line wraps or trims
+            // instead of widening the content (History opened scrolled to the right because its rows were laid out at any width and
+            // the first control to take the keyboard, at their far end, was brought into view).
+            ScrollViewer.SetHorizontalScrollBarVisibility(flyout, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
             TaskPopover.StylePresenter(flyout);
         }
 

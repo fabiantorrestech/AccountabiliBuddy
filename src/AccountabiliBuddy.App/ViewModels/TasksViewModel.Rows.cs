@@ -30,13 +30,14 @@ public sealed partial class TasksViewModel
     private readonly record struct RowExtras(
         string NumberText, IReadOnlyList<TaskRowBit> Bits, bool IsHighlighted, string TimeText, TaskRowAction? Left, TaskRowAction? Right, bool CanDrag);
 
-    private RowExtras ExtrasOf(TaskRowKey key, TaskItem? item, bool isQueued, bool isTicked, bool selectable)
+    private RowExtras ExtrasOf(TaskRowKey key, TaskItem? item, bool isQueued, bool isTicked, bool selectable, int? checklistMinutes = null)
     {
         bool live = _tasks.IsLive;
         bool isSessionRow = key.Kind == TaskRowKind.Session && !isQueued;
-        string number = item?.Number is TaskNumber taskNumber ? taskNumber.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
+        string number = NumberTextOf(key.Id, item);
         IReadOnlyList<TaskRowBit> bits = item is null ? [] : BitsOf(item, withTime: !isSessionRow);
-        string time = isSessionRow && item?.EstimateMinutes is int minutes ? EstimateText.Of(minutes) : string.Empty;
+        // A running checklist's task may be out of the task list while the session holds it: its own time limit then.
+        string time = isSessionRow && (item?.EstimateMinutes ?? checklistMinutes) is int minutes ? EstimateText.Of(minutes) : string.Empty;
         bool canDrag = selectable && !isTicked && key.Kind switch
         {
             TaskRowKind.Session => true,
@@ -44,6 +45,32 @@ public sealed partial class TasksViewModel
             _ => false,
         };
         return new RowExtras(number, bits, item?.Highlight == true && !isTicked, time, LeftActionOf(key, item, isQueued, isTicked), RightActionOf(key, item, isQueued, isTicked, live), canDrag);
+    }
+
+    // Each task's number as last read from the task list (PC fixes, owner 0.1.132): a running session's tasks can be out of the list
+    // while the session holds them, and Today still shows "142b" on their rows. Kept for this run of the app only.
+    private readonly Dictionary<Guid, int> _knownNumbers = [];
+
+    private void RememberNumbers(IEnumerable<TaskItem> items)
+    {
+        foreach (TaskItem item in items)
+        {
+            if (item.Number is TaskNumber taskNumber)
+            {
+                _knownNumbers[item.Id] = taskNumber.Value;
+            }
+        }
+    }
+
+    // "142": the task list's number, else the one last read for it; empty when it has none yet.
+    private string NumberTextOf(Guid id, TaskItem? item)
+    {
+        if (item?.Number is TaskNumber taskNumber)
+        {
+            return taskNumber.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return _knownNumbers.TryGetValue(id, out int known) ? known.ToString(CultureInfo.InvariantCulture) : string.Empty;
     }
 
     // ← on a Shelf row: to Today › Queued (round 2 R3: the same move as a drop on the Today strip, with Undo); the target on a Queued

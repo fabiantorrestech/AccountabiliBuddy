@@ -620,7 +620,8 @@
                             </Panel>
                         </Border>
                         <!-- TodayPageScope: only here does the running row get its tint, Now badge and open steps. -->
-                        <StackPanel x:Name="TaskList" IsVisible="{Binding !ShowsShutdown}" views:TodayPageScope.IsToday="True"
+                        <!-- todayRows: the rows' Today look (TaskRowView, TaskSectionView): the indented sub-line, actions on hover, the board's headers. -->
+                        <StackPanel x:Name="TaskList" Classes="todayRows" IsVisible="{Binding !ShowsShutdown}" views:TodayPageScope.IsToday="True"
                                     Container.Name="TaskColumn" Container.Sizing="Width">
                             <ItemsControl DataContext="{Binding TaskPage}" x:DataType="vm:TasksViewModel" ItemsSource="{Binding TodayTabPanel.Sections, FallbackValue={x:Null}}">
                                 <ItemsControl.ItemTemplate>

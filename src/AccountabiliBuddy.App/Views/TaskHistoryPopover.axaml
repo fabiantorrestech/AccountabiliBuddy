@@ -5,43 +5,123 @@
              x:Class="AccountabiliBuddy.App.Views.TaskHistoryPopover"
              x:DataType="vm:TaskHistoryViewModel">
     <!-- History (spec 05 §10): the last 30 days, Finished (Do again) and Deleted and archived (Bring back). Shown in a TaskPopoverFlyout
-         from the View menu; it stays open, so several can be brought back in a row. -->
+         from the View menu; it stays open, so several can be brought back in a row. PC fixes (owner, 0.1.132): 460 wide, it scrolls up
+         and down only (the popover gives its content its own width, so nothing is ever wider than it), and each row is built like a
+         Tasks page column row: the label's dot, the title on up to two lines, a sub-line (label name, time limit, #tags, when), and one
+         ⋯ at the right whose menu holds the row's action. -->
     <UserControl.Styles>
         <Style Selector="TextBlock.head">
-            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-            <Setter Property="Margin" Value="8,10,8,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="StackPanel.headRow">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="Spacing" Value="7" />
+            <Setter Property="Margin" Value="8,12,8,4" />
+        </Style>
+        <Style Selector="Border.historyRow">
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="8,6,4,6" />
+            <Setter Property="MinHeight" Value="44" />
+        </Style>
+        <Style Selector="Border.historyRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.rowMore">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.rowMore /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Button.rowMore:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.bit">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Border.bit.chip">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Padding" Value="8,1" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
     </UserControl.Styles>
 
     <UserControl.DataTemplates>
         <DataTemplate DataType="vm:TaskHistoryRowViewModel">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="8,4,4,4">
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
-                    <TextBlock Classes="muted" Text="{Binding Sub}" FontSize="11.5" />
-                </StackPanel>
-                <Button Grid.Column="1" Classes="quiet" Padding="8,4" MinHeight="0" VerticalAlignment="Center" Command="{Binding Command}"
-                        AutomationProperties.Name="{Binding ActionText}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <mi:MaterialIcon Kind="{Binding ActionIcon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding ActionText}" FontSize="12.5" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
-            </Grid>
+            <!-- abMenuHost: the row is outlined in the accent while its menu is open (brief §3.6). -->
+            <Panel Classes="abMenuHost">
+                <Border Classes="historyRow">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Panel Width="8" Height="8" VerticalAlignment="Top" Margin="2,7,0,0">
+                            <Ellipse Fill="{Binding LabelBrush}" IsVisible="{Binding HasLabel}" />
+                            <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.2" IsVisible="{Binding !HasLabel}" />
+                        </Panel>
+                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="Medium" TextWrapping="Wrap" MaxLines="2"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
+                            <WrapPanel ItemSpacing="10" LineSpacing="2" AutomationProperties.Name="{Binding DetailText}">
+                                <TextBlock Classes="muted" Text="{Binding LabelName}" FontSize="12" MaxWidth="140" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" IsVisible="{Binding HasLabel}" />
+                                <ItemsControl ItemsSource="{Binding Bits}" VerticalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel ItemSpacing="10" LineSpacing="2" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:TaskRowBit">
+                                            <Border Classes="bit" Classes.chip="{Binding IsChip}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                                                    <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </WrapPanel>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="rowMore" Click="OnRowMoreClick" AutomationProperties.Name="More actions"
+                                ToolTip.Tip="{Binding ActionText}">
+                            <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                        </Button>
+                    </Grid>
+                </Border>
+                <Border Classes="abMenuRing" />
+            </Panel>
         </DataTemplate>
     </UserControl.DataTemplates>
 
-    <StackPanel Margin="6">
-        <StackPanel Margin="8,4,8,2">
-            <TextBlock Text="History" FontWeight="SemiBold" FontSize="13.5" />
-            <TextBlock Classes="muted" Text="Finished and deleted tasks · last 30 days" FontSize="12" />
+    <StackPanel x:Name="Root" Margin="8,6,8,10" HorizontalAlignment="Stretch">
+        <StackPanel Margin="8,6,8,2">
+            <TextBlock Text="History" FontWeight="SemiBold" FontSize="14.5" />
+            <TextBlock Classes="muted" Text="Finished and deleted tasks · last 30 days" FontSize="12" TextWrapping="Wrap" />
         </StackPanel>
         <TextBlock Classes="muted" IsVisible="{Binding IsEmpty}" Text="Nothing in the last 30 days." Margin="8,10" FontSize="13" />
-        <TextBlock Classes="head" Text="Finished" IsVisible="{Binding HasFinished}" />
-        <ItemsControl ItemsSource="{Binding Finished}" IsVisible="{Binding HasFinished}" />
-        <TextBlock Classes="head" Text="Deleted and archived" IsVisible="{Binding HasRemoved}" />
-        <ItemsControl ItemsSource="{Binding Removed}" IsVisible="{Binding HasRemoved}" />
+        <StackPanel Classes="headRow" IsVisible="{Binding HasFinished}">
+            <mi:MaterialIcon Kind="CheckCircleOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+            <TextBlock Classes="head" Text="Finished" />
+        </StackPanel>
+        <ItemsControl x:Name="FinishedList" ItemsSource="{Binding Finished}" IsVisible="{Binding HasFinished}" />
+        <StackPanel Classes="headRow" IsVisible="{Binding HasRemoved}">
+            <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+            <TextBlock Classes="head" Text="Deleted and archived" />
+        </StackPanel>
+        <ItemsControl x:Name="RemovedList" ItemsSource="{Binding Removed}" IsVisible="{Binding HasRemoved}" />
     </StackPanel>
 </UserControl>
