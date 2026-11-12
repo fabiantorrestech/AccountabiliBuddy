@@ -1,0 +1,109 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:theming="using:AccountabiliBuddy.App.Services.Theming"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.ThemeToggleButton"
+             x:DataType="vm:ThemeToggleViewModel">
+    <!-- The title bar's light/dark toggle (round 2, brief §3.2): click flips light/dark; right-click, a 450 ms hold, Shift+F10 or the
+         Menu key opens the theme menu. -->
+    <UserControl.Styles>
+        <Style Selector="MenuItem.menuHead">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.menuCheck">
+            <Setter Property="Width" Value="15" />
+            <Setter Property="Height" Value="15" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Margin" Value="16,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button#ToggleButton.open /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Button x:Name="ToggleButton" Classes="quiet titleIcon" Width="40" ToolTip.Tip="{Binding ToolTip}"
+            AutomationProperties.Name="{Binding AccessibleName}">
+        <FlyoutBase.AttachedFlyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                <MenuItem Classes="menuHead" Header="Mode" IsEnabled="False" />
+                <MenuItem Command="{Binding SetModeCommand}" CommandParameter="{x:Static theming:LightDarkMode.Light}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="Light" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsLight}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem Command="{Binding SetModeCommand}" CommandParameter="{x:Static theming:LightDarkMode.Dark}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="Dark" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsDark}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem Command="{Binding SetModeCommand}" CommandParameter="{x:Static theming:LightDarkMode.System}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="Match Windows" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsSystem}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem Command="{Binding SetModeCommand}" CommandParameter="{x:Static theming:LightDarkMode.SetTime}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="At a set time" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsSetTime}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem Command="{Binding SetModeCommand}" CommandParameter="{x:Static theming:LightDarkMode.Sunset}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="After sunset" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsSunset}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <Separator />
+                <MenuItem Classes="menuHead" Header="Theme" IsEnabled="False" />
+                <MenuItem Command="{Binding SetThemeCommand}" CommandParameter="{x:Static theming:ThemeName.Instrument}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="Instrument" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsInstrument}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem Command="{Binding SetThemeCommand}" CommandParameter="{x:Static theming:ThemeName.NightDesk}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="Night Desk" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsNightDesk}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <MenuItem Command="{Binding SetThemeCommand}" CommandParameter="{x:Static theming:ThemeName.Paper}">
+                    <MenuItem.Header>
+                        <Grid ColumnDefinitions="*,Auto" MinWidth="170">
+                            <TextBlock Text="Paper" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Grid.Column="1" Classes="menuCheck" Kind="Check" IsVisible="{Binding IsPaper}" />
+                        </Grid>
+                    </MenuItem.Header>
+                </MenuItem>
+                <Separator />
+                <MenuItem Header="Theme settings…" Command="{Binding OpenSettingsCommand}">
+                    <MenuItem.Icon>
+                        <mi:MaterialIcon Kind="Cog" />
+                    </MenuItem.Icon>
+                </MenuItem>
+            </MenuFlyout>
+        </FlyoutBase.AttachedFlyout>
+        <mi:MaterialIcon Kind="{Binding Icon}" Width="17" Height="17" />
+    </Button>
+</UserControl>

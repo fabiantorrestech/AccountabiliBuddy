@@ -72,6 +72,14 @@
         <Style Selector="Button.titleIcon:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
+        <!-- The 1 px lines between the title bar's groups (round 2, brief §3.2: the LN line token, 16 tall, 6-10 margin). -->
+        <Style Selector="Border.titleDivider">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Margin" Value="6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
         <!-- The window's own caption buttons, 46 x 40 (Tasks redesign 03 §A). Their roles make Windows treat them as the real ones
              (minimize, maximize with snap layouts, close); a click is the system's, not a command of ours. -->
         <Style Selector="Button.caption">
@@ -142,116 +150,144 @@
     </Window.Styles>
     <Panel>
         <Grid RowDefinitions="40,Auto,*">
-            <!-- Title bar, 40 tall (Tasks redesign 03 §A): the app name, then at the right the session control, the sync light, the
-                 sync button and the search magnifier; the system's own minimize / maximize / close buttons stay at the right (snap
-                 layouts and all). The empty part drags the window and a double click maximizes it. The session control grows to the
-                 left into that empty part, so nothing else moves when it changes. -->
-            <Grid x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
-                  chrome:WindowDecorationProperties.ElementRole="TitleBar">
-                <TextBlock Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
-                           Margin="16,0,0,0" IsHitTestVisible="False" />
+            <!-- Title bar, 40 tall (round 2, brief §3.2): at the left the app name, the PB pill (ProductaBuddy mode only) and the noise
+                 control; centred on the window the session control (it opens its extras to the left, over the empty title bar, so nothing
+                 moves); at the right, each group split by a 1 px line: synced devices (the sync light and the sync button) │ light/dark │
+                 Search │ the window's own minimize / maximize / close (snap layouts and all). The empty part drags the window and a
+                 double click maximizes it. Only one title-bar pop-up is open at a time (MainWindow.axaml.cs). -->
+            <controls:TitleBarLayout x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}"
+                                     chrome:WindowDecorationProperties.ElementRole="TitleBar">
+                <!-- A grid, not a stack, so the noise control (its sound name) can give way in a narrow window. -->
+                <Grid x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" ColumnDefinitions="Auto,Auto,Auto,*" Margin="16,0,10,0"
+                      VerticalAlignment="Center">
+                    <TextBlock Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                               IsHitTestVisible="False" />
+                    <!-- Not hit-testable, so it drags the window like the name; its name is read out instead of a tooltip. -->
+                    <Border x:Name="ModePill" Grid.Column="1" IsVisible="{Binding IsProductaBuddy}" IsHitTestVisible="False" CornerRadius="999"
+                            Padding="8,1" Margin="8,0,0,0" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" Background="{DynamicResource Ab.Surface}"
+                            VerticalAlignment="Center" AutomationProperties.Name="ProductaBuddy mode">
+                        <TextBlock Text="PB" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" />
+                    </Border>
+                    <Border Grid.Column="2" Classes="titleDivider" Height="18" Margin="10,0" IsVisible="{Binding HasNoisePlayer}" />
+                    <Panel Grid.Column="3" IsVisible="{Binding HasNoisePlayer}" VerticalAlignment="Center">
+                        <views:TitleBarNoiseView x:Name="NoiseControl" DataContext="{Binding Session.NoisePlayer}"
+                                                 chrome:WindowDecorationProperties.ElementRole="User" />
+                    </Panel>
+                </Grid>
+
                 <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts). -->
-                <views:SessionControlView x:Name="SessionControl" Grid.Column="1" Margin="0,0,6,0" DataContext="{Binding SessionControl}"
+                <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="Center" DataContext="{Binding SessionControl}"
                                           chrome:WindowDecorationProperties.ElementRole="User" />
-                <!-- Only with another device linked: a dot and one glyph per device. Hover or click for each device's last sync. -->
-                <Button x:Name="SyncLightButton" Grid.Column="2" Classes="quiet titleIcon" Padding="10,0" Margin="0,0,2,0"
-                        chrome:WindowDecorationProperties.ElementRole="User"
-                        IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" AutomationProperties.Name="Sync status"
-                        ToolTip.Tip="{Binding SyncLight.TipText, FallbackValue='Sync status'}">
-                    <FlyoutBase.AttachedFlyout>
-                        <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Standard" FlyoutPresenterClasses="syncPopover">
-                            <StackPanel x:Name="SyncPopover" Spacing="10" x:DataType="vm:MainWindowViewModel">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Panel Width="7" Height="7" VerticalAlignment="Center">
-                                        <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
-                                                 Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
-                                        <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
-                                    </Panel>
-                                    <TextBlock Classes="muted" FontSize="12" Text="{Binding SyncLight.SummaryText}" TextWrapping="Wrap" />
-                                </StackPanel>
+
+                <StackPanel x:Name="TitleBarEnd" controls:TitleBarLayout.Slot="End" Orientation="Horizontal">
+                    <Border Classes="titleDivider" Margin="10,0,6,0" />
+                    <StackPanel x:Name="SyncedDevicesGroup" Orientation="Horizontal">
+                        <!-- Only with another device linked: a dot and one glyph per device. Hover or click for each device's last sync. -->
+                        <Button x:Name="SyncLightButton" Classes="quiet titleIcon" Padding="10,0" Margin="0,0,2,0"
+                                chrome:WindowDecorationProperties.ElementRole="User"
+                                IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" AutomationProperties.Name="Sync status"
+                                ToolTip.Tip="{Binding SyncLight.TipText, FallbackValue='Sync status'}">
+                            <FlyoutBase.AttachedFlyout>
+                                <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Standard" FlyoutPresenterClasses="syncPopover">
+                                    <StackPanel x:Name="SyncPopover" Spacing="10" x:DataType="vm:MainWindowViewModel">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Panel Width="7" Height="7" VerticalAlignment="Center">
+                                                <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
+                                                         Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
+                                                <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
+                                            </Panel>
+                                            <TextBlock Classes="muted" FontSize="12" Text="{Binding SyncLight.SummaryText}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
+                                                    <!-- Green check = in step; red = this PC can't sync, or the device is behind (offline or failing). -->
+                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Margin="0,5">
+                                                        <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="18" Height="18" />
+                                                        <TextBlock Grid.Column="1" Classes="deviceName" Classes.dim="{Binding IsDim}" Text="{Binding Name}" Foreground="{DynamicResource Ab.Ink}" />
+                                                        <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="{Binding AgoText}" VerticalAlignment="Center" />
+                                                        <Panel Grid.Column="3" Width="16" Height="16" VerticalAlignment="Center" AutomationProperties.Name="{Binding StatusName}">
+                                                            <mi:MaterialIcon Kind="Check" Width="16" Height="16" Foreground="{DynamicResource Ab.Met}" IsVisible="{Binding IsSynced}" />
+                                                            <mi:MaterialIcon Kind="{Binding FailingIcon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsFailing}" />
+                                                        </Panel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <WrapPanel ItemSpacing="4" LineSpacing="2">
+                                            <Button Classes="quiet" Command="{Binding RefreshNowCommand}" Content="Sync now" FontWeight="SemiBold" />
+                                            <Button Classes="quiet" Command="{Binding OpenDevicesAndSyncCommand}" Content="Devices &amp; sync" />
+                                            <Button Classes="quiet" Command="{Binding ShowSyncQrCodesCommand}" IsVisible="{Binding ShowsQrButton}"
+                                                    ToolTip.Tip="Show today's QR codes for your phone to scan">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <mi:MaterialIcon Kind="QrcodeScan" Width="16" Height="16" />
+                                                    <TextBlock Text="Add a device" />
+                                                </StackPanel>
+                                            </Button>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Flyout>
+                            </FlyoutBase.AttachedFlyout>
+                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                <Panel Width="7" Height="7" VerticalAlignment="Center">
+                                    <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
+                                             Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
+                                    <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
+                                </Panel>
                                 <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="5" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
-                                            <!-- Green check = in step; red = this PC can't sync, or the device is behind (offline or failing). -->
-                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Margin="0,5">
-                                                <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="18" Height="18" />
-                                                <TextBlock Grid.Column="1" Classes="deviceName" Classes.dim="{Binding IsDim}" Text="{Binding Name}" Foreground="{DynamicResource Ab.Ink}" />
-                                                <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="{Binding AgoText}" VerticalAlignment="Center" />
-                                                <Panel Grid.Column="3" Width="16" Height="16" VerticalAlignment="Center" AutomationProperties.Name="{Binding StatusName}">
-                                                    <mi:MaterialIcon Kind="Check" Width="16" Height="16" Foreground="{DynamicResource Ab.Met}" IsVisible="{Binding IsSynced}" />
-                                                    <mi:MaterialIcon Kind="{Binding FailingIcon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsFailing}" />
-                                                </Panel>
-                                            </Grid>
+                                            <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="13" Height="13" />
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <WrapPanel ItemSpacing="4" LineSpacing="2">
-                                    <Button Classes="quiet" Command="{Binding RefreshNowCommand}" Content="Sync now" FontWeight="SemiBold" />
-                                    <Button Classes="quiet" Command="{Binding OpenDevicesAndSyncCommand}" Content="Devices &amp; sync" />
-                                    <Button Classes="quiet" Command="{Binding ShowSyncQrCodesCommand}" IsVisible="{Binding ShowsQrButton}"
-                                            ToolTip.Tip="Show today's QR codes for your phone to scan">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <mi:MaterialIcon Kind="QrcodeScan" Width="16" Height="16" />
-                                            <TextBlock Text="Add a device" />
-                                        </StackPanel>
-                                    </Button>
-                                </WrapPanel>
                             </StackPanel>
-                        </Flyout>
-                    </FlyoutBase.AttachedFlyout>
-                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                        <Panel Width="7" Height="7" VerticalAlignment="Center">
-                            <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
-                                     Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
-                            <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
-                        </Panel>
-                        <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" Spacing="5" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
-                                    <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="13" Height="13" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        </Button>
+                        <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R); part of the synced-devices group. -->
+                        <Button Classes="quiet titleIcon" Width="40" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}"
+                                chrome:WindowDecorationProperties.ElementRole="User"
+                                AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">
+                            <mi:MaterialIcon Kind="Sync" Width="15" Height="15" RenderTransformOrigin="50%,50%">
+                                <mi:MaterialIcon.RenderTransform>
+                                    <RotateTransform />
+                                </mi:MaterialIcon.RenderTransform>
+                            </mi:MaterialIcon>
+                        </Button>
                     </StackPanel>
-                </Button>
-                <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R). The divider sits at the left edge of the
-                     button's own cell; centred, it drew a line through the icon. -->
-                <Border Grid.Column="3" Width="1" Height="16" Background="{DynamicResource Ab.Line}" HorizontalAlignment="Left" VerticalAlignment="Center"
-                        IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" />
-                <Button Grid.Column="3" Classes="quiet titleIcon" Width="44" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}"
-                        chrome:WindowDecorationProperties.ElementRole="User"
-                        AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">
-                    <mi:MaterialIcon Kind="Sync" Width="15" Height="15" RenderTransformOrigin="50%,50%">
-                        <mi:MaterialIcon.RenderTransform>
-                            <RotateTransform />
-                        </mi:MaterialIcon.RenderTransform>
-                    </mi:MaterialIcon>
-                </Button>
-                <Button x:Name="SearchButton" Grid.Column="4" Classes="quiet titleIcon" Width="44" Command="{Binding OpenSearchCommand}"
-                        chrome:WindowDecorationProperties.ElementRole="User"
-                        ToolTip.Tip="Search (Ctrl+F)" AutomationProperties.Name="Search">
-                    <mi:MaterialIcon Kind="Magnify" Width="17" Height="17" />
-                </Button>
-                <StackPanel Grid.Column="5" Orientation="Horizontal">
-                    <Button x:Name="MinimizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
-                            AutomationProperties.Name="Minimize">
-                        <mi:MaterialIcon Kind="Minus" Width="16" Height="16" />
+                    <Border Classes="titleDivider" />
+                    <!-- Light / dark; right-click or hold for the theme menu (device-local, never synced; ADR 49). -->
+                    <Panel IsVisible="{Binding HasThemeToggle}">
+                        <views:ThemeToggleButton x:Name="ThemeToggleControl" DataContext="{Binding ThemeToggle}"
+                                                 chrome:WindowDecorationProperties.ElementRole="User" />
+                    </Panel>
+                    <Border Classes="titleDivider" IsVisible="{Binding HasThemeToggle}" />
+                    <Button x:Name="SearchButton" Classes="quiet titleIcon" Width="40" Command="{Binding OpenSearchCommand}"
+                            chrome:WindowDecorationProperties.ElementRole="User"
+                            ToolTip.Tip="Search (Ctrl+F)" AutomationProperties.Name="Search">
+                        <mi:MaterialIcon Kind="Magnify" Width="17" Height="17" />
                     </Button>
-                    <Button x:Name="MaximizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MaximizeButton"
-                            AutomationProperties.Name="Maximize">
-                        <mi:MaterialIcon x:Name="MaximizeIcon" Kind="CropSquare" Width="16" Height="16" />
-                    </Button>
-                    <Button x:Name="CloseButton" Classes="caption close" chrome:WindowDecorationProperties.ElementRole="CloseButton"
-                            AutomationProperties.Name="Close">
-                        <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
-                    </Button>
+                    <Border Classes="titleDivider" Margin="6,0,8,0" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="MinimizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
+                                AutomationProperties.Name="Minimize">
+                            <mi:MaterialIcon Kind="Minus" Width="16" Height="16" />
+                        </Button>
+                        <Button x:Name="MaximizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MaximizeButton"
+                                AutomationProperties.Name="Maximize">
+                            <mi:MaterialIcon x:Name="MaximizeIcon" Kind="CropSquare" Width="16" Height="16" />
+                        </Button>
+                        <Button x:Name="CloseButton" Classes="caption close" chrome:WindowDecorationProperties.ElementRole="CloseButton"
+                                AutomationProperties.Name="Close">
+                            <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
-            </Grid>
+            </controls:TitleBarLayout>
 
             <!-- Banners: a soft wash of the Drift / Waiting colour, a bar of it on the left, Ink text. Full width under the title bar. -->
             <StackPanel Grid.Row="1">

@@ -57,6 +57,36 @@ public sealed partial class MainWindowViewModel : ObservableObject
         settings.PropertyChanged += OnGuardLockChanged;
         _sessionActive = session.IsSessionActive;
         RefreshFocusMode();
+        // The title bar's PB pill (round 2, brief §3.2): only in ProductaBuddy mode (ADR 68), which also renames the app.
+        IsProductaBuddy = AppBrand.Name == AppBrand.CompanionName;
+        AppBrand.Changed += (_, _) => IsProductaBuddy = AppBrand.Name == AppBrand.CompanionName;
+    }
+
+    /// <summary>The app runs as ProductaBuddy (ADR 68): the title bar shows the PB pill.</summary>
+    [ObservableProperty]
+    public partial bool IsProductaBuddy { get; set; }
+
+    private readonly ThemeToggleViewModel? _themeToggle;
+
+    /// <summary>The title bar shows the light/dark toggle.</summary>
+    public bool HasThemeToggle => ThemeToggle is not null;
+
+    /// <summary>The title bar shows the noise control (the same player as Today's card and the on-screen window).</summary>
+    public bool HasNoisePlayer => Session.NoisePlayer is not null;
+
+    /// <summary>The title bar's light/dark toggle (ADR 49; device-local, never synced); null hides it. Set by the app.</summary>
+    public ThemeToggleViewModel? ThemeToggle
+    {
+        get => _themeToggle;
+        init
+        {
+            _themeToggle = value;
+            if (value is not null)
+            {
+                // "Theme settings…" and After sunset without a place: Settings › Appearance (not a locked row; Settings keeps its own locks).
+                value.OpenThemeSettings = () => OpenSettings(SettingsSection.Appearance);
+            }
+        }
     }
 
     private bool _sessionActive;

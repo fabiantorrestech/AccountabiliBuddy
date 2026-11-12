@@ -2,6 +2,7 @@ using System.ComponentModel;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
 using Avalonia.Animation;
+using Avalonia.Layout;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
@@ -53,6 +54,34 @@ public partial class SessionControlView : UserControl
             };
         }
     }
+
+    /// <summary>The ⌄ session menu, for the title bar's one-pop-up-at-a-time rule.</summary>
+    public Avalonia.Controls.Primitives.FlyoutBase? SessionMenu => MoreButton.Flyout;
+
+    // Round 2 (brief §3.2, CN §1 rule 2): the control is centred in the title bar by its resting width; the extras (Step away, ⌄,
+    // the end time) open to the left over the empty title bar, so the ring and the time never move when they open.
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        Size full = base.MeasureOverride(availableSize);
+        return new Size(Math.Max(0, full.Width - ExtrasWidth()), full.Height);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        double extras = ExtrasWidth();
+        foreach (Visual child in VisualChildren)
+        {
+            if (child is Layoutable layoutable)
+            {
+                layoutable.Arrange(new Rect(-extras, 0, finalSize.Width + extras, finalSize.Height));
+            }
+        }
+
+        return finalSize;
+    }
+
+    // Only the running pill has extras; when it is hidden its last measured width is stale.
+    private double ExtrasWidth() => Pill.IsVisible ? Extras.DesiredSize.Width : 0;
 
     protected override void OnDataContextChanged(EventArgs e)
     {

@@ -50,6 +50,9 @@ public partial class MainWindow : Window
     private bool _warmedUp;
     private bool _hookedWindowMessages;
 
+    // The title bar's pop-ups (volume, session menu, sync light, theme menu): opening one closes the others (round 2, brief §4.2).
+    private readonly OnePopupAtATime _titleBarPopups = new();
+
     // The popover is attached rather than the button's own Flyout: a Button toggles its Flyout on every click, which would
     // fight the hover-open / click-to-pin rules here.
     private FlyoutBase? SyncFlyout => FlyoutBase.GetAttachedFlyout(SyncLightButton);
@@ -117,6 +120,11 @@ public partial class MainWindow : Window
                 popupFlyout.OverlayInputPassThroughElement = this;
             }
         }
+
+        _titleBarPopups.Add(SyncFlyout);
+        _titleBarPopups.Add(SessionControl.SessionMenu);
+        _titleBarPopups.Add(NoiseControl.VolumeFlyout);
+        _titleBarPopups.Add(ThemeToggleControl.Menu);
 
         _syncHoverTimer.Tick += (_, _) =>
         {

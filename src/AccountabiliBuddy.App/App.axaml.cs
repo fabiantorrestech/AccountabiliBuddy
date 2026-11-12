@@ -1702,6 +1702,8 @@ public partial class App : Application
             DayBar = _dayBar,
             Search = new SearchViewModel(SearchDataAsync),
             Devices = devices,
+            // The title bar's light/dark toggle and theme menu (round 2): through AppTheme, this PC's "theme" document only.
+            ThemeToggle = new ThemeToggleViewModel(appTheme),
             // The title bar's session control: Start opens the usual start controls (the quick-session popup, as the global
             // shortcut does); End is the end-early flow with its wait and reason.
             SessionControl = new SessionControlViewModel(

@@ -1,0 +1,166 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.TitleBarNoiseView"
+             x:DataType="vm:NoisePlayerViewModel">
+    <!-- The noise control in the title bar (round 2, brief §3.2, §4.2): the sound's name, previous, next, the volume popover and
+         play/pause, in one pill after the app name. The same NoisePlayerViewModel as Today's card and the on-screen window. -->
+    <UserControl.Styles>
+        <Style Selector="Border#NoisePill">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,0,3,0" />
+        </Style>
+        <!-- Previous, next and volume: 26 square, quiet, ink. -->
+        <Style Selector="Button.noiseIcon">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.noiseIcon /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.noiseIcon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <!-- The volume button while its popover is open. -->
+        <Style Selector="Button.noiseIcon.open /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.noiseIcon:disabled">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+        <!-- Play/pause: a filled accent circle at the right end of the pill. -->
+        <Style Selector="Button.noisePlay">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="13" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.noisePlay /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.noisePlay:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Opacity" Value="0.9" />
+        </Style>
+        <Style Selector="Button.noisePlay:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.noiseIcon:focus-visible /template/ ContentPresenter#PART_ContentPresenter, Button.noisePlay:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+
+        <!-- The volume popover: 0–100 slider centred under the button, with the % chip (click or a digit to type). -->
+        <Style Selector="FlyoutPresenter.volumePopover">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PopoverRadius}" />
+            <Setter Property="Padding" Value="14,0,10,0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="Button.volumeChip">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="{DynamicResource Ab.NumeralFont}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Cursor" Value="IBeam" />
+        </Style>
+        <Style Selector="Button.volumeChip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox#VolumeBox">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="MinHeight" Value="26" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="FontFamily" Value="{DynamicResource Ab.NumeralFont}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.volumeEnd">
+            <Setter Property="FontFamily" Value="{DynamicResource Ab.NumeralFont}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="NoisePill" VerticalAlignment="Center">
+        <!-- The name's column is the one that gives way in a narrow window (it trims); the buttons keep their size. -->
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+            <mi:MaterialIcon Kind="MusicNote" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+            <TextBlock x:Name="SoundName" Grid.Column="1" Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12.5" MaxWidth="160"
+                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" Margin="6,0,8,0" />
+            <Button Grid.Column="2" Classes="noiseIcon" Command="{Binding PreviousCommand}" IsEnabled="{Binding HasFiles}"
+                    AutomationProperties.Name="Previous sound" ToolTip.Tip="Back to the start, or the previous file">
+                <mi:MaterialIcon Kind="SkipPrevious" Width="15" Height="15" />
+            </Button>
+            <Button Grid.Column="3" Classes="noiseIcon" Margin="2,0,0,0" Command="{Binding NextCommand}" IsEnabled="{Binding HasFiles}"
+                    AutomationProperties.Name="Next sound" ToolTip.Tip="Next file">
+                <mi:MaterialIcon Kind="SkipNext" Width="15" Height="15" />
+            </Button>
+            <Button x:Name="VolumeButton" Grid.Column="4" Classes="noiseIcon" Margin="2,0,0,0" AutomationProperties.Name="Noise volume" ToolTip.Tip="Noise volume (its own)">
+                <Button.Flyout>
+                    <Flyout Placement="Bottom" ShowMode="Standard" FlyoutPresenterClasses="volumePopover">
+                        <Grid x:Name="VolumePanel" ColumnDefinitions="Auto,150,Auto,Auto" ColumnSpacing="10" Height="44">
+                            <Grid.Resources>
+                                <!-- The slider's filled part and knob: the accent, as on the board. -->
+                                <SolidColorBrush x:Key="SliderTrackValueFill" Color="{DynamicResource Ab.AccentColor}" />
+                                <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+                                <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="{DynamicResource Ab.AccentColor}" />
+                                <SolidColorBrush x:Key="SliderThumbBackground" Color="{DynamicResource Ab.AccentColor}" />
+                                <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="{DynamicResource Ab.AccentColor}" />
+                                <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="{DynamicResource Ab.AccentColor}" />
+                            </Grid.Resources>
+                            <TextBlock Classes="volumeEnd" Text="0" />
+                            <!-- Click the track to jump; the keys are handled in the code-behind (arrows ±5, Shift ±1, Home/End, a digit types). -->
+                            <Slider x:Name="VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding Volume}" TickFrequency="1"
+                                    IsSnapToTickEnabled="True" VerticalAlignment="Center" AutomationProperties.Name="Noise volume" />
+                            <TextBlock Grid.Column="2" Classes="volumeEnd" Text="100" />
+                            <Panel Grid.Column="3" Width="46" Height="26" VerticalAlignment="Center">
+                                <Button x:Name="VolumeChip" Classes="volumeChip" Content="{Binding VolumeText}"
+                                        ToolTip.Tip="Click to type a volume" AutomationProperties.Name="Type a noise volume" />
+                                <TextBox x:Name="VolumeBox" IsVisible="False" MaxLength="3"
+                                         AutomationProperties.Name="Noise volume, type 0 to 100" />
+                            </Panel>
+                        </Grid>
+                    </Flyout>
+                </Button.Flyout>
+                <mi:MaterialIcon Kind="VolumeHigh" Width="15" Height="15" />
+            </Button>
+            <Button Grid.Column="5" Classes="noisePlay" Command="{Binding PlayPauseCommand}" IsEnabled="{Binding HasFiles}" Margin="4,0,0,0"
+                    AutomationProperties.Name="{Binding PlayTip}" ToolTip.Tip="{Binding PlayTip}">
+                <mi:MaterialIcon Kind="{Binding PlayIcon}" Width="14" Height="14" />
+            </Button>
+        </Grid>
+    </Border>
+</UserControl>
