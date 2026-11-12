@@ -1724,7 +1724,7 @@ public partial class App : Application
             {
                 tasksPage.UseTaskModel(taskStore, _taskActions, _taskViews, _taskTidyUp, _taskReminders);
                 // "Work on it now" with This session full: the same "This session is full" dialog (swap or Add anyway).
-                _taskReminders.SessionFull += (_, taskId) => Dispatcher.UIThread.Post(() => tasksPage.OfferSwapFor(taskId));
+                _taskReminders.SessionFull += (_, taskId) => Dispatcher.UIThread.Post(() => tasksPage.OfferSwapFor(taskId, _taskReminderRinger?.DialogOwner));
             }
 
             // The session layout (Compact, the Shelf hidden, faded Queued), the ended notice and Hold to reset (Tasks redesign 3.6).

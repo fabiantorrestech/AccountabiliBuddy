@@ -31,6 +31,9 @@ public sealed class ReminderDismissButton : Button
     public static readonly StyledProperty<IBrush?> FillBrushProperty =
         AvaloniaProperty.Register<ReminderDismissButton, IBrush?>(nameof(FillBrush));
 
+    public static readonly StyledProperty<string?> ShownKeyProperty =
+        AvaloniaProperty.Register<ReminderDismissButton, string?>(nameof(ShownKey));
+
     public static readonly StyledProperty<Func<DateTimeOffset>?> ClockProperty =
         AvaloniaProperty.Register<ReminderDismissButton, Func<DateTimeOffset>?>(nameof(Clock));
 
@@ -100,6 +103,13 @@ public sealed class ReminderDismissButton : Button
         set => SetValue(FillBrushProperty, value);
     }
 
+    /// <summary>Which reminder the button dismisses now: a hold started for another one ends when it changes.</summary>
+    public string? ShownKey
+    {
+        get => GetValue(ShownKeyProperty);
+        set => SetValue(ShownKeyProperty, value);
+    }
+
     /// <summary>The trusted clock the hold is timed by.</summary>
     public Func<DateTimeOffset>? Clock
     {
@@ -138,9 +148,9 @@ public sealed class ReminderDismissButton : Button
         {
             FollowWait();
         }
-        else if (change.Property == HoldTimeProperty && !Holds && _phase == FillPhase.Hold)
+        else if ((change.Property == HoldTimeProperty && !Holds) || change.Property == ShownKeyProperty)
         {
-            StopFill();
+            CancelHold();
         }
     }
 

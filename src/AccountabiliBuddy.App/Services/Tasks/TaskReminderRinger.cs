@@ -41,6 +41,9 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     private readonly SnoozePickerService _picker;
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly List<CantMissWindow> _fullWindows = [];
+
+    // The full-screen window that shows the card (the primary screen's).
+    private CantMissWindow? _cardWindow;
     private ReminderStackViewModel? _viewModel;
     private ReminderStackWindow? _stackWindow;
     private bool _fullScreen;
@@ -85,6 +88,12 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     public Action? OpenStart { get; set; }
 
     public bool IsRinging => _viewModel is not null;
+
+    /// <summary>
+    /// The window a dialog asked for by a reminder card shows over ("Pick a time…", "This session is full"): the full screen's card
+    /// window, else the toast stack; null when none shows. They are topmost, so a dialog owned by the main window would open under them.
+    /// </summary>
+    public Visual? DialogOwner => _cardWindow ?? (Visual?)_stackWindow;
 
     public void Dispose()
     {
@@ -152,7 +161,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
 
     public void PickTime()
     {
-        Visual? owner = _fullWindows.FirstOrDefault() ?? (Visual?)_stackWindow;
+        Visual? owner = DialogOwner;
         _ = ActAsync(entry => _picker.ShowAsync(owner, entry));
     }
 
@@ -290,6 +299,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
             _shownKey = shown.Key;
             _shownSince = _reminders.Now;
             _viewModel.CloseSnooze();
+            _viewModel.ShownKey = shown.Key;
         }
 
         Fill(_viewModel, pending, shown);
@@ -555,6 +565,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         {
             first.WindowState = WindowState.FullScreen;
             first.ShowCard();
+            _cardWindow = first;
             Track(first);
             return;
         }
@@ -563,9 +574,10 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         {
             CantMissWindow window = _fullWindows.Count == 0 ? first : new CantMissWindow { DataContext = view };
             window.Cover(screen);
-            if (ReferenceEquals(screen, cardScreen) || screen.Bounds == cardScreen.Bounds)
+            if (_cardWindow is null && (ReferenceEquals(screen, cardScreen) || screen.Bounds == cardScreen.Bounds))
             {
                 window.ShowCard();
+                _cardWindow = window;
             }
 
             Track(window);
@@ -625,6 +637,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     {
         List<CantMissWindow> windows = [.. _fullWindows];
         _fullWindows.Clear();
+        _cardWindow = null;
         foreach (CantMissWindow window in windows)
         {
             window.Close();

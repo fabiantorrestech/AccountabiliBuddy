@@ -30,6 +30,7 @@ public partial class TaskRowView : UserControl
 
     // Space is down on the row: its key repeats don't tick and untick the row again and again.
     private bool _spaceHeld;
+    private Window? _window;
 
     public TaskRowView()
     {
@@ -40,6 +41,23 @@ public partial class TaskRowView : UserControl
         RowButton.AddHandler(KeyDownEvent, OnRowSpaceDown, RoutingStrategies.Tunnel);
         RowButton.AddHandler(KeyUpEvent, OnRowSpaceUp, RoutingStrategies.Tunnel);
         RowButton.LostFocus += (_, _) => _spaceHeld = false;
+        // Space let go in another window never comes up here.
+        AttachedToVisualTree += (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this) is Window window)
+            {
+                _window = window;
+                window.Deactivated += OnWindowDeactivated;
+            }
+        };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            if (_window is not null)
+            {
+                _window.Deactivated -= OnWindowDeactivated;
+                _window = null;
+            }
+        };
     }
 
     private TaskSectionView? Section => this.FindAncestorOfType<TaskSectionView>();
@@ -297,6 +315,11 @@ public partial class TaskRowView : UserControl
         {
             tick.Execute(null);
         }
+    }
+
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        _spaceHeld = false;
     }
 
     private void OnRowSpaceUp(object? sender, KeyEventArgs e)

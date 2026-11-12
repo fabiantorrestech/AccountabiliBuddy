@@ -167,7 +167,7 @@
                         </StackPanel>
                     </Button>
                     <controls:ReminderDismissButton Grid.Column="2" Content="{Binding DismissText}" Command="{Binding DismissCommand}"
-                                                    WaitLeft="{Binding WaitLeft}" WaitTotal="{Binding WaitTotal}" HoldTime="{Binding HoldTime}"
+                                                    WaitLeft="{Binding WaitLeft}" WaitTotal="{Binding WaitTotal}" HoldTime="{Binding HoldTime}" ShownKey="{Binding ShownKey}"
                                                     Clock="{Binding Now}" />
                 </Grid>
             </StackPanel>

@@ -134,6 +134,10 @@ public sealed partial class ReminderStackViewModel : ObservableObject
     [ObservableProperty]
     public partial TimeSpan WaitTotal { get; set; }
 
+    /// <summary>The shown reminder's key (never shown): a Dismiss hold ends when another reminder takes its place.</summary>
+    [ObservableProperty]
+    public partial string? ShownKey { get; set; }
+
     /// <summary>Can't miss: Dismiss must be held this long once the wait is over.</summary>
     [ObservableProperty]
     public partial TimeSpan HoldTime { get; set; }

@@ -153,7 +153,8 @@ public partial class TasksView : UserControl
 
     private void OnSessionFullRequested(object? sender, SessionFullViewModel dialog)
     {
-        _ = SessionFullDialog.ShowAsync(this, dialog);
+        // A reminder's "Start session" opens it over the reminder's own topmost window; everything else over this page.
+        _ = SessionFullDialog.ShowAsync(dialog.Over ?? this, dialog);
     }
 
     // ---- "Hold to reset" (1.5 s): the fill grows while held; let go early (or a click) shows the hint for a moment ----

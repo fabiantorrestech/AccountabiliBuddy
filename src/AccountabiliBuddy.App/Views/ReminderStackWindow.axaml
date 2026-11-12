@@ -129,9 +129,15 @@
         <Style Selector="Button.remRow.shown /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
-        <!-- Room above the card for the tilted cards behind it, only while they show (the window is no bigger than what it shows:
-             a clear part of a window still takes clicks). -->
-        <Style Selector="Grid.remDeck.behind">
+        <!-- Room above the card for the tilted cards behind it, only as much as the ones showing need (the window is no bigger than
+             what it shows: a clear part of a window still takes clicks). One card: −1.5° and 8 up; two: 3° and 16 up; three: −4° and 24 up. -->
+        <Style Selector="Grid.remDeck.near">
+            <Setter Property="Margin" Value="0,14,0,0" />
+        </Style>
+        <Style Selector="Grid.remDeck.mid">
+            <Setter Property="Margin" Value="0,26,0,0" />
+        </Style>
+        <Style Selector="Grid.remDeck.far">
             <Setter Property="Margin" Value="0,30,0,0" />
         </Style>
         <Style Selector="Border.remBehind">
@@ -179,7 +185,7 @@
             </StackPanel>
         </Border>
 
-        <Grid Classes="remDeck" Classes.behind="{Binding ShowsBehindNear}">
+        <Grid Classes="remDeck" Classes.near="{Binding ShowsBehindNear}" Classes.mid="{Binding ShowsBehindMid}" Classes.far="{Binding ShowsBehindFar}">
             <!-- Up to 3 tilted cards behind the front one: −4°, 3°, −1.5° (the farthest first). -->
             <Border Classes="remBehind" IsVisible="{Binding ShowsBehindFar}" RenderTransform="rotate(-4deg) translate(-6px,-24px)" />
             <Border Classes="remBehind" IsVisible="{Binding ShowsBehindMid}" RenderTransform="rotate(3deg) translate(4px,-16px)" />
@@ -284,7 +290,7 @@
                                 </StackPanel>
                             </Button>
                             <controls:ReminderDismissButton Grid.Column="2" Content="{Binding DismissText}" Command="{Binding DismissCommand}"
-                                                            WaitLeft="{Binding WaitLeft}" WaitTotal="{Binding WaitTotal}" HoldTime="{Binding HoldTime}"
+                                                            WaitLeft="{Binding WaitLeft}" WaitTotal="{Binding WaitTotal}" HoldTime="{Binding HoldTime}" ShownKey="{Binding ShownKey}"
                                                             Clock="{Binding Now}" />
                         </Grid>
                     </StackPanel>

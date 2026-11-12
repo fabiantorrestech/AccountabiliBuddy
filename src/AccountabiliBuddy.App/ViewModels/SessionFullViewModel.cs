@@ -92,6 +92,12 @@ public sealed partial class SessionFullViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsAskingReason), nameof(IsChoosing))]
     public partial PendingMoveViewModel? Reason { get; set; }
 
+    /// <summary>
+    /// The window the dialog shows over instead of the page's (a ringing reminder's topmost window, so the dialog isn't hidden under
+    /// it); null for the page's own window.
+    /// </summary>
+    public Avalonia.Visual? Over { get; init; }
+
     public bool IsAskingReason => Reason is not null;
 
     public bool IsChoosing => Reason is null;

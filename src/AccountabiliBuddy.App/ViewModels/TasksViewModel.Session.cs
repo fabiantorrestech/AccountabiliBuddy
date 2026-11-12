@@ -454,19 +454,22 @@ public sealed partial class TasksViewModel
 
     // ---- "This session is full" ----
 
-    /// <summary>"Work on it now" from a reminder found This session full: the same dialog (a swap or Add anyway).</summary>
-    public void OfferSwapFor(Guid taskId)
+    /// <summary>
+    /// "Work on it now" from a reminder found This session full: the same dialog (a swap or Add anyway), shown over
+    /// <paramref name="over"/> (the reminder's own topmost window) when given, so it isn't hidden under it.
+    /// </summary>
+    public void OfferSwapFor(Guid taskId, Avalonia.Visual? over = null)
     {
-        OfferSwap([taskId]);
+        OfferSwap([taskId], over: over);
     }
 
     // Tasks that found no room: the dialog offers a swap or Add anyway for each; closing leaves them where they were.
-    private void OfferSwap(IReadOnlyList<Guid> taskIds, string? fallback = null)
+    private void OfferSwap(IReadOnlyList<Guid> taskIds, string? fallback = null, Avalonia.Visual? over = null)
     {
         List<SessionIncomingItem> items = taskIds.Distinct().Select(IncomingTask).OfType<SessionIncomingItem>().ToList();
         ShowSessionFull(items, fallback ?? (taskIds.Count == 1
             ? "This session is full. Finish one of its actions or move one to Queued first."
-            : $"This session is full: {taskIds.Count} of them stayed where they were."));
+            : $"This session is full: {taskIds.Count} of them stayed where they were."), over);
     }
 
     // A step's target found no free place.
@@ -478,7 +481,7 @@ public sealed partial class TasksViewModel
         }
     }
 
-    private void ShowSessionFull(IReadOnlyList<SessionIncomingItem> items, string fallback)
+    private void ShowSessionFull(IReadOnlyList<SessionIncomingItem> items, string fallback, Avalonia.Visual? over = null)
     {
         if (items.Count == 0)
         {
@@ -491,7 +494,7 @@ public sealed partial class TasksViewModel
             return;
         }
 
-        var dialog = new SessionFullViewModel(items, SlotsFor, SwapInAsync, AddAnywayAsync, StillWaiting);
+        var dialog = new SessionFullViewModel(items, SlotsFor, SwapInAsync, AddAnywayAsync, StillWaiting) { Over = over };
         if (!dialog.IsEmpty)
         {
             SessionFullRequested.Invoke(this, dialog);
