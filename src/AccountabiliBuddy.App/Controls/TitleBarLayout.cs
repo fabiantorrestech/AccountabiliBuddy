@@ -4,12 +4,14 @@ using Avalonia.Controls;
 namespace AccountabiliBuddy.App.Controls;
 
 /// <summary>
-/// The title bar's three groups (round 2, brief §3.2): the <see cref="TitleBarSlot.Start"/> group at the left edge, the
-/// <see cref="TitleBarSlot.End"/> group at the right edge, and the <see cref="TitleBarSlot.Center"/> child (the session control)
-/// centred on the whole width, so neither side group moves it and it moves neither of them. A centre child that keeps room on its
-/// left for something that opens there (<see cref="ITitleBarLeftReserve"/>: the session control's extras) is centred by the rest
-/// of its width, and that room never overlaps the left group. In a narrow window the centre child slides toward whichever side has
-/// room, and never overlaps the side groups' laid-out widths. Each child is laid out at its own desired size, vertically centred.
+/// The title bar's two groups (round 2, brief §3.2; owner 2026-11-14): the <see cref="TitleBarSlot.Start"/> children stack from the
+/// left edge (back / forward, the app name, the noise control) and the <see cref="TitleBarSlot.End"/> children stack leftwards from
+/// the right edge, last one rightmost (the session control, then synced devices │ light/dark │ Search │ the caption buttons). The end
+/// children take their full width first, so in a narrow window the start group is the part that gives way (its own
+/// <see cref="GiveWayPanel"/> order: the sound name, then the app name). Only when the start group is down to its smallest width
+/// does an end child that keeps room on its left (<see cref="ITitleBarLeftReserve"/>: the session control's extras) get less width
+/// than it asked for; it takes the cut out of that room, so it never overlaps the start group. Each child is laid out at its own
+/// desired size, vertically centred.
 /// </summary>
 public sealed class TitleBarLayout : Panel
 {
@@ -25,24 +27,62 @@ public sealed class TitleBarLayout : Panel
 
     public static void SetSlot(Control control, TitleBarSlot slot) => control.SetValue(SlotProperty, slot);
 
-    // The centre and end children take their full width; the start children get what is left, so in a narrow window the start
-    // group (the noise control's sound name) is the part that gives way.
     protected override Size MeasureOverride(Size availableSize)
     {
         var unbounded = new Size(double.PositiveInfinity, availableSize.Height);
-        double width = 0;
+        bool bounded = !double.IsInfinity(availableSize.Width);
+        double fixedEnd = 0;
         double height = 0;
+        var reserving = new List<Control>();
         foreach (Control child in Children)
         {
-            if (GetSlot(child) != TitleBarSlot.Start)
+            if (GetSlot(child) != TitleBarSlot.End)
             {
-                child.Measure(unbounded);
-                width += child.DesiredSize.Width;
-                height = Math.Max(height, child.DesiredSize.Height);
+                continue;
+            }
+
+            child.Measure(unbounded);
+            height = Math.Max(height, child.DesiredSize.Height);
+            if (child is ITitleBarLeftReserve)
+            {
+                reserving.Add(child);
+            }
+            else
+            {
+                fixedEnd += child.DesiredSize.Width;
             }
         }
 
-        double startRoom = double.IsInfinity(availableSize.Width) ? double.PositiveInfinity : Math.Max(0, availableSize.Width - width);
+        // The start group at its smallest: a give-way row with every give-way child down to its floor, anything else as it asks.
+        // (A measure with no room can't tell: a control's desired size never exceeds the room it was given.)
+        double startMinimum = 0;
+        foreach (Control child in Children)
+        {
+            if (GetSlot(child) == TitleBarSlot.Start)
+            {
+                child.Measure(unbounded);
+                startMinimum += child is GiveWayPanel row
+                    ? row.SmallestWidth + row.Margin.Left + row.Margin.Right
+                    : child.DesiredSize.Width;
+            }
+        }
+
+        // What the reserving end children may take without pushing the start group below its smallest.
+        double reserveRoom = bounded ? Math.Max(0, availableSize.Width - fixedEnd - startMinimum) : double.PositiveInfinity;
+        double end = fixedEnd;
+        foreach (Control child in reserving)
+        {
+            if (child.DesiredSize.Width > reserveRoom)
+            {
+                child.Measure(new Size(reserveRoom, availableSize.Height));
+            }
+
+            reserveRoom = Math.Max(0, reserveRoom - child.DesiredSize.Width);
+            end += child.DesiredSize.Width;
+        }
+
+        double startRoom = bounded ? Math.Max(0, availableSize.Width - end) : double.PositiveInfinity;
+        double width = end;
         foreach (Control child in Children)
         {
             if (GetSlot(child) == TitleBarSlot.Start)
@@ -54,7 +94,7 @@ public sealed class TitleBarLayout : Panel
             }
         }
 
-        double desiredWidth = double.IsInfinity(availableSize.Width) ? width : availableSize.Width;
+        double desiredWidth = bounded ? availableSize.Width : width;
         double desiredHeight = double.IsInfinity(availableSize.Height) ? height : availableSize.Height;
         return new Size(desiredWidth, desiredHeight);
     }
@@ -62,12 +102,9 @@ public sealed class TitleBarLayout : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         double startRight = 0;
-        double endLeft = finalSize.Width;
-
         foreach (Control child in Children)
         {
-            TitleBarSlot slot = GetSlot(child);
-            if (slot == TitleBarSlot.Start)
+            if (GetSlot(child) == TitleBarSlot.Start)
             {
                 child.Arrange(Centred(startRight, child.DesiredSize, finalSize.Height));
                 startRight += child.DesiredSize.Width;
@@ -75,6 +112,7 @@ public sealed class TitleBarLayout : Panel
         }
 
         // End children stack leftwards from the right edge, last one rightmost.
+        double endLeft = finalSize.Width;
         for (int i = Children.Count - 1; i >= 0; i--)
         {
             Control child = Children[i];
@@ -83,23 +121,6 @@ public sealed class TitleBarLayout : Panel
                 endLeft -= child.DesiredSize.Width;
                 child.Arrange(Centred(endLeft, child.DesiredSize, finalSize.Height));
             }
-        }
-
-        foreach (Control child in Children)
-        {
-            if (GetSlot(child) != TitleBarSlot.Center)
-            {
-                continue;
-            }
-
-            double width = child.DesiredSize.Width;
-            double reserve = child is ITitleBarLeftReserve reserving ? Math.Min(reserving.LeftReserve, width) : 0;
-            // The resting part is centred; the reserve sits to its left.
-            double left = (finalSize.Width - (width - reserve)) / 2 - reserve;
-            // Too little room in the middle: keep it clear of the right group first, then (reserve included) of the left group.
-            left = Math.Min(left, endLeft - width);
-            left = Math.Max(left, startRight);
-            child.Arrange(Centred(left, child.DesiredSize, finalSize.Height));
         }
 
         return finalSize;

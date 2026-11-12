@@ -1,5 +1,6 @@
 using AccountabiliBuddy.App.Controls;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Navigation;
 using AccountabiliBuddy.App.Services.Search;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
@@ -73,6 +74,8 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DropEvent, OnDrop);
         // A click away from the search flyout closes it, whatever it holds.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        // The mouse's back / forward buttons, anywhere in the window (owner 2026-11-14).
+        AddHandler(PointerPressedEvent, OnNavigationPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         // The maximize button shows "restore" while the window is maximized.
         PropertyChanged += (_, e) =>
         {
@@ -178,6 +181,9 @@ public partial class MainWindow : Window
                 // The sync light's popover is its own little tree; it reads the window's view model.
                 SyncPopover.DataContext = viewModel;
                 ConnectSearch(viewModel);
+                // Back / forward: no move while a dialog this window owns is open (the unsaved-settings prompt is checked by the view model).
+                viewModel.IsModalOpen = () => OwnedWindows.Any(window => window.IsVisible);
+                viewModel.ConnectNavigation();
             }
         };
     }
@@ -302,6 +308,33 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
 
+    // XButton1 / XButton2 go back / forward wherever the pointer is; the press is taken so nothing under it also acts on it.
+    private void OnNavigationPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (NavigationKeys.FromPointer(e.GetCurrentPoint(this).Properties.PointerUpdateKind) is HistoryDirection direction
+            && DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.Go(direction);
+            e.Handled = true;
+        }
+    }
+
+    // What has the keyboard, as far as Alt+← / Alt+→ go: a text box and a Tasks column header keep those keys.
+    private NavigationFocus FocusForNavigation()
+    {
+        if (FocusManager?.GetFocusedElement() is not Visual focused)
+        {
+            return NavigationFocus.Other;
+        }
+
+        if (focused is TextBox || focused.FindAncestorOfType<TextBox>() is not null)
+        {
+            return NavigationFocus.TextInput;
+        }
+
+        return TaskColumnView.IsHeader(focused) ? NavigationFocus.ColumnHeader : NavigationFocus.Other;
+    }
+
     private static bool IsInside(Visual container, Visual visual)
     {
         return ReferenceEquals(container, visual) || container.IsVisualAncestorOf(visual);
@@ -373,6 +406,12 @@ public partial class MainWindow : Window
         {
             viewModel.Search?.ClearCommand.Execute(null);
             viewModel.IsSearchOpen = false;
+            e.Handled = true;
+        }
+        else if (NavigationKeys.FromKey(e.Key, e.KeyModifiers, e.Handled, FocusForNavigation()) is HistoryDirection direction)
+        {
+            // Alt+← / Alt+→ (owner 2026-11-14): back / forward, unless what has the keyboard uses them.
+            viewModel.Go(direction);
             e.Handled = true;
         }
         else if (_taskShortcuts.Handle(e, viewModel, FocusManager?.GetFocusedElement()))
@@ -501,6 +540,8 @@ public partial class MainWindow : Window
         }
 
         _shownTab = selected;
+        // Back / forward: the tab really shown is where the user went (a back / forward move isn't recorded again).
+        viewModel.RecordPlace();
 
         for (int i = 0; i < Pages.Children.Count; i++)
         {

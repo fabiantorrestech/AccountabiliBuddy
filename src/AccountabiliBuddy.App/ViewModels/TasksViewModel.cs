@@ -243,6 +243,19 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsDetailOpen { get; set; }
 
+    /// <summary>Back / forward (owner 2026-11-14): the task open in the open-task card, or null when none is open.</summary>
+    public TaskRowKey? OpenTaskKey => IsDetailOpen ? Detail?.Key : null;
+
+    /// <summary>Back / forward: the task can still be opened (false once it is deleted or gone from its list).</summary>
+    public bool HasTask(TaskRowKey key) => Read(key) is not null;
+
+    /// <summary>Back / forward: opens the task in the open-task card, as a click on its row does (nothing else changes).</summary>
+    public void OpenTask(TaskRowKey key)
+    {
+        IsDetailOpen = true;
+        Select(key);
+    }
+
     /// <summary>The detail card's close button and Esc (narrow pages): saves what is being edited, then hides the card and deselects.</summary>
     [RelayCommand]
     private void CloseDetail()

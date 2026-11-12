@@ -21,8 +21,22 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
         _noise = noise;
         TrackText = string.Empty;
         _noise.Changed += (_, _) => Show();
+        _noise.HeadphonesNeeded += (_, _) => HeadphonesNeeded?.Invoke(this, EventArgs.Empty);
         Show();
     }
+
+    /// <summary>What the title bar's noise control scrolls through its name box when the lock stops or refuses play.</summary>
+    public const string HeadphonesNoticeText = "Locked to headphones · connect headphones";
+
+    /// <summary>
+    /// Locked to headphones and none connected: raised each time the lock stops or refuses play (the title bar's noise control shows
+    /// <see cref="HeadphonesNoticeText"/> once, then the sound's name again).
+    /// </summary>
+    public event EventHandler? HeadphonesNeeded;
+
+    /// <summary>The sound's name (or why there's nothing to play), never a notice: the title bar's name box, which keeps its width.</summary>
+    [ObservableProperty]
+    public partial string NameText { get; set; } = string.Empty;
 
     /// <summary>The file playing or next, why there's nothing to play, or a short notice such as "Connect headphones".</summary>
     [ObservableProperty]
@@ -146,7 +160,8 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
         NoiseSettings settings = _noise.Settings;
         HasFiles = _noise.HasFiles;
         HasNotice = _noise.Notice is not null;
-        TrackText = _noise.Notice ?? _noise.CurrentName ?? "No sound files in the folder (choose one in Settings)";
+        NameText = _noise.CurrentName ?? "No sound files in the folder (choose one in Settings)";
+        TrackText = _noise.Notice ?? NameText;
         IsPlaying = _noise.IsPlaying;
         IsLocked = _noise.IsLockedToHeadphones;
         Volume = settings.Volume;

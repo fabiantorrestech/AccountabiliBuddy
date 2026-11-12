@@ -31,6 +31,13 @@ public partial class TaskColumnView : UserControl
 
     // ---- Alt+← / Alt+→ on the header ----
 
+    /// <summary>The visual is a column's header (or inside it), where Alt+← / Alt+→ move the column, not back / forward.</summary>
+    public static bool IsHeader(Visual visual)
+    {
+        TaskColumnView? column = visual as TaskColumnView ?? visual.FindAncestorOfType<TaskColumnView>();
+        return column is not null && (ReferenceEquals(column.HeaderButton, visual) || column.HeaderButton.IsVisualAncestorOf(visual));
+    }
+
     private void OnHeaderKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.KeyModifiers != KeyModifiers.Alt || e.Key is not (Key.Left or Key.Right) || DataContext is not TaskSectionViewModel { CanMoveColumn: true } column)

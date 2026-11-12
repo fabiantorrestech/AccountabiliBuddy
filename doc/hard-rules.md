@@ -80,6 +80,10 @@ Moved verbatim from the project CLAUDE.md on 2026-10-26; CLAUDE.md keeps a short
 6. **One place per thing.** The same item is never shown twice in a page's content (for example, the current task is not repeated next to the timer). App chrome is exempt: the title-bar session timer stays on every tab, including Today, because it is a fixed anchor (rule 1).
 7. **Session start or end keeps the layout.** Today's in-session and not-in-session layouts share the same skeleton: the session or start card in the same slot, and the task list in the same slot.
 
+### Back / forward (PC; owner 2026-11-14)
+
+- **Back / forward** (the title bar's ← →, the mouse's back / forward buttons, Alt+← / Alt+→) only show a place the way the rail, a Settings row, a task row or a goal row would: the tab, Settings' section, the open task, the goal shown. The history is memory only (at most 50 places, gone on restart), never stored, synced or backed up. It never unlocks anything: Settings in a session opens locked as usual, a change Settings can't save asks Save / Discard / Stay as the rail does, and nothing moves while a dialog owned by the window is open. It is not a user action for anything else (no timer, wait, nudge or guard reads it).
+
 ### Title bar appearance toggle (round 2, ADR 49)
 
 - **The title bar's light/dark toggle and theme menu** (PC; click flips light/dark, right-click or a 450 ms hold opens Mode, Theme and Theme settings…) write only this PC's `theme` document through `AppTheme`, the same as Settings › Appearance: per device, never synced, never in a profile. Appearance is not a guard setting, so the toggle works during a focus session; "Theme settings…" opens Settings, where Settings' own session locks apply.

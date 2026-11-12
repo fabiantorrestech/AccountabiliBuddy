@@ -80,6 +80,37 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
         </Style>
+        <!-- Back / forward (owner 2026-11-14), at the far left of the title bar: quiet 28 x 32 arrows, Ink while there is somewhere to go,
+             Faint (greyed) while not, like a browser's. -->
+        <Style Selector="Button.titleNav">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.titleNav /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.titleNav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.titleNav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.titleNav:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.titleNav:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
         <!-- The window's own caption buttons, 46 x 40 (Tasks redesign 03 §A). Their roles make Windows treat them as the real ones
              (minimize, maximize with snap layouts, close); a click is the system's, not a command of ours. -->
         <Style Selector="Button.caption">
@@ -150,16 +181,29 @@
     </Window.Styles>
     <Panel>
         <Grid RowDefinitions="40,Auto,*">
-            <!-- Title bar, 40 tall (round 2, brief §3.2): at the left the app name, the PB pill (ProductaBuddy mode only) and the noise
-                 control; centred on the window the session control (it opens its extras to the left, over the empty title bar, so nothing
-                 moves); at the right, each group split by a 1 px line: synced devices (the sync light and the sync button) │ light/dark │
-                 Search │ the window's own minimize / maximize / close (snap layouts and all). The empty part drags the window and a
-                 double click maximizes it. Only one title-bar pop-up is open at a time (MainWindow.axaml.cs). -->
+            <!-- Title bar, 40 tall (round 2, brief §3.2; owner 2026-11-14): at the left back / forward │ the app name, the PB pill
+                 (ProductaBuddy mode only) │ the noise control; at the right the session control (it keeps room on its left where its
+                 extras open, so nothing moves), then each group split by a 1 px line: synced devices (the sync light and the sync
+                 button) │ light/dark │ Search │ the window's own minimize / maximize / close (snap layouts and all). The empty part
+                 drags the window and a double click maximizes it. Only one title-bar pop-up is open at a time (MainWindow.axaml.cs). -->
             <controls:TitleBarLayout x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}"
                                      chrome:WindowDecorationProperties.ElementRole="TitleBar">
-                <!-- In a narrow window the sound name gives way first, then the app name; the noise buttons keep their size (156 = the pill
-                     without its name). -->
-                <controls:GiveWayPanel x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" Margin="16,0,10,0" VerticalAlignment="Center">
+                <!-- In a narrow window the sound name gives way first, then the app name; back / forward and the noise buttons keep their
+                     size (156 = the pill without its name). -->
+                <controls:GiveWayPanel x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" Margin="8,0,10,0" VerticalAlignment="Center">
+                    <!-- Back / forward (owner 2026-11-14): always here, greyed while there is nowhere to go (Alt+← / Alt+→, the mouse's
+                         back / forward buttons). -->
+                    <StackPanel x:Name="NavButtons" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="BackButton" Classes="titleNav" Command="{Binding GoBackCommand}" chrome:WindowDecorationProperties.ElementRole="User"
+                                ToolTip.Tip="Back (Alt+←)" AutomationProperties.Name="Back">
+                            <mi:MaterialIcon Kind="ArrowLeft" Width="18" Height="18" />
+                        </Button>
+                        <Button x:Name="ForwardButton" Classes="titleNav" Command="{Binding GoForwardCommand}" chrome:WindowDecorationProperties.ElementRole="User"
+                                ToolTip.Tip="Forward (Alt+→)" AutomationProperties.Name="Forward">
+                            <mi:MaterialIcon Kind="ArrowRight" Width="18" Height="18" />
+                        </Button>
+                    </StackPanel>
+                    <Border Classes="titleDivider" Height="18" Margin="8,0,10,0" controls:GiveWayPanel.IsDivider="True" />
                     <TextBlock controls:GiveWayPanel.Order="2" Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False" />
                     <!-- Not hit-testable, so it drags the window like the name; its name is read out instead of a tooltip. -->
@@ -168,15 +212,15 @@
                             VerticalAlignment="Center" AutomationProperties.Name="ProductaBuddy mode">
                         <TextBlock Text="PB" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" />
                     </Border>
-                    <Border Classes="titleDivider" Height="18" Margin="10,0" IsVisible="{Binding HasNoisePlayer}" />
+                    <Border Classes="titleDivider" Height="18" Margin="10,0" IsVisible="{Binding HasNoisePlayer}" controls:GiveWayPanel.IsDivider="True" />
                     <Panel controls:GiveWayPanel.Order="1" MinWidth="156" IsVisible="{Binding HasNoisePlayer}" VerticalAlignment="Center">
                         <views:TitleBarNoiseView x:Name="NoiseControl" DataContext="{Binding Session.NoisePlayer}"
                                                  chrome:WindowDecorationProperties.ElementRole="User" />
                     </Panel>
                 </controls:GiveWayPanel>
 
-                <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts). -->
-                <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="Center" DataContext="{Binding SessionControl}"
+                <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts): right, next to the synced devices (owner 2026-11-14). -->
+                <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="End" DataContext="{Binding SessionControl}"
                                           chrome:WindowDecorationProperties.ElementRole="User" />
 
                 <StackPanel x:Name="TitleBarEnd" controls:TitleBarLayout.Slot="End" Orientation="Horizontal">

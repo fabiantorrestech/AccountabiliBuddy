@@ -139,8 +139,20 @@
         <!-- The name's column is the one that gives way in a narrow window (it trims); the buttons keep their size. -->
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
             <mi:MaterialIcon Kind="MusicNote" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
-            <TextBlock x:Name="SoundName" Grid.Column="1" Text="{Binding TrackText}" ToolTip.Tip="{Binding TrackText}" FontSize="12.5" MaxWidth="160"
-                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" Margin="6,0,8,0" />
+            <!-- The name box (owner 2026-11-14): its width is the name's; a notice ("Locked to headphones · connect headphones") is drawn
+                 over it on a Canvas, which asks for no width, scrolls through the box once and gives the name back (code-behind). -->
+            <Panel x:Name="NameBox" Grid.Column="1" Margin="6,0,8,0" ClipToBounds="True" VerticalAlignment="Center" Background="Transparent">
+                <TextBlock x:Name="SoundName" Text="{Binding NameText}" ToolTip.Tip="{Binding NameText}" FontSize="12.5" MaxWidth="160"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                <Canvas x:Name="NoticeCanvas" IsHitTestVisible="False">
+                    <TextBlock x:Name="NoticeText" Opacity="0" FontSize="12.5" Foreground="{DynamicResource Ab.Ink}"
+                               AutomationProperties.LiveSetting="Polite">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform />
+                        </TextBlock.RenderTransform>
+                    </TextBlock>
+                </Canvas>
+            </Panel>
             <Button Grid.Column="2" Classes="noiseIcon" Command="{Binding PreviousCommand}" IsEnabled="{Binding HasFiles}"
                     AutomationProperties.Name="Previous sound" ToolTip.Tip="Back to the start, or the previous file">
                 <mi:MaterialIcon Kind="SkipPrevious" Width="15" Height="15" />

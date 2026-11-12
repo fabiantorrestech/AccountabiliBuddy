@@ -56,6 +56,12 @@ public sealed class NoisePlayerService : IDisposable
 
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// The player is locked to headphones and none are the sound output: raised each time that stops or refuses play (Play, a media
+    /// key, headphones going, the lock turned on while playing), so the title bar can say so once each time (owner 2026-11-14).
+    /// </summary>
+    public event EventHandler? HeadphonesNeeded;
+
     public NoiseSettings Settings => _settings.Current;
 
     public bool HasFiles => _files.Count > 0;
@@ -439,6 +445,10 @@ public sealed class NoisePlayerService : IDisposable
         _noticeTimer.Stop();
         _noticeTimer.Start();
         Changed?.Invoke(this, EventArgs.Empty);
+        if (notice == ConnectHeadphonesNotice)
+        {
+            HeadphonesNeeded?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void LoadFolder()

@@ -73,36 +73,50 @@ public partial class SessionControlView : UserControl, AccountabiliBuddy.App.Con
         e.Handled = true;
     }
 
-    // Round 2 (brief §3.2, CN §1 rules 2 and 3; R1 review): the extras (Step away, the end time) open to the left of the ring. Their
-    // full open width is reserved inside this control's own bounds while the pill shows, so opening them moves nothing, they never
-    // cover the noise control, and they are hit-tested as this control's buttons (never as the title bar's drag area). The title bar
-    // centres the resting part (ring, time, ⋯) and keeps the reserve clear of the left group (TitleBarLayout, LeftReserve).
+    // Round 2 (brief §3.2, CN §1 rules 2 and 3; R1 review; owner 2026-11-14): the control sits at the right of the title bar, next to
+    // the synced devices, and the extras (Step away, the end time) open to the left of the ring. Their full open width is reserved
+    // inside this control's own bounds while the pill shows, so opening them moves nothing, they never cover the noise control, and
+    // they are hit-tested as this control's buttons (never as the title bar's drag area). The control always asks for at least
+    // FootprintWidth, in every state, so Start session, a running session and Ended take the same room and the left group never
+    // trims differently when the state changes. In a window too narrow for that, the title bar first lets the left group give way,
+    // then measures this control with less width: the extras' open width takes the cut (the end time trims), never the ring or time.
     private double _openExtrasWidth;
+
+    /// <summary>The room the control keeps in every state: a running pill with its extras open, in the widest theme font.</summary>
+    public const double FootprintWidth = 372;
+
+    // The open style's MaxWidth on Border#Extras (SessionControlView.axaml).
+    private const double ExtrasOpenMaxWidth = 360;
 
     /// <summary>The width kept free left of the ring for the extras when open; 0 while idle or ended.</summary>
     public double LeftReserve => Pill.IsVisible ? _openExtrasWidth : 0;
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        // The open width is the extras' content at its natural size (capped like the open style's MaxWidth), not the animated
-        // MaxWidth; the content is measured unconstrained first, and the normal pass below measures it again under the MaxWidth.
-        if (Pill.IsVisible && Extras.Child is Layoutable content)
+        var unbounded = new Size(double.PositiveInfinity, availableSize.Height);
+        Size full = base.MeasureOverride(unbounded);
+        // The extras' natural width is read from their row, which measures its children unconstrained whatever width it is given
+        // (closed, the Border's animated MaxWidth is 0); the part always shown is what's left once the extras' current width is out.
+        double shownExtras = Pill.IsVisible ? Extras.DesiredSize.Width : 0;
+        double resting = full.Width - shownExtras;
+        double naturalExtras = Pill.IsVisible ? Math.Min(ExtrasRow.NaturalWidth, ExtrasOpenMaxWidth) : 0;
+        double footprint = Math.Min(Math.Max(FootprintWidth, resting + naturalExtras), availableSize.Width);
+        footprint = Math.Max(footprint, resting);
+        _openExtrasWidth = Pill.IsVisible ? Math.Max(0, Math.Min(naturalExtras, footprint - resting)) : 0;
+
+        // Cap the extras' row at what fits, so it gives way (the end time trims) instead of overflowing to the left.
+        double cap = Pill.IsVisible && _openExtrasWidth < naturalExtras ? _openExtrasWidth : double.PositiveInfinity;
+        if (!SameWidth(ExtrasRow.MaxWidth, cap))
         {
-            content.Measure(Size.Infinity);
-            _openExtrasWidth = Math.Min(content.DesiredSize.Width + Extras.Padding.Left + Extras.Padding.Right, ExtrasOpenMaxWidth);
-        }
-        else
-        {
-            _openExtrasWidth = 0;
+            ExtrasRow.MaxWidth = cap;
+            base.MeasureOverride(unbounded);
         }
 
-        Size full = base.MeasureOverride(availableSize);
-        double shownExtras = Pill.IsVisible ? Extras.DesiredSize.Width : 0;
-        return new Size(full.Width - shownExtras + LeftReserve, full.Height);
+        return new Size(footprint, full.Height);
     }
 
-    // The open style's MaxWidth on Border#Extras (SessionControlView.axaml).
-    private const double ExtrasOpenMaxWidth = 360;
+    private static bool SameWidth(double a, double b) =>
+        (double.IsPositiveInfinity(a) && double.IsPositiveInfinity(b)) || Math.Abs(a - b) < 0.5;
 
     protected override void OnDataContextChanged(EventArgs e)
     {

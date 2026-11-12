@@ -198,6 +198,9 @@ public sealed partial class GoalsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Back / forward (owner 2026-11-14): the goal is still there (false once deleted).</summary>
+    public bool HasGoal(Guid id) => _goals.Store.Lists.LiveGoals.Any(goal => goal.Id == id);
+
     /// <summary>Shows a goal in the detail pane (clicking a row never moves it).</summary>
     public void Select(Guid id)
     {
