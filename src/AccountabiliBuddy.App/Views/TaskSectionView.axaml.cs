@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
@@ -11,7 +12,8 @@ namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
 /// One section of a task panel. Code-behind: the header's right-click menu, the "+" box taking the keyboard as it opens (and closing
-/// when left empty), and dragging a row by its handle within the section (This session's order).
+/// when left empty), dragging a row by its handle within this section or into another one on the page, Alt+↑/↓ (the keyboard stays on
+/// the moved row), and Ctrl+A / Esc for the selection.
 /// </summary>
 public partial class TaskSectionView : UserControl
 {
@@ -21,8 +23,9 @@ public partial class TaskSectionView : UserControl
     private TaskListRowViewModel? _dragRow;
     private Point _dragStart;
     private bool _isDragging;
-    private TaskListRowViewModel? _dropTarget;
-    private bool _dropAfter;
+    private DropPlace? _drop;
+    private TaskSectionViewModel? _subscribed;
+    private TaskRowKey? _refocus;
 
     public TaskSectionView()
     {
@@ -56,12 +59,90 @@ public partial class TaskSectionView : UserControl
         }
     }
 
-    // ---- Drag to reorder: pressing a row's handle takes the pointer; the drag starts once it has moved a few pixels. ----
+    // Ctrl+A selects every row the panel shows; Esc clears the selection (when there is one; otherwise Esc is left to the page).
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || DataContext is not TaskSectionViewModel section || TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox)
+        {
+            return;
+        }
+
+        if (e.Key == Key.A && e.KeyModifiers == KeyModifiers.Control)
+        {
+            section.SelectAll();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && section.ClearSelection())
+        {
+            e.Handled = true;
+        }
+    }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (_subscribed is not null)
+        {
+            _subscribed.Rows.CollectionChanged -= OnRowsChanged;
+        }
+
+        _subscribed = DataContext as TaskSectionViewModel;
+        if (_subscribed is not null)
+        {
+            _subscribed.Rows.CollectionChanged += OnRowsChanged;
+        }
+    }
+
+    // ---- Alt+↑/↓: the row moves one place in this section; the keyboard stays on it after the page is rebuilt. ----
+
+    internal void MoveByKey(TaskListRowViewModel row, int step)
+    {
+        if (DataContext is not TaskSectionViewModel section)
+        {
+            return;
+        }
+
+        int index = section.Rows.IndexOf(row);
+        int to = index + step;
+        if (index < 0 || to < 0 || to >= section.Rows.Count)
+        {
+            return;
+        }
+
+        TaskListRowViewModel target = section.Rows[to];
+        bool after = step > 0;
+        Guid? nextId = after && to + 1 < section.Rows.Count ? section.Rows[to + 1].Id : null;
+        _refocus = row.Key;
+        _ = section.DropAsync(new TaskRowDrop(row, section, section, target, after, nextId));
+    }
+
+    private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_refocus is not TaskRowKey key)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            Button? button = this.GetVisualDescendants().OfType<Button>()
+                .FirstOrDefault(candidate => candidate.Classes.Contains("listRow") && candidate.DataContext is TaskListRowViewModel row && row.Key == key);
+            if (button is not null)
+            {
+                _refocus = null;
+                button.Focus(NavigationMethod.Tab);
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    // ---- Drag by the handle: pressing it takes the pointer; the drag starts once it has moved a few pixels. The row can land next
+    // to a row of this section or of any other section on the page, or at the end of a section; the page decides what that means. ----
 
     internal void HandlePressed(Control handle, PointerPressedEventArgs e)
     {
         if (handle.DataContext is not TaskListRowViewModel row || !e.GetCurrentPoint(handle).Properties.IsLeftButtonPressed
-            || DataContext is not TaskSectionViewModel { MoveRow: not null })
+            || DataContext is not TaskSectionViewModel)
         {
             return;
         }
@@ -80,10 +161,9 @@ public partial class TaskSectionView : UserControl
             return;
         }
 
-        Point at = e.GetPosition(this);
         if (!_isDragging)
         {
-            Point moved = at - _dragStart;
+            Point moved = e.GetPosition(this) - _dragStart;
             if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold)
             {
                 return;
@@ -92,24 +172,23 @@ public partial class TaskSectionView : UserControl
             _isDragging = true;
         }
 
-        // Between two rows the last place found stays; outside the section there is none.
-        if (FindDropTarget(at) is { } found)
-        {
-            ShowDropTarget(found.Row, found.After);
-        }
-        else if (!new Rect(Bounds.Size).Contains(at))
-        {
-            ShowDropTarget(null, false);
-        }
-
+        ShowDropTarget(FindDropTarget(e));
         e.Handled = true;
     }
 
     internal void HandleReleased(PointerReleasedEventArgs e)
     {
-        if (_dragRow is not null && _isDragging && _dropTarget is not null && DataContext is TaskSectionViewModel { MoveRow: { } move })
+        if (_dragRow is not null && _isDragging && _drop is { } drop && DataContext is TaskSectionViewModel from)
         {
-            _ = move(_dragRow.Id, _dropTarget.Id, _dropAfter);
+            TaskListRowViewModel? target = drop.Row;
+            Guid? nextId = null;
+            if (target is not null && drop.After)
+            {
+                int at = drop.Section.Rows.IndexOf(target);
+                nextId = at >= 0 && at + 1 < drop.Section.Rows.Count ? drop.Section.Rows[at + 1].Id : null;
+            }
+
+            _ = from.DropAsync(new TaskRowDrop(_dragRow, from, drop.Section, target, drop.After, nextId));
         }
 
         EndDrag();
@@ -119,55 +198,82 @@ public partial class TaskSectionView : UserControl
 
     internal void EndDrag()
     {
-        ShowDropTarget(null, false);
+        ShowDropTarget(null);
         _dragRow = null;
         _isDragging = false;
     }
 
-    // The row under the pointer that the dragged one can go next to: above or below it by the pointer's half.
-    private (TaskListRowViewModel Row, bool After)? FindDropTarget(Point at)
+    // Where the pointer is: next to a row (above or below it by its half), or the end of a section (its header or empty space).
+    private DropPlace? FindDropTarget(PointerEventArgs e)
     {
-        if (_dragRow is null || this.InputHitTest(at) is not Visual hit)
+        if (_dragRow is null || TopLevel.GetTopLevel(this) is not TopLevel top)
         {
             return null;
         }
 
+        Point at = e.GetPosition(top);
+        if (top.InputHitTest(at) is not Visual hit)
+        {
+            return null;
+        }
+
+        Control? item = null;
         foreach (Visual visual in hit.GetSelfAndVisualAncestors())
         {
-            if (visual == this)
+            if (item is null && visual is Control { DataContext: TaskListRowViewModel } candidate && candidate.Classes.Contains("listItem"))
             {
-                return null;
+                item = candidate;
             }
 
-            if (visual is not Control { DataContext: TaskListRowViewModel row } item || !item.Classes.Contains("listItem") || !row.CanDrag)
+            if (visual is not TaskSectionView { DataContext: TaskSectionViewModel section })
             {
                 continue;
             }
 
-            if (row == _dragRow)
+            if (item is { DataContext: TaskListRowViewModel row })
             {
-                return null;
+                if (row == _dragRow)
+                {
+                    return null;
+                }
+
+                Point? local = top.TranslatePoint(at, item);
+                return local is Point point ? new DropPlace(section, row, point.Y > item.Bounds.Height / 2) : null;
             }
 
-            Point? local = this.TranslatePoint(at, item);
-            return local is Point point ? (row, point.Y > item.Bounds.Height / 2) : null;
+            return new DropPlace(section, null, true);
         }
 
         return null;
     }
 
-    private void ShowDropTarget(TaskListRowViewModel? row, bool after)
+    private void ShowDropTarget(DropPlace? place)
     {
-        if (_dropTarget is not null)
+        if (_drop is { } old)
         {
-            _dropTarget.DropMark = 0;
+            if (old.Row is not null)
+            {
+                old.Row.DropMark = 0;
+            }
+
+            old.Section.IsDropTarget = false;
         }
 
-        _dropTarget = row;
-        _dropAfter = after;
-        if (row is not null)
+        _drop = place;
+        if (place is null)
         {
-            row.DropMark = after ? 1 : -1;
+            return;
+        }
+
+        if (place.Row is not null)
+        {
+            place.Row.DropMark = place.After ? 1 : -1;
+        }
+        else
+        {
+            place.Section.IsDropTarget = true;
         }
     }
+
+    private sealed record DropPlace(TaskSectionViewModel Section, TaskListRowViewModel? Row, bool After);
 }

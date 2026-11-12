@@ -331,6 +331,36 @@ public sealed partial class SessionTasksService : IDisposable
     }
 
     // The draft's actions: a task in This session of the task list holds one per step in focus (TaskItem.ActionCount), any other one.
+    /// <summary>No session runs and the next session's list holds the task (in This session or in Queued).</summary>
+    public bool IsInDraft(Guid id)
+    {
+        return Current.SessionStart is null && Current.Tasks.Any(task => task.Id == id);
+    }
+
+    /// <summary>
+    /// No session runs and This session (the next session's tasks outside Queued) has room for <paramref name="actions"/> more
+    /// actions under <see cref="ActionCap"/>. Queued's tasks hold no place in it.
+    /// </summary>
+    public bool HasDraftRoomFor(int actions)
+    {
+        if (Current.SessionStart is not null)
+        {
+            return false;
+        }
+
+        if (_taskStore is not { IsActive: true } store)
+        {
+            return Current.Tasks.Count + actions <= ActionCap;
+        }
+
+        Dictionary<Guid, TaskItem> stored = store.Lists.Tasks.Where(item => item.Task.IsLive)
+            .GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First().Task);
+        int used = Current.Tasks
+            .Where(task => !(stored.TryGetValue(task.Id, out TaskItem? item) && item.Bin == TaskBin.Queued))
+            .Sum(task => !task.IsDone && stored.TryGetValue(task.Id, out TaskItem? item) ? item.ActionCount : 1);
+        return used + actions <= ActionCap;
+    }
+
     private int DraftActions()
     {
         if (_taskStore is not { IsActive: true } store)

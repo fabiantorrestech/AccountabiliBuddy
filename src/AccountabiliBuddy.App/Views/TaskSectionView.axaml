@@ -93,5 +93,8 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
         <TextBlock Classes="faint" Text="{Binding EmptyText}" FontSize="13" Margin="30,2,0,6" IsVisible="{Binding ShowsEmpty}" />
+        <!-- A row dragged over the section's header or empty space: it would go at the end of this section. -->
+        <Border Height="2" CornerRadius="1" Margin="8,0" Background="{DynamicResource Ab.Accent}" IsHitTestVisible="False"
+                IsVisible="{Binding IsDropTarget}" />
     </StackPanel>
 </UserControl>

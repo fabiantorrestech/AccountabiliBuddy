@@ -4,9 +4,12 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.TaskRowView"
              x:DataType="vm:TaskListRowViewModel">
-    <!-- One task row, the same on the Tasks page's Today column, the Shelf and Today's sections: the number (This session), a check
-         box, the title with its Muted line, the category's dot and name, "Now", the ⋯ menu and the drag handle (This session). The
-         category is never a fill. Normal rows are 44 DIP or taller; Compact (a section with the "compact" class) 32, title only. -->
+    <!-- One task row, the same on the Tasks page's Today column, the Shelf and Today's sections (spec 03 §B): the number (This
+         session) and check box, the title (a star before it when highlighted) with its detail line (⏱ 50 min, 📅 Fri 11/13,
+         🔔 10 min before, #tags, origin, untouched, the sync-problem cloud), the label's dot and name, the time or "Now", the hover
+         quick actions (← / →), the open arrow, the ⋯ menu and the drag handle. Highlighted rows are tinted with the accent;
+         selected ones (Ctrl/Shift+click) a little more, with a ring. The label is never a fill. Normal rows are 44 DIP or taller;
+         Compact (a section with the "compact" class) 32, title only. A ticked row is struck through, then folds away. -->
     <UserControl.Resources>
         <!-- Check boxes read in ink, not accent. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -23,7 +26,7 @@
         <Style Selector="CheckBox">
             <Setter Property="MinHeight" Value="0" />
         </Style>
-        <!-- A list row: transparent, Surface2 while selected or under the pointer. -->
+        <!-- A list row: transparent, Surface2 while open or under the pointer (the tints sit under it). -->
         <Style Selector="Button.listRow">
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="44" />
@@ -46,11 +49,23 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
         <Style Selector="Button.listRow.picked /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.tint">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Border.ring">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Opacity" Value="0.55" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
 
-        <!-- A row's category chip (dot and name; a click opens the picker) and the quiet "+ category" spot on a row with none, which
-             shows while the pointer is on the row or the row is selected. Hidden, the spot takes no clicks. -->
+        <!-- A row's label chip (dot and name; a click opens the picker) and the quiet "+ label" spot on a row with none, which
+             shows while the pointer is on the row or the row is open. Hidden, the spot takes no clicks. -->
         <Style Selector="Button.catChip">
             <Setter Property="Padding" Value="6,3" />
             <Setter Property="MinHeight" Value="0" />
@@ -66,20 +81,44 @@
         <Style Selector="Button.catChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
         </Style>
-        <Style Selector="Button.catAdd">
+        <!-- Shown only while the pointer is on the row (or it is open): the "+ label" spot, the quick actions, the drag handle. -->
+        <Style Selector="Panel.listItem :is(Control).onHover">
             <Setter Property="Opacity" Value="0" />
             <Setter Property="IsHitTestVisible" Value="False" />
-            <Setter Property="Focusable" Value="False" />
         </Style>
-        <Style Selector="Panel.listItem:pointerover Button.catAdd">
+        <Style Selector="Panel.listItem:pointerover :is(Control).onHover">
             <Setter Property="Opacity" Value="1" />
             <Setter Property="IsHitTestVisible" Value="True" />
-            <Setter Property="Focusable" Value="True" />
         </Style>
-        <Style Selector="Button.listRow.selected Button.catAdd">
+        <Style Selector="Panel.listItem:focus-within :is(Control).onHover">
             <Setter Property="Opacity" Value="1" />
             <Setter Property="IsHitTestVisible" Value="True" />
-            <Setter Property="Focusable" Value="True" />
+        </Style>
+        <Style Selector="Button.listRow.selected :is(Control).onHover">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+
+        <!-- Quick actions and the open arrow: 28 DIP, faint, ink under the pointer. -->
+        <Style Selector="Button.rowTool">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.rowTool /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Button.rowTool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
 
         <!-- A row's title: Ink; Muted once the task is ticked (the strike comes from the global TextBlock.done). -->
@@ -90,34 +129,52 @@
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
 
+        <!-- The detail line's pieces: Muted, or Ink / Faint / Drift; tags as Surface2 chips. -->
+        <Style Selector="Border.bit">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Border.bit.chip">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Padding" Value="8,1" />
+        </Style>
+        <Style Selector="Border.bit">
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Border.bit.ink">
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.bit.faint">
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Border.bit.drift">
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+
         <Style Selector="Border.dragHandle">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Cursor" Value="SizeAll" />
             <Setter Property="Width" Value="22" />
-            <Setter Property="Opacity" Value="0.55" />
         </Style>
         <Style Selector="Border.dropLine">
             <Setter Property="Height" Value="2" />
             <Setter Property="CornerRadius" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
 
-        <!-- Row columns: the category slot is 92 wide and the "Now" slot 40. -->
+        <!-- Row columns: the label slot is 92 wide. -->
         <Style Selector="Grid.rowGrid">
-            <Setter Property="ColumnSpacing" Value="8" />
+            <Setter Property="ColumnSpacing" Value="6" />
         </Style>
         <Style Selector="Panel.categorySlot">
             <Setter Property="Width" Value="92" />
-        </Style>
-        <Style Selector="Panel.nowSlot">
-            <Setter Property="Width" Value="40" />
         </Style>
         <Style Selector="StackPanel.rowText">
             <Setter Property="Margin" Value="0,7" />
         </Style>
 
-        <!-- Compact rows (the section's "compact" class): 32 DIP, the title on one line, no Muted line. -->
+        <!-- Compact rows (the section's "compact" class): 32 DIP, the title on one line, no detail line, no quick actions. -->
         <Style Selector=":is(Control).compact Button.listRow">
             <Setter Property="MinHeight" Value="32" />
         </Style>
@@ -129,71 +186,108 @@
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="FontSize" Value="14" />
         </Style>
-        <Style Selector=":is(Control).compact TextBlock.rowSub">
+        <Style Selector=":is(Control).compact :is(Control).rowSub">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector=":is(Control).compact StackPanel.quickActions">
             <Setter Property="IsVisible" Value="False" />
         </Style>
 
-        <!-- A narrow column: the category slot goes, "Now" keeps only its own width and the gaps shrink, so the title keeps its room. -->
+        <!-- A narrow column: the label slot goes and the gaps shrink, so the title keeps its room. -->
         <ContainerQuery Name="TaskColumn" Query="max-width:520">
             <Style Selector="Grid.rowGrid">
-                <Setter Property="ColumnSpacing" Value="4" />
+                <Setter Property="ColumnSpacing" Value="3" />
             </Style>
             <Style Selector="Panel.categorySlot">
                 <Setter Property="IsVisible" Value="False" />
             </Style>
-            <Style Selector="Panel.nowSlot">
-                <Setter Property="Width" Value="NaN" />
-            </Style>
         </ContainerQuery>
     </UserControl.Styles>
 
-    <StackPanel Spacing="0">
+    <StackPanel x:Name="RowRoot" Spacing="0">
         <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
-        <Panel Classes="listItem">
-            <Button Classes="listRow" Classes.selected="{Binding ShowsSelected}" Classes.picked="{Binding IsPicked}" Command="{Binding SelectCommand}"
+        <Panel Classes="listItem" ContextRequested="OnRowContextRequested" KeyDown="OnRowKeyDown">
+            <Border Classes="tint" Opacity="0.14" IsVisible="{Binding ShowsHighlightTint}" />
+            <Border Classes="tint" Opacity="0.16" IsVisible="{Binding IsPicked}" />
+            <Border Classes="ring" IsVisible="{Binding IsPicked}" />
+            <Button x:Name="RowButton" Classes="listRow" Classes.selected="{Binding IsSelected}" Classes.picked="{Binding IsPicked}" Click="OnRowClick"
                     AutomationProperties.Name="{Binding Title}">
-                <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto,22" Margin="0,0,6,0">
+                <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,22" Margin="0,0,4,0">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" MinWidth="22" VerticalAlignment="Center">
                         <TextBlock Classes="muted" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
                                    MinWidth="12" IsVisible="{Binding IsNumbered}" />
-                        <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
-                                  MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Done"
-                                  ToolTip.Tip="Tick it off (untick to open it again)" />
-                        <!-- Select mode: a round circle (a done tick is a square), filled when the row is picked. -->
-                        <Panel IsVisible="{Binding ShowsPickCircle}" VerticalAlignment="Center" Width="22" Height="22"
-                               AutomationProperties.Name="Select this row">
-                            <mi:MaterialIcon Kind="CircleOutline" Width="22" Height="22" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsPicked}" />
-                            <mi:MaterialIcon Kind="CheckCircle" Width="22" Height="22" Foreground="{DynamicResource Ab.Ink}" IsVisible="{Binding IsPicked}" />
-                        </Panel>
+                        <CheckBox IsChecked="{Binding ShowsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
+                                  MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Finish"
+                                  ToolTip.Tip="Finish (untick to open it again)" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Classes="rowText" Spacing="1" VerticalAlignment="Center">
-                        <TextBlock Classes="rowTitle" Classes.done="{Binding IsTicked}" Text="{Binding Title}" FontSize="14.5" FontWeight="Medium" TextWrapping="Wrap" />
-                        <TextBlock Classes="muted rowSub" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasSubText}" />
+                    <StackPanel Grid.Column="1" Classes="rowText" Spacing="2" VerticalAlignment="Center">
+                        <DockPanel>
+                            <mi:MaterialIcon DockPanel.Dock="Left" Kind="Star" Width="14" Height="14" Margin="0,0,5,0" Foreground="{DynamicResource Ab.Accent}"
+                                             VerticalAlignment="Center" IsVisible="{Binding ShowsHighlightTint}" ToolTip.Tip="Highlighted" />
+                            <TextBlock Classes="rowTitle" Classes.done="{Binding ShowsTicked}" Text="{Binding Title}" FontSize="14.5" FontWeight="Medium"
+                                       TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Tip}" />
+                        </DockPanel>
+                        <TextBlock Classes="muted rowSub" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding ShowsSubText}" />
+                        <ItemsControl Classes="rowSub" ItemsSource="{Binding Bits}" IsVisible="{Binding HasBits}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="10" LineSpacing="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TaskRowBit">
+                                    <Border Classes="bit" Classes.chip="{Binding IsChip}" Classes.ink="{Binding IsInk}" Classes.faint="{Binding IsFaint}"
+                                            Classes.drift="{Binding IsDrift}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                                            <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
-                    <!-- The category chip (a click opens the picker, the same as ⋯ › Category) or, on a row with none, the quiet "+ category". -->
+                    <!-- The label chip (a click opens the picker, the same as ⋯ › Label) or, on a row with none, the quiet "+ label". -->
                     <Panel Grid.Column="2" Classes="categorySlot" VerticalAlignment="Center">
-                        <Button Classes="catChip" IsVisible="{Binding HasCategory}" IsHitTestVisible="{Binding !InSelectMode}" Focusable="{Binding !InSelectMode}" Click="OnCategoryClick"
-                                AutomationProperties.Name="Change category" ToolTip.Tip="Change category">
+                        <Button Classes="catChip" IsVisible="{Binding HasCategory}" Click="OnCategoryClick"
+                                AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
                                 <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="60" TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
-                        <Button Classes="catChip catAdd" IsVisible="{Binding ShowsAddCategory}" Click="OnCategoryClick"
-                                AutomationProperties.Name="Add category" ToolTip.Tip="Add a category">
-                            <TextBlock Classes="faint" Text="+ category" FontSize="12" VerticalAlignment="Center" />
+                        <Button Classes="catChip onHover" IsVisible="{Binding ShowsAddCategory}" Click="OnCategoryClick"
+                                AutomationProperties.Name="Add label" ToolTip.Tip="Add a label">
+                            <TextBlock Classes="faint" Text="+ label" FontSize="12" VerticalAlignment="Center" />
                         </Button>
                     </Panel>
-                    <Panel Grid.Column="3" Classes="nowSlot" VerticalAlignment="Center">
+                    <!-- This session's time (number font), or "Now" on the running task. -->
+                    <Panel Grid.Column="3" VerticalAlignment="Center">
                         <TextBlock Classes="muted" Text="Now" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding IsNow}" />
+                        <TextBlock Classes="muted" Text="{Binding TimeText}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="12.5"
+                                   VerticalAlignment="Center" IsVisible="{Binding HasTime}" />
                     </Panel>
-                    <Button Grid.Column="4" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding ShowsRowTools}"
-                            AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
-                        <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+                    <!-- Quick actions (hover): ← / the target, →. -->
+                    <StackPanel Grid.Column="4" Classes="quickActions onHover" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+                        <Button Classes="rowTool" IsVisible="{Binding HasLeftAction}" Command="{Binding LeftAction.Command}"
+                                ToolTip.Tip="{Binding LeftAction.Tip}" AutomationProperties.Name="{Binding LeftAction.Tip}">
+                            <mi:MaterialIcon Kind="{Binding LeftAction.Icon}" Width="17" Height="17" />
+                        </Button>
+                        <Button Classes="rowTool" IsVisible="{Binding HasRightAction}" Command="{Binding RightAction.Command}"
+                                ToolTip.Tip="{Binding RightAction.Tip}" AutomationProperties.Name="{Binding RightAction.Tip}">
+                            <mi:MaterialIcon Kind="{Binding RightAction.Icon}" Width="17" Height="17" />
+                        </Button>
+                    </StackPanel>
+                    <Button Grid.Column="5" Classes="rowTool" Click="OnOpenClick" ToolTip.Tip="{Binding OpenTip}" AutomationProperties.Name="{Binding OpenTip}">
+                        <mi:MaterialIcon Kind="{Binding OpenIcon}" Width="18" Height="18" />
                     </Button>
-                    <Border Grid.Column="5" Classes="dragHandle" IsVisible="{Binding ShowsDragHandle}" ToolTip.Tip="Drag to reorder"
-                            AutomationProperties.Name="Drag to reorder"
+                    <Button Grid.Column="6" Classes="rowTool" AutomationProperties.Name="More actions"
+                            ToolTip.Tip="Rename, label, move, add a step, delete (or right-click the row)" Click="OnMoreClick">
+                        <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                    </Button>
+                    <Border Grid.Column="7" Classes="dragHandle onHover" IsVisible="{Binding ShowsDragHandle}"
+                            ToolTip.Tip="Drag to reorder or to another section (Alt+↑/↓)" AutomationProperties.Name="Drag to move"
                             PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
                             PointerCaptureLost="OnHandleCaptureLost">
                         <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />

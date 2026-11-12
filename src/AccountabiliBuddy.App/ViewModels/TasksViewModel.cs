@@ -75,6 +75,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         TodayPanel = new TaskSectionsPanelViewModel("today", layout);
         TodayTabPanel = new TaskSectionsPanelViewModel("todaytab", layout);
         Shelf = new ShelfViewModel(new TaskSectionsPanelViewModel("shelf", layout), () => IsShelfShown = false, ToggleToday, () => IsTodayHidden);
+        foreach (TaskSectionsPanelViewModel panel in new[] { TodayPanel, TodayTabPanel, Shelf.Panel })
+        {
+            panel.Drop = DropAsync;
+            panel.RowClick = OnPanelRowClick;
+            panel.SelectAllRows = SelectAllIn;
+            panel.ClearSelectionOfRows = ClearSelection;
+        }
+
         AddPlaceholder = NewTaskText = Notice = NewTaskCategoryTip = NewCategoryName = TodayDateText = TodayRailText = string.Empty;
         NewTaskCategoryBrush = Brushes.Transparent;
         _tasks.Changed += OnStoreChanged;
@@ -215,14 +223,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsManagingCategories { get; set; }
 
-    /// <summary>
-    /// Select mode: the rows show selection circles (not the done ticks) and a bar at the bottom sets one category on all the
-    /// picked rows. Category only: no bulk delete and no bulk move.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool IsSelectMode { get; set; }
-
-    /// <summary>How many rows are picked in select mode.</summary>
+    /// <summary>How many rows are selected (Ctrl/Shift+click, Ctrl+A); the bulk menu (3.5) acts on them.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PickedText), nameof(HasPicked))]
     public partial int PickedCount { get; set; }
@@ -346,73 +347,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private void ToggleManageCategories() => IsManagingCategories = !IsManagingCategories;
 
     [RelayCommand]
-    private void ToggleSelectMode() => IsSelectMode = !IsSelectMode;
-
-    /// <summary>The page was left (another tab): select mode ends, so it is not found half-done on return.</summary>
-    public void LeaveSelectMode() => IsSelectMode = false;
-
-    /// <summary>Esc or Cancel in the select bar: back to the normal list, nothing changed.</summary>
-    [RelayCommand]
-    private void CancelSelect() => IsSelectMode = false;
-
-    // Entering or leaving select mode starts from nothing picked.
-    partial void OnIsSelectModeChanged(bool value)
-    {
-        _picked.Clear();
-        PickedCount = 0;
-        foreach (TaskListRowViewModel row in AllRows())
-        {
-            row.InSelectMode = value;
-            row.IsPicked = false;
-        }
-    }
-
-    /// <summary>The choices of the select bar's "Set category…": every category and "No category", applied to all the picked rows.</summary>
-    internal IReadOnlyList<TaskMenuEntry> PickedCategoryEntries()
-    {
-        return CategoryChoices(null, markCurrent: false, SetCategoryOfPickedAsync);
-    }
-
-    private bool IsPickedKey(TaskRowKey key) => IsSelectMode && _picked.Contains(key);
-
-    // A click on a row in select mode picks it or lets it go; the row's selection circle follows.
-    private void TogglePick(TaskListRowViewModel row)
-    {
-        if (!row.CanLabel)
-        {
-            return;
-        }
-
-        if (!_picked.Remove(row.Key))
-        {
-            _picked.Add(row.Key);
-        }
-
-        row.IsPicked = _picked.Contains(row.Key);
-        PickedCount = _picked.Count;
-    }
-
-    // The same relabel a single row's picker does, once per picked row; then select mode ends and a notice says how many.
-    private async Task SetCategoryOfPickedAsync(Guid? categoryId)
-    {
-        List<TaskRowKey> keys = AllRows().Select(row => row.Key).Where(_picked.Contains).Distinct().ToList();
-        if (keys.Count == 0)
-        {
-            return;
-        }
-
-        string? name = _tasks.Categories.FirstOrDefault(item => item.Id == categoryId)?.Name;
-        foreach (TaskRowKey key in keys)
-        {
-            await SetCategoryAsync(key, categoryId);
-        }
-
-        IsSelectMode = false;
-        string things = keys.Count == 1 ? "1 item" : $"{keys.Count} items";
-        Notice = name is null ? $"Category cleared on {things}." : $"Category set to {name} on {things}.";
-    }
-
-    [RelayCommand]
     private void DismissNotice() => Notice = string.Empty;
 
     /// <summary>
@@ -524,15 +458,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         ShowSelected();
     }
 
-    // A click on a row: it shows in the detail card, or (select mode) it is picked for the bulk category change.
+    // Opens a row's task in the open-task card (a plain click on a closed row, Enter, a row opened on Today).
     private void SelectRow(TaskListRowViewModel row)
     {
-        if (IsSelectMode)
-        {
-            TogglePick(row);
-            return;
-        }
-
         IsDetailOpen = true;
         Select(row.Key);
         OpenRequested?.Invoke(this, EventArgs.Empty);
@@ -565,6 +493,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         {
             TaskRowKind.Session => _tasks.SetNoteAsync(key.Id, note),
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Note = SessionChecklist.CleanNote(note) }),
+            TaskRowKind.Queued => ActAsync(actions => actions.SetNoteAsync(key.Id, note)),
             _ => Task.CompletedTask,
         };
     }
@@ -575,6 +504,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         {
             TaskRowKind.Session => _tasks.SetEstimateAsync(key.Id, minutes),
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { EstimateMinutes = SessionChecklist.CleanEstimate(minutes) }),
+            TaskRowKind.Queued => ActAsync(actions => actions.SetTimeLimitAsync([key.Id], minutes)),
             _ => Task.CompletedTask,
         };
     }
@@ -596,6 +526,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TaskRowKind.Session => _tasks.AddAsync(title, key.Id),
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Subtasks = [.. item.Subtasks ?? [], new SessionSubtask(Guid.NewGuid(), title, null)] }),
             TaskRowKind.Done or TaskRowKind.Past => _tasks.IsInChecklist(key.Id) ? _tasks.AddAsync(title, key.Id) : _tasks.AddHistoryStepAsync(key.Id, title),
+            TaskRowKind.Queued => ActAsync(actions => actions.AddStepAsync(key.Id, title)),
             _ => Task.CompletedTask,
         };
     }
@@ -610,6 +541,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             {
                 Subtasks = (item.Subtasks ?? []).Select(step => step.Id == stepId ? step with { DoneAt = step.IsDone ? null : now } : step).ToList(),
             }),
+            TaskRowKind.Queued => ActAsync(actions => actions.TickStepAsync(key.Id, stepId)),
             _ => Task.CompletedTask,
         };
     }
@@ -619,6 +551,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return key.Kind switch
         {
             TaskRowKind.Later => _tasks.DeleteLaterStepAsync(key.Id, stepId),
+            TaskRowKind.Queued => ActAsync(actions => actions.RemoveStepAsync(key.Id, stepId)),
             _ => _tasks.IsInChecklist(stepId) ? _tasks.RemoveAsync(stepId) : _tasks.EditHistoryAsync(stepId, null),
         };
     }
@@ -631,6 +564,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             {
                 Subtasks = (item.Subtasks ?? []).Select(step => step.Id == stepId ? step with { Title = title } : step).ToList(),
             }),
+            TaskRowKind.Queued => ActAsync(actions => actions.RenameStepAsync(key.Id, stepId, title)),
             _ => _tasks.IsInChecklist(stepId) ? _tasks.RenameAsync(stepId, title) : _tasks.EditHistoryAsync(stepId, title),
         };
     }
@@ -640,6 +574,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         return key.Kind switch
         {
             TaskRowKind.Later => EditLaterAsync(key.Id, item => item with { Subtasks = InsertAfter(item.Subtasks ?? [], stepId, new SessionSubtask(Guid.NewGuid(), title, null)) }),
+            TaskRowKind.Queued => ActAsync(actions => actions.AddStepAsync(key.Id, title, stepId)),
             _ => _tasks.IsInChecklist(stepId) ? _tasks.AddSubtaskAfterAsync(stepId, title) : _tasks.AddHistoryStepAsync(key.Id, title, stepId),
         };
     }
@@ -1266,6 +1201,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         CategoryEditor.Refresh(_tasks.Categories);
         RefreshNewTaskCategory();
         Dictionary<Guid, TaskItem> stored = StoredTasks();
+        _rebuildStored = stored;
+        _nextReminders = NextReminders();
 
         // This session: the open tasks, numbered as the session runs them. With no session running the next session's list also
         // holds Queued's tasks (the task list says which); during one, Queued is read from the task list.
@@ -1316,7 +1253,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         List<TaskListRowViewModel> shelfRows = RebuildShelf(today);
         RebuildReminders(today, sessionRows.Concat(queuedRows).Concat(doneRows).Concat(shelfRows));
 
-        // A row picked in select mode that left the lists is no longer picked.
+        // A selected row that left the lists is no longer selected.
         if (_picked.Count > 0)
         {
             HashSet<TaskRowKey> present = AllRows().Select(row => row.Key).ToHashSet();
@@ -1345,12 +1282,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         TaskSectionViewModel session = panel.Section("session", _sessionRows, canPin: true);
         session.Title = "This session";
         session.Hint = sessionHint;
-        session.MoveRow = MoveSessionRowAsync;
+        session.Bin = TaskBin.Session;
         TaskSectionViewModel queued = panel.Section("queued", _queuedRows, quiet: true, canPin: true, opensByDefault: false);
         queued.Title = "Queued";
+        queued.Bin = TaskBin.Queued;
         queued.Hint = CountText(_queuedRows.Count);
         TaskSectionViewModel done = panel.Section("done", _doneRows, quiet: true, canPin: true, opensByDefault: false);
         done.Title = "Finished today";
+        done.Bin = TaskBin.Done;
         done.Hint = CountText(_doneRows.Count);
         var sections = new List<TaskSectionViewModel> { session, queued };
         if (withReminders)
@@ -1466,6 +1405,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             Replace(list, groupRows);
             TaskSectionViewModel section = Shelf.Panel.Section(key, list);
             section.Title = title;
+            section.Bin = bin;
             section.Hint = CountText(groupRows.Count);
             TaskLabel? label = LabelOf(labelId);
             section.Dot = label is null ? null : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color));
@@ -1632,13 +1572,16 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true, DateTimeOffset sortTime = default, DateOnly? dueOn = null,
         bool isQueued = false)
     {
-        Action<TaskListRowViewModel> select = selectable ? SelectRow : _ => { };
+        Action<TaskListRowViewModel, TaskRowClick> select = selectable ? OnRowClick : (_, _) => { };
         // Every kind of row but Auto-saved can have a category: its chip, or the quiet "+ category" spot, opens the picker.
         Func<IReadOnlyList<TaskMenuEntry>>? labelMenu = key.Kind == TaskRowKind.AutoSaved ? null : () => LabelEntries(key);
-        // ADR 72: the row's labels and, for an item kept on this PC only, a quiet mark, after its own line.
+        // ADR 72: the row's labels and, for an item kept on this PC only, a quiet mark, after its own line (rows the task list
+        // doesn't hold; the others show the detail line's pieces, tags included).
+        TaskItem? item = _rebuildStored is not null && _rebuildStored.TryGetValue(key.Id, out TaskItem? held) ? held : null;
         string labels = LabelsText(LabelsOf(key));
         string kept = LocalToOf(key) is Guid keeper && keeper == SelfId?.Invoke() ? "only on this PC" : string.Empty;
         subText = string.Join(" · ", new[] { subText, labels, kept }.Where(part => part.Length > 0));
+        RowExtras extras = ExtrasOf(key, item, isQueued, isTicked, selectable);
         // DIAG (slow tick, remove): the whole tick, from the click to the last store change it awaited.
         Func<Task>? original = toggle;
         Func<Task>? timedToggle = original is null ? null : async () =>
@@ -1650,8 +1593,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         toggle = timedToggle;
         return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)), labelMenu)
         {
-            IsPicked = IsPickedKey(key),
-            InSelectMode = IsSelectMode,
+            IsPicked = _picked.Contains(key),
+            NumberText = extras.NumberText,
+            Bits = extras.Bits,
+            IsHighlighted = extras.IsHighlighted,
+            TimeText = extras.TimeText,
+            LeftAction = extras.Left,
+            RightAction = extras.Right,
+            CanDrag = extras.CanDrag,
             CategoryId = categoryId,
             CategoryName = categoryName,
             CategoryColor = categoryColor,
@@ -1673,7 +1622,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         {
             if (held.TryGetValue(row.Key, out TaskListRowViewModel? old) && old.ShowsSameAs(row))
             {
-                old.InSelectMode = row.InSelectMode;
                 old.IsPicked = row.IsPicked;
                 wanted.Add(old);
             }
@@ -1720,11 +1668,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     // The detail card follows the selected key; nothing selected (or gone) falls back to the first task of the session.
     private void ShowSelected()
     {
-        TaskSnapshot? snapshot = _selectedKey is TaskRowKey key ? Read(key) : null;
+        TaskSnapshot? snapshot = _selectedKey is TaskRowKey key ? Enrich(Read(key)) : null;
         if (snapshot is null && _sessionRows.Count > 0)
         {
             _selectedKey = _sessionRows[0].Key;
-            snapshot = Read(_selectedKey.Value);
+            snapshot = Enrich(Read(_selectedKey.Value));
         }
 
         if (snapshot is null)
@@ -1746,10 +1694,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         TaskRowKey? selected = Detail?.Key;
         _selectedKey = selected ?? _selectedKey;
-        foreach (TaskListRowViewModel row in AllRows())
-        {
-            row.IsSelected = selected == row.Key;
-        }
+        MarkOpenRow();
     }
 
     private TaskSnapshot? Read(TaskRowKey key)
@@ -1801,11 +1746,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
             case TaskRowKind.Queued:
             {
-                // Its title and moves only (steps and notes open with the open task, 3.3).
+                // The task list's own task: its steps, time limit and note change through the task actions.
                 TaskItem? item = StoredTask(key.Id);
                 return item is null || item.Bin != TaskBin.Queued
                     ? null
-                    : new TaskSnapshot(key, "Queued", item.Title, [], item.EstimateMinutes, item.Note, item.DueOn, item.PlannedFor, false, false, null);
+                    : new TaskSnapshot(
+                        key, "Queued", item.Title, (item.Steps ?? []).Select(step => step.ToSubtask()).ToList(), item.EstimateMinutes, item.Note,
+                        item.DueOn, item.PlannedFor, false, false, null);
             }
 
             default:

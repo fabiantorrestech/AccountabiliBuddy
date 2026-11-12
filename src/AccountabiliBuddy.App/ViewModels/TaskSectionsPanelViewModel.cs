@@ -52,6 +52,41 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
         }
     }
 
+    /// <summary>The page's answer to a row dropped in one of this panel's sections; null: drops do nothing.</summary>
+    public Func<TaskRowDrop, Task>? Drop { get; set; }
+
+    /// <summary>The page's answer to a row click with its modifier keys (Windows selection rules).</summary>
+    public Action<TaskSectionsPanelViewModel, TaskListRowViewModel, TaskRowClick>? RowClick { get; set; }
+
+    /// <summary>The page's Ctrl+A for this panel.</summary>
+    public Action<TaskSectionsPanelViewModel>? SelectAllRows { get; set; }
+
+    /// <summary>The page's Esc: clears the selection; false when there was none.</summary>
+    public Func<bool>? ClearSelectionOfRows { get; set; }
+
+    public Task DropAsync(TaskRowDrop drop) => Drop?.Invoke(drop) ?? Task.CompletedTask;
+
+    public void Click(TaskListRowViewModel row, TaskRowClick click)
+    {
+        if (RowClick is null)
+        {
+            row.Click(click);
+            return;
+        }
+
+        RowClick(this, row, click);
+    }
+
+    public void SelectAll() => SelectAllRows?.Invoke(this);
+
+    public bool ClearSelection() => ClearSelectionOfRows?.Invoke() ?? false;
+
+    /// <summary>The rows the panel shows now, top to bottom (open sections only): the order Shift+click and Ctrl+A use.</summary>
+    public IReadOnlyList<TaskListRowViewModel> VisibleRows()
+    {
+        return Sections.Where(section => section.ShowsRows).SelectMany(section => section.Rows).ToList();
+    }
+
     /// <summary>
     /// The section with this key, made once and kept (so its fold and its add box survive a rebuild): <paramref name="quiet"/> fades
     /// it, <paramref name="canPin"/> lets it be pinned open, <paramref name="opensByDefault"/> is its fold before any choice.

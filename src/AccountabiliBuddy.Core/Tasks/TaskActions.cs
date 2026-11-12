@@ -154,6 +154,86 @@ public static class TaskActions
         return Result(lists, after, changed, "Step added");
     }
 
+    /// <summary>Renames a step (a blank or unchanged name does nothing).</summary>
+    public static TaskActionResult RenameStep(TaskLists lists, Guid taskId, Guid stepId, string title, DateTimeOffset now, Guid self)
+    {
+        string text = title.Trim();
+        if (text.Length == 0 || LiveOf(lists, taskId)?.Steps?.FirstOrDefault(step => step.Id == stepId) is not { } step || step.Title == text)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, [taskId], (task, _) => task with { Steps = (task.Steps ?? []).Select(item => item.Id == stepId ? item with { Title = text } : item).ToList() },
+            [TaskField.Steps], now, self);
+        return Result(lists, after, changed, "Step renamed");
+    }
+
+    /// <summary>Takes a step off its task (the last one leaves the task without steps).</summary>
+    public static TaskActionResult RemoveStep(TaskLists lists, Guid taskId, Guid stepId, DateTimeOffset now, Guid self)
+    {
+        if (LiveOf(lists, taskId)?.Steps?.Any(step => step.Id == stepId) != true)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, [taskId],
+            (task, _) =>
+            {
+                List<TaskStep> left = (task.Steps ?? []).Where(step => step.Id != stepId).ToList();
+                return task with { Steps = left.Count == 0 ? null : left };
+            },
+            [TaskField.Steps], now, self);
+        return Result(lists, after, changed, "Step removed");
+    }
+
+    /// <summary>
+    /// Puts a step before or after another step of the same task (drag, Alt+↑/↓). Its letter follows its new place; nothing else
+    /// changes.
+    /// </summary>
+    public static TaskActionResult MoveStep(TaskLists lists, Guid taskId, Guid stepId, Guid targetStepId, bool after, DateTimeOffset now, Guid self)
+    {
+        List<TaskStep> steps = (LiveOf(lists, taskId)?.Steps ?? []).ToList();
+        TaskStep? moving = steps.FirstOrDefault(step => step.Id == stepId);
+        if (moving is null || stepId == targetStepId || steps.All(step => step.Id != targetStepId))
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        steps.Remove(moving);
+        int at = steps.FindIndex(step => step.Id == targetStepId) + (after ? 1 : 0);
+        steps.Insert(at, moving);
+        (TaskLists result, List<TaskItem> changed) = Edit(lists, [taskId], (task, _) => task with { Steps = steps }, [TaskField.Steps], now, self);
+        return Result(lists, result, changed, "Step moved");
+    }
+
+    /// <summary>Sets the private note (blank clears it). Cleaned as the checklist does.</summary>
+    public static TaskActionResult SetNote(TaskLists lists, Guid id, string? note, DateTimeOffset now, Guid self)
+    {
+        string? clean = SessionChecklist.CleanNote(note);
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, [id], (task, _) => task with { Note = clean }, [TaskField.Note], now, self);
+        return Result(lists, after, changed, "Note saved");
+    }
+
+    /// <summary>
+    /// The task list's half of moving a Queued task of the next session's list into This session, while no session runs: its bin
+    /// becomes This session (at the end). Only <c>TaskActionsService.MoveToSessionAsync</c> calls this, after the session's cap said
+    /// there is room; it is never a way around the cap.
+    /// </summary>
+    public static TaskActionResult PlaceInSession(TaskLists lists, Guid id, DateTimeOffset now, Guid self)
+    {
+        if (LiveOf(lists, id) is not { Bin: TaskBin.Queued })
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        double end = TaskListRules.EndOf(lists, TaskBin.Session);
+        (TaskLists after, List<TaskItem> changed) = Edit(
+            lists, [id], (task, _) => task with { Bin = TaskBin.Session, PrevBin = task.Bin, Position = end }, [TaskField.Bin], now, self);
+        return Result(lists, after, changed, "1 task → This session");
+    }
+
     /// <summary>Deletes tasks: each is kept in History as "deleted" with everything it had (so "Bring back" revives it) and leaves the list.</summary>
     public static TaskActionResult Delete(TaskLists lists, IReadOnlyList<Guid> ids, DateTimeOffset now, Guid self)
     {

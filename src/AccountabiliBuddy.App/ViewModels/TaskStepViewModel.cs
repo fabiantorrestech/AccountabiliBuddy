@@ -40,6 +40,39 @@ public sealed partial class TaskStepViewModel : ObservableObject, ITaskMenuSourc
 
     public bool IsDone { get; }
 
+    /// <summary>Its letter chip, "a", "b" … (its place among the task's steps).</summary>
+    public string Letter { get; init; } = string.Empty;
+
+    public bool HasLetter => Letter.Length > 0;
+
+    /// <summary>The chip's tooltip: the step's ID, "142b", or "Step b" when the task has no number yet.</summary>
+    public string LetterTip { get; init; } = string.Empty;
+
+    /// <summary>One of the session's actions: an "in focus" tag and a Surface2 background.</summary>
+    public bool IsFocused { get; init; }
+
+    /// <summary>Its time limit, e.g. "10 min"; empty for none.</summary>
+    public string TimeText { get; init; } = string.Empty;
+
+    public bool HasTime => TimeText.Length > 0;
+
+    /// <summary>The target: brings this open step into the running session's focus (the session's cap decides); null where it can't.</summary>
+    public ICommand? FocusCommand { get; init; }
+
+    public bool CanFocus => FocusCommand is not null;
+
+    /// <summary>It can be dragged by its handle (or moved with Alt+↑/↓) among its task's steps.</summary>
+    public bool CanDrag { get; init; }
+
+    /// <summary>Where a dragged step would land relative to this one: -1 above, 1 below, 0 none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsLineAbove), nameof(ShowsLineBelow))]
+    public partial int DropMark { get; set; }
+
+    public bool ShowsLineAbove => DropMark < 0;
+
+    public bool ShowsLineBelow => DropMark > 0;
+
     /// <summary>False for a task that is already done: its steps are shown, not ticked.</summary>
     public bool CanEdit { get; }
 

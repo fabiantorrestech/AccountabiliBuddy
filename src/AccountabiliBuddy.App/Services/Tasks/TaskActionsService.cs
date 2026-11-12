@@ -84,6 +84,22 @@ public sealed class TaskActionsService
                 continue;
             }
 
+            // A Queued task of the next session's list (no session runs) is already in that list: only its bin changes, and only
+            // when This session has room for its actions (the same cap; "Add anyway" is the session add's own, so it stays there).
+            if (task.Bin == TaskBin.Queued && _session.IsInDraft(id))
+            {
+                if (!_session.HasDraftRoomFor(task.ActionCount))
+                {
+                    needsRoom.Add(id);
+                }
+                else if (await _store.ChangeAsync(null, (current, self, now) => TaskActions.PlaceInSession(current, id, now, self).Lists))
+                {
+                    moved++;
+                }
+
+                continue;
+            }
+
             (AddToTodayResult result, _) = await _session.AddToTodayAsync(SourceOf(task, lists), overLimitReason);
             if (result == AddToTodayResult.Added)
             {
@@ -145,6 +161,31 @@ public sealed class TaskActionsService
     public Task<bool> ReorderAsync(Guid id, Guid? beforeId)
     {
         return RunAsync(TaskActionKind.Move, 1, (lists, self, now) => TaskActions.Reorder(lists, id, beforeId, now, self));
+    }
+
+    public Task<bool> RenameStepAsync(Guid taskId, Guid stepId, string title)
+    {
+        return RunAsync(TaskActionKind.Edit, 1, (lists, self, now) => TaskActions.RenameStep(lists, taskId, stepId, title, now, self));
+    }
+
+    public Task<bool> RemoveStepAsync(Guid taskId, Guid stepId)
+    {
+        return RunAsync(TaskActionKind.Edit, 1, (lists, self, now) => TaskActions.RemoveStep(lists, taskId, stepId, now, self));
+    }
+
+    /// <summary>A step dragged (or Alt+↑/↓) before or after another step of its task.</summary>
+    public Task<bool> MoveStepAsync(Guid taskId, Guid stepId, Guid targetStepId, bool after)
+    {
+        return RunAsync(TaskActionKind.Edit, 1, (lists, self, now) => TaskActions.MoveStep(lists, taskId, stepId, targetStepId, after, now, self));
+    }
+
+    /// <summary>
+    /// Keeps the open task's note. Saved a moment after typing stops, so it is not an undo step of its own (ten of those would push
+    /// every real action off the stack) and shows no toast. The note is private text: never logged.
+    /// </summary>
+    public Task<bool> SetNoteAsync(Guid id, string? note)
+    {
+        return _store.ChangeAsync(null, (lists, self, now) => TaskActions.SetNote(lists, id, note, now, self).Lists);
     }
 
     // ---- removing ----

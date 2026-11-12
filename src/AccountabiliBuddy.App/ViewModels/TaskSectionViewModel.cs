@@ -95,10 +95,24 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     public string EmptyText => "Nothing to see here.";
 
-    /// <summary>
-    /// Drops a dragged row before or after another of this section (This session's order); null where rows don't drag.
-    /// </summary>
-    public Func<Guid, Guid, bool, Task>? MoveRow { get; set; }
+    /// <summary>The bin its tasks are in (This session, Queued, Finished today, a Shelf bin); null for a label or tag group and Reminders due today.</summary>
+    public AccountabiliBuddy.Core.Domain.TaskBin? Bin { get; set; }
+
+    /// <summary>A row is being dragged over the end of this section (a line under its last row, or under the header when empty).</summary>
+    [ObservableProperty]
+    public partial bool IsDropTarget { get; set; }
+
+    /// <summary>A row dropped (or moved with Alt+↑/↓) here, from this section or another: the page decides what it means.</summary>
+    public Task DropAsync(TaskRowDrop drop) => _panel.DropAsync(drop);
+
+    /// <summary>A click on one of its rows, with the modifier keys (the panel knows the visible order for Shift+click).</summary>
+    public void Click(TaskListRowViewModel row, TaskRowClick click) => _panel.Click(row, click);
+
+    /// <summary>Ctrl+A in this section: every row the panel shows is selected.</summary>
+    public void SelectAll() => _panel.SelectAll();
+
+    /// <summary>Esc in this section: the selection is cleared. False when nothing was selected.</summary>
+    public bool ClearSelection() => _panel.ClearSelection();
 
     // ---- The "+" of a Shelf bin: a box opens in the section; Enter adds a task there. ----
 

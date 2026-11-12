@@ -1694,6 +1694,9 @@ public partial class App : Application
             // Today shows the same task sections; a row opened there opens on the Tasks page (it has the detail card).
             sessionViewModel.TaskPage = tasksPage;
             tasksPage.OpenRequested += (_, _) => mainViewModel.SelectedTab = (int)MainTab.Tasks;
+            // Rows say "untouched N wk" after the Tasks setting's weeks; the open task's sync line reads the title bar's sync light.
+            tasksPage.UntouchedWeeks = () => _taskSettings?.Current.UntouchedWeeks ?? AccountabiliBuddy.Core.Tasks.TaskUntouched.DefaultWeeks;
+            tasksPage.SyncLight = () => mainViewModel.SyncLight;
             if (_taskActions is not null && _taskViews is not null && _taskTidyUp is not null && _taskReminders is not null)
             {
                 tasksPage.UseTaskModel(taskStore, _taskActions, _taskViews, _taskTidyUp, _taskReminders);
