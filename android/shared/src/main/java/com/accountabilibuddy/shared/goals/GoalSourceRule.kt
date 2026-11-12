@@ -1,6 +1,7 @@
 package com.accountabilibuddy.shared.goals
 
 import java.util.UUID
+import kotlinx.serialization.json.JsonObject
 
 /**
  * One thing that counts toward a goal (brief §5.1, "Tracking & sources"). Sources add up; a minute counts once per goal even
@@ -19,6 +20,8 @@ import java.util.UUID
  * @property devices ScreenTime: the device ids allowed to count; null = only [createdOn].
  * @property allDevices ScreenTime: every device counts ([devices] is then ignored).
  * @property createdOn The device that created the rule (stamped by the editor); null on rules written before.
+ * @property extra Fields written by a newer app, kept and written back unchanged after the known ones (ADR 79 forward compatibility);
+ * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class GoalSourceRule(
     val id: UUID,
@@ -35,6 +38,7 @@ data class GoalSourceRule(
     val devices: List<UUID>? = null,
     val allDevices: Boolean = false,
     val createdOn: UUID? = null,
+    val extra: JsonObject = JsonObject(emptyMap()),
 ) {
     /** The first entry's text, written for older readers. */
     val app: String?

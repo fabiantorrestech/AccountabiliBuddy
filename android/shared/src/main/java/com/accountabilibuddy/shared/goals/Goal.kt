@@ -4,6 +4,7 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.util.UUID
+import kotlinx.serialization.json.JsonObject
 
 /**
  * One goal (brief §5.1); the PC's twin is Core's `Goal`, with the same JSON ([GoalJson]). Carries the shared-item stamps of
@@ -26,6 +27,10 @@ import java.util.UUID
  * @property extraTiles Streak and Total tiles on its detail panel; off by default.
  * @property notes Why it matters, with links. The user's private text: sealed at rest, never logged.
  * @property deletedAt Set on a tombstone (kept 30 days, no text).
+ * @property newerSources Source rules of a newer app (a type this version doesn't know), kept as written and written back after
+ * [sources] at their places, never counted (ADR 79).
+ * @property extra Fields written by a newer app, kept and written back unchanged after the known ones (ADR 79 forward compatibility);
+ * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class Goal(
     val id: UUID,
@@ -46,6 +51,8 @@ data class Goal(
     val extraTiles: GoalExtraTiles? = null,
     val notes: String? = null,
     val deletedAt: OffsetDateTime? = null,
+    val newerSources: List<GoalNewerItem> = emptyList(),
+    val extra: JsonObject = JsonObject(emptyMap()),
 ) {
     val isLive: Boolean get() = deletedAt == null
 

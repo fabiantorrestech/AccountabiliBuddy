@@ -18,8 +18,10 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// this PC's key and never logged; in a backup the names travel readable like task titles, notes and reasons only with a password. The lists go in backups
 /// with the task lists (<see cref="Backup.GoalsExport"/>, <see cref="ImportAsync"/>), never as sealed blobs. The rules (Deep work, the
 /// looser-change wait) are in <see cref="GoalsService"/>; this class keeps the lists whole on every change: Deep work one and complete
-/// (<see cref="GoalDefaults.Normalized"/>), no other goal built in, no live goal in a dead area, 30-day tombstones pruned. Use from the
-/// UI thread only.
+/// (<see cref="GoalDefaults.Normalized"/>), no other goal built in, no live goal in a dead area (<see cref="GoalAreaTidy"/>), 30-day
+/// tombstones pruned. ADR 79 forward compatibility: a list written by a newer version still opens; an item holding a value this version
+/// doesn't know is kept as written (<see cref="GoalLists.Newer"/>) and unknown fields stay on their objects, both written back unchanged
+/// on every save, and no change here removes them (<see cref="GoalUnknowns"/>). Use from the UI thread only.
 /// </summary>
 public sealed class GoalStore
 {
@@ -305,11 +307,11 @@ public sealed class GoalStore
         {
             GoalLists partial = key switch
             {
-                ItemsKey => GoalLists.Empty with { Goals = Parse<Goal>(json) },
-                AreasKey => GoalLists.Empty with { Areas = Parse<GoalArea>(json) },
-                EntriesKey => GoalLists.Empty with { Entries = Parse<GoalEntry>(json) },
-                RemindersKey => GoalLists.Empty with { Reminders = Parse<GoalReminder>(json) },
-                ReviewsKey => GoalLists.Empty with { Reviews = Parse<GoalReviewRecord>(json) },
+                ItemsKey => GoalLists.Empty with { Goals = Parse<Goal>(json).Known },
+                AreasKey => GoalLists.Empty with { Areas = Parse<GoalArea>(json).Known },
+                EntriesKey => GoalLists.Empty with { Entries = Parse<GoalEntry>(json).Known },
+                RemindersKey => GoalLists.Empty with { Reminders = Parse<GoalReminder>(json).Known },
+                ReviewsKey => GoalLists.Empty with { Reviews = Parse<GoalReviewRecord>(json).Known },
                 _ => GoalLists.Empty,
             };
             string note = await ImportAsync(partial, replace: true, includesNotes: true);
@@ -349,7 +351,9 @@ public sealed class GoalStore
     }
 
     // Deep work stays whole and stays one; no other goal is built in; a live goal never sits in a dead area (it goes to "Work", which
-    // comes back if needed); tombstones older than TombstoneKept go. A change can never take Deep work away.
+    // comes back if needed: GoalAreaTidy, the phone's rule too, stamped from the lists, never the clock); tombstones older than
+    // TombstoneKept go. A change can never take Deep work away, nor what this version doesn't know (ADR 79): unknown fields, a goal's
+    // newer source rules, a review's newer decisions and each list's newer items come back from before when the change left them out.
     private static GoalLists Normalize(GoalLists before, GoalLists after, DateTimeOffset now)
     {
         DateTimeOffset cutoff = now - TombstoneKept;
@@ -360,30 +364,36 @@ public sealed class GoalStore
             goals.Insert(0, GoalDefaults.Normalized(deepWork));
         }
 
-        List<GoalArea> areas = after.Areas.ToList();
-        HashSet<Guid> liveAreas = areas.Where(area => area.IsLive).Select(area => area.Id).ToHashSet();
-        if (goals.Any(goal => goal.IsLive && !liveAreas.Contains(goal.AreaId)))
-        {
-            int work = areas.FindIndex(area => area.Id == GoalDefaults.WorkAreaId);
-            if (work < 0)
-            {
-                areas.Add(GoalDefaults.NewWorkArea(now) with { Position = areas.Count == 0 ? 0 : areas.Max(area => area.Position) + 1 });
-            }
-            else if (!areas[work].IsLive)
-            {
-                areas[work] = GoalDefaults.NewWorkArea(now) with { Position = areas[work].Position };
-            }
-
-            liveAreas.Add(GoalDefaults.WorkAreaId);
-            goals = goals.Select(goal => goal.IsLive && !liveAreas.Contains(goal.AreaId) ? goal with { AreaId = GoalDefaults.WorkAreaId, EditedAt = now } : goal).ToList();
-        }
-
-        return new GoalLists(
+        (IReadOnlyList<GoalArea> areas, IReadOnlyList<Goal> placed) = GoalAreaTidy.Rehome(after.Areas, goals, GoalDefaults.NewWorkArea(now));
+        var tidied = new GoalLists(
             areas.Where(area => area.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
-            goals.Where(goal => goal.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
+            placed.Where(goal => goal.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
             after.Entries.Where(entry => entry.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
             after.Reminders.Where(reminder => reminder.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
-            after.Reviews.Where(review => review.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList());
+            after.Reviews.Where(review => review.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList())
+        {
+            Newer = after.Newer,
+        };
+        return KeepUnknowns(before, tidied);
+    }
+
+    // ADR 79: what this version doesn't know stays (GoalUnknowns), whatever a change rebuilt.
+    private static GoalLists KeepUnknowns(GoalLists before, GoalLists after)
+    {
+        return new GoalLists(
+            GoalUnknowns.Keep(before.Areas, after.Areas),
+            GoalUnknowns.Keep(before.Goals, after.Goals),
+            GoalUnknowns.Keep(before.Entries, after.Entries),
+            GoalUnknowns.Keep(before.Reminders, after.Reminders),
+            GoalUnknowns.Keep(before.Reviews, after.Reviews))
+        {
+            Newer = new GoalNewerLists(
+                GoalUnknowns.KeepNewer(before.Newer.Areas, after.Newer.Areas),
+                GoalUnknowns.KeepNewer(before.Newer.Goals, after.Newer.Goals),
+                GoalUnknowns.KeepNewer(before.Newer.Entries, after.Newer.Entries),
+                GoalUnknowns.KeepNewer(before.Newer.Reminders, after.Newer.Reminders),
+                GoalUnknowns.KeepNewer(before.Newer.Reviews, after.Newer.Reviews)),
+        };
     }
 
     private static GoalLists Imported(GoalLists lists, GoalLists backup, bool replace, bool includesNotes, DateTimeOffset now)
@@ -468,12 +478,15 @@ public sealed class GoalStore
 
     private GoalLists ReadLists()
     {
-        return new GoalLists(
-            LoadList<GoalArea>(AreasKey),
-            LoadList<Goal>(ItemsKey),
-            LoadList<GoalEntry>(EntriesKey),
-            LoadList<GoalReminder>(RemindersKey),
-            LoadList<GoalReviewRecord>(ReviewsKey));
+        (List<GoalArea> areas, List<GoalNewerItem> newerAreas) = LoadList<GoalArea>(AreasKey);
+        (List<Goal> goals, List<GoalNewerItem> newerGoals) = LoadList<Goal>(ItemsKey);
+        (List<GoalEntry> entries, List<GoalNewerItem> newerEntries) = LoadList<GoalEntry>(EntriesKey);
+        (List<GoalReminder> reminders, List<GoalNewerItem> newerReminders) = LoadList<GoalReminder>(RemindersKey);
+        (List<GoalReviewRecord> reviews, List<GoalNewerItem> newerReviews) = LoadList<GoalReviewRecord>(ReviewsKey);
+        return new GoalLists(areas, goals, entries, reminders, reviews)
+        {
+            Newer = new GoalNewerLists(newerAreas, newerGoals, newerEntries, newerReminders, newerReviews),
+        };
     }
 
     // The device setting and the waiting changes. The first goals build kept the waiting changes in "goals.deepWork"; they move to their
@@ -522,11 +535,11 @@ public sealed class GoalStore
     {
         var documents = new List<KeyValuePair<string, object>>
         {
-            new(ItemsKey, Sealed(lists.Goals)),
-            new(AreasKey, Sealed(lists.Areas)),
-            new(EntriesKey, Sealed(lists.Entries)),
-            new(RemindersKey, Sealed(lists.Reminders)),
-            new(ReviewsKey, Sealed(lists.Reviews)),
+            new(ItemsKey, Sealed(lists.Goals, lists.Newer.Goals)),
+            new(AreasKey, Sealed(lists.Areas, lists.Newer.Areas)),
+            new(EntriesKey, Sealed(lists.Entries, lists.Newer.Entries)),
+            new(RemindersKey, Sealed(lists.Reminders, lists.Newer.Reminders)),
+            new(ReviewsKey, Sealed(lists.Reviews, lists.Newer.Reviews)),
         };
         if (withMarker)
         {
@@ -536,17 +549,18 @@ public sealed class GoalStore
         return _store.SaveAllAsync(documents);
     }
 
-    private Stored Sealed<T>(T value)
+    // A list with its newer items back at their places (ADR 79); with none, the same text as before.
+    private Stored Sealed<T>(IReadOnlyList<T> known, IReadOnlyList<GoalNewerItem> newer)
     {
-        return new Stored(Convert.ToBase64String(_protector.Protect(JsonSerializer.Serialize(value, SyncJson.Options))));
+        return new Stored(Convert.ToBase64String(_protector.Protect(GoalNewerJson.WriteList(known, newer, SyncJson.Options))));
     }
 
-    private List<T> LoadList<T>(string key)
+    private (List<T> Known, List<GoalNewerItem> Newer) LoadList<T>(string key)
     {
         Stored? stored = Task.Run(() => _store.LoadAsync<Stored>(key)).GetAwaiter().GetResult();
         if (stored is null)
         {
-            return [];
+            return ([], []);
         }
 
         string json = _protector.Unprotect(Convert.FromBase64String(stored.Data))
@@ -554,9 +568,11 @@ public sealed class GoalStore
         return Parse<T>(json);
     }
 
-    private static List<T> Parse<T>(string json)
+    // ADR 79: an item holding a value this version doesn't know is kept as written, never a reason to close the goals; anything else
+    // that can't be read still is (JsonException).
+    private static (List<T> Known, List<GoalNewerItem> Newer) Parse<T>(string json)
     {
-        return (JsonSerializer.Deserialize<List<T>>(json, SyncJson.Options) ?? []).Where(item => item is not null).ToList();
+        return GoalNewerJson.ReadList<T>(json, SyncJson.Options);
     }
 
     // A backup's copy of a sealed document: its JSON, or why not. Damaged = not a sealed document or not base64 (this PC's protector

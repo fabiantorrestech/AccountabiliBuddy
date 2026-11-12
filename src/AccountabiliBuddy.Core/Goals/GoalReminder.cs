@@ -28,6 +28,10 @@ public sealed record GoalReminder(
     bool NudgeWhenBehind = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null)
 {
+    /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
+    [JsonExtensionData]
+    public GoalUnknownFields? Extra { get; init; }
+
     [JsonIgnore]
     public bool IsLive => DeletedAt is null;
 }

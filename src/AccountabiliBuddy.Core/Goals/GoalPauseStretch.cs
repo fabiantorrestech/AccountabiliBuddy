@@ -12,6 +12,10 @@ public sealed record GoalPauseStretch(
     DateOnly From,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? ResumedOn = null)
 {
+    /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
+    [JsonExtensionData]
+    public GoalUnknownFields? Extra { get; init; }
+
     /// <summary>Whether <paramref name="day"/> is inside the stretch.</summary>
     public bool Covers(DateOnly day)
     {

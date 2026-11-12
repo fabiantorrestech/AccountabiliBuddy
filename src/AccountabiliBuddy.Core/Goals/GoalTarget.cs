@@ -26,6 +26,10 @@ public sealed record GoalTarget(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? MissesAllowed = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GoalPendingChange? PendingChange = null)
 {
+    /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
+    [JsonExtensionData]
+    public GoalUnknownFields? Extra { get; init; }
+
     /// <summary>Whether a day can be hit on its own: a daily target, or "N of the period's days".</summary>
     [JsonIgnore]
     public bool CountsDays => Period == GoalPeriod.Day || WeeklyDays is not null;

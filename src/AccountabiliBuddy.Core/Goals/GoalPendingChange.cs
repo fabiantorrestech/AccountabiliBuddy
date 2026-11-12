@@ -17,4 +17,9 @@ namespace AccountabiliBuddy.Core.Goals;
 public sealed record GoalPendingChange(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? Amount,
     DateTimeOffset AppliesAt,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool MadeInProductaBuddy = false);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool MadeInProductaBuddy = false)
+{
+    /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
+    [JsonExtensionData]
+    public GoalUnknownFields? Extra { get; init; }
+}

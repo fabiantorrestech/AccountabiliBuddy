@@ -42,6 +42,10 @@ public sealed record GoalSourceRule(
     bool AllDevices = false,
     Guid? CreatedOn = null)
 {
+    /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
+    [JsonExtensionData]
+    public GoalUnknownFields? Extra { get; init; }
+
     /// <summary>The apps and sites that count; the older <c>App</c> text, when this is missing, becomes one guessed entry.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<GoalAppMatch>? Apps { get; init; } = Apps ?? (GoalAppMatchGuess.Guess(App) is { } guessed ? [guessed] : null);

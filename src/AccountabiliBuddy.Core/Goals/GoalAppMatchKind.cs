@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AccountabiliBuddy.Core.Goals;
 
 /// <summary>How one <see cref="GoalAppMatch"/> finds its usage rows (screen-time source v2, ADR 79 notes).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<GoalAppMatchKind>))]
+[JsonConverter(typeof(GoalEnumConverter<GoalAppMatchKind>))]
 public enum GoalAppMatchKind
 {
     /// <summary>The phone's app id (<c>com.instagram.android</c>): exact, case-sensitive, phones only.</summary>

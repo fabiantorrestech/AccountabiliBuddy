@@ -1,6 +1,7 @@
 package com.accountabilibuddy.shared.goals
 
 import java.time.LocalDate
+import kotlinx.serialization.json.JsonObject
 
 /**
  * What a goal aims for (brief §5.1): an amount per period, and optionally a long-term amount by a date.
@@ -13,6 +14,8 @@ import java.time.LocalDate
  * @property weeklyDays "3 of 7 days": how many days of each period must be hit; null = the period's amount counts instead.
  * @property missesAllowed For a daily goal: missed days a week before it reads Behind; null = none (Q361).
  * @property pendingChange A looser amount waiting for its delay (Deep work only today, §5.7); null = none.
+ * @property extra Fields written by a newer app, kept and written back unchanged after the known ones (ADR 79 forward compatibility);
+ * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class GoalTarget(
     val period: GoalPeriod,
@@ -24,6 +27,7 @@ data class GoalTarget(
     val weeklyDays: Int? = null,
     val missesAllowed: Int? = null,
     val pendingChange: GoalPendingChange? = null,
+    val extra: JsonObject = JsonObject(emptyMap()),
 ) {
     /** Whether a day can be hit on its own: a daily target, or "N of the period's days". */
     val countsDays: Boolean get() = period == GoalPeriod.Day || weeklyDays != null

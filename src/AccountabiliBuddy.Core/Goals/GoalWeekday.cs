@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// A day of the week as goal reminders store it: written by name ("Monday"), not as a number, so the phone's twin reads the
 /// same text. The values follow <see cref="DayOfWeek"/>'s order, so <c>(DayOfWeek)weekday</c> converts.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<GoalWeekday>))]
+[JsonConverter(typeof(GoalEnumConverter<GoalWeekday>))]
 public enum GoalWeekday
 {
     Sunday,

@@ -61,6 +61,10 @@ private val checks: List<FixtureCheck> = listOf(
     GoalsUiReminderDoneCheck(),
     // Round 2 R6b4: Stats for one goal (its words, paused stretches and its year, hatched) against the PC's StatsGoalHistoryViewModel.
     GoalsUiStatsCheck(),
+    // GS0 (ADR 79 forward compatibility): goal JSON of a newer app read and written back, unknowns kept after an edit, the area tidy rule.
+    Gs0RoundTripCheck(),
+    Gs0KeepCheck(),
+    Gs0TidyCheck(),
 )
 
 /**
@@ -82,7 +86,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

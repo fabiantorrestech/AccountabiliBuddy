@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AccountabiliBuddy.Core.Goals;
 
 /// <summary>What sort of goal it is (round 2 brief §5.1). Written by name; the phone's twin uses the same names.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<GoalKind>))]
+[JsonConverter(typeof(GoalEnumConverter<GoalKind>))]
 public enum GoalKind
 {
     /// <summary>Yes or no each day: ticked by hand, or ticking itself once a linked time threshold is met.</summary>

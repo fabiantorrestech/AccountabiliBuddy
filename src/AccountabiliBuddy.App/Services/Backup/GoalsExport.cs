@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using AccountabiliBuddy.Core.Goals;
 
 namespace AccountabiliBuddy.App.Services.Backup;
@@ -8,10 +9,14 @@ namespace AccountabiliBuddy.App.Services.Backup;
 /// restore on another PC). Names travel like task titles. Notes, reminder reasons and review notes are in it only when the backup has a
 /// password (<paramref name="IncludesNotes"/>); without one they are left out and a restore keeps this PC's. The phone ignores it.
 /// </summary>
+/// <remarks>
+/// ADR 79 forward compatibility: a backup's item that holds a value this version doesn't know is skipped on restore (the rest is taken
+/// in) rather than refusing the backup's goals; unknown fields of the items taken in come with them.
+/// </remarks>
 public sealed record GoalsExport(
-    IReadOnlyList<GoalArea>? Areas,
-    IReadOnlyList<Goal>? Goals,
-    IReadOnlyList<GoalEntry>? Entries,
-    IReadOnlyList<GoalReminder>? Reminders,
-    IReadOnlyList<GoalReviewRecord>? Reviews,
+    [property: JsonConverter(typeof(GoalNewerListConverter<GoalArea>))] IReadOnlyList<GoalArea>? Areas,
+    [property: JsonConverter(typeof(GoalNewerListConverter<Goal>))] IReadOnlyList<Goal>? Goals,
+    [property: JsonConverter(typeof(GoalNewerListConverter<GoalEntry>))] IReadOnlyList<GoalEntry>? Entries,
+    [property: JsonConverter(typeof(GoalNewerListConverter<GoalReminder>))] IReadOnlyList<GoalReminder>? Reminders,
+    [property: JsonConverter(typeof(GoalNewerListConverter<GoalReviewRecord>))] IReadOnlyList<GoalReviewRecord>? Reviews,
     bool IncludesNotes);

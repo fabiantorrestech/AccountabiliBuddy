@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AccountabiliBuddy.Core.Goals;
 
 /// <summary>What a source rule counts (brief §5.1). Which device can measure each: <see cref="GoalSources.AvailabilityOf"/>.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<GoalSourceType>))]
+[JsonConverter(typeof(GoalEnumConverter<GoalSourceType>))]
 public enum GoalSourceType
 {
     /// <summary>All counted focus, whatever the tasks: the built-in Deep work goal's only source (not in the brief's list).</summary>

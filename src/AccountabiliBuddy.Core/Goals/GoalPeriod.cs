@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AccountabiliBuddy.Core.Goals;
 
 /// <summary>The span a goal's target is for (brief §5.1). Weeks start on the user's week start (<see cref="GoalWeekStart"/>).</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<GoalPeriod>))]
+[JsonConverter(typeof(GoalEnumConverter<GoalPeriod>))]
 public enum GoalPeriod
 {
     Day,

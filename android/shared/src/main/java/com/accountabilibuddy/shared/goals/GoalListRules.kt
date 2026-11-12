@@ -30,26 +30,28 @@ object GoalListRules {
     }
 
     /**
-     * After every change: Deep work kept whole ([GoalDefaults.normalized]); a live goal whose area is gone goes to "Work" (or the
-     * first live area); tombstones older than [TOMBSTONES_KEPT] are dropped.
+     * After every change, the PC's `GoalStore.Normalize` rule for rule: Deep work kept whole ([GoalDefaults.normalized]) and first, no
+     * other goal built in; a live goal whose area isn't live goes to "Work", made again if needed, stamped from the lists, never the
+     * clock ([GoalAreaTidy], GS0: the PC's rule, no longer "the first live area" unstamped); tombstones older than [TOMBSTONES_KEPT]
+     * are dropped. What this version doesn't know comes back from [before] (the lists before the change) when the change left it out
+     * ([GoalUnknowns.keep], ADR 79).
      */
-    fun tidy(lists: GoalLists, now: OffsetDateTime): GoalLists {
+    fun tidy(lists: GoalLists, now: OffsetDateTime, before: GoalLists = lists): GoalLists {
         val keptFrom = now.toInstant().minus(TOMBSTONES_KEPT)
-        fun kept(deletedAt: OffsetDateTime?) = deletedAt == null || deletedAt.toInstant().isAfter(keptFrom)
-        val areas = lists.areas.filter { kept(it.deletedAt) }
-        val liveAreaIds = areas.filter { it.isLive }.map { it.id }.toSet()
-        val fallback = if (GoalDefaults.WORK_AREA_ID in liveAreaIds) GoalDefaults.WORK_AREA_ID else areas.filter { it.isLive }.minByOrNull { it.position }?.id
-        val goals = lists.goals.filter { kept(it.deletedAt) }.map { goal ->
-            val placed = if (goal.isLive && goal.areaId !in liveAreaIds && fallback != null) goal.copy(areaId = fallback) else goal
-            if (placed.id == Goal.DEEP_WORK_ID) GoalDefaults.normalized(placed) else placed
-        }
-        return lists.copy(
-            areas = areas,
-            goals = goals,
+        // The PC keeps a tombstone deleted exactly at the cutoff (at >= cutoff).
+        fun kept(deletedAt: OffsetDateTime?) = deletedAt == null || !deletedAt.toInstant().isBefore(keptFrom)
+        val others = lists.goals.filter { it.id != Goal.DEEP_WORK_ID }.map { if (it.builtIn) it.copy(builtIn = false) else it }
+        val deepWork = lists.goals.firstOrNull { it.id == Goal.DEEP_WORK_ID } ?: before.goals.firstOrNull { it.id == Goal.DEEP_WORK_ID }
+        val goals = if (deepWork == null) others else listOf(GoalDefaults.normalized(deepWork)) + others
+        val (areas, placed) = GoalAreaTidy.rehome(lists.areas, goals, GoalDefaults.newWorkArea(now))
+        val tidied = lists.copy(
+            areas = areas.filter { kept(it.deletedAt) },
+            goals = placed.filter { kept(it.deletedAt) },
             entries = lists.entries.filter { kept(it.deletedAt) },
             reminders = lists.reminders.filter { kept(it.deletedAt) },
             reviews = lists.reviews.filter { kept(it.deletedAt) },
         )
+        return GoalUnknowns.keep(before, tidied)
     }
 
     /** How many goals a backup brings, as the restore summary counts them: its live goals but Deep work. */
@@ -104,7 +106,8 @@ object GoalListRules {
         val reviews = merge(lists.reviews, backup.reviews, { it.id }, { it.isLive }, { it.editedAt }, replace) { incoming, held ->
             incoming.copy(editedAt = stamp(incoming.editedAt), notes = if (includesNotes) incoming.notes else held?.notes)
         }
-        return GoalLists(areas, goals, entries, reminders, reviews)
+        // copy: this device's newer items (ADR 79) stay; the backup's are never taken.
+        return lists.copy(areas = areas, goals = goals, entries = entries, reminders = reminders, reviews = reviews)
     }
 
     // The backup's live items come in (the first of each id); with replace they always win, otherwise only over an older edit. The

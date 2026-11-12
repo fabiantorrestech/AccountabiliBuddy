@@ -4,6 +4,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.util.UUID
+import kotlinx.serialization.json.JsonObject
 
 /**
  * A goal reminder (brief §5.1, §5.9): a suggestion that rings; nothing locks or waits. Never exported to Google Calendar.
@@ -15,6 +16,8 @@ import java.util.UUID
  * @property reason Why, in the user's words. Private text: sealed at rest, never logged.
  * @property skipWhenDone Checked at ring time: no ring when the goal's day (or period) is already hit.
  * @property nudgeWhenBehind Rings once, the morning after the goal drops below pace.
+ * @property extra Fields written by a newer app, kept and written back unchanged after the known ones (ADR 79 forward compatibility);
+ * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class GoalReminder(
     val id: UUID,
@@ -30,6 +33,7 @@ data class GoalReminder(
     val skipWhenDone: Boolean = true,
     val nudgeWhenBehind: Boolean = false,
     val deletedAt: OffsetDateTime? = null,
+    val extra: JsonObject = JsonObject(emptyMap()),
 ) {
     val isLive: Boolean get() = deletedAt == null
 }

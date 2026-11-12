@@ -91,6 +91,27 @@ object GoalListRulesCheck {
         val kept = GoalListRules.tidy(GoalLists(listOf(work, old, recent)), now).areas.map { it.id }
         report.check("$name: tidy drops tombstones older than 30 days, keeps newer ones", id(3) !in kept && id(4) in kept)
 
+        // GS0: the PC's Normalize rule (GoalAreaTidy, stamps from the lists, never the clock), Deep work first, no other built-in goal,
+        // and what this version doesn't know kept from the lists before the change (ADR 79).
+        val other = area(5)
+        val movedAgain = GoalListRules.tidy(GoalLists(listOf(other, gone), listOf(orphan)), now)
+        val newWork = movedAgain.areas.firstOrNull { it.id == GoalDefaults.WORK_AREA_ID }
+        report.check(
+            "$name: GS0 with Work gone, a goal in a dead area goes to a new Work (not the first live area), placed last, stamped one tick after the deletion",
+            movedAgain.goals.single().areaId == GoalDefaults.WORK_AREA_ID && movedAgain.goals.single().editedAt == at(-1).plusNanos(100) &&
+                newWork != null && newWork.isLive && newWork.position == 6.0 && newWork.editedAt == at(-1).plusNanos(100),
+        )
+        report.check("$name: GS0 the move doesn't depend on the clock", GoalListRules.tidy(GoalLists(listOf(other, gone), listOf(orphan)), now.plusDays(3)).goals == movedAgain.goals)
+        val ordered = GoalListRules.tidy(GoalLists(listOf(work), listOf(goal(510, work.id, builtIn = true), deep)), now)
+        report.check("$name: GS0 Deep work first and no other goal built in (the PC's Normalize)", ordered.goals.map { it.id } == listOf(Goal.DEEP_WORK_ID, id(510)) && !ordered.goals[1].builtIn)
+        val odd = kotlinx.serialization.json.buildJsonObject { put("future", kotlinx.serialization.json.JsonPrimitive(1)) }
+        val stored = GoalLists(listOf(work), listOf(deep.copy(target = deep.target.copy(extra = odd), extra = odd), goal(511, work.id).copy(extra = odd)))
+        val rebuilt = GoalListRules.tidy(GoalLists(listOf(work), listOf(deep, goal(511, work.id).copy(name = "Renamed"))), now, before = stored)
+        report.check(
+            "$name: GS0 tidy puts back unknown fields a change left out (Deep work's target too, which normalizing replaces)",
+            rebuilt.goals.all { it.extra == odd } && rebuilt.goals.first().target.extra == odd && rebuilt.goals[1].name == "Renamed",
+        )
+
         // Taking a backup in.
         val local = GoalLists(
             areas = listOf(work, area(2)),

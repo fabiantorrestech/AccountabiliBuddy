@@ -16,6 +16,13 @@ public sealed record GoalLists(
 {
     public static GoalLists Empty { get; } = new([], [], [], [], []);
 
+    /// <summary>
+    /// The items of each list kept as written because they hold a value this version doesn't know (ADR 79 forward compatibility): never
+    /// counted or shown, written back at their places. Kept by <c>with</c>; a list built with <c>new</c> has none, and the store puts the
+    /// ones it had back (<see cref="GoalStore"/>).
+    /// </summary>
+    public GoalNewerLists Newer { get; init; } = GoalNewerLists.None;
+
     /// <summary>The built-in Deep work goal's stored record (its targets are views, <see cref="GoalsService.DeepWork"/>); null before the migration.</summary>
     [JsonIgnore]
     public Goal? DeepWorkRecord => Goals.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId && goal.IsLive);

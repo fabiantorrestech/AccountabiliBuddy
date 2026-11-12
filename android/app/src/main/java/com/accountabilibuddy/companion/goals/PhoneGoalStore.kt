@@ -34,6 +34,9 @@ import kotlinx.serialization.json.JsonArray
  *
  * - **Not set up** until the first run ([PhoneGoalsMigration]) made "Work" and Deep work; every change is refused until then.
  * - **Unreadable** when something stored can't be opened or read: never guessed at, rebuilt or written over; every change is refused.
+ *   ADR 79 forward compatibility: lists written by a newer version are not unreadable. An item holding a value this version doesn't
+ *   know is kept as written ([GoalLists.newer]), unknown fields stay on their objects ([GoalJson]), both written back unchanged on
+ *   every save, and no change removes them ([GoalUnknowns.keep] through [GoalListRules.tidy]).
  * - Items keep ids, positions, edit stamps and 30-day tombstones (no text), so syncing them later is a merge, not a migration.
  * - Deep work is kept whole on every change ([GoalDefaults.normalized]): built in, focus only, never paused, deleted or logged
  *   by hand; its daily target is the PC's (read only, ADR 29) and never stored here; its weekly target is [deepWork]'s, with the
@@ -241,7 +244,8 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
                     val stamp = GoalListRules.after(now, old.editedAt)
                     old.copy(reason = null, editedAt = stamp, deletedAt = stamp)
                 }
-                next.copy(editedAt = old.editedAt, deletedAt = null) == old -> old
+                // Unknown fields (ADR 79) aren't on the editor's copy; they stay on the stored one either way.
+                next.copy(editedAt = old.editedAt, deletedAt = null, extra = old.extra) == old -> old
                 else -> {
                     changed = true
                     next.copy(editedAt = GoalListRules.after(now, old.editedAt), deletedAt = null)
@@ -301,7 +305,7 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
             is Refused -> outcome.reason
             Unchanged -> null
             is Changed -> {
-                val tidied = GoalListRules.tidy(outcome.lists, now)
+                val tidied = GoalListRules.tidy(outcome.lists, now, before = _lists.value)
                 if (!write(tidied)) return "Goals couldn't be saved on this phone."
                 _lists.value = tidied
                 onChanged()
@@ -313,18 +317,20 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
     private fun sourceProblem(goal: Goal): String? =
         if (goal.sources.all { GoalSources.allowedFor(goal, it.type) }) null else "One of its sources can't count on a goal yet."
 
+    // Each list with its newer items back at their places (ADR 79).
     private fun write(lists: GoalLists): Boolean = runCatching {
         prefs.edit()
-            .putString(KEY_AREAS, TokenVault.seal(GoalJson.writeAreas(lists.areas).toString(), ALIAS))
-            .putString(KEY_GOALS, TokenVault.seal(GoalJson.writeGoals(lists.goals).toString(), ALIAS))
-            .putString(KEY_ENTRIES, TokenVault.seal(GoalJson.writeEntries(lists.entries).toString(), ALIAS))
-            .putString(KEY_REMINDERS, TokenVault.seal(GoalJson.writeReminders(lists.reminders).toString(), ALIAS))
-            .putString(KEY_REVIEWS, TokenVault.seal(GoalJson.writeReviews(lists.reviews).toString(), ALIAS))
+            .putString(KEY_AREAS, TokenVault.seal(GoalJson.writeAreas(lists.areas, lists.newer.areas).toString(), ALIAS))
+            .putString(KEY_GOALS, TokenVault.seal(GoalJson.writeGoals(lists.goals, lists.newer.goals).toString(), ALIAS))
+            .putString(KEY_ENTRIES, TokenVault.seal(GoalJson.writeEntries(lists.entries, lists.newer.entries).toString(), ALIAS))
+            .putString(KEY_REMINDERS, TokenVault.seal(GoalJson.writeReminders(lists.reminders, lists.newer.reminders).toString(), ALIAS))
+            .putString(KEY_REVIEWS, TokenVault.seal(GoalJson.writeReviews(lists.reviews, lists.newer.reviews).toString(), ALIAS))
             .putInt(KEY_MODEL, MODEL_VERSION)
             .commit()
     }.getOrDefault(false)
 
-    // Nothing stored: not set up. The marker and all five lists, each opened and read: ready. Anything else: unreadable.
+    // Nothing stored: not set up. The marker and all five lists, each opened and read: ready (an item of a newer version kept as
+    // written, ADR 79). Anything else: unreadable.
     private fun load(): Pair<PhoneGoalStatus, GoalLists> {
         val model = prefs.getInt(KEY_MODEL, 0)
         val stored = LIST_KEYS.associateWith { prefs.getString(it, null) }
@@ -335,12 +341,12 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
                 val text = TokenVault.open(stored.getValue(key)!!, ALIAS) ?: error("sealed list can't be opened")
                 return Json.parseToJsonElement(text) as JsonArray
             }
-            PhoneGoalStatus.Ready to GoalLists(
-                areas = GoalJson.readAreas(array(KEY_AREAS)),
-                goals = GoalJson.readGoals(array(KEY_GOALS)),
-                entries = GoalJson.readEntries(array(KEY_ENTRIES)),
-                reminders = GoalJson.readReminders(array(KEY_REMINDERS)),
-                reviews = GoalJson.readReviews(array(KEY_REVIEWS)),
+            PhoneGoalStatus.Ready to GoalJson.readStoredLists(
+                areas = array(KEY_AREAS),
+                goals = array(KEY_GOALS),
+                entries = array(KEY_ENTRIES),
+                reminders = array(KEY_REMINDERS),
+                reviews = array(KEY_REVIEWS),
             )
         }.getOrElse { PhoneGoalStatus.Unreadable to GoalLists.EMPTY }
     }

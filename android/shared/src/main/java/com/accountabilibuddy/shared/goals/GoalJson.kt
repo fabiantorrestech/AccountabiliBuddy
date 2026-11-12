@@ -4,6 +4,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -34,6 +35,12 @@ import kotlin.math.floor
  * Reading takes what the PC's reader takes: names in any case, an enum by name (any case) or by its number (older numbered
  * weekdays), a number written as text, a missing optional field as its default. A required field that is missing, null or of
  * the wrong kind throws [IllegalArgumentException]. Also reads the synced session pieces goals count from ([readPiece]).
+ *
+ * ADR 79 forward compatibility, as the PC (`GoalNewerJson`, `GoalUnknownFields`): a field this version doesn't know is kept in the
+ * object's `extra` and written back unchanged after its known fields; an enum value it doesn't know throws [GoalNewerValueException],
+ * and a list (the stored lists, a goal's sources, a review's decisions) keeps that item as written ([GoalNewerItem]) at its place
+ * instead of refusing the whole list. A name the PC ignores (its computed `isLive`, `isDeepWork`, `countsDays`, `countsTime`) is
+ * dropped there, so it is dropped here too.
  */
 object GoalJson {
     // .NET keeps 100 ns ticks: a finer fraction is cut, as the PC would keep it.
@@ -67,6 +74,7 @@ object GoalJson {
         put("position", number(area.position))
         put("editedAt", time(area.editedAt))
         area.deletedAt?.let { put("deletedAt", time(it)) }
+        putExtra(area.extra)
     }
 
     fun writeGoal(goal: Goal): JsonObject = buildJsonObject {
@@ -77,7 +85,7 @@ object GoalJson {
         put("color", goal.color)
         put("kind", goal.kind.name)
         put("target", writeTarget(goal.target))
-        put("sources", JsonArray(goal.sources.map(::writeSourceRule)))
+        put("sources", writeItems(goal.sources, goal.newerSources, ::writeSourceRule))
         put("createdAt", time(goal.createdAt))
         put("position", number(goal.position))
         put("editedAt", time(goal.editedAt))
@@ -88,6 +96,7 @@ object GoalJson {
         goal.extraTiles?.let { put("extraTiles", writeExtraTiles(it)) }
         goal.notes?.let { put("notes", it) }
         goal.deletedAt?.let { put("deletedAt", time(it)) }
+        putExtra(goal.extra)
     }
 
     fun writeTarget(target: GoalTarget): JsonObject = buildJsonObject {
@@ -100,6 +109,7 @@ object GoalJson {
         target.weeklyDays?.let { put("weeklyDays", it) }
         target.missesAllowed?.let { put("missesAllowed", it) }
         target.pendingChange?.let { put("pendingChange", writePendingChange(it)) }
+        putExtra(target.extra)
     }
 
     fun writePendingChange(change: GoalPendingChange): JsonObject = buildJsonObject {
@@ -108,6 +118,7 @@ object GoalJson {
         if (change.madeInProductaBuddy) {
             put("madeInProductaBuddy", true)
         }
+        putExtra(change.extra)
     }
 
     fun writeSourceRule(rule: GoalSourceRule): JsonObject = buildJsonObject {
@@ -127,6 +138,7 @@ object GoalJson {
                     add(buildJsonObject {
                         put("kind", match.kind.name)
                         put("text", match.text)
+                        putExtra(match.extra)
                     })
                 }
             })
@@ -137,16 +149,19 @@ object GoalJson {
             put("allDevices", true)
         }
         rule.createdOn?.let { put("createdOn", it.toString()) }
+        putExtra(rule.extra)
     }
 
     fun writePause(pause: GoalPauseStretch): JsonObject = buildJsonObject {
         put("from", pause.from.toString())
         pause.resumedOn?.let { put("resumedOn", it.toString()) }
+        putExtra(pause.extra)
     }
 
     fun writeExtraTiles(tiles: GoalExtraTiles): JsonObject = buildJsonObject {
         put("streak", tiles.streak)
         put("total", tiles.total)
+        putExtra(tiles.extra)
     }
 
     fun writeEntry(entry: GoalEntry): JsonObject = buildJsonObject {
@@ -159,6 +174,7 @@ object GoalJson {
         put("editedAt", time(entry.editedAt))
         put("position", number(entry.position))
         entry.deletedAt?.let { put("deletedAt", time(it)) }
+        putExtra(entry.extra)
     }
 
     fun writeReminder(reminder: GoalReminder): JsonObject = buildJsonObject {
@@ -175,22 +191,25 @@ object GoalJson {
         put("skipWhenDone", reminder.skipWhenDone)
         put("nudgeWhenBehind", reminder.nudgeWhenBehind)
         reminder.deletedAt?.let { put("deletedAt", time(it)) }
+        putExtra(reminder.extra)
     }
 
     fun writeReview(review: GoalReviewRecord): JsonObject = buildJsonObject {
         put("id", review.id.toString())
         put("week", review.week.toString())
-        put("decisions", JsonArray(review.decisions.map(::writeReviewDecision)))
+        put("decisions", writeItems(review.decisions, review.newerDecisions, ::writeReviewDecision))
         put("position", number(review.position))
         put("editedAt", time(review.editedAt))
         review.snoozedUntil?.let { put("snoozedUntil", time(it)) }
         review.notes?.let { put("notes", it) }
         review.deletedAt?.let { put("deletedAt", time(it)) }
+        putExtra(review.extra)
     }
 
     fun writeReviewDecision(decision: GoalReviewDecision): JsonObject = buildJsonObject {
         put("goalId", decision.goalId.toString())
         put("choice", decision.choice.name)
+        putExtra(decision.extra)
     }
 
     /** A time as .NET writes a DateTimeOffset ("2026-11-11T18:00:00-05:00"). */
@@ -205,25 +224,79 @@ object GoalJson {
 
     // ---------------------------------------------------------------- the stored lists (goals.items, areas, entries, reminders, reviews)
 
-    fun writeGoals(goals: List<Goal>): JsonArray = JsonArray(goals.map(::writeGoal))
+    fun writeGoals(goals: List<Goal>, newer: List<GoalNewerItem> = emptyList()): JsonArray = writeItems(goals, newer, ::writeGoal)
 
-    fun writeAreas(areas: List<GoalArea>): JsonArray = JsonArray(areas.map(::writeArea))
+    fun writeAreas(areas: List<GoalArea>, newer: List<GoalNewerItem> = emptyList()): JsonArray = writeItems(areas, newer, ::writeArea)
 
-    fun writeEntries(entries: List<GoalEntry>): JsonArray = JsonArray(entries.map(::writeEntry))
+    fun writeEntries(entries: List<GoalEntry>, newer: List<GoalNewerItem> = emptyList()): JsonArray = writeItems(entries, newer, ::writeEntry)
 
-    fun writeReminders(reminders: List<GoalReminder>): JsonArray = JsonArray(reminders.map(::writeReminder))
+    fun writeReminders(reminders: List<GoalReminder>, newer: List<GoalNewerItem> = emptyList()): JsonArray =
+        writeItems(reminders, newer, ::writeReminder)
 
-    fun writeReviews(reviews: List<GoalReviewRecord>): JsonArray = JsonArray(reviews.map(::writeReview))
+    fun writeReviews(reviews: List<GoalReviewRecord>, newer: List<GoalNewerItem> = emptyList()): JsonArray = writeItems(reviews, newer, ::writeReview)
 
-    fun readGoals(json: JsonElement): List<Goal> = list(json, "goals").map(::readGoal)
+    /** The items this version knows; one holding a value it doesn't know is left out (see [readStoredLists] to keep them). */
+    fun readGoals(json: JsonElement): List<Goal> = readItems(list(json, "goals"), ::readGoal).first
 
-    fun readAreas(json: JsonElement): List<GoalArea> = list(json, "areas").map(::readArea)
+    fun readAreas(json: JsonElement): List<GoalArea> = readItems(list(json, "areas"), ::readArea).first
 
-    fun readEntries(json: JsonElement): List<GoalEntry> = list(json, "entries").map(::readEntry)
+    fun readEntries(json: JsonElement): List<GoalEntry> = readItems(list(json, "entries"), ::readEntry).first
 
-    fun readReminders(json: JsonElement): List<GoalReminder> = list(json, "reminders").map(::readReminder)
+    fun readReminders(json: JsonElement): List<GoalReminder> = readItems(list(json, "reminders"), ::readReminder).first
 
-    fun readReviews(json: JsonElement): List<GoalReviewRecord> = list(json, "reviews").map(::readReview)
+    fun readReviews(json: JsonElement): List<GoalReviewRecord> = readItems(list(json, "reviews"), ::readReview).first
+
+    /**
+     * A device's five stored lists (the PC's `GoalStore` read): the items this version knows, and per list the newer ones kept as
+     * written ([GoalLists.newer]). Throws [IllegalArgumentException] only for JSON that is damaged, never for a newer item.
+     */
+    fun readStoredLists(areas: JsonElement, goals: JsonElement, entries: JsonElement, reminders: JsonElement, reviews: JsonElement): GoalLists {
+        val (knownAreas, newerAreas) = readItems(list(areas, "areas"), ::readArea)
+        val (knownGoals, newerGoals) = readItems(list(goals, "goals"), ::readGoal)
+        val (knownEntries, newerEntries) = readItems(list(entries, "entries"), ::readEntry)
+        val (knownReminders, newerReminders) = readItems(list(reminders, "reminders"), ::readReminder)
+        val (knownReviews, newerReviews) = readItems(list(reviews, "reviews"), ::readReview)
+        return GoalLists(knownAreas, knownGoals, knownEntries, knownReminders, knownReviews, GoalNewerLists(newerAreas, newerGoals, newerEntries, newerReminders, newerReviews))
+    }
+
+    /**
+     * Reads a JSON array of goal items (the PC's `GoalNewerJson.ReadList`): the ones this version knows, and the ones holding a value it
+     * doesn't know ([GoalNewerValueException]) kept as written with their places. A null item is skipped; any other damage throws.
+     */
+    fun <T> readItems(array: JsonArray, read: (JsonElement) -> T): Pair<List<T>, List<GoalNewerItem>> {
+        val known = ArrayList<T>(array.size)
+        val newer = ArrayList<GoalNewerItem>()
+        array.forEachIndexed { index, item ->
+            if (item is JsonNull) return@forEachIndexed
+            try {
+                known += read(item)
+            } catch (e: GoalNewerValueException) {
+                if (item !is JsonObject) throw e
+                newer += GoalNewerItem(index, item)
+            }
+        }
+        return known to newer
+    }
+
+    /**
+     * Writes [known] with [newer] back at their places (the PC's `GoalNewerJson.WriteList`: a place past the end goes last), so a list
+     * read and written unchanged comes out in its order.
+     */
+    fun <T> writeItems(known: List<T>, newer: List<GoalNewerItem>, write: (T) -> JsonObject): JsonArray {
+        val waiting = newer.sortedBy { it.index }
+        val out = ArrayList<JsonElement>(known.size + newer.size)
+        var next = 0
+        for (item in known) {
+            while (next < waiting.size && waiting[next].index <= out.size) {
+                out += waiting[next++].json
+            }
+            out += write(item)
+        }
+        while (next < waiting.size) {
+            out += waiting[next++].json
+        }
+        return JsonArray(out)
+    }
 
     // ---------------------------------------------------------------- text
 
@@ -338,11 +411,13 @@ object GoalJson {
             obj.optionalNumber("position") ?: 0.0,
             obj.requiredTime("editedAt"),
             obj.optionalTime("deletedAt"),
+            obj.unknown(AREA_FIELDS, LIVE_ONLY),
         )
     }
 
     fun readGoal(json: JsonElement): Goal {
         val obj = obj(json, "goal")
+        val (sources, newerSources) = obj.optionalArray("sources")?.let { readItems(it, ::readSourceRule) } ?: (emptyList<GoalSourceRule>() to emptyList())
         return Goal(
             obj.requiredGuid("id"),
             obj.requiredGuid("areaId"),
@@ -351,7 +426,7 @@ object GoalJson {
             obj.optionalText("color") ?: "",
             obj.requiredEnum<GoalKind>("kind"),
             readTarget(obj.required("target")),
-            obj.optionalArray("sources")?.map(::readSourceRule) ?: emptyList(),
+            sources,
             obj.requiredTime("createdAt"),
             obj.optionalNumber("position") ?: 0.0,
             obj.requiredTime("editedAt"),
@@ -362,6 +437,8 @@ object GoalJson {
             obj.value("extraTiles")?.let(::readExtraTiles),
             obj.optionalText("notes"),
             obj.optionalTime("deletedAt"),
+            newerSources,
+            obj.unknown(GOAL_FIELDS, GOAL_IGNORED),
         )
     }
 
@@ -377,12 +454,18 @@ object GoalJson {
             obj.optionalInt("weeklyDays"),
             obj.optionalInt("missesAllowed"),
             obj.value("pendingChange")?.let(::readPendingChange),
+            obj.unknown(TARGET_FIELDS, TARGET_IGNORED),
         )
     }
 
     fun readPendingChange(json: JsonElement): GoalPendingChange {
         val obj = obj(json, "pendingChange")
-        return GoalPendingChange(obj.optionalNumber("amount"), obj.requiredTime("appliesAt"), obj.optionalBool("madeInProductaBuddy") ?: false)
+        return GoalPendingChange(
+            obj.optionalNumber("amount"),
+            obj.requiredTime("appliesAt"),
+            obj.optionalBool("madeInProductaBuddy") ?: false,
+            obj.unknown(PENDING_FIELDS),
+        )
     }
 
     fun readSourceRule(json: JsonElement): GoalSourceRule {
@@ -403,22 +486,23 @@ object GoalJson {
             obj.optionalArray("devices")?.map { guid(text(it, "devices"), "devices") },
             obj.optionalBool("allDevices") ?: false,
             obj.optionalGuid("createdOn"),
+            obj.unknown(SOURCE_FIELDS, SOURCE_IGNORED),
         )
     }
 
     private fun readAppMatch(json: JsonElement): GoalAppMatch {
         val obj = obj(json, "apps")
-        return GoalAppMatch(obj.requiredEnum<GoalAppMatchKind>("kind"), obj.required("text").let { text(it, "text") })
+        return GoalAppMatch(obj.requiredEnum<GoalAppMatchKind>("kind"), obj.required("text").let { text(it, "text") }, obj.unknown(APP_FIELDS))
     }
 
     fun readPause(json: JsonElement): GoalPauseStretch {
         val obj = obj(json, "pause")
-        return GoalPauseStretch(obj.requiredDate("from"), obj.optionalDate("resumedOn"))
+        return GoalPauseStretch(obj.requiredDate("from"), obj.optionalDate("resumedOn"), obj.unknown(PAUSE_FIELDS))
     }
 
     fun readExtraTiles(json: JsonElement): GoalExtraTiles {
         val obj = obj(json, "extraTiles")
-        return GoalExtraTiles(obj.optionalBool("streak") ?: false, obj.optionalBool("total") ?: false)
+        return GoalExtraTiles(obj.optionalBool("streak") ?: false, obj.optionalBool("total") ?: false, obj.unknown(TILES_FIELDS))
     }
 
     fun readEntry(json: JsonElement): GoalEntry {
@@ -433,6 +517,7 @@ object GoalJson {
             obj.requiredTime("editedAt"),
             obj.optionalNumber("position") ?: 0.0,
             obj.optionalTime("deletedAt"),
+            obj.unknown(ENTRY_FIELDS, LIVE_ONLY),
         )
     }
 
@@ -452,26 +537,31 @@ object GoalJson {
             obj.optionalBool("skipWhenDone") ?: true,
             obj.optionalBool("nudgeWhenBehind") ?: false,
             obj.optionalTime("deletedAt"),
+            obj.unknown(REMINDER_FIELDS, LIVE_ONLY),
         )
     }
 
     fun readReview(json: JsonElement): GoalReviewRecord {
         val obj = obj(json, "review")
+        val (decisions, newerDecisions) = obj.optionalArray("decisions")?.let { readItems(it, ::readReviewDecision) }
+            ?: (emptyList<GoalReviewDecision>() to emptyList())
         return GoalReviewRecord(
             obj.requiredGuid("id"),
             obj.requiredDate("week"),
-            obj.optionalArray("decisions")?.map(::readReviewDecision) ?: emptyList(),
+            decisions,
             obj.optionalNumber("position") ?: 0.0,
             obj.requiredTime("editedAt"),
             obj.optionalTime("snoozedUntil"),
             obj.optionalText("notes"),
             obj.optionalTime("deletedAt"),
+            newerDecisions,
+            obj.unknown(REVIEW_FIELDS, LIVE_ONLY),
         )
     }
 
     fun readReviewDecision(json: JsonElement): GoalReviewDecision {
         val obj = obj(json, "decision")
-        return GoalReviewDecision(obj.requiredGuid("goalId"), obj.requiredEnum<GoalReviewChoice>("choice"))
+        return GoalReviewDecision(obj.requiredGuid("goalId"), obj.requiredEnum<GoalReviewChoice>("choice"), obj.unknown(DECISION_FIELDS))
     }
 
     /**
@@ -510,6 +600,41 @@ object GoalJson {
     fun parseInstant(text: String): Instant = parseTime(text).toInstant()
 
     // ---------------------------------------------------------------- helpers
+
+    // The JSON names each goal object knows (as the PC writes them), and the PC's computed names it reads and drops ([JsonIgnore]).
+    private val AREA_FIELDS = setOf("id", "name", "icon", "color", "position", "editedAt", "deletedAt")
+    private val GOAL_FIELDS = setOf(
+        "id", "areaId", "name", "icon", "color", "kind", "target", "sources", "createdAt", "position", "editedAt", "builtIn", "secondTarget",
+        "pauses", "showOnToday", "extraTiles", "notes", "deletedAt",
+    )
+    private val TARGET_FIELDS = setOf("period", "amount", "unit", "direction", "targetAmount", "targetDate", "weeklyDays", "missesAllowed", "pendingChange")
+    private val PENDING_FIELDS = setOf("amount", "appliesAt", "madeInProductaBuddy")
+    private val SOURCE_FIELDS = setOf(
+        "id", "type", "labelId", "tag", "calendarCategoryId", "screenDirection", "beeminderSlug", "beeminderDirection", "thresholdMinutes",
+        "automatic", "apps", "app", "devices", "allDevices", "createdOn",
+    )
+    private val APP_FIELDS = setOf("kind", "text")
+    private val PAUSE_FIELDS = setOf("from", "resumedOn")
+    private val TILES_FIELDS = setOf("streak", "total")
+    private val ENTRY_FIELDS = setOf("id", "goalId", "day", "time", "value", "source", "editedAt", "position", "deletedAt")
+    private val REMINDER_FIELDS = setOf(
+        "id", "goalId", "days", "time", "position", "editedAt", "weekdays", "date", "repeat", "reason", "skipWhenDone", "nudgeWhenBehind", "deletedAt",
+    )
+    private val REVIEW_FIELDS = setOf("id", "week", "decisions", "position", "editedAt", "snoozedUntil", "notes", "deletedAt")
+    private val DECISION_FIELDS = setOf("goalId", "choice")
+    private val LIVE_ONLY = setOf("isLive")
+    private val GOAL_IGNORED = setOf("isLive", "isDeepWork")
+    private val TARGET_IGNORED = setOf("countsDays")
+    private val SOURCE_IGNORED = setOf("countsTime")
+
+    // The fields this version doesn't know, in their order (names compared in any case, as the PC binds them).
+    private fun JsonObject.unknown(known: Set<String>, ignored: Set<String> = emptySet()): JsonObject =
+        JsonObject(filterKeys { key -> known.none { it.equals(key, ignoreCase = true) } && ignored.none { it.equals(key, ignoreCase = true) } })
+
+    // Unknown fields go back after the known ones, as System.Text.Json writes extension data.
+    private fun JsonObjectBuilder.putExtra(extra: JsonObject) {
+        extra.forEach { (key, value) -> put(key, value) }
+    }
 
     private fun missing(name: String) = IllegalArgumentException("Goal JSON: \"$name\" is missing or of the wrong kind")
 
@@ -579,17 +704,20 @@ object GoalJson {
 
     private inline fun <reified T : Enum<T>> JsonObject.optionalEnum(name: String): T? = value(name)?.let { enumOf<T>(it, name) }
 
-    // By name (exact, else any case) or by its number, as the PC's JsonStringEnumConverter reads it. A number with no named
-    // value is refused here (the PC would keep it as an unnamed value).
+    // By name (exact, else any case) or by its number (a number or a number in text), as the PC's GoalEnumConverter reads it. A
+    // name or number this version doesn't know is a newer app's value ([GoalNewerValueException]); null, true / false or an object
+    // or array is damaged.
     private inline fun <reified T : Enum<T>> enumOf(json: JsonElement, name: String): T {
         val values = enumValues<T>()
         val primitive = json as? JsonPrimitive ?: throw missing(name)
+        if (primitive is JsonNull || (!primitive.isString && primitive.content.toDoubleOrNull() == null)) throw missing(name)
         val content = primitive.content.trim()
         if (primitive.isString) {
             values.firstOrNull { it.name == content }?.let { return it }
             values.firstOrNull { it.name.equals(content, ignoreCase = true) }?.let { return it }
         }
 
-        return content.toIntOrNull()?.let { values.getOrNull(it) } ?: throw missing(name)
+        return content.toIntOrNull()?.let { values.getOrNull(it) }
+            ?: throw GoalNewerValueException("Goal JSON: \"$name\" holds a value this version doesn't know (written by a newer version)")
     }
 }

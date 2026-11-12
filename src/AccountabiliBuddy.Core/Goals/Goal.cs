@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Name">"Spanish". The user's private text: sealed at rest with the device's key, never logged; a name: in a backup it travels readable like a task title. The target is a separate field everywhere.</param>
 /// <param name="Icon">A Material icon name (ADR 32), shown everywhere the goal appears.</param>
 /// <param name="Color">"#RRGGBB", the heatmap's ramp and the goal's chips.</param>
-/// <param name="Sources">What counts toward it; a minute counts once per goal however many rules match it.</param>
+/// <param name="Sources">What counts toward it; a minute counts once per goal however many rules match it. A rule of a newer app (a type this version doesn't know) is kept as written beside them (<see cref="GoalNewerJson.NewerOf{T}"/>), never counted (ADR 79).</param>
 /// <param name="CreatedAt">For the goal's age ("6 months going", <see cref="GoalAge"/>) and where its first period starts.</param>
 /// <param name="Position">Its place in its area: lower first.</param>
 /// <param name="EditedAt">Its newest change: the item stamp (newest edit wins).</param>
@@ -33,7 +33,7 @@ public sealed record Goal(
     string Color,
     GoalKind Kind,
     GoalTarget Target,
-    IReadOnlyList<GoalSourceRule> Sources,
+    [property: JsonConverter(typeof(GoalNewerListConverter<GoalSourceRule>))] IReadOnlyList<GoalSourceRule> Sources,
     DateTimeOffset CreatedAt,
     double Position,
     DateTimeOffset EditedAt,
@@ -45,6 +45,10 @@ public sealed record Goal(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notes = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null)
 {
+    /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
+    [JsonExtensionData]
+    public GoalUnknownFields? Extra { get; init; }
+
     /// <summary>The built-in Deep work goal's id: the same on every device, so its record merges as one item once goals sync.</summary>
     public static Guid DeepWorkId { get; } = Guid.Parse("d33b0a11-6f0c-4e2a-9d51-0000000000d1");
 

@@ -5,6 +5,7 @@ import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.util.UUID
+import kotlinx.serialization.json.JsonObject
 
 /**
  * One value for a goal on a day (brief §5.1): a hand tick or log, time added by hand, or a reading. Every entry is kept. How a
@@ -16,6 +17,8 @@ import java.util.UUID
  * @property editedAt When it was made or last edited: the item stamp, and what "latest hand edit" means.
  * @property position Its place in the day's list; 0 when unordered.
  * @property deletedAt Set on a tombstone: a removed log. Never used to untick.
+ * @property extra Fields written by a newer app, kept and written back unchanged after the known ones (ADR 79 forward compatibility);
+ * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class GoalEntry(
     val id: UUID,
@@ -27,6 +30,7 @@ data class GoalEntry(
     val editedAt: OffsetDateTime,
     val position: Double = 0.0,
     val deletedAt: OffsetDateTime? = null,
+    val extra: JsonObject = JsonObject(emptyMap()),
 ) {
     val isLive: Boolean get() = deletedAt == null
 
