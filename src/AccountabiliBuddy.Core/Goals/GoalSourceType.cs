@@ -28,7 +28,7 @@ public enum GoalSourceType
 
     HealthSleep,
 
-    /// <summary>Time in an app or category (<see cref="GoalSourceRule.App"/>), at most or at least.</summary>
+    /// <summary>Time in an app or category (<see cref="GoalSourceRule.Apps"/>), at most or at least.</summary>
     ScreenTime,
 
     /// <summary>Time in calendar events of a category (ADR 58's classification). PC only; never in focus totals.</summary>

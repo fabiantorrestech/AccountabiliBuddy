@@ -7,6 +7,12 @@ import kotlin.system.exitProcess
 private val checks: List<FixtureCheck> = listOf(
     PlannedTieTextCheck(),
     StepLettersCheck(),
+    // Screen-time source v2 (ST1): guess, matching per platform, minutes, rule JSON, which device counts.
+    ScreenTimeGuessCheck(),
+    ScreenTimeMatchingCheck(),
+    ScreenTimeMinutesCheck(),
+    ScreenTimeRuleJsonCheck(),
+    ScreenTimeCountsOnCheck(),
     // Round 2 R4.7: the goals mirror against the C# Core (GoalsChecks writes goals/*.json).
     GoalSnapshotCheck("attribution"),
     GoalSnapshotCheck("back-fill"),

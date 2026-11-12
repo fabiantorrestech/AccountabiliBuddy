@@ -42,8 +42,11 @@ object GoalSources {
         // Plan §3b 7 (calendar, PC only, never in focus totals); ADR 43 (the PC reads Beeminder).
         GoalSourceType.CalendarCategory, GoalSourceType.Beeminder -> GoalSourceAvailability.PcOnly
 
-        // Health Connect sleep and phone usage stay on the phone until ADR 79.
-        GoalSourceType.HealthSleep, GoalSourceType.ScreenTime -> GoalSourceAvailability.PhoneOnly
+        // Health Connect sleep stays on the phone until ADR 79.
+        GoalSourceType.HealthSleep -> GoalSourceAvailability.PhoneOnly
+
+        // Screen time v2: each device counts its own usage (the PC from its activity history, the phone from Usage access).
+        GoalSourceType.ScreenTime -> GoalSourceAvailability.Everywhere
 
         // Plan §3b 2 (task goal link, ADR 79) and ADR 81 (READ_WEIGHT).
         GoalSourceType.GoalField, GoalSourceType.MilestoneTasks, GoalSourceType.HealthWeight -> GoalSourceAvailability.ComingSoon

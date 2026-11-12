@@ -116,12 +116,27 @@ object GoalJson {
         rule.labelId?.let { put("labelId", it.toString()) }
         rule.tag?.let { put("tag", it) }
         rule.calendarCategoryId?.let { put("calendarCategoryId", it.toString()) }
-        rule.app?.let { put("app", it) }
         rule.screenDirection?.let { put("screenDirection", it.name) }
         rule.beeminderSlug?.let { put("beeminderSlug", it) }
         rule.beeminderDirection?.let { put("beeminderDirection", it.name) }
         rule.thresholdMinutes?.let { put("thresholdMinutes", number(it)) }
         put("automatic", rule.automatic)
+        rule.apps?.let { apps ->
+            put("apps", buildJsonArray {
+                apps.forEach { match ->
+                    add(buildJsonObject {
+                        put("kind", match.kind.name)
+                        put("text", match.text)
+                    })
+                }
+            })
+        }
+        rule.app?.let { put("app", it) }
+        rule.devices?.let { devices -> put("devices", buildJsonArray { devices.forEach { add(JsonPrimitive(it.toString())) } }) }
+        if (rule.allDevices) {
+            put("allDevices", true)
+        }
+        rule.createdOn?.let { put("createdOn", it.toString()) }
     }
 
     fun writePause(pause: GoalPauseStretch): JsonObject = buildJsonObject {
@@ -372,19 +387,28 @@ object GoalJson {
 
     fun readSourceRule(json: JsonElement): GoalSourceRule {
         val obj = obj(json, "source")
+        val apps = obj.optionalArray("apps")?.map(::readAppMatch)
         return GoalSourceRule(
             obj.requiredGuid("id"),
             obj.requiredEnum<GoalSourceType>("type"),
             obj.optionalGuid("labelId"),
             obj.optionalText("tag"),
             obj.optionalGuid("calendarCategoryId"),
-            obj.optionalText("app"),
             obj.optionalEnum<GoalDirection>("screenDirection"),
             obj.optionalText("beeminderSlug"),
             obj.optionalEnum<GoalBeeminderDirection>("beeminderDirection"),
             obj.optionalNumber("thresholdMinutes"),
             obj.optionalBool("automatic") ?: true,
+            apps ?: GoalAppMatchGuess.guess(obj.optionalText("app"))?.let { listOf(it) },
+            obj.optionalArray("devices")?.map { guid(text(it, "devices"), "devices") },
+            obj.optionalBool("allDevices") ?: false,
+            obj.optionalGuid("createdOn"),
         )
+    }
+
+    private fun readAppMatch(json: JsonElement): GoalAppMatch {
+        val obj = obj(json, "apps")
+        return GoalAppMatch(obj.requiredEnum<GoalAppMatchKind>("kind"), obj.required("text").let { text(it, "text") })
     }
 
     fun readPause(json: JsonElement): GoalPauseStretch {
