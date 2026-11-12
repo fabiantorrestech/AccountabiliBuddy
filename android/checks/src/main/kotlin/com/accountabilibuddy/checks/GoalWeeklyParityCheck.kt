@@ -17,29 +17,33 @@ import java.util.UUID
  * Round 2 R6b2: the phone's looser-change rule for Deep work's weekly target ([GoalDeepWorkWeeklyRules]) against the PC's own fixtures
  * of `GoalLowering` (`goals/lowering.json`: decide; `goals/lowering-apply.json`: canApply). Every Deep work case there is run through the
  * phone's `set` / `settle` and must end the way the PC's rule does: the same outcome (nothing, at once, waits), the same time the wait
- * ends and mark of a wait made in ProductaBuddy mode; during a session outside ProductaBuddy mode a wait is refused instead. Cases whose
- * amounts are outside a weekly target's range (30 min to 56h) say so and are left out of the count.
+ * ends and mark of a wait made in ProductaBuddy mode; during a session outside ProductaBuddy mode a wait is refused instead. Cases that are not Deep work's, or whose
+ * amounts are outside a weekly target's range (30 min to 56h), are skipped and not counted as passes.
  */
 class GoalWeeklyParityCheck(override val name: String) : FixtureCheck {
     override val area = "goals"
+    // Returned by a case that does not apply to the phone (not Deep work, or out of the weekly range): not a pass, not counted.
+    private val SKIPPED = "skipped"
 
     override fun run(fixture: FixtureFile, report: CheckReport) {
         for (case in fixture.cases) {
             val label = "$area/$name (phone weekly target): ${case.name}"
             val result = runCatching { if (name == "lowering") lowering(case) else apply(case) }
             val detail = result.getOrElse { "threw ${it.message}" }
+            if (detail === SKIPPED) continue
             report.check(label, result.isSuccess && detail == null, detail ?: "")
         }
+        if (name == "lowering") wiring(report)
     }
 
     private fun lowering(case: FixtureCase): String? {
         val input = case.input
         val isDeepWork = input.getValue("builtIn").jsonPrimitive.boolean || UUID.fromString(case.text("goalId")) == Goal.DEEP_WORK_ID
-        if (!isDeepWork) return null
+        if (!isDeepWork) return SKIPPED
         fun minutes(key: String): Int? = input.getValue(key).takeIf { it !is JsonNull }?.jsonPrimitive?.doubleOrNull?.toInt()
         val from = minutes("from")
         val to = minutes("to")
-        if ((from != null && !GoalDeepWorkWeeklyRules.isValid(from)) || (to != null && !GoalDeepWorkWeeklyRules.isValid(to))) return null
+        if ((from != null && !GoalDeepWorkWeeklyRules.isValid(from)) || (to != null && !GoalDeepWorkWeeklyRules.isValid(to))) return SKIPPED
         val now = GoalJson.parseTime(case.text("now"))
         val delay = Duration.ofSeconds((input.getValue("delayMinutes").jsonPrimitive.doubleOrNull!! * 60).toLong())
         val pb = input.getValue("productaBuddy").jsonPrimitive.boolean
@@ -73,6 +77,26 @@ class GoalWeeklyParityCheck(override val name: String) : FixtureCheck {
         }
 
         return null
+    }
+
+    // What the app's wiring relies on (CompanionApp reads the trusted clock once and passes it in): the rule takes the instant it is given
+    // and reads no clock of its own, so moving the phone's clock changes nothing; a settled wait is decided by the passed instant alone.
+    private fun wiring(report: CheckReport) {
+        val label = "$area/$name (phone weekly target)"
+        val t0 = GoalJson.parseTime("2026-11-12T10:00:00-06:00")
+        val delay = Duration.ofMinutes(10)
+        val start = GoalDeepWorkWeekly(600)
+        val waiting = GoalDeepWorkWeeklyRules.set(start, 300, false, false, false, t0, delay)
+        val again = GoalDeepWorkWeeklyRules.set(start, 300, false, false, false, t0, delay)
+        report.check("$label: the wait is decided by the passed instant only (same instant, same wait)", waiting == again && waiting.result == GoalDeepWorkWeeklyResult.Waiting)
+        val pending = waiting.state
+        val early = GoalDeepWorkWeeklyRules.settle(pending, false, false, false, t0.plusMinutes(9), delay)
+        val due = GoalDeepWorkWeeklyRules.settle(pending, false, false, false, t0.plusMinutes(10), delay)
+        report.check("$label: a passed instant before the wait ends changes nothing, at its end applies", early.minutes == 600 && early.pending != null && due.minutes == 300 && due.pending == null)
+        val running = GoalDeepWorkWeeklyRules.settle(pending, false, true, false, t0.plusDays(1), delay)
+        report.check("$label: a running session holds a due wait", running.minutes == 600 && running.pending != null)
+        val typedBack = GoalDeepWorkWeeklyRules.set(pending, 600, false, false, false, t0.plusMinutes(1), delay)
+        report.check("$label: typing the current target back drops the waiting lowering", typedBack.result == GoalDeepWorkWeeklyResult.Unchanged && typedBack.state == start)
     }
 
     private fun apply(case: FixtureCase): String? {

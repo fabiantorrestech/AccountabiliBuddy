@@ -50,7 +50,10 @@ object PhoneGoalsBackup {
             )
         }.getOrNull() ?: return "The goals in the backup couldn't be read."
         val includesNotes = part["includesNotes"]?.jsonPrimitive?.booleanOrNull ?: false
-        return listOfNotNull(store.import(read, includesNotes, restore), restoreDeepWork(store, part["deepWork"])).joinToString(" ")
+        val line = store.import(read, includesNotes, restore)
+        // The weekly target follows only a goals import that went through (store Ready, nothing refused).
+        val imported = store.status.value == PhoneGoalStatus.Ready && !line.startsWith("Goals weren't restored")
+        return listOfNotNull(line, if (imported) restoreDeepWork(store, part["deepWork"]) else null).joinToString(" ")
     }
 
     // Deep work's weekly target goes through the looser-change rule like a change made here: a lower one, or none, waits (or is refused

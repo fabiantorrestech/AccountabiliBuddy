@@ -93,6 +93,14 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
         Changed(lists.copy(areas = lists.areas.map { if (it.id == old.id) area.copy(editedAt = GoalListRules.after(now, old.editedAt), deletedAt = null) else it }))
     }
 
+    /** Changes several live areas (a reorder) in one saved change; any that is gone refuses the whole change. */
+    fun updateAreas(changed: List<GoalArea>): String? = change { lists, now ->
+        if (changed.isEmpty()) return@change Unchanged
+        val byId = changed.associateBy { it.id }
+        if (byId.keys.any { id -> lists.areas.none { it.id == id && it.isLive } }) return@change Refused(GONE)
+        Changed(lists.copy(areas = lists.areas.map { old -> byId[old.id]?.copy(editedAt = GoalListRules.after(now, old.editedAt), deletedAt = null) ?: old }))
+    }
+
     /** Deletes an area that holds no live goal (a tombstone with no text); one that still holds goals is refused. */
     fun deleteArea(id: UUID): String? = change { lists, now ->
         val old = lists.areas.firstOrNull { it.id == id && it.isLive } ?: return@change Refused(GONE)

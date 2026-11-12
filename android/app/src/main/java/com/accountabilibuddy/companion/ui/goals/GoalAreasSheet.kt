@@ -15,6 +15,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.ui.GuardsRestNote
+import com.accountabilibuddy.companion.ui.LocalGuardsLock
 import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
 import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import com.accountabilibuddy.companion.ui.sheets.AbSheet
@@ -33,6 +35,8 @@ fun GoalAreasSheet(onDismiss: () -> Unit, onEdit: (UUID) -> Unit, onNew: () -> U
     val app = LocalContext.current.applicationContext as CompanionApp
     val lists by app.goals.lists.collectAsStateWithLifecycle()
     val areas = lists.liveAreas
+    // The same session lock as Settings > Goals > Areas: while a session runs, areas are shown but nothing in here changes.
+    val locked = LocalGuardsLock.current != null
     AbSheet(
         title = "Areas",
         subtitle = "Rename, pick icons, reorder, add",
@@ -40,26 +44,26 @@ fun GoalAreasSheet(onDismiss: () -> Unit, onEdit: (UUID) -> Unit, onNew: () -> U
         height = AbSheetHeight.Tall,
         footer = {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AbPrimaryButton("Add area", onClick = onNew, icon = Icons.Outlined.Add, modifier = Modifier.weight(1f))
+                AbPrimaryButton("Add area", onClick = onNew, icon = Icons.Outlined.Add, enabled = !locked, modifier = Modifier.weight(1f))
             }
         },
     ) {
+        if (locked) GuardsRestNote()
         areas.forEachIndexed { index, area ->
             val count = GoalAreaRules.goalCount(lists.goals, area.id)
             fun move(to: Int) {
-                // Each changed area is its own saved change (the PC's way): a failure on one stops and says so.
-                for (changed in GoalAreaRules.moved(lists.areas, area.id, to)) {
-                    app.goals.updateArea(changed)?.let { onMessage(it); return }
-                }
+                // Every area that changed place is saved in one commit.
+                if (locked) return
+                app.goals.updateAreas(GoalAreaRules.moved(lists.areas, area.id, to))?.let(onMessage)
             }
             AbSheetRow(
-                area.name, onClick = { onEdit(area.id) }, icon = GoalIcons.of(area.icon),
+                area.name, onClick = { onEdit(area.id) }, enabled = !locked, icon = GoalIcons.of(area.icon),
                 subtitle = if (count == 1) "1 goal" else "$count goals",
                 trailing = {
                     Row {
-                        AbQuietIconButton(Icons.Outlined.KeyboardArrowUp, "Move ${area.name} up", onClick = { move(index - 1) }, enabled = index > 0)
-                        AbQuietIconButton(Icons.Outlined.KeyboardArrowDown, "Move ${area.name} down", onClick = { move(index + 1) }, enabled = index < areas.lastIndex)
-                        AbQuietIconButton(Icons.Outlined.Edit, "Edit ${area.name}", onClick = { onEdit(area.id) })
+                        AbQuietIconButton(Icons.Outlined.KeyboardArrowUp, "Move ${area.name} up", onClick = { move(index - 1) }, enabled = index > 0 && !locked)
+                        AbQuietIconButton(Icons.Outlined.KeyboardArrowDown, "Move ${area.name} down", onClick = { move(index + 1) }, enabled = index < areas.lastIndex && !locked)
+                        AbQuietIconButton(Icons.Outlined.Edit, "Edit ${area.name}", onClick = { onEdit(area.id) }, enabled = !locked)
                     }
                 },
             )

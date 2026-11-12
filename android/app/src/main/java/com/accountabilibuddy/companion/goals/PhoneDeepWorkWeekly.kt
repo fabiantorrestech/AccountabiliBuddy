@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.goals
 
 import android.content.Context
+import com.accountabilibuddy.companion.guidance.TrustedTime
 import com.accountabilibuddy.shared.goals.GoalDeepWorkWeekly
 import com.accountabilibuddy.shared.goals.GoalDeepWorkWeeklyResult
 import com.accountabilibuddy.shared.goals.GoalDeepWorkWeeklyRules
@@ -8,6 +9,7 @@ import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.goals.GoalPendingChange
 import java.time.Duration
 import java.time.OffsetDateTime
+import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,8 +42,13 @@ class PhoneDeepWorkWeekly(context: Context) {
     /** The stored state as last read or written (the screens read [current], which settles first). */
     val state: StateFlow<GoalDeepWorkWeekly> = _state.asStateFlow()
 
-    /** Set by the app; the default is a quiet AccountabiliBuddy phone with no session (never used once the app is up). */
-    var environment: () -> Environment = { Environment(false, false, OffsetDateTime.now(), Duration.ofMinutes(10)) }
+    /** Set by the app; the default is a quiet AccountabiliBuddy phone with no session (never used once the app is up), on the trusted clock. */
+    var environment: () -> Environment = {
+        Environment(false, false, OffsetDateTime.ofInstant(TrustedTime.now(), ZoneId.systemDefault()), Duration.ofMinutes(10))
+    }
+
+    /** Set by the app: the weekly target or its waiting change was written (an auto-backup soon). */
+    var onChanged: () -> Unit = {}
 
     /** The weekly target now: a waiting change whose time has come, with no session running, applies first. */
     @Synchronized
@@ -87,6 +94,7 @@ class PhoneDeepWorkWeekly(context: Context) {
             .putString(PENDING_AT, pending?.let { GoalJson.time(it.appliesAt) })
             .putBoolean(PENDING_PB, pending?.madeInProductaBuddy ?: false)
             .apply()
+        onChanged()
     }
 
     private fun load(): GoalDeepWorkWeekly {

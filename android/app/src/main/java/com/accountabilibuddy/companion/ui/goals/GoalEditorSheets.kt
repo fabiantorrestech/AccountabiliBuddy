@@ -113,7 +113,9 @@ private fun save(app: CompanionApp, draft: GoalDraft, stored: com.accountabilibu
     if (error != null) return error
     if (stored != null && stored.isDeepWork) {
         val wanted = GoalDrafts.deepWorkWeeklyMinutes(draft)
-        if (wanted != app.goals.deepWork.current().minutes) {
+        val weekly = app.goals.deepWork.current()
+        // Typing the current target back while a lowering waits drops that wait (the PC's "Unchanged").
+        if (wanted != weekly.minutes || weekly.pending != null) {
             when (app.goals.deepWork.set(wanted)) {
                 GoalDeepWorkWeeklyResult.Waiting -> onMessage(waitingText(app))
                 GoalDeepWorkWeeklyResult.RefusedDuringSession ->

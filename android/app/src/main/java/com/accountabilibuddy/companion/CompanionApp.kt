@@ -604,11 +604,14 @@ class CompanionApp : Application() {
         goals.onChanged = { autoBackup.soon() }
         // Deep work's weekly target waits like any looser change: the mode, a running session (the check the removal lock uses) and the
         // looser-change delay are read when a change is asked or settled (round 2 R6b2).
+        goals.deepWork.onChanged = { autoBackup.soon() }
         goals.deepWork.environment = {
+            // One reading of the trusted clock (ADR 70) decides the session check and the wait; the phone's own clock is never read.
+            val trusted = com.accountabilibuddy.companion.guidance.TrustedTime.now()
             com.accountabilibuddy.companion.goals.PhoneDeepWorkWeekly.Environment(
                 productaBuddy = guidance.state.value.mode == com.accountabilibuddy.companion.guidance.GuidanceMode.Companion,
-                sessionRunning = com.accountabilibuddy.companion.placement.GuardsLock.at(this, java.time.Instant.now()) != null,
-                now = java.time.OffsetDateTime.now(),
+                sessionRunning = com.accountabilibuddy.companion.placement.GuardsLock.at(this, trusted) != null,
+                now = java.time.OffsetDateTime.ofInstant(trusted, java.time.ZoneId.systemDefault()),
                 looserDelay = com.accountabilibuddy.companion.guidance.GuidanceStore.DELAY,
             )
         }
