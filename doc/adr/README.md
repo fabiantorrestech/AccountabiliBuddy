@@ -5,6 +5,9 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0081](0081-read-weight-from-health-connect.md) | Read weight from Health Connect | Proposed | — |
+| [0080](0080-send-goal-values-to-beeminder.md) | Send goal values to Beeminder | Proposed | — |
+| [0079](0079-sync-goals-between-the-users-devices.md) | Sync goals between the user's devices | Proposed | — |
 | [0078](0078-export-task-reminders-to-the-apps-own-google-calendar.md) | Export task reminders to the app's own Google calendar | Accepted | — |
 | [0077](0077-step-away-keeps-the-timer-running-with-blocking-on.md) | Step away keeps the timer running with blocking on | Accepted | — |
 | [0076](0076-one-task-list-with-bins-labels-and-tags.md) | One task list with bins, labels and tags | Accepted | — |
