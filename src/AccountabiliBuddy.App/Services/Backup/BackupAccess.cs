@@ -13,8 +13,14 @@ namespace AccountabiliBuddy.App.Services.Backup;
 /// </summary>
 public static class BackupAccess
 {
+    /// <param name="setDailyGoal">
+    /// The goals' one daily-goal rule (Q375; milestone review S3: <see cref="GoalsService.SetDailyGoalAsync"/>): a lower daily goal from a
+    /// backup waits the looser-change delay and is refused during a session outside ProductaBuddy mode, like the weekly target; returns
+    /// the note for the restore summary. Null: written directly (only where no goals service exists).
+    /// </param>
     public static SyncedSettingsAccess Synced(
-        SleepSettingsService sleep, DayBarSettingsService dayBar, GoalService goal, GuidanceModeService guidance)
+        SleepSettingsService sleep, DayBarSettingsService dayBar, GoalService goal, GuidanceModeService guidance,
+        Func<int, Task<string?>>? setDailyGoal = null)
     {
         return new SyncedSettingsAccess(
             Sleep: () => JsonSerializer.SerializeToElement(sleep.Current, SyncJson.Options),
@@ -32,11 +38,17 @@ public static class BackupAccess
             Goal: () => JsonSerializer.SerializeToElement(goal.Current, SyncJson.Options),
             RestoreGoal: async value =>
             {
-                if (value.Deserialize<GoalSettings>(SyncJson.Options) is { } settings)
+                if (value.Deserialize<GoalSettings>(SyncJson.Options) is not { } settings)
                 {
-                    await goal.SetAsync(settings.DailyMinutes);
+                    return null;
                 }
 
+                if (setDailyGoal is not null)
+                {
+                    return await setDailyGoal(settings.DailyMinutes) is string note ? $"Daily goal from the backup: {note}" : null;
+                }
+
+                await goal.SetAsync(settings.DailyMinutes);
                 return null;
             },
             Mode: () => JsonSerializer.SerializeToElement(guidance.State.Mode == GuidanceMode.Companion ? "companion" : "guarding", SyncJson.Options),

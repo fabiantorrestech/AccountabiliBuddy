@@ -20,6 +20,7 @@ public sealed partial class GoalReminderEditRow : ObservableObject
     private readonly Action<GoalReminderEditRow> _remove;
     private readonly Action _changed;
     private readonly IReadOnlyList<GoalWeekday>? _otherWeekdays;
+    private bool _dayPicked;
 
     public GoalReminderEditRow(GoalReminder reminder, DateOnly today, bool startEditing, Action<GoalReminderEditRow> remove, Action changed)
     {
@@ -46,6 +47,7 @@ public sealed partial class GoalReminderEditRow : ObservableObject
         TimeText = TimeShown(reminder.Time);
         Reason = reminder.Reason ?? string.Empty;
         IsEditing = startEditing;
+        _dayPicked = false;
     }
 
     public Guid Id => _stored.Id;
@@ -105,7 +107,9 @@ public sealed partial class GoalReminderEditRow : ObservableObject
     {
         (GoalReminderDays Days, IReadOnlyList<GoalWeekday>? Weekdays, DateOnly? Date, bool Repeat) shape = DayIndex switch
         {
-            0 => (GoalReminderDays.Today, null, _today, false),
+            // A stored "Today" reminder keeps the day it was set for unless its day was picked again here (milestone review S1:
+            // saving the goal on a later day must never re-arm it for that day); a new row or a re-pick is for today.
+            0 => (GoalReminderDays.Today, null, !_dayPicked && _stored.Days == GoalReminderDays.Today && _stored.Date is DateOnly kept ? kept : _today, false),
             1 => (GoalReminderDays.EveryDay, null, null, true),
             9 => (GoalReminderDays.Date, null, Date is DateTime picked ? DateOnly.FromDateTime(picked) : _today, false),
             _ when _otherWeekdays is not null && DayIndex == DayChoices.Count - 1 => (GoalReminderDays.Weekdays, _otherWeekdays, null, true),
@@ -148,7 +152,11 @@ public sealed partial class GoalReminderEditRow : ObservableObject
 
     partial void OnNumberChanged(int value) => OnPropertyChanged(nameof(NumberText));
 
-    partial void OnDayIndexChanged(int value) => Edited();
+    partial void OnDayIndexChanged(int value)
+    {
+        _dayPicked = true;
+        Edited();
+    }
 
     partial void OnDateChanged(DateTime? value) => Edited();
 

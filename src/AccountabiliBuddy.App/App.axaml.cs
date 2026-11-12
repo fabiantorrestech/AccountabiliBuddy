@@ -1039,7 +1039,7 @@ public partial class App : Application
         var backups = new BackupService(_configuration, documents, activityLog, new DpapiDataProtector(), time, dataDirectory)
         {
             // ADR 71: synced settings and task lists back up and restore through their own services.
-            Synced = AccountabiliBuddy.App.Services.Backup.BackupAccess.Synced(sleepSettings, dayBarSettings, goal, guidance),
+            Synced = AccountabiliBuddy.App.Services.Backup.BackupAccess.Synced(sleepSettings, dayBarSettings, goal, guidance, minutes => SetDailyGoalAsync(goal, minutes)),
             Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore, taskAccount),
             ShareTaskLists = () => syncSettings.Current.ShareTaskLists,
         };
@@ -1421,7 +1421,21 @@ public partial class App : Application
             () => _sessions!.State.IsRealSession,
             goalStore,
             time);
-        _recorder!.LogChanged += (_, _) => Dispatcher.UIThread.Post(() => _ = goalData.ReloadAsync());
+        // Milestone review S2 (keep CPU low): the log is written often while the PC is used; goal data is read again once things settle
+        // (one read at most every 3 s, coalescing a burst of writes, as History does), not on every write.
+        var goalLogSettled = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        goalLogSettled.Tick += (_, _) =>
+        {
+            goalLogSettled.Stop();
+            _ = goalData.ReloadAsync();
+        };
+        _recorder!.LogChanged += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (!goalLogSettled.IsEnabled)
+            {
+                goalLogSettled.Start();
+            }
+        });
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         goal.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);

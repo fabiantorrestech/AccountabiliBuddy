@@ -135,7 +135,7 @@ public sealed class GoalStore
             DeepWork = deepWork;
             Ui = LoadDisplay(UiKey, GoalUiPreferences.Default).Clamped();
             PageSettings = LoadDisplay(SettingsKey, GoalPageSettings.Default).Clamped();
-            ReminderState = LoadDisplay(ReminderStateKey, GoalReminderState.Empty);
+            ReminderState = GoalReminderState.Whole(LoadDisplay(ReminderStateKey, GoalReminderState.Empty));
             return true;
         }
         catch (Exception ex) when (ex is SqliteException or JsonException or FormatException or NotSupportedException or CryptographicException)
@@ -160,7 +160,7 @@ public sealed class GoalStore
         DeepWork = deepWork;
         Ui = LoadDisplay(UiKey, GoalUiPreferences.Default).Clamped();
         PageSettings = LoadDisplay(SettingsKey, GoalPageSettings.Default).Clamped();
-        ReminderState = LoadDisplay(ReminderStateKey, GoalReminderState.Empty);
+        ReminderState = GoalReminderState.Whole(LoadDisplay(ReminderStateKey, GoalReminderState.Empty));
     }
 
     /// <summary>

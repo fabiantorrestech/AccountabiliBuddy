@@ -152,7 +152,9 @@ public sealed partial class GoalsSettingsViewModel : ObservableObject
             WeekStart = WeekStarts[Math.Clamp(WeekStartIndex, 0, WeekStarts.Length - 1)],
             HeatmapLabels = LabelValues[Math.Clamp(LabelsIndex, 0, LabelValues.Length - 1)],
             ExtraTiles = new GoalExtraTiles(StreakTile, TotalTile),
-            Review = review,
+            // Written only once the review itself was changed (milestone review NIT3): the "goals.page" What's new entry counts a stored
+            // review as the user's choice, so a change to any other row must not store the defaults for them.
+            Review = settings.Review is null && review == settings.ReviewSettings ? null : review,
             Reminders = new GoalReminderDefaults(SkipWhenDone, NudgeAccountabiliBuddy, NudgeProductaBuddy),
         };
         return _goals.SetPageSettingsAsync(changed, this);

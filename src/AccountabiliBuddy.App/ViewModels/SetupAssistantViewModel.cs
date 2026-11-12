@@ -808,7 +808,12 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 break;
             case AssistantStep.Goal:
                 string? goalNote = null;
-                if (SetDailyGoal is { } setDaily)
+                if (Goal is { HasChoice: false })
+                {
+                    // The very first choice (no daily goal chosen on this PC yet) isn't a loosening: it applies as chosen (NIT1).
+                    await Goal.SetAsync(GoalMinutes);
+                }
+                else if (SetDailyGoal is { } setDaily)
                 {
                     // One rule (Q375): raising at once; lowering waits and never starts during a session.
                     goalNote = await setDaily(GoalMinutes);

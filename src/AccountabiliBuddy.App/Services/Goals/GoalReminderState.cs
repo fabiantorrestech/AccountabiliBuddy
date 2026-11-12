@@ -12,6 +12,12 @@ public sealed record GoalReminderState(IReadOnlyDictionary<string, GoalReminderM
 
     public static GoalReminderState Empty { get; } = new(new Dictionary<string, GoalReminderMark>());
 
+    /// <summary>
+    /// The state as read, made whole (milestone review NIT2): a damaged document ("{}", "marks": null) reads as no marks instead of a null
+    /// that would throw on every reminder refresh.
+    /// </summary>
+    public static GoalReminderState Whole(GoalReminderState? read) => read?.Marks is null ? Empty : read;
+
     public GoalReminderMark? MarkOf(string key) => Marks.TryGetValue(key, out GoalReminderMark? mark) ? mark : null;
 
     /// <summary>The state with <paramref name="key"/> marked, and marks older than <see cref="Kept"/> (from <paramref name="now"/>) dropped.</summary>
