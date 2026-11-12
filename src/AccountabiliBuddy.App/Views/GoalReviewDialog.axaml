@@ -1,0 +1,179 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.GoalReviewDialog"
+                        x:DataType="vm:GoalReviewViewModel"
+                        Title="Weekly goals review"
+                        Icon="/Assets/app-icon.png"
+                        Width="640" MinHeight="640">
+    <!-- Round 2 R5.4 (brief §4.4, board Goals-PC-Review): the header with its subtitle and ×; the goal card (icon, name, target line and
+         area, ← 3 / 8 →, fact pills); the numbered decisions with the highlighted ❯ row, Suggested / Your choice; the footer with Stop for
+         now and "Then the tidy-up · about 2 minutes". Then "Reviewed N goals", unless the tidy-up follows. -->
+    <views:TaskDialogWindow.Styles>
+        <Style Selector="Border.fact">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="9,3" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.fact TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.fact.amber">
+            <Setter Property="Background" Value="{DynamicResource Ab.AmberFill}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AmberLine}" />
+        </Style>
+        <Style Selector="Border.fact.amber TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+        </Style>
+        <Style Selector="Button.stop">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.stop /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.stop:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.dlgRow.off">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+    </views:TaskDialogWindow.Styles>
+
+    <DockPanel>
+        <!-- Header. -->
+        <Border x:Name="ReviewHeader" DockPanel.Dock="Top" Padding="20,16,16,14" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource Ab.AccentSoft}" VerticalAlignment="Center">
+                    <mi:MaterialIcon Kind="TrackChanges" Width="20" Height="20" Foreground="{DynamicResource Ab.Accent}" />
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                    <TextBlock Classes="dlgTitle" Text="Weekly goals review" />
+                    <TextBlock Classes="dlgSub" Text="{Binding Sub}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center" Command="{Binding StopForNowCommand}"
+                        ToolTip.Tip="Close (your answers stay)" AutomationProperties.Name="Close">
+                    <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Footer. -->
+        <Border x:Name="ReviewFooter" DockPanel.Dock="Bottom" Padding="20,12" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <Button Classes="stop" Command="{Binding StopForNowCommand}" IsVisible="{Binding !IsFinished}"
+                        ToolTip.Tip="Your answers stay; the review stays on the This week card (Esc)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="Pause" Width="15" Height="15" VerticalAlignment="Center" />
+                        <TextBlock Text="Stop for now" FontSize="13" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding TidyUpNote}" FontSize="12.5" VerticalAlignment="Center">
+                    <TextBlock.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="ShowsTidyUpNote" />
+                            <Binding Path="!IsFinished" />
+                        </MultiBinding>
+                    </TextBlock.IsVisible>
+                </TextBlock>
+                <Button Grid.Column="2" Classes="primary dialogStart" Content="Done" Command="{Binding DoneCommand}" IsVisible="{Binding IsFinished}" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,16" Spacing="12">
+                <!-- The goal. -->
+                <Border x:Name="ReviewGoalCard" IsVisible="{Binding !IsFinished}" Background="{DynamicResource Ab.Surface2}" CornerRadius="16" Padding="18,16">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                            <Border Width="34" Height="34" CornerRadius="9" Background="{DynamicResource Ab.Surface}" VerticalAlignment="Top">
+                                <mi:MaterialIcon Kind="{Binding GoalIcon}" Width="18" Height="18" Foreground="{Binding GoalIconBrush}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{Binding GoalName}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Classes="muted" Text="{Binding GoalLine}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top">
+                                <Button Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" Command="{Binding BackCommand}" ToolTip.Tip="Back (←)" AutomationProperties.Name="Previous goal">
+                                    <mi:MaterialIcon Kind="ArrowLeft" Width="16" Height="16" />
+                                </Button>
+                                <TextBlock Classes="muted numeral" Text="{Binding PositionText}" FontSize="12.5" VerticalAlignment="Center" />
+                                <Button Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" Command="{Binding ForwardCommand}" ToolTip.Tip="Skip without answering (→)" AutomationProperties.Name="Next goal">
+                                    <mi:MaterialIcon Kind="ArrowRight" Width="16" Height="16" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Facts}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:GoalReviewFact">
+                                    <Border Classes="fact" Classes.amber="{Binding IsAmber}">
+                                        <TextBlock Text="{Binding Text}" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- 1. Keep going · 2. Adjust the target · 3. Pause this goal · 4. Decide next week -->
+                <ItemsControl x:Name="ReviewDecisions" ItemsSource="{Binding Decisions}" IsVisible="{Binding !IsFinished}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:GoalReviewDecisionViewModel">
+                            <Button Classes="dlgRow" Classes.lit="{Binding IsLit}" Classes.off="{Binding !IsAvailable}" Command="{Binding Pick}"
+                                    PointerEntered="OnDecisionPointerEntered" Padding="0" AutomationProperties.Name="{Binding Name}">
+                                <Grid ColumnDefinitions="18,Auto,Auto,*,Auto" ColumnSpacing="10" Margin="10,10,14,10">
+                                    <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" IsVisible="{Binding IsLit}" VerticalAlignment="Center"
+                                                     Foreground="{DynamicResource Ab.Accent}" />
+                                    <TextBlock Grid.Column="1" Classes="muted numeral" Text="{Binding Number}" FontSize="13" VerticalAlignment="Center" />
+                                    <mi:MaterialIcon Grid.Column="2" Kind="{Binding Icon}" Width="17" Height="17" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="1">
+                                        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" />
+                                        <TextBlock Classes="muted" Text="{Binding Sub}" FontSize="12" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                        <Border Classes="dlgTag soft" IsVisible="{Binding IsSuggested}">
+                                            <TextBlock Text="Suggested" />
+                                        </Border>
+                                        <Border Classes="dlgTag" IsVisible="{Binding IsChosen}">
+                                            <TextBlock Text="Your choice" />
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="muted" Text="{Binding Message}" IsVisible="{Binding HasMessage}" FontSize="12.5" TextWrapping="Wrap" />
+
+                <!-- Finished. -->
+                <StackPanel Spacing="10" IsVisible="{Binding IsFinished}" Margin="0,24,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="22" Height="22" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding FinishedText}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" Text="Next week's review comes on its day; goals you left for next week are asked again then." FontSize="13" TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</views:TaskDialogWindow>

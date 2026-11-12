@@ -79,6 +79,9 @@ public enum AssistantStep
     /// <summary>ADR 78: task reminders to Google Calendar need one more OK from Google (Allow), or Nowhere (only as a new feature).</summary>
     TaskCalendarExport,
 
+    /// <summary>Round 2 R5 (Q440): Goals, what they are, Deep work built in, and the weekly review's day (only as a new feature).</summary>
+    GoalsIntro,
+
     /// <summary>
     /// ADR 68: AccountabiliBuddy or ProductaBuddy, in the first run (ProductaBuddy preselected on a fresh install), as the full
     /// setup's last page, and as a new feature for upgraded installs.

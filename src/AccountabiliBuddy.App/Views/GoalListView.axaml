@@ -172,14 +172,14 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="0,2" />
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                    <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="0,2" IsVisible="{Binding IsReviewShown}" />
+                    <Grid x:Name="ReviewRow" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10" IsVisible="{Binding IsReviewShown}">
                         <mi:MaterialIcon Kind="TrackChanges" Width="18" Height="18" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="Weekly review" FontSize="13.5" FontWeight="SemiBold" />
                             <TextBlock Classes="muted" FontSize="12" Text="{Binding ReviewNote}" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
-                        <Button Grid.Column="2" Command="{Binding SnoozeReviewCommand}" ToolTip.Tip="Snooze the weekly review" AutomationProperties.Name="Snooze the weekly review">
+                        <Button Grid.Column="2" Command="{Binding SnoozeReviewCommand}" IsVisible="{Binding CanSnoozeReview}" ToolTip.Tip="{Binding SnoozeReviewTip}" AutomationProperties.Name="{Binding SnoozeReviewTip}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <mi:MaterialIcon Kind="AlarmSnooze" Width="15" Height="15" />
                                 <TextBlock Text="Snooze" />

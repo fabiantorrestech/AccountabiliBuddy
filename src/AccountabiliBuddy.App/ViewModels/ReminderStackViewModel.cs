@@ -9,7 +9,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// The task reminder cards (ADR 76, spec 03 §D, P7/P8/P12): the toast stack at the bottom right (front card, up to 3 tilted cards
 /// behind, "All 6 | ‹ 1/6 ›", the list view, the Snooze menu above the card) and the dimmed full-screen card (Can't miss, or every
 /// reminder with "How reminders show" on Always full screen). The ringer (<see cref="IReminderStackHost"/>) fills it from the trusted
-/// clock and does what the buttons ask. Holds task titles: shown, never logged.
+/// clock and does what the buttons ask. Holds task titles: shown, never logged. Round 2 R5.5: a goal reminder (another reminder source)
+/// shows in the same card with the goal's icon chip, name, reason and progress line, its quick log as the accent button and "Open goal";
+/// goal names and reasons are private text too.
 /// </summary>
 public sealed partial class ReminderStackViewModel : ObservableObject
 {
@@ -23,7 +25,9 @@ public sealed partial class ReminderStackViewModel : ObservableObject
         Now = now;
         Head = Title = Meta = PrimaryText = CountText = PositionText = ListHead = DismissText = string.Empty;
         ClockDigits = ClockSuffix = FullHead = FullMeta = VolumeNote = string.Empty;
+        Reason = OpenText = string.Empty;
         Dot = Brushes.Transparent;
+        SourceIconBrush = Brushes.Transparent;
         Rows = [];
         SnoozeMinutes = [];
         SnoozeShortcuts = [];
@@ -57,6 +61,33 @@ public sealed partial class ReminderStackViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool HasNudge { get; set; }
+
+    // ---- another source's card (a goal reminder) ----
+
+    /// <summary>The shown reminder is a goal's (another reminder source): icon chip, reason, Open goal; the label dot hides.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTaskCard))]
+    public partial bool IsSourceCard { get; set; }
+
+    public bool IsTaskCard => !IsSourceCard;
+
+    /// <summary>The goal's icon.</summary>
+    [ObservableProperty]
+    public partial MaterialIconKind SourceIcon { get; set; } = MaterialIconKind.TrackChanges;
+
+    [ObservableProperty]
+    public partial IBrush SourceIconBrush { get; set; }
+
+    /// <summary>The reminder's reason, "if not done yet" (private text); empty for none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReason))]
+    public partial string Reason { get; set; }
+
+    public bool HasReason => Reason.Length > 0;
+
+    /// <summary>"Open goal".</summary>
+    [ObservableProperty]
+    public partial string OpenText { get; set; }
 
     /// <summary>"Start session", "Work on it now" or "Add to Queued".</summary>
     [ObservableProperty]
@@ -118,7 +149,7 @@ public sealed partial class ReminderStackViewModel : ObservableObject
 
     /// <summary>Not busy writing an action: Start, Snooze and the others work.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PrimaryCommand), nameof(SnoozeFiveCommand), nameof(PickTimeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PrimaryCommand), nameof(SnoozeFiveCommand), nameof(PickTimeCommand), nameof(OpenItemCommand))]
     [NotifyCanExecuteChangedFor(nameof(ToggleSnoozeCommand), nameof(SnoozeAllCommand), nameof(DismissAllCommand))]
     public partial bool CanAct { get; set; } = true;
 
@@ -179,6 +210,14 @@ public sealed partial class ReminderStackViewModel : ObservableObject
     {
         IsSnoozeOpen = false;
         _host.Primary();
+    }
+
+    /// <summary>A goal reminder's "Open goal".</summary>
+    [RelayCommand(CanExecute = nameof(CanAct))]
+    private void OpenItem()
+    {
+        IsSnoozeOpen = false;
+        _host.OpenItem();
     }
 
     [RelayCommand(CanExecute = nameof(CanAct))]

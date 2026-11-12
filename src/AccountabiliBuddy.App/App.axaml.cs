@@ -118,6 +118,10 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Goals.GoalsService? _goals;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger? _taskReminderRinger;
+
+    // Round 2 R5: goal reminders (through the task reminder engine) and the weekly goals review.
+    private AccountabiliBuddy.App.Services.Goals.GoalReminderSource? _goalReminders;
+    private AccountabiliBuddy.App.Services.Goals.GoalReviewService? _goalReview;
     private AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService? _taskCalendarExport;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderSettingsService? _taskReminderSettings;
     private AccountabiliBuddy.App.Services.Tasks.TaskAccountSettingsService? _taskAccount;
@@ -1094,6 +1098,7 @@ public partial class App : Application
                 ? new TaskExportSetupViewModel(_taskCalendarExport, _taskReminderSettings) { OpenBrowser = OpenInBrowser }
                 : null,
             SkipFeature = id => _setupFeatures?.SkipAsync(id) ?? Task.CompletedTask,
+            Goals = _goals is { Store.IsReady: true } ? _goals : null,
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -1421,6 +1426,24 @@ public partial class App : Application
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         goal.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         _ = goalData.ReloadAsync();
+        // Round 2 R5.5 (brief §5.9): goal reminders ring through the task reminder engine (its queue, ringer, snooze, session rule and
+        // volume guard) without becoming tasks; their state stays on this PC in the goals store. Only where the task list (and so the
+        // engine) is in use. Never exported to Google Calendar (ADR 78 reads the task list only).
+        var goalReminders = new AccountabiliBuddy.App.Services.Goals.GoalReminderSource(_goals, goalData, time);
+        _goalReminders = goalReminders;
+        _taskReminders?.AddSource(goalReminders);
+        guidance.Changed += (_, _) => Dispatcher.UIThread.Post(goalReminders.NotifyModeChanged);
+        // Round 2 R5.4: the weekly goals review (its day and time from Settings › Goals; never during a session; the tidy-up after it).
+        var goalReview = new AccountabiliBuddy.App.Services.Goals.GoalReviewService(_goals, goalData, time, () => _sessions!.State.IsActive) { TidyUp = _taskTidyUp };
+        _goalReview = goalReview;
+        _sessions!.StateChanged += (_, _) => Dispatcher.UIThread.Post(goalReview.NotifyChanged);
+        guidance.Changed += (_, _) => Dispatcher.UIThread.Post(goalReview.NotifyChanged);
+        if (_taskTidyUp is { } reviewTidyUp)
+        {
+            reviewTidyUp.Changed += (_, _) => Dispatcher.UIThread.Post(goalReview.NotifyChanged);
+        }
+
+        goalReview.NotifyChanged();
         // Today's goals on the Today sidebar: the goals with Show on Today (R5 replaces R2a's Deep-work-only hook); Deep work's card keeps
         // the daily goal's edit and lines.
         sessionViewModel.TodayGoals = new TodayGoalsViewModel(sessionViewModel.Goal, _goals, goalData);
@@ -1822,6 +1845,25 @@ public partial class App : Application
             }
         };
         goalsPage.AreasRequested += async (_, _) => await GoalAreasDialog.ShowAsync(VisibleMainWindow(), _goals);
+        // The This week card's review row: Start opens the weekly goals review (then the tidy-up when it follows), Snooze per mode.
+        goalsPage.Review = goalReview;
+        goalReview.Changed += (_, _) => goalsPage.MarkChanged();
+        goalsPage.ReviewRequested += async (_, _) => await ShowGoalReviewAsync(goalReview, goalData, sessionTasks, guidance, taskStore, time);
+        goalsPage.ReviewSnoozeRequested += async (_, _) => await goalReview.SnoozeAsync();
+        // A goal reminder's Log a value… / Add time… / Open goal: the Goals page with the goal shown (today's day panel on Edit to log).
+        goalReminders.OpenGoal = (goalId, log) =>
+        {
+            ShowMainWindow();
+            mainViewModel.SelectedTab = MainWindowViewModel.GoalsTab;
+            if (log)
+            {
+                goalsPage.LogToday(goalId);
+            }
+            else
+            {
+                goalsPage.Select(goalId);
+            }
+        };
         mainViewModel.Goals = goalsPage;
         if (_goals.Store.IsReady)
         {
@@ -2262,7 +2304,7 @@ public partial class App : Application
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
             documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!, _guidance!,
-                taskStore, taskAccount, _taskCalendarExport, _taskReminderSettings, () => _taskReminderAlerts?.HasPhones == true), BackupService.AppVersion);
+                taskStore, taskAccount, _taskCalendarExport, _taskReminderSettings, () => _taskReminderAlerts?.HasPhones == true, _goals), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -2272,6 +2314,12 @@ public partial class App : Application
         quitGuard.Changed += (_, _) => setupFeatures.Refresh();
         _guidance!.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
+        // Round 2 R5: the Goals entry is set up once the weekly review's day is chosen (Settings › Goals or the assistant).
+        if (_goals is { } featureGoals)
+        {
+            featureGoals.Store.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
+        }
+
         // The Tasks redesign's features (Phase 8): a choice made on another device sets them up here too.
         taskAccount.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         if (_taskCalendarExport is not null)
@@ -3744,11 +3792,13 @@ public partial class App : Application
         return goals.DailyGoalNote(await goals.SetDailyGoalAsync(minutes));
     }
 
-    // New goal (goalId null) or Edit goal at a section, over the main window (round 2 R5.4). Labels, day plan categories and Beeminder's
-    // cached goals are read as it opens; nothing is fetched.
+    // New goal (goalId null) or Edit goal at a section, over the main window (round 2 R5.4), or over the weekly review (`owner`) with the
+    // review's suggested numbers pre-filled (`suggested`). Labels, day plan categories and Beeminder's cached goals are read as it opens;
+    // nothing is fetched.
     private async Task ShowGoalEditorAsync(
         AccountabiliBuddy.App.Services.Goals.GoalSourceDataService data, Guid? goalId, GoalEditSection section, bool focusActive,
-        SessionTasksService sessionTasks, GuidanceModeService guidance)
+        SessionTasksService sessionTasks, GuidanceModeService guidance, AccountabiliBuddy.Core.Goals.GoalReviewAdjustment? suggested = null,
+        Visual? owner = null)
     {
         if (_goals is not { } goals || !goals.Store.IsReady)
         {
@@ -3773,11 +3823,51 @@ public partial class App : Application
             .ToList();
         var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion);
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
-        Guid? created = await GoalEditorDialog.ShowAsync(VisibleMainWindow(), editor, goals);
+        if (suggested is not null)
+        {
+            editor.Target.ApplySuggestion(suggested);
+        }
+
+        Guid? created = await GoalEditorDialog.ShowAsync(owner ?? VisibleMainWindow(), editor, goals);
         if (created is Guid made && GoalsPageOfWindow() is { } page)
         {
             page.Select(made);
         }
+    }
+
+    // The weekly goals review (round 2 R5.4) over the main window; never during a session (it closes if one starts, keeping its answers).
+    // "Adjust the target" opens Edit goal › Target over it with the suggested numbers. With Settings › Goals' "Run the tidy-up straight
+    // after" on, the tidy-up follows the last answer; with every goal already answered, Start goes straight to that tidy-up.
+    private async Task ShowGoalReviewAsync(
+        AccountabiliBuddy.App.Services.Goals.GoalReviewService review, AccountabiliBuddy.App.Services.Goals.GoalSourceDataService data,
+        SessionTasksService sessionTasks, GuidanceModeService guidance, AccountabiliBuddy.App.Services.Tasks.TaskStore taskStore, TimeProvider time)
+    {
+        if (review.SessionRunning || !review.Goals.Store.IsReady)
+        {
+            return;
+        }
+
+        DateOnly week = review.WeekOf(review.DueAt(review.Now));
+        bool thenTidyUp;
+        if (!AccountabiliBuddy.App.Services.Goals.GoalReviewService.IsComplete(review.RecordFor(week), review.GoalsToReview(data.Today)))
+        {
+            var viewModel = new GoalReviewViewModel(review);
+            var dialog = new GoalReviewDialog(viewModel);
+            viewModel.AdjustTarget = (goalId, suggested) => ShowGoalEditorAsync(data, goalId, GoalEditSection.Target, false, sessionTasks, guidance, suggested, dialog);
+            await dialog.ShowOverAsync(VisibleMainWindow());
+            thenTidyUp = viewModel.ThenTidyUp;
+        }
+        else
+        {
+            thenTidyUp = review.TidyUpDue;
+        }
+
+        if (thenTidyUp && !review.SessionRunning && _taskTidyUp is { } tidyUp && tidyUp.Start() is not null)
+        {
+            await TidyUpDialog.ShowAsync(VisibleMainWindow(), new TidyUpViewModel(tidyUp, taskStore, time));
+        }
+
+        review.NotifyChanged();
     }
 
     private GoalsViewModel? GoalsPageOfWindow() => (_mainWindow?.DataContext as MainWindowViewModel)?.Goals;
@@ -3986,6 +4076,7 @@ public partial class App : Application
         _power?.Dispose();
         _taskReminders?.Dispose();
         _taskReminderRinger?.Dispose();
+        _goalReview?.Dispose();
         _taskCalendarExport?.Dispose();
         _workGate?.Dispose();
         _hyperfocus?.Dispose();

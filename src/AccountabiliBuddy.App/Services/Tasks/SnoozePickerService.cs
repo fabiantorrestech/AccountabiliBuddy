@@ -24,7 +24,9 @@ public sealed class SnoozePickerService
     /// <returns>True when the reminder was snoozed; false when the picker was cancelled.</returns>
     public async Task<bool> ShowAsync(Visual? owner, TaskReminderEntry entry)
     {
-        var picker = new SnoozePickerViewModel(_settings, () => _reminders.Now, _reminders.Zone, _reminders.TitleOf(entry.TaskId));
+        // A goal reminder (another reminder source) is titled by its goal's name; a task's by its title, as before.
+        string? title = _reminders.SourceOf(entry) is { } source ? source.Card(entry)?.Title : _reminders.TitleOf(entry.TaskId);
+        var picker = new SnoozePickerViewModel(_settings, () => _reminders.Now, _reminders.Zone, title);
         if (await SnoozePickerDialog.ShowAsync(owner, picker) is not DateTimeOffset until)
         {
             return false;

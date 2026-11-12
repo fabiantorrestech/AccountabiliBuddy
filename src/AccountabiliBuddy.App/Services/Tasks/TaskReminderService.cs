@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Reminders;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Tasks;
@@ -14,7 +15,11 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// is due. This PC rings every reminder for itself whatever a label's "Rings on" says (spec 02). A reminder that rang until its
 /// ring time ran out is remembered (document "tasks.reminderMissed", ids and times only) and not rung again, so a restart doesn't
 /// repeat it; it stays on the task for the "Reminders due today" list. Reminders of a running session's own tasks don't ring (the
-/// session holds them). Use from the UI thread only.
+/// session holds them). Round 2 R5.5: other reminder sources (<see cref="IReminderSource"/>, goal reminders) ring through the same
+/// queue: their due occurrences follow the task list's in <see cref="Pending"/> (a task's reminder always comes first, so the task
+/// reminders ring exactly as before), held by the same session rule, snoozed and dismissed through the same calls, which hand them
+/// to their source. They never reach <see cref="Entries"/> (the "Reminders due today" list and the calendar export are task-only).
+/// Use from the UI thread only.
 /// </summary>
 public sealed class TaskReminderService : IDisposable
 {
@@ -31,6 +36,10 @@ public sealed class TaskReminderService : IDisposable
     private readonly DispatcherTimer _timer = new();
     private Dictionary<string, DateTimeOffset> _missed = [];
     private IReadOnlyList<TaskReminderEntry> _entries = [];
+
+    // Round 2 R5.5: reminder sources other than the task list (one per origin), and their occurrences as last read.
+    private readonly List<IReminderSource> _sources = [];
+    private IReadOnlyList<TaskReminderEntry> _sourceEntries = [];
 
     // "Ring it now (test)" rings: shown like a due reminder, but nothing a test ring's buttons do is written to the task.
     private readonly List<TaskReminderEntry> _tests = [];
@@ -93,6 +102,28 @@ public sealed class TaskReminderService : IDisposable
         _timer.Stop();
     }
 
+    /// <summary>
+    /// Round 2 R5.5: rings another source's reminders through this engine (goal reminders). Its due occurrences come after the task
+    /// list's in <see cref="Pending"/>; a change it announces looks again at once.
+    /// </summary>
+    public void AddSource(IReminderSource source)
+    {
+        if (_sources.Any(known => known.Origin == source.Origin))
+        {
+            throw new InvalidOperationException($"A reminder source for {source.Origin} is already added.");
+        }
+
+        _sources.Add(source);
+        source.Changed += (_, _) => Refresh();
+        Refresh();
+    }
+
+    /// <summary>The source of a reminder that isn't a task's; null for a task's.</summary>
+    public IReminderSource? SourceOf(TaskReminderEntry entry)
+    {
+        return entry.Origin == TaskReminderOrigin.Task ? null : _sources.FirstOrDefault(source => source.Origin == entry.Origin);
+    }
+
     /// <summary>The task's title, for showing (private text: never logged); null when the task is gone.</summary>
     public string? TitleOf(Guid taskId)
     {
@@ -145,6 +176,17 @@ public sealed class TaskReminderService : IDisposable
         // A test ring the user asked for shows first, also during a session; it leaves once acted on, or when its task is gone.
         _tests.RemoveAll(test => TaskOf(test.TaskId) is null);
         due.InsertRange(0, _tests);
+
+        // Other sources' reminders (goal reminders) after every task reminder, by the same due and session rules; never Can't miss.
+        var sourceEntries = new List<TaskReminderEntry>();
+        foreach (IReminderSource source in _sources)
+        {
+            IReadOnlyList<TaskReminderEntry> fromSource = source.Entries(now);
+            sourceEntries.AddRange(fromSource);
+            due.AddRange(TaskReminderQueue.Ringable(TaskReminderQueue.Due(fromSource, now), SessionRunning(), _settings.Current.DuringSession));
+        }
+
+        _sourceEntries = sourceEntries;
         if (!due.Select(entry => entry.Key).SequenceEqual(Pending.Select(entry => entry.Key)))
         {
             Pending = due;
@@ -199,6 +241,13 @@ public sealed class TaskReminderService : IDisposable
             return;
         }
 
+        if (SourceOf(entry) is IReminderSource source)
+        {
+            await source.SnoozeAsync(entry, until);
+            Refresh();
+            return;
+        }
+
         await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Snooze(lists, entry, until, now, self).Lists);
         Refresh();
     }
@@ -207,6 +256,13 @@ public sealed class TaskReminderService : IDisposable
     {
         if (EndTest(entry))
         {
+            return;
+        }
+
+        if (SourceOf(entry) is IReminderSource source)
+        {
+            await source.DismissAsync(entry);
+            Refresh();
             return;
         }
 
@@ -220,10 +276,10 @@ public sealed class TaskReminderService : IDisposable
     /// (it keeps ringing until the user acts on it; a swap in the dialog doesn't handle it). A session isn't started or changed here:
     /// the normal start path is the user's.
     /// </summary>
-    /// <returns>True when the task is now in This session (false for a test ring, a full session, or no task actions).</returns>
+    /// <returns>True when the task is now in This session (false for a test ring, a full session, no task actions, or another source's reminder).</returns>
     public async Task<bool> StartAsync(TaskReminderEntry entry)
     {
-        if (EndTest(entry))
+        if (entry.Origin != TaskReminderOrigin.Task || EndTest(entry))
         {
             return false;
         }
@@ -260,7 +316,7 @@ public sealed class TaskReminderService : IDisposable
     /// </summary>
     public async Task QueueAsync(TaskReminderEntry entry)
     {
-        if (entry.CantMiss || EndTest(entry))
+        if (entry.CantMiss || entry.Origin != TaskReminderOrigin.Task || EndTest(entry))
         {
             return;
         }
@@ -286,6 +342,14 @@ public sealed class TaskReminderService : IDisposable
     {
         if (EndTest(entry))
         {
+            return;
+        }
+
+        if (SourceOf(entry) is IReminderSource source)
+        {
+            // Its source keeps it (not the task list's "tasks.reminderMissed"): at once in memory, saved after; the next one comes to the front.
+            _ = source.RingTimedOutAsync(entry);
+            Refresh();
             return;
         }
 
@@ -328,7 +392,7 @@ public sealed class TaskReminderService : IDisposable
     private void Schedule(DateTimeOffset now)
     {
         TimeSpan wait = MaxWait;
-        if (TaskReminderQueue.NextRingAt(_entries, now) is DateTimeOffset next)
+        if (TaskReminderQueue.NextRingAt(_entries.Concat(_sourceEntries), now) is DateTimeOffset next)
         {
             wait = TimeSpan.FromTicks(Math.Min(MaxWait.Ticks, Math.Max(MinWait.Ticks, (next - now).Ticks)));
         }

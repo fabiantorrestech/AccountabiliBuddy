@@ -9,8 +9,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// The This week card at the top of the Goals list (round 2, change note §4a; fixed, the list scrolls under it): "5 of 8 on track",
 /// an amber "1 behind" pill that jumps to the goal, "2 not due yet", a segmented bar (on track / behind / not due), and the weekly
-/// review row (Snooze / Start). Paused goals leave every count (brief §5.4). The review's dialog and snooze are R5b's: their hooks
-/// are <see cref="StartReviewRequested"/> and <see cref="SnoozeReviewRequested"/>.
+/// review row (Snooze / Start). Paused goals leave every count (brief §5.4). The review row comes on the review day and time
+/// (<see cref="SetReview"/> from <see cref="GoalReviewService.Row"/>); its dialog and snooze go through
+/// <see cref="StartReviewRequested"/> and <see cref="SnoozeReviewRequested"/>.
 /// </summary>
 public sealed partial class GoalThisWeekViewModel : ObservableObject
 {
@@ -56,6 +57,27 @@ public sealed partial class GoalThisWeekViewModel : ObservableObject
     /// <summary>"Sundays · about 4 min, then the tidy-up" (the review's day follows the week start until Settings › Goals sets it).</summary>
     [ObservableProperty]
     public partial string ReviewNote { get; set; } = string.Empty;
+
+    /// <summary>The review row shows: the review is due and not done (or its tidy-up is), no session runs, it isn't snoozed in AB mode.</summary>
+    [ObservableProperty]
+    public partial bool IsReviewShown { get; set; } = true;
+
+    /// <summary>Snooze is offered (not on ProductaBuddy's quiet snoozed row).</summary>
+    [ObservableProperty]
+    public partial bool CanSnoozeReview { get; set; } = true;
+
+    /// <summary>"Snooze the weekly review for 1 day".</summary>
+    [ObservableProperty]
+    public partial string SnoozeReviewTip { get; set; } = "Snooze the weekly review";
+
+    /// <summary>The review row as <see cref="GoalReviewService.Row"/> says.</summary>
+    public void SetReview(GoalReviewRow row)
+    {
+        IsReviewShown = row.IsShown;
+        CanSnoozeReview = row.CanSnooze;
+        ReviewNote = row.Note;
+        SnoozeReviewTip = row.SnoozeTip;
+    }
 
     /// <summary>R5b hook: Start opens the weekly goals review dialog.</summary>
     public event EventHandler? StartReviewRequested;

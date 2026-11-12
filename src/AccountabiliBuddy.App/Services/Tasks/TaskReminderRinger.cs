@@ -1,4 +1,5 @@
 using System.Globalization;
+using AccountabiliBuddy.App.Services.Reminders;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
 using AccountabiliBuddy.Core.Domain;
@@ -25,8 +26,11 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// During a focus session the service holds normal reminders (setting "During a focus session": wait until it ends, or remind
 /// quietly). A quiet one shows as a toast and its bell sounds once; Can't miss rings as it always does. No card takes the focus from
 /// the user's work. Nothing here ends, pauses or changes a session: "Start session" puts the task in This session (cap-checked; a full
-/// one opens "This session is full") and opens the app's own start controls; during a session it reads "Work on it now". Use from the
-/// UI thread only.
+/// one opens "This session is full") and opens the app's own start controls; during a session it reads "Work on it now".
+/// Round 2 R5.5: reminders of another source (<see cref="IReminderSource"/>, goal reminders) come after the task reminders in the same
+/// stack with their source's card (icon, name, reason, progress line; its accent button and "Open goal"); they are never full screen and
+/// ring quietly when their source says so (ProductaBuddy: one bell, no volume raise); dismiss protection applies to them as to any
+/// normal reminder. Use from the UI thread only.
 /// </summary>
 public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
 {
@@ -55,6 +59,9 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     private HashSet<string> _listKeys = [];
     private string? _shownKey;
     private DateTimeOffset _shownSince;
+
+    // The shown reminder's source card as last laid out (null for a task's): read once a second without working it out again.
+    private ReminderSourceCard? _shownCard;
 
     private TaskReminderEntry? _front;
     private DateTimeOffset _frontSince;
@@ -117,6 +124,16 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
             return;
         }
 
+        if (_reminders.SourceOf(entry) is IReminderSource source)
+        {
+            _ = ActAsync(async shown =>
+            {
+                await source.PrimaryAsync(shown);
+                _reminders.Refresh();
+            });
+            return;
+        }
+
         if (TaskReminderCard.ShowsNudge(entry, _reminders.TaskOf(entry.TaskId)?.Bin))
         {
             _ = ActAsync(_reminders.QueueAsync);
@@ -133,6 +150,20 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
             {
                 OpenStart?.Invoke();
             }
+        });
+    }
+
+    public void OpenItem()
+    {
+        if (Shown is not TaskReminderEntry entry || _reminders.SourceOf(entry) is not IReminderSource source)
+        {
+            return;
+        }
+
+        _ = ActAsync(async shown =>
+        {
+            await source.OpenAsync(shown);
+            _reminders.Refresh();
         });
     }
 
@@ -280,7 +311,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
 
         _index = TaskReminderCard.KeepIndex(_shown.Select(entry => entry.Key).ToList(), _index, pending.Select(entry => entry.Key).ToList());
         _shown = pending;
-        _fullScreen = TaskReminderCard.ShowsFullScreen(pending[0], _settings.Current.Display, _sessionRunning());
+        _fullScreen = ShowsFullScreen(pending[0]);
         if (_fullScreen)
         {
             _index = 0;
@@ -311,6 +342,8 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     {
         DateTimeOffset now = _reminders.Now;
         TimeZoneInfo zone = _reminders.Zone;
+        ReminderSourceCard? sourceCard = _reminders.SourceOf(shown)?.Card(shown);
+        _shownCard = sourceCard;
         TaskItem? task = _reminders.TaskOf(shown.TaskId);
         TaskLabel? label = _reminders.LabelOf(task?.LabelId);
         int more = pending.Count - 1;
@@ -332,6 +365,11 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         view.Behind = TaskReminderCard.Behind(more);
         view.Rows = pending.Select((entry, i) =>
         {
+            if (_reminders.SourceOf(entry)?.Card(entry) is ReminderSourceCard rowCard)
+            {
+                return new ReminderListRowViewModel(rowCard.Title, rowCard.IconBrush, TaskReminderCard.ListTime(entry.RingAt, now, zone), i == _index, view.OpenCommandFor(i));
+            }
+
             TaskItem? rowTask = _reminders.TaskOf(entry.TaskId);
             return new ReminderListRowViewModel(
                 rowTask?.Title ?? string.Empty, DotOf(_reminders.LabelOf(rowTask?.LabelId)), TaskReminderCard.ListTime(entry.RingAt, now, zone),
@@ -346,6 +384,31 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         view.FullHead = view.Head;
         (view.ClockDigits, view.ClockSuffix) = TaskReminderCard.Clock(shown.Due, zone);
         view.FullMeta = TaskReminderCard.Meta(label?.Name, TaskReminderCard.DueText(task?.DueOn, task?.DueAt, now, zone), number, firstRang);
+        FillSource(view, sourceCard, more);
+    }
+
+    // Another source's card (a goal reminder): its icon, name, reason and progress line over the task card's fields; never the nudge.
+    private static void FillSource(ReminderStackViewModel view, ReminderSourceCard? card, int more)
+    {
+        view.IsSourceCard = card is not null;
+        if (card is null)
+        {
+            view.Reason = string.Empty;
+            view.OpenText = string.Empty;
+            return;
+        }
+
+        view.Head = more > 0 ? $"{card.Head} · {more} more" : card.Head;
+        view.FullHead = view.Head;
+        view.Title = card.Title;
+        view.Meta = card.Meta;
+        view.FullMeta = card.Meta;
+        view.Reason = card.Reason;
+        view.SourceIcon = card.Icon;
+        view.SourceIconBrush = card.IconBrush;
+        view.Dot = card.IconBrush;
+        view.OpenText = card.OpenText;
+        view.HasNudge = false;
     }
 
     private void OnTick()
@@ -370,7 +433,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         }
 
         // A session that started or ended, or "How reminders show" changed, can switch between the toast and full screen.
-        if (TaskReminderCard.ShowsFullScreen(front, _settings.Current.Display, _sessionRunning()) != _fullScreen)
+        if (ShowsFullScreen(front) != _fullScreen)
         {
             Present();
         }
@@ -387,7 +450,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
     // that fails is tried again only for the next front. Core Audio is touched only on a change.
     private void FollowVolume(TaskReminderEntry front)
     {
-        bool loud = _settings.Current.RingEvenWhenMuted && !(_sessionRunning() && !front.CantMiss);
+        bool loud = _settings.Current.RingEvenWhenMuted && !IsQuiet(front);
         if (!loud)
         {
             if (_raisedTo is not null)
@@ -424,7 +487,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
 
     private void PlaySoundIfDue(TaskReminderEntry front, DateTimeOffset now, TimeSpan rung, TaskReminderRingPolicy policy)
     {
-        bool quiet = _sessionRunning() && !front.CantMiss;
+        bool quiet = IsQuiet(front);
         if (quiet && _soundedInSession)
         {
             return;
@@ -438,6 +501,18 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         _lastSound = now;
         _soundedInSession |= quiet;
         _cues.Play(SoundChoice.BellId, policy.VolumeAt(rung, front.CantMiss));
+    }
+
+    // One quiet bell, no volume raise: a normal reminder during a session (as before), or one whose source rings quietly (PB goal reminders).
+    private bool IsQuiet(TaskReminderEntry front)
+    {
+        return (_sessionRunning() && !front.CantMiss) || _reminders.SourceOf(front)?.RingsQuietly(front) == true;
+    }
+
+    // A task's reminder follows "How reminders show" and Can't miss; another source's reminder is a suggestion: always the toast.
+    private bool ShowsFullScreen(TaskReminderEntry front)
+    {
+        return front.Origin == TaskReminderOrigin.Task && TaskReminderCard.ShowsFullScreen(front, _settings.Current.Display, _sessionRunning());
     }
 
     private TaskReminderDismissState DismissState(TaskReminderEntry shown)
@@ -462,8 +537,16 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         _viewModel.CanDismissAll = !state.Waiting;
         _viewModel.CanAct = !_busy;
         bool nudge = _viewModel.HasNudge;
-        _viewModel.PrimaryText = nudge ? "Add to Queued" : _sessionRunning() ? "Work on it now" : "Start session";
-        _viewModel.PrimaryIcon = nudge ? MaterialIconKind.PlaylistPlus : MaterialIconKind.Play;
+        if (shown.Origin != TaskReminderOrigin.Task && _shownCard is ReminderSourceCard card)
+        {
+            _viewModel.PrimaryText = card.PrimaryText;
+            _viewModel.PrimaryIcon = card.PrimaryIcon;
+        }
+        else
+        {
+            _viewModel.PrimaryText = nudge ? "Add to Queued" : _sessionRunning() ? "Work on it now" : "Start session";
+            _viewModel.PrimaryIcon = nudge ? MaterialIconKind.PlaylistPlus : MaterialIconKind.Play;
+        }
         _viewModel.VolumeNote = _front is not null && _raiseFailedFor == _front.Key ? "Couldn't raise the volume" : string.Empty;
     }
 
@@ -613,6 +696,7 @@ public sealed class TaskReminderRinger : IDisposable, IReminderStackHost
         _front = null;
         _shown = [];
         _shownKey = null;
+        _shownCard = null;
         CloseWindows();
         _viewModel = null;
         _guard.Restore();

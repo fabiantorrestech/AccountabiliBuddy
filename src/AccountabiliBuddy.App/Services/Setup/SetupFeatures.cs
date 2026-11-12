@@ -11,12 +11,24 @@ public static class SetupFeatures
     /// <summary>The Tasks redesign's entry (its page leads to the view chooser).</summary>
     public const string TasksRedesignId = "tasks.redesign";
 
+    /// <summary>Round 2 R5: the Goals page's entry.</summary>
+    public const string GoalsId = "goals.page";
+
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
         SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard,
         ShutdownService shutdown, GuidanceModeService guidance, Tasks.TaskStore taskStore, Tasks.TaskAccountSettingsService taskAccount,
-        Tasks.TaskCalendarExportService? taskExport, Tasks.TaskReminderSettingsService? taskReminderSettings, Func<bool> hasPhones) => new[]
+        Tasks.TaskCalendarExportService? taskExport, Tasks.TaskReminderSettingsService? taskReminderSettings, Func<bool> hasPhones,
+        Goals.GoalsService? goals = null) => new[]
     {
+        // Round 2 R5 (Q440): the Goals page. Set up once the weekly review's settings were saved (Settings › Goals, or this page's Next).
+        new SetupFeature(
+            GoalsId, "0.1.131",
+            "Goals: more than one, with a weekly review",
+            "Keep several goals in areas, counted from focus, ticks, logs and your calendar. Deep work, your daily focus goal, is built in. Pick the day a short weekly review goes through them.",
+            IsRelevant: () => goals is { Store.IsReady: true },
+            IsSetUp: () => goals?.Store.PageSettings.Review is not null,
+            Step: ViewModels.AssistantStep.GoalsIntro),
         // ADR 76: the Tasks redesign (Phase 8). Its page is an introduction; "where your Tasks view comes from" follows it (set up once a
         // default view was chosen for the account, on any device).
         new SetupFeature(

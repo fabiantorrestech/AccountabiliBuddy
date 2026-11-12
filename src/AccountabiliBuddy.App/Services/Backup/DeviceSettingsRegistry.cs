@@ -50,7 +50,7 @@ public static class DeviceSettingsRegistry
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
         "tasks.model", "tasks.modelAttempt", "tasks.running", "tasks.tidyUp",
         "tasks.reminderMissed", "tasks.volumeRestore", "tasks.calendarExport",
-        "goals.model", "goals.modelAttempt", "goals.deepWork.pending",
+        "goals.model", "goals.modelAttempt", "goals.deepWork.pending", "goals.reminderState",
     ];
 
     // Whole families of state: the sync machinery (identity, keys, received files, settings), dev switches.

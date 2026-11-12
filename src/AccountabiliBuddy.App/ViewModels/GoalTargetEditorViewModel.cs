@@ -201,6 +201,35 @@ public sealed partial class GoalTargetEditorViewModel : ObservableObject
         Validate();
     }
 
+    /// <summary>
+    /// The weekly review's "Adjust the target" (round 2 R5.4, brief §5.8): its suggested numbers pre-filled over the goal's own (a moved
+    /// date, one day fewer, a lower amount; Deep work's daily minutes). Nothing is saved until Save, and a lower Deep work target still waits.
+    /// </summary>
+    public void ApplySuggestion(GoalReviewAdjustment adjustment)
+    {
+        if (adjustment.TargetDate is DateOnly date)
+        {
+            TargetDate = date.ToDateTime(TimeOnly.MinValue);
+        }
+
+        if (adjustment.WeeklyDays is int days)
+        {
+            WeeklyDays = days;
+        }
+
+        if (adjustment.Amount is double amount)
+        {
+            if (IsDeepWork)
+            {
+                DailyMinutes = (decimal)amount;
+            }
+            else
+            {
+                Amount = (decimal)amount;
+            }
+        }
+    }
+
     /// <summary>The kind changed on Basics: the fields that make sense for it show.</summary>
     public void SetKind(GoalKind kind)
     {

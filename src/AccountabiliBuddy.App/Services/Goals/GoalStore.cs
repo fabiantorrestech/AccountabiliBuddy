@@ -36,6 +36,12 @@ public sealed class GoalStore
     public const string SettingsKey = "goals.settings";
     public const string MarkerKey = "goals.model";
 
+    /// <summary>
+    /// Round 2 R5.5: goal reminders' snoozed / dismissed / skipped occurrences on this PC (ids and times only; state of the moment, never
+    /// synced, never in a backup).
+    /// </summary>
+    public const string ReminderStateKey = "goals.reminderState";
+
     /// <summary>Stored when a migration attempt of a model version made its database backup, so a failing one backs up once, not on every start.</summary>
     public const string AttemptKey = "goals.modelAttempt";
 
@@ -76,6 +82,9 @@ public sealed class GoalStore
     public GoalUiPreferences Ui { get; private set; } = GoalUiPreferences.Default;
 
     public GoalPageSettings PageSettings { get; private set; } = GoalPageSettings.Default;
+
+    /// <summary>Goal reminders' occurrence marks on this PC (<see cref="GoalReminderSource"/>); empty when none or unreadable.</summary>
+    public GoalReminderState ReminderState { get; private set; } = GoalReminderState.Empty;
 
     /// <summary>Raised after any change was kept (lists, Deep work's values, the page's preferences).</summary>
     public event EventHandler<GoalStoreChangedEventArgs>? Changed;
@@ -126,6 +135,7 @@ public sealed class GoalStore
             DeepWork = deepWork;
             Ui = LoadDisplay(UiKey, GoalUiPreferences.Default).Clamped();
             PageSettings = LoadDisplay(SettingsKey, GoalPageSettings.Default).Clamped();
+            ReminderState = LoadDisplay(ReminderStateKey, GoalReminderState.Empty);
             return true;
         }
         catch (Exception ex) when (ex is SqliteException or JsonException or FormatException or NotSupportedException or CryptographicException)
@@ -150,6 +160,7 @@ public sealed class GoalStore
         DeepWork = deepWork;
         Ui = LoadDisplay(UiKey, GoalUiPreferences.Default).Clamped();
         PageSettings = LoadDisplay(SettingsKey, GoalPageSettings.Default).Clamped();
+        ReminderState = LoadDisplay(ReminderStateKey, GoalReminderState.Empty);
     }
 
     /// <summary>
@@ -225,6 +236,29 @@ public sealed class GoalStore
         Task save = Queue(() => _store.SaveAsync(SettingsKey, clamped));
         Changed?.Invoke(this, new GoalStoreChangedEventArgs(source, false));
         await save;
+    }
+
+    /// <summary>
+    /// Goal reminders' occurrence marks (round 2 R5.5): kept at once in memory, then saved. State only: no <see cref="Changed"/> (the goal
+    /// lists didn't change; <see cref="GoalReminderSource"/> looks again itself). Does nothing unless ready; a failed save is forgotten
+    /// (at worst a reminder rings again after a restart).
+    /// </summary>
+    public async Task SetReminderStateAsync(GoalReminderState state)
+    {
+        if (!IsReady)
+        {
+            return;
+        }
+
+        ReminderState = state;
+        try
+        {
+            await Queue(() => _store.SaveAsync(ReminderStateKey, state));
+        }
+        catch (SqliteException)
+        {
+            // Rung again after a restart at worst.
+        }
     }
 
     /// <summary>

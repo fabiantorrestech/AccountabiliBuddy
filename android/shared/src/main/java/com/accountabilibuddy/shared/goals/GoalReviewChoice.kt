@@ -8,4 +8,7 @@ enum class GoalReviewChoice {
     Adjust,
 
     Pause,
+
+    /** "Decide next week": skips the goal in this review (round 2 R5b2; nothing changes, next week's review asks again). */
+    DecideNextWeek,
 }

@@ -87,6 +87,9 @@ public sealed partial class GoalsViewModel : ObservableObject
     /// <summary>R5b hook: Options › Areas….</summary>
     public event EventHandler? AreasRequested;
 
+    /// <summary>The weekly review's timing and answers (set by the app; the This week card's review row reads it).</summary>
+    public GoalReviewService? Review { get; set; }
+
     /// <summary>R5b hook: the This week card's Start (the weekly goals review dialog).</summary>
     public event EventHandler? ReviewRequested;
 
@@ -174,6 +177,10 @@ public sealed partial class GoalsViewModel : ObservableObject
 
         List.Update(_facts, store.Lists, store.Ui, today, settings.WeekStart);
         List.ThisWeek.ReviewNote = GoalThisWeekViewModel.ReviewText(settings.ReviewDay, settings.ReviewSettings.TidyUpAfter);
+        if (Review is not null)
+        {
+            List.ThisWeek.SetReview(Review.Row());
+        }
         Guid? selected = SelectedId is Guid id && _facts.Any(item => item.Goal.Id == id) ? id : List.ShownRows.FirstOrDefault()?.Id ?? _facts.FirstOrDefault()?.Goal.Id;
         SelectedId = selected;
         foreach (GoalRowViewModel row in List.Rows.Values)

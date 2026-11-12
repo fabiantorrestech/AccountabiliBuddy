@@ -6,8 +6,14 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// </summary>
 public interface IReminderStackHost
 {
-    /// <summary>The accent button: Start session / Work on it now, or Add to Queued on the snoozed-3-times nudge.</summary>
+    /// <summary>
+    /// The accent button: Start session / Work on it now, or Add to Queued on the snoozed-3-times nudge; for a goal reminder its quick log
+    /// (Tick today, Log a value…, Add time…) or Open goal.
+    /// </summary>
     void Primary();
+
+    /// <summary>A goal reminder's (another source's) "Open goal": its item on its own page; handled afterwards.</summary>
+    void OpenItem();
 
     void SnoozeFor(int minutes);
 

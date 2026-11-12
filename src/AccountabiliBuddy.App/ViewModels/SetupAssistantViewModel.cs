@@ -353,7 +353,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsRestore), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
         nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsQuitSafeguard), nameof(IsShutdownRoutine), nameof(IsGuidance), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText),
-        nameof(IsTasksRedesign), nameof(IsTaskViewChooser), nameof(IsTaskRingDevices), nameof(IsTaskCalendarExport))]
+        nameof(IsTasksRedesign), nameof(IsTaskViewChooser), nameof(IsTaskRingDevices), nameof(IsTaskCalendarExport), nameof(IsGoalsIntro))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -376,6 +376,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         }
 
         OnTaskStepShown(value);
+        OnGoalsStepShown(value);
     }
 
     /// <summary>Opening a removed device's backup and bringing its history in (ADR 55); null skips the Restore step.</summary>
@@ -672,6 +673,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.TaskViewChooser => "Where should your Tasks view come from?",
         AssistantStep.TaskRingDevices => "Which devices should ring for reminders?",
         AssistantStep.TaskCalendarExport => "Task reminders in Google Calendar",
+        AssistantStep.GoalsIntro => "Goals: more than one, with a weekly review",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -710,6 +712,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.CalendarRules => "Finish",
         AssistantStep.Appearance => "Finish",
         AssistantStep.TasksRedesign or AssistantStep.TaskViewChooser or AssistantStep.TaskRingDevices or AssistantStep.TaskCalendarExport
+            or AssistantStep.GoalsIntro
             => IsLastPage(Step) ? "Finish" : "Next",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
@@ -932,6 +935,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                     GoToNextQuickStep();
                 }
 
+                break;
+            case AssistantStep.GoalsIntro:
+                await FinishGoalsStepAsync();
+                GoToNextQuickStep();
                 break;
             default:
                 CloseRequested?.Invoke(this, EventArgs.Empty);

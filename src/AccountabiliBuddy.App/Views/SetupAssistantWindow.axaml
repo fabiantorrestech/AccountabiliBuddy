@@ -479,6 +479,22 @@
                     <TextBlock Classes="muted" TextWrapping="Wrap" Text="Next: where your Tasks view comes from." />
                 </StackPanel>
 
+                <!-- Round 2 R5 (Q440): Goals, Deep work built in, the weekly review's day -->
+                <StackPanel IsVisible="{Binding IsGoalsIntro}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Goals has its own page now. Keep several goals in areas (Work, Fitness, Learning), each with a target per day, week or month and, if you like, one to reach by a date. They count from focus, from what you tick or log by hand, and from your calendar, and show how you are doing on a heatmap." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Deep work is built in: it is your daily focus goal as before, counted from your focus sessions, and the only goal the guards read. It can't be paused or deleted, and lowering it still waits." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Once a week a short review goes through your goals: keep going, adjust the target, pause, or decide next week. Goal reminders are suggestions that ring like task reminders; nothing locks or waits." />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Weekly review on" VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding ReviewDayChoices}" SelectedIndex="{Binding ReviewDayIndex}" MinWidth="160"
+                                  AutomationProperties.Name="Weekly review day" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" TextWrapping="Wrap" Text="Its time, a snooze's length and the tidy-up after it are in Settings › Goals." />
+                </StackPanel>
+
                 <!-- Where the account's Tasks view comes from (owner, 2026-11-11) -->
                 <StackPanel IsVisible="{Binding IsTaskViewChooser}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <views:TaskViewChooserView DataContext="{Binding TaskViewChooser}" />

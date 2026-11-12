@@ -191,7 +191,7 @@
             <Border Classes="remBehind" IsVisible="{Binding ShowsBehindMid}" RenderTransform="rotate(3deg) translate(4px,-16px)" />
             <Border Classes="remBehind" IsVisible="{Binding ShowsBehindNear}" RenderTransform="rotate(-1.5deg) translate(-2px,-8px)" />
 
-            <Border Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="12"
+            <Border x:Name="ReminderCard" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="12"
                     BoxShadow="{DynamicResource Ab.PopoverShadow}" Padding="16,14,14,12">
                 <Panel>
                     <!-- The list view ("All 6"): every reminder waiting; a click shows its card. -->
@@ -262,14 +262,31 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
-                        <StackPanel Spacing="3">
-                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" LineHeight="19.5" TextWrapping="Wrap" MaxLines="2"
-                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" ToolTip.Tip="{Binding Title}" Padding="0,0,4,0" />
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Meta}" FontSize="12.5" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                        <!-- A goal reminder (round 2 R5.5) adds the goal's icon chip before its name, its reason and "Open goal"; a task's card is unchanged. -->
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border IsVisible="{Binding IsSourceCard}" Width="30" Height="30" CornerRadius="8" Margin="0,1,10,0" VerticalAlignment="Top"
+                                    Background="{DynamicResource Ab.Surface2}">
+                                <mi:MaterialIcon Kind="{Binding SourceIcon}" Width="17" Height="17" Foreground="{Binding SourceIconBrush}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="3">
+                                <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" LineHeight="19.5" TextWrapping="Wrap" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" ToolTip.Tip="{Binding Title}" Padding="0,0,4,0" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding IsTaskCard}" />
+                                    <TextBlock Text="{Binding Meta}" FontSize="12.5" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsSourceCard}">
+                            <TextBlock Text="{Binding Reason}" IsVisible="{Binding HasReason}" FontSize="12.5" FontStyle="Italic" TextWrapping="Wrap" MaxLines="2"
+                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="remText" Command="{Binding OpenItemCommand}" ToolTip.Tip="Show this goal on the Goals page">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="{Binding OpenText}" VerticalAlignment="Center" />
+                                    <mi:MaterialIcon Kind="ChevronRight" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
                         <!-- Snoozed 3 times: the italic nudge in an accent tint. -->
                         <Border IsVisible="{Binding HasNudge}" Padding="11,9" CornerRadius="8" Background="{DynamicResource Ab.AccentSoft}">
                             <TextBlock Text="{x:Static vm:ReminderStackViewModel.NudgeText}" FontSize="12.5" FontStyle="Italic" LineHeight="17.5"
