@@ -7,9 +7,9 @@ namespace AccountabiliBuddy.Core.Goals;
 /// even when several of its rules match it (<see cref="GoalCounting"/>). Only the fields of its <see cref="Type"/> are set.
 /// </summary>
 /// <param name="LabelId">FocusLabel: the label's id (<see cref="Domain.TaskLabel.IdFor"/> its name).</param>
-/// <param name="Tag">FocusTag: the #tag, compared case-insensitively (<see cref="Domain.TaskLabels.Same"/>).</param>
+/// <param name="Tag">FocusTag: the #tag, compared case-insensitively (<see cref="Domain.TaskLabels.Same"/>). Private text of the name class: sealed at rest with the device's key, never logged; a name: in a backup it travels readable like a task title.</param>
 /// <param name="CalendarCategoryId">CalendarCategory: the ADR 58 category whose events count.</param>
-/// <param name="App">ScreenTime: the app or category name. Private text: sealed at rest, never logged.</param>
+/// <param name="App">ScreenTime: the app or category name. Private text of the name class: sealed at rest with the device's key, never logged; a name: in a backup it travels readable like a task title.</param>
 /// <param name="ScreenDirection">ScreenTime: at most or at least.</param>
 /// <param name="BeeminderSlug">Beeminder: the linked goal's slug.</param>
 /// <param name="BeeminderDirection">Beeminder: Read only until ADR 80 (Send and Both are "Coming soon").</param>

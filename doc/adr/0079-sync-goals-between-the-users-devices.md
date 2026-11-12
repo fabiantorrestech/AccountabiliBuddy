@@ -22,6 +22,8 @@ A task may carry an optional `goalId` (a field-stamped task field under ADR 76) 
 
 Phone-measured sources stay on the phone: Health Connect steps, sleep and weight records and the phone's usage records are never synced raw. For a goal that uses one of them, the phone syncs only the goal's derived day value (for example "38 min of <app> on 11/10") as a goal entry with source HealthConnect or ScreenTime. This amends the phone's Stats rule for that one derived number per goal per day. Focus-based goal progress needs nothing new: each device counts it from the sealed session data it already receives. The PC's Beeminder data reaches the phone only as the derived summary ADR 43 already sends. The Pixel Watch gets nothing new.
 
+Forward compatibility: a device that reads a goals part written by a newer app keeps any field it doesn't know as raw JSON and writes it back unchanged, and skips a single rule, entry or item whose enum value it doesn't know (keeping it as raw JSON) instead of refusing the whole list, so a newer device never locks an older one out of its goals or has its data stripped on the older device's next write. This lands in both the C# and Kotlin readers before the parts are synced.
+
 The built-in Deep work goal stays a view over the `goal` document for its daily target (ADR 29 unchanged: set on a PC only); its weekly target and its goal record travel in the new `goals` part. A lowered Deep work target that arrives from another device takes effect on the receiving device only after that device's own looser-change wait and never during a session there (outside PB). Guards, the goal unlock and `focusDay` keep reading counted focus only; goal counts never feed a guard.
 
 ## Consequences

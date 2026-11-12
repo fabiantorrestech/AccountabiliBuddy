@@ -14,7 +14,8 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// plus plain device-local documents: Deep work's weekly target and Track time only ("goals.deepWork", a device setting), Deep work's
 /// waiting changes ("goals.deepWork.pending", state: never in a backup), the page's UI state ("goals.ui") and its Options › Charts
 /// ("goals.settings"). Nothing here syncs until ADR 79 is accepted; the items keep their ids, positions, edit stamps and tombstones so
-/// turning sync on later is a merge. Names, notes and reasons are private text: sealed at rest, never logged. The lists go in backups
+/// turning sync on later is a merge. Names (goals, areas, a source's #tag or app), notes and reasons are private text: sealed at rest with
+/// this PC's key and never logged; in a backup the names travel readable like task titles, notes and reasons only with a password. The lists go in backups
 /// with the task lists (<see cref="Backup.GoalsExport"/>, <see cref="ImportAsync"/>), never as sealed blobs. The rules (Deep work, the
 /// looser-change wait) are in <see cref="GoalsService"/>; this class keeps the lists whole on every change: Deep work one and complete
 /// (<see cref="GoalDefaults.Normalized"/>), no other goal built in, no live goal in a dead area, 30-day tombstones pruned. Use from the
@@ -117,9 +118,10 @@ public sealed class GoalStore
     {
         try
         {
-            GoalLists lists = ReadLists();
-            // Deep work's values are part of the rule (a weekly target, a waiting change): unreadable is never taken as "none".
+            // Deep work's values first: their one-time move of the waiting changes runs even when a list can't be read. They are part of
+            // the rule (a weekly target, a waiting change): unreadable is never taken as "none".
             DeepWorkGoalSettings deepWork = ReadDeepWork();
+            GoalLists lists = ReadLists();
             _lists = Normalize(lists, lists, Now);
             DeepWork = deepWork;
             Ui = LoadDisplay(UiKey, GoalUiPreferences.Default).Clamped();
@@ -362,7 +364,13 @@ public sealed class GoalStore
         Goal? ownDeepWork = lists.Goals.FirstOrDefault(goal => goal.Id == Goal.DeepWorkId);
         List<Goal> incomingGoals = backup.Goals
             .Where(goal => !goal.IsDeepWork)
-            .Select(goal => goal with { Sources = goal.Sources.Where(rule => GoalSources.AllowedFor(goal, rule.Type)).ToList() })
+            .Select(goal => goal with
+            {
+                Sources = goal.Sources.Where(rule => GoalSources.AllowedFor(goal, rule.Type)).ToList(),
+                // Other goals feed no guard: no waiting change and no second target come in with them (Deep work's are its own).
+                SecondTarget = null,
+                Target = goal.Target with { PendingChange = null },
+            })
             .ToList();
         List<Goal> goals = Merge(lists.Goals, incomingGoals, goal => goal.Id, goal => goal.IsLive, goal => goal.EditedAt, replace,
             (incoming, held) => incoming with { EditedAt = Stamp(incoming.EditedAt), Notes = includesNotes ? incoming.Notes : held?.Notes });
@@ -382,10 +390,12 @@ public sealed class GoalStore
             };
         }
 
-        // Deep work counts focus only: no entry comes in for it.
-        List<GoalEntry> entries = Merge(lists.Entries, backup.Entries.Where(entry => entry.GoalId != Goal.DeepWorkId).ToList(),
+        // An entry or a reminder comes in only for a goal that is live after the merge (never for a deleted or unknown goal); Deep work
+        // counts focus only, so no entry comes in for it.
+        HashSet<Guid> liveGoals = goals.Where(goal => goal.IsLive).Select(goal => goal.Id).ToHashSet();
+        List<GoalEntry> entries = Merge(lists.Entries, backup.Entries.Where(entry => entry.GoalId != Goal.DeepWorkId && liveGoals.Contains(entry.GoalId)).ToList(),
             entry => entry.Id, entry => entry.IsLive, entry => entry.EditedAt, replace, (incoming, _) => incoming with { EditedAt = Stamp(incoming.EditedAt) });
-        List<GoalReminder> reminders = Merge(lists.Reminders, backup.Reminders, reminder => reminder.Id, reminder => reminder.IsLive,
+        List<GoalReminder> reminders = Merge(lists.Reminders, backup.Reminders.Where(reminder => liveGoals.Contains(reminder.GoalId)).ToList(), reminder => reminder.Id, reminder => reminder.IsLive,
             reminder => reminder.EditedAt, replace, (incoming, held) => incoming with { EditedAt = Stamp(incoming.EditedAt), Reason = includesNotes ? incoming.Reason : held?.Reason });
         List<GoalReviewRecord> reviews = Merge(lists.Reviews, backup.Reviews, review => review.Id, review => review.IsLive,
             review => review.EditedAt, replace, (incoming, held) => incoming with { EditedAt = Stamp(incoming.EditedAt), Notes = includesNotes ? incoming.Notes : held?.Notes });

@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// position, edit time, tombstone) so syncing it later (ADR 79, Proposed) is a merge, not a migration; nothing syncs it now.
 /// Whether it is collapsed is per-device UI state (`goals.ui`), not part of the area.
 /// </summary>
-/// <param name="Name">The user's private text: sealed at rest, never logged.</param>
+/// <param name="Name">The user's private text: sealed at rest with the device's key, never logged; a name: in a backup it travels readable like a task title.</param>
 /// <param name="Icon">A Material icon name (ADR 32).</param>
 /// <param name="Color">"#RRGGBB".</param>
 /// <param name="Position">Its place among the areas: lower first; fractions put it between two others.</param>

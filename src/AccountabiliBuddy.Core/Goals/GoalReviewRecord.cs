@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Week">The first day of the week reviewed (on the user's week start).</param>
 /// <param name="Decisions">A decision per goal reviewed.</param>
 /// <param name="SnoozedUntil">Snoozed for 1 or 2 days; null when not snoozed.</param>
-/// <param name="Notes">The user's private text: sealed at rest, never logged.</param>
+/// <param name="Notes">The user's private text: sealed at rest with the device's key, never logged; in a backup only inside a password file.</param>
 public sealed record GoalReviewRecord(
     Guid Id,
     DateOnly Week,

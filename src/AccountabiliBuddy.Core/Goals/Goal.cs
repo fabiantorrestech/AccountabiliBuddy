@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// (<see cref="GoalCounting"/>), never stored.
 /// </summary>
 /// <param name="AreaId">The <see cref="GoalArea"/> it sits in.</param>
-/// <param name="Name">"Spanish". The user's private text: sealed at rest, never logged. The target is a separate field everywhere.</param>
+/// <param name="Name">"Spanish". The user's private text: sealed at rest with the device's key, never logged; a name: in a backup it travels readable like a task title. The target is a separate field everywhere.</param>
 /// <param name="Icon">A Material icon name (ADR 32), shown everywhere the goal appears.</param>
 /// <param name="Color">"#RRGGBB", the heatmap's ramp and the goal's chips.</param>
 /// <param name="Sources">What counts toward it; a minute counts once per goal however many rules match it.</param>
@@ -23,7 +23,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Pauses">The stretches it was paused, oldest first; one still going has no end. Null = never paused.</param>
 /// <param name="ShowOnToday">Whether Today's goals card shows it.</param>
 /// <param name="ExtraTiles">Streak and Total tiles on its detail panel; off by default.</param>
-/// <param name="Notes">Why it matters, with links. The user's private text: sealed at rest, never logged.</param>
+/// <param name="Notes">Why it matters, with links. The user's private text: sealed at rest with the device's key, never logged; in a backup only inside a password file.</param>
 /// <param name="DeletedAt">Set on a tombstone (kept 30 days, no text).</param>
 public sealed record Goal(
     Guid Id,

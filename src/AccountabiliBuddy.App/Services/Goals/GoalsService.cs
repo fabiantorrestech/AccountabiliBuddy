@@ -378,10 +378,11 @@ public sealed class GoalsService
         }
 
         int? dailyTo = null;
+        int dailySeen = _daily.Current.DailyMinutes;
         if (Ready(settings.PendingDaily))
         {
             // Still a lowering of what the guards read (a later raise elsewhere drops it before this; checked again here).
-            if (settings.PendingDaily!.Amount is double daily && daily < _daily.Current.DailyMinutes)
+            if (settings.PendingDaily!.Amount is double daily && daily < dailySeen)
             {
                 dailyTo = (int)daily;
             }
@@ -389,9 +390,11 @@ public sealed class GoalsService
             settings = settings with { PendingDaily = null };
         }
 
-        // Deep work's own values first (nothing else changes them while the gate is held), then the "goal" document.
+        // Deep work's own values first (nothing else changes them while the gate is held), then the "goal" document, only if nobody
+        // set it meanwhile: the goal card, another PC or a restore can raise it during the save above (outside this gate), and that
+        // later choice wins; the waiting lowering is then dropped, never written over it (R4 milestone review).
         await _store.SetDeepWorkAsync(settings);
-        if (dailyTo is int lowered)
+        if (dailyTo is int lowered && _daily.Current.DailyMinutes == dailySeen)
         {
             await WriteDailyAsync(lowered);
         }
@@ -636,7 +639,23 @@ public sealed class GoalsService
             return GoalChangeResult.NotAllowed;
         }
 
-        GoalEntry saved = entry with { DeletedAt = null, EditedAt = Now };
+        // "Your latest decision wins" (GoalCounting.LatestHand orders by edit time, then id): a hand entry saved now is stamped after every
+        // other hand entry of that goal and day, so a tick and an untick within one clock reading never tie on a random id.
+        DateTimeOffset stamp = Now;
+        if (entry.Source == GoalEntrySource.Hand)
+        {
+            DateTimeOffset latest = _store.Lists.Entries
+                .Where(item => item.GoalId == entry.GoalId && item.Day == entry.Day && item.Source == GoalEntrySource.Hand && item.Id != entry.Id)
+                .Select(item => item.EditedAt)
+                .DefaultIfEmpty(DateTimeOffset.MinValue)
+                .Max();
+            if (latest >= stamp)
+            {
+                stamp = latest.AddTicks(1);
+            }
+        }
+
+        GoalEntry saved = entry with { DeletedAt = null, EditedAt = stamp };
         await _store.ChangeAsync(source, (lists, _) => lists with { Entries = Upsert(lists.Entries, item => item.Id == entry.Id, saved) });
         return GoalChangeResult.Applied;
     }

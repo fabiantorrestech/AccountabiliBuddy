@@ -347,6 +347,17 @@ public sealed class BackupService
             return (JsonSerializer.SerializeToElement(theme, SerializerOptions), null);
         }
 
+        // Round 2 R4: Deep work's waiting changes are state (goals.deepWork.pending); one left in an older goals.deepWork never travels.
+        if (key == "goals.deepWork" && System.Text.Json.Nodes.JsonNode.Parse(value.GetRawText()) is System.Text.Json.Nodes.JsonObject deepWork)
+        {
+            foreach (string pending in new[] { "pendingDaily", "pendingWeekly", "pendingTrackTimeOnly" })
+            {
+                deepWork.Remove(pending);
+            }
+
+            return (JsonSerializer.SerializeToElement(deepWork, SerializerOptions), null);
+        }
+
         return (value, null);
     }
 
