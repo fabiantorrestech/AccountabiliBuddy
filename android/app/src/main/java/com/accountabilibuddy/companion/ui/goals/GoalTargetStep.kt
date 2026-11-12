@@ -287,8 +287,14 @@ private fun TakesBox(draft: GoalDraft, stored: Goal?, allReceived: List<Received
     val colors = Ab.colors
     Text("WHAT IT TAKES", style = Ab.type.micro, color = colors.muted, modifier = Modifier.padding(start = 24.dp, top = 14.dp, bottom = 6.dp))
     AbCard(Modifier.padding(horizontal = 24.dp), verticalSpacing = 4.dp) {
-        Text(shown.remaining, style = Ab.type.small, color = colors.ink)
-        shown.each?.let { Text(it, style = Ab.type.small, color = colors.muted) }
+        Text(shown.head, style = Ab.type.bodyMedium, color = colors.ink)
+        Text(shown.remaining, style = Ab.type.small, color = colors.muted)
+        shown.rows.forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(row.label, style = Ab.type.small, color = colors.muted)
+                Text(row.value, style = Ab.type.small, color = colors.ink)
+            }
+        }
         shown.pace?.let { Text(it, style = Ab.type.small, color = colors.muted) }
         Text(shown.verdict, style = Ab.type.bodyMedium, color = if (shown.green) colors.met else if (shown.amber) colors.amberInk else colors.muted)
     }

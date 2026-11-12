@@ -63,8 +63,10 @@ class GoalsUiDetailCheck : FixtureCheck {
                     }))
                     val takes = facts.whatItTakes?.let { GoalTakesText.of(it, goal, today) }
                     put("takes", if (takes == null) JsonNull else buildJsonObject {
+                        put("head", takes.head)
                         put("remaining", takes.remaining)
                         put("each", text(takes.each))
+                        put("rows", JsonArray(takes.rows.map { row -> buildJsonObject { put("label", row.label); put("value", row.value) } }))
                         put("pace", text(takes.pace))
                         put("verdict", takes.verdict)
                         put("green", takes.green)

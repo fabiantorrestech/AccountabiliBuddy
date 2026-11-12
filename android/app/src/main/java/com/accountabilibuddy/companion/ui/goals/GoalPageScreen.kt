@@ -60,6 +60,7 @@ import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.sheets.AbSheet
 import com.accountabilibuddy.companion.ui.sheets.AbSheetHeight
 import com.accountabilibuddy.companion.ui.sheets.AbSheetRow
+import com.accountabilibuddy.companion.ui.sheets.AbSheetValue
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.goals.GoalCounting
 import com.accountabilibuddy.shared.goals.GoalDayPanels
@@ -176,9 +177,8 @@ fun GoalPageScreen(
     }
     if (takesOpen && page?.takes != null) {
         val takes = page.takes
-        AbSheet(title = "What it takes", subtitle = goal0(page), onDismiss = { takesOpen = false }, height = AbSheetHeight.Half) {
-            AbSheetRow(takes.remaining, onClick = null)
-            takes.each?.let { AbSheetRow(it, onClick = null) }
+        AbSheet(title = takes.head, subtitle = takes.remaining, onDismiss = { takesOpen = false }, height = AbSheetHeight.Half) {
+            takes.rows.forEach { row -> AbSheetRow(row.label, onClick = null, trailing = { AbSheetValue(row.value, opens = false) }) }
             takes.pace?.let { AbSheetRow(it, onClick = null) }
             AbSheetRow(takes.verdict, onClick = null, subtitle = null)
             AbSheetRow("Change the target", onClick = { takesOpen = false; editAtTarget = true; editOpen = true })
