@@ -7,9 +7,9 @@
              x:Class="AccountabiliBuddy.App.Views.TasksView"
              x:DataType="vm:TasksViewModel">
     <!-- The Tasks page (spec 03 §B, P5/P6): the Today column card (the "Tasks" title, Normal / Compact and Expand / Collapse at its
-         top right, the add row, then This session, Queued and Finished today), a resize handle, the Shelf column card (hidden by
-         default: its rail "Shelf · 10 tasks" on the right edge, Ctrl+\), and the detail card of the task the user opened. Either
-         column can hide into a rail. Cards take the theme's Tasks radius. -->
+         top right, the add box, then This session, Queued and Finished today, and Jot it down at the bottom), a resize handle, the
+         Shelf column card (hidden by default: its rail "Shelf · 10 tasks" on the right edge, Ctrl+\), and the detail card of the
+         task the user opened. Either column can hide into a rail. Cards take the theme's Tasks radius. -->
     <UserControl.Resources>
         <!-- Check boxes, expanders and switches read in ink, not accent. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -264,38 +264,11 @@
                     </Button>
                 </Grid>
 
-                <!-- The add row (the "+ Add a task" pill and Send to come with 3.4). -->
-                <Border DockPanel.Dock="Top" Classes="addPill" Margin="22,14,16,8" Padding="16,0,12,0" MinHeight="44" CornerRadius="22"
-                        Background="{DynamicResource Ab.Surface2}" BorderBrush="Transparent" BorderThickness="1.5">
-                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
-                        <mi:MaterialIcon Kind="Plus" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                        <!-- The category new tasks go in. -->
-                        <Button Grid.Column="1" Classes="quiet" Padding="6" Margin="4,0,0,0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                                ToolTip.Tip="{Binding NewTaskCategoryTip}" AutomationProperties.Name="Category for new tasks" Click="OnNewTaskCategoryClick">
-                            <Ellipse Width="12" Height="12" Fill="{Binding NewTaskCategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
-                        </Button>
-                        <TextBox Grid.Column="2" Classes="rowEntry" FontSize="14.5" Text="{Binding NewTaskText}" PlaceholderText="{Binding AddPlaceholder}"
-                                 AutomationProperties.Name="Add a task" controls:TaskSuggestions.Picker="{Binding ListPicker}">
-                            <TextBox.KeyBindings>
-                                <KeyBinding Gesture="Enter" Command="{Binding AddTaskCommand}" />
-                            </TextBox.KeyBindings>
-                        </TextBox>
-                        <TextBlock Grid.Column="3" Classes="faint" Text="Enter" FontSize="12" VerticalAlignment="Center" />
-                        <Button Grid.Column="4" x:Name="ListPullButton" Classes="quiet" Margin="8,0,0,0" Padding="8,4" VerticalAlignment="Center"
-                                ToolTip.Tip="Take a task from your lists to Today: Later, Come back to, Unfinished, Auto-saved, Done today (search for the Archive)" AutomationProperties.Name="From your lists">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <mi:MaterialIcon Kind="PlaylistPlus" Width="16" Height="16" />
-                                <TextBlock Classes="segmentText" Text="From your lists" FontSize="13" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <Button.Flyout>
-                                <Flyout Placement="BottomEdgeAlignedRight" Opening="OnListPickerOpening">
-                                    <views:ListPickerView DataContext="{Binding ListPicker}" />
-                                </Flyout>
-                            </Button.Flyout>
-                        </Button>
-                    </Grid>
-                </Border>
-                <views:TaskSuggestionsView DockPanel.Dock="Top" Margin="22,0,16,8" DataContext="{Binding ListPicker}" />
+                <!-- The add box: "+ Add a task" at rest, the full row with Send to while in use; its hint line floats over what is below. -->
+                <views:AddBoxView DockPanel.Dock="Top" DataContext="{Binding AddBox}" Margin="22,14,16,10" ZIndex="1" />
+
+                <!-- Jot it down at the bottom of the column (fainter during a session; Ctrl+J). -->
+                <views:JotBoxView DockPanel.Dock="Bottom" DataContext="{Binding Jot}" Margin="22,8,16,12" ZIndex="1" />
 
                 <!-- The Undo bar after a delete (10 seconds); the item stays in Archive > Recently deleted. -->
                 <views:UndoBarView DockPanel.Dock="Bottom" DataContext="{Binding Undo}" Margin="22,6,16,14" />

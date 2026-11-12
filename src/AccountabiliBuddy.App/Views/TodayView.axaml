@@ -150,6 +150,8 @@
                     <mi:MaterialIcon Kind="{Binding TodayTabPanel.ExpandIcon}" Width="18" Height="18" />
                 </Button>
             </Grid>
+            <!-- Jot it down rests at the bottom (fainter during a session; Ctrl+J). -->
+            <views:JotBoxView DockPanel.Dock="Bottom" DataContext="{Binding Jot}" Margin="22,8,14,12" ZIndex="1" />
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl Margin="12,0,12,16" ItemsSource="{Binding TodayTabPanel.Sections}">
                     <ItemsControl.ItemTemplate>

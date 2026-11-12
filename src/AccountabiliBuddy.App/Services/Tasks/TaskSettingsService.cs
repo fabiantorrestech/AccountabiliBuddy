@@ -260,6 +260,18 @@ public sealed class TaskSettingsService
         return UpdateAsync(settings => settings with { CustomMarkers = markers.Count == 0 ? null : markers.Distinct().ToList() }, mode);
     }
 
+    /// <summary>The add box's "Treat … as a project marker?" answered Yes: the style joins the taught markers.</summary>
+    public Task LearnMarkerAsync(ProjectMarkerPattern marker)
+    {
+        return UpdateAsync(settings => settings with { CustomMarkers = [.. (settings.CustomMarkers ?? []).Where(held => held != marker), marker] }, null);
+    }
+
+    /// <summary>The add box's "Treat … as a project marker?" answered No: that style is never offered again.</summary>
+    public Task DeclineMarkerAsync(ProjectMarkerPattern marker)
+    {
+        return UpdateAsync(settings => settings with { DeclinedMarkers = [.. (settings.DeclinedMarkers ?? []).Where(held => held != marker), marker] }, null);
+    }
+
     private async Task UpdateAsync(Func<TaskSettings, TaskSettings> change, GuidanceMode? mode)
     {
         GuidanceMode target = mode ?? ActiveMode;
@@ -289,6 +301,7 @@ public sealed class TaskSettingsService
                 TidyUpDay = wanted.TidyUpDay,
                 PinHighlights = wanted.PinHighlights,
                 CustomMarkers = wanted.CustomMarkers,
+                DeclinedMarkers = wanted.DeclinedMarkers,
             },
             mode);
         bool actionsTaken = await SetSessionActionsAsync(wanted.SessionActions, mode);

@@ -1697,6 +1697,8 @@ public partial class App : Application
             // Rows say "untouched N wk" after the Tasks setting's weeks; the open task's sync line reads the title bar's sync light.
             tasksPage.UntouchedWeeks = () => _taskSettings?.Current.UntouchedWeeks ?? AccountabiliBuddy.Core.Tasks.TaskUntouched.DefaultWeeks;
             tasksPage.SyncLight = () => mainViewModel.SyncLight;
+            // The add box's title help reads the user's project markers and offers to learn new ones.
+            tasksPage.TaskSettings = _taskSettings;
             if (_taskActions is not null && _taskViews is not null && _taskTidyUp is not null && _taskReminders is not null)
             {
                 tasksPage.UseTaskModel(taskStore, _taskActions, _taskViews, _taskTidyUp, _taskReminders);

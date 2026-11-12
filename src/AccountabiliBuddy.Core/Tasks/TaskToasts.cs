@@ -101,6 +101,12 @@ public static class TaskToasts
         return "Added “" + Short(copy.Title) + "” to " + TaskBins.Name(copy.Bin);
     }
 
+    /// <summary>A task typed in the add box or jotted down: "Added “Fix tray icon” to To sort".</summary>
+    public static string Added(TaskItem task)
+    {
+        return "Added “" + Short(task.Title) + "” to " + TaskBins.Name(task.Bin);
+    }
+
     /// <summary>An old list's delete that was ignored because another device moved the task since (nothing was deleted).</summary>
     public static string MovedElsewhere(TaskItem task)
     {

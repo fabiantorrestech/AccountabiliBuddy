@@ -9,4 +9,5 @@ public enum TaskActionKind
     Edit,
     Bulk,
     History,
+    Add,
 }

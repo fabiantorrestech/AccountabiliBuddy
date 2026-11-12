@@ -46,6 +46,33 @@ public static class TaskActions
     }
 
     /// <summary>
+    /// A new task typed in the add box or jotted down, at the end of <paramref name="bin"/> (To sort, Next, Later or Queued), with its
+    /// label (one that isn't live is left off), tags, note and origin; its number comes when the lists are normalized. This session is
+    /// refused, as in <see cref="Move"/>: the add box adds such a task to Queued and moves it through the session's cap. Finished today,
+    /// a blank title or an id already taken do nothing.
+    /// </summary>
+    public static TaskActionResult Add(
+        TaskLists lists, Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, string? origin,
+        DateTimeOffset now, Guid self)
+    {
+        string trimmed = title.Trim();
+        if (trimmed.Length == 0 || bin is TaskBin.Session or TaskBin.Done || id == Guid.Empty || lists.Tasks.Any(item => item.Id == id))
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        bool labelIsLive = labelId is Guid wanted && lists.Labels.Any(item => item.Label.IsLive && item.Label.Id == wanted);
+        var task = new TaskItem(
+            id, trimmed, bin, TaskListRules.EndOf(lists, bin), now, now, now,
+            LabelId: labelIsLive ? labelId : null,
+            Tags: TaskLabels.Clean(tags),
+            Note: SessionChecklist.CleanNote(note),
+            Origin: string.IsNullOrWhiteSpace(origin) ? null : origin.Trim());
+        List<SyncTaskItem> tasks = [.. lists.Tasks, new SyncTaskItem(task, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self)))];
+        return new TaskActionResult(lists with { Tasks = tasks }, TaskToasts.Added(task), [id]);
+    }
+
+    /// <summary>
     /// Puts one task before another in its bin (or at the end when <paramref name="beforeId"/> is null): a place between the two
     /// neighbours, nothing else changes.
     /// </summary>

@@ -1,0 +1,132 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.JotBoxView"
+             x:DataType="vm:AddBoxViewModel">
+    <!-- Jot it down (spec 03 B2, Implementation Notes): a faint dashed pill "✎ Jot it down Ctrl+J · 4 today" (fainter during a
+         session); a click or Ctrl+J opens the box: Enter adds to Shelf · To sort and keeps it open for the next, Esc closes it.
+         "@label" and "#tag" become chips as in the add box; their list opens above the box. -->
+    <UserControl.Styles>
+        <Style Selector="Button.jotPill">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="10,0,14,0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.jotPill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.jotPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+
+        <Style Selector="TextBox.jotEntry">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="0,5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+        </Style>
+        <Style Selector="TextBox.jotEntry /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="TextBox.jotEntry:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.jotEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="Button.chipRemove">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ClickMode" Value="Press" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.chipRemove /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- At rest: the faint pill with a dashed edge. -->
+        <Panel HorizontalAlignment="Left" IsVisible="{Binding !IsOpen}" Opacity="{Binding PillOpacity}">
+            <Rectangle Stroke="{DynamicResource Ab.Line}" StrokeThickness="1" StrokeDashArray="4,3" RadiusX="17" RadiusY="17" IsHitTestVisible="False" />
+            <Button Classes="jotPill" Command="{Binding OpenCommand}" ToolTip.Tip="Jot it down (Ctrl+J)" AutomationProperties.Name="Jot it down">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <mi:MaterialIcon Kind="PencilOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                    <TextBlock Text="Jot it down" VerticalAlignment="Center" />
+                    <Border CornerRadius="4" Padding="5,1" Background="{DynamicResource Ab.Surface2}" VerticalAlignment="Center">
+                        <TextBlock Text="Ctrl+J" FontSize="10.5" FontWeight="Medium" FontFamily="{DynamicResource Ab.NumeralFont}" />
+                    </Border>
+                    <TextBlock Text="{Binding JotCountText}" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </Panel>
+
+        <!-- Open: the box. -->
+        <Border IsVisible="{Binding IsOpen}" BorderBrush="{DynamicResource Ab.Accent}" BorderThickness="1"
+                CornerRadius="{DynamicResource Ab.PanelRadius}" Padding="14,8,12,8">
+            <StackPanel Spacing="6">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <mi:MaterialIcon Kind="PencilOutline" Width="17" Height="17" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    <TextBox x:Name="Box" Grid.Column="1" Classes="jotEntry" Text="{Binding Text}" PlaceholderText="Jot it down · #tag, @label"
+                             AutomationProperties.Name="Jot it down" />
+                    <TextBlock Grid.Column="2" Classes="faint" Text="Enter · Esc" FontSize="11" FontFamily="{DynamicResource Ab.NumeralFont}"
+                               VerticalAlignment="Center" />
+                </Grid>
+                <Grid Height="20" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6" Margin="27,0,0,0">
+                    <ItemsControl ItemsSource="{Binding Chips}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AddBoxChipViewModel">
+                                <Border CornerRadius="999" Padding="8,1,3,1" Background="{DynamicResource Ab.Surface2}">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                        <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
+                                        <Button Classes="chipRemove" Command="{Binding RemoveCommand}" AutomationProperties.Name="{Binding RemoveName}">
+                                            <mi:MaterialIcon Kind="Close" Width="11" Height="11" />
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Grid.Column="1" Classes="muted" Text="→ Shelf · To sort" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Classes="muted" Text="{Binding JotCountText}" FontSize="12" VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- The "@" / "#" list, above the box. -->
+        <Popup PlacementTarget="{Binding #Box}" Placement="TopEdgeAlignedLeft" VerticalOffset="-6" IsLightDismissEnabled="False"
+               IsOpen="{Binding HasSuggestions, Mode=OneWay}">
+            <views:AddBoxSuggestionsView />
+        </Popup>
+    </Panel>
+</UserControl>

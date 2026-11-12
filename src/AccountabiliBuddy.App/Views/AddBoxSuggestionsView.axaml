@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.AddBoxSuggestionsView"
+             x:DataType="vm:AddBoxViewModel">
+    <!-- An add box's "@" / "#" list (05 "Add box"): Labels with their dots and "Create label “x”", or Tags with how many tasks have
+         them and a new tag. It opens as soon as "@" or "#" is typed and narrows per letter. The keyboard stays in the box: the entries
+         act on press and never take focus (↑/↓, Enter or Tab, Esc are the box's, see AddBoxInput). -->
+    <UserControl.Styles>
+        <Style Selector="Button.addSuggestion">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ClickMode" Value="Press" />
+        </Style>
+        <Style Selector="Button.addSuggestion /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Button.addSuggestion:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.addSuggestion.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+    </UserControl.Styles>
+    <Border Width="240" Padding="5" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
+            CornerRadius="{DynamicResource Ab.PanelRadius}" BoxShadow="0 12 32 0 #29000000" Margin="0,0,12,12">
+        <StackPanel>
+            <TextBlock Classes="muted" Text="{Binding SuggestionHead}" FontSize="11.5" Margin="8,5,8,3" />
+            <ItemsControl ItemsSource="{Binding Suggestions}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AddBoxSuggestionViewModel">
+                        <Button Classes="addSuggestion" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Title}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <Ellipse Width="9" Height="9" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                <mi:MaterialIcon Kind="Pound" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" IsVisible="{Binding IsTag}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Detail}" FontSize="11.5" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="faint" Text="↑↓ · Enter or Tab" FontSize="11" FontFamily="{DynamicResource Ab.NumeralFont}" Margin="8,4,8,2" />
+        </StackPanel>
+    </Border>
+</UserControl>

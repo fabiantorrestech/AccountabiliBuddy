@@ -40,7 +40,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private bool _refreshing;
     private readonly HashSet<TaskRowKey> _picked = [];
     private readonly TaskFinishQueue _finishes = new();
-    private Guid? _newTaskCategoryId;
     private Func<Guid?, Task>? _applyNewCategory;
 
     // The task list and its services (ADR 76); null while the old lists are still the source.
@@ -85,8 +84,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             panel.ClearSelectionOfRows = ClearSelection;
         }
 
-        AddPlaceholder = NewTaskText = Notice = NewTaskCategoryTip = NewCategoryName = TodayDateText = TodayRailText = string.Empty;
-        NewTaskCategoryBrush = Brushes.Transparent;
+        Notice = NewCategoryName = TodayDateText = TodayRailText = string.Empty;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
         _autoSaved.Changed += OnStoreChanged;
@@ -235,20 +233,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public bool HasPicked => PickedCount > 0;
 
-    [ObservableProperty]
-    public partial string AddPlaceholder { get; set; }
-
-    [ObservableProperty]
-    public partial string NewTaskText { get; set; }
-
-    /// <summary>The dot on the add row: the category new tasks go in; transparent for none.</summary>
-    [ObservableProperty]
-    public partial IBrush NewTaskCategoryBrush { get; set; }
-
-    /// <summary>What the add row's dot says, e.g. "New tasks go in Work (click to change)".</summary>
-    [ObservableProperty]
-    public partial string NewTaskCategoryTip { get; set; }
-
     /// <summary>A picker's "New category…" was chosen: the name box shows under the header.</summary>
     [ObservableProperty]
     public partial bool IsNamingCategory { get; set; }
@@ -350,56 +334,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void DismissNotice() => Notice = string.Empty;
-
-    /// <summary>
-    /// The add row's Enter: a task of this session while it has fewer than three, else a Later item, in the category the add row's
-    /// dot shows. A running session never gets a 4th task this way.
-    /// </summary>
-    [RelayCommand]
-    private async Task AddTaskAsync()
-    {
-        string title = NewTaskText.Trim();
-        if (title.Length == 0)
-        {
-            return;
-        }
-
-        NewTaskText = string.Empty;
-        TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == _newTaskCategoryId);
-        if (!SessionIsFull)
-        {
-            await _tasks.AddAsync(title, null, category?.Id);
-            return;
-        }
-
-        SyncLaterItem? added = await _later.AddAsync(title, null, category?.Name, category?.Color, null, null, null);
-        if (added is not null)
-        {
-            Select(new TaskRowKey(TaskRowKind.Later, added.Id));
-        }
-    }
-
-    /// <summary>The add row's dot: every category, "No category" and "New category…"; the choice goes on the tasks added from now on.</summary>
-    internal IReadOnlyList<TaskMenuEntry> NewTaskCategoryEntries()
-    {
-        string? current = _tasks.Categories.FirstOrDefault(item => item.Id == _newTaskCategoryId)?.Name;
-        return CategoryChoices(current, markCurrent: true, PickNewTaskCategoryAsync);
-    }
-
-    private Task PickNewTaskCategoryAsync(Guid? id)
-    {
-        _newTaskCategoryId = id;
-        RefreshNewTaskCategory();
-        return Task.CompletedTask;
-    }
-
-    // The add row's dot: the category picked for new tasks (none until one is picked).
-    private void RefreshNewTaskCategory()
-    {
-        TaskCategory? chosen = _tasks.Categories.FirstOrDefault(item => item.Id == _newTaskCategoryId);
-        NewTaskCategoryBrush = TaskCategoryBrushes.Of(chosen?.Color);
-        NewTaskCategoryTip = chosen is null ? "New tasks have no category (click to choose one)" : $"New tasks go in {chosen.Name} (click to change)";
-    }
 
     // "New category…" in a picker: the name box takes the keyboard; Enter makes the category and applies it to what the picker was for.
     private void AskNewCategory(Func<Guid?, Task> apply)
@@ -1201,7 +1135,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         DateTime now = LocalNow();
         DateOnly today = DateOnly.FromDateTime(now);
         CategoryEditor.Refresh(_tasks.Categories);
-        RefreshNewTaskCategory();
         Dictionary<Guid, TaskItem> stored = StoredTasks();
         _rebuildStored = stored;
         _nextReminders = NextReminders();
@@ -1290,9 +1223,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         ShowTodaySections(TodayTabPanel, sessionHint, withReminders: true, live);
         TodayRailText = $"{(live ? _tasks.ActionsUsed : readyActions)} in focus";
         TodayDateText = now.ToString("ddd M/d", CultureInfo.InvariantCulture);
-        AddPlaceholder = SessionIsFull
-            ? "This session is full: Enter adds it to Later"
-            : "Add a task · Ctrl+Alt+N from anywhere";
+        Jot.IsQuiet = live;
 
         OnPropertyChanged(nameof(IsSessionLive));
         OnPropertyChanged(nameof(CanStartSession));
@@ -1433,11 +1364,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             section.Dot = label is null ? null : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color));
             if (bin is TaskBin shelfBin)
             {
-                section.UseAdd(text => AddToShelfAsync(shelfBin, text), $"Add to {title}");
+                section.UseAdd(this, shelfBin, $"Add to {title}");
             }
             else
             {
-                section.UseAdd(null, string.Empty);
+                section.UseAdd(null, TaskBin.Sort, string.Empty);
             }
 
             sections.Add(section);
@@ -1455,25 +1386,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Shelf.CountText = rows.Count == 1 ? "1 task" : $"{rows.Count} tasks";
         Shelf.Refresh();
         return rows.Values.Select(entry => entry.Row).ToList();
-    }
-
-    // A Shelf bin's "+": To sort is a come-back, Later a Later item, Next a Later item moved to Next (the task list's move).
-    private async Task AddToShelfAsync(TaskBin bin, string title)
-    {
-        switch (bin)
-        {
-            case TaskBin.Sort:
-                await _comebacks.AddAsync(title);
-                break;
-            case TaskBin.Later or TaskBin.Next:
-                SyncLaterItem? added = await _later.AddAsync(title, null, null, null, null, null, null);
-                if (bin == TaskBin.Next && added is not null && _actions is not null)
-                {
-                    await _actions.MoveAsync([added.Id], TaskBin.Next);
-                }
-
-                break;
-        }
     }
 
     // ---- Queued while a session runs: a task of the task list only ----

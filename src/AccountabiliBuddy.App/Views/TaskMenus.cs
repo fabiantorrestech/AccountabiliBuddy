@@ -42,13 +42,18 @@ public static class TaskMenus
         }
     }
 
-    /// <summary>Opens a menu of <paramref name="entries"/> under or beside <paramref name="button"/>.</summary>
-    public static void ShowEntries(Control button, IEnumerable<TaskMenuEntry> entries, PlacementMode placement, Action<TaskMenuEntry>? viewAction = null)
+    /// <summary>Opens a menu of <paramref name="entries"/> under or beside <paramref name="button"/>; <paramref name="closed"/> runs once it closes.</summary>
+    public static void ShowEntries(Control button, IEnumerable<TaskMenuEntry> entries, PlacementMode placement, Action<TaskMenuEntry>? viewAction = null, Action? closed = null)
     {
         var flyout = new MenuFlyout { Placement = placement };
         foreach (Control item in Build(entries, viewAction))
         {
             flyout.Items.Add(item);
+        }
+
+        if (closed is not null)
+        {
+            flyout.Closed += (_, _) => closed();
         }
 
         flyout.ShowAt(button);

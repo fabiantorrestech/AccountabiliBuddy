@@ -337,6 +337,17 @@ public partial class MainWindow : Window
             tasks.ToggleShelfCommand.Execute(null);
             e.Handled = true;
         }
+        else if (e.Key == Key.J && e.KeyModifiers == KeyModifiers.Control && viewModel.Tasks is { } jotPage)
+        {
+            // Ctrl+J: Jot it down, in the Today column while Tasks shows it, otherwise on the Today page.
+            if (!(viewModel.IsTasksSelected && jotPage.ShowsToday))
+            {
+                viewModel.SelectedTab = MainWindowViewModel.TodayTab;
+            }
+
+            jotPage.OpenJot();
+            e.Handled = true;
+        }
         else if (e.Key == Key.Escape && viewModel.IsSearchOpen)
         {
             viewModel.Search?.ClearCommand.Execute(null);

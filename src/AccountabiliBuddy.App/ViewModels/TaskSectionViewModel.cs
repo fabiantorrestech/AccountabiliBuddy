@@ -16,14 +16,13 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class TaskSectionViewModel : ObservableObject
 {
     private readonly TaskSectionsPanelViewModel _panel;
-    private Func<string, Task>? _add;
 
     public TaskSectionViewModel(TaskSectionsPanelViewModel panel, string key, ObservableCollection<TaskListRowViewModel> rows)
     {
         _panel = panel;
         Key = key;
         Rows = rows;
-        Title = Hint = AddText = AddTip = string.Empty;
+        Title = Hint = AddTip = string.Empty;
         Rows.CollectionChanged += OnRowsChanged;
     }
 
@@ -114,10 +113,15 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     /// <summary>Esc in this section: the selection is cleared. False when nothing was selected.</summary>
     public bool ClearSelection() => _panel.ClearSelection();
 
-    // ---- The "+" of a Shelf bin: a box opens in the section; Enter adds a task there. ----
+    // ---- The "+" of a Shelf bin: the add box opens in the section, its Send to preset to the bin. ----
 
     /// <summary>The header has "+" (a Shelf bin).</summary>
-    public bool HasAdd => _add is not null;
+    public bool HasAdd => AddBox is not null;
+
+    /// <summary>The section's add box (<see cref="AddBoxKind.Bin"/>); null when the header has no "+".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAdd))]
+    public partial AddBoxViewModel? AddBox { get; private set; }
 
     /// <summary>E.g. "Add to To sort".</summary>
     [ObservableProperty]
@@ -126,49 +130,60 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsAdding { get; set; }
 
-    [ObservableProperty]
-    public partial string AddText { get; set; }
-
-    /// <summary>Gives the header its "+": <paramref name="add"/> adds a typed title to this section's bin.</summary>
-    public void UseAdd(Func<string, Task>? add, string tip)
+    /// <summary>
+    /// Gives the header its "+": the add box of <paramref name="host"/> preset to <paramref name="bin"/> (kept while the bin stays the
+    /// same, so a rebuild leaves what is typed alone); null takes it away.
+    /// </summary>
+    public void UseAdd(IAddBoxHost? host, AccountabiliBuddy.Core.Domain.TaskBin bin, string tip)
     {
-        _add = add;
         AddTip = tip;
-        OnPropertyChanged(nameof(HasAdd));
+        if (host is null)
+        {
+            DropAddBox();
+            return;
+        }
+
+        if (AddBox is { } held && held.PresetDestination == bin)
+        {
+            return;
+        }
+
+        DropAddBox();
+        var box = new AddBoxViewModel(host, AddBoxKind.Bin, bin);
+        box.Closed += OnAddBoxClosed;
+        AddBox = box;
     }
 
     [RelayCommand]
     private void BeginAdd()
     {
-        if (_add is null)
+        if (AddBox is null)
         {
             return;
         }
 
-        AddText = string.Empty;
         IsAdding = true;
         if (!IsOpen)
         {
             _panel.Toggle(this);
         }
+
+        AddBox.Open();
     }
 
-    [RelayCommand]
-    private async Task CommitAddAsync()
+    private void OnAddBoxClosed(object? sender, EventArgs e)
     {
-        string title = AddText.Trim();
-        AddText = string.Empty;
-        if (title.Length > 0 && _add is not null)
-        {
-            await _add(title);
-        }
-    }
-
-    [RelayCommand]
-    private void CancelAdd()
-    {
-        AddText = string.Empty;
         IsAdding = false;
+    }
+
+    private void DropAddBox()
+    {
+        if (AddBox is { } old)
+        {
+            old.Closed -= OnAddBoxClosed;
+            AddBox = null;
+            IsAdding = false;
+        }
     }
 
     /// <summary>A click on the header: fold or unfold it (until Tasks is next opened).</summary>

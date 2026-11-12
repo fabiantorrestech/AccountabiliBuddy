@@ -203,6 +203,17 @@ public sealed class TaskActionsService
         return _store.ChangeAsync(null, (lists, self, now) => TaskActions.SetNote(lists, id, note, now, self).Lists);
     }
 
+    // ---- adding ----
+
+    /// <summary>
+    /// A new task from the add box or Jot it down (<see cref="TaskActions.Add"/>), on the undo stack (undo deletes it). This session is
+    /// refused there: the add box adds to Queued and then calls <see cref="MoveToSessionAsync"/>, so the cap decides.
+    /// </summary>
+    public Task<bool> AddAsync(Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, string? origin = null)
+    {
+        return RunAsync(TaskActionKind.Add, 1, (lists, self, now) => TaskActions.Add(lists, id, title, bin, labelId, tags, note, origin, now, self));
+    }
+
     // ---- removing ----
 
     public Task<bool> DeleteAsync(IReadOnlyList<Guid> ids)

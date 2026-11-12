@@ -11,9 +11,8 @@ using Avalonia.VisualTree;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// One section of a task panel. Code-behind: the header's right-click menu, the "+" box taking the keyboard as it opens (and closing
-/// when left empty), dragging a row by its handle within this section or into another one on the page, Alt+↑/↓ (the keyboard stays on
-/// the moved row), and Ctrl+A / Esc for the selection.
+/// One section of a task panel. Code-behind: the header's right-click menu, dragging a row by its handle within this section or into
+/// another one on the page, Alt+↑/↓ (the keyboard stays on the moved row), and Ctrl+A / Esc for the selection.
 /// </summary>
 public partial class TaskSectionView : UserControl
 {
@@ -39,23 +38,6 @@ public partial class TaskSectionView : UserControl
         {
             TaskMenus.ShowEntries(header, section.HeaderMenu(), PlacementMode.BottomEdgeAlignedLeft);
             e.Handled = true;
-        }
-    }
-
-    private void OnAddBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property == IsVisibleProperty && sender is TextBox { IsVisible: true } box)
-        {
-            Dispatcher.UIThread.Post(() => box.Focus(), DispatcherPriority.Loaded);
-        }
-    }
-
-    // Leaving the box with nothing typed closes it; typed text stays until Enter or Esc.
-    private void OnAddBoxLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is TaskSectionViewModel { IsAdding: true } section && section.AddText.Trim().Length == 0)
-        {
-            section.CancelAddCommand.Execute(null);
         }
     }
 

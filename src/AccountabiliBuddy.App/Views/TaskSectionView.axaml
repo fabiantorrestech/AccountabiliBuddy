@@ -32,25 +32,6 @@
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
         </Style>
-        <!-- The add box's entry: no box of its own inside the Surface2 pill. -->
-        <Style Selector="TextBox.addEntry">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="TextBox.addEntry /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="BoxShadow" Value="none" />
-        </Style>
-        <Style Selector="TextBox.addEntry:pointerover /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="TextBox.addEntry:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="BoxShadow" Value="none" />
-        </Style>
     </UserControl.Styles>
 
     <StackPanel Opacity="{Binding Fade}" Classes.compact="{Binding IsCompact}" Spacing="2" Margin="0,4,0,2">
@@ -74,16 +55,9 @@
             </Button>
         </Grid>
 
-        <!-- The "+" box: Enter adds a task here and keeps the box for the next; Esc or leaving it empty closes it. -->
-        <Border IsVisible="{Binding IsAdding}" Margin="28,0,6,2" Padding="12,0" CornerRadius="999" Background="{DynamicResource Ab.Surface2}">
-            <TextBox x:Name="AddBox" Classes="addEntry" Text="{Binding AddText}" PlaceholderText="{Binding AddTip}"
-                     AutomationProperties.Name="{Binding AddTip}" LostFocus="OnAddBoxLostFocus" PropertyChanged="OnAddBoxPropertyChanged">
-                <TextBox.KeyBindings>
-                    <KeyBinding Gesture="Enter" Command="{Binding CommitAddCommand}" />
-                    <KeyBinding Gesture="Escape" Command="{Binding CancelAddCommand}" />
-                </TextBox.KeyBindings>
-            </TextBox>
-        </Border>
+        <!-- The "+" box: the add box preset to this bin; Enter adds a task and keeps the box for the next; Esc or leaving it empty closes it. -->
+        <views:AddBoxView DataContext="{Binding AddBox}" IsVisible="{Binding $parent[views:TaskSectionView].((vm:TaskSectionViewModel)DataContext).IsAdding, FallbackValue=False}"
+                          Margin="28,0,6,4" ZIndex="1" />
 
         <ItemsControl ItemsSource="{Binding Rows}" IsVisible="{Binding ShowsRows}">
             <ItemsControl.ItemTemplate>

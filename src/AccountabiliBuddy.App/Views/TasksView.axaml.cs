@@ -29,24 +29,6 @@ public partial class TasksView : UserControl
         InitializeComponent();
     }
 
-    // "From your lists": read the lists as the picker opens; an item chosen closes it.
-    private void OnListPickerOpening(object? sender, EventArgs e)
-    {
-        if (DataContext is not TasksViewModel { ListPicker: var picker })
-        {
-            return;
-        }
-
-        picker.Open();
-        picker.Closed -= OnListPickerClosed;
-        picker.Closed += OnListPickerClosed;
-    }
-
-    private void OnListPickerClosed(object? sender, EventArgs e)
-    {
-        ListPullButton.Flyout?.Hide();
-    }
-
     // The page stays alive while another tab shows: leaving it clears the selection, so it is not found half-done on return.
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -373,16 +355,6 @@ public partial class TasksView : UserControl
         if (sender is Button button)
         {
             TaskMenus.Show(button);
-            e.Handled = true;
-        }
-    }
-
-    // The add row's dot: which category new tasks go in.
-    private void OnNewTaskCategoryClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button button && DataContext is TasksViewModel page)
-        {
-            TaskMenus.ShowEntries(button, page.NewTaskCategoryEntries(), PlacementMode.BottomEdgeAlignedLeft);
             e.Handled = true;
         }
     }
