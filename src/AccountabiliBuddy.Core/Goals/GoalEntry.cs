@@ -13,10 +13,16 @@ namespace AccountabiliBuddy.Core.Goals;
 /// The local time of the reading, or when time added by hand started (a Time goal's hand time with a start counts once with
 /// focus that overlaps it); null = no time (added on top).
 /// </param>
-/// <param name="Value">In the goal's unit: minutes, a count, lb or kg, steps; a habit's tick is 1, an explicit untick 0.</param>
+/// <param name="Value">
+/// In the goal's unit: minutes, a count, lb or kg, steps. A habit's tick is 1; <b>"Untick" is always a new live hand entry with
+/// value 0</b>, which as the latest hand entry wins over the threshold (the day reads Missed). Never a tombstone.
+/// </param>
 /// <param name="EditedAt">When it was made or last edited: the item stamp, and what "latest hand edit" means.</param>
 /// <param name="Position">Its place in the day's list (ADR 48 items carry one); 0 when unordered.</param>
-/// <param name="DeletedAt">Set on a tombstone (an untick or a removed log).</param>
+/// <param name="DeletedAt">
+/// Set on a tombstone: a removed log (Delete in the day panel, or the goal deleted). The day goes back to what its other entries
+/// and sources say; for a habit that may be ticking itself again. Never used to untick.
+/// </param>
 public sealed record GoalEntry(
     Guid Id,
     Guid GoalId,

@@ -20,6 +20,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// so back-filling a past day updates its week and streak and never changes a guard decision already made.</item>
 /// </list>
 /// Readings only count from a source the goal has a switched-on rule for; hand entries always count (the user's own decision).
+/// The built-in Deep work goal (<see cref="Goal.IsDeepWork"/>) counts all focus and nothing else, whatever its stored record says
+/// (plan §3b 6, <see cref="GoalSources.CountedFor"/>): no hand time, calendar or readings, and its entries are ignored.
 /// </summary>
 public static class GoalCounting
 {
@@ -77,8 +79,8 @@ public static class GoalCounting
     public static double? FirstValue(Goal goal, GoalSourceData data)
     {
         HashSet<GoalEntrySource> readable = ReadableSources(goal);
-        IGrouping<DateOnly, GoalEntry>? first = data.Entries
-            .Where(entry => entry.GoalId == goal.Id && entry.IsLive && (entry.Source == GoalEntrySource.Hand || readable.Contains(entry.Source)))
+        IGrouping<DateOnly, GoalEntry>? first = EntriesOf(goal, data)
+            .Where(entry => entry.Source == GoalEntrySource.Hand || readable.Contains(entry.Source))
             .GroupBy(entry => entry.Day)
             .OrderBy(group => group.Key)
             .FirstOrDefault();
@@ -97,9 +99,15 @@ public static class GoalCounting
         };
     }
 
+    // The goal's live entries; none for Deep work, which counts focus only.
+    private static IEnumerable<GoalEntry> EntriesOf(Goal goal, GoalSourceData data)
+    {
+        return goal.IsDeepWork ? [] : data.Entries.Where(entry => entry.GoalId == goal.Id && entry.IsLive);
+    }
+
     private static HashSet<GoalEntrySource> ReadableSources(Goal goal)
     {
-        return goal.Sources
+        return GoalSources.CountedFor(goal)
             .Where(rule => rule.Automatic)
             .Select(rule => EntrySourceOf(rule.Type))
             .OfType<GoalEntrySource>()
@@ -150,22 +158,23 @@ public static class GoalCounting
         private readonly Dictionary<DateOnly, List<GoalEntry>> _entriesByDay;
         private readonly double? _threshold;
         private readonly bool _reachesDown;
+        private readonly IReadOnlyList<GoalSourceRule> _sources;
 
         public Context(Goal goal, GoalSourceData data)
         {
             _goal = goal;
             _data = data;
             _createdOn = goal.CreatedOn(data.Zone);
-            _timeRules = goal.Sources
+            _sources = GoalSources.CountedFor(goal);
+            _timeRules = _sources
                 .Where(rule => rule.Automatic && rule.CountsTime)
                 .Select(rule => (rule, WindowsOf(rule, data)))
                 .ToList();
             _readable = ReadableSources(goal);
-            _entriesByDay = data.Entries
-                .Where(entry => entry.GoalId == goal.Id && entry.IsLive)
+            _entriesByDay = EntriesOf(goal, data)
                 .GroupBy(entry => entry.Day)
                 .ToDictionary(group => group.Key, group => group.ToList());
-            _threshold = goal.Sources
+            _threshold = _sources
                 .Where(rule => rule.Automatic && rule.CountsTime && rule.ThresholdMinutes is > 0)
                 .Select(rule => rule.ThresholdMinutes)
                 .Min();
@@ -196,7 +205,7 @@ public static class GoalCounting
 
             // Readings from the goal's switched-on reading sources.
             List<GoalEntry> readings = dayEntries.Where(entry => entry.Source != GoalEntrySource.Hand && _readable.Contains(entry.Source)).ToList();
-            foreach (GoalSourceRule rule in _goal.Sources.Where(rule => rule.Automatic && EntrySourceOf(rule.Type) is GoalEntrySource source && readings.Any(entry => entry.Source == source)))
+            foreach (GoalSourceRule rule in _sources.Where(rule => rule.Automatic && EntrySourceOf(rule.Type) is GoalEntrySource source && readings.Any(entry => entry.Source == source)))
             {
                 if (!sources.Contains(rule.Type))
                 {

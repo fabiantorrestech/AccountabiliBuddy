@@ -10,7 +10,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <item><b>An amount per period</b>: at least: On track once met or level with the period's pace line (the amount spread over
 /// its live days, the days before today done); Not due yet when nothing is due and nothing done; else Behind. At most: Behind
 /// once over the cap.</item>
-/// <item><b>A long-term target only</b> (or a level to reach): the Target tile's status against the pace line to the date.</item>
+/// <item><b>A long-term target only</b> (or a level to reach with one): the Target tile's status against the pace line to the
+/// date. A level per period with no long-term target: On track once the period's latest value reaches it, else Not due yet.</item>
 /// <item>A goal paused today is <see cref="GoalPeriodStatus.Paused"/> and leaves the This week counts.</item>
 /// </list>
 /// Deep work's weekly target is read the same way: pass the goal with <see cref="Goal.Target"/> set to its
@@ -65,6 +66,12 @@ public static class GoalStatus
             }
 
             return result.Progress == 0 && daysLeft > needed ? GoalPeriodStatus.NotDueYet : GoalPeriodStatus.OnTrack;
+        }
+
+        if (goal.Target.Direction == GoalDirection.Reach && goal.Target.TargetAmount is null && goal.Target.Amount is not null)
+        {
+            // A level per period with no long-term target: met once the period's latest value reaches it; nothing to be behind on.
+            return Evaluate(goal, data, span, days, today, GoalCounting.ReachesDown(goal, data)).Met ? GoalPeriodStatus.OnTrack : GoalPeriodStatus.NotDueYet;
         }
 
         if (goal.Target.Amount is null || goal.Target.Direction == GoalDirection.Reach)

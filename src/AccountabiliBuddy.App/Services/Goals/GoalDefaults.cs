@@ -14,7 +14,7 @@ public static class GoalDefaults
     public static Guid WorkAreaId { get; } = Guid.Parse("d33b0a11-6f0c-4e2a-9d51-0000000000a1");
 
     /// <summary>Deep work's one source rule (all counted focus), with a fixed id for the same reason.</summary>
-    public static Guid DeepWorkSourceId { get; } = Guid.Parse("d33b0a11-6f0c-4e2a-9d51-0000000000f1");
+    public static Guid DeepWorkSourceId => GoalSources.DeepWorkRule.Id;
 
     public const string WorkAreaName = "Work";
     public const string DeepWorkName = "Deep work";
@@ -25,7 +25,7 @@ public static class GoalDefaults
     /// </summary>
     public static GoalTarget DeepWorkStoredTarget { get; } = new(GoalPeriod.Day, null, GoalUnit.Minutes);
 
-    public static GoalSourceRule DeepWorkSource { get; } = new(DeepWorkSourceId, GoalSourceType.FocusAll);
+    public static GoalSourceRule DeepWorkSource => GoalSources.DeepWorkRule;
 
     public static GoalArea NewWorkArea(DateTimeOffset now)
     {

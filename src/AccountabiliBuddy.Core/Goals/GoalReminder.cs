@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// A goal reminder (brief §5.1, §5.9): a suggestion that rings through the task reminder engine; nothing locks or waits.
 /// Carries the shared-item stamps of ADR 48/72 for a later ADR 79 merge; nothing syncs it now. Never exported to Google Calendar.
 /// </summary>
-/// <param name="Weekdays">For <see cref="GoalReminderDays.Weekdays"/>: the days it rings on; null otherwise.</param>
+/// <param name="Weekdays">For <see cref="GoalReminderDays.Weekdays"/>: the days it rings on, by name; null otherwise.</param>
 /// <param name="Date">For <see cref="GoalReminderDays.Date"/> and <see cref="GoalReminderDays.Today"/>: the date; null otherwise.</param>
 /// <param name="Time">The local time it rings.</param>
 /// <param name="Repeat">Whether it repeats on its days (false: it rings once, the next time it is due).</param>
@@ -20,7 +20,7 @@ public sealed record GoalReminder(
     TimeOnly Time,
     double Position,
     DateTimeOffset EditedAt,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<DayOfWeek>? Weekdays = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<GoalWeekday>? Weekdays = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? Date = null,
     bool Repeat = true,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason = null,

@@ -244,6 +244,19 @@ public sealed class GoalsService
             bool Ready(GoalPendingChange? pending) => pending is not null && GoalLowering.CanApply(pending, now, session, productaBuddy, lowerWaits);
 
             DeepWorkGoalSettings settings = _store.DeepWork;
+            if (!productaBuddy)
+            {
+                // A change made in ProductaBuddy mode seen in AccountabiliBuddy mode (a switch this service didn't see, e.g. while the
+                // app was closed) waits the full delay from now first (GoalLowering.IntoAccountabiliBuddy).
+                GoalPendingChange? Restarted(GoalPendingChange? pending) => pending is null ? null : GoalLowering.IntoAccountabiliBuddy(pending, now, _looserWait());
+                settings = settings with
+                {
+                    PendingDaily = Restarted(settings.PendingDaily),
+                    PendingWeekly = Restarted(settings.PendingWeekly),
+                    PendingTrackTimeOnly = Restarted(settings.PendingTrackTimeOnly),
+                };
+            }
+
             if (Ready(settings.PendingTrackTimeOnly))
             {
                 settings = TrackingTimeOnly(settings);
@@ -289,7 +302,9 @@ public sealed class GoalsService
 
         DateTimeOffset earliest = Now + _looserWait();
         GoalPendingChange? Later(GoalPendingChange? pending) =>
-            pending is not null && pending.AppliesAt < earliest ? pending with { AppliesAt = earliest } : pending;
+            pending is not null && (pending.AppliesAt < earliest || pending.MadeInProductaBuddy)
+                ? pending with { AppliesAt = pending.AppliesAt < earliest ? earliest : pending.AppliesAt, MadeInProductaBuddy = false }
+                : pending;
         DeepWorkGoalSettings settings = _store.DeepWork;
         await _store.SetDeepWorkAsync(settings with
         {

@@ -9,6 +9,12 @@ namespace AccountabiliBuddy.Core.Goals;
 /// </summary>
 /// <param name="Amount">The new amount; null = no target any more ("Track time only").</param>
 /// <param name="AppliesAt">The earliest it may apply.</param>
+/// <param name="MadeInProductaBuddy">
+/// Made in ProductaBuddy mode, where it skipped the delay: in AccountabiliBuddy mode it waits the full delay first
+/// (<see cref="GoalLowering.IntoAccountabiliBuddy"/>). Left out of the JSON when false, so older stored changes read as made in
+/// AccountabiliBuddy mode.
+/// </param>
 public sealed record GoalPendingChange(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? Amount,
-    DateTimeOffset AppliesAt);
+    DateTimeOffset AppliesAt,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool MadeInProductaBuddy = false);

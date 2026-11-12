@@ -4,10 +4,12 @@ namespace AccountabiliBuddy.Core.Goals;
 /// The weekly review's suggestion for a goal (brief §5.8), rule-based on the device, with the facts it used as pills:
 /// <list type="number">
 /// <item><b>Pause</b> when nothing counted for <see cref="QuietDays"/> days (the goal at least that old; paused days left out).
-/// Checked first: a goal with no activity is also behind, and the brief's "Adjust" would otherwise always hide it.</item>
-/// <item><b>Adjust the target</b> when it was behind (not met) in 2 of its last 3 periods that asked for something, or when the
-/// projected finish at the current pace is more than 10% of the days left past the target date (no pace at all counts as
-/// past it).</item>
+/// Checked first: a goal with no activity is also behind, and the brief's "Adjust" would otherwise always hide it. Never for an
+/// at-most goal, where nothing (no screen time) is the goal being kept.</item>
+/// <item><b>Adjust the target</b> when it was behind (not met) in 2 of its last 3 periods that asked for something, when the
+/// target date has passed with the target unmet, or when the projected finish at the current pace is more than 10% of the days
+/// left past the target date (no pace at all counts as past it). The projection is only judged once the goal has
+/// <see cref="MinPaceDays"/> live days before today, so a new goal isn't told to adjust before it has a pace.</item>
 /// <item><b>Keep going</b> otherwise.</item>
 /// </list>
 /// No network, no AI. "Adjust" opens Edit goal › Target pre-filled; a lowering still waits (<see cref="GoalLowering"/>).
@@ -32,6 +34,9 @@ public sealed record GoalReviewSuggestion(
 
     /// <summary>The projected finish may run this share of the days left past the date before Adjust is suggested.</summary>
     public const double LateShare = 0.10;
+
+    /// <summary>The live days before today a goal needs before its projected finish is judged.</summary>
+    public const int MinPaceDays = 7;
 
     public static GoalReviewSuggestion For(Goal goal, GoalSourceData data, DateOnly today, GoalWeekStart weekStart)
     {
@@ -59,7 +64,8 @@ public sealed record GoalReviewSuggestion(
             .Select(back => today.AddDays(-back))
             .Where(day => goal.IsAliveOn(day, data.Zone))
             .ToList();
-        bool quiet = created.DayNumber <= today.DayNumber - QuietDays
+        bool quiet = goal.Target.Direction != GoalDirection.AtMost
+            && created.DayNumber <= today.DayNumber - QuietDays
             && recentLive.Count > 0
             && recentLive.All(day => !days.TryGetValue(day, out GoalDayState? state) || !Active(state));
 
@@ -69,8 +75,10 @@ public sealed record GoalReviewSuggestion(
 
         GoalWhatItTakes? takes = GoalWhatItTakes.For(goal, data, today);
         double? pace = takes?.PacePerDay ?? GoalWhatItTakes.Pace(goal, data, today, GoalWhatItTakes.DefaultPaceWeeks, reachesDown);
-        bool late = false;
-        if (takes is { Verdict: GoalWhatItTakesVerdict.Covered or GoalWhatItTakesVerdict.NeedsMore, DaysLeft: int left } && goal.Target.TargetDate is DateOnly date)
+        int paceHistory = days.Keys.Count(day => day < today && goal.IsAliveOn(day, data.Zone));
+        bool late = takes?.Verdict == GoalWhatItTakesVerdict.DatePassed;
+        if (takes is { Verdict: GoalWhatItTakesVerdict.Covered or GoalWhatItTakesVerdict.NeedsMore, DaysLeft: int left }
+            && goal.Target.TargetDate is DateOnly date && paceHistory >= MinPaceDays)
         {
             int allowed = (int)Math.Ceiling(left * LateShare);
             late = takes.ProjectedFinish is not DateOnly finish || finish.DayNumber > date.DayNumber + allowed;

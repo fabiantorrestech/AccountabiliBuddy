@@ -51,6 +51,13 @@ public sealed record Goal(
     [JsonIgnore]
     public bool IsLive => DeletedAt is null;
 
+    /// <summary>
+    /// Whether this is the built-in Deep work goal: flagged built in, or carrying its fixed id (a record that lost the flag is
+    /// still Deep work). It counts all focus and nothing else (plan §3b 6) and its lowering follows the guarded rule.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsDeepWork => BuiltIn || Id == DeepWorkId;
+
     /// <summary>Whether the goal is paused on <paramref name="day"/>.</summary>
     public bool IsPausedOn(DateOnly day)
     {

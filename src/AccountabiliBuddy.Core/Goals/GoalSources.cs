@@ -7,6 +7,32 @@ namespace AccountabiliBuddy.Core.Goals;
 /// </summary>
 public static class GoalSources
 {
+    /// <summary>Deep work's one source: all counted focus, switched on. The same id on every device.</summary>
+    public static GoalSourceRule DeepWorkRule { get; } = new(Guid.Parse("d33b0a11-6f0c-4e2a-9d51-0000000000f1"), GoalSourceType.FocusAll);
+
+    /// <summary>
+    /// The rules that count for <paramref name="goal"/>: Deep work (<see cref="Goal.IsDeepWork"/>) counts all focus and nothing else
+    /// whatever its stored record says (plan §3b 6: no hand, calendar or steps sources); every other goal its own rules.
+    /// </summary>
+    public static IReadOnlyList<GoalSourceRule> CountedFor(Goal goal)
+    {
+        return goal.IsDeepWork ? [DeepWorkRule] : goal.Sources;
+    }
+
+    /// <summary>
+    /// Whether the editor may add a source of <paramref name="type"/> to <paramref name="goal"/>: Deep work takes only all focus
+    /// (locked); every other goal takes any source but all focus (Deep work's own) and the "Coming soon" ones.
+    /// </summary>
+    public static bool AllowedFor(Goal goal, GoalSourceType type)
+    {
+        if (goal.IsDeepWork)
+        {
+            return type == GoalSourceType.FocusAll;
+        }
+
+        return type != GoalSourceType.FocusAll && AvailabilityOf(type) != GoalSourceAvailability.ComingSoon;
+    }
+
     public static GoalSourceAvailability AvailabilityOf(GoalSourceType type)
     {
         return type switch
