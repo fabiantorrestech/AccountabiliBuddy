@@ -126,14 +126,17 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public ShelfViewModel Shelf { get; }
 
-    /// <summary>Compact rows (32 DIP) on both columns and on Today; remembered on this PC.</summary>
-    public bool IsCompact => _layout.Current.Compact;
+    /// <summary>
+    /// Compact rows (32 DIP) on both columns and on Today; remembered on this PC. In the session layout Compact is on by itself (the
+    /// setting), and a pick made then lasts only for that layout.
+    /// </summary>
+    public bool IsCompact => CompactNow;
 
     [RelayCommand]
-    private Task UseNormalRows() => _layout.SetCompactAsync(false);
+    private Task UseNormalRows() => PickDensityAsync(false);
 
     [RelayCommand]
-    private Task UseCompactRows() => _layout.SetCompactAsync(true);
+    private Task UseCompactRows() => PickDensityAsync(true);
 
     /// <summary>Today's share of the page in percent while both columns show (30 to 70, 46 by default); remembered on this PC.</summary>
     public int TodaySplit => _layout.Current.SplitNow;
@@ -172,6 +175,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private void ToggleShelf()
     {
         IsShelfShown = !IsShelfShown;
+        if (_layoutActive && IsShelfShown)
+        {
+            // Shown during the session layout: a change of the session view ("Hold to reset" hides it again).
+            _shelfPeeked = true;
+            NotifySessionViewChanged();
+        }
+
         if (!IsShelfShown)
         {
             IsTodayHidden = false;
@@ -206,6 +216,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private void OnLayoutChanged(object? sender, EventArgs e)
     {
+        ApplyDensity();
         OnPropertyChanged(nameof(IsCompact));
         OnPropertyChanged(nameof(TodaySplit));
     }
@@ -1152,7 +1163,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         var sessionRows = new List<TaskListRowViewModel>();
         var queuedRows = new List<TaskListRowViewModel>();
         int readyActions = 0;
-        foreach (SessionTask task in current.Tasks.Where(task => !task.IsDone))
+        if (live)
+        {
+            // The running session: one row per place (Quiet) or each task with its steps (Grouped), numbered by its places.
+            sessionRows.AddRange(LiveSessionRows(current, stored, runningId));
+        }
+
+        foreach (SessionTask task in live ? Enumerable.Empty<SessionTask>() : current.Tasks.Where(task => !task.IsDone))
         {
             TaskCategory? category = _tasks.Categories.FirstOrDefault(item => item.Id == task.CategoryId);
             Guid id = task.Id;
@@ -1227,11 +1244,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         string sessionHint = live
             ? $"{_tasks.ActionsUsed}/{_tasks.ActionCap} in focus"
             : readyActions > 0 ? $"{readyActions} ready" : string.Empty;
-        ShowTodaySections(TodayPanel, sessionHint, withReminders: false, live);
+        // The Tasks page's quiet sections stay faded while the session layout shows (also once it ended, until it switches back).
+        ShowTodaySections(TodayPanel, sessionHint, withReminders: false, live || _layoutActive);
         ShowTodaySections(TodayTabPanel, sessionHint, withReminders: true, live);
         TodayRailText = $"{(live ? _tasks.ActionsUsed : readyActions)} in focus";
         TodayDateText = now.ToString("ddd M/d", CultureInfo.InvariantCulture);
         Jot.IsQuiet = live;
+        NotifySessionViewChanged();
 
         OnPropertyChanged(nameof(IsSessionLive));
         OnPropertyChanged(nameof(CanStartSession));
@@ -1431,7 +1450,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         TaskMoveOutcome outcome = await _actions.MoveToSessionAsync([id]);
         if (outcome.NeedsRoom.Count > 0)
         {
-            Notice = "This session is full. Finish one of its tasks or move one to Queued first.";
+            OfferSwap(outcome.NeedsRoom);
         }
     }
 
@@ -1520,7 +1539,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         TaskRowKey key, string title, string subText, string? categoryName, string? categoryColor, int number = 0, bool isNow = false,
         bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "",
         Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true, DateTimeOffset sortTime = default, DateOnly? dueOn = null,
-        bool isQueued = false)
+        bool isQueued = false, IReadOnlyList<SessionStepLineViewModel>? stepLines = null)
     {
         Action<TaskListRowViewModel, TaskRowClick> select = selectable ? OnRowClick : (_, _) => { };
         // Every kind of row but Auto-saved can have a category: its chip, or the quiet "+ category" spot, opens the picker.
@@ -1562,6 +1581,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             CategoryColor = categoryColor,
             CategoryBrush = TaskCategoryBrushes.Of(categoryColor),
             StatusTag = statusTag,
+            StepLines = stepLines ?? [],
             SortTime = sortTime,
             DueOn = dueOn,
             IsQueued = isQueued,

@@ -255,9 +255,8 @@ public sealed partial class TasksViewModel
             ClearSelection();
             if (outcome.NeedsRoom.Count > 0)
             {
-                Notice = outcome.NeedsRoom.Count == ids.Count
-                    ? "This session is full. Finish one of its tasks or move one to Queued first."
-                    : $"This session is full: {outcome.NeedsRoom.Count} of them stayed where they were.";
+                // "This session is full": a swap or "Add anyway" for each that found no room; closing leaves them where they were.
+                OfferSwap(outcome.NeedsRoom);
             }
 
             return;

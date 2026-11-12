@@ -52,6 +52,29 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// The session layout's density (Compact on automatically, or what the user picked during the session); null: the page's own
+    /// Normal / Compact.
+    /// </summary>
+    public bool? CompactOverride
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                Apply();
+            }
+        }
+    }
+
+    /// <summary>A header was clicked since Tasks was last opened (or the folds were last forgotten): the session view was changed.</summary>
+    public bool HasFolds => _folds.Count > 0;
+
+    /// <summary>A header click folded or unfolded a section, or the clicks were forgotten.</summary>
+    public event EventHandler? FoldsChanged;
+
     /// <summary>The page's answer to a row dropped in one of this panel's sections; null: drops do nothing.</summary>
     public Func<TaskRowDrop, Task>? Drop { get; set; }
 
@@ -137,13 +160,20 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
     {
         _folds[section.Key] = !section.IsOpen;
         Apply();
+        FoldsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Tasks was opened again: the header clicks are forgotten, the pins and Expand / Collapse all decide again.</summary>
     public void ForgetFolds()
     {
+        bool had = _folds.Count > 0;
         _folds.Clear();
         Apply();
+        if (had)
+        {
+            FoldsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
     }
 
     [RelayCommand]
@@ -197,7 +227,7 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
             section.IsPinned = section.CanPin && layout.PinnedNow.Contains(section.Key);
             section.IsOpen = _folds.TryGetValue(section.Key, out bool open) ? open : section.IsPinned || (expandAll ?? section.OpensByDefault);
             section.Fade = section.IsQuiet ? (InSession ? 0.40 : 0.66) : 1;
-            section.IsCompact = layout.Compact;
+            section.IsCompact = CompactOverride ?? layout.Compact;
         }
 
         OnPropertyChanged(nameof(IsExpanded));

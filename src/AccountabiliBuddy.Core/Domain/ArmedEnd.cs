@@ -9,6 +9,10 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="SealedReason">The typed reason, DPAPI-protected and base64; empty for a kind that takes none. Never synced.</param>
 /// <param name="ProfileId">For <see cref="ArmedEndKind.EndSession"/>: the profile of the session it ends; it is dropped if another runs.</param>
 /// <param name="WorkEnd">For <see cref="ArmedEndKind.EndWorkEarly"/>: the work it ends.</param>
+/// <param name="UnfinishedToQueued">
+/// For <see cref="ArmedEndKind.EndSession"/>: confirmed as "End and mark the rest unfinished", so when it applies the session's open
+/// tasks go back to Queued. Only what happens to the tasks; the wait and reason are the same. This PC's own.
+/// </param>
 public sealed record ArmedEnd(
     Guid Id,
     ArmedEndKind Kind,
@@ -16,4 +20,5 @@ public sealed record ArmedEnd(
     DateTimeOffset ReadyAt,
     string SealedReason,
     Guid? ProfileId = null,
-    ArmedWorkEnd? WorkEnd = null);
+    ArmedWorkEnd? WorkEnd = null,
+    bool UnfinishedToQueued = false);

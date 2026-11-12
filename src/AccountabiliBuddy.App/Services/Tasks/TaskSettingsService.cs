@@ -200,6 +200,15 @@ public sealed class TaskSettingsService
         return UpdateAsync(settings => settings with { TidyUpOn = on, TidyUpDay = day }, mode);
     }
 
+    /// <summary>
+    /// The session layout (Settings › Tasks › During a session, Phase 7): Compact rows and a hidden Shelf while a session runs, and its
+    /// Quiet or Grouped view. Display only, so no wait; a running session's layout keeps what it started with (nothing jumps).
+    /// </summary>
+    public Task SetSessionLayoutAsync(bool compactInSession, bool hideShelfInSession, SessionTaskView view, GuidanceMode? mode = null)
+    {
+        return UpdateAsync(settings => settings with { CompactInSession = compactInSession, HideShelfInSession = hideShelfInSession, SessionView = view }, mode);
+    }
+
     /// <summary>Whether new views pin highlighted tasks to the top.</summary>
     public Task SetPinHighlightsAsync(bool on, GuidanceMode? mode = null)
     {
@@ -302,6 +311,9 @@ public sealed class TaskSettingsService
                 PinHighlights = wanted.PinHighlights,
                 CustomMarkers = wanted.CustomMarkers,
                 DeclinedMarkers = wanted.DeclinedMarkers,
+                CompactInSession = wanted.CompactInSession,
+                HideShelfInSession = wanted.HideShelfInSession,
+                SessionView = wanted.SessionView,
             },
             mode);
         bool actionsTaken = await SetSessionActionsAsync(wanted.SessionActions, mode);

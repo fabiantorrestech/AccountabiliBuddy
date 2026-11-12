@@ -351,7 +351,8 @@ public partial class App : Application
         _sessions.SideTaskSetting = () => taskSettings.Current.SideTask;
         // ADR 66: waited ends confirmed early apply themselves when their wait is over; the notice shows where the cursor is.
         _armedEnds = new ArmedEndService(_sessions, documents, new DpapiDataProtector(), (title, message) => _presenter?.ShowNotice(title, message));
-        _armedEnds.Register(new SessionArmedEndHandler(_sessions));
+        var sessionArmedEnd = new SessionArmedEndHandler(_sessions);
+        _armedEnds.Register(sessionArmedEnd);
         // A session that ended some other way (completed, ended from the phone, unlocked) takes its armed end with it.
         _sessions.SessionEnded += (_, _) => _armedEnds.Drop(ArmedEndKind.EndSession);
         _endFlow = new SessionEndFlow(_sessions, _armedEnds);
@@ -1327,6 +1328,9 @@ public partial class App : Application
             _comebacks!.UseTaskStore(taskStore);
             autoSaved.UseTaskStore(taskStore);
             _taskListSync.UsesTaskStore = () => true;
+            // "End and mark the rest unfinished": the same end (wait and reason, armed or not); when it happens the open tasks go back to Queued.
+            _endFlow!.MarkRestUnfinished = sessionTasks.MarkRestUnfinishedAtEndAsync;
+            sessionArmedEnd.MarkRestUnfinished = sessionTasks.MarkRestUnfinishedAtEndAsync;
             syncCoordinator.TaskModelParts = taskStore.WithParts;
             syncCoordinator.MergeTaskModel = taskStore.MergeFileAsync;
             taskStore.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -1682,7 +1686,13 @@ public partial class App : Application
             // The title bar's session control: Start opens the usual start controls (the quick-session popup, as the global
             // shortcut does); End is the end-early flow with its wait and reason.
             SessionControl = new SessionControlViewModel(
-                _sessions!, _stepAway!, sessionLayout, () => _quickSession!.Show(), () => _endFlow!.TryEndSessionAsync(VisibleMainWindow())),
+                _sessions!, _stepAway!, sessionLayout, () => _quickSession!.Show(), () => _endFlow!.TryEndSessionAsync(VisibleMainWindow()))
+            {
+                EndToQueued = taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.TaskList
+                    ? () => _endFlow!.TryEndSessionAsync(VisibleMainWindow(), unfinishedToQueued: true)
+                    : null,
+                OffersEndToQueued = () => sessionTasks.CanEndToQueued,
+            },
         };
         // "Ended · switches next time": opening Tasks again switches it back to planning; header clicks on its sections are forgotten.
         mainViewModel.PropertyChanged += (_, args) =>
@@ -1708,7 +1718,12 @@ public partial class App : Application
             if (_taskActions is not null && _taskViews is not null && _taskTidyUp is not null && _taskReminders is not null)
             {
                 tasksPage.UseTaskModel(taskStore, _taskActions, _taskViews, _taskTidyUp, _taskReminders);
+                // "Work on it now" with This session full: the same "This session is full" dialog (swap or Add anyway).
+                _taskReminders.SessionFull += (_, taskId) => Dispatcher.UIThread.Post(() => tasksPage.OfferSwapFor(taskId));
             }
+
+            // The session layout (Compact, the Shelf hidden, faded Queued), the ended notice and Hold to reset (Tasks redesign 3.6).
+            tasksPage.UseSessionLayout(sessionLayout);
         }
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;
         planViewModel.ShowToday = () => mainViewModel.SelectedTab = MainWindowViewModel.TodayTab;

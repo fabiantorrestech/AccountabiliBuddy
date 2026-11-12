@@ -1,0 +1,119 @@
+<views:TaskDialogWindow xmlns="https://github.com/avaloniaui"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+                        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+                        xmlns:views="using:AccountabiliBuddy.App.Views"
+                        x:Class="AccountabiliBuddy.App.Views.SessionFullDialog"
+                        x:DataType="vm:SessionFullViewModel"
+                        Title="This session is full"
+                        Icon="/Assets/app-icon.png"
+                        Width="460">
+    <!-- "This session is full" (`05` §2): the incoming task in its own highlighted card (accent line 1.5 at 55 %, tinted, ⬇, 17 DIP title,
+         "● Label · 25 min · from Today · Queued"), "Move one to Queued" with a row and a round ⇄ per place, and a quiet underlined
+         "Add anyway" (the over-limit reason, as everywhere). -->
+    <views:TaskDialogWindow.Styles>
+        <Style Selector="Button.swapRound">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.subtle">
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.subtle /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.subtle:pointerover TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </views:TaskDialogWindow.Styles>
+
+    <StackPanel Margin="22,20" Spacing="12">
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="dlgTitle" Text="{Binding Heading}" />
+            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ProgressText}" FontSize="12.5" VerticalAlignment="Center" IsVisible="{Binding HasProgress}" />
+        </Grid>
+        <TextBlock Classes="dlgSub" Text="{Binding Sub}" TextWrapping="Wrap" />
+
+        <!-- The incoming one. -->
+        <Panel>
+            <Border CornerRadius="12" Background="{DynamicResource Ab.Accent}" Opacity="0.10" />
+            <Border CornerRadius="12" BorderBrush="{DynamicResource Ab.Accent}" BorderThickness="1.5" Opacity="0.55" />
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="14,12">
+                <mi:MaterialIcon Kind="ArrowDown" Width="20" Height="20" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Spacing="3">
+                    <TextBlock Classes="muted" Text="{Binding IncomingKind}" FontSize="11.5" />
+                    <TextBlock Text="{Binding IncomingTitle}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="8" Height="8" Fill="{Binding IncomingDot}" VerticalAlignment="Center" IsVisible="{Binding HasIncomingDot}" />
+                        <TextBlock Classes="muted" Text="{Binding IncomingDetail}" FontSize="12.5" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Panel>
+
+        <!-- Swap one out. -->
+        <StackPanel Spacing="6" IsVisible="{Binding IsChoosing}">
+            <TextBlock Classes="dlgHead" Text="Move one to Queued" />
+            <ItemsControl ItemsSource="{Binding Slots}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SessionFullSlotViewModel">
+                        <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="10" Padding="12,6,6,6">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
+                                <TextBlock Classes="muted" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center" />
+                                <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title}" FontSize="13.5" TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                    <TextBlock Classes="muted" Text="{Binding Sub}" FontSize="12" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasSub}" />
+                                </StackPanel>
+                                <Button Grid.Column="3" Classes="swapRound" Command="{Binding SwapCommand}" ToolTip.Tip="{Binding SwapTip}"
+                                        AutomationProperties.Name="{Binding SwapTip}">
+                                    <mi:MaterialIcon Kind="SwapHorizontal" Width="18" Height="18" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="muted" Text="{Binding Note}" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding HasNote}" />
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
+                <Button Classes="subtle" Command="{Binding AddAnywayCommand}" ToolTip.Tip="Over the limit, with a reason (kept on this PC, counted for the review)"
+                        AutomationProperties.Name="Add anyway" VerticalAlignment="Center">
+                    <TextBlock Text="Add anyway" FontSize="12.5" TextDecorations="Underline" />
+                </Button>
+                <Button Grid.Column="2" Classes="dialogStart" Content="Cancel" Command="{Binding CancelCommand}" />
+            </Grid>
+        </StackPanel>
+
+        <!-- Add anyway: the existing over-limit reason card (the same words and rules as everywhere). -->
+        <ContentControl Content="{Binding Reason}" IsVisible="{Binding IsAskingReason}">
+            <ContentControl.DataTemplates>
+                <DataTemplate x:DataType="vm:PendingMoveViewModel">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{Binding TitleText}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBox Text="{Binding Reason}" PlaceholderText="Why? (10+ characters, stays on this PC)" AutomationProperties.Name="Why add it anyway" />
+                        <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Ab.Drift}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Add anyway" Command="{Binding AddAnywayCommand}" />
+                            <Button Classes="quiet" Content="Back" Command="{Binding CancelCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </DataTemplate>
+            </ContentControl.DataTemplates>
+        </ContentControl>
+    </StackPanel>
+</views:TaskDialogWindow>

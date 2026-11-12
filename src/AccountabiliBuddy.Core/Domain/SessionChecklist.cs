@@ -27,6 +27,12 @@ namespace AccountabiliBuddy.Core.Domain;
 /// How many actions the running session holds (the Tasks setting, 2 to 5, as it was when the session started): a change of the
 /// setting never reaches a running session. Null in a draft or history.
 /// </param>
+/// <param name="UnfinishedToQueued">
+/// "End and mark the rest unfinished" (Tasks redesign, ADR 76): set on the running checklist when the user's end (with its wait and
+/// reason, as any early end) was asked for with this outcome; once it ends, its open tasks go back to Queued as the same tasks. Kept on
+/// the history record: its open tasks are then in Queued, so they are not "used" by that session (<see cref="AccountabiliBuddy.Core.Tasks.SessionConsumed"/>).
+/// It never changes when or how a session ends. This PC's own, never synced.
+/// </param>
 public sealed record SessionChecklist(
     DateTimeOffset? SessionStart,
     bool MadeBeforeStart,
@@ -35,7 +41,8 @@ public sealed record SessionChecklist(
     int DroppedOpen = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool OutsideSession = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? FocusedSteps = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? ActionCap = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? ActionCap = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool UnfinishedToQueued = false)
 {
     /// <summary>How long a session runs before a finished checklist may end it at once (ADR 25).</summary>
     public static readonly TimeSpan EndAtOnceAfter = TimeSpan.FromMinutes(10);

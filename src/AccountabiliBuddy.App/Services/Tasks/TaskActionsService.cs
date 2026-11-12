@@ -64,8 +64,10 @@ public sealed class TaskActionsService
     /// <summary>
     /// Moves tasks into This session one by one through the session list's add, which keeps the cap: tasks that find no place are
     /// returned (<see cref="TaskMoveOutcome.NeedsRoom"/>) for the "This session is full" dialog, and given <paramref name="overLimitReason"/>
-    /// are added anyway (the reason is kept for the review, as "Add anyway" always did). Not on the undo stack: a place in a session is
-    /// the session's to take back.
+    /// are added anyway (the reason is kept for the review, as "Add anyway" always did). The room check is skipped only for an add that
+    /// is recorded as over the limit: with no session running, a task that doesn't fit This session's draft records the reason here
+    /// (the session add records it itself when no action is free at all); a reason that is too short adds nothing. Not on the undo
+    /// stack: a place in a session is the session's to take back.
     /// </summary>
     public async Task<TaskMoveOutcome> MoveToSessionAsync(IReadOnlyList<Guid> ids, string? overLimitReason = null)
     {
@@ -90,7 +92,8 @@ public sealed class TaskActionsService
             // when This session has room for its actions (the same cap; "Add anyway" is the session add's own, so it stays there).
             if (task.Bin == TaskBin.Queued && _session.IsInDraft(id))
             {
-                if (!_session.HasDraftRoomFor(task.ActionCount))
+                if (!_session.HasDraftRoomFor(task.ActionCount)
+                    && (overLimitReason is null || !await _session.RecordOverLimitAddAsync(overLimitReason)))
                 {
                     needsRoom.Add(id);
                 }
@@ -103,10 +106,21 @@ public sealed class TaskActionsService
             }
 
             // While no session runs it must still fit This session's own actions (Queued's hold no place), as the Queued path above.
-            if (_session.Current.SessionStart is null && !_session.HasDraftRoomFor(task.ActionCount) && overLimitReason is null)
+            // "Add anyway" goes over only as a recorded over-limit add: when an action is still free the session add won't record it,
+            // so it is recorded here; with none free the session add records it itself (never twice).
+            if (_session.Current.SessionStart is null && !_session.HasDraftRoomFor(task.ActionCount))
             {
-                needsRoom.Add(id);
-                continue;
+                if (overLimitReason is null)
+                {
+                    needsRoom.Add(id);
+                    continue;
+                }
+
+                if (!_session.IsAtActionLimit && !await _session.RecordOverLimitAddAsync(overLimitReason))
+                {
+                    needsRoom.Add(id);
+                    continue;
+                }
             }
 
             (AddToTodayResult result, _) = await _session.AddToTodayAsync(SourceOf(task, lists), overLimitReason);
@@ -120,7 +134,7 @@ public sealed class TaskActionsService
                     await _store.TakeBackAsync(_session, id);
                 }
             }
-            else if (result == AddToTodayResult.AtLimit)
+            else if (result is AddToTodayResult.AtLimit or AddToTodayResult.ReasonTooShort)
             {
                 needsRoom.Add(id);
             }
@@ -132,6 +146,12 @@ public sealed class TaskActionsService
         }
 
         return new TaskMoveOutcome(moved, needsRoom);
+    }
+
+    /// <summary>Raises <see cref="Toast"/> for something done outside the actions here (the swap dialog, the session layout): not on the undo stack.</summary>
+    public void Say(string text)
+    {
+        Announce(text, canUndo: false);
     }
 
     /// <summary>

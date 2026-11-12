@@ -66,8 +66,10 @@ public sealed class ArmedEndService : IDisposable
 
     /// <summary>Arms <paramref name="kind"/>: its wait of <paramref name="wait"/> counts from <paramref name="requestedAt"/>.</summary>
     /// <returns>Null when the wait is already over (the caller ends at once instead).</returns>
+    /// <param name="unfinishedToQueued">An end of the session confirmed as "End and mark the rest unfinished" (the same wait).</param>
     public ArmedEnd? Arm(
-        ArmedEndKind kind, DateTimeOffset requestedAt, TimeSpan wait, string reason, Guid? profileId = null, ArmedWorkEnd? workEnd = null)
+        ArmedEndKind kind, DateTimeOffset requestedAt, TimeSpan wait, string reason, Guid? profileId = null, ArmedWorkEnd? workEnd = null,
+        bool unfinishedToQueued = false)
     {
         string trimmed = reason.Trim();
         string sealedReason = trimmed.Length == 0 ? string.Empty : Convert.ToBase64String(_protector.Protect(trimmed));
@@ -76,6 +78,8 @@ public sealed class ArmedEndService : IDisposable
         {
             return null;
         }
+
+        end = end with { UnfinishedToQueued = unfinishedToQueued && kind == ArmedEndKind.EndSession };
 
         Save([.. _ends.Where(other => other.Kind != kind), end]);
         return end;

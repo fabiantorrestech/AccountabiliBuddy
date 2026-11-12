@@ -131,6 +131,19 @@ public sealed partial class SessionControlViewModel : ObservableObject
     [ObservableProperty]
     public partial string EndSessionText { get; set; } = "End session…";
 
+    /// <summary>"End and mark the rest unfinished" is offered: a real session with the task list (its open tasks go back to Queued).</summary>
+    [ObservableProperty]
+    public partial bool CanEndToQueued { get; set; }
+
+    /// <summary>
+    /// The app's end flow asked to send the open tasks back to Queued when it ends (<see cref="SessionEndFlow"/> with that outcome: the
+    /// same wait and reason). Null: the entry isn't offered.
+    /// </summary>
+    public Func<Task>? EndToQueued { get; set; }
+
+    /// <summary>Whether the session's tasks can go back to Queued now (the task list is the source and a real session runs).</summary>
+    public Func<bool>? OffersEndToQueued { get; set; }
+
     /// <summary>The ended pill's tip: "Session ended at 12:52 AM · click to switch Tasks back now".</summary>
     [ObservableProperty]
     public partial string EndedTip { get; set; } = string.Empty;
@@ -200,6 +213,13 @@ public sealed partial class SessionControlViewModel : ObservableObject
         return _endSession();
     }
 
+    /// <summary>"End and mark the rest unfinished": the same end flow (wait and reason); when it ends, the open tasks go back to Queued.</summary>
+    [RelayCommand]
+    private Task EndToQueuedAsync()
+    {
+        return EndToQueued?.Invoke() ?? Task.CompletedTask;
+    }
+
     /// <summary>A click on "Ended": Tasks switches back to planning now (as "Switch now" on its notice).</summary>
     [RelayCommand]
     private void ClearEnded()
@@ -226,6 +246,7 @@ public sealed partial class SessionControlViewModel : ObservableObject
         CanPause = state.IsEnforcing && !state.IsAway;
         CanSideTask = !state.IsAway;
         CanExtend = state.CanExtendFocus;
+        CanEndToQueued = !state.IsTest && EndToQueued is not null && OffersEndToQueued?.Invoke() == true;
 
         DateTimeOffset clock = state.CountdownTime(now);
         RefreshRing(state, clock);
@@ -237,7 +258,7 @@ public sealed partial class SessionControlViewModel : ObservableObject
     {
         IsPaused = IsBreak = HasRing = IsCountUp = false;
         RingValue = 0;
-        CanPause = CanSideTask = CanExtend = false;
+        CanPause = CanSideTask = CanExtend = CanEndToQueued = false;
         EndsText = string.Empty;
         if (_layout.EndedAt is DateTimeOffset endedAt)
         {

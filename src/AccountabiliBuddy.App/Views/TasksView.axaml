@@ -223,6 +223,37 @@
         <Style Selector="Border.detailCard">
             <Setter Property="Width" Value="340" />
         </Style>
+        <!-- The session ended strip (P4): accent tint 12 %, a 1 px accent line at 35 %; "Switch now" a Surface pill. -->
+        <Style Selector="Border.endedStrip">
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PopoverRadius}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.endedSwitch">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        </Style>
+        <Style Selector="Button.endedSave /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.endedSave:pointerover TextBlock">
+            <Setter Property="TextDecorations" Value="Underline" />
+        </Style>
+        <Style Selector="Button.resetHold">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
         <Style Selector="StackPanel.detailBody">
             <Setter Property="Margin" Value="0,0,14,0" />
         </Style>
@@ -237,9 +268,26 @@
         <Border x:Name="TodayColumn" Grid.Column="1" Classes="card tasksCard" IsVisible="{Binding ShowsToday}" Padding="0" ClipToBounds="True"
                 Container.Name="TaskColumn" Container.Sizing="Width">
             <DockPanel>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" Margin="26,20,16,0">
+                <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="26,20,16,0">
                     <TextBlock Classes="display" Text="Tasks" FontSize="30" VerticalAlignment="Center" />
-                    <Border Grid.Column="1" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="2" VerticalAlignment="Center">
+                    <!-- Hold to reset (1.5 s): the session view back the way it started. It keeps its slot (faded out, no clicks) while
+                         nothing changed, so nothing jumps; a click that isn't a hold shows the hint. -->
+                    <Button x:Name="ResetButton" Grid.Column="1" Classes="quiet resetHold" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                            Opacity="{Binding IsSessionViewChanged, Converter={x:Static views:TasksView.ShownOpacity}}" IsHitTestVisible="{Binding IsSessionViewChanged}"
+                            Focusable="{Binding IsSessionViewChanged}" ToolTip.Tip="{x:Static vm:TasksViewModel.ResetHint}"
+                            ToolTip.IsOpen="{Binding ShowsResetHint}" AutomationProperties.Name="Hold to reset the session view">
+                        <Panel>
+                            <Border x:Name="ResetFill" HorizontalAlignment="Left" Width="0" CornerRadius="999" Background="{DynamicResource Ab.Accent}"
+                                    Opacity="0.22" IsHitTestVisible="False" />
+                            <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="10,5">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <mi:MaterialIcon Kind="Restore" Width="15" Height="15" />
+                                    <TextBlock Classes="segmentText" Text="Hold to reset" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+                        </Panel>
+                    </Button>
+                    <Border Grid.Column="2" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="999" Padding="2" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Spacing="2">
                             <Button Classes="segment" Classes.on="{Binding !IsCompact}" Command="{Binding UseNormalRowsCommand}" ToolTip.Tip="Normal rows"
                                     AutomationProperties.Name="Normal rows">
@@ -257,12 +305,37 @@
                             </Button>
                         </StackPanel>
                     </Border>
-                    <Button Grid.Column="2" Classes="quiet" Padding="7,5" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                    <Button Grid.Column="3" Classes="quiet" Padding="7,5" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
                             Command="{Binding TodayPanel.ToggleExpandCommand}" ToolTip.Tip="{Binding TodayPanel.ExpandTip}"
                             AutomationProperties.Name="{Binding TodayPanel.ExpandTip}">
                         <mi:MaterialIcon Kind="{Binding TodayPanel.ExpandIcon}" Width="18" Height="18" />
                     </Button>
                 </Grid>
+
+                <!-- "Session ended at 12:52 AM" (P4): Tasks switches to planning the next time it opens, or now; × closes it (a 15-second ring). -->
+                <Border DockPanel.Dock="Top" Classes="endedStrip" Margin="22,14,16,0" Padding="14,10,8,10" IsVisible="{Binding ShowsEndedNotice}">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                        <mi:MaterialIcon Classes="endedTarget" Kind="Target" Width="19" Height="19" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding EndedTitle}" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" Text="Tasks switches to planning the next time you open it." FontSize="12" TextWrapping="Wrap" />
+                            <Button Classes="link endedSave" Padding="0" MinHeight="0" HorizontalAlignment="Left" Command="{Binding SaveSessionViewCommand}"
+                                    ToolTip.Tip="Create a view from what the Shelf shows now" AutomationProperties.Name="Save it as a view">
+                                <TextBlock Classes="faint" FontSize="12" FontStyle="Italic" TextWrapping="Wrap"
+                                           Text="Want to keep this setup? Save it as a view now, before it resets." />
+                            </Button>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="endedSwitch" Content="Switch now" Command="{Binding SwitchNowCommand}" VerticalAlignment="Center" />
+                        <Button Grid.Column="3" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                Command="{Binding DismissEndedCommand}" AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss (it closes by itself)">
+                            <Panel>
+                                <controls:ProgressRing Width="26" Height="26" Value="{Binding EndedCountdown}" Thickness="2" TrackBrush="Transparent"
+                                                       ArcBrush="{DynamicResource Ab.Faint}" IsHitTestVisible="False" />
+                                <mi:MaterialIcon Kind="Close" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Panel>
+                        </Button>
+                    </Grid>
+                </Border>
 
                 <!-- The add box: "+ Add a task" at rest, the full row with Send to while in use; its hint line floats over what is below. -->
                 <views:AddBoxView DockPanel.Dock="Top" DataContext="{Binding AddBox}" Margin="22,14,16,10" ZIndex="1" />
@@ -372,8 +445,9 @@
         </Border>
 
         <!-- Shelf hidden (the default): its rail on the right edge. -->
-        <views:ShelfRailView Grid.Column="4" Margin="12,0,0,0" IsVisible="{Binding ShowsShelfRail}" Title="Shelf" Sub="{Binding Shelf.CountText}"
-                             Icon="ArrowExpandLeft" Tip="Show the Shelf (Ctrl+\)" Command="{Binding ToggleShelfCommand}" />
+        <views:ShelfRailView Grid.Column="4" Margin="12,0,0,0" IsVisible="{Binding ShowsShelfRail}" Title="Shelf" Sub="{Binding ShelfRailSub}"
+                             Icon="{Binding ShelfRailIcon}" Tip="{Binding ShelfRailTip}" Command="{Binding ToggleShelfCommand}"
+                             Opacity="{Binding ShelfRailOpacity}" />
 
         <!-- The detail card for the selected task, Later item or come-back. -->
         <Border x:Name="DetailCard" Grid.Column="5" Classes="card detailCard" IsVisible="{Binding IsDetailOpen}" Margin="14,0,0,0" Padding="28,26">

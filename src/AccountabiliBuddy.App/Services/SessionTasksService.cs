@@ -264,6 +264,24 @@ public sealed partial class SessionTasksService : IDisposable
     }
 
     /// <summary>
+    /// The swap's order rule (the newcomer takes the swapped place's number): the running checklist's task <paramref name="id"/> goes in
+    /// front of <paramref name="beforeId"/> (<see cref="SessionActions.PlacedBefore"/>; its label stays). Nothing else changes.
+    /// </summary>
+    public async Task PlaceBeforeAsync(Guid id, Guid? beforeId)
+    {
+        if (Current.SessionStart is null)
+        {
+            return;
+        }
+
+        SessionChecklist placed = SessionActions.PlacedBefore(Current, id, beforeId);
+        if (!ReferenceEquals(placed, Current))
+        {
+            await SetAsync(placed);
+        }
+    }
+
+    /// <summary>
     /// An open task of the checklist goes to <paramref name="bin"/> of the task list (Queued after a swap or the pick, To sort when
     /// parked) as the same task, with its steps and all it had: put there first, then taken off the checklist
     /// (<paramref name="without"/>, by default <see cref="SessionChecklist.Parked"/>, which counts an open task of a running session as
@@ -328,6 +346,15 @@ public sealed partial class SessionTasksService : IDisposable
     {
         int cap = checklist.SessionStart is not null && checklist.ActionCap is int own ? own : Settings?.SessionActions ?? SessionActions.DefaultCap;
         return cap + (checklist.SessionStart is DateTimeOffset start ? OverLimitCount(start) : 0);
+    }
+
+    /// <summary>
+    /// No session runs: This session's open tasks of the next session's list, in order (the "This session is full" dialog's rows before a
+    /// start). Empty while a session runs (its places are <see cref="Slots"/>).
+    /// </summary>
+    public IReadOnlyList<SessionTask> DraftSessionTasks()
+    {
+        return Current.SessionStart is null ? ThisSessionDraftTasks(StoredDraftItems()).Where(task => !task.IsDone).ToList() : [];
     }
 
     /// <summary>No session runs and the next session's list holds the task (in This session or in Queued).</summary>
@@ -479,6 +506,16 @@ public sealed partial class SessionTasksService : IDisposable
 
         await AddAsync(title, null, categoryId);
         return true;
+    }
+
+    /// <summary>
+    /// "Add anyway" for a move into This session that has no room (the swap dialog): records the reason as an over-limit add, exactly as
+    /// the session add does (at least <see cref="MinOverLimitReasonLength"/> characters, sealed on this PC, counted for the review).
+    /// False when the reason is too short (nothing recorded).
+    /// </summary>
+    public Task<bool> RecordOverLimitAddAsync(string reason)
+    {
+        return RecordOverLimitAsync(reason);
     }
 
     private async Task<bool> RecordOverLimitAsync(string reason)
@@ -1379,8 +1416,12 @@ public sealed partial class SessionTasksService : IDisposable
             await _store.SaveAsync(HistoryKey, _history.Select(Sealed).ToList());
         }
 
+        // "End and mark the rest unfinished": the open tasks go back to Queued as the same tasks (with what they had at the start),
+        // and leave "Unfinished from past sessions" (the shared settle record), before the held copies are let go.
+        await ReturnUnfinishedToQueuedAsync(Current);
+
         // The next session's list: empty, unless another device added tasks to it while this session ran (ADR 48); a task of
-        // the session that just ended is never on it.
+        // the session that just ended is never on it (except the ones just sent back to Queued).
         List<SyncNextTask> remaining = TombstoneConsumed(_nextTasks, _time.GetUtcNow(), out bool tombstoned);
         if (tombstoned)
         {
@@ -1392,6 +1433,50 @@ public sealed partial class SessionTasksService : IDisposable
         if (_taskStore is not null)
         {
             await _taskStore.ReleaseRunningAsync();
+        }
+    }
+
+    // The open tasks of a session ended with "End and mark the rest unfinished" (none otherwise, or before the task list).
+    private async Task ReturnUnfinishedToQueuedAsync(SessionChecklist ended)
+    {
+        if (_taskStore is null || ended.SessionStart is null)
+        {
+            return;
+        }
+
+        List<SessionTask> returned = Labelled(ended with { Tasks = SessionConsumed.ReturnedToQueued(ended).ToList() }).ToList();
+        if (returned.Count == 0)
+        {
+            return;
+        }
+
+        // Sent as this service's own change, then read back here (the draft shows them in Queued).
+        await _taskStore.PutBackAsync(this, returned, TaskBin.Queued);
+        ReadFromTaskStore();
+        if (PastSettled is not null)
+        {
+            foreach (SessionTask task in returned)
+            {
+                await PastSettled.SetAsync(task.Id, SyncPastSettled.Moved);
+            }
+        }
+    }
+
+    /// <summary>
+    /// "End and mark the rest unfinished" is offered: the task list is the source (the tasks go back to Queued as the same tasks) and a
+    /// real session runs. It is an outcome of the usual end, never another way to end.
+    /// </summary>
+    public bool CanEndToQueued => _taskStore is not null && Current.SessionStart is not null && _sessions.State.IsRealSession;
+
+    /// <summary>
+    /// The user's end of the running session was confirmed with "End and mark the rest unfinished" (after its wait and reason, or armed
+    /// with them): once it ends, its open tasks go back to Queued. Called just before the end itself; it changes nothing about the end.
+    /// </summary>
+    public async Task MarkRestUnfinishedAtEndAsync()
+    {
+        if (CanEndToQueued && !Current.UnfinishedToQueued)
+        {
+            await SetAsync(Current with { UnfinishedToQueued = true });
         }
     }
 
@@ -1481,13 +1566,11 @@ public sealed partial class SessionTasksService : IDisposable
 
     // A task that already belongs to a session (the running checklist, or one in history) can't be on the next list: a late
     // edit from another device that brought it back from its tombstone is deleted again, so it can't show twice.
+    // Exception: the open tasks of a session ended with "End and mark the rest unfinished" went back to Queued as the same tasks
+    // (SessionConsumed), so they stay.
     private List<SyncNextTask> TombstoneConsumed(List<SyncNextTask> items, DateTimeOffset now, out bool tombstoned)
     {
-        HashSet<Guid> consumed = _history.SelectMany(checklist => checklist.Tasks).Select(task => task.Id).ToHashSet();
-        if (Current.SessionStart is not null)
-        {
-            consumed.UnionWith(Current.Tasks.Select(task => task.Id));
-        }
+        HashSet<Guid> consumed = SessionConsumed.Ids(_history, Current);
 
         tombstoned = false;
         var result = new List<SyncNextTask>(items.Count);

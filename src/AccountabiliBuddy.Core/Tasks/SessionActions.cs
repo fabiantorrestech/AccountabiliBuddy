@@ -216,6 +216,35 @@ public static class SessionActions
         return result;
     }
 
+    /// <summary>
+    /// The task the swapped place <paramref name="slot"/> leaves the newcomer in front of (Implementation Notes "Session slots: picking and
+    /// order": the newcomer takes the swapped place's number): the task after the slot's task in the checklist's order; null when it was
+    /// the last (the newcomer then stays at the end, which is that number too). Worked out before the swap.
+    /// </summary>
+    public static Guid? FollowerOf(SessionChecklist checklist, SessionSlot slot)
+    {
+        int at = checklist.Tasks.ToList().FindIndex(task => task.Id == slot.TaskId);
+        return at >= 0 && at + 1 < checklist.Tasks.Count ? checklist.Tasks[at + 1].Id : null;
+    }
+
+    /// <summary>
+    /// The task <paramref name="id"/> moved in front of <paramref name="beforeId"/> (at the end when null or gone), nothing else changed
+    /// (no label taken from its neighbour, unlike a drag): the swap's order rule.
+    /// </summary>
+    public static SessionChecklist PlacedBefore(SessionChecklist checklist, Guid id, Guid? beforeId)
+    {
+        SessionTask? moved = checklist.Tasks.FirstOrDefault(task => task.Id == id);
+        if (moved is null || beforeId == id)
+        {
+            return checklist;
+        }
+
+        List<SessionTask> rest = checklist.Tasks.Where(task => task.Id != id).ToList();
+        int at = beforeId is Guid before ? rest.FindIndex(task => task.Id == before) : -1;
+        rest.Insert(at < 0 ? rest.Count : at, moved);
+        return rest.Select(task => task.Id).SequenceEqual(checklist.Tasks.Select(task => task.Id)) ? checklist : checklist with { Tasks = rest };
+    }
+
     /// <summary>The checklist with <paramref name="focused"/> as its focused steps, keeping only open steps of open tasks (null for none).</summary>
     public static SessionChecklist WithFocus(SessionChecklist checklist, IEnumerable<Guid> focused)
     {

@@ -18,6 +18,10 @@ namespace AccountabiliBuddy.App.Views;
 /// </summary>
 public partial class TasksView : UserControl
 {
+    /// <summary>True → 1, false → 0: the reset button keeps its slot while hidden.</summary>
+    public static readonly Avalonia.Data.Converters.IValueConverter ShownOpacity =
+        new Avalonia.Data.Converters.FuncValueConverter<bool, double>(shown => shown ? 1 : 0);
+
     // The narrowest a shown column gets.
     private const double ColumnMinWidth = 280;
 
@@ -28,6 +32,12 @@ public partial class TasksView : UserControl
     public TasksView()
     {
         InitializeComponent();
+        // The reset button's own press and release (a Button handles them itself, so listen to handled ones too).
+        ResetButton.AddHandler(PointerPressedEvent, OnResetPressed, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        ResetButton.AddHandler(PointerReleasedEvent, OnResetReleased, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        ResetButton.AddHandler(PointerCaptureLostEvent, OnResetCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
+        ResetButton.AddHandler(KeyDownEvent, OnResetKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        ResetButton.AddHandler(KeyUpEvent, OnResetKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
     }
 
     // The page stays alive while another tab shows: leaving it clears the selection, so it is not found half-done on return.
@@ -37,6 +47,29 @@ public partial class TasksView : UserControl
         if (change.Property == IsVisibleProperty && !IsVisible && DataContext is TasksViewModel page)
         {
             page.ClearSelection();
+        }
+
+        if (change.Property == IsVisibleProperty && DataContext is TasksViewModel shown)
+        {
+            shown.IsOnScreen = IsEffectivelyVisible;
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (DataContext is TasksViewModel page)
+        {
+            page.IsOnScreen = IsEffectivelyVisible;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (DataContext is TasksViewModel page)
+        {
+            page.IsOnScreen = false;
         }
     }
 
@@ -50,6 +83,7 @@ public partial class TasksView : UserControl
             _subscribed.RenameEachRequested -= OnRenameEachRequested;
             _subscribed.DeleteManyRequested -= OnDeleteManyRequested;
             _subscribed.ConflictRequested -= OnConflictRequested;
+            _subscribed.SessionFullRequested -= OnSessionFullRequested;
         }
 
         _subscribed = DataContext as TasksViewModel;
@@ -60,6 +94,8 @@ public partial class TasksView : UserControl
             _subscribed.RenameEachRequested += OnRenameEachRequested;
             _subscribed.DeleteManyRequested += OnDeleteManyRequested;
             _subscribed.ConflictRequested += OnConflictRequested;
+            _subscribed.SessionFullRequested += OnSessionFullRequested;
+            _subscribed.IsOnScreen = IsEffectivelyVisible && VisualRoot is not null;
         }
 
         ApplyColumns();
@@ -88,6 +124,101 @@ public partial class TasksView : UserControl
         if (_subscribed?.ConflictDialogFor(id) is { } conflict)
         {
             _ = ConflictDialog.ShowAsync(this, conflict);
+        }
+    }
+
+    private void OnSessionFullRequested(object? sender, SessionFullViewModel dialog)
+    {
+        _ = SessionFullDialog.ShowAsync(this, dialog);
+    }
+
+    // ---- "Hold to reset" (1.5 s): the fill grows while held; let go early (or a click) shows the hint for a moment ----
+
+    private static readonly TimeSpan ResetHold = TimeSpan.FromSeconds(1.5);
+    private DispatcherTimer? _holdTimer;
+    private DateTime _holdStarted;
+    private DispatcherTimer? _hintTimer;
+
+    private void OnResetPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(ResetButton).Properties.IsLeftButtonPressed)
+        {
+            StartHold();
+        }
+    }
+
+    private void OnResetReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        StopHold(showHint: true);
+    }
+
+    private void OnResetCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        StopHold(showHint: false);
+    }
+
+    private void OnResetKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Space or Key.Enter)
+        {
+            if (_holdTimer is null)
+            {
+                StartHold();
+            }
+
+            e.Handled = true;
+        }
+    }
+
+    private void OnResetKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is Key.Space or Key.Enter)
+        {
+            StopHold(showHint: true);
+            e.Handled = true;
+        }
+    }
+
+    private void StartHold()
+    {
+        StopHold(showHint: false);
+        _holdStarted = DateTime.UtcNow;
+        _holdTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(30) };
+        _holdTimer.Tick += (_, _) =>
+        {
+            double share = Math.Clamp((DateTime.UtcNow - _holdStarted) / ResetHold, 0, 1);
+            ResetFill.Width = ResetButton.Bounds.Width * share;
+            if (share >= 1)
+            {
+                StopHold(showHint: false);
+                _subscribed?.ResetSessionView();
+            }
+        };
+        _holdTimer.Start();
+    }
+
+    // The hold ended: the fill goes; a hold let go early shows the hint for a second.
+    private void StopHold(bool showHint)
+    {
+        bool wasHolding = _holdTimer is not null;
+        _holdTimer?.Stop();
+        _holdTimer = null;
+        ResetFill.Width = 0;
+        if (showHint && wasHolding && _subscribed is not null)
+        {
+            _subscribed.ShowsResetHint = true;
+            _hintTimer?.Stop();
+            _hintTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _hintTimer.Tick += (_, _) =>
+            {
+                _hintTimer?.Stop();
+                _hintTimer = null;
+                if (_subscribed is not null)
+                {
+                    _subscribed.ShowsResetHint = false;
+                }
+            };
+            _hintTimer.Start();
         }
     }
 

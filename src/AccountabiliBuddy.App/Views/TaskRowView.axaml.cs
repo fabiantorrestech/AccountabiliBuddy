@@ -124,6 +124,17 @@ public partial class TaskRowView : UserControl
     }
 
     // The sync-problem cloud on the detail line: "Changed on both devices" (the row itself does not open).
+    // ▾ on a focused step's line: the live step list of its task (P3).
+    private void OnStepListClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control anchor && DataContext is TaskListRowViewModel { StepList: { } make } && make() is { } steps)
+        {
+            StepListPopover.ShowAt(anchor, steps);
+        }
+
+        e.Handled = true;
+    }
+
     private void OnConflictClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is TaskListRowViewModel { OpenConflict: { } open })

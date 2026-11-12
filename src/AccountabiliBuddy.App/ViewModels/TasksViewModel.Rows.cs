@@ -192,7 +192,11 @@ public sealed partial class TasksViewModel
 
     // ---- The open task ----
 
-    partial void OnIsDetailOpenChanged(bool value) => MarkOpenRow();
+    partial void OnIsDetailOpenChanged(bool value)
+    {
+        MarkOpenRow();
+        NotifySessionViewChanged();
+    }
 
     // The open arrow points up on the row whose task is open (only while the card shows).
     private void MarkOpenRow()
@@ -321,12 +325,13 @@ public sealed partial class TasksViewModel
         return key.Kind == TaskRowKind.Session && _tasks.IsLive;
     }
 
+    // The target on a step: into focus when a place is free; full opens "This session is full" for the step.
     internal async Task FocusStepAsync(Guid stepId)
     {
         Notice = string.Empty;
         if (await _tasks.FocusStepAsync(stepId) == SessionFocusResult.Full)
         {
-            Notice = "This session is full. Finish one of its actions or move one to Queued first.";
+            OfferStepSwap(stepId);
         }
     }
 
@@ -370,6 +375,13 @@ public sealed partial class TasksViewModel
             return; // not selectable: its menu is all it has
         }
 
+        if (row.OwnerKey is TaskRowKey owner)
+        {
+            // A focused step's row (Quiet view): a click opens or closes its task; it is never part of a selection.
+            OpenOwner(owner);
+            return;
+        }
+
         switch (click)
         {
             case TaskRowClick.Toggle:
@@ -394,7 +406,7 @@ public sealed partial class TasksViewModel
                     _picked.Clear();
                 }
 
-                foreach (TaskListRowViewModel picked in order.Skip(Math.Min(from, to)).Take(Math.Abs(to - from) + 1))
+                foreach (TaskListRowViewModel picked in order.Skip(Math.Min(from, to)).Take(Math.Abs(to - from) + 1).Where(candidate => candidate.OwnerKey is null))
                 {
                     _picked.Add(picked.Key);
                 }
@@ -439,7 +451,7 @@ public sealed partial class TasksViewModel
     private void SelectAllIn(TaskSectionsPanelViewModel panel)
     {
         _picked.Clear();
-        foreach (TaskListRowViewModel row in panel.VisibleRows().Where(row => row.Kind != TaskRowKind.AutoSaved))
+        foreach (TaskListRowViewModel row in panel.VisibleRows().Where(row => row.Kind != TaskRowKind.AutoSaved && row.OwnerKey is null))
         {
             _picked.Add(row.Key);
         }

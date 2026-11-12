@@ -92,6 +92,18 @@ public sealed partial class ShelfViewModel : ObservableObject
     /// </summary>
     public event EventHandler<TaskView?>? ViewEditorRequested;
 
+    /// <summary>"Save it as a view" (the session ended notice): opens Create a view from what the Shelf shows now; false when nothing listens.</summary>
+    public bool RequestCreateView()
+    {
+        if (ViewEditorRequested is null)
+        {
+            return false;
+        }
+
+        ViewEditorRequested.Invoke(this, null);
+        return true;
+    }
+
     /// <summary>From now on the Shelf follows the task list's views and its weekly tidy-up (ADR 76); History acts through the task actions.</summary>
     public void UseTaskModel(TaskStore store, TaskViewService views, TaskTidyUpService tidyUp, TaskActionsService actions, TimeProvider time)
     {

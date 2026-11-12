@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.StepListPopover"
+             x:DataType="vm:StepListViewModel">
+    <!-- A running task's live step list (P3, 340 wide): the title and "1/4 done", each step with its check box (a tick strikes it), letter,
+         title and "in focus" / "done", the target on an open step (brings it into focus; the cap decides), then the "+ Add a step" pill
+         with » once something is typed. It stays open. -->
+    <UserControl.Styles>
+        <Style Selector="Border.stepItem">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.stepItem.focused">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="TextBlock.stepTitle.focused">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.stepTitle.done">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Border.addPill">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="10,0,4,0" />
+            <Setter Property="Height" Value="32" />
+        </Style>
+        <Style Selector="Border.addPill:focus-within">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="TextBox.pillBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.pillBox:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.pillBox:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.sendStep">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Margin="8" Spacing="2">
+        <Grid ColumnDefinitions="*,Auto" Margin="8,4,8,6">
+            <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding DoneText}" FontSize="12" Margin="8,0,0,0" />
+        </Grid>
+        <ItemsControl ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StepListItemViewModel">
+                    <Border Classes="stepItem" Classes.focused="{Binding IsFocused}">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="6">
+                            <CheckBox IsChecked="{Binding IsDone, Mode=OneWay}" Command="{Binding ToggleCommand}" MinWidth="0" Padding="0"
+                                      VerticalAlignment="Center" AutomationProperties.Name="Finish this step" />
+                            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Letter}" FontSize="12" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Classes="stepTitle" Classes.focused="{Binding IsFocused}" Classes.done="{Binding IsDone}"
+                                       Text="{Binding Title}" FontSize="12.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="3" Classes="muted" Text="{Binding StateText}" FontSize="11.5" VerticalAlignment="Center"
+                                       IsVisible="{Binding HasStateText}" />
+                            <Button Grid.Column="4" Classes="quiet" Width="24" Height="24" Padding="0" MinHeight="0" MinWidth="0"
+                                    Command="{Binding FocusCommand}" IsVisible="{Binding CanFocus}" ToolTip.Tip="Bring into focus"
+                                    AutomationProperties.Name="Bring into focus">
+                                <mi:MaterialIcon Kind="Target" Width="15" Height="15" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border Classes="addPill" HorizontalAlignment="Left" MinWidth="130" Margin="4,6,4,2">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                <mi:MaterialIcon Kind="Plus" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Classes="pillBox" Text="{Binding NewStep}" PlaceholderText="Add a step" MinWidth="150"
+                         AutomationProperties.Name="Add a step">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding AddStepCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+                <Button Grid.Column="2" Classes="sendStep" Command="{Binding AddStepCommand}" IsVisible="{Binding HasNewStep}"
+                        ToolTip.Tip="Add step (Enter)" AutomationProperties.Name="Add step">
+                    <mi:MaterialIcon Kind="ChevronDoubleRight" Width="16" Height="16" />
+                </Button>
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

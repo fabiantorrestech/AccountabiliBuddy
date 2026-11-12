@@ -108,7 +108,8 @@ public sealed partial class TasksViewModel : IAddBoxHost
             TaskMoveOutcome outcome = await _actions.MoveToSessionAsync([id]);
             if (outcome.NeedsRoom.Count > 0)
             {
-                Notice = "This session is full, so “" + TaskToasts.Short(request.Title) + "” went to Queued.";
+                // It waits in Queued (never To sort); "This session is full" offers a swap or "Add anyway".
+                OfferSwap(outcome.NeedsRoom, fallback: "This session is full, so “" + TaskToasts.Short(request.Title) + "” went to Queued.");
             }
         }
 

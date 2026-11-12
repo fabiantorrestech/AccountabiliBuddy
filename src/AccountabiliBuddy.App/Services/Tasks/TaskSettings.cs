@@ -29,6 +29,9 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="PendingSideTask">Pausing the timer for side tasks, waiting for the looser-change wait to end; null when nothing waits.</param>
 /// <param name="PendingSideTaskFrom">When <paramref name="PendingSideTask"/> takes effect, unless a session runs then.</param>
 /// <param name="DeclinedMarkers">Marker styles the add box offered to learn and the user said No to: never offered again; null for none.</param>
+/// <param name="CompactInSession">Tasks switches to Compact rows while a session runs (on by default); the page's own Normal / Compact stays as it was.</param>
+/// <param name="HideShelfInSession">The Shelf hides while a session runs, its rail reading "hidden during session" (on by default).</param>
+/// <param name="SessionView">How This session lists a running session's actions: Quiet (default) or Grouped.</param>
 public sealed record TaskSettings(
     int SessionActions,
     bool NextStepTakesSlot,
@@ -46,7 +49,10 @@ public sealed record TaskSettings(
     StepAwayTimer SideTask = StepAwayTimer.KeepTimerRunning,
     StepAwayTimer? PendingSideTask = null,
     DateTimeOffset? PendingSideTaskFrom = null,
-    IReadOnlyList<ProjectMarkerPattern>? DeclinedMarkers = null)
+    IReadOnlyList<ProjectMarkerPattern>? DeclinedMarkers = null,
+    bool CompactInSession = true,
+    bool HideShelfInSession = true,
+    SessionTaskView SessionView = SessionTaskView.Quiet)
 {
     public static TaskSettings Default { get; } = new(Core.Tasks.SessionActions.DefaultCap, true, StepAway: StepAwayTimerPolicy.Default, SideTask: StepAwayTimerPolicy.Default);
 }

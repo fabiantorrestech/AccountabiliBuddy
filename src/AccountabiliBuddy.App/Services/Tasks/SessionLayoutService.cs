@@ -38,6 +38,29 @@ public sealed class SessionLayoutService
     /// <summary>The "Session ended" notice is up (until dismissed, switched, or <see cref="NoticeCountdown"/> after it was first shown).</summary>
     public bool IsNoticeShown => SwitchesNextTime && !_noticeDismissed && (_noticeShownAt is not DateTimeOffset shown || _time.GetUtcNow() - shown < NoticeCountdown);
 
+    /// <summary>
+    /// How much of the notice's countdown is left (its × ring): all of it until Tasks has shown it, zero once it is gone. Null when no
+    /// notice is up.
+    /// </summary>
+    public TimeSpan? NoticeLeft
+    {
+        get
+        {
+            if (!IsNoticeShown)
+            {
+                return null;
+            }
+
+            if (_noticeShownAt is not DateTimeOffset shown)
+            {
+                return NoticeCountdown;
+            }
+
+            TimeSpan left = NoticeCountdown - (_time.GetUtcNow() - shown);
+            return left < TimeSpan.Zero ? TimeSpan.Zero : left;
+        }
+    }
+
     private DateTimeOffset? _noticeShownAt;
     private bool _noticeDismissed;
 

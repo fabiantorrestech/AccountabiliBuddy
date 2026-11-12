@@ -225,6 +225,46 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
         return bulk.Count > 0 ? bulk : BuildMenu();
     }
 
+    // ---- A running session's step (Quiet view) and a task's steps (Grouped view), Tasks redesign `05` §2 ----
+
+    /// <summary>A step row's task (a click opens it; the row itself is never selected); null on task rows.</summary>
+    public TaskRowKey? OwnerKey { get; init; }
+
+    /// <summary>A focused step's letter ("b"), shown as a chip before its title; empty on task rows.</summary>
+    public string StepLetter { get; init; } = string.Empty;
+
+    public bool HasStepLetter => StepLetter.Length > 0;
+
+    /// <summary>A step row's task, after "↳" (shortened); empty on task rows.</summary>
+    public string StepSourceTitle { get; init; } = string.Empty;
+
+    /// <summary>The task's label, short, after its dot; empty for none.</summary>
+    public string StepSourceLabel { get; init; } = string.Empty;
+
+    public bool HasStepSourceLabel => StepSourceLabel.Length > 0;
+
+    /// <summary>The label's dot on the step's line.</summary>
+    public IBrush StepSourceBrush { get; init; } = Brushes.Transparent;
+
+    /// <summary>The step's ID ("142b"); empty when its task has no number yet.</summary>
+    public string StepSourceId { get; init; } = string.Empty;
+
+    public bool HasStepSourceId => StepSourceId.Length > 0;
+
+    /// <summary>The row is a focused step of the running session: its "↳ task · ● label · 142b ▾" line shows (also in Compact).</summary>
+    public bool IsStepRow => StepSourceTitle.Length > 0;
+
+    /// <summary>Makes the step list (▾ on a step's line): its task's steps, tick, bring into focus, add a step. Null where there is none.</summary>
+    public Func<StepListViewModel?>? StepList { get; init; }
+
+    /// <summary>Grouped view: the task's steps under its title (done folded, focused numbered, skipped, the next greyed, "+N more").</summary>
+    public IReadOnlyList<SessionStepLineViewModel> StepLines { get; init; } = [];
+
+    public bool HasStepLines => StepLines.Count > 0;
+
+    // What the step lines show, to tell whether a row built again draws the same.
+    private string StepLinesSignature => string.Join("\u0001", StepLines.Select(line => line.Signature));
+
     /// <summary>Makes the task's Reminders &amp; due date menu (a task the task list holds); null for the other rows.</summary>
     public Func<ReminderMenuViewModel?>? ReminderMenu { get; init; }
 
@@ -243,6 +283,8 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             && HasToggle == other.HasToggle && CanLabel == other.CanLabel && IsQueued == other.IsQueued
             && NumberText == other.NumberText && Bits.SequenceEqual(other.Bits) && IsHighlighted == other.IsHighlighted
             && TimeText == other.TimeText && CanDrag == other.CanDrag
+            && StepLetter == other.StepLetter && StepSourceTitle == other.StepSourceTitle && StepSourceLabel == other.StepSourceLabel
+            && StepSourceId == other.StepSourceId && StepLinesSignature == other.StepLinesSignature
             && TaskRowAction.SameAs(LeftAction, other.LeftAction) && TaskRowAction.SameAs(RightAction, other.RightAction);
     }
 

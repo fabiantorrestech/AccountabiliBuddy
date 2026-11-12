@@ -201,6 +201,17 @@
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                             <Separator />
+                                            <MenuItem Command="{Binding EndToQueuedCommand}" IsVisible="{Binding CanEndToQueued}">
+                                                <MenuItem.Icon>
+                                                    <mi:MaterialIcon Kind="FlagCheckered" />
+                                                </MenuItem.Icon>
+                                                <MenuItem.Header>
+                                                    <StackPanel>
+                                                        <TextBlock Text="End and mark the rest unfinished…" />
+                                                        <TextBlock Classes="menuSub" Text="Unfinished tasks go back to Queued · same wait and reason" />
+                                                    </StackPanel>
+                                                </MenuItem.Header>
+                                            </MenuItem>
                                             <MenuItem Command="{Binding EndSessionCommand}" Foreground="{DynamicResource Ab.Drift}">
                                                 <MenuItem.Icon>
                                                     <mi:MaterialIcon Kind="StopCircleOutline" Foreground="{DynamicResource Ab.Drift}" />
