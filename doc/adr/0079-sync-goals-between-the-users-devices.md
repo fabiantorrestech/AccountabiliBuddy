@@ -4,7 +4,7 @@ Date: 2026-11-12
 
 ## Status
 
-Proposed
+Accepted (owner, 2026-11-14: "we want our goals synced across devices")
 
 Amends the hard rule "The phone's Stats tab" in `doc/hard-rules.md` (phone-measured data read on the phone and never synced), limited to a goal's derived day value. Amends [76. One task list with bins, labels and tags](0076-one-task-list-with-bins-labels-and-tags.md) by adding an optional goal link to a task.
 
@@ -23,6 +23,8 @@ A task may carry an optional `goalId` (a field-stamped task field under ADR 76) 
 Phone-measured sources stay on the phone: Health Connect steps, sleep and weight records and the phone's usage records are never synced raw. For a goal that uses one of them, the phone syncs only the goal's derived day value (for example "38 min of <app> on 11/10") as a goal entry with source HealthConnect or ScreenTime. This amends the phone's Stats rule for that one derived number per goal per day. Focus-based goal progress needs nothing new: each device counts it from the sealed session data it already receives. The PC's Beeminder data reaches the phone only as the derived summary ADR 43 already sends. The Pixel Watch gets nothing new.
 
 Forward compatibility: a device that reads a goals part written by a newer app keeps any field it doesn't know as raw JSON and writes it back unchanged, and skips a single rule, entry or item whose enum value it doesn't know (keeping it as raw JSON) instead of refusing the whole list, so a newer device never locks an older one out of its goals or has its data stripped on the older device's next write. This lands in both the C# and Kotlin readers before the parts are synced.
+
+Screen-time sources (owner, 2026-11-14) name the devices allowed to count them (one, several or all of the user's AB devices). Each chosen device, PCs included, syncs only its own derived day value for that goal as a goal entry marked with its device id; raw usage records, app lists and activity history never leave a device. The receiving device adds the chosen devices' day values. Beeminder entries read on a PC under ADR 84 travel the same way, as derived day values with source Beeminder, so the phone and other PCs count a Beeminder-linked goal without a token of their own; only the PC that reads Beeminder writes them.
 
 The built-in Deep work goal stays a view over the `goal` document for its daily target (ADR 29 unchanged: set on a PC only); its weekly target and its goal record travel in the new `goals` part. A lowered Deep work target that arrives from another device takes effect on the receiving device only after that device's own looser-change wait and never during a session there (outside PB). Guards, the goal unlock and `focusDay` keep reading counted focus only; goal counts never feed a guard.
 
