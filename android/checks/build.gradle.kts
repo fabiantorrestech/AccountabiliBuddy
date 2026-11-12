@@ -13,6 +13,9 @@ plugins {
 val sharedSources = listOf(
     "com/accountabilibuddy/shared/sync/TaskPlannedFor.kt",
     "com/accountabilibuddy/shared/sync/TaskStepLetters.kt",
+    "com/accountabilibuddy/shared/sync/TaskLabels.kt",
+    // Round 2 R4.7: the goals model and maths (every file of the package is pure Kotlin + kotlinx.serialization.json).
+    "com/accountabilibuddy/shared/goals/*.kt",
 )
 
 java {

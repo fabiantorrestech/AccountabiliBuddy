@@ -1,0 +1,56 @@
+package com.accountabilibuddy.checks
+
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlin.math.abs
+import kotlin.math.max
+
+/**
+ * Compares the C# side's JSON with the Kotlin side's: the same names in the same order, the same texts, booleans and nulls,
+ * and numbers equal within a small tolerance (C# prints doubles its own way, e.g. 245.85365853658539).
+ */
+object JsonParity {
+    const val TOLERANCE = 1e-6
+
+    /** Null when they agree, else the path of the first difference and both values. */
+    fun difference(expected: JsonElement, actual: JsonElement, path: String = "$"): String? {
+        when (expected) {
+            is JsonObject -> {
+                if (actual !is JsonObject) return "$path: C# object vs kotlin $actual"
+                if (expected.keys.toList() != actual.keys.toList()) return "$path: C# keys ${expected.keys} vs kotlin ${actual.keys}"
+                for ((key, value) in expected) {
+                    difference(value, actual.getValue(key), "$path.$key")?.let { return it }
+                }
+
+                return null
+            }
+
+            is JsonArray -> {
+                if (actual !is JsonArray) return "$path: C# array vs kotlin $actual"
+                if (expected.size != actual.size) return "$path: C# ${expected.size} items vs kotlin ${actual.size}"
+                expected.forEachIndexed { index, value -> difference(value, actual[index], "$path[$index]")?.let { return it } }
+                return null
+            }
+
+            is JsonNull -> return if (actual is JsonNull) null else "$path: C# null vs kotlin $actual"
+
+            is JsonPrimitive -> {
+                if (actual !is JsonPrimitive || actual is JsonNull) return "$path: C# $expected vs kotlin $actual"
+                if (expected.isString || actual.isString) {
+                    return if (expected.isString == actual.isString && expected.content == actual.content) null else "$path: C# $expected vs kotlin $actual"
+                }
+
+                val a = expected.content.toDoubleOrNull()
+                val b = actual.content.toDoubleOrNull()
+                if (a != null && b != null) {
+                    return if (abs(a - b) <= TOLERANCE * max(1.0, max(abs(a), abs(b)))) null else "$path: C# $a vs kotlin $b"
+                }
+
+                return if (expected.content == actual.content) null else "$path: C# $expected vs kotlin $actual"
+            }
+        }
+    }
+}

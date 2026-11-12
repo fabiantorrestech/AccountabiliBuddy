@@ -7,7 +7,30 @@ import kotlin.system.exitProcess
 private val checks: List<FixtureCheck> = listOf(
     PlannedTieTextCheck(),
     StepLettersCheck(),
+    // Round 2 R4.7: the goals mirror against the C# Core (GoalsChecks writes goals/*.json).
+    GoalSnapshotCheck("attribution"),
+    GoalSnapshotCheck("back-fill"),
+    GoalSnapshotCheck("days"),
+    GoalSnapshotCheck("deep-work"),
+    GoalSnapshotCheck("heat"),
+    GoalSnapshotCheck("month"),
+    GoalSnapshotCheck("pause"),
+    GoalSnapshotCheck("review"),
+    GoalSnapshotCheck("status"),
+    GoalSnapshotCheck("streak"),
+    GoalSnapshotCheck("week-start"),
+    GoalSnapshotCheck("what-it-takes"),
+    GoalAgeCheck(),
+    GoalDstCheck(),
+    GoalLoweringCheck(),
+    GoalLoweringApplyCheck(),
+    GoalPeriodsCheck(),
+    GoalReminderCheck(),
+    GoalRoundingCheck(),
 )
+
+/** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
+private val fullyCheckedAreas = listOf("goals")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken
@@ -28,6 +51,11 @@ fun main(args: Array<String>) {
 
         report.check("${check.area}/${check.name}: fixture has cases (from ${fixture.source})", fixture.cases.isNotEmpty())
         check.run(fixture, report)
+    }
+
+    for (area in fullyCheckedAreas.filter { onlyArea == null || it == onlyArea }) {
+        val unchecked = FixtureFile.readArea(root, area).map { it.name }.filter { file -> checks.none { it.area == area && it.name == file } }
+        report.check("$area: every fixture file has a check", unchecked.isEmpty(), "unchecked: $unchecked")
     }
 
     report.printTotal()
