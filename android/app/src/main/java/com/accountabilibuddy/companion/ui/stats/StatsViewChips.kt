@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.stats.StatsView
+import com.accountabilibuddy.companion.ui.SectionIcons
 import com.accountabilibuddy.companion.ui.kit.AbChip
 import com.accountabilibuddy.companion.ui.kit.AbChipRow
 
@@ -39,4 +40,5 @@ fun StatsView.icon(): ImageVector = when (this) {
     StatsView.Sleep -> Icons.Outlined.Bedtime
     StatsView.Phone -> Icons.Outlined.Smartphone
     StatsView.Steps -> Icons.Outlined.DirectionsWalk
+    StatsView.Goals -> SectionIcons.Goals
 }

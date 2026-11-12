@@ -95,7 +95,7 @@ fun GoalHeatmapCard(
             value = withContext(Dispatchers.Default) { GoalHeatmap.build(page.goal, page.data, today, weekStart, range, end, fit) }
         }
         val shown = map
-        val rampMix = listOf(0f, 0.22f, 0.45f, 0.72f, 1f)
+        val rampMix = GoalHeatRamp
         val rowNames = rowNames(weekStart, labels)
         val cellPx = with(density) { cell.toPx() }
         val gapPx = with(density) { gap.toPx() }
@@ -143,7 +143,7 @@ fun GoalHeatmapCard(
                 }
                 g.cells.forEach { c ->
                     val topLeft = Offset(labelPx + c.column * (cellPx + gapPx), topPx + c.row * (cellPx + gapPx))
-                    drawCell(c.mark, c.level, c.progress, topLeft, cellPx, tint, rampMix, colors.surface2, colors.accent, colors.faint)
+                    drawGoalHeatCell(c.mark, c.level, c.progress, topLeft, cellPx, tint, rampMix, colors.surface2, colors.accent, colors.faint)
                     if (selected != null && c.day == selected) {
                         drawRoundRect(colors.ink, topLeft - Offset(1.dp.toPx(), 1.dp.toPx()), Size(cellPx + 2.dp.toPx(), cellPx + 2.dp.toPx()), CornerRadius(5.dp.toPx()), style = Stroke(2.dp.toPx()))
                     }
@@ -155,6 +155,12 @@ fun GoalHeatmapCard(
     }
 }
 
+/** How much of the goal's colour each of the five heat levels takes. */
+internal val GoalHeatRamp = listOf(0f, 0.22f, 0.45f, 0.72f, 1f)
+
+/** The seven row names from the week's first day ("Mo", "We", "Fr" with Some), blank where a row has none. */
+internal fun goalHeatRowNames(weekStart: GoalWeekStart, labels: GoalHeatmapLabels): List<String> = rowNames(weekStart, labels)
+
 private fun rowNames(weekStart: GoalWeekStart, labels: GoalHeatmapLabels): List<String> {
     if (labels == GoalHeatmapLabels.None) return List(7) { "" }
     val names = listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa")
@@ -163,8 +169,8 @@ private fun rowNames(weekStart: GoalWeekStart, labels: GoalHeatmapLabels): List<
 }
 
 // One cell (brief §3.8): solid ramp for a hit, outline for missed, faint fill for some, today outlined and filled from the bottom,
-// paused hatched, a day still to come dashed.
-private fun DrawScope.drawCell(
+// paused hatched, a day still to come dashed. Stats' per-goal year draws its cells with the same rule.
+internal fun DrawScope.drawGoalHeatCell(
     mark: GoalHeatCellMark, level: Int, progress: Double, topLeft: Offset, side: Float, tint: Color, mix: List<Float>, empty: Color, accent: Color, faint: Color,
 ) {
     val radius = CornerRadius(4.dp.toPx())

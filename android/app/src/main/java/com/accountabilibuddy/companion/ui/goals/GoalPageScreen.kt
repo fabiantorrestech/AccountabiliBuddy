@@ -90,6 +90,8 @@ fun GoalPageScreen(
     onMessage: (String) -> Unit,
     /** What the goal menu's "Start a session…" starts with; null greys the row. */
     session: GoalSessionStart? = null,
+    /** The header's Stats button: Stats on this goal (round 2 R6b4); null leaves the button out. */
+    onOpenStats: (() -> Unit)? = null,
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val status by app.goals.status.collectAsStateWithLifecycle()
@@ -114,7 +116,7 @@ fun GoalPageScreen(
 
     val tint = GoalIcons.color((page?.goal ?: stored)?.color) ?: Ab.colors.accent
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Header(page, stored?.name.orEmpty(), (page?.goal ?: stored)?.icon, tint, onBack = onBack, onMenu = { menuOpen = true })
+        Header(page, stored?.name.orEmpty(), (page?.goal ?: stored)?.icon, tint, onBack = onBack, onMenu = { menuOpen = true }, onStats = onOpenStats)
         if (page == null) {
             // The numbers are being worked out: the tiles' slot holds its place.
             Box(Modifier.fillMaxWidth().height(260.dp))
@@ -201,7 +203,7 @@ fun GoalPageScreen(
 private fun goal0(page: PhoneGoalPage): String = page.goal.name
 
 @Composable
-private fun Header(page: PhoneGoalPage?, name: String, icon: String?, tint: androidx.compose.ui.graphics.Color, onBack: () -> Unit, onMenu: () -> Unit) {
+private fun Header(page: PhoneGoalPage?, name: String, icon: String?, tint: androidx.compose.ui.graphics.Color, onBack: () -> Unit, onMenu: () -> Unit, onStats: (() -> Unit)?) {
     val colors = Ab.colors
     // The same space above as every tab's title (the shared page header), so opening a goal doesn't jump.
     Row(Modifier.fillMaxWidth().padding(top = AbPageHeaderDefaults.topSpace(), start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -212,6 +214,10 @@ private fun Header(page: PhoneGoalPage?, name: String, icon: String?, tint: andr
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(name, style = Ab.type.head, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle(page), style = Ab.type.small, color = colors.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        // Stats for this goal (the PC's Goals header Stats with a goal shown): its days over a range, paused stretches hatched.
+        if (onStats != null) {
+            IconButton(onClick = onStats) { Icon(com.accountabilibuddy.companion.ui.SectionIcons.Stats, contentDescription = "Stats for this goal", tint = colors.muted) }
         }
         IconButton(onClick = onMenu) { Icon(Icons.Outlined.MoreVert, contentDescription = "Goal menu", tint = colors.muted) }
     }

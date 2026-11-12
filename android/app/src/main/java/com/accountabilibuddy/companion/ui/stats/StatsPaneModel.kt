@@ -17,6 +17,7 @@ import java.time.LocalDate
  * @property phoneToday Today's use by app; null without Usage access.
  * @property nights The nights Health Connect measured, with the smart bedtime's bedtimes asked where it ran.
  * @property sleepGoal The sleep goal (Settings › Sleep).
+ * @property goals This phone's goals for the Goals view (round 2 R6b4); null until that view is opened.
  * @property sleepOn The planned nights touching a date (empty with sleep mode off), for the day strip.
  */
 class StatsPaneModel(
@@ -27,5 +28,6 @@ class StatsPaneModel(
     val nights: List<NightRecord>,
     val sleepGoal: Duration,
     val sleepNight: SleepNightModel,
+    val goals: StatsGoalsModel? = null,
     val sleepOn: (LocalDate) -> List<LocalWindow>,
 )

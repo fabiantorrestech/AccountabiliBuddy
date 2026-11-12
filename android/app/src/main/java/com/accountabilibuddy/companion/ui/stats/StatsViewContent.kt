@@ -47,7 +47,7 @@ fun StatsViewContent(
     val emptyTitle = if (data.hasHistory) "Nothing to show yet" else "No history yet"
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // The Steps view has its own days (the phone's last 30), so the focus history's start does not apply to it.
-        if (period != null && view.usesPeriod && view != StatsView.Steps && data.hasHistory && period.to.isBefore(data.firstData)) {
+        if (period != null && view.usesPeriod && view != StatsView.Steps && view != StatsView.Goals && data.hasHistory && period.to.isBefore(data.firstData)) {
             StatsEmptyCard("History starts ${StatsFormat.shortDate(data.firstData)}", "Nothing was recorded before that.")
             return@Column
         }
@@ -108,6 +108,9 @@ fun StatsViewContent(
                 if (panel != null) BarPanelCard(panel)
                 StatsPhoneCard(model.phoneToday, actions.onAllowUsage)
             }
+
+            // One goal at a time (round 2 R6b4): the goals have their own days, so the focus history's start does not apply.
+            StatsView.Goals -> StatsGoalContent(model.goals, period ?: StatsPeriod.current(StatsRange.Month, data.today), actions.onPickGoal)
 
             StatsView.Steps -> {
                 val app = LocalContext.current.applicationContext as CompanionApp

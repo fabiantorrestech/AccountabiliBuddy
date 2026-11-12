@@ -6,6 +6,8 @@ package com.accountabilibuddy.companion.stats
  * Custom); none for Sleep and Phone. [usesPeriod] is true for the views that read the chosen period and step through it with ‹ ›;
  * Intensity and Focus graph keep their fixed windows ending today, as on the PC.
  * Personal bests (board 19h) is not here: the phone has no such numbers yet.
+ * [Goals] (round 2 R6b4) is one goal at a time: its days over the range with its target line, paused stretches hatched; `stats/<goal id>`
+ * opens it on that goal.
  */
 enum class StatsView(val key: String, val title: String, val about: String, val ranges: List<StatsRange>, val usesPeriod: Boolean = false) {
     Overview(
@@ -27,6 +29,10 @@ enum class StatsView(val key: String, val title: String, val about: String, val 
     Steps(
         "steps", "Steps", "Daily steps against your goal",
         listOf(StatsRange.Last7, StatsRange.Last30, StatsRange.Last90, StatsRange.Custom), true,
+    ),
+    Goals(
+        "goals", "Goals", "One goal's days, target and pauses",
+        listOf(StatsRange.Week, StatsRange.Month, StatsRange.Year, StatsRange.Last7, StatsRange.Last30, StatsRange.Last90), true,
     );
 
     /** The range a person who never chose one gets (the one the board shows); null for a view with no ranges. */
@@ -34,7 +40,7 @@ enum class StatsView(val key: String, val title: String, val about: String, val 
         get() = when (this) {
             Overview -> StatsRange.Week
             Consistency -> StatsRange.Year
-            Intensity, FocusGraph, Drift -> StatsRange.Month
+            Intensity, FocusGraph, Drift, Goals -> StatsRange.Month
             Steps -> StatsRange.Last30
             Sleep, Phone -> null
         }

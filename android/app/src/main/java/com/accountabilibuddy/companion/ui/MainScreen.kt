@@ -424,6 +424,8 @@ fun MainScreen(
                         com.accountabilibuddy.companion.ui.goals.GoalPageScreen(
                             goalId = openGoal, allReceived = syncAllReceived, received = syncReceived,
                             onBack = { nav.back() }, onMessage = { viewModel.message.value = it }, session = goalSession,
+                            // Stats on this goal (round 2 R6b4): the Goals view of Stats, opened on it; Back returns here.
+                            onOpenStats = { nav.open(AppDestination.Stats, openGoal.toString()) },
                         )
                     } else com.accountabilibuddy.companion.ui.goals.GoalsScreen(
                         allReceived = syncAllReceived,

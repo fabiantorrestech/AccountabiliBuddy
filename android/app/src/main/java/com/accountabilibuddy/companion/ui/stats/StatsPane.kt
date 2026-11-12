@@ -65,7 +65,8 @@ fun StatsPane(
     // The period stepped to; null follows the current one (so it moves on at midnight). Custom is always held as picked.
     var stepped by rememberSaveable(stateSaver = SteppedSaver) { mutableStateOf<StatsPeriod?>(null) }
     // The first day this view has anything for: the ‹ arrow and the Custom pickers go no further back (Steps has its own 30 days).
-    val earliest = StatsPeriods.firstReachable(shownView, model.data.firstData, today)
+    // The Goals view goes back to the day the shown goal began.
+    val earliest = if (shownView == StatsView.Goals) model.goals?.firstDay ?: today else StatsPeriods.firstReachable(shownView, model.data.firstData, today)
     val period = when (shownRange) {
         null -> null
         StatsRange.Day -> StatsPeriod.of(StatsRange.Day, day)
@@ -103,7 +104,7 @@ fun StatsPane(
                 actions.onSelectRange(it)
             },
             actions.onViewsChange,
-            actions.onConnectHealth, actions.onRefreshSleep, actions.onAllowUsage,
+            actions.onConnectHealth, actions.onRefreshSleep, actions.onAllowUsage, actions.onPickGoal,
         )
     }
     val chips = remember(views, shownView) { if (shownView in views.shown) views.shown else views.shown + shownView }

@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.stats.StatsPaneActions
 import com.accountabilibuddy.companion.ui.stats.StatsPaneModel
 import com.accountabilibuddy.companion.ui.stats.StatsPrefs
+import com.accountabilibuddy.companion.ui.stats.rememberStatsGoals
 import com.accountabilibuddy.companion.usage.PhoneUsage
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +42,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 /**
  * Stats (boards 5d, 19e to 19h): the host of the redesigned pane. It works out what the pane draws from: the sessions and drift the
@@ -47,7 +50,8 @@ import java.time.temporal.ChronoUnit
  * use (Android's usage records, read off the main thread). The numbers are looked at again every minute while the app is in front.
  * Only the choice of view, range and chip order is stored (preferences "stats", this phone only); nothing is sent anywhere.
  *
- * @param routeView The part after `stats/` of an `ab.open` route (`stats/consistency`); null or unknown shows the saved view.
+ * @param routeView The part after `stats/` of an `ab.open` route (`stats/consistency`); null or unknown shows the saved view. A goal's
+ * id (`stats/<goal id>`, from a goal's page) opens the Goals view on that goal (round 2 R6b4).
  */
 @Composable
 fun StatsScreen(
@@ -66,7 +70,17 @@ fun StatsScreen(
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
     val prefs = remember { StatsPrefs(context) }
-    LaunchedEffect(routeView) { StatsView.fromKey(routeView)?.let(prefs::select) }
+    // The goal the Goals view shows: the one Stats was opened for, then whichever chip is tapped. Held for the visit only, never stored.
+    val routeGoal = remember(routeView) { routeView?.takeIf { it.length == GOAL_ID_LENGTH }?.let { runCatching { UUID.fromString(it) }.getOrNull() } }
+    var pickedGoal by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(routeView) {
+        if (routeGoal != null) {
+            pickedGoal = routeGoal.toString()
+            prefs.select(StatsView.Goals)
+        } else {
+            StatsView.fromKey(routeView)?.let(prefs::select)
+        }
+    }
 
     // Looked at again every minute while the app is in front (and at once when it comes back).
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -116,7 +130,14 @@ fun StatsScreen(
         SleepNightModel(planned, health, last)
     }
 
-    val model = remember(data, received.isNotEmpty(), phoneDays, phoneUsage, nights, sleepNight, state.sleep) {
+    // This phone's goals, counted as the Goals tab counts them; only while the Goals view is on show.
+    val goals = if (prefs.view == StatsView.Goals) {
+        rememberStatsGoals(received, active, pickedGoal?.let { runCatching { UUID.fromString(it) }.getOrNull() })
+    } else {
+        null
+    }
+
+    val model = remember(data, received.isNotEmpty(), phoneDays, phoneUsage, nights, sleepNight, state.sleep, goals) {
         val schedule = state.sleep.toSchedule(plan)
         StatsPaneModel(
             data = data,
@@ -127,12 +148,16 @@ fun StatsScreen(
             sleepGoal = state.sleep.goal,
             sleepNight = sleepNight,
             sleepOn = { date: LocalDate -> if (state.sleep.enabled) listOf<LocalWindow>(schedule.night(date.minusDays(1)), schedule.night(date)) else emptyList() },
+            goals = goals,
         )
     }
 
     val actions = remember(prefs, onConnectHealth, onRefreshSleep, onAllowUsage) {
-        StatsPaneActions(prefs::select, prefs::chooseRange, prefs::chooseViews, onConnectHealth, onRefreshSleep, onAllowUsage)
+        StatsPaneActions(prefs::select, prefs::chooseRange, prefs::chooseViews, onConnectHealth, onRefreshSleep, onAllowUsage, onPickGoal = { pickedGoal = it.toString() })
     }
     // On a tablet the charts and tiles keep a readable width in the middle of the pane (a phone draws it as before).
     CenteredPane(maxWidth = 960.dp) { StatsPane(model, prefs.view, prefs.range, prefs.views, actions, modifier) }
 }
+
+// A goal's id as a route writes it (a UUID's 36 characters): told apart from a view's key by its length.
+private const val GOAL_ID_LENGTH = 36

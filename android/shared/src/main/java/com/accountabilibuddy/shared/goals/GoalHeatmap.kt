@@ -79,7 +79,9 @@ data class GoalHeatmap(
             return GoalHeatCell(row, column, level, tip(goal, state, today), state.day, mark, progress)
         }
 
-        /** "Fri 10/30 · 0 min · missed". */
+        /** "Fri 10/30 · 0 min · missed": a day in words (the heatmap's tip; Stats' per-goal chart reads the same line). */
+        fun dayTip(goal: Goal, state: GoalDayState, today: LocalDate): String = tip(goal, state, today)
+
         private fun tip(goal: Goal, state: GoalDayState, today: LocalDate): String {
             val value = if (goal.kind == GoalKind.Habit || goal.target.unit == GoalUnit.Minutes) {
                 GoalTexts.minutes(if (state.minutes > 0 || goal.kind == GoalKind.Habit) state.minutes else state.value)

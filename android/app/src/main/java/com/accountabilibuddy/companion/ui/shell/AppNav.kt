@@ -39,8 +39,12 @@ class AppNav(initial: AppRoute = AppRoute.Home) {
         return true
     }
 
-    /** One step back: out of a page inside a place, Stats back to Goals (where it opens from), else to Today. False on Today's first page. */
+    /**
+     * One step back: out of a page inside a place, Stats back to Goals (where it opens from; Stats opened on a goal, `stats/<goal id>`,
+     * back to that goal's page), else to Today. False on Today's first page.
+     */
     fun back(): Boolean = when {
+        route.destination == AppDestination.Stats && route.detail?.length == GOAL_ID_LENGTH -> { route = AppRoute(AppDestination.Goals, route.detail); true }
         route.detail != null -> { route = AppRoute(route.destination); true }
         route.destination == AppDestination.Stats -> { route = AppRoute(AppDestination.Goals); true }
         route.destination != AppDestination.Today -> { route = AppRoute.Home; true }
@@ -50,6 +54,9 @@ class AppNav(initial: AppRoute = AppRoute.Home) {
     companion object {
         /** The extra on MainActivity's intent that names a route (`adb shell am start ... --es ab.open settings/devices`). */
         const val EXTRA_OPEN = "ab.open"
+
+        // A goal's id in a route (a UUID's 36 characters; a Stats view's key is shorter).
+        private const val GOAL_ID_LENGTH = 36
 
         val Saver: Saver<AppNav, String> = Saver(save = { it.route.toPath() }, restore = { AppNav(AppRoute.parse(it) ?: AppRoute.Home) })
     }

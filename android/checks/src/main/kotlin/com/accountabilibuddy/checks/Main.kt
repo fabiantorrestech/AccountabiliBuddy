@@ -59,6 +59,8 @@ private val checks: List<FixtureCheck> = listOf(
     GoalAdjustCheck(),
     GoalsUiReviewDueCheck(),
     GoalsUiReminderDoneCheck(),
+    // Round 2 R6b4: Stats for one goal (its words, paused stretches and its year, hatched) against the PC's StatsGoalHistoryViewModel.
+    GoalsUiStatsCheck(),
 )
 
 /**
@@ -75,6 +77,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "goals-ui-fix-round" to GoalsUiFixRoundCheck::run,
     // Round 2 R6b3: the weekly review, goal reminders, sleep readings, the Deep work weekly carry item, trusted time (phone only).
     "goals-ui-review-reminders" to GoalsUiReviewRemindersCheck::run,
+    // Round 2 R6b4: Stats per goal's chart (a bar per day, the target line, paused days hatched and left out of the numbers; phone only).
+    "goals-ui-stats-series" to GoalsUiStatsSeriesCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
