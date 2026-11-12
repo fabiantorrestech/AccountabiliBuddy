@@ -36,7 +36,8 @@ import java.util.UUID
 /**
  * "+ Source" on New goal / Edit goal step 2 (brief §4.3, §6.1; plan §3b 2, 5, 7): what can count toward a goal on this phone.
  * - Working: **Focus on a label** (the task labels on this phone), **Tick by hand**, **Daily steps** (counts only while "Track daily
- *   steps" is on; the row says so), **Sleep** (the rule is saved; the reader comes in the next update).
+ *   steps" is on; the row says so), **Sleep** (hours asleep from the Health Connect sleep the phone already reads, round 2 R6b3; the row
+ *   says where to connect Health Connect when it isn't).
  * - Greyed with a reason: **Screen time** ("Coming in the next update"), **#tag** and **Google Calendar** ("Measured on your PC": tags
  *   and calendar time are counted on the PC until ADR 79), **Beeminder** (read on the PC), **A task carries this goal** and
  *   **Milestone tasks** ("Coming soon": tasks have no goal link until ADR 79).
@@ -55,6 +56,11 @@ fun GoalSourcesSheet(
     onBack: () -> Unit,
 ) {
     var pickingLabel by rememberSaveable { mutableStateOf(false) }
+    // Sleep reads what the phone already reads from Health Connect (no new permission): the row says how to connect it when it isn't.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sleepConnected by androidx.compose.runtime.produceState(false) {
+        value = runCatching { com.accountabilibuddy.companion.health.SleepReader(context).hasPermission() }.getOrDefault(false)
+    }
     if (pickingLabel) {
         val taken = current.filter { it.type == GoalSourceType.FocusLabel }.mapNotNull { it.labelId }.toSet()
         AbSheet(title = "Focus on a label", subtitle = "Sessions with a task carrying it count", onDismiss = onDismiss, height = AbSheetHeight.Tall, onBack = { pickingLabel = false }) {
@@ -90,7 +96,11 @@ fun GoalSourcesSheet(
         )
         AbSheetRow(
             "Sleep", onClick = { add(GoalSourceType.HealthSleep) }, icon = Icons.Outlined.Bedtime, enabled = !has(GoalSourceType.HealthSleep),
-            subtitle = if (has(GoalSourceType.HealthSleep)) "Already counting" else "Counts from the next update",
+            subtitle = when {
+                has(GoalSourceType.HealthSleep) -> "Already counting"
+                sleepConnected -> "Hours asleep from Health Connect, on this phone"
+                else -> "Counts once Health Connect sleep is connected (Settings › Sleep › Health Connect)"
+            },
         )
         AbSheetRow("Screen time", onClick = null, icon = Icons.Outlined.PhoneAndroid, enabled = false, subtitle = "Coming in the next update")
         // Brief §7: shown as a placeholder until its permission is decided (ADR 81, Proposed); weight is typed in until then.

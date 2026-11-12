@@ -31,10 +31,17 @@ object SetupFeatures {
     const val AUTOSYNC_NUDGE = "sync.autosyncNudge"
     const val FINISHED_WORK_TAG = "nudge.finishedWorkTag"
     const val GUIDANCE = "guidance.mode"
+    const val GOALS_REVIEW = "goals.review"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            GOALS_REVIEW, "0.1.78", "Goals: the weekly goals review and goal reminders on this phone",
+            // Only once the goals can be used; set up once seen in the assistant, or the review's day was chosen in Settings › Goals.
+            relevant = { (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).goals.status.value == com.accountabilibuddy.companion.goals.PhoneGoalStatus.Ready },
+            setUp = { done(it, GOALS_REVIEW) || com.accountabilibuddy.companion.goals.GoalSettingsPrefs.review.value.day != null },
+        ),
         SetupFeature(
             GUIDANCE, "0.1.77", "ProductaBuddy: a companion without the guarding, on all your devices",
             relevant = { true },

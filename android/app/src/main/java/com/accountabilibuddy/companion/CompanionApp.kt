@@ -292,6 +292,9 @@ class CompanionApp : Application() {
     /** Round 2 R6: this phone's goals (device-local until ADR 79; Keystore-sealed lists). Set up at start ([onCreate]). */
     val goals by lazy { com.accountabilibuddy.companion.goals.PhoneGoalStore(this) }
 
+    /** Round 2 R6b3: goal reminders' and the weekly review's ringing marks (ids and times only; state, never synced or backed up). */
+    val goalReminderMarks by lazy { com.accountabilibuddy.companion.goals.GoalReminderMarksStore(this) }
+
     /** This phone's own task categories (ADR 62). */
     val taskCategories by lazy { com.accountabilibuddy.companion.sync.TaskCategoriesStore(this) }
 
@@ -601,7 +604,11 @@ class CompanionApp : Application() {
         // Round 2 R6: the Goals screen's choices, and the goals' first run (Work and Deep work, once; nothing else).
         com.accountabilibuddy.companion.goals.GoalDisplayPrefs.load(this)
         com.accountabilibuddy.companion.goals.GoalSettingsPrefs.load(this)
-        goals.onChanged = { autoBackup.soon() }
+        // A goal, reminder or review change sets the goal reminders' alarm again at once (round 2 R6b3).
+        goals.onChanged = {
+            autoBackup.soon()
+            appScope.launch { runCatching { com.accountabilibuddy.companion.notify.GoalReminders.refresh(this@CompanionApp, pause.isQuiet) } }
+        }
         // Deep work's weekly target waits like any looser change: the mode, a running session (the check the removal lock uses) and the
         // looser-change delay are read when a change is asked or settled (round 2 R6b2).
         goals.deepWork.onChanged = { autoBackup.soon() }

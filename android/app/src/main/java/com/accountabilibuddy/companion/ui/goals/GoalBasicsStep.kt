@@ -54,7 +54,7 @@ fun GoalBasicsStep(
     val tint = GoalIcons.color(draft.color) ?: colors.accent
     AbSheet(
         title = title,
-        subtitle = if (draft.isDeepWork) "1 of 2 · Deep work is built in · its name, icon and colour are yours" else "1 of 2 · what it is. Next: target and what counts.",
+        subtitle = if (draft.isDeepWork) "1 of 2 · Deep work is built in · its name, icon and colour are yours" else "1 of 2 · what it is. Next: target, what counts and reminders.",
         onDismiss = onDismiss,
         height = AbSheetHeight.Tall,
         footer = {

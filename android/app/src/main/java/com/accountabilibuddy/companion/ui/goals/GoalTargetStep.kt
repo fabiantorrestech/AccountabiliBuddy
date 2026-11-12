@@ -56,6 +56,8 @@ import com.accountabilibuddy.shared.goals.GoalFactsBuilder
 import com.accountabilibuddy.shared.goals.GoalKind
 import com.accountabilibuddy.shared.goals.GoalLabelId
 import com.accountabilibuddy.shared.goals.GoalPeriod
+import com.accountabilibuddy.shared.goals.GoalReminder
+import com.accountabilibuddy.shared.goals.GoalReminderEdits
 import com.accountabilibuddy.shared.goals.GoalSourceType
 import com.accountabilibuddy.shared.goals.GoalTakesText
 import com.accountabilibuddy.shared.goals.GoalTexts
@@ -71,8 +73,8 @@ import java.util.Locale
 /**
  * Step 2 of New goal / Edit goal ("2 of 2 · how it's measured", board Goals-Phone-New-2; also "Change the target" and the weight page's
  * Target): TARGET (Daily / Weekly / Monthly and what each kind asks for), the optional long-term target with its date, the live
- * **What it takes** box (green when covered, amber when not), WHAT COUNTS (the sources as chips, "+ Source") and a Reminders row that says
- * it comes in the next update. Create (or Save) stays off until [GoalDrafts.canCreate].
+ * **What it takes** box (green when covered, amber when not), WHAT COUNTS (the sources as chips, "+ Source") and REMINDERS (one row per
+ * reminder, "+ Add a reminder"; round 2 R6b3). Create (or Save) stays off until [GoalDrafts.canCreate].
  *
  * Deep work shows its daily target read only ("set on your PC", ADR 29) and the weekly target as the one thing to change; a waiting
  * lowering shows with Cancel. Every other goal's changes apply at once.
@@ -94,6 +96,10 @@ fun GoalTargetStep(
     onBack: () -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
+    reminders: List<GoalReminder> = emptyList(),
+    onOpenReminders: () -> Unit = {},
+    onAddReminder: () -> Unit = {},
+    suggestedNote: String? = null,
 ) {
     val colors = Ab.colors
     val companion = isCompanionMode()
@@ -112,8 +118,10 @@ fun GoalTargetStep(
             }
         },
     ) {
+        suggestedNote?.let { Text(it, style = Ab.type.small, color = colors.accent, modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)) }
         if (draft.isDeepWork) {
             DeepWorkTarget(draft, onDraft, weekly, received, companion, onCancelWeekly)
+            RemindersSection(reminders, onOpenReminders, onAddReminder)
             OnItsPage(draft, onDraft)
             return@AbSheet
         }
@@ -152,8 +160,7 @@ fun GoalTargetStep(
             style = Ab.type.small, color = colors.muted, modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 6.dp),
         )
 
-        GoalFieldLabel("REMINDERS")
-        AbSheetRow("Reminders", onClick = null, icon = Icons.Outlined.NotificationsNone, enabled = false, subtitle = "Coming in the next update")
+        RemindersSection(reminders, onOpenReminders, onAddReminder)
 
         OnItsPage(draft, onDraft)
 
@@ -162,6 +169,21 @@ fun GoalTargetStep(
             style = Ab.type.small, color = colors.muted, modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
         )
     }
+}
+
+// REMINDERS (board Goals-Phone-New-2): one row per reminder, "Today 8:00 PM" over "If not done yet · every day" with ›, then
+// "+ Add a reminder". A row opens the Reminders page (numbered list, pills, rules).
+@Composable
+private fun RemindersSection(reminders: List<GoalReminder>, onOpen: () -> Unit, onAdd: () -> Unit) {
+    val today = java.time.LocalDate.now()
+    GoalFieldLabel("REMINDERS")
+    reminders.forEach { reminder ->
+        AbSheetRow(
+            GoalReminderEdits.title(reminder, today), onClick = onOpen, icon = Icons.Outlined.NotificationsNone,
+            subtitle = GoalReminderEdits.subtitle(reminder), trailing = { AbSheetValue(null) },
+        )
+    }
+    AbSheetRow("Add a reminder", onClick = onAdd, icon = Icons.Outlined.Add)
 }
 
 // What the goal's own page shows and keeps (brief §4.3, §4.4): its Streak and Total tiles, where the goal's own switch wins over
@@ -255,7 +277,7 @@ private fun TakesBox(draft: GoalDraft, stored: Goal?, allReceived: List<Received
             runCatching {
                 val zone = ZoneId.systemDefault()
                 val now = Instant.now()
-                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone)
+                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone, PhoneGoalData.slept(app))
                 val today = now.atZone(zone).toLocalDate()
                 GoalFactsBuilder.build(goal, data, today, display.weekStart).whatItTakes?.let { GoalTakesText.of(it, goal, today) }
             }.getOrNull()

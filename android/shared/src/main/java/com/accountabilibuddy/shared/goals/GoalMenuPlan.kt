@@ -13,7 +13,7 @@ object GoalMenuPlan {
     /**
      * [todayState]: the goal's state today (a habit's tick, "8 of 15 min so far"). [startValue]: what Start a session… starts by
      * default ("Default"), shown at its right; [startBlocked]: why a session can't be started from this phone now (no PC linked, a
-     * session running, an answer awaited), which greys the row and is its note.
+     * session running, an answer awaited), which greys the row and is its note. [reminderNext]: "Next: today 8:00 PM", the Reminders row's note.
      */
     fun of(
         goal: Goal,
@@ -23,6 +23,7 @@ object GoalMenuPlan {
         areaName: String?,
         startValue: String? = null,
         startBlocked: String? = null,
+        reminderNext: String? = null,
     ): List<GoalMenuItem> {
         val items = mutableListOf(GoalMenuItem(GoalMenuItemId.Heading, goal.name))
         items += GoalMenuItem(
@@ -33,7 +34,7 @@ object GoalMenuPlan {
         items += quickLog(goal, todayState, paused)
         items += separator
         items += GoalMenuItem(GoalMenuItemId.EditGoal, "Edit goal…", note = "Target, tracking & sources, notes", opensMore = true)
-        items += GoalMenuItem(GoalMenuItemId.Reminders, "Reminders", value = if (reminderCount == 0) "None" else "$reminderCount set", opensMore = true)
+        items += GoalMenuItem(GoalMenuItemId.Reminders, "Reminders", note = reminderNext, value = if (reminderCount == 0) "None" else "$reminderCount set", opensMore = true)
         items += GoalMenuItem(GoalMenuItemId.MoveToArea, "Move to area", value = areaName, opensMore = true)
         items += GoalMenuItem(GoalMenuItemId.ShowOnToday, "Show on Today", note = "On Today's goals card", checked = goal.showOnToday)
         items += when {

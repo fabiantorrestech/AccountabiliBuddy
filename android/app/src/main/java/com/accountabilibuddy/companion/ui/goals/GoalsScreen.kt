@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +45,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.goals.GoalDisplayPrefs
 import com.accountabilibuddy.companion.goals.GoalListView
+import com.accountabilibuddy.companion.goals.GoalSettingsPrefs
+import com.accountabilibuddy.companion.goals.PhoneGoalReview
+import com.accountabilibuddy.companion.ui.LocalGuardsLock
+import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
 import com.accountabilibuddy.companion.goals.PhoneGoalsOverview
 import com.accountabilibuddy.companion.sync.ReceivedDevice
@@ -63,7 +68,8 @@ import java.util.UUID
 /**
  * The phone's Goals tab (round 2 R6a; brief §4.3, change note §4, boards Goals-Phone / -Options): the header with the week's counts,
  * the Stats pill and Options; the area chips; "YOUR GOALS n" with By area / Current / All; and the list, area by area in soft blocks
- * (folded areas remembered on this phone), each goal with its target, its one number and its kind's visual.
+ * (folded areas remembered on this phone), each goal with its target, its one number and its kind's visual; and, when it is due, the
+ * weekly review's card above "YOUR GOALS" with its sheet (round 2 R6b3).
  *
  * Every number comes from the shared goals maths ([PhoneGoalsOverview], worked out off the main thread and again each minute and
  * whenever the goals, the received files or the steps change). Goal and area names are drawn here and nowhere else (never logged).
@@ -88,9 +94,15 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
     // New goal (steps 1 and 2), Edit goal from the menu, Edit area (a goal sheet's own "+ Area" opens one over it), and Options › Areas.
     var newGoalOpen by rememberSaveable { mutableStateOf(false) }
     var editGoal by rememberSaveable { mutableStateOf<String?>(null) }
+    var editAtReminders by rememberSaveable { mutableStateOf(false) }
+    // The weekly review (round 2 R6b3): its sheet, and "Adjust the target" opening Edit goal › Target with the suggested numbers.
+    var reviewOpen by rememberSaveable { mutableStateOf(false) }
+    var adjusting by remember { mutableStateOf<GoalReviewAdjusting?>(null) }
     var areaSheet by rememberSaveable { mutableStateOf<String?>(null) }
     var areasOpen by rememberSaveable { mutableStateOf(false) }
 
+    val reviewSettings by GoalSettingsPrefs.review.collectAsStateWithLifecycle()
+    val guardsLock = LocalGuardsLock.current
     // A new minute (today's numbers, a day change) recounts.
     val minute by produceState(Instant.now()) {
         while (true) {
@@ -106,8 +118,16 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
         }
         value = withContext(Dispatchers.Default) {
             runCatching {
-                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current())
+                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), PhoneGoalData.slept(app))
             }.getOrNull()
+        }
+    }
+    // The weekly review's card (round 2 R6b3): due from Settings › Goals' day and time, never during a session; worked out with the
+    // trusted time ([PhoneGoalReview]) whenever the goals, the settings, the session or the minute change.
+    val reviewMoment by produceState<PhoneGoalReview.Moment?>(null, status, lists, overview, reviewSettings, display.weekStart, guardsLock, minute) {
+        val goals = overview?.facts?.map { it.goal }
+        value = if (status != PhoneGoalStatus.Ready || goals == null) null else withContext(Dispatchers.Default) {
+            runCatching { PhoneGoalReview.moment(app, goals) }.getOrNull()
         }
     }
     // An area chip whose area went away falls back to All.
@@ -151,6 +171,15 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
             item(key = "chips") {
                 GoalAreaChips(shown.areas, selectedArea, onSelect = { areaFilter = it?.toString() }, onNewGoal = { newGoalOpen = true })
             }
+            reviewMoment?.takeIf { it.row.shown }?.let { moment ->
+                item(key = "review") {
+                    GoalReviewCard(
+                        moment, reviewSettings.snoozeDays, onStart = { reviewOpen = true },
+                        onSnooze = { choice -> PhoneGoalReview.snooze(app, choice)?.let(actions.onMessage) },
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+            }
             item(key = "your-goals") {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("YOUR GOALS", style = Ab.type.micro, fontWeight = FontWeight.SemiBold, color = Ab.colors.muted)
@@ -192,16 +221,40 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
         }
     }
 
+    // The review first, so Edit goal (its Adjust) opens over it.
+    val reviewOverview = overview
+    if (reviewOpen && reviewOverview != null) {
+        GoalReviewSheet(
+            reviewOverview, onDismiss = { reviewOpen = false },
+            onAdjust = { id, adjustment -> adjusting = GoalReviewAdjusting(id, adjustment); editAtReminders = false; editGoal = id.toString() },
+            onMessage = actions.onMessage,
+        )
+    }
     menuGoal?.let { raw ->
         val id = runCatching { UUID.fromString(raw) }.getOrNull()
-        if (id == null) menuGoal = null else GoalMenuSheet(id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null }, onEdit = { menuGoal = null; editGoal = id.toString() }, start = actions.session)
+        if (id == null) {
+            menuGoal = null
+        } else {
+            GoalMenuSheet(
+                id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null }, onEdit = { menuGoal = null; editAtReminders = false; editGoal = id.toString() },
+                start = actions.session, onReminders = { menuGoal = null; editAtReminders = true; editGoal = id.toString() },
+            )
+        }
     }
     if (newGoalOpen) {
         GoalEditorSheets(goalId = null, allReceived = allReceived, received = received, onMessage = actions.onMessage, onDismiss = { newGoalOpen = false })
     }
     editGoal?.let { raw ->
         val id = runCatching { UUID.fromString(raw) }.getOrNull()
-        if (id == null) editGoal = null else GoalEditorSheets(goalId = id, allReceived = allReceived, received = received, onMessage = actions.onMessage, onDismiss = { editGoal = null })
+        if (id == null) {
+            editGoal = null
+        } else {
+            GoalEditorSheets(
+                goalId = id, allReceived = allReceived, received = received, onMessage = actions.onMessage,
+                onDismiss = { editGoal = null; editAtReminders = false; adjusting = null }, startAtReminders = editAtReminders,
+                startAtTarget = adjusting != null, suggested = adjusting?.takeIf { it.goalId == id }?.adjustment,
+            )
+        }
     }
     areaSheet?.let { raw ->
         // "new" makes an area; anything else is an area's id.

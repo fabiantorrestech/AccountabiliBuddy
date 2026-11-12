@@ -6,7 +6,9 @@ import com.accountabilibuddy.shared.goals.GoalFacts
 import com.accountabilibuddy.shared.goals.GoalDeepWorkWeekly
 import com.accountabilibuddy.shared.goals.GoalFactsBuilder
 import com.accountabilibuddy.shared.goals.GoalLists
+import com.accountabilibuddy.shared.goals.GoalSourceData
 import com.accountabilibuddy.shared.goals.GoalWeekSummary
+import com.accountabilibuddy.shared.goals.GoalWindow
 import com.accountabilibuddy.shared.sync.SyncFile
 import java.time.Instant
 import java.time.LocalDate
@@ -18,6 +20,7 @@ import java.time.ZoneId
  * counts for the subtitle. Computed from the store and what the phone already holds; never stored.
  *
  * @property pcDailyMinutes The PC's daily goal Deep work shows; null when no PC file has carried one yet.
+ * @property data What the numbers were counted from (the weekly review's suggestions and facts read it too).
  */
 data class PhoneGoalsOverview(
     val today: LocalDate,
@@ -25,6 +28,7 @@ data class PhoneGoalsOverview(
     val facts: List<GoalFacts>,
     val summary: GoalWeekSummary,
     val pcDailyMinutes: Int?,
+    val data: GoalSourceData? = null,
 ) {
     companion object {
         /**
@@ -40,6 +44,7 @@ data class PhoneGoalsOverview(
             now: Instant,
             zone: ZoneId,
             weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
+            slept: List<GoalWindow> = emptyList(),
         ): PhoneGoalsOverview {
             val today = now.atZone(zone).toLocalDate()
             val pcDaily = PhoneDeepWork.pcDailyMinutes(goalFiles)
@@ -48,9 +53,9 @@ data class PhoneGoalsOverview(
             val goals = lists.liveGoals
                 .map { PhoneDeepWork.view(it, pcDaily, weekly) }
                 .sortedWith(compareBy({ areaOrder[it.areaId] ?: Int.MAX_VALUE }, { it.position }))
-            val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone)
+            val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone, slept)
             val facts = goals.map { GoalFactsBuilder.build(it, data, today, display.weekStart) }
-            return PhoneGoalsOverview(today, areas, facts, GoalWeekSummary.of(facts, today, display.weekStart), pcDaily)
+            return PhoneGoalsOverview(today, areas, facts, GoalWeekSummary.of(facts, today, display.weekStart), pcDaily, data)
         }
     }
 }

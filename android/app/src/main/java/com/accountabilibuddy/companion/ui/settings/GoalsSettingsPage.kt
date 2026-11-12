@@ -57,7 +57,7 @@ private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Loc
  * labels, the extra tiles default; also in Goals › Options), Areas, a link to Connections (Beeminder, Health Connect, calendars) and the
  * pausing rules in words. Everything is this phone's own and saved at once ([GoalSettingsPrefs], [GoalDisplayPrefs]): suggestions and
  * display only, nothing a guard reads. Like the other Settings pages it rests (view-only, "Settings rest until …") while a focus
- * session runs. The review and the reminders that use these choices arrive in the next update.
+ * session runs. The weekly review (Goals list card and sheet) and goal reminders use these choices (round 2 R6b3).
  */
 @Composable
 fun GoalsSettingsPage(anchor: String?, onOpenConnections: () -> Unit) {

@@ -46,6 +46,13 @@ private val checks: List<FixtureCheck> = listOf(
     // Round 2 R6b2: the phone's Deep work weekly target (the looser-change wait) against the PC's GoalLowering fixtures.
     GoalWeeklyParityCheck("lowering"),
     GoalWeeklyParityCheck("lowering-apply"),
+    // Round 2 R6b3: goal reminders and the weekly review on the phone against the PC (Core: reminder times, nudge, adjust; App: the
+    // review's due rule, "Skip when done").
+    GoalReminderTimesCheck(),
+    GoalNudgeCheck(),
+    GoalAdjustCheck(),
+    GoalsUiReviewDueCheck(),
+    GoalsUiReminderDoneCheck(),
 )
 
 /**
@@ -60,6 +67,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "goals-ui-edit" to GoalsUiEditCheck::run,
     // The phone design-fix round: Today's goals, the order of an area's goals, notes and extra tiles, Start a session (phone only).
     "goals-ui-fix-round" to GoalsUiFixRoundCheck::run,
+    // Round 2 R6b3: the weekly review, goal reminders, sleep readings, the Deep work weekly carry item, trusted time (phone only).
+    "goals-ui-review-reminders" to GoalsUiReviewRemindersCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

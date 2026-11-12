@@ -12,6 +12,8 @@ import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.goals.GoalListRules
 import com.accountabilibuddy.shared.goals.GoalLists
 import com.accountabilibuddy.shared.goals.GoalPauseStretch
+import com.accountabilibuddy.shared.goals.GoalReminder
+import com.accountabilibuddy.shared.goals.GoalReviewRecord
 import com.accountabilibuddy.shared.goals.GoalSources
 import java.time.LocalDate
 import java.time.LocalTime
@@ -217,6 +219,46 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
         val position = (lists.entries.filter { it.goalId == goalId && it.day == day }.maxOfOrNull { it.position } ?: 0.0) + 1.0
         val entry = GoalEntry(UUID.randomUUID(), goalId, day, time, value, GoalEntrySource.Hand, stamp, position)
         Changed(lists.copy(entries = lists.entries + entry))
+    }
+
+    // ---------------------------------------------------------------- reminders and reviews (round 2 R6b3)
+
+    /**
+     * Sets [goalId]'s reminders to [wanted] (Edit goal › Reminders' Save): a reminder no longer there becomes a tombstone with no reason;
+     * a new or changed one is stamped now (a reminder never rings for a moment before it was set); an unchanged one is left as it was,
+     * so saving a goal later never re-arms it (the PC's milestone review S1). Suggestions only: they feed no guard.
+     */
+    fun setReminders(goalId: UUID, wanted: List<GoalReminder>): String? = change { lists, now ->
+        if (lists.goals.none { it.id == goalId && it.isLive }) return@change Refused(GONE)
+        val byId = wanted.filter { it.goalId == goalId }.associateBy { it.id }
+        var changed = false
+        val kept = lists.reminders.map { old ->
+            if (old.goalId != goalId || !old.isLive) return@map old
+            val next = byId[old.id]
+            when {
+                next == null -> {
+                    changed = true
+                    val stamp = GoalListRules.after(now, old.editedAt)
+                    old.copy(reason = null, editedAt = stamp, deletedAt = stamp)
+                }
+                next.copy(editedAt = old.editedAt, deletedAt = null) == old -> old
+                else -> {
+                    changed = true
+                    next.copy(editedAt = GoalListRules.after(now, old.editedAt), deletedAt = null)
+                }
+            }
+        }
+        val known = lists.reminders.map { it.id }.toSet()
+        val added = wanted.filter { it.goalId == goalId && it.id !in known }.map { it.copy(editedAt = now, deletedAt = null) }
+        if (!changed && added.isEmpty()) Unchanged else Changed(lists.copy(reminders = kept + added))
+    }
+
+    /** Keeps a weekly review record (an answer or a snooze), stamped now; review notes stay private text. */
+    fun saveReview(record: GoalReviewRecord): String? = change { lists, now ->
+        val old = lists.reviews.firstOrNull { it.id == record.id }
+        val stamp = old?.let { GoalListRules.after(now, it.editedAt) } ?: now
+        val saved = record.copy(editedAt = stamp, deletedAt = null)
+        Changed(lists.copy(reviews = if (old == null) lists.reviews + saved else lists.reviews.map { if (it.id == record.id) saved else it }))
     }
 
     // ---------------------------------------------------------------- backups

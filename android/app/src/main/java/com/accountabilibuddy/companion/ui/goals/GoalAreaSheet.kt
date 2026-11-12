@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.ui.GuardsRestNote
 import com.accountabilibuddy.companion.ui.LocalGuardsLock
 import com.accountabilibuddy.companion.ui.ReorderableRows
 import com.accountabilibuddy.companion.ui.kit.AbDialog
@@ -60,7 +61,7 @@ import java.util.UUID
  * down). Save keeps the area; Delete asks first and says where its goals go (the first other area, in their order). Names are
  * private text: drawn here only, never logged. [onSaved] gets the area's id (a new goal's step 1 picks the area just made).
  *
- * While a focus session runs the order and Delete rest, like Options › Areas.
+ * While a focus session runs the area rests (Save, the order and Delete), like Options › Areas and Settings › Goals › Areas.
  *
  * @param onGoalMenu ⋮ on a goal: the caller closes this sheet and opens that goal's menu. Null hides the ⋮.
  */
@@ -97,6 +98,9 @@ fun GoalAreaSheet(areaId: UUID?, onDismiss: () -> Unit, onMessage: (String) -> U
         height = AbSheetHeight.Tall,
         footer = {
             problem?.takeIf { name.isNotEmpty() }?.let { Text(it, style = Ab.type.small, color = colors.muted) }
+            // R6 milestone carry (f81bb32b item 5): every area edit rests in a session, like Settings › Goals › Areas and Options › Areas,
+            // whether it was opened by holding an area or from "+ Area" in the goal editor.
+            if (locked) GuardsRestNote()
             deleteProblem?.let { Text(it, style = Ab.type.small, color = colors.muted) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (area != null) {
@@ -112,7 +116,7 @@ fun GoalAreaSheet(areaId: UUID?, onDismiss: () -> Unit, onMessage: (String) -> U
                         val error = if (area == null) app.goals.addArea(saved) else app.goals.updateArea(saved)
                         if (error != null) onMessage(error) else { onSaved(saved.id); onDismiss() }
                     },
-                    enabled = problem == null, modifier = Modifier.weight(1f),
+                    enabled = problem == null && !locked, modifier = Modifier.weight(1f),
                 )
             }
         },

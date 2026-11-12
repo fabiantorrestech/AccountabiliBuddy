@@ -16,6 +16,8 @@ import com.accountabilibuddy.shared.goals.GoalTile
 import com.accountabilibuddy.shared.goals.GoalTiles
 import com.accountabilibuddy.shared.goals.GoalKind
 import com.accountabilibuddy.shared.goals.GoalDirection
+import com.accountabilibuddy.shared.goals.GoalReminderEdits
+import com.accountabilibuddy.shared.goals.GoalWindow
 import com.accountabilibuddy.shared.sync.SyncFile
 import java.time.Instant
 import java.time.ZoneId
@@ -36,6 +38,7 @@ data class PhoneGoalPage(
     val takes: GoalTakesText?,
     val sourceLines: List<GoalSourceLine>,
     val reminderCount: Int,
+    val reminderNext: String?,
     val labelName: (UUID) -> String?,
 ) {
     val usesTrend: Boolean get() = goal.kind == GoalKind.Amount && goal.target.direction == GoalDirection.Reach
@@ -53,11 +56,12 @@ data class PhoneGoalPage(
             now: Instant,
             zone: ZoneId,
             weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
+            slept: List<GoalWindow> = emptyList(),
         ): PhoneGoalPage? {
             val stored = lists.liveGoals.firstOrNull { it.id == goalId } ?: return null
             val goal = PhoneDeepWork.view(stored, PhoneDeepWork.pcDailyMinutes(goalFiles), weekly)
             val today = now.atZone(zone).toLocalDate()
-            val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone)
+            val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone, slept)
             val facts = GoalFactsBuilder.build(goal, data, today, display.weekStart)
             val byId = labels.associateBy { GoalLabelId.idFor(it) }
             val labelName: (UUID) -> String? = { byId[it] }
@@ -71,6 +75,7 @@ data class PhoneGoalPage(
                 takes = facts.whatItTakes?.let { GoalTakesText.of(it, goal, today) },
                 sourceLines = GoalSourceLines.of(goal, facts.threshold, labelName),
                 reminderCount = lists.reminders.count { it.goalId == goalId && it.isLive },
+                reminderNext = GoalReminderEdits.nextText(lists.reminders, goal, now, zone),
                 labelName = labelName,
             )
         }

@@ -31,6 +31,9 @@ object Channels {
     /** Developer switch: "Sync reached <device>" (sync receipts), quiet. */
     const val SYNC_RECEIPTS = "sync_receipts"
 
+    /** Goal reminders and the weekly goals review (round 2 R6b3): they alert in AccountabiliBuddy mode; ProductaBuddy posts them silent. */
+    const val GOALS = "goal_reminders"
+
     fun create(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         // High importance (silenced, alerting once) ranks the timeline above other apps' default-importance pinned
@@ -70,6 +73,12 @@ object Channels {
         )
         manager.createNotificationChannel(silent(PARKED, "Phone parked", "While a focus session runs on your computer", NotificationManager.IMPORTANCE_LOW))
         manager.createNotificationChannel(silent(TIMERS, "Timers", "A countdown for each running timer", NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(
+            NotificationChannel(GOALS, "Goal reminders", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Your goal reminders and the weekly goals review. Suggestions only."
+                setShowBadge(false)
+            },
+        )
         manager.createNotificationChannel(silent(TIMER_RING, "Timers and alarms ringing", "A timer that's up or an alarm that rings", NotificationManager.IMPORTANCE_HIGH))
     }
 

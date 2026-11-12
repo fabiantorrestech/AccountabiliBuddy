@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.goals.GoalDisplayPrefs
+import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalPage
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
 import com.accountabilibuddy.companion.sync.ReceivedDevice
@@ -48,7 +49,7 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
             runCatching {
                 PhoneGoalPage.build(
                     goalId, lists, display, allReceived.map { it.file }, received.map { it.file }, steps, app.sharedLists.allLabels(), Instant.now(), ZoneId.systemDefault(),
-                    app.goals.deepWork.current(),
+                    app.goals.deepWork.current(), PhoneGoalData.slept(app),
                 )
             }.getOrNull()
         }

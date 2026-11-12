@@ -200,8 +200,32 @@ object GoalDrafts {
         return draft.sources.map { it.copy(thresholdMinutes = if (it.countsTime) threshold else null) }
     }
 
+    /**
+     * The draft with the weekly review's "Adjust the target" numbers filled in (brief §5.8, the PC's `ApplySuggestion`): the long-term
+     * date, the amount per period, or "on N days". Pre-filled only: nothing is stored until Save. Deep work's daily target is the PC's
+     * (ADR 29), so its draft is left as it is.
+     */
+    fun withAdjustment(draft: GoalDraft, adjustment: GoalReviewAdjustment?): GoalDraft {
+        if (adjustment == null || draft.isDeepWork) return draft
+        var result = draft
+        adjustment.targetDate?.let { result = result.copy(targetDate = it) }
+        adjustment.amount?.let { result = result.copy(amount = numberText(it)) }
+        adjustment.weeklyDays?.let { days ->
+            result = if (draft.kind == GoalKind.Habit) result.copy(amount = days.toString()) else result.copy(weeklyDays = days.toString())
+        }
+        return result
+    }
+
     /** Deep work's weekly target in minutes (null = none). */
     fun deepWorkWeeklyMinutes(draft: GoalDraft): Int? = number(draft.weeklyHours)?.takeIf { it > 0 }?.let { (it * 60).roundToInt() }
+
+    /**
+     * Whether saving Edit goal asks Deep work's weekly rule for [wanted] (R6 milestone carry, f81bb32b item 2): a different amount, or
+     * the current amount typed back while a lowering waits (the rule then drops the wait, the PC's "Unchanged"). Saving any other edit
+     * of Deep work, with the weekly field never touched, leaves a waiting lowering alone.
+     */
+    fun weeklyChangeAsked(wanted: Int?, current: Int?, waiting: Boolean, fieldEdited: Boolean): Boolean =
+        wanted != current || (waiting && fieldEdited)
 
     /**
      * The goal this draft makes: a new goal ([base] null) or [base] with the draft's changes; null when step 1 or the target isn't

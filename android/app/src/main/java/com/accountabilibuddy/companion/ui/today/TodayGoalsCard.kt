@@ -93,7 +93,7 @@ fun rememberTodayGoals(allReceived: List<ReceivedDevice>, received: List<Receive
         }
         value = withContext(Dispatchers.Default) {
             runCatching {
-                val overview = PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current())
+                val overview = PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), com.accountabilibuddy.companion.goals.PhoneGoalData.slept(app))
                 val names = overview.areas.associate { it.id to it.name }
                 GoalTodayRows.of(overview.facts, names::get, inSession)
             }.getOrNull()

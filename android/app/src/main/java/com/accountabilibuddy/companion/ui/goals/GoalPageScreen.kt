@@ -102,6 +102,7 @@ fun GoalPageScreen(
     // Edit goal: step 1 from the menu; "Change the target" and the weight page's Target open step 2 (R6b2).
     var editOpen by rememberSaveable { mutableStateOf(false) }
     var editAtTarget by rememberSaveable { mutableStateOf(false) }
+    var editAtReminders by rememberSaveable { mutableStateOf(false) }
     val weekly by app.goals.deepWork.state.collectAsStateWithLifecycle()
     var editDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedDay by rememberSaveable(goalId) { mutableStateOf<Long?>(null) }
@@ -139,7 +140,7 @@ fun GoalPageScreen(
                     style = Ab.type.small, color = Ab.colors.faint, modifier = Modifier.padding(horizontal = 4.dp),
                 )
                 NotesCard(stored?.notes, onEdit = { editAtTarget = true; editOpen = true })
-                BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { onMessage("Reminders come in the next update.") })
+                BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { editAtTarget = false; editAtReminders = true; editOpen = true })
             }
         } else {
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -158,16 +159,20 @@ fun GoalPageScreen(
                     )
                 }
                 NotesCard(stored?.notes, onEdit = { editAtTarget = true; editOpen = true })
-                BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { onMessage("Reminders come in the next update.") })
+                BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { editAtTarget = false; editAtReminders = true; editOpen = true })
             }
         }
     }
 
     if (menuOpen) {
-        GoalMenuSheet(goalId, allReceived, received, onMessage, onDismiss = { menuOpen = false }, onDeleted = onBack, onEdit = { menuOpen = false; editAtTarget = false; editOpen = true }, start = session)
+        GoalMenuSheet(
+            goalId, allReceived, received, onMessage, onDismiss = { menuOpen = false }, onDeleted = onBack,
+            onEdit = { menuOpen = false; editAtTarget = false; editAtReminders = false; editOpen = true }, start = session,
+            onReminders = { menuOpen = false; editAtTarget = false; editAtReminders = true; editOpen = true },
+        )
     }
     if (editOpen) {
-        GoalEditorSheets(goalId, allReceived, received, onMessage, onDismiss = { editOpen = false }, startAtTarget = editAtTarget)
+        GoalEditorSheets(goalId, allReceived, received, onMessage, onDismiss = { editOpen = false; editAtReminders = false }, startAtTarget = editAtTarget, startAtReminders = editAtReminders)
     }
     if (takesOpen && page?.takes != null) {
         val takes = page.takes
@@ -251,9 +256,12 @@ private fun BottomRows(page: PhoneGoalPage, onTracking: () -> Unit, onReminders:
             "Progress tracking", icon = Icons.AutoMirrored.Outlined.ShowChart, subtitle = lines.firstOrNull { !it.comingSoon }?.text ?: lines.firstOrNull()?.text,
             onClick = onTracking, divider = true,
         )
+        // Board Goals-Phone-Habit: "Reminders", "Next: today 8:00 PM", "4 ›".
         AbListRow(
-            "Reminders", icon = Icons.Outlined.NotificationsNone, subtitle = if (page.reminderCount == 0) "None yet" else "${page.reminderCount} set",
+            "Reminders", icon = Icons.Outlined.NotificationsNone,
+            subtitle = page.reminderNext ?: if (page.reminderCount == 0) "None yet · add one" else "None coming up",
             onClick = onReminders, divider = page.goal.kind == GoalKind.Milestone,
+            trailing = if (page.reminderCount > 0) ({ Text("${page.reminderCount}", style = Ab.type.small.copy(fontFeatureSettings = "tnum"), color = Ab.colors.muted) }) else null,
         )
         if (page.goal.kind == GoalKind.Milestone) {
             AbListRow("Open its tasks", icon = Icons.Outlined.Checklist, subtitle = "Coming soon", showChevron = false)
