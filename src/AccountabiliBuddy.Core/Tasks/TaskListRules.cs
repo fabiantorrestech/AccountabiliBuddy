@@ -271,13 +271,16 @@ public static class TaskListRules
         return missing.Count == 0 ? lists : lists with { Tasks = tasks };
     }
 
-    /// <summary>History past its 90 days goes (on every device alike); tombstones past their 30 days go (a local item's stub stays).</summary>
+    /// <summary>
+    /// History past its 90 days goes (on every device alike); tombstones past their 30 days go (a local item's stub stays), except
+    /// labels' (kept for good, <see cref="TaskLabelMerge"/>).
+    /// </summary>
     public static TaskLists Pruned(TaskLists lists, DateTimeOffset now, Guid self)
     {
         List<SyncTaskLogItem> log = lists.Log.Where(item => !item.Entry.IsLive || now - item.Entry.When < TaskHistoryEntry.Kept).ToList();
         return new TaskLists(
             SharedListMerge.Merge(lists.Tasks, [], now, self),
-            SharedListMerge.Merge(lists.Labels, [], now),
+            TaskLabelMerge.Merge(lists.Labels, [], now),
             SharedListMerge.Merge(lists.Views, [], now),
             SharedListMerge.Merge(log, [], now),
             lists.Account);

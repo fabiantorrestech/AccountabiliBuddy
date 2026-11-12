@@ -9,10 +9,13 @@ namespace AccountabiliBuddy.Core.Tasks;
 internal sealed class TaskLabelBook
 {
     private readonly List<TaskLabel> _labels;
+    private readonly Guid _reviver;
 
-    public TaskLabelBook(IEnumerable<TaskLabel> labels)
+    /// <param name="reviver">The device a revived label's fresh "Rings on" stamp names (the sender of the items being read).</param>
+    public TaskLabelBook(IEnumerable<TaskLabel> labels, Guid reviver = default)
     {
         _labels = labels.ToList();
+        _reviver = reviver;
     }
 
     public IReadOnlyList<TaskLabel> Labels => _labels;
@@ -54,8 +57,10 @@ internal sealed class TaskLabelBook
         var label = new TaskLabel(id, name.Trim(), chosen, position, stamp);
         if (existing >= 0)
         {
-            // A tombstone (FreeIdFor never gives a live label's id): a newer use brings the label back.
-            _labels[existing] = label with { EditedAt = stamp > _labels[existing].EditedAt ? stamp : _labels[existing].EditedAt.AddTicks(1) };
+            // A tombstone (FreeIdFor never gives a live label's id): a newer use brings the label back, ringing on every device, stamped
+            // at the revive, so a device still holding the old label's ring list can't hand it back (TaskLabelMerge).
+            DateTimeOffset revived = stamp > _labels[existing].EditedAt ? stamp : _labels[existing].EditedAt.AddTicks(1);
+            _labels[existing] = label with { EditedAt = revived, RingOn = null, RingOnStamp = new Sync.TaskFieldStamp(revived, _reviver) };
         }
         else
         {
@@ -64,6 +69,35 @@ internal sealed class TaskLabelBook
 
         Made++;
         return id;
+    }
+
+    /// <summary>
+    /// When a label that once had <paramref name="name"/> was last deleted or renamed: the newest change of the labels holding the name's
+    /// ids (<see cref="TaskLabel.IdFor"/>, then "#2", "#3"... while one exists) that aren't a live label of that name. Null when none.
+    /// </summary>
+    internal static DateTimeOffset? LastChangeOfName(string name, IReadOnlyList<TaskLabel> labels)
+    {
+        DateTimeOffset? newest = null;
+        for (int suffix = 1; ; suffix++)
+        {
+            Guid id = TaskLabel.IdFor(suffix == 1 ? name : name.Trim() + "#" + suffix.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            TaskLabel? held = labels.FirstOrDefault(label => label.Id == id);
+            if (held is null)
+            {
+                return newest;
+            }
+
+            if (held.IsLive && TaskLabel.SameName(held.Name, name))
+            {
+                continue;
+            }
+
+            DateTimeOffset changed = held.DeletedAt ?? held.EditedAt;
+            if (newest is null || changed > newest)
+            {
+                newest = changed;
+            }
+        }
     }
 
     /// <summary>

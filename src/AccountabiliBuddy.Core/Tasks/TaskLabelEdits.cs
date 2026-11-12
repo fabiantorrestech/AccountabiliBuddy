@@ -27,9 +27,10 @@ public static class TaskLabelEdits
 
     /// <summary>
     /// A new label at the end of the list, in <paramref name="color"/> (when it isn't a colour: the first of the set no label has). A name
-    /// that is blank or already a live label's adds nothing (<paramref name="id"/> null).
+    /// that is blank or already a live label's adds nothing (<paramref name="id"/> null). A deleted label that comes back this way rings on
+    /// every device again, stamped by <paramref name="self"/> at the revive.
     /// </summary>
-    public static TaskLists Add(TaskLists lists, string name, string? color, DateTimeOffset now, out Guid? id)
+    public static TaskLists Add(TaskLists lists, string name, string? color, DateTimeOffset now, Guid self, out Guid? id)
     {
         List<TaskLabel> labels = lists.Labels.Select(item => item.Label).ToList();
         id = null;
@@ -48,7 +49,7 @@ public static class TaskLabelEdits
         var label = new TaskLabel(newId, trimmed, chosen, position, stamp);
         if (existing >= 0)
         {
-            labels[existing] = label;
+            labels[existing] = label with { RingOnStamp = new TaskFieldStamp(stamp, self) };
         }
         else
         {

@@ -74,7 +74,7 @@ public static class OldTaskFieldsReader
             _limit = input.Now + SharedListMerge.FutureLimit;
             _tasks = input.Tasks.ToList();
             _history = input.History.ToList();
-            _book = new TaskLabelBook(input.Labels.Select(item => item.Label));
+            _book = new TaskLabelBook(input.Labels.Select(item => item.Label), input.SenderId);
         }
 
         public OldTaskReadResult Run()
@@ -207,8 +207,8 @@ public static class OldTaskFieldsReader
                 {
                     // An older phone keeps its categories for good: a label deleted or renamed since (on a device that knows labels) comes
                     // back only when the phone chose the category's colour after that change.
-                    if (_book.Labels.FirstOrDefault(known => known.Id == TaskLabel.IdFor(category.Name)) is TaskLabel changed
-                        && !(category.ColorEditedAt is DateTimeOffset chosen && chosen <= _limit && chosen > (changed.DeletedAt ?? changed.EditedAt)))
+                    if (TaskLabelBook.LastChangeOfName(category.Name, _book.Labels) is DateTimeOffset changedAt
+                        && !(category.ColorEditedAt is DateTimeOffset chosen && chosen <= _limit && chosen > changedAt))
                     {
                         continue;
                     }

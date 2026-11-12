@@ -27,7 +27,8 @@ public static class SharedListMerge
     /// This device's id (ADR 72): a stub of an item this device keeps as a local one never replaces its own full copy of the
     /// same or a newer time. Null where local items play no part.
     /// </param>
-    public static List<T> Merge<T>(IEnumerable<T> first, IEnumerable<T> second, DateTimeOffset now, Guid? self = null)
+    /// <param name="keepTombstones">Tombstones are kept for good, not <see cref="TombstonesKept"/> (labels: ids and stamps only, ADR 76).</param>
+    public static List<T> Merge<T>(IEnumerable<T> first, IEnumerable<T> second, DateTimeOffset now, Guid? self = null, bool keepTombstones = false)
         where T : ISharedItem
     {
         var winners = new Dictionary<Guid, T>();
@@ -43,7 +44,7 @@ public static class SharedListMerge
         // A local item's stub (ADR 72) is kept past the tombstones' 30 days: while it lives, an old copy can't come back.
         DateTimeOffset keptFrom = now - TombstonesKept;
         return winners.Values
-            .Where(item => item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom || item.LocalTo is not null)
+            .Where(item => keepTombstones || item.DeletedAt is not DateTimeOffset deletedAt || deletedAt > keptFrom || item.LocalTo is not null)
             .OrderBy(item => item.Position)
             .ThenBy(item => IdText(item), StringComparer.Ordinal)
             .ToList();

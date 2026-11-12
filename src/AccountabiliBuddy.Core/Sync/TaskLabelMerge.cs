@@ -8,7 +8,9 @@ namespace AccountabiliBuddy.Core.Sync;
 /// on its own: the copy with the newest <see cref="TaskLabel.RingOnStamp"/> gives it (a stamped list beats an unstamped one; between two
 /// stamps the later time, then the device id, then the list; a stamp far ahead counts as <see cref="SharedListMerge.FutureLimit"/> ahead).
 /// So a newer change to the label's name or colour made without the newest rings on (a PC rebuilding the label from an older phone's
-/// category) never takes the choice back, and every device picks the same whatever order the lists come in.
+/// category) never takes the choice back, and every device picks the same whatever order the lists come in. Label tombstones are kept
+/// for good (ids and stamps only, no text): an older phone keeps its categories for good, and a tombstone is what stops one bringing a
+/// deleted label back.
 /// </summary>
 public static class TaskLabelMerge
 {
@@ -16,7 +18,7 @@ public static class TaskLabelMerge
     {
         List<SyncTaskLabel> heldList = held.ToList();
         List<SyncTaskLabel> incomingList = incoming.ToList();
-        List<SyncTaskLabel> merged = SharedListMerge.Merge(heldList, incomingList, now);
+        List<SyncTaskLabel> merged = SharedListMerge.Merge(heldList, incomingList, now, keepTombstones: true);
         DateTimeOffset limit = now + SharedListMerge.FutureLimit;
 
         var newest = new Dictionary<Guid, TaskLabel>();

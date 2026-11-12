@@ -60,9 +60,9 @@ public sealed class TaskLabelService
     public async Task<Guid?> AddAsync(string name, string color)
     {
         Guid? added = null;
-        await _store.ChangeAsync(this, (lists, _, now) =>
+        await _store.ChangeAsync(this, (lists, self, now) =>
         {
-            TaskLists changed = TaskLabelEdits.Add(lists, name, color, now, out Guid? id);
+            TaskLists changed = TaskLabelEdits.Add(lists, name, color, now, self, out Guid? id);
             added = id;
             return changed;
         });
