@@ -8,14 +8,20 @@ public static class TodayLayoutRules
 {
     /// <summary>
     /// Every part once, in drawing order: the stored order first (unknown keys and repeats dropped), then any part the stored layout
-    /// doesn't name (added in a later version) at the end in its default place. Null gives the defaults.
+    /// doesn't name (added in a later version) at the end in its default place. Null gives the defaults; a null entry or key (a damaged
+    /// document) is skipped, so a bad stored layout can never stop Today drawing.
     /// </summary>
     public static IReadOnlyList<TodayPartChoice> Resolve(IReadOnlyList<TodayPartChoice>? stored)
     {
         var result = new List<TodayPartChoice>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (TodayPartChoice choice in stored ?? [])
+        foreach (TodayPartChoice? choice in stored ?? [])
         {
+            if (choice?.Key is null)
+            {
+                continue;
+            }
+
             if (TodayParts.ByKey(choice.Key) is not null && Enum.IsDefined(choice.Placement) && seen.Add(choice.Key))
             {
                 result.Add(choice);
@@ -38,6 +44,21 @@ public static class TodayLayoutRules
     {
         return chosen == TodayPartPlacement.Off && !CanTurnOff(part, isProductaBuddy) ? TodayPartPlacement.Chip : chosen;
     }
+
+    /// <summary>
+    /// Round 2 review (strictest reading of brief §4.2): outside ProductaBuddy the lunch chip stays in view while the sidebar is hidden
+    /// to its rail (a session's default): the rail carries it, when today has a lunch to show.
+    /// </summary>
+    public static bool LunchOnRail(bool sidebarOpen, bool isProductaBuddy, bool lunchShown) => !sidebarOpen && !isProductaBuddy && lunchShown;
+
+    /// <summary>A stored layout made safe: known parts only, no null entries, side-column choices that exist.</summary>
+    public static TodayLayoutPreferences Sanitized(TodayLayoutPreferences stored) => stored with
+    {
+        OutsideSession = stored.OutsideSession is null ? null : Resolve(stored.OutsideSession),
+        InSession = stored.InSession is null ? null : Resolve(stored.InSession),
+        SidebarInSession = Enum.IsDefined(stored.SidebarInSession) ? stored.SidebarInSession : TodaySidebarInSession.Hidden,
+        SidebarOutside = Enum.IsDefined(stored.SidebarOutside) ? stored.SidebarOutside : TodaySidebarOutside.Remember,
+    };
 
     /// <summary>Off is offered for the part: not for the lunch chip outside ProductaBuddy.</summary>
     public static bool CanTurnOff(TodayPartInfo part, bool isProductaBuddy) => isProductaBuddy || !part.ShownWhileGuarded;

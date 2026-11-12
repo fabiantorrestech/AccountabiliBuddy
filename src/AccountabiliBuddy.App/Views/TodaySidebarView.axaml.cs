@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
 using Avalonia.Animation;
@@ -13,11 +14,86 @@ namespace AccountabiliBuddy.App.Views;
 /// </summary>
 public partial class TodaySidebarView : UserControl
 {
+    private const string HiddenClass = "hidden";
+
+    // A little longer than the slide (220 ms) and the fade (180 ms), so the panel is drawn until it is out of sight.
+    private static readonly TimeSpan SlideOut = TimeSpan.FromMilliseconds(260);
+
+    private readonly DispatcherTimer _hideTimer = new() { Interval = SlideOut };
     private Transitions? _panelTransitions;
+    private TodaySidebarViewModel? _viewModel;
 
     public TodaySidebarView()
     {
         InitializeComponent();
+        // Round 2 review: a hidden panel leaves the Tab order and stops drawing once it has slid out, so Tab in a session can't land
+        // on an invisible button (IsEnabled follows IsOpen at once; IsVisible goes false after the slide, true again before one).
+        _hideTimer.Tick += (_, _) =>
+        {
+            _hideTimer.Stop();
+            if (_viewModel is not { IsOpen: true })
+            {
+                SidebarPanel.IsVisible = false;
+            }
+        };
+    }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (_viewModel is not null)
+        {
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        }
+
+        _viewModel = DataContext as TodaySidebarViewModel;
+        if (_viewModel is not null)
+        {
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+
+        // The first state shows at once (no slide).
+        _hideTimer.Stop();
+        bool open = _viewModel?.IsOpen == true;
+        SidebarPanel.Classes.Set(HiddenClass, !open);
+        SidebarPanel.IsVisible = open;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TodaySidebarViewModel.IsOpen))
+        {
+            ApplyOpen(_viewModel?.IsOpen == true);
+        }
+    }
+
+    // Opening: drawn first, then the "hidden" class goes on the next pass so the slide runs from out of sight. Closing: the class goes
+    // on now (the slide-out runs) and the panel stops being drawn once it is over; with Motion off, at once.
+    private void ApplyOpen(bool open)
+    {
+        _hideTimer.Stop();
+        if (open)
+        {
+            SidebarPanel.IsVisible = true;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_viewModel is { IsOpen: true })
+                {
+                    SidebarPanel.Classes.Set(HiddenClass, false);
+                }
+            }, DispatcherPriority.Render);
+            return;
+        }
+
+        SidebarPanel.Classes.Set(HiddenClass, true);
+        if (Services.Motion.Current is { IsOn: false })
+        {
+            SidebarPanel.IsVisible = false;
+        }
+        else
+        {
+            _hideTimer.Start();
+        }
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

@@ -44,6 +44,12 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
             }
             else if (e.PropertyName == nameof(SessionViewModel.Lunch))
             {
+                // The old lunch card stops being watched, so a replaced one isn't kept alive by this sidebar.
+                if (Lunch is not null)
+                {
+                    Lunch.PropertyChanged -= OnPartChanged;
+                }
+
                 Lunch = session.Lunch;
                 Watch(Lunch);
                 RefreshAvailability();
@@ -104,6 +110,18 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
     public partial IReadOnlyList<TodaySidebarPartViewModel> Chips { get; set; }
 
     public bool HasChips => Chips.Count > 0;
+
+    /// <summary>
+    /// Round 2 review (brief §4.2, strictest reading): outside ProductaBuddy the lunch chip stays in view on the rail while the sidebar
+    /// is hidden there (a session's default), when today has a lunch to show (<see cref="TodayLayoutRules.LunchOnRail"/>).
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowsLunchOnRail { get; set; }
+
+    /// <summary>The rail's lunch chip: the Lunch part, its pop-up the same panel as in the sidebar.</summary>
+    public TodaySidebarPartViewModel RailLunch => _railLunch ??= new TodaySidebarPartViewModel(this, TodayParts.Of(TodayPart.Lunch), TodayPartPlacement.Chip) { IsAvailable = true };
+
+    private TodaySidebarPartViewModel? _railLunch;
 
     /// <summary>Slid over the list (else only the rail at the right edge shows).</summary>
     public bool IsOpen => _state.IsOpen;
@@ -197,6 +215,7 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
 
     private void RefreshAvailability()
     {
+        ShowsLunchOnRail = TodayLayoutRules.LunchOnRail(_state.IsOpen, _layout.IsProductaBuddy, Lunch is { IsVisible: true });
         foreach (TodaySidebarPartViewModel part in Panels.Concat(Chips))
         {
             part.IsAvailable = part.Part switch
@@ -224,8 +243,13 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
     {
         if (source is not null)
         {
-            source.PropertyChanged += (_, _) => RefreshAvailability();
+            source.PropertyChanged += OnPartChanged;
         }
+    }
+
+    private void OnPartChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RefreshAvailability();
     }
 
     private void WatchItems(INotifyCollectionChanged? source)

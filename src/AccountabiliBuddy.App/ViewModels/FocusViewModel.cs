@@ -311,7 +311,6 @@ public sealed partial class FocusViewModel : ObservableObject
         return _endSession();
     }
 
-    /// <summary>Reads the session again (also every second).</summary>
     /// <summary>
     /// Round 2 (Today's session card, brief §4.2): the line under the ring, "ends 1:23 PM · QS - Default" (12-hour), "break until …",
     /// "since …" for no set end, or the away line while stepped away.
@@ -323,6 +322,7 @@ public sealed partial class FocusViewModel : ObservableObject
     [ObservableProperty]
     public partial string RingLabel { get; set; } = string.Empty;
 
+    /// <summary>Reads the session again (also every second).</summary>
     public void Refresh()
     {
         SessionState state = _sessions.State;

@@ -334,6 +334,16 @@
                         AutomationProperties.Name="Show or hide the Today sidebar">
                     <mi:MaterialIcon Kind="ArrowLeft" Width="16" Height="16" />
                 </Button>
+                <!-- Outside ProductaBuddy the lunch chip stays in view while the sidebar is hidden here (round 2 review). -->
+                <Button Classes="sideIcon" HorizontalAlignment="Center" IsVisible="{Binding ShowsLunchOnRail}" ToolTip.Tip="{Binding Lunch.Text, FallbackValue=Lunch}"
+                        AutomationProperties.Name="Lunch">
+                    <mi:MaterialIcon Kind="SilverwareForkKnife" Width="15" Height="15" />
+                    <Button.Flyout>
+                        <Flyout Placement="LeftEdgeAlignedTop">
+                            <ContentControl Width="300" Content="{Binding RailLunch}" ContentTemplate="{StaticResource PartContent}" />
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
                 <LayoutTransformControl HorizontalAlignment="Center">
                     <LayoutTransformControl.LayoutTransform>
                         <RotateTransform Angle="90" />
@@ -346,9 +356,10 @@
             </StackPanel>
         </Border>
 
-        <!-- The panel: slides over the list from the right; hidden, it is past the rail, see-through and takes no clicks. -->
+        <!-- The panel: slides over the list from the right; hidden, it is past the rail, see-through, takes no clicks and is out of the
+             Tab order (disabled at once, not drawn once the slide-out ends; the code-behind sets "hidden" and IsVisible). -->
         <Border x:Name="SidebarPanel" HorizontalAlignment="Right" VerticalAlignment="Stretch" Margin="0,0,38,8" ZIndex="5"
-                Classes.hidden="{Binding !IsOpen}" Classes.quiet="{Binding IsQuiet}" IsHitTestVisible="{Binding IsOpen}"
+                Classes.quiet="{Binding IsQuiet}" IsHitTestVisible="{Binding IsOpen}" IsEnabled="{Binding IsOpen}"
                 Focusable="False">
             <Border.Transitions>
                 <Transitions>

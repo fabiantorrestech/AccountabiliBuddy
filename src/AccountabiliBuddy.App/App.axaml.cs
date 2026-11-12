@@ -1414,6 +1414,8 @@ public partial class App : Application
         syncCoordinator.Guidance = guidance.ForSync;
         guidance.Changed += (_, _) =>
         {
+            // Round 2 review: the Today layout's lunch rule depends on the mode; the sidebar and Settings › Today read it again.
+            Dispatcher.UIThread.Post(() => _todayLayout?.ModeChanged());
             _enforcement?.Refresh();
             _startNudge?.CheckNow();
             _preWork?.CheckNow();
@@ -1647,6 +1649,8 @@ public partial class App : Application
         var todayLayout = new AccountabiliBuddy.App.Services.Today.TodayLayoutService(documents, () => AppBrand.Name == AppBrand.CompanionName);
         todayLayout.LoadBlocking();
         _todayLayout = todayLayout;
+        // The app's name follows the mode (ADR 68): its change also redraws the Today layout (the lunch rule reads it).
+        AppBrand.Changed += (_, _) => Dispatcher.UIThread.Post(todayLayout.ModeChanged);
         var mainViewModel = new MainWindowViewModel(
             sessionViewModel,
             new ProfilesViewModel(_configuration, _sessions, pendingChanges, overlaySettings, _coldTurkey, receivedDevices, exemptionDefaults),

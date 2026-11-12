@@ -16,6 +16,8 @@ public sealed class TodayLayoutService
 
     private static readonly JsonSerializerOptions ReadOptions = new(JsonSerializerDefaults.Web);
 
+    private const string UnreadableNote = "Today's layout in the backup couldn't be read; this PC's stays.";
+
     private readonly SqliteJsonDocumentStore _documents;
     private readonly Func<bool> _isProductaBuddy;
 
@@ -38,9 +40,10 @@ public sealed class TodayLayoutService
     {
         try
         {
-            Current = Task.Run(() => _documents.LoadAsync<TodayLayoutPreferences>(DocumentKey)).GetAwaiter().GetResult() ?? TodayLayoutPreferences.Default;
+            TodayLayoutPreferences? stored = Task.Run(() => _documents.LoadAsync<TodayLayoutPreferences>(DocumentKey)).GetAwaiter().GetResult();
+            Current = stored is null ? TodayLayoutPreferences.Default : TodayLayoutRules.Sanitized(stored);
         }
-        catch (Exception ex) when (ex is SqliteException or JsonException or InvalidOperationException or NotSupportedException)
+        catch (Exception ex) when (ex is SqliteException or JsonException or InvalidOperationException or NotSupportedException or ArgumentException)
         {
             Current = TodayLayoutPreferences.Default;
         }
@@ -77,6 +80,15 @@ public sealed class TodayLayoutService
         return ReferenceEquals(next, parts) ? Task.CompletedTask : UpdateAsync(current => current.WithParts(inSession, next));
     }
 
+    /// <summary>
+    /// The app's mode changed (ADR 68, ProductaBuddy ↔ AccountabiliBuddy): the lunch rule depends on it, so everything that draws the
+    /// layout (the sidebar, Settings › Today) reads it again. Nothing is saved.
+    /// </summary>
+    public void ModeChanged()
+    {
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public Task SetSidebarInSessionAsync(TodaySidebarInSession choice) => UpdateAsync(current => current with { SidebarInSession = choice });
 
     public Task SetSidebarOutsideAsync(TodaySidebarOutside choice) => UpdateAsync(current => current with { SidebarOutside = choice });
@@ -92,31 +104,31 @@ public sealed class TodayLayoutService
     /// </summary>
     public async Task<string?> RestoreAsync(JsonElement value)
     {
-        TodayLayoutPreferences? wanted;
+        TodayLayoutPreferences cleaned;
         try
         {
-            wanted = value.Deserialize<TodayLayoutPreferences>(ReadOptions);
+            // Any shape that isn't a Today layout (a wrong type, a null entry, a number out of range) counts as unreadable.
+            if (value.ValueKind != JsonValueKind.Object || value.Deserialize<TodayLayoutPreferences>(ReadOptions) is not { } wanted
+                || IsDamaged(wanted.OutsideSession) || IsDamaged(wanted.InSession)
+                || !Enum.IsDefined(wanted.SidebarInSession) || !Enum.IsDefined(wanted.SidebarOutside))
+            {
+                return UnreadableNote;
+            }
+
+            cleaned = TodayLayoutRules.Sanitized(wanted);
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
         {
-            return "Today's layout in the backup couldn't be read; this PC's stays.";
+            return UnreadableNote;
         }
 
-        if (wanted is null)
-        {
-            return null;
-        }
-
-        TodayLayoutPreferences cleaned = wanted with
-        {
-            OutsideSession = wanted.OutsideSession is null ? null : TodayLayoutRules.Resolve(wanted.OutsideSession),
-            InSession = wanted.InSession is null ? null : TodayLayoutRules.Resolve(wanted.InSession),
-            SidebarInSession = Enum.IsDefined(wanted.SidebarInSession) ? wanted.SidebarInSession : TodaySidebarInSession.Hidden,
-            SidebarOutside = Enum.IsDefined(wanted.SidebarOutside) ? wanted.SidebarOutside : TodaySidebarOutside.Remember,
-        };
         await UpdateAsync(_ => cleaned);
         return null;
     }
+
+    // A null entry, a null key or a place that doesn't exist: not a layout this app wrote.
+    private static bool IsDamaged(IReadOnlyList<TodayPartChoice>? parts) =>
+        parts is not null && parts.Any(choice => choice?.Key is null || !Enum.IsDefined(choice.Placement));
 
     private async Task UpdateAsync(Func<TodayLayoutPreferences, TodayLayoutPreferences> change)
     {
