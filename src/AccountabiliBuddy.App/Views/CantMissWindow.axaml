@@ -1,0 +1,176 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        x:Class="AccountabiliBuddy.App.Views.CantMissWindow"
+        x:DataType="vm:ReminderStackViewModel"
+        Title="Task reminder"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- Spec 03 §D (P12): the dimmed screen with a centred card, for Can't miss and for every reminder when "How reminders show" is
+         Always full screen. One of these covers each screen; only the primary screen's shows the card. -->
+    <Window.Styles>
+        <Style Selector="Button.remAccent">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.remAccent /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.remAccent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="0.92" />
+        </Style>
+        <Style Selector="Button.remLine">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.remLine /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.remLine:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.remRow">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.remRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.remRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="controls|ReminderDismissButton">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BaseBrush" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="FillBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="controls|ReminderDismissButton /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="controls|ReminderDismissButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+    </Window.Styles>
+
+    <Panel Background="{DynamicResource Ab.Scrim}">
+        <Border x:Name="Card" IsVisible="False" Width="360" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource Ab.Surface}" CornerRadius="18" BoxShadow="{DynamicResource Ab.AlarmShadow}" Padding="22,22,22,18">
+            <StackPanel Spacing="8" HorizontalAlignment="Stretch">
+                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                    <mi:MaterialIcon Kind="AlarmLightOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsCantMiss}" />
+                    <mi:MaterialIcon Kind="BellRingOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" IsVisible="{Binding IsPlainFullScreen}" />
+                    <TextBlock Text="{Binding FullHead}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="290"
+                               Foreground="{DynamicResource Ab.Muted}" Classes.cantMiss="{Binding IsCantMiss}">
+                        <TextBlock.Styles>
+                            <Style Selector="TextBlock.cantMiss">
+                                <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+                            </Style>
+                        </TextBlock.Styles>
+                    </TextBlock>
+                </StackPanel>
+                <!-- The big clock: 12-hour digits, AM/PM small beside them. -->
+                <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding ClockDigits}" FontSize="46" FontFamily="{DynamicResource Ab.NumeralFont}" FontWeight="Medium"
+                               LineHeight="46" Foreground="{DynamicResource Ab.Ink}" />
+                    <TextBlock Text="{Binding ClockSuffix}" FontSize="15" FontFamily="{DynamicResource Ab.NumeralFont}" FontWeight="Medium"
+                               VerticalAlignment="Bottom" Margin="0,0,0,6" Foreground="{DynamicResource Ab.Muted}" />
+                </StackPanel>
+                <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" LineHeight="19.5" TextWrapping="Wrap" MaxLines="2"
+                           TextTrimming="CharacterEllipsis" TextAlignment="Center" Foreground="{DynamicResource Ab.Ink}" ToolTip.Tip="{Binding Title}" />
+                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding FullMeta}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="290" />
+                </StackPanel>
+                <Border IsVisible="{Binding HasNudge}" Padding="11,9" Margin="0,4,0,0" CornerRadius="8" Background="{DynamicResource Ab.AccentSoft}">
+                    <TextBlock Text="{x:Static vm:ReminderStackViewModel.NudgeText}" FontSize="12.5" FontStyle="Italic" LineHeight="17.5"
+                               TextWrapping="Wrap" TextAlignment="Left" Foreground="{DynamicResource Ab.Ink}" />
+                </Border>
+                <TextBlock Text="{Binding VolumeNote}" IsVisible="{Binding HasVolumeNote}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                           HorizontalAlignment="Center" />
+
+                <!-- A normal reminder shown full screen keeps the Snooze menu (Can't miss has "Snooze 5"). -->
+                <Border IsVisible="{Binding IsSnoozeOpen}" Margin="0,6,0,0" Padding="4" CornerRadius="{DynamicResource Ab.PopoverRadius}"
+                        Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1">
+                    <StackPanel Spacing="1">
+                        <ItemsControl ItemsSource="{Binding SnoozeMinutes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ReminderSnoozeChoiceViewModel">
+                                    <Button Classes="remRow" Command="{Binding Command}" IsEnabled="{Binding IsEnabled}" Content="{Binding Text}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding SnoozeShortcuts}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ReminderSnoozeChoiceViewModel">
+                                    <Button Classes="remRow" Command="{Binding Command}" IsEnabled="{Binding IsEnabled}" Content="{Binding Text}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Classes="remRow" Command="{Binding PickTimeCommand}" Content="Pick a time…" />
+                    </StackPanel>
+                </Border>
+
+                <Grid ColumnDefinitions="1.3*,*,*" ColumnSpacing="6" Margin="0,8,0,0">
+                    <Button Classes="remAccent" Command="{Binding PrimaryCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <mi:MaterialIcon Kind="{Binding PrimaryIcon}" Width="16" Height="16" />
+                            <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="1" Classes="remLine" Content="Snooze 5" Command="{Binding SnoozeFiveCommand}" IsVisible="{Binding IsCantMiss}"
+                            ToolTip.Tip="Ring again in 5 minutes" />
+                    <Button Grid.Column="1" Classes="remLine" Command="{Binding ToggleSnoozeCommand}" IsVisible="{Binding IsPlainFullScreen}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="Snooze" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Kind="ChevronUp" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" />
+                        </StackPanel>
+                    </Button>
+                    <controls:ReminderDismissButton Grid.Column="2" Content="{Binding DismissText}" Command="{Binding DismissCommand}"
+                                                    WaitLeft="{Binding WaitLeft}" WaitTotal="{Binding WaitTotal}" HoldTime="{Binding HoldTime}"
+                                                    Clock="{Binding Now}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Panel>
+</Window>

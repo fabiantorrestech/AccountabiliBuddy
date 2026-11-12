@@ -1347,7 +1347,11 @@ public partial class App : Application
             _taskReminders = new AccountabiliBuddy.App.Services.Tasks.TaskReminderService(taskStore, reminderSettings, documents, time) { Actions = _taskActions };
             _taskReminders.LoadBlocking();
             _taskReminderRinger = new AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger(
-                _taskReminders, reminderSettings, _sessionCues!, volumeGuard, () => _sessions!.State.IsActive, () => _sessionOverlay.Glow());
+                _taskReminders, reminderSettings, _sessionCues!, volumeGuard, () => _sessions!.State.IsActive, () => _sessionOverlay.Glow())
+            {
+                // "Start session" on a reminder card: the task waits in This session and the usual start controls open (no session starts by itself).
+                OpenStart = () => _quickSession?.Show(),
+            };
             _taskReminders.SessionRunning = () => _sessions!.State.IsActive;
             // A session starting holds normal reminders and its end queues the held ones (setting: During a focus session).
             _sessions!.StateChanged += (_, _) => _taskReminders.Refresh();

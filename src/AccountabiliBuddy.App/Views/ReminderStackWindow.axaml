@@ -1,0 +1,289 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+        xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+        x:Class="AccountabiliBuddy.App.Views.ReminderStackWindow"
+        x:DataType="vm:ReminderStackViewModel"
+        Title="Task reminder"
+        Width="428" SizeToContent="Height"
+        WindowDecorations="None" CanResize="False"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False"
+        WindowStartupLocation="Manual"
+        TransparencyLevelHint="Transparent" Background="Transparent">
+    <!-- Spec 03 §D (P7, P8, P12): the toast stack at the bottom right of the screen (370 wide, right 18, bottom 18). The window is
+         transparent around the card so the tilted cards behind it and the Snooze menu above it fit; it grows upwards. -->
+    <Window.Styles>
+        <Style Selector="Button.remAccent">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.remAccent /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.remAccent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Opacity" Value="0.92" />
+        </Style>
+        <Style Selector="Button.remLine">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.remLine /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.remLine:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="controls|ReminderDismissButton">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BaseBrush" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="FillBrush" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="controls|ReminderDismissButton /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="controls|ReminderDismissButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.remPill">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="MinWidth" Value="24" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.remPill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.remPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.remText">
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.remText /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.remText:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.remRow">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="8,9" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.remRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.remRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.remRow.shown /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.remBehind">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.ReminderBehindShadow}" />
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="40,40,18,18" Width="370" Spacing="8" VerticalAlignment="Bottom">
+        <!-- The Snooze menu, above the card (spec 03 §D). -->
+        <Border IsVisible="{Binding IsSnoozeOpen}" Width="250" HorizontalAlignment="Center" Margin="0,0,0,32"
+                Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
+                CornerRadius="{DynamicResource Ab.PopoverRadius}" BoxShadow="{DynamicResource Ab.PopoverShadow}" Padding="4">
+            <StackPanel Spacing="1">
+                <TextBlock Text="For a while" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" Margin="8,6,8,2" />
+                <ItemsControl ItemsSource="{Binding SnoozeMinutes}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ReminderSnoozeChoiceViewModel">
+                            <Button Classes="remRow" Padding="8,6" Command="{Binding Command}" IsEnabled="{Binding IsEnabled}">
+                                <TextBlock Text="{Binding Text}" />
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Until a moment" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" Margin="8,6,8,2" />
+                <ItemsControl ItemsSource="{Binding SnoozeShortcuts}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ReminderSnoozeChoiceViewModel">
+                            <Button Classes="remRow" Padding="8,6" Command="{Binding Command}" IsEnabled="{Binding IsEnabled}">
+                                <TextBlock Text="{Binding Text}" />
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Separator Margin="6,2" />
+                <Button Classes="remRow" Padding="8,6" Command="{Binding PickTimeCommand}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Pick a time…" />
+                        <mi:MaterialIcon Grid.Column="1" Kind="ChevronRight" Width="15" Height="15" Foreground="{DynamicResource Ab.Faint}" />
+                    </Grid>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Grid>
+            <!-- Up to 3 tilted cards behind the front one: −4°, 3°, −1.5° (the farthest first). -->
+            <Border Classes="remBehind" IsVisible="{Binding ShowsBehindFar}" RenderTransform="rotate(-4deg) translate(-6px,-24px)" />
+            <Border Classes="remBehind" IsVisible="{Binding ShowsBehindMid}" RenderTransform="rotate(3deg) translate(4px,-16px)" />
+            <Border Classes="remBehind" IsVisible="{Binding ShowsBehindNear}" RenderTransform="rotate(-1.5deg) translate(-2px,-8px)" />
+
+            <Border Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="12"
+                    BoxShadow="{DynamicResource Ab.PopoverShadow}" Padding="16,14,14,12">
+                <Panel>
+                    <!-- The list view ("All 6"): every reminder waiting; a click shows its card. -->
+                    <StackPanel Spacing="10" IsVisible="{Binding IsListView}">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                            <Button Classes="remPill" Width="22" Height="22" Padding="0" CornerRadius="5" Command="{Binding BackCommand}"
+                                    ToolTip.Tip="Back" AutomationProperties.Name="Back">
+                                <mi:MaterialIcon Kind="ArrowLeft" Width="15" Height="15" />
+                            </Button>
+                            <TextBlock Grid.Column="1" Text="{Binding ListHead}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="2" Classes="remText" Content="Snooze all" Command="{Binding SnoozeAllCommand}"
+                                    ToolTip.Tip="Snooze every reminder here for 10 minutes" />
+                            <Button Grid.Column="3" Classes="remText" Content="Dismiss all" Command="{Binding DismissAllCommand}"
+                                    ToolTip.Tip="Dismiss every reminder here (Can't miss ones need their own hold)" />
+                        </Grid>
+                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding Rows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ReminderListRowViewModel">
+                                        <Button Classes="remRow" Classes.shown="{Binding IsShown}" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding Title}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                                                <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Time}" FontSize="11" FontFamily="{DynamicResource Ab.NumeralFont}"
+                                                           Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                <mi:MaterialIcon Grid.Column="3" Kind="ChevronRight" Width="15" Height="15" Foreground="{DynamicResource Ab.Faint}" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+
+                    <!-- The front card. -->
+                    <StackPanel Spacing="10" IsVisible="{Binding IsCardView}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                            <mi:MaterialIcon Kind="BellRingOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Head}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Head}" />
+                            <!-- "All 6 | ‹ 1/6 ›" -->
+                            <Border Grid.Column="2" IsVisible="{Binding IsMulti}" Height="24" CornerRadius="12" ClipToBounds="True"
+                                    Background="{DynamicResource Ab.Surface2}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Classes="remPill" Command="{Binding ShowAllCommand}" ToolTip.Tip="See all reminders">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <mi:MaterialIcon Kind="LayersOutline" Width="13" Height="13" />
+                                            <TextBlock Text="{Binding CountText}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Border Width="1" Height="14" Background="{DynamicResource Ab.Line}" VerticalAlignment="Center" />
+                                    <Button Classes="remPill" Width="24" Padding="0" Command="{Binding PreviousCommand}"
+                                            ToolTip.Tip="Previous reminder" AutomationProperties.Name="Previous reminder">
+                                        <mi:MaterialIcon Kind="ChevronLeft" Width="16" Height="16" />
+                                    </Button>
+                                    <TextBlock Text="{Binding PositionText}" MinWidth="26" TextAlignment="Center" VerticalAlignment="Center"
+                                               FontSize="11" FontFamily="{DynamicResource Ab.NumeralFont}" Foreground="{DynamicResource Ab.Muted}" />
+                                    <Button Classes="remPill" Width="24" Padding="0" Command="{Binding NextCommand}"
+                                            ToolTip.Tip="Next reminder" AutomationProperties.Name="Next reminder">
+                                        <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" LineHeight="19.5" TextWrapping="Wrap" MaxLines="2"
+                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" ToolTip.Tip="{Binding Title}" Padding="0,0,4,0" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Meta}" FontSize="12.5" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                            </StackPanel>
+                        </StackPanel>
+                        <!-- Snoozed 3 times: the italic nudge in an accent tint. -->
+                        <Border IsVisible="{Binding HasNudge}" Padding="11,9" CornerRadius="8" Background="{DynamicResource Ab.AccentSoft}">
+                            <TextBlock Text="{x:Static vm:ReminderStackViewModel.NudgeText}" FontSize="12.5" FontStyle="Italic" LineHeight="17.5"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource Ab.Ink}" />
+                        </Border>
+                        <TextBlock Text="{Binding VolumeNote}" IsVisible="{Binding HasVolumeNote}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" />
+                        <Grid ColumnDefinitions="1.4*,*,*" ColumnSpacing="6">
+                            <Button Classes="remAccent" Command="{Binding PrimaryCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <mi:MaterialIcon Kind="{Binding PrimaryIcon}" Width="16" Height="16" />
+                                    <TextBlock Text="{Binding PrimaryText}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="1" Classes="remLine" Command="{Binding ToggleSnoozeCommand}" ToolTip.Tip="Snooze: 5, 10 or 30 min, a shortcut, or a time">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="Snooze" VerticalAlignment="Center" />
+                                    <mi:MaterialIcon Kind="ChevronUp" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" />
+                                </StackPanel>
+                            </Button>
+                            <controls:ReminderDismissButton Grid.Column="2" Content="{Binding DismissText}" Command="{Binding DismissCommand}"
+                                                            WaitLeft="{Binding WaitLeft}" WaitTotal="{Binding WaitTotal}" HoldTime="{Binding HoldTime}"
+                                                            Clock="{Binding Now}" />
+                        </Grid>
+                    </StackPanel>
+                </Panel>
+            </Border>
+        </Grid>
+    </StackPanel>
+</Window>

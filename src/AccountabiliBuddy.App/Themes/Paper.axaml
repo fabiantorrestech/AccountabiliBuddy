@@ -123,6 +123,10 @@
     <!-- Menus and popovers on the Tasks page (spec 06 "pr", PC values), with the shared popover shadow (spec 03 §C). -->
     <CornerRadius x:Key="Ab.PopoverRadius">14</CornerRadius>
     <BoxShadows x:Key="Ab.PopoverShadow">0 16 40 0 #38000000</BoxShadows>
+    <!-- Task reminders (spec 03 §D): the tilted cards behind the toast stack, the full-screen card and the scrim behind it. -->
+    <BoxShadows x:Key="Ab.ReminderBehindShadow">0 6 16 0 #1F000000</BoxShadows>
+    <BoxShadows x:Key="Ab.AlarmShadow">0 24 60 0 #59000000</BoxShadows>
+    <SolidColorBrush x:Key="Ab.Scrim" Color="#8C0A0E14" />
     <!-- The time-left ring beside the timer digits: nudged so it sits on the digits' middle, which depends on the numeral font. -->
     <Thickness x:Key="Ab.TimeRingMargin">0,-24,0,0</Thickness>
     <Thickness x:Key="Ab.CardBorderThickness">1</Thickness>

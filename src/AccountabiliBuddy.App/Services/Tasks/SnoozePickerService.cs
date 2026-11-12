@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// "Pick a time…" for a ringing reminder: shows "Snooze until…" (<see cref="SnoozePickerDialog"/>) over the window that asked and
 /// snoozes the reminder to the moment picked (<see cref="TaskReminderService.SnoozeAsync"/>). Snooze works at once, as everywhere; only
-/// Dismiss waits. The stand-in reminder window uses it now; M6's reminder cards reuse <see cref="ShowAsync"/>. Use from the UI thread.
+/// Dismiss waits. The reminder cards' "Pick a time…" (<see cref="TaskReminderRinger"/>) use it. Use from the UI thread.
 /// </summary>
 public sealed class SnoozePickerService
 {

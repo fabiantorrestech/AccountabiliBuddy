@@ -103,6 +103,14 @@ public sealed class TaskReminderService : IDisposable
         return task;
     }
 
+    /// <summary>The task's label (name and colour, for the card's dot); null for "No label" or a label that is gone.</summary>
+    public TaskLabel? LabelOf(Guid? labelId)
+    {
+        return labelId is Guid id
+            ? _store.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id)
+            : null;
+    }
+
     /// <summary>Works out what is due now and when to look next; raises <see cref="PendingChanged"/> when the due list changed.</summary>
     public void Refresh()
     {
@@ -179,14 +187,16 @@ public sealed class TaskReminderService : IDisposable
     /// own add (its cap holds: a full session raises <see cref="SessionFull"/> and leaves the task where it is). A session isn't
     /// started or changed here: the normal start path is the user's.
     /// </summary>
-    public async Task StartAsync(TaskReminderEntry entry)
+    /// <returns>True when the task is now in This session (false for a test ring, a full session, or no task actions).</returns>
+    public async Task<bool> StartAsync(TaskReminderEntry entry)
     {
         if (EndTest(entry))
         {
-            return;
+            return false;
         }
 
         await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Start(lists, entry, now, self).Lists);
+        bool movedIn = false;
         if (Actions is not null)
         {
             TaskMoveOutcome outcome = await Actions.MoveToSessionAsync([entry.TaskId]);
@@ -194,8 +204,33 @@ public sealed class TaskReminderService : IDisposable
             {
                 SessionFull?.Invoke(this, entry.TaskId);
             }
+            else
+            {
+                movedIn = true;
+            }
         }
 
+        Refresh();
+        return movedIn;
+    }
+
+    /// <summary>
+    /// "Add to Queued" on the snoozed-3-times nudge: the task moves to Queued (the task actions' move, undoable like any move) and this
+    /// reminder is handled as dismissed. A deliberate move, so it doesn't wait out dismiss protection (only Dismiss waits).
+    /// </summary>
+    public async Task QueueAsync(TaskReminderEntry entry)
+    {
+        if (EndTest(entry))
+        {
+            return;
+        }
+
+        if (Actions is not null)
+        {
+            await Actions.MoveAsync([entry.TaskId], TaskBin.Queued);
+        }
+
+        await _store.ChangeAsync(null, (lists, self, now) => TaskReminderActions.Dismiss(lists, entry, now, self).Lists);
         Refresh();
     }
 
