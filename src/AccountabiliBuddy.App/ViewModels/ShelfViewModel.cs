@@ -66,7 +66,13 @@ public sealed partial class ShelfViewModel : ObservableObject
     [ObservableProperty]
     public partial string CountText { get; set; }
 
-    /// <summary>The labels editor (the chip row's "+") is open under the chips.</summary>
+    /// <summary>
+    /// Opens the Labels screen (Settings › Tasks › Labels): the chip row's "+" and the View menu's "Manage labels…". Set by the app while
+    /// the task list is the source; without it the "+" opens the older editor under the chips.
+    /// </summary>
+    public Action? OpenLabels { get; set; }
+
+    /// <summary>The labels editor (the chip row's "+") is open under the chips (only without the Labels screen).</summary>
     [ObservableProperty]
     public partial bool IsManagingLabels { get; set; }
 
@@ -139,7 +145,16 @@ public sealed partial class ShelfViewModel : ObservableObject
     private void Hide() => _hide();
 
     [RelayCommand]
-    private void ToggleManageLabels() => IsManagingLabels = !IsManagingLabels;
+    private void ToggleManageLabels()
+    {
+        if (OpenLabels is not null)
+        {
+            OpenLabels();
+            return;
+        }
+
+        IsManagingLabels = !IsManagingLabels;
+    }
 
     [RelayCommand]
     private void ClearSearch() => SearchText = string.Empty;
@@ -406,6 +421,12 @@ public sealed partial class ShelfViewModel : ObservableObject
 
         entries.Add(new TaskMenuEntry(
             "No label", new RelayCommand(() => _views?.Modify(config => config with { NoLabel = !config.NoLabel })), IsChecked: working.NoLabel));
+        if (OpenLabels is not null)
+        {
+            entries.Add(TaskMenuEntry.Separator);
+            entries.Add(TaskMenuEntry.Do("Manage labels…", OpenLabels, MaterialIconKind.CogOutline));
+        }
+
         return entries;
     }
 

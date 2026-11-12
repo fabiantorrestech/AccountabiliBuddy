@@ -6,8 +6,8 @@ using AccountabiliBuddy.Core.Tasks;
 namespace AccountabiliBuddy.App.Services.Tasks;
 
 /// <summary>
-/// The Tasks settings that belong to the user's account, not to this PC (owner, 2026-11-11): the view the Shelf opens with and ADR 78's
-/// experimental picked calendar for tasks with a due date. Kept with the task list (<see cref="TaskStore"/>, document "tasks.account"),
+/// The Tasks settings that belong to the user's account, not to this PC (owner, 2026-11-11): the view the Shelf opens with, ADR 78's
+/// experimental picked calendar for tasks with a due date and the devices task reminders ring on. Kept with the task list (<see cref="TaskStore"/>, document "tasks.account"),
 /// so they sync with it (the sync file's <see cref="SyncFile.TaskAccountSettings"/>, governed by "Sync task lists"), go in task-list
 /// backups and merge field by field, newest choice first (<see cref="TaskAccountSettingsMerge"/>). The same in both modes.
 /// <para>
@@ -55,6 +55,9 @@ public sealed class TaskAccountSettingsService
     /// </summary>
     public bool PickedCalendarChosen => TaskAccountSettingsEdits.IsChosen(Current.PickedCalendarStamp);
 
+    /// <summary>"Task reminders ring on": the device ids that ring for task reminders; null for every device (a PC always rings for its own).</summary>
+    public IReadOnlyList<Guid>? RingOn => Current.RingOn;
+
     /// <summary>A setting changed, here or on another device.</summary>
     public event EventHandler? Changed;
 
@@ -71,6 +74,12 @@ public sealed class TaskAccountSettingsService
     public Task<bool> SetPickedCalendarAsync(string? calendarId)
     {
         return _store.ChangeAsync(this, (lists, self, now) => lists with { Account = TaskAccountSettingsEdits.WithPickedCalendar(lists.Account, calendarId, now, self) });
+    }
+
+    /// <summary>"Task reminders ring on" for every device (null: every device). Phones honour it; a PC always rings for its own reminders.</summary>
+    public Task<bool> SetRingOnAsync(IReadOnlyList<Guid>? ringOn)
+    {
+        return _store.ChangeAsync(this, (lists, self, now) => lists with { Account = TaskAccountSettingsEdits.WithRingOn(lists.Account, ringOn, now, self) });
     }
 
     /// <summary>

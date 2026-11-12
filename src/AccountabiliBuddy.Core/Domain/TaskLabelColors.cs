@@ -43,6 +43,61 @@ public static class TaskLabelColors
         return string.Equals(Opaque(first), Opaque(second), StringComparison.Ordinal);
     }
 
+    /// <summary>The colour's opacity, from 0 to 1; 1 when it can't be read.</summary>
+    public static double OpacityOf(string? color)
+    {
+        return Parse(color)?.Alpha ?? 1.0;
+    }
+
+    /// <summary>
+    /// The colour with <paramref name="opacity"/> (kept between <see cref="MinOpacity"/> and 1): "#RRGGBB" when fully opaque, else
+    /// "rgba(r,g,b,a)" with two decimals. The set's first colour when <paramref name="color"/> can't be read.
+    /// </summary>
+    public static string WithOpacity(string? color, double opacity)
+    {
+        string opaque = Opaque(color);
+        double alpha = Math.Round(Math.Clamp(opacity, MinOpacity, 1.0), 2);
+        if (alpha >= 1.0)
+        {
+            return opaque;
+        }
+
+        (byte red, byte green, byte blue, _) = Parse(opaque)!.Value;
+        return string.Create(CultureInfo.InvariantCulture, $"rgba({red},{green},{blue},{alpha:0.##})");
+    }
+
+    /// <summary>The colour as "#AARRGGBB" (the form UI toolkits read, alpha first); the set's first colour when it can't be read.</summary>
+    public static string ArgbHex(string? color)
+    {
+        (byte Red, byte Green, byte Blue, double Alpha) parsed = Parse(color) ?? Parse(Set[0])!.Value;
+        byte alpha = (byte)Math.Round(parsed.Alpha * 255.0);
+        return string.Create(CultureInfo.InvariantCulture, $"#{alpha:X2}{parsed.Red:X2}{parsed.Green:X2}{parsed.Blue:X2}");
+    }
+
+    /// <summary>
+    /// What the user typed as a colour ("#RRGGBB", "#RRGGBBAA", the same without the #, or "rgba(r,g,b,a)"), in its stored form:
+    /// "#RRGGBB" in upper case when opaque, else "rgba(r,g,b,a)" (<see cref="WithOpacity"/>; an opacity under
+    /// <see cref="MinOpacity"/> is raised to it). Null when it isn't a colour.
+    /// </summary>
+    public static string? Typed(string? text)
+    {
+        string trimmed = (text ?? string.Empty).Trim();
+        if (trimmed.Length is 6 or 8 && trimmed.All(char.IsAsciiHexDigit))
+        {
+            trimmed = "#" + trimmed;
+        }
+
+        (byte Red, byte Green, byte Blue, double Alpha)? parsed = Parse(trimmed);
+        if (parsed is null)
+        {
+            return null;
+        }
+
+        return parsed.Value.Alpha >= 1.0 && !trimmed.StartsWith("rgba", StringComparison.OrdinalIgnoreCase) && trimmed.Length == 7
+            ? trimmed.ToUpperInvariant()
+            : WithOpacity(trimmed, parsed.Value.Alpha);
+    }
+
     /// <summary>The first colour of <see cref="Set"/> no live label uses (by its opaque form); the first one when all are used.</summary>
     public static string FirstUnused(IEnumerable<TaskLabel> labels)
     {

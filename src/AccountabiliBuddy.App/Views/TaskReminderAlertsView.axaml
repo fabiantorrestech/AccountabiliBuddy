@@ -1,0 +1,227 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:search="using:AccountabiliBuddy.App.Services.Search"
+             x:Class="AccountabiliBuddy.App.Views.TaskReminderAlertsView"
+             x:DataType="vm:TaskReminderAlertsViewModel">
+    <!-- Settings › Alerts & on-screen › Task reminders and Task reminders ring on (spec 03 §D, 05 §7, Settings Restructure Plan; after
+         "Sounds when time is up"). Rows save at once (this PC's ring settings; the ring-on list is the account's, synced). Row rules (08):
+         icons level with the title's first line, long values bold under the description, short values on the right. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.sValue">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.rowIcon">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="12">
+        <!-- Task reminders -->
+        <StackPanel Spacing="6" search:SearchArea.Name="Task reminders">
+            <TextBlock Classes="sGroup" Text="Task reminders" />
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow" search:SearchArea.Name="Reminder volume">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="VolumeHigh" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Volume" />
+                                <TextBlock Classes="sHint" Text="How loud a task reminder rings on this PC. Default 70%." />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                <Slider Minimum="10" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding Volume}" Width="180"
+                                        AutomationProperties.Name="Task reminder volume" />
+                                <TextBlock Text="{Binding Volume, StringFormat={}{0:0}%}" VerticalAlignment="Center" MinWidth="40" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Rising volume">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="TrendingUp" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Rising volume" />
+                                <TextBlock Classes="sHint" Text="{Binding RisingHint}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding RisingVolume}" VerticalAlignment="Top" AutomationProperties.Name="Rising volume" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Ring even when the PC is muted">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="VolumeOff" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Ring even when the PC is muted" />
+                                <TextBlock Classes="sHint" Text="Raises Windows' volume while a reminder rings, then puts it back." />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding RingEvenWhenMuted}" VerticalAlignment="Top" AutomationProperties.Name="Ring even when the PC is muted" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Accidental dismiss protection">
+                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="ShieldCheckOutline" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Accidental dismiss protection" />
+                                <TextBlock Classes="sHint" Text="Dismiss unlocks after a wait. Snooze and Start don't wait." />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding DismissProtect}" VerticalAlignment="Top" AutomationProperties.Name="Accidental dismiss protection" />
+                            <Grid Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,8,0,0" IsVisible="{Binding DismissProtect}">
+                                <TextBlock Classes="sTitle" Text="Wait before dismiss" VerticalAlignment="Center" />
+                                <ListBox Grid.Column="1" Classes="segmented" ItemsSource="{Binding ProtectChoices}" SelectedIndex="{Binding ProtectIndex}"
+                                         AutomationProperties.Name="Wait before dismiss" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Stop ringing after">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="TimerOffOutline" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Stop ringing after" />
+                                <TextBlock Classes="sHint" Text="Then it waits silently until you act." />
+                            </StackPanel>
+                            <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding StopAfterChoices}" SelectedIndex="{Binding StopAfterIndex}"
+                                     AutomationProperties.Name="Stop ringing after" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="How reminders show">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="Fullscreen" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="How reminders show" />
+                                <TextBlock Classes="sHint" Text="Can't miss reminders always go full screen." />
+                            </StackPanel>
+                            <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding DisplayChoices}" SelectedIndex="{Binding DisplayIndex}"
+                                     AutomationProperties.Name="How reminders show" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Snooze shortcuts">
+                        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="AlarmSnooze" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Snooze shortcuts" />
+                                <TextBlock Classes="sHint" Text="The three moments in a reminder's Snooze menu and in Snooze until…" />
+                                <TextBlock Classes="sValue" Text="{Binding ShortcutsText}" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Edit" Command="{Binding EditShortcutsCommand}" IsVisible="{Binding IsNotEditingShortcuts}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Spacing="8" Margin="0,10,0,0" IsVisible="{Binding IsEditingShortcuts}">
+                                <ItemsControl ItemsSource="{Binding ShortcutEdits}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SnoozeShortcutEditViewModel">
+                                            <Grid ColumnDefinitions="140,100,*" ColumnSpacing="8">
+                                                <ComboBox ItemsSource="{Binding Days}" SelectedIndex="{Binding DayIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Day" />
+                                                <TextBox Grid.Column="1" Text="{Binding TimeText}" Classes.invalid="{Binding !IsValid}" AutomationProperties.Name="Time" />
+                                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Result}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button Classes="primary" Content="Save shortcuts" Command="{Binding SaveShortcutsCommand}" />
+                                    <Button Content="Cancel" Command="{Binding CancelShortcutsCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Ring a test reminder">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="BellRingOutline" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Ring a test reminder" />
+                                <TextBlock Classes="sHint" Text="Shows the reminder card with these settings. Made-up tasks: nothing is saved." />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Ring one" Command="{Binding RingOneCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" IsVisible="{Binding ShowsDevTests}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="LayersOutline" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Ring a stack of 6" />
+                                <TextBlock Classes="sHint" Text="Several due at once, one after another (development builds)." />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Ring 6" Command="{Binding RingSixCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" IsVisible="{Binding ShowsDevTests}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="AlarmLight" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Ring a Can't miss alarm" />
+                                <TextBlock Classes="sHint" Text="Full screen, over everything; hold to dismiss (development builds)." />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Can't miss" Command="{Binding RingCantMissCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- Task reminders ring on -->
+        <StackPanel Spacing="6" search:SearchArea.Name="Task reminders ring on">
+            <TextBlock Classes="sGroup" Text="Task reminders ring on" />
+            <Border Classes="sPanel">
+                <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <TextBlock Classes="sHint" Text="Shared by all your devices. A PC always rings for its own reminders; phones follow these switches and each label's Rings on." />
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Devices}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:RingDeviceChoiceViewModel">
+                                <Border Classes="sRow">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                        <mi:MaterialIcon Classes="rowIcon" Kind="{Binding Icon}" />
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Classes="sTitle" Text="{Binding Name}" />
+                                            <TextBlock Classes="sHint" Text="{Binding Status}" />
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Top" AutomationProperties.Name="{Binding Name}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Classes="sRow" IsVisible="{Binding HasNotice}">
+                        <TextBlock Text="{Binding NoticeText}" FontSize="13" Foreground="{DynamicResource Ab.InfoInk}" TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite" />
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Per-label rings">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="LabelOutline" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Per-label rings" />
+                                <TextBlock Classes="sHint" Text="Each label can ring on fewer devices: Tasks › Labels." />
+                                <TextBlock Classes="sValue" Text="{Binding PerLabelText}" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Open Tasks › Labels" Command="{Binding ShowLabelsCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow" search:SearchArea.Name="Your devices">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="Devices" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Your devices" />
+                                <TextBlock Classes="sHint" Text="Add or remove a device." />
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Open Devices &amp; sync" Command="{Binding ShowDevicesCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

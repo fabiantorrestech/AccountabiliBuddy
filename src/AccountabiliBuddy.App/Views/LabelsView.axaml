@@ -1,0 +1,156 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             x:Class="AccountabiliBuddy.App.Views.LabelsView"
+             x:DataType="vm:LabelsViewModel">
+    <!-- The Labels screen (Settings › Tasks › Labels; spec 03 §C, 05 §16, prototype's label rows): "‹ Tasks", "Labels" with the count and
+         +, then one row per label (colour dot · name box · "3 tasks" · Rings on ▾ · delete, or the delete question) and the new label row
+         (dashed dot with the first unused colour, "New label, then Enter"). Rows have 6 DIP between them. The Tasks pages' toast shows at
+         the bottom left. -->
+    <UserControl.Styles>
+        <Style Selector="TextBox.labelName">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Button.ringOn">
+            <Setter Property="Padding" Value="9,0,6,0" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.rowIcon">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <DockPanel>
+            <!-- Header: ‹ Tasks · Labels · 5 labels · + -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="0,0,16,12" MaxWidth="760" HorizontalAlignment="Stretch">
+                <Button Classes="quiet" Command="{Binding BackCommand}" Padding="6,4" AutomationProperties.Name="Back to Tasks settings" ToolTip.Tip="Back to Settings › Tasks">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" VerticalAlignment="Center" />
+                        <TextBlock Text="Tasks" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Classes="sGroup" Text="Labels" VerticalAlignment="Center" Margin="0" />
+                    <TextBlock Classes="muted" Text="{Binding CountText}" FontSize="13" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="quiet" Width="32" Height="32" Padding="0" Command="{Binding FocusNewCommand}"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                        ToolTip.Tip="New label" AutomationProperties.Name="New label">
+                    <mi:MaterialIcon Kind="Plus" Width="18" Height="18" />
+                </Button>
+            </Grid>
+
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,0,16,72" Spacing="12" MaxWidth="760" HorizontalAlignment="Stretch">
+                    <Border Classes="sInfo">
+                        <TextBlock Text="A label is the coloured dot, and each task has one. Rings on picks which devices ring for its tasks' reminders; a PC always rings for its own. Changes reach your other devices with the task lists." TextWrapping="Wrap" />
+                    </Border>
+                    <Border Classes="sPanel">
+                        <StackPanel Margin="0,0,0,-1">
+                            <ItemsControl ItemsSource="{Binding Rows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="6" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:LabelRowViewModel">
+                                        <Border Classes="sRow" Padding="14,8">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+                                                <controls:LabelColorButton Editor="{Binding ColorEditor}" Dot="{Binding ColorBrush}" CurrentColor="{Binding Color}" />
+                                                <TextBox Grid.Column="1" Classes="labelName" Classes.invalid="{Binding IsNameBad}" Text="{Binding Name}"
+                                                         LostFocus="OnNameLostFocus" AutomationProperties.Name="Label name">
+                                                    <TextBox.KeyBindings>
+                                                        <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
+                                                        <KeyBinding Gesture="Escape" Command="{Binding CancelNameCommand}" />
+                                                    </TextBox.KeyBindings>
+                                                </TextBox>
+                                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center"
+                                                           IsVisible="{Binding IsNotConfirmingDelete}" />
+                                                <Button Grid.Column="3" Classes="ringOn" IsVisible="{Binding IsNotConfirmingDelete}"
+                                                        ToolTip.Tip="Which devices ring for this label's reminders" AutomationProperties.Name="Rings on">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <mi:MaterialIcon Kind="BellOutline" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding RingText}" VerticalAlignment="Center" />
+                                                        <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                    <Button.Flyout>
+                                                        <Flyout Placement="BottomEdgeAlignedRight">
+                                                            <StackPanel Width="250" Spacing="6">
+                                                                <TextBlock Text="Rings on" FontWeight="SemiBold" />
+                                                                <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" />
+                                                                <ItemsControl ItemsSource="{Binding RingChoices}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="vm:RingDeviceChoiceViewModel">
+                                                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="0,4">
+                                                                                <mi:MaterialIcon Classes="rowIcon" Kind="{Binding Icon}" Width="18" Height="18" />
+                                                                                <StackPanel Grid.Column="1" Spacing="1">
+                                                                                    <TextBlock Text="{Binding Name}" FontSize="13" TextWrapping="Wrap" />
+                                                                                    <TextBlock Classes="muted" Text="{Binding Status}" FontSize="11" TextWrapping="Wrap" />
+                                                                                </StackPanel>
+                                                                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Top"
+                                                                                          AutomationProperties.Name="{Binding Name}" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Flyout>
+                                                    </Button.Flyout>
+                                                </Button>
+                                                <Button Grid.Column="4" Classes="quiet" Width="28" Height="28" Padding="0" Command="{Binding AskDeleteCommand}"
+                                                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center"
+                                                        IsVisible="{Binding IsNotConfirmingDelete}" ToolTip.Tip="Delete label" AutomationProperties.Name="Delete label">
+                                                    <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
+                                                </Button>
+                                                <!-- The delete question: Keep · Delete · 3 tasks become No label. -->
+                                                <StackPanel Grid.Column="2" Grid.ColumnSpan="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                                            IsVisible="{Binding IsConfirmingDelete}">
+                                                    <Button Content="Keep" Command="{Binding KeepItCommand}" AutomationProperties.Name="Keep this label" />
+                                                    <Button Classes="danger" Content="{Binding DeleteText}" Command="{Binding DeleteCommand}" AutomationProperties.Name="Confirm delete" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Classes="muted" Text="No labels yet. Add one below." FontSize="13" Margin="18,10" IsVisible="{Binding IsEmpty}" />
+                            <!-- The new label row. -->
+                            <Border Classes="sRow" Padding="14,10,14,12">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                    <controls:LabelColorButton Editor="{Binding NewColorEditor}" Dot="{Binding NewColorBrush}" CurrentColor="{Binding NewColor}"
+                                                               IsDashed="True" Tip="Pick a colour" />
+                                    <TextBox x:Name="NewNameBox" Grid.Column="1" Classes="labelName" Classes.invalid="{Binding IsNewNameTaken}" Text="{Binding NewName}"
+                                             PlaceholderText="New label, then Enter" AutomationProperties.Name="New label">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding AddCommand}" />
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+
+        <Panel IsVisible="{Binding Toasts, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="18,0,0,18">
+            <views:TaskToastView DataContext="{Binding Toasts}" MaxWidth="460" />
+        </Panel>
+    </Panel>
+</UserControl>

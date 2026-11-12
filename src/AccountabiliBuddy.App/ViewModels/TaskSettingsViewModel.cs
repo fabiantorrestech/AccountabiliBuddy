@@ -94,8 +94,11 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
     /// <summary>How long a looser change waits (Focus sessions › Looser changes).</summary>
     public Func<TimeSpan>? LooserWait { get; init; }
 
-    /// <summary>The labels editor (the Tasks page's; the Labels rework comes next).</summary>
-    public CategoryEditorViewModel? Labels { get; init; }
+    /// <summary>Opens another Settings page scrolled to one of its groups (by its search area name): "Task reminders" in Alerts &amp; on-screen.</summary>
+    public Action<SettingsSection, string>? OpenSectionArea { get; init; }
+
+    /// <summary>The Labels screen (Settings › Tasks › Labels), shown in place of this page while open; null without the task list.</summary>
+    public LabelsViewModel? LabelsScreen { get; init; }
 
     // ---- page state ----
 
@@ -171,13 +174,33 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
 
     // ---- Labels ----
 
+    /// <summary>The Labels screen shows in place of the page (every "Manage labels" entry opens it).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(LabelsButtonText))]
-    public partial bool ShowsLabelsEditor { get; set; }
+    [NotifyPropertyChangedFor(nameof(ShowsPage))]
+    public partial bool ShowsLabelsScreen { get; set; }
 
-    public bool HasLabels => Labels is not null;
+    /// <summary>The page itself shows (not the Labels screen).</summary>
+    public bool ShowsPage => !ShowsLabelsScreen;
 
-    public string LabelsButtonText => ShowsLabelsEditor ? "Done" : "Edit labels";
+    public bool HasLabels => LabelsScreen is not null;
+
+    /// <summary>Opens the Labels screen (Settings › Tasks › Labels), with the labels as they are now.</summary>
+    public void OpenLabels()
+    {
+        if (LabelsScreen is null)
+        {
+            return;
+        }
+
+        LabelsScreen.Refresh();
+        ShowsLabelsScreen = true;
+    }
+
+    /// <summary>"‹ Tasks", or Settings showing another page: back to the page.</summary>
+    public void CloseLabels()
+    {
+        ShowsLabelsScreen = false;
+    }
 
     public IReadOnlyList<string> LabelStyleChoices { get; } = ["Dot", "Pill before", "Pill in details"];
 
@@ -634,15 +657,22 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
     private bool CanUsePicked() => !IsAllowing && ChosenCalendar is not null;
 
     [RelayCommand]
-    private void OpenAlerts() => OpenSection?.Invoke(SettingsSection.AlertsAndOnScreen);
+    private void OpenAlerts()
+    {
+        if (OpenSectionArea is not null)
+        {
+            OpenSectionArea(SettingsSection.AlertsAndOnScreen, "Task reminders");
+        }
+        else
+        {
+            OpenSection?.Invoke(SettingsSection.AlertsAndOnScreen);
+        }
+    }
 
     // ---- saving: Labels ----
 
     [RelayCommand]
-    private void ToggleLabels() => ShowsLabelsEditor = !ShowsLabelsEditor;
-
-    [RelayCommand]
-    private void ShowLabels() => ShowsLabelsEditor = true;
+    private void ShowLabels() => OpenLabels();
 
     partial void OnLabelStyleIndexChanged(int value)
     {

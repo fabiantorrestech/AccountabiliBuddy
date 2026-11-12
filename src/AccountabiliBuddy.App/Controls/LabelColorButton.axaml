@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             x:Class="AccountabiliBuddy.App.Controls.LabelColorButton"
+             x:DataType="vm:LabelColorEditorViewModel">
+    <!-- A label's colour dot on the Labels screen (28 DIP, the prototype's colour button) and its flyout: the 12-colour set, a hex or rgba
+         box, opacity 20-100 % and a preview chip. Kept when the flyout closes; Esc keeps nothing. Its editor is the Editor property (the
+         flyout's content takes it when it opens), so the dot's own bindings keep the row's data context. -->
+    <UserControl.Styles>
+        <Style Selector="Button.swatch">
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.swatch /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.swatch:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.swatch.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Border.dashed">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </UserControl.Styles>
+    <Button x:Name="DotButton" Classes="quiet" Width="28" Height="28" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+            ToolTip.Tip="{Binding $parent[controls:LabelColorButton].Tip}" AutomationProperties.Name="{Binding $parent[controls:LabelColorButton].Tip}">
+        <Border Width="28" Height="28" CornerRadius="7" Classes.dashed="{Binding $parent[controls:LabelColorButton].IsDashed}">
+            <Ellipse Width="12" Height="12" Fill="{Binding $parent[controls:LabelColorButton].Dot}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft" Opening="OnEditorOpening" Closed="OnEditorClosed">
+                <StackPanel x:Name="EditorPanel" Width="260" Spacing="10" Loaded="OnEditorLoaded">
+                    <TextBlock Classes="muted" Text="Colour" FontSize="12" FontWeight="SemiBold" />
+                    <ItemsControl ItemsSource="{Binding Swatches}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ColorPresetViewModel">
+                                <Button Classes="swatch" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Hex}"
+                                        ToolTip.Tip="{Binding Hex}">
+                                    <Ellipse Width="20" Height="20" Fill="{Binding Brush}" />
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Classes="muted" Text="Custom" FontSize="12" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding ColorText}" PlaceholderText="#RRGGBB or rgba(r,g,b,a)" Classes.invalid="{Binding IsColorBad}"
+                             AutomationProperties.Name="Colour as hex or rgba" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <TextBlock Classes="muted" Text="Opacity" FontSize="13" VerticalAlignment="Center" />
+                        <Slider Grid.Column="1" Minimum="20" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding OpacityPercent}"
+                                VerticalAlignment="Center" AutomationProperties.Name="Opacity" />
+                        <TextBlock Grid.Column="2" Text="{Binding OpacityPercent, StringFormat={}{0:0}%}" FontSize="13" MinWidth="38" VerticalAlignment="Center" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border Padding="10,3" CornerRadius="999" Background="{Binding PreviewBrush}">
+                            <TextBlock Text="Preview" FontSize="12" FontWeight="SemiBold" Foreground="White" />
+                        </Border>
+                        <Ellipse Width="12" Height="12" Fill="{Binding PreviewBrush}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="A colour is #RRGGBB, like #2F6BEA, or rgba(47,107,234,0.6)." Foreground="{DynamicResource Ab.Drift}" FontSize="12"
+                               TextWrapping="Wrap" IsVisible="{Binding IsColorBad}" />
+                    <TextBlock Classes="faint" Text="Kept when this closes; Esc leaves it as it was." FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

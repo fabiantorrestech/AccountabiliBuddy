@@ -35,6 +35,9 @@ public sealed class TaskReminderService : IDisposable
     // "Ring it now (test)" rings: shown like a due reminder, but nothing a test ring's buttons do is written to the task.
     private readonly List<TaskReminderEntry> _tests = [];
 
+    // Settings' test rings ("Ring one", "Ring 6", "Can't miss"): made-up tasks that exist only while their test ring shows, never stored.
+    private readonly Dictionary<Guid, TaskItem> _samples = [];
+
     public TaskReminderService(TaskStore store, TaskReminderSettingsService settings, SqliteJsonDocumentStore documents, TimeProvider time)
     {
         _store = store;
@@ -93,12 +96,22 @@ public sealed class TaskReminderService : IDisposable
     /// <summary>The task's title, for showing (private text: never logged); null when the task is gone.</summary>
     public string? TitleOf(Guid taskId)
     {
+        if (_samples.TryGetValue(taskId, out TaskItem? sample))
+        {
+            return sample.Title;
+        }
+
         return _store.Lists.Tasks.FirstOrDefault(item => item.Id == taskId && item.Task.IsLive)?.Task.Title;
     }
 
     /// <summary>The task, for showing its chips and for Open; null when it is gone.</summary>
     public TaskItem? TaskOf(Guid taskId)
     {
+        if (_samples.TryGetValue(taskId, out TaskItem? sample))
+        {
+            return sample;
+        }
+
         TaskItem? task = _store.Lists.Tasks.FirstOrDefault(item => item.Id == taskId && item.Task.IsLive)?.Task;
         return task;
     }
@@ -156,6 +169,25 @@ public sealed class TaskReminderService : IDisposable
         DateTimeOffset now = Now;
         _tests.RemoveAll(test => test.TaskId == taskId);
         _tests.Add(new TaskReminderEntry(taskId, Guid.NewGuid(), TaskReminder.AtStart, now, TaskReminderStatus.Up, now, 0, task.CantMiss));
+        Refresh();
+    }
+
+    /// <summary>
+    /// Settings' test rings (Alerts &amp; on-screen › Task reminders): made-up tasks ring at once, one after another in the order given,
+    /// with the current settings (a Can't miss one full screen). Like <see cref="RingTest"/>, their buttons only close them: the tasks
+    /// were never in the list, nothing is written and no session is touched. A new call replaces the samples still showing.
+    /// </summary>
+    public void RingSamples(IReadOnlyList<TaskItem> samples)
+    {
+        _tests.RemoveAll(test => _samples.ContainsKey(test.TaskId));
+        _samples.Clear();
+        DateTimeOffset now = Now;
+        foreach (TaskItem sample in samples)
+        {
+            _samples[sample.Id] = sample;
+            _tests.Add(new TaskReminderEntry(sample.Id, Guid.NewGuid(), TaskReminder.AtStart, now, TaskReminderStatus.Up, now, 0, sample.CantMiss));
+        }
+
         Refresh();
     }
 
@@ -282,6 +314,11 @@ public sealed class TaskReminderService : IDisposable
         if (_tests.RemoveAll(test => test.Key == entry.Key) == 0)
         {
             return false;
+        }
+
+        if (_tests.All(test => test.TaskId != entry.TaskId))
+        {
+            _samples.Remove(entry.TaskId);
         }
 
         Refresh();

@@ -26,6 +26,7 @@ public partial class SettingsView : UserControl
             {
                 viewModel.PickSoundFile = PickSoundFileAsync;
                 viewModel.PickNoiseFolder = PickNoiseFolderAsync;
+                viewModel.RevealRequested += (_, area) => Avalonia.Threading.Dispatcher.UIThread.Post(() => Reveal(area), Avalonia.Threading.DispatcherPriority.Background);
                 viewModel.PropertyChanged += (_, e) =>
                 {
                     // Another row: start at its top (one scroll viewer holds every row's cards, so its offset would carry over).
@@ -36,6 +37,14 @@ public partial class SettingsView : UserControl
                 };
             }
         };
+    }
+
+    // A link row's target group: the visible control with that search area name, brought to the top of the page once it is laid out.
+    private void Reveal(string area)
+    {
+        Control? group = Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(this).OfType<Control>()
+            .FirstOrDefault(control => control.IsEffectivelyVisible && Services.Search.SearchArea.GetName(control) == area);
+        group?.BringIntoView();
     }
 
     private async Task<string?> PickSoundFileAsync()

@@ -1057,6 +1057,19 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Shows <paramref name="section"/>'s page scrolled to its group named <paramref name="area"/> (a link row, e.g. Settings › Tasks'
+    /// "Ringing, snooze and full screen" → Alerts &amp; on-screen › Task reminders). The page's view does the scrolling.
+    /// </summary>
+    public void Select(SettingsSection section, string area)
+    {
+        Select(section);
+        RevealRequested?.Invoke(this, area);
+    }
+
+    /// <summary>A group of the page showing should come into view: its search area name.</summary>
+    public event EventHandler<string>? RevealRequested;
+
     private int IndexOf(SettingsSection section)
     {
         for (int i = 0; i < Rows.Count; i++)
@@ -1102,8 +1115,21 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private TaskSettingsViewModel? _tasksPage;
 
+    /// <summary>
+    /// Alerts &amp; on-screen › Task reminders and Task reminders ring on (Tasks redesign Phase 7): set by the app when the task list is the
+    /// source; the groups show only then. Its rows save at once (nothing for the Save bar).
+    /// </summary>
+    [ObservableProperty]
+    public partial TaskReminderAlertsViewModel? TaskReminderAlerts { get; set; }
+
     partial void OnSelectedRowIndexChanged(int value)
     {
+        // Another page: Settings › Tasks opens on its page next time, not on the Labels screen.
+        if (SelectedSection != SettingsSection.Tasks)
+        {
+            TasksPage?.CloseLabels();
+        }
+
         for (int i = 0; i < Rows.Count; i++)
         {
             Rows[i].IsSelected = i == value;

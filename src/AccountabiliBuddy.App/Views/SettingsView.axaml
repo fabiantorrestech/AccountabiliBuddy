@@ -803,6 +803,11 @@
                     </Border>
                 </StackPanel>
 
+                <!-- Task reminders and Task reminders ring on (Tasks redesign Phase 7): only while the task list is the source. -->
+                <Panel IsVisible="{Binding TaskReminderAlerts, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <views:TaskReminderAlertsView DataContext="{Binding TaskReminderAlerts}" />
+                </Panel>
+
                 <StackPanel Spacing="6" search:SearchArea.Name="Noise player" IsVisible="{Binding HasNoisePlayer}">
                     <TextBlock Classes="sGroup" Text="Noise player" />
                     <Border Classes="sPanel">

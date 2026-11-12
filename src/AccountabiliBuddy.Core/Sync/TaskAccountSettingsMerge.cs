@@ -1,3 +1,5 @@
+using AccountabiliBuddy.Core.Tasks;
+
 namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
@@ -15,17 +17,21 @@ public static class TaskAccountSettingsMerge
 
         bool viewFromFirst = FirstWins(a.DefaultViewStamp, b.DefaultViewStamp, ViewText(a.DefaultViewId), ViewText(b.DefaultViewId));
         bool calendarFromFirst = FirstWins(a.PickedCalendarStamp, b.PickedCalendarStamp, a.PickedCalendarId ?? string.Empty, b.PickedCalendarId ?? string.Empty);
+        bool ringFromFirst = FirstWins(a.RingOnStamp, b.RingOnStamp, TaskRingDevices.Text(a.RingOn), TaskRingDevices.Text(b.RingOn));
         return new SyncTaskAccountSettings(
             viewFromFirst ? a.DefaultViewId : b.DefaultViewId,
             viewFromFirst ? a.DefaultViewStamp : b.DefaultViewStamp,
             calendarFromFirst ? a.PickedCalendarId : b.PickedCalendarId,
-            calendarFromFirst ? a.PickedCalendarStamp : b.PickedCalendarStamp);
+            calendarFromFirst ? a.PickedCalendarStamp : b.PickedCalendarStamp,
+            ringFromFirst ? a.RingOn : b.RingOn,
+            ringFromFirst ? a.RingOnStamp : b.RingOnStamp);
     }
 
     /// <summary>
     /// A copy read from a file or a backup (not trusted): a value without a stamp is dropped (it can't take part in a merge), the empty
     /// id reads as the built-in Default, a blank calendar id as off, and a calendar id longer than
-    /// <see cref="SyncTaskAccountSettings.MaxCalendarIdLength"/> drops that field. Null stays null.
+    /// <see cref="SyncTaskAccountSettings.MaxCalendarIdLength"/> drops that field. A "rings on" list loses empty and repeated ids and is
+    /// kept in id order; one longer than <see cref="TaskRingDevices.MaxDevices"/> drops that field. Null stays null.
     /// </summary>
     public static SyncTaskAccountSettings? Clean(SyncTaskAccountSettings? settings)
     {
@@ -39,7 +45,9 @@ public static class TaskAccountSettingsMerge
 
         string? calendar = string.IsNullOrWhiteSpace(settings.PickedCalendarId) ? null : settings.PickedCalendarId.Trim();
         TaskFieldStamp? calendarStamp = calendar is { Length: > SyncTaskAccountSettings.MaxCalendarIdLength } ? null : Usable(settings.PickedCalendarStamp);
-        return new SyncTaskAccountSettings(view, viewStamp, calendarStamp is null ? null : calendar, calendarStamp);
+        IReadOnlyList<Guid>? ringOn = TaskRingDevices.Normalized(settings.RingOn);
+        TaskFieldStamp? ringStamp = ringOn is { Count: > TaskRingDevices.MaxDevices } ? null : Usable(settings.RingOnStamp);
+        return new SyncTaskAccountSettings(view, viewStamp, calendarStamp is null ? null : calendar, calendarStamp, ringStamp is null ? null : ringOn, ringStamp);
     }
 
     private static TaskFieldStamp? Usable(TaskFieldStamp? stamp)
@@ -81,6 +89,7 @@ public static class TaskAccountSettingsMerge
         {
             DefaultViewStamp = settings.DefaultViewStamp is { } view && view.At > limit ? view with { At = limit } : settings.DefaultViewStamp,
             PickedCalendarStamp = settings.PickedCalendarStamp is { } calendar && calendar.At > limit ? calendar with { At = limit } : settings.PickedCalendarStamp,
+            RingOnStamp = settings.RingOnStamp is { } ring && ring.At > limit ? ring with { At = limit } : settings.RingOnStamp,
         };
     }
 }

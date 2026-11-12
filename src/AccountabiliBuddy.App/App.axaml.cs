@@ -1733,16 +1733,59 @@ public partial class App : Application
             // Settings › Tasks: only while the task list is the source (its reminder settings, views and calendar export exist then).
             if (_taskSettings is not null && _taskReminderSettings is not null)
             {
-                mainViewModel.Settings.TasksPage = new TaskSettingsViewModel(
+                // The Labels screen (Settings › Tasks › Labels) and Alerts › Task reminders' "ring on": the devices are the Devices & sync list's.
+                TaskSettingsViewModel? taskSettingsPage = null;
+                LabelsViewModel? labelsScreen = null;
+                AccountabiliBuddy.App.Services.Tasks.TaskLabelService? labelService = null;
+                IReadOnlyList<AccountabiliBuddy.App.Services.Tasks.TaskRingDevice> RingDevices() => TaskRingDeviceList.From(devices.Rows, syncIdentity.DeviceId);
+                if (taskStore.IsActive)
+                {
+                    labelService = new AccountabiliBuddy.App.Services.Tasks.TaskLabelService(taskStore, sessionTasks);
+                    labelsScreen = new LabelsViewModel(labelService, RingDevices)
+                    {
+                        Toasts = tasksPage.Toasts,
+                        Close = () => taskSettingsPage?.CloseLabels(),
+                    };
+                }
+
+                taskSettingsPage = new TaskSettingsViewModel(
                     _taskSettings, _taskReminderSettings, _taskCalendarExport, _taskViews, _taskAccount, time)
                 {
                     OpenSection = mainViewModel.OpenSettings,
+                    OpenSectionArea = (section, area) =>
+                    {
+                        mainViewModel.SelectedTab = MainWindowViewModel.SettingsTab;
+                        mainViewModel.Settings.Select(section, area);
+                    },
                     OpenBrowser = OpenInBrowser,
                     PomodoroFocusMinutes = () => (int)_configuration!.Current.PomodoroDefaults.FocusLength.TotalMinutes,
                     StartSessionKeys = () => _quickSession?.Preferences.Hotkey ?? string.Empty,
                     LooserWait = () => _configuration!.Current.Locks.LooseningDelay,
-                    Labels = tasksPage.CategoryEditor,
+                    LabelsScreen = labelsScreen,
                 };
+                mainViewModel.Settings.TasksPage = taskSettingsPage;
+                if (labelsScreen is not null && labelService is not null && _taskReminders is not null && _taskAccount is not null)
+                {
+                    // Every "Manage labels" entry (the Shelf chips' +, the View menu's Labels ›, Settings › Tasks › Labels) opens the screen.
+                    void OpenLabelsScreen()
+                    {
+                        mainViewModel.OpenSettings(SettingsSection.Tasks);
+                        taskSettingsPage.OpenLabels();
+                    }
+
+                    tasksPage.Shelf.OpenLabels = OpenLabelsScreen;
+                    var reminderAlerts = new TaskReminderAlertsViewModel(_taskReminderSettings, _taskReminders, _taskAccount, labelService, RingDevices)
+                    {
+                        OpenLabels = OpenLabelsScreen,
+                        OpenDevices = () => mainViewModel.OpenSettings(SettingsSection.DevicesAndSync),
+                    };
+                    mainViewModel.Settings.TaskReminderAlerts = reminderAlerts;
+                    devices.RowsRefreshed += (_, _) =>
+                    {
+                        reminderAlerts.Load();
+                        labelsScreen.Refresh();
+                    };
+                }
             }
         }
         planViewModel.OpenDpAssistant = mainViewModel.OpenDpAssistantCommand;

@@ -33,7 +33,12 @@
         </Style>
     </UserControl.Styles>
 
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <Panel>
+    <!-- The Labels screen (Settings › Tasks › Labels) shows in place of the page while open. -->
+    <Panel IsVisible="{Binding ShowsLabelsScreen}">
+        <views:LabelsView DataContext="{Binding LabelsScreen}" />
+    </Panel>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding ShowsPage}">
         <StackPanel Margin="0,0,16,24" Spacing="12" MaxWidth="760" HorizontalAlignment="Left">
             <Border Classes="sInfo" IsVisible="{Binding HasStatus}">
                 <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" />
@@ -60,9 +65,9 @@
                                 <mi:MaterialIcon Classes="rowIcon" Kind="LabelOutline" />
                                 <StackPanel Grid.Column="1" Spacing="2">
                                     <TextBlock Classes="sTitle" Text="Rings on, per label" />
-                                    <TextBlock Classes="sHint" Text="Which devices ring for each label is set with the labels (below)." />
+                                    <TextBlock Classes="sHint" Text="Which devices ring for each label's reminders: Tasks › Labels, Rings on." />
                                 </StackPanel>
-                                <Button Grid.Column="2" Content="Show labels" Command="{Binding ShowLabelsCommand}" IsVisible="{Binding HasLabels}" VerticalAlignment="Center" />
+                                <Button Grid.Column="2" Content="Open labels" Command="{Binding ShowLabelsCommand}" IsVisible="{Binding HasLabels}" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
                         <Border Classes="sRow" search:SearchArea.Name="Add new reminders to">
@@ -138,18 +143,15 @@
                 <TextBlock Classes="sGroup" Text="Labels" />
                 <Border Classes="sPanel">
                     <StackPanel Margin="0,0,0,-1">
-                        <Border Classes="sRow" IsVisible="{Binding HasLabels}">
-                            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="14">
+                        <Border Classes="sRow" IsVisible="{Binding HasLabels}" search:SearchArea.Name="Manage labels">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                                 <mi:MaterialIcon Classes="rowIcon" Kind="LabelMultipleOutline" />
                                 <StackPanel Grid.Column="1" Spacing="2">
                                     <TextBlock Classes="sTitle" Text="Labels" />
-                                    <TextBlock Classes="sHint" Text="Rename, recolour, add or delete. Deleting one leaves its tasks with no label." />
+                                    <TextBlock Classes="sHint" Text="Add, rename, recolour or delete, and which devices ring for each. Deleting one leaves its tasks with No label." />
+                                    <TextBlock Classes="sValue" Text="{Binding LabelsScreen.CountText, FallbackValue={x:Null}}" />
                                 </StackPanel>
-                                <Button Grid.Column="2" Content="{Binding LabelsButtonText}" Command="{Binding ToggleLabelsCommand}" VerticalAlignment="Center" />
-                                <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,10,0,0" Padding="16,12"
-                                        CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}" IsVisible="{Binding ShowsLabelsEditor}">
-                                    <views:CategoryEditorView DataContext="{Binding Labels}" />
-                                </Border>
+                                <Button Grid.Column="2" Content="Open labels" Command="{Binding ShowLabelsCommand}" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
                         <Border Classes="sRow" search:SearchArea.Name="Label style">
@@ -498,4 +500,5 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+    </Panel>
 </UserControl>

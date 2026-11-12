@@ -34,6 +34,19 @@ public static class TaskAccountSettingsEdits
         return current with { PickedCalendarId = wanted, PickedCalendarStamp = new TaskFieldStamp(After(current.PickedCalendarStamp, now), self) };
     }
 
+    /// <summary>"Task reminders ring on": the device ids that ring (null: every device).</summary>
+    public static SyncTaskAccountSettings WithRingOn(SyncTaskAccountSettings? settings, IReadOnlyList<Guid>? ringOn, DateTimeOffset now, Guid self)
+    {
+        SyncTaskAccountSettings current = settings ?? SyncTaskAccountSettings.Empty;
+        IReadOnlyList<Guid>? wanted = TaskRingDevices.Normalized(ringOn);
+        if (IsChosen(current.RingOnStamp) && TaskRingDevices.Same(current.RingOn, wanted))
+        {
+            return current;
+        }
+
+        return current with { RingOn = wanted, RingOnStamp = new TaskFieldStamp(After(current.RingOnStamp, now), self) };
+    }
+
     /// <summary>Both fields set to <paramref name="defaultViewId"/> and <paramref name="calendarId"/> (a chosen copy, or null for a fresh start).</summary>
     public static SyncTaskAccountSettings WithBoth(SyncTaskAccountSettings? settings, Guid? defaultViewId, string? calendarId, DateTimeOffset now, Guid self)
     {
@@ -76,6 +89,11 @@ public static class TaskAccountSettingsEdits
         if (backup.PickedCalendarStamp is not null)
         {
             current = WithPickedCalendar(current, backup.PickedCalendarId, now, self);
+        }
+
+        if (backup.RingOnStamp is not null)
+        {
+            current = WithRingOn(current, backup.RingOn, now, self);
         }
 
         return current;
