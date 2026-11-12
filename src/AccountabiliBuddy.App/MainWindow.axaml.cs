@@ -350,7 +350,7 @@ public partial class MainWindow : Window
         }
         else if (e.KeyModifiers == KeyModifiers.Control && e.Key is Key.OemPipe or Key.OemBackslash && viewModel.IsTasksSelected && viewModel.Tasks is { } tasks)
         {
-            // Ctrl+\ on the Tasks page: show or hide the Shelf.
+            // Ctrl+\ on the Tasks page: show the Shelf hidden during a session, or hide it again (round 2 R3; nothing while planning).
             tasks.ToggleShelfCommand.Execute(null);
             e.Handled = true;
         }
@@ -363,11 +363,8 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.J && e.KeyModifiers == KeyModifiers.Control && viewModel.Tasks is { } jotPage)
         {
-            // Ctrl+J: Jot it down, in the Today column while Tasks shows it, otherwise on the Today page.
-            if (!(viewModel.IsTasksSelected && jotPage.ShowsToday))
-            {
-                viewModel.SelectedTab = MainWindowViewModel.TodayTab;
-            }
+            // Ctrl+J: Jot it down, on the Today page (round 2 R3: the Tasks page has no Today column, so no Jot of its own).
+            viewModel.SelectedTab = MainWindowViewModel.TodayTab;
 
             jotPage.OpenJot();
             e.Handled = true;

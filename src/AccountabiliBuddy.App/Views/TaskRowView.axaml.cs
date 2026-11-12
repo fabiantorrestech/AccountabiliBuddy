@@ -22,6 +22,17 @@ namespace AccountabiliBuddy.App.Views;
 /// </summary>
 public partial class TaskRowView : UserControl
 {
+    /// <summary>
+    /// The sub-line shows: the row has a detail line, or (round 2 R3) it sits in a Shelf column and has a label, whose name leads it.
+    /// Values: ShowsDetailLine, ShowsLabelChip, the column scope.
+    /// </summary>
+    public static readonly Avalonia.Data.Converters.IMultiValueConverter DetailLineShown =
+        new Avalonia.Data.Converters.FuncMultiValueConverter<bool, bool>(values =>
+        {
+            bool[] flags = values.ToArray();
+            return flags.Length == 3 && (flags[0] || flags[1] && flags[2]);
+        });
+
     private static readonly TimeSpan FoldTime = TimeSpan.FromMilliseconds(300);
 
     private KeyModifiers _pressModifiers;
@@ -266,6 +277,16 @@ public partial class TaskRowView : UserControl
     // (reorder and renumber). Ctrl+A and Esc are the section's; Del, F2, H and Ctrl+Z the window's (Services/TaskShortcuts).
     private void OnRowKeyDown(object? sender, KeyEventArgs e)
     {
+        // Round 2 R3: ← on a Shelf column's row sends it to Today › Queued (its ← button; the Today strip's "press ←").
+        if (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, RowButton) && TaskColumnScope.GetIsColumn(this)
+            && DataContext is TaskListRowViewModel { LeftAction: { } toToday } && toToday.Icon == Material.Icons.MaterialIconKind.ArrowLeft
+            && toToday.Command.CanExecute(null))
+        {
+            toToday.Command.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key is not (Key.Up or Key.Down) || DataContext is not TaskListRowViewModel row || Section is not { } section)
         {
             return;

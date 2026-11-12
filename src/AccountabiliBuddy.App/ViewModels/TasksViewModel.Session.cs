@@ -11,8 +11,8 @@ using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
-// Tasks redesign 3.6 (spec 03 §B, `05` §2): the session layout of the Tasks page (Compact on by itself, the Shelf hidden with its rail
-// reading "hidden during session", Queued and Finished faded), This session's Quiet / Grouped rows of a running session, the step list
+// Tasks redesign 3.6 (spec 03 §B, `05` §2): the session layout of the Tasks page (Compact on by itself, the Shelf hidden behind "Show
+// the Shelf" with a quiet count (round 2 R3), hidden again when the user leaves Tasks), This session's Quiet / Grouped rows of a running session, the step list
 // popover, "This session is full" (swap or Add anyway), the "Session ended at 12:52 AM" strip and "Hold to reset". Every way into This
 // session keeps the session's cap (the session's own add, SessionTasksService.FocusStepAsync, SwapOutAsync); "Add anyway" is the
 // over-limit add with its reason, recorded as before. Nothing here ends, shortens or unlocks a session. Times come from the trusted clock.
@@ -21,8 +21,7 @@ public sealed partial class TasksViewModel
     private SessionLayoutService? _sessionLayout;
     private bool _layoutActive;
     private TaskSettings _layoutSettings = Services.Tasks.TaskSettings.Default;
-    private bool _shelfBeforeLayout;
-    private bool _shelfPeeked;
+    private readonly TaskShelfVisibility _shelf = new();
     private bool? _densityPick;
     private DispatcherTimer? _noticeTimer;
 
@@ -37,17 +36,13 @@ public sealed partial class TasksViewModel
     {
         _sessionLayout = layout;
         layout.Changed += (_, _) => ApplySessionLayout();
-        TodayPanel.FoldsChanged += (_, _) => NotifySessionViewChanged();
         Shelf.Panel.FoldsChanged += (_, _) => NotifySessionViewChanged();
         Shelf.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(ShelfViewModel.CountText))
-            {
-                OnPropertyChanged(nameof(ShelfRailSub));
-            }
-            else if (e.PropertyName is nameof(ShelfViewModel.SearchText))
+            if (e.PropertyName is nameof(ShelfViewModel.SearchText))
             {
                 NotifySessionViewChanged();
+                OnPropertyChanged(nameof(ShowsShelfColumns));
             }
         };
         ApplySessionLayout();
@@ -93,33 +88,54 @@ public sealed partial class TasksViewModel
     private void ApplyDensity()
     {
         bool? compact = _layoutActive ? CompactNow : null;
-        TodayPanel.CompactOverride = compact;
         Shelf.Panel.CompactOverride = compact;
         OnPropertyChanged(nameof(IsCompact));
     }
 
-    // ---- The Shelf's rail during a session ----
+    // ---- The hidden Shelf during a session (round 2 R3, change note §2 "Tasks during a session") ----
 
-    /// <summary>The Shelf is hidden because a session runs (the setting): its rail reads "hidden during session".</summary>
-    public bool IsShelfHiddenForSession => _layoutActive && _layoutSettings.HideShelfInSession && !IsShelfShown;
+    /// <summary>The Shelf is hidden because a session runs (Settings › Tasks › During a session › Hide the Shelf): "Show the Shelf" shows.</summary>
+    public bool IsShelfHiddenForSession => !_shelf.IsShown;
 
-    /// <summary>"10 tasks", or "hidden during session".</summary>
-    public string ShelfRailSub => IsShelfHiddenForSession ? "hidden during session" : Shelf.CountText;
+    /// <summary>
+    /// The columns show: the Shelf is shown, or (hidden during a session) a search is typed, which still works and shows what it finds.
+    /// </summary>
+    public bool ShowsShelfColumns => _shelf.IsShown || Shelf.IsSearching;
 
-    public MaterialIconKind ShelfRailIcon => IsShelfHiddenForSession ? MaterialIconKind.EyeOffOutline : MaterialIconKind.ArrowExpandLeft;
+    /// <summary>The quiet note while hidden: "10 tasks in To sort, Next and Later. Adding and searching still work."</summary>
+    [ObservableProperty]
+    public partial string ShelfHiddenText { get; set; } = string.Empty;
 
-    public string ShelfRailTip => IsShelfHiddenForSession ? "The Shelf is hidden during the session · click to show it" : "Show the Shelf (Ctrl+\\)";
-
-    public double ShelfRailOpacity => IsShelfHiddenForSession ? 0.8 : 1;
-
-    partial void OnIsShelfShownChanged(bool value)
+    /// <summary>The user left the Tasks page: a Shelf shown during the session hides again (it is shown only while they look at it).</summary>
+    public void TasksLeft()
     {
+        if (_shelf.ShownByUser)
+        {
+            _shelf.HideAgain();
+            ShelfVisibilityChanged();
+        }
+    }
+
+    // The Shelf's visibility changed: everything that reads it.
+    private void ShelfVisibilityChanged()
+    {
+        OnPropertyChanged(nameof(IsShelfShown));
         OnPropertyChanged(nameof(IsShelfHiddenForSession));
-        OnPropertyChanged(nameof(ShelfRailSub));
-        OnPropertyChanged(nameof(ShelfRailIcon));
-        OnPropertyChanged(nameof(ShelfRailTip));
-        OnPropertyChanged(nameof(ShelfRailOpacity));
+        OnPropertyChanged(nameof(ShowsShelfColumns));
         NotifySessionViewChanged();
+    }
+
+    private static string HiddenShelfText(int count, IReadOnlyList<string> groups)
+    {
+        string tasks = count == 1 ? "1 task" : $"{count} tasks";
+        string where = groups.Count switch
+        {
+            0 => "on the Shelf",
+            1 => "in " + groups[0],
+            <= 3 => "in " + string.Join(", ", groups.Take(groups.Count - 1)) + " and " + groups[^1],
+            _ => $"in {groups.Count} groups",
+        };
+        return $"{tasks} {where}. Adding and searching still work.";
     }
 
     partial void OnPickedCountChanged(int value)
@@ -137,22 +153,15 @@ public sealed partial class TasksViewModel
             {
                 // What it starts with stays for the whole layout: changing the settings mid-session never jumps it.
                 _layoutSettings = TaskSettings?.Current ?? Services.Tasks.TaskSettings.Default;
-                _shelfBeforeLayout = IsShelfShown;
                 _densityPick = null;
-                _shelfPeeked = false;
                 _layoutActive = true;
-                if (_layoutSettings.HideShelfInSession)
-                {
-                    IsShelfShown = false;
-                    IsTodayHidden = false;
-                }
+                _shelf.StartSessionLayout(_layoutSettings.HideShelfInSession);
             }
             else
             {
                 _layoutActive = false;
                 _densityPick = null;
-                _shelfPeeked = false;
-                IsShelfShown = _shelfBeforeLayout;
+                _shelf.EndSessionLayout();
                 if (!_tasks.IsLive)
                 {
                     // Raised on the task toasts; the toast stack shows it (3.8).
@@ -161,7 +170,7 @@ public sealed partial class TasksViewModel
             }
 
             ApplyDensity();
-            OnIsShelfShownChanged(IsShelfShown);
+            ShelfVisibilityChanged();
             OnPropertyChanged(nameof(InSessionLayout));
             QueueRefresh();
         }
@@ -252,7 +261,7 @@ public sealed partial class TasksViewModel
     /// the reset button shows (it always keeps its slot).
     /// </summary>
     public bool IsSessionViewChanged => _layoutActive
-        && (_shelfPeeked && IsShelfShown || _densityPick is not null || TodayPanel.HasFolds || Shelf.Panel.HasFolds || IsDetailOpen
+        && (_shelf.ShownByUser || _densityPick is not null || Shelf.Panel.HasFolds || IsDetailOpen
             || PickedCount > 0 || Shelf.Search.Length > 0);
 
     /// <summary>The hint by the reset button ("Hold for 1.5 seconds…"), shown after a click that wasn't a hold.</summary>
@@ -269,16 +278,9 @@ public sealed partial class TasksViewModel
             return;
         }
 
-        _shelfPeeked = false;
+        _shelf.HideAgain();
         _densityPick = null;
-        if (_layoutSettings.HideShelfInSession)
-        {
-            IsShelfShown = false;
-        }
-
-        IsTodayHidden = false;
         ApplyDensity();
-        TodayPanel.ForgetFolds();
         Shelf.Panel.ForgetFolds();
         ClearSelection();
         if (IsDetailOpen)
@@ -289,7 +291,7 @@ public sealed partial class TasksViewModel
         Shelf.SearchText = string.Empty;
         ShowsResetHint = false;
         _actions?.Say("Session view reset");
-        NotifySessionViewChanged();
+        ShelfVisibilityChanged();
     }
 
     private void NotifySessionViewChanged()

@@ -11,10 +11,10 @@ using Avalonia.VisualTree;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// The Tasks page. Code-behind: the two columns' widths (the Today / Shelf split, a hidden column giving its room to the other), the
-/// resize handle between them, keeping a title or note typed in the detail card when the box loses the keyboard, the ⋯ menus of the
-/// detail card's steps, putting the keyboard in the detail card's title or step box when a menu asks for it, and the dialogs the
-/// rows and menus ask for (Rename one by one, Delete N, Changed on both devices).
+/// The Tasks page. Code-behind: a click on the Today strip opens Today (round 2 R3), Esc in the search pill clears it, keeping a title
+/// or note typed in the detail card when the box loses the keyboard, the ⋯ menus of the detail card's steps, putting the keyboard in
+/// the detail card's title or step box when a menu asks for it, and the dialogs the rows and menus ask for (Rename one by one, Delete
+/// N, Changed on both devices).
 /// </summary>
 public partial class TasksView : UserControl
 {
@@ -22,19 +22,7 @@ public partial class TasksView : UserControl
     public static readonly Avalonia.Data.Converters.IValueConverter ShownOpacity =
         new Avalonia.Data.Converters.FuncValueConverter<bool, double>(shown => shown ? 1 : 0);
 
-    /// <summary>The toast's place: 18 in from the card's left and bottom, lifted above Jot it down while the Today column shows it.</summary>
-    public static readonly Avalonia.Data.Converters.IValueConverter ToastMargin =
-        new Avalonia.Data.Converters.FuncValueConverter<bool, Thickness>(todayShows => new Thickness(18, 0, 0, todayShows ? JotClearance : 18));
-
-    // Jot it down's band at the bottom of the Today column (its pill and margins) plus the toast's own 18.
-    private const double JotClearance = 64;
-
-    // The narrowest a shown column gets.
-    private const double ColumnMinWidth = 280;
-
     private TasksViewModel? _subscribed;
-    private bool _isSplitting;
-    private int _splitWhileDragging;
 
     public TasksView()
     {
@@ -85,7 +73,6 @@ public partial class TasksView : UserControl
         base.OnDataContextChanged(e);
         if (_subscribed is not null)
         {
-            _subscribed.PropertyChanged -= OnPagePropertyChanged;
             _subscribed.FocusRequested -= OnFocusRequested;
             _subscribed.RenameEachRequested -= OnRenameEachRequested;
             _subscribed.DeleteManyRequested -= OnDeleteManyRequested;
@@ -97,7 +84,6 @@ public partial class TasksView : UserControl
         _subscribed = DataContext as TasksViewModel;
         if (_subscribed is not null)
         {
-            _subscribed.PropertyChanged += OnPagePropertyChanged;
             _subscribed.FocusRequested += OnFocusRequested;
             _subscribed.RenameEachRequested += OnRenameEachRequested;
             _subscribed.DeleteManyRequested += OnDeleteManyRequested;
@@ -106,8 +92,6 @@ public partial class TasksView : UserControl
             _subscribed.FocusRowRequested += OnFocusRowRequested;
             _subscribed.IsOnScreen = IsEffectivelyVisible && VisualRoot is not null;
         }
-
-        ApplyColumns();
     }
 
     // Ctrl+G opened a task: once the page shows it (the tab switch, the Shelf, an unfolded section), its row takes the keyboard.
@@ -247,105 +231,26 @@ public partial class TasksView : UserControl
         }
     }
 
-    private void OnPagePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    // ---- The Today strip and the search pill (round 2 R3) ----
+
+    // A click on the strip (not on its Open Today button, which says so itself) opens Today too (change note §2: selecting it jumps there).
+    private void OnTodayStripReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (e.PropertyName is nameof(TasksViewModel.ShowsToday) or nameof(TasksViewModel.IsShelfShown) or nameof(TasksViewModel.TodaySplit))
+        if (e.InitialPressMouseButton == MouseButton.Left && DataContext is TasksViewModel page)
         {
-            ApplyColumns();
+            page.TodayStrip.OpenTodayCommand.Execute(null);
+            e.Handled = true;
         }
     }
 
-    // Both columns: Today takes its share of the split and the Shelf the rest; one column alone takes all the room.
-    private void ApplyColumns(int? split = null)
+    // Esc in the search pill clears it.
+    private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_subscribed is not { } page)
+        if (e.Key == Key.Escape && DataContext is TasksViewModel { Shelf.IsSearching: true } page)
         {
-            return;
+            page.Shelf.ClearSearchCommand.Execute(null);
+            e.Handled = true;
         }
-
-        bool both = page.ShowsToday && page.IsShelfShown;
-        int today = split ?? page.TodaySplit;
-        ColumnDefinition todayColumn = Page.ColumnDefinitions[1];
-        ColumnDefinition shelfColumn = Page.ColumnDefinitions[3];
-        todayColumn.Width = page.ShowsToday ? new GridLength(both ? today : 1, GridUnitType.Star) : GridLength.Auto;
-        todayColumn.MinWidth = page.ShowsToday ? ColumnMinWidth : 0;
-        shelfColumn.Width = page.IsShelfShown ? new GridLength(both ? 100 - today : 1, GridUnitType.Star) : GridLength.Auto;
-        shelfColumn.MinWidth = page.IsShelfShown ? ColumnMinWidth : 0;
-    }
-
-    // ---- The resize handle: Today's share follows the pointer (30 to 70 %), kept when let go; a double-click puts it back. ----
-
-    private void OnSplitPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not Control handle || !e.GetCurrentPoint(handle).Properties.IsLeftButtonPressed || _subscribed is null)
-        {
-            return;
-        }
-
-        _isSplitting = true;
-        _splitWhileDragging = _subscribed.TodaySplit;
-        SplitGrip.Classes.Set("active", true);
-        e.Pointer.Capture(handle);
-        e.Handled = true;
-    }
-
-    private void OnSplitMoved(object? sender, PointerEventArgs e)
-    {
-        if (!_isSplitting)
-        {
-            return;
-        }
-
-        double left = TodayColumn.Bounds.Left;
-        double width = ShelfColumn.Bounds.Right - left;
-        if (width <= 0)
-        {
-            return;
-        }
-
-        double percent = (e.GetPosition(Page).X - left) / width * 100;
-        _splitWhileDragging = (int)Math.Round(Math.Clamp(percent, Services.Tasks.TaskLayoutPreferences.MinSplit, Services.Tasks.TaskLayoutPreferences.MaxSplit));
-        ApplyColumns(_splitWhileDragging);
-        e.Handled = true;
-    }
-
-    private void OnSplitReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (_isSplitting && _subscribed is not null)
-        {
-            _ = _subscribed.SetSplitAsync(_splitWhileDragging);
-        }
-
-        EndSplit();
-        e.Pointer.Capture(null);
-        e.Handled = true;
-    }
-
-    private void OnSplitCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        EndSplit();
-    }
-
-    private void OnSplitDoubleTapped(object? sender, TappedEventArgs e)
-    {
-        if (_subscribed is not null)
-        {
-            _ = _subscribed.SetSplitAsync(Services.Tasks.TaskLayoutPreferences.DefaultSplit);
-        }
-
-        e.Handled = true;
-    }
-
-    private void EndSplit()
-    {
-        if (!_isSplitting)
-        {
-            return;
-        }
-
-        _isSplitting = false;
-        SplitGrip.Classes.Set("active", false);
-        ApplyColumns();
     }
 
     // A row's menu said Rename or Add subtask: the detail card shows that task, and its title or step box takes the keyboard. A picker's "New category…": its name box does.

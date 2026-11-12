@@ -1731,12 +1731,19 @@ public partial class App : Application
                 sessionLayout.TasksOpened();
                 mainViewModel.Tasks?.TasksOpened();
             }
+            else if (args.PropertyName == nameof(MainWindowViewModel.SelectedTab))
+            {
+                // Round 2 R3: a Shelf shown during a session hides again once the user leaves Tasks.
+                mainViewModel.Tasks?.TasksLeft();
+            }
         };
         if (mainViewModel.Tasks is { } tasksPage)
         {
             // Today shows the same task sections; a row opened there opens on the Tasks page (it has the detail card).
             sessionViewModel.TaskPage = tasksPage;
             tasksPage.OpenRequested += (_, _) => mainViewModel.SelectedTab = (int)MainTab.Tasks;
+            // The Tasks page's Today strip (round 2 R3): Open Today shows the Today tab.
+            tasksPage.OpenTodayRequested += (_, _) => mainViewModel.SelectedTab = (int)MainTab.Today;
             // The Tasks and Today headers' Options menus end with "Tasks settings" / "Today settings" (round 2, brief §3.3): Settings at
             // that section, behind Settings' own session locks.
             tasksPage.OpenSettings = mainViewModel.OpenSettings;

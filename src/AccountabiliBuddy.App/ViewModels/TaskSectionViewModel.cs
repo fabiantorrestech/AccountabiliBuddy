@@ -118,6 +118,51 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     /// <summary>The bin its tasks are in (This session, Queued, Finished today, a Shelf bin); null for a label or tag group and Reminders due today.</summary>
     public AccountabiliBuddy.Core.Domain.TaskBin? Bin { get; set; }
 
+    // ---- Round 2 R3: a Shelf group drawn as a column (its own scroll, a pinned header) ----
+
+    /// <summary>How many of its rows are highlighted (the header's "★ 1").</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStars), nameof(StarText))]
+    public partial int StarCount { get; set; }
+
+    public bool HasStars => StarCount > 0;
+
+    public string StarText => StarCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The column header's accessible name: "Next, 4 tasks, 1 highlighted · Alt+← or Alt+→ moves the column".</summary>
+    public string ColumnName
+    {
+        get
+        {
+            string count = Rows.Count == 1 ? "1 task" : Rows.Count + " tasks";
+            string stars = HasStars ? $", {StarCount} highlighted" : string.Empty;
+            return $"{Title}, {count}{stars}";
+        }
+    }
+
+    /// <summary>A folded column's body: "Folded · 4 tasks" (the column keeps its width; a header click opens it).</summary>
+    public string FoldedText => Rows.Count == 1 ? "Folded · 1 task" : $"Folded · {Rows.Count} tasks";
+
+    /// <summary>The column is folded: its body shows <see cref="FoldedText"/> instead of its rows.</summary>
+    public bool ShowsFolded => !IsOpen;
+
+    /// <summary>The columns can be reordered (Group by Bins, Label or Tag with two or more columns; not None's single list).</summary>
+    [ObservableProperty]
+    public partial bool CanMoveColumn { get; set; }
+
+    /// <summary>Another column's grip is being dragged over this one: letting go puts that column here.</summary>
+    [ObservableProperty]
+    public partial bool IsColumnDropTarget { get; set; }
+
+    /// <summary>Alt+←/→ on the header: the column moves one place left or right (remembered on this PC).</summary>
+    public Task MoveColumnAsync(int step) => _panel.MoveColumn?.Invoke(Key, step) ?? Task.CompletedTask;
+
+    /// <summary>The header's grip let go over another column: this column takes that one's place.</summary>
+    public Task MoveColumnOntoAsync(string targetKey) => _panel.MoveColumnOnto?.Invoke(Key, targetKey) ?? Task.CompletedTask;
+
+    /// <summary>The page's Today strip, which takes this panel's rows when they are dropped on it; null where there is none.</summary>
+    public TodayStripViewModel? TodayStrip => _panel.TodayStrip;
+
     /// <summary>A row is being dragged over the end of this section (a line under its last row, or under the header when empty).</summary>
     [ObservableProperty]
     public partial bool IsDropTarget { get; set; }
@@ -218,6 +263,17 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ShowsRows));
         OnPropertyChanged(nameof(ShowsEmpty));
+        OnPropertyChanged(nameof(ShowsFolded));
+    }
+
+    partial void OnTitleChanged(string value)
+    {
+        OnPropertyChanged(nameof(ColumnName));
+    }
+
+    partial void OnStarCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(ColumnName));
     }
 
     private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -225,5 +281,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(ShowsRows));
         OnPropertyChanged(nameof(ShowsEmpty));
+        OnPropertyChanged(nameof(FoldedText));
+        OnPropertyChanged(nameof(ColumnName));
     }
 }

@@ -9,32 +9,26 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The Shelf column of the Tasks page (spec 03 §B, shared behaviour §1): its header ("Shelf ▾" with the saved views, "Bins ▾" =
-/// Group by, unfold, hide), the search pill, the label chips (+, All, each label, No label), the weekly tidy-up card, then its
-/// sections (<see cref="Panel"/>: To sort, Next, Later, or label / tag groups). What it shows comes from the active view
-/// (<see cref="TaskViewService"/>); its rows are built by <see cref="TasksViewModel"/>, which owns the lists. Before the task list
-/// exists (the old lists still the source) only the search narrows it and grouping stays by bins.
+/// The Shelf of the Tasks page (spec 03 §B, shared behaviour §1; round 2 R3: the page itself, its bins as columns): the search pill,
+/// the label chips (+, All, each label, No label), the weekly tidy-up card, the saved views and the View menu (from the page header's
+/// Views and Options), then its sections (<see cref="Panel"/>: To sort, Next, Later, or label / tag groups, each drawn as a column).
+/// What it shows comes from the active view (<see cref="TaskViewService"/>); its rows are built by <see cref="TasksViewModel"/>, which
+/// owns the lists. Before the task list exists (the old lists still the source) only the search narrows it and grouping stays by bins.
 /// </summary>
 public sealed partial class ShelfViewModel : ObservableObject
 {
     /// <summary>The Shelf's bins, in order.</summary>
     public static readonly IReadOnlyList<TaskBin> Bins = [TaskBin.Sort, TaskBin.Next, TaskBin.Later];
 
-    private readonly Action _hide;
-    private readonly Action _toggleToday;
-    private readonly Func<bool> _isTodayHidden;
     private TaskViewService? _views;
     private TaskTidyUpService? _tidyUp;
     private TaskStore? _store;
     private TaskActionsService? _actions;
     private TimeProvider _time = TimeProvider.System;
 
-    public ShelfViewModel(TaskSectionsPanelViewModel panel, Action hide, Action toggleToday, Func<bool> isTodayHidden)
+    public ShelfViewModel(TaskSectionsPanelViewModel panel)
     {
         Panel = panel;
-        _hide = hide;
-        _toggleToday = toggleToday;
-        _isTodayHidden = isTodayHidden;
         SearchText = CountText = TidyTitle = TidySub = string.Empty;
         GroupText = "Bins";
     }
@@ -62,7 +56,7 @@ public sealed partial class ShelfViewModel : ObservableObject
     [ObservableProperty]
     public partial string GroupText { get; set; }
 
-    /// <summary>"10 tasks": the rail's line.</summary>
+    /// <summary>"10 tasks": the Shelf's count (the in-session "The Shelf is hidden" note).</summary>
     [ObservableProperty]
     public partial string CountText { get; set; }
 
@@ -141,9 +135,28 @@ public sealed partial class ShelfViewModel : ObservableObject
     /// <summary>What the active view shows of the Shelf's bins, grouped; null before the task list exists.</summary>
     public TaskViewResult? Query() => _views?.Query(Bins, showEmptyBins: true);
 
-    /// <summary>The header's hide button (and Ctrl+\): the Shelf folds into its rail.</summary>
-    [RelayCommand]
-    private void Hide() => _hide();
+    /// <summary>The active view's Group by ("bins", "label", "tag", "none"); bins before the task list exists.</summary>
+    public string Grouping => _views?.Working.Group ?? TaskViewConfig.GroupBins;
+
+    /// <summary>The Options menu's "Views ›" value: "★ Default" for the default view in use, else the view's name.</summary>
+    public string? ActiveViewText
+    {
+        get
+        {
+            if (_views?.Active is not TaskView active)
+            {
+                return null;
+            }
+
+            return _views.DefaultViewId == active.Id ? "★ " + active.Name : active.Name;
+        }
+    }
+
+    /// <summary>The Options menu's "Sort ›" value ("Your order", "Newest first", …).</summary>
+    public string SortText => SortName(_views?.Working.Sort ?? TaskViewConfig.SortDefault);
+
+    /// <summary>The Options menu's "Sort ›": each order, the one in use ticked.</summary>
+    public IReadOnlyList<TaskMenuEntry> SortEntries() => SortMenu(_views?.Working.Sort ?? TaskViewConfig.SortDefault);
 
     [RelayCommand]
     private void ToggleManageLabels()
@@ -258,10 +271,11 @@ public sealed partial class ShelfViewModel : ObservableObject
     private Task ReshuffleAsync() => _views?.ReshuffleAsync() ?? Task.CompletedTask;
 
     /// <summary>
-    /// "Shelf ▾", the View menu (spec 03 §C, 05 §10): the saved views (the one in use ticked) with Create a view…, This view › (Save
-    /// changes, Edit view…, Make it the default, Delete view), Arrange (Group by ›, Sort › incl. Shuffle, Reshuffle, Pin highlights),
-    /// Show only (Labels ›, Tags ›, Due date ›, Time limit ›, Untouched for ›, Highlighted only), History…, a red Reset (back to the
-    /// view as saved), and Hide / Show Today. Changes apply to the view's working copy; only Save changes stores them.
+    /// The View menu (spec 03 §C, 05 §10; round 2 R3: Options › Views ›): the saved views (the one in use ticked) with Create a view…,
+    /// This view › (Save changes, Edit view…, Make it the default, Delete view), Arrange (Group by ›, Sort › incl. Shuffle, Reshuffle,
+    /// Pin highlights), Show only (Labels ›, Tags ›, Due date ›, Time limit ›, Untouched for ›, Highlighted only), History…, and a red
+    /// Reset (back to the view as saved). Changes apply to the view's working copy; only Save changes stores them. (Hide / Show Today
+    /// went with the Tasks page's Today column.)
     /// </summary>
     public IReadOnlyList<TaskMenuEntry> ViewMenu()
     {
@@ -305,12 +319,8 @@ public sealed partial class ShelfViewModel : ObservableObject
             entries.Add(new TaskMenuEntry("History…", ViewAction: "history", Icon: MaterialIconKind.History, Value: "30 days"));
             entries.Add(new TaskMenuEntry(
                 "Reset", views.IsChanged ? new RelayCommand(() => views.Select(views.ActiveId)) : null, Icon: MaterialIconKind.Restore, IsDanger: views.IsChanged));
-            entries.Add(TaskMenuEntry.Separator);
         }
 
-        entries.Add(_isTodayHidden()
-            ? TaskMenuEntry.Do("Show Today", _toggleToday, MaterialIconKind.ArrowExpandRight)
-            : TaskMenuEntry.Do("Hide Today", _toggleToday, MaterialIconKind.ArrowCollapseLeft));
         return entries;
     }
 
@@ -362,7 +372,7 @@ public sealed partial class ShelfViewModel : ObservableObject
 
     internal static readonly (string Value, string Text, MaterialIconKind Icon)[] SortChoices =
     [
-        (TaskViewConfig.SortDefault, "Manual (drag)", MaterialIconKind.Drag),
+        (TaskViewConfig.SortDefault, "Your order", MaterialIconKind.Drag),
         (TaskViewConfig.SortNewest, "Newest first", MaterialIconKind.SortClockDescendingOutline),
         (TaskViewConfig.SortOldest, "Oldest first", MaterialIconKind.SortClockAscendingOutline),
         (TaskViewConfig.SortDueAscending, "Due date: soonest first", MaterialIconKind.SortCalendarAscending),
@@ -516,7 +526,7 @@ public sealed partial class ShelfViewModel : ObservableObject
             }
         }
 
-        return "Manual (drag)";
+        return "Your order";
     }
 
     private static IReadOnlyList<T>? Toggled<T>(IReadOnlyList<T>? list, T value)

@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.TaskColumnView"
+             x:DataType="vm:TaskSectionViewModel"
+             views:TaskColumnScope.IsColumn="True">
+    <!-- One Shelf column (round 2 R3, change note §2, board Tasks-PC): a bin (To sort, Next, Later), a label or a tag group, or the one
+         list of Group by None. Its header stays pinned at the top (the shared section header rule, brief §3.4: 19 px icon, 16.5 px bold
+         title, the count in a grey pill, "★ 1" for its highlighted tasks; the drag grip and "+" only on hover or keyboard focus); under it
+         the column scrolls on its own (the page doesn't). A header click folds the column to "Folded · 4 tasks" (it keeps its width);
+         Alt+← / Alt+→ on the focused header, or dragging the grip onto another column, moves it (remembered on this PC). -->
+    <UserControl.Styles>
+        <Style Selector="Border.taskColumn">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+        </Style>
+        <!-- Another column's grip is over this one: the accent outline says where it would go. -->
+        <Style Selector="Border.taskColumn.columnDrop">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="Button.columnHeader">
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Button.columnHeader /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Button.columnHeader:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.columnIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Border.columnGrip">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="SizeWestEast" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- The header's "★ 1": the gold of starred rows (the amber ink token; a faint gold tint marks the rows themselves). -->
+        <Style Selector="StackPanel.columnStars TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="FontFeatures" Value="+tnum" />
+        </Style>
+        <Style Selector="StackPanel.columnStars mi|MaterialIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="Card" Classes="taskColumn" Classes.columnDrop="{Binding IsColumnDropTarget}" ClipToBounds="True"
+            Container.Name="TaskColumn" Container.Sizing="Width">
+        <DockPanel>
+            <!-- The pinned header. -->
+            <Grid DockPanel.Dock="Top" Classes="abHoverHost" ColumnDefinitions="*,Auto,Auto" Margin="10,10,8,4">
+                <Button x:Name="HeaderButton" Classes="columnHeader" Command="{Binding ToggleCommand}" KeyDown="OnHeaderKeyDown"
+                        ContextRequested="OnHeaderContextRequested" AutomationProperties.Name="{Binding ColumnName}"
+                        ToolTip.Tip="Click to fold or unfold · Alt+← / Alt+→ moves the column · right-click for Expand all and Collapse all">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                                         IsVisible="{Binding ShowsFolded}" />
+                        <mi:MaterialIcon Classes="abSectionIcon columnIcon" Kind="{Binding IconKind}" IsVisible="{Binding ShowsSectionIcon}" />
+                        <Ellipse Width="10" Height="10" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                        <TextBlock Classes="abSectionTitle" Text="{Binding Title}" VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+                        <Border Classes="abCountPill" IsVisible="{Binding ShowsCountPill}">
+                            <TextBlock Text="{Binding Hint}" />
+                        </Border>
+                        <StackPanel Classes="columnStars" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" IsVisible="{Binding HasStars}"
+                                    ToolTip.Tip="Highlighted">
+                            <mi:MaterialIcon Kind="Star" Width="15" Height="15" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding StarText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+                </Button>
+                <Border Grid.Column="1" Classes="columnGrip abHoverOnly" IsVisible="{Binding CanMoveColumn}"
+                        ToolTip.Tip="Drag to move the column (Alt+← / Alt+→ on its header)" AutomationProperties.Name="Drag to move the column"
+                        PointerPressed="OnGripPressed" PointerMoved="OnGripMoved" PointerReleased="OnGripReleased" PointerCaptureLost="OnGripCaptureLost">
+                    <mi:MaterialIcon Kind="DragHorizontalVariant" Width="17" Height="17" Foreground="{DynamicResource Ab.Muted}"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <Button Grid.Column="2" Classes="quiet abHoverOnly" Padding="5" MinHeight="0" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding HasAdd}"
+                        Command="{Binding BeginAddCommand}" ToolTip.Tip="{Binding AddTip}" AutomationProperties.Name="{Binding AddTip}">
+                    <mi:MaterialIcon Kind="Plus" Width="18" Height="18" Foreground="{DynamicResource Ab.Faint}" />
+                </Button>
+            </Grid>
+
+            <!-- The column's own scroll: its add box, rows (or "Nothing to see here.") and the drop line; "Folded · 4 tasks" when folded. -->
+            <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="4,0,4,12">
+                    <views:TaskSectionView ShowsHeader="False" />
+                    <TextBlock Classes="faint" Text="{Binding FoldedText}" FontSize="13" Margin="16,4,0,6" IsVisible="{Binding ShowsFolded}" />
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</UserControl>

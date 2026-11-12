@@ -7,11 +7,16 @@ public sealed partial class TasksViewModel
     /// <summary>Opens Settings at a section (the Options menus' last row); set by the app. Null does nothing.</summary>
     public Action<SettingsSection>? OpenSettings { get; set; }
 
-    /// <summary>The Tasks page's Options menu (<see cref="PageOptionsMenus.Tasks"/>): its last row opens Settings › Tasks.</summary>
+    /// <summary>
+    /// The Tasks page's Options menu (<see cref="PageOptionsMenus.Tasks"/>, board Tasks-PC-Options): Group by, Rows, Views ›, Sort ›,
+    /// Expand all bins, History; its last row opens Settings › Tasks.
+    /// </summary>
     public IReadOnlyList<TaskMenuEntry> TasksOptionsMenu()
     {
         return PageOptionsMenus.Tasks(
-            IsCompact, UseNormalRowsCommand, UseCompactRowsCommand, Shelf.HasViews ? Shelf.GroupMenu() : [], Shelf.ViewMenu(), OpenSettingsAt);
+            IsCompact, UseNormalRowsCommand, UseCompactRowsCommand, Shelf.HasViews ? Shelf.GroupMenu() : [], Shelf.ViewMenu(), Shelf.ActiveViewText,
+            Shelf.HasViews ? Shelf.SortEntries() : [], Shelf.SortText, Shelf.Panel.IsExpanded, Shelf.Panel.ToggleExpandCommand, Shelf.HasHistory,
+            OpenSettingsAt);
     }
 
     /// <summary>Opens Settings at a section scrolled to one of its groups (by search area name); set by the app. Null opens the section.</summary>

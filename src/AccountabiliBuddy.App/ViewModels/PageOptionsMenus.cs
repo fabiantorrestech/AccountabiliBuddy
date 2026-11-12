@@ -27,9 +27,14 @@ public static class PageOptionsMenus
     /// <summary>The Settings › Today group "Sidebar items and order…" scrolls to (its search area name).</summary>
     public const string TodaySidebarArea = "Today sidebar";
 
+    /// <summary>The note under Options › History (board Tasks-PC-Options).</summary>
+    public const string HistoryNote = "Finished and deleted tasks, 30 days";
+
     /// <summary>
-    /// Tasks: Group by (the Shelf's), Rows (Normal / Compact, moved here from the header), View, filter and sort › (the Shelf's View
-    /// menu, unchanged), then Tasks settings ›. Round 2's R3 gives it its final rows (brief §4.6).
+    /// Tasks (round 2 R3, brief §4.6, board Tasks-PC-Options): Group by Bins / Label / Tag / None · one list, Rows Normal / Compact │
+    /// Views › (the active view, "★ Default"; the whole View menu: saved views, This view, arrange, Show only, Reset), Sort › (its value,
+    /// "Your order"), Expand all bins (or Collapse all), History (with its note; opens the History popover through
+    /// <see cref="TaskMenuEntry.ViewAction"/> "history") │ Tasks settings ›.
     /// </summary>
     public static IReadOnlyList<TaskMenuEntry> Tasks(
         bool compact,
@@ -37,6 +42,12 @@ public static class PageOptionsMenus
         ICommand compactRows,
         IReadOnlyList<TaskMenuEntry> groupBy,
         IReadOnlyList<TaskMenuEntry> viewMenu,
+        string? viewText,
+        IReadOnlyList<TaskMenuEntry> sortMenu,
+        string? sortText,
+        bool expanded,
+        ICommand? toggleExpand,
+        bool hasHistory,
         Action<SettingsSection> openSettings)
     {
         var entries = new List<TaskMenuEntry>();
@@ -50,10 +61,23 @@ public static class PageOptionsMenus
         entries.Add(new TaskMenuEntry("Rows", IsHeading: true));
         entries.Add(new TaskMenuEntry("Normal", normalRows, IsChecked: !compact, Icon: MaterialIconKind.ViewHeadline));
         entries.Add(new TaskMenuEntry("Compact", compactRows, IsChecked: compact, Icon: MaterialIconKind.FormatLineSpacing));
+        entries.Add(TaskMenuEntry.Separator);
         if (viewMenu.Count > 0)
         {
-            entries.Add(TaskMenuEntry.Separator);
-            entries.Add(TaskMenuEntry.Group("View, filter and sort", viewMenu, MaterialIconKind.FilterVariant));
+            entries.Add(new TaskMenuEntry("Views", Children: viewMenu, Icon: MaterialIconKind.BookmarkOutline, Value: viewText));
+        }
+
+        if (sortMenu.Count > 0)
+        {
+            entries.Add(new TaskMenuEntry("Sort", Children: sortMenu, Icon: MaterialIconKind.Sort, Value: sortText));
+        }
+
+        entries.Add(new TaskMenuEntry(
+            expanded ? "Collapse all bins" : "Expand all bins", toggleExpand,
+            Icon: expanded ? MaterialIconKind.UnfoldLessHorizontal : MaterialIconKind.UnfoldMoreHorizontal));
+        if (hasHistory)
+        {
+            entries.Add(new TaskMenuEntry("History", ViewAction: "history", Icon: MaterialIconKind.History, Note: HistoryNote));
         }
 
         entries.Add(TaskMenuEntry.Separator);

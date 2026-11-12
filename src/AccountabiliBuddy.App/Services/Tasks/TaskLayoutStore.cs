@@ -70,6 +70,21 @@ public sealed class TaskLayoutStore
         return current with { ExpandAll = panels };
     });
 
+    /// <summary>Round 2 R3: the Shelf's columns of one grouping ("bins", "label", "tag") in this order from now on (this PC only).</summary>
+    public Task SetColumnOrderAsync(string grouping, IReadOnlyList<string> order) => UpdateAsync(current =>
+    {
+        if (current.ColumnOrderOf(grouping) is { } stored && stored.SequenceEqual(order, StringComparer.Ordinal))
+        {
+            return current;
+        }
+
+        var orders = new Dictionary<string, IReadOnlyList<string>>(current.ColumnOrder ?? new Dictionary<string, IReadOnlyList<string>>())
+        {
+            [grouping] = order.ToList(),
+        };
+        return current with { ColumnOrder = orders };
+    });
+
     public Task TogglePinAsync(string section) => UpdateAsync(current =>
     {
         List<string> pins = current.PinnedNow.ToList();

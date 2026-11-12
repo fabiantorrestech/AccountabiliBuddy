@@ -14,9 +14,14 @@ namespace AccountabiliBuddy.App.Views;
 /// One section of a task panel. Code-behind: the header's right-click menu, dragging a row by its handle within this section or into
 /// another one on the page, Alt+↑/↓ (the keyboard stays on the moved row), Ctrl+A / Esc for the selection, and the rows' roving focus
 /// (13k): the rows are one Tab stop that remembers the row last used, ↑/↓ move between them and Shift+↑/↓ extend the selection.
+/// Round 2 R3: inside a Shelf column (<see cref="TaskColumnView"/>) the column draws the header (<see cref="ShowsHeader"/> false), a
+/// drop on a column's header or empty space lands at the end of that column, and a row can be dropped on the page's Today strip.
 /// </summary>
 public partial class TaskSectionView : UserControl
 {
+    /// <summary>The section draws its own header (false inside a Shelf column, whose pinned header is the column's).</summary>
+    public static readonly StyledProperty<bool> ShowsHeaderProperty = AvaloniaProperty.Register<TaskSectionView, bool>(nameof(ShowsHeader), true);
+
     // How far the pointer moves on a drag handle before it's a drag, not a click.
     private const double DragThreshold = 4;
 
@@ -31,6 +36,12 @@ public partial class TaskSectionView : UserControl
     // it, the keyboard goes to the row now there.
     private int _activeIndex = -1;
     private bool _activeByKeyboard;
+
+    public bool ShowsHeader
+    {
+        get => GetValue(ShowsHeaderProperty);
+        set => SetValue(ShowsHeaderProperty, value);
+    }
 
     public TaskSectionView()
     {
@@ -256,6 +267,10 @@ public partial class TaskSectionView : UserControl
             }
 
             _isDragging = true;
+            if (DataContext is TaskSectionViewModel { TodayStrip: { } strip })
+            {
+                strip.IsLit = true;
+            }
         }
 
         ShowDropTarget(FindDropTarget(e));
@@ -264,17 +279,21 @@ public partial class TaskSectionView : UserControl
 
     internal void HandleReleased(PointerReleasedEventArgs e)
     {
-        if (_dragRow is not null && _isDragging && _drop is { } drop && DataContext is TaskSectionViewModel from)
+        if (_dragRow is not null && _isDragging && _drop is { Strip: { } strip })
+        {
+            _ = strip.DropAsync(_dragRow);
+        }
+        else if (_dragRow is not null && _isDragging && _drop is { Section: { } to } drop && DataContext is TaskSectionViewModel from)
         {
             TaskListRowViewModel? target = drop.Row;
             Guid? nextId = null;
             if (target is not null && drop.After)
             {
-                int at = drop.Section.Rows.IndexOf(target);
-                nextId = at >= 0 && at + 1 < drop.Section.Rows.Count ? drop.Section.Rows[at + 1].Id : null;
+                int at = to.Rows.IndexOf(target);
+                nextId = at >= 0 && at + 1 < to.Rows.Count ? to.Rows[at + 1].Id : null;
             }
 
-            _ = from.DropAsync(new TaskRowDrop(_dragRow, from, drop.Section, target, drop.After, nextId));
+            _ = from.DropAsync(new TaskRowDrop(_dragRow, from, to, target, drop.After, nextId));
         }
 
         EndDrag();
@@ -285,11 +304,17 @@ public partial class TaskSectionView : UserControl
     internal void EndDrag()
     {
         ShowDropTarget(null);
+        if (DataContext is TaskSectionViewModel { TodayStrip: { } strip })
+        {
+            strip.IsLit = false;
+        }
+
         _dragRow = null;
         _isDragging = false;
     }
 
-    // Where the pointer is: next to a row (above or below it by its half), or the end of a section (its header or empty space).
+    // Where the pointer is: next to a row (above or below it by its half), the end of a section (its header or empty space; a Shelf
+    // column's pinned header or the space under its rows too), or the page's Today strip.
     private DropPlace? FindDropTarget(PointerEventArgs e)
     {
         if (_dragRow is null || TopLevel.GetTopLevel(this) is not TopLevel top)
@@ -306,9 +331,19 @@ public partial class TaskSectionView : UserControl
         Control? item = null;
         foreach (Visual visual in hit.GetSelfAndVisualAncestors())
         {
+            if (visual is Control stripControl && stripControl.Classes.Contains("todayStrip") && DataContext is TaskSectionViewModel { TodayStrip: { } strip })
+            {
+                return new DropPlace(null, null, true, strip);
+            }
+
             if (item is null && visual is Control { DataContext: TaskListRowViewModel } candidate && candidate.Classes.Contains("listItem"))
             {
                 item = candidate;
+            }
+
+            if (visual is TaskColumnView { DataContext: TaskSectionViewModel column })
+            {
+                return new DropPlace(column, null, true);
             }
 
             if (visual is not TaskSectionView { DataContext: TaskSectionViewModel section })
@@ -342,7 +377,15 @@ public partial class TaskSectionView : UserControl
                 old.Row.DropMark = 0;
             }
 
-            old.Section.IsDropTarget = false;
+            if (old.Section is not null)
+            {
+                old.Section.IsDropTarget = false;
+            }
+
+            if (old.Strip is not null)
+            {
+                old.Strip.IsHot = false;
+            }
         }
 
         _drop = place;
@@ -351,15 +394,20 @@ public partial class TaskSectionView : UserControl
             return;
         }
 
-        if (place.Row is not null)
+        if (place.Strip is not null)
+        {
+            place.Strip.IsHot = true;
+        }
+        else if (place.Row is not null)
         {
             place.Row.DropMark = place.After ? 1 : -1;
         }
-        else
+        else if (place.Section is not null)
         {
             place.Section.IsDropTarget = true;
         }
     }
 
-    private sealed record DropPlace(TaskSectionViewModel Section, TaskListRowViewModel? Row, bool After);
+    // Where a dragged row would land: a section (next to a row, or at its end), or the Today strip.
+    private sealed record DropPlace(TaskSectionViewModel? Section, TaskListRowViewModel? Row, bool After, TodayStripViewModel? Strip = null);
 }

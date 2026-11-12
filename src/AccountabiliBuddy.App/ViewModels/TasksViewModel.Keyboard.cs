@@ -82,7 +82,7 @@ public sealed partial class TasksViewModel
         }
 
         Guid id = hit.Task.Id;
-        foreach (TaskSectionsPanelViewModel panel in new[] { TodayPanel, Shelf.Panel })
+        foreach (TaskSectionsPanelViewModel panel in new[] { TodayTabPanel, Shelf.Panel })
         {
             foreach (TaskSectionViewModel section in panel.Sections)
             {
@@ -118,17 +118,13 @@ public sealed partial class TasksViewModel
         return text + " isn't shown in the current view";
     }
 
-    // The column holding the section shows, and the section is unfolded.
+    // The Shelf shows (hidden during a session: Ctrl+G shows it, as Show the Shelf does), and the section is unfolded. A task of
+    // Today's sections opens on the Tasks page's detail card (round 2 R3: Today's rows are on the Today tab).
     private void Reveal(TaskSectionsPanelViewModel panel, TaskSectionViewModel section)
     {
-        if (ReferenceEquals(panel, Shelf.Panel) && !IsShelfShown)
+        if (ReferenceEquals(panel, Shelf.Panel) && _shelf.Show())
         {
-            ToggleShelfCommand.Execute(null);
-        }
-
-        if (ReferenceEquals(panel, TodayPanel) && IsTodayHidden)
-        {
-            IsTodayHidden = false;
+            ShelfVisibilityChanged();
         }
 
         if (!section.IsOpen)

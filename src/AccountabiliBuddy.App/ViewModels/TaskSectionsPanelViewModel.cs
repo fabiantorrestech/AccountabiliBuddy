@@ -87,6 +87,15 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
     /// <summary>The page's Esc: clears the selection; false when there was none.</summary>
     public Func<bool>? ClearSelectionOfRows { get; set; }
 
+    /// <summary>Round 2 R3: the page's Today strip, a drop target for this panel's rows (the Shelf's); null for none.</summary>
+    public TodayStripViewModel? TodayStrip { get; set; }
+
+    /// <summary>Round 2 R3: Alt+←/→ on a column header (its key, -1 or 1); null when the columns can't be reordered.</summary>
+    public Func<string, int, Task>? MoveColumn { get; set; }
+
+    /// <summary>Round 2 R3: a column's grip let go over another column (its key, the other's key).</summary>
+    public Func<string, string, Task>? MoveColumnOnto { get; set; }
+
     public Task DropAsync(TaskRowDrop drop) => Drop?.Invoke(drop) ?? Task.CompletedTask;
 
     public void Click(TaskListRowViewModel row, TaskRowClick click)

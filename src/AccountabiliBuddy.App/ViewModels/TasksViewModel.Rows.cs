@@ -46,7 +46,8 @@ public sealed partial class TasksViewModel
         return new RowExtras(number, bits, item?.Highlight == true && !isTicked, time, LeftActionOf(key, item, isQueued, isTicked), RightActionOf(key, item, isQueued, isTicked, live), canDrag);
     }
 
-    // ← on a Shelf row: to Queued ("Queue it for today"); the target on a Queued row: into This session (the session's cap decides).
+    // ← on a Shelf row: to Today › Queued (round 2 R3: the same move as a drop on the Today strip, with Undo); the target on a Queued
+    // row: into This session (the session's cap decides).
     private TaskRowAction? LeftActionOf(TaskRowKey key, TaskItem? item, bool isQueued, bool isTicked)
     {
         if (isTicked || item is null || _actions is null)
@@ -61,8 +62,14 @@ public sealed partial class TasksViewModel
         }
 
         return TaskBins.IsShelf(item.Bin) && key.Kind is TaskRowKind.Later or TaskRowKind.ComeBack
-            ? new TaskRowAction(MaterialIconKind.ArrowLeft, "Queue it for today", () => ActAsync(actions => actions.MoveAsync([id], TaskBin.Queued)))
+            ? new TaskRowAction(MaterialIconKind.ArrowLeft, "Move to Today › Queued", () => MoveToTodayQueuedAsync(id))
             : null;
+    }
+
+    // A Shelf task to Today › Queued (its ← button or key; the Today strip's drop is the same move).
+    private Task MoveToTodayQueuedAsync(Guid id)
+    {
+        return _actions is { } actions && _store is { } store ? Services.Tasks.TodayStripDrop.MoveToQueuedAsync(actions, store, [id]) : Task.CompletedTask;
     }
 
     // → on a Today row: to the Shelf's Next. Not for a running session's own tasks (they leave it only as the session allows).
@@ -103,7 +110,10 @@ public sealed partial class TasksViewModel
         {
             string text = DueText(due, item.DueAt, today);
             TaskRowBitTone tone = due < today ? TaskRowBitTone.Amber : due == today ? TaskRowBitTone.Ink : TaskRowBitTone.Muted;
-            bits.Add(new TaskRowBit(due < today ? "Overdue · " + text : text, MaterialIconKind.CalendarBlankOutline, "Done by", Tone: tone));
+            // Round 2 R3 (brief §3.8): late reads as the amber "Overdue 3 d" pill, its date in the tip.
+            bits.Add(due < today
+                ? new TaskRowBit($"Overdue {today.DayNumber - due.DayNumber} d", MaterialIconKind.ClockAlertOutline, "Was due " + text, Tone: tone)
+                : new TaskRowBit(text, MaterialIconKind.CalendarBlankOutline, "Done by", Tone: tone));
         }
 
         if (item.Reminders is { Count: > 0 } reminders && !item.IsDone)

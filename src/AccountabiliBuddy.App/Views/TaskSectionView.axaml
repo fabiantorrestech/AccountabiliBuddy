@@ -37,7 +37,7 @@
     </UserControl.Styles>
 
     <StackPanel Opacity="{Binding Fade}" Classes.compact="{Binding IsCompact}" Spacing="2" Margin="0,4,0,2">
-        <Grid Classes="abHoverHost" ColumnDefinitions="*,Auto">
+        <Grid Classes="abHoverHost" ColumnDefinitions="*,Auto" IsVisible="{Binding $parent[views:TaskSectionView].ShowsHeader}">
             <Button Classes="sectionHeader" Command="{Binding ToggleCommand}" ContextRequested="OnHeaderContextRequested"
                     AutomationProperties.Name="{Binding Title}" ToolTip.Tip="Click to fold or unfold · right-click for Expand all, Collapse all and Pinned open">
                 <StackPanel Classes.quiet="{Binding IsQuiet}" Orientation="Horizontal" Spacing="6">

@@ -13,10 +13,10 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The Tasks page (Tasks redesign, spec 03 §B): the Today column (This session, Queued, Finished today) with the add row, and the
-/// Shelf (<see cref="ShelfViewModel"/>: To sort, Next, Later, hidden by default behind its rail), each a panel of foldable sections
-/// (<see cref="TaskSectionsPanelViewModel"/>); the Today page shows the same rows in its own panel (<see cref="TodayTabPanel"/>, with
-/// Reminders due today). One detail card shows whatever row was opened. Every list reads its store again when one changes, once,
+/// The Tasks page (Tasks redesign, spec 03 §B; round 2 R3: planning only): the Today strip (counts, drops into Queued, Open Today), the
+/// add row, and the Shelf (<see cref="ShelfViewModel"/>: To sort, Next, Later or the view's groups, side by side as columns), a panel of
+/// foldable sections (<see cref="TaskSectionsPanelViewModel"/>); the Today page shows This session, Queued, Reminders due today and
+/// Finished today in its own panel (<see cref="TodayTabPanel"/>). One detail card shows whatever row was opened. Every list reads its store again when one changes, once,
 /// coalesced, keeping the rows that draw the same. Rows have a check box (where they can be ticked) and a ⋯ menu (add to Today,
 /// rename, add subtask, label, move, delete); a delete leaves an Undo bar and a place in Archive › Recently deleted. Nothing here
 /// loosens a rule of a running session: a task can leave it only as "taken off open" (ADR 25), a task joins it only through the
@@ -72,12 +72,16 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _layout = layout;
         Toasts = new TaskToastViewModel(tasks);
         CategoryEditor = new CategoryEditorViewModel(tasks);
-        TodayPanel = new TaskSectionsPanelViewModel("today", layout);
         TodayTabPanel = new TaskSectionsPanelViewModel("todaytab", layout);
-        Shelf = new ShelfViewModel(new TaskSectionsPanelViewModel("shelf", layout), () => IsShelfShown = false, ToggleToday, () => IsTodayHidden);
+        Shelf = new ShelfViewModel(new TaskSectionsPanelViewModel("shelf", layout));
+        TodayStrip = new TodayStripViewModel(DropOnTodayAsync, () => OpenTodayRequested?.Invoke(this, EventArgs.Empty));
+        Shelf.Panel.TodayStrip = TodayStrip;
+        Shelf.Panel.MoveColumn = MoveColumnAsync;
+        Shelf.Panel.MoveColumnOnto = MoveColumnOntoAsync;
+        _columnOrder = layout.Current.ColumnOrder;
         _finishes.Changed += OnFinishChanged;
         _finishes.Started += OnFinishStarted;
-        foreach (TaskSectionsPanelViewModel panel in new[] { TodayPanel, TodayTabPanel, Shelf.Panel })
+        foreach (TaskSectionsPanelViewModel panel in new[] { TodayTabPanel, Shelf.Panel })
         {
             panel.Drop = DropAsync;
             panel.RowClick = OnPanelRowClick;
@@ -85,7 +89,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             panel.ClearSelectionOfRows = ClearSelection;
         }
 
-        Notice = NewCategoryName = TodayDateText = TodayRailText = string.Empty;
+        Notice = NewCategoryName = TodayDateText = string.Empty;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
         _autoSaved.Changed += OnStoreChanged;
@@ -120,16 +124,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         QueueRefresh();
     }
 
-    /// <summary>The Today column's sections on the Tasks page: This session, Queued, Finished today.</summary>
-    public TaskSectionsPanelViewModel TodayPanel { get; }
-
-    /// <summary>The Today page's sections: This session, Queued, Reminders due today, Finished today (the same rows as <see cref="TodayPanel"/>).</summary>
+    /// <summary>The Today page's sections: This session, Queued, Reminders due today, Finished today.</summary>
     public TaskSectionsPanelViewModel TodayTabPanel { get; }
 
     public ShelfViewModel Shelf { get; }
 
     /// <summary>
-    /// Compact rows (32 DIP) on both columns and on Today; remembered on this PC. In the session layout Compact is on by itself (the
+    /// Compact rows (32 DIP) on the Shelf and on Today; remembered on this PC. In the session layout Compact is on by itself (the
     /// setting), and a pick made then lasts only for that layout.
     /// </summary>
     public bool IsCompact => CompactNow;
@@ -140,70 +141,24 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private Task UseCompactRows() => PickDensityAsync(true);
 
-    /// <summary>Today's share of the page in percent while both columns show (30 to 70, 46 by default); remembered on this PC.</summary>
-    public int TodaySplit => _layout.Current.SplitNow;
-
-    /// <summary>The resize handle let go (or double-clicked: back to 46).</summary>
-    public Task SetSplitAsync(int percent) => _layout.SetSplitAsync(percent);
-
-    /// <summary>The Shelf column shows; hidden by default, remembered until the app restarts (shared behaviour §1).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsShelfRail), nameof(ShowsToday), nameof(ShowsTodayRail), nameof(ShowsSplitHandle))]
-    public partial bool IsShelfShown { get; set; }
-
-    /// <summary>The Today column folded into its rail (the Shelf takes the page); only while the Shelf shows.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsToday), nameof(ShowsTodayRail), nameof(ShowsSplitHandle))]
-    public partial bool IsTodayHidden { get; set; }
-
-    public bool ShowsShelfRail => !IsShelfShown;
-
-    public bool ShowsToday => !(IsTodayHidden && IsShelfShown);
-
-    public bool ShowsTodayRail => IsTodayHidden && IsShelfShown;
-
-    public bool ShowsSplitHandle => IsShelfShown && !IsTodayHidden;
+    /// <summary>
+    /// The Shelf's columns show (round 2 R3): always while planning; in the session layout with Hide the Shelf on, only after Show the
+    /// Shelf / Ctrl+\ (<see cref="TaskShelfVisibility"/>), until the user leaves Tasks.
+    /// </summary>
+    public bool IsShelfShown => _shelf.IsShown;
 
     /// <summary>"Tue 11/10", after Today's title.</summary>
     [ObservableProperty]
     public partial string TodayDateText { get; set; }
 
-    /// <summary>The Today rail's line: "3 in focus".</summary>
-    [ObservableProperty]
-    public partial string TodayRailText { get; set; }
-
-    /// <summary>Ctrl+\ and the rails' arrows: shows or hides the Shelf (hiding it brings Today back).</summary>
+    /// <summary>Show the Shelf, Ctrl+\: shows the hidden Shelf during a session, or hides it again. Nothing while planning.</summary>
     [RelayCommand]
     private void ToggleShelf()
     {
-        IsShelfShown = !IsShelfShown;
-        if (_layoutActive && IsShelfShown)
+        if (_shelf.Toggle())
         {
-            // Shown during the session layout: a change of the session view ("Hold to reset" hides it again).
-            _shelfPeeked = true;
-            NotifySessionViewChanged();
+            ShelfVisibilityChanged();
         }
-
-        if (!IsShelfShown)
-        {
-            IsTodayHidden = false;
-        }
-    }
-
-    [RelayCommand]
-    private void ShowToday() => IsTodayHidden = false;
-
-    // "Shelf ▾" › Hide Today / Show Today.
-    private void ToggleToday()
-    {
-        if (IsTodayHidden)
-        {
-            IsTodayHidden = false;
-            return;
-        }
-
-        IsShelfShown = true;
-        IsTodayHidden = true;
     }
 
     /// <summary>A row was opened (also from Today, which has no detail card): the window shows the Tasks page.</summary>
@@ -212,7 +167,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>Tasks was opened again (another tab before): header clicks are forgotten, the pins and Expand / Collapse all decide.</summary>
     public void TasksOpened()
     {
-        TodayPanel.ForgetFolds();
         Shelf.Panel.ForgetFolds();
     }
 
@@ -220,7 +174,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         ApplyDensity();
         OnPropertyChanged(nameof(IsCompact));
-        OnPropertyChanged(nameof(TodaySplit));
+        if (!ReferenceEquals(_columnOrder, _layout.Current.ColumnOrder))
+        {
+            // A column moved (Alt+←/→, the grip): the Shelf's columns follow at the next rebuild.
+            _columnOrder = _layout.Current.ColumnOrder;
+            QueueRefresh();
+        }
     }
 
     /// <summary>The Notebook, restyled as the Archive row at the bottom.</summary>
@@ -1246,10 +1205,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         string sessionHint = live
             ? $"{_tasks.ActionsUsed}/{_tasks.ActionCap} in focus"
             : readyActions > 0 ? $"{readyActions} ready" : string.Empty;
-        // The Tasks page's quiet sections stay faded while the session layout shows (also once it ended, until it switches back).
-        ShowTodaySections(TodayPanel, sessionHint, withReminders: false, live || _layoutActive);
         ShowTodaySections(TodayTabPanel, sessionHint, withReminders: true, live, withDone: ShowsFinishedOnToday);
-        TodayRailText = $"{(live ? _tasks.ActionsUsed : readyActions)} in focus";
+        // The Tasks page's Today strip: counts only, no timer (change note §2).
+        string stripSession = live ? $"{_tasks.ActionsUsed}/{_tasks.ActionCap}" : readyActions > 0 ? $"{readyActions} ready" : "empty";
+        TodayStrip.Update(stripSession, _queuedRows.Count, _reminderRows.Count, _doneRows.Count);
         TodayDateText = now.ToString("ddd M/d", CultureInfo.InvariantCulture);
         Jot.IsQuiet = live;
         NotifySessionViewChanged();
@@ -1379,6 +1338,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             }
         }
 
+        // Round 2 R3: the columns in this PC's order for the grouping (Group by None is one list: nothing to order).
+        string? grouping = Shelf.HasViews ? TaskColumnOrder.GroupingOf(Shelf.Grouping) : TaskViewConfig.GroupBins;
+        if (grouping is not null)
+        {
+            groups = TaskColumnOrder.Apply(groups, group => group.Key, _layout.Current.ColumnOrderOf(grouping));
+        }
+
+        bool canMoveColumns = grouping is not null && groups.Count > 1;
         var sections = new List<TaskSectionViewModel>();
         foreach ((string key, string title, TaskBin? bin, Guid? labelId, List<TaskListRowViewModel> groupRows) in groups)
         {
@@ -1393,6 +1360,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             section.Title = title;
             section.Bin = bin;
             section.Hint = CountText(groupRows.Count);
+            section.StarCount = groupRows.Count(row => row.IsHighlighted);
+            section.CanMoveColumn = canMoveColumns;
             TaskLabel? label = LabelOf(labelId);
             section.Dot = label is null ? null : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color));
             section.Icon = bin is TaskBin binIcon ? TaskBinIcons.Of(binIcon) : null;
@@ -1419,6 +1388,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Shelf.Panel.Show(sections);
         Shelf.CountText = rows.Count == 1 ? "1 task" : $"{rows.Count} tasks";
         Shelf.Refresh();
+        ShelfHiddenText = HiddenShelfText(rows.Count, sections.Select(section => section.Title).ToList());
         return rows.Values.Select(entry => entry.Row).ToList();
     }
 

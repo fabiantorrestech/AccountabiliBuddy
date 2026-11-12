@@ -123,6 +123,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The label's colour, drawn as the dot before its name; transparent with none.</summary>
     public IBrush CategoryBrush { get; init; }
 
+    /// <summary>Round 2 R3: the tip of a Shelf column row's leading label dot.</summary>
+    public string LeadDotTip => HasCategory ? CategoryName + " · change label" : "Add a label";
+
     /// <summary>The row has a label (shown as <see cref="LabelStyle"/> says).</summary>
     public bool HasCategory => !string.IsNullOrWhiteSpace(CategoryName);
 

@@ -8,9 +8,11 @@
     <!-- One task row, the same on the Tasks page's Today column, the Shelf and Today's sections (spec 03 §B): the number (This
          session) and check box, the title (a star before it when highlighted) with its detail line (⏱ 50 min, 📅 Fri 11/13,
          🔔 10 min before, #tags, origin, untouched, the sync-problem cloud), the label's dot and name, the time or "Now", the hover
-         quick actions (← / →), the open arrow, the ⋯ menu and the drag handle. Highlighted rows are tinted with the accent;
-         selected ones (Ctrl/Shift+click) a little more, with a ring. The label is never a fill. Normal rows are 44 DIP or taller;
-         Compact (a section with the "compact" class) 32, title only. A ticked row is struck through, then folds away. -->
+         quick actions (← / →), the open arrow, the ⋯ menu and the drag handle. Highlighted (starred) rows get a faint gold tint and a
+         gold star (round 2 R3, brief §3.8); selected ones (Ctrl/Shift+click) the accent tint, with a ring. The label is never a fill.
+         Normal rows are 44 DIP or taller; Compact (a section with the "compact" class) 32, title only. A ticked row is struck through,
+         then folds away. In a Shelf column (TaskColumnScope, round 2 R3) the label's dot sits before the check box and its name leads
+         the sub-line (no label slot at the right), and the open arrow and ⋯ show only on hover or keyboard focus. -->
     <UserControl.Resources>
         <!-- Check boxes read in ink, not accent. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -152,6 +154,95 @@
             <Setter Property="IsHitTestVisible" Value="True" />
         </Style>
 
+        <!-- In a Shelf column (round 2 R3, brief §3.5): the open arrow and ⋯ appear on hover or focus, like the quick actions; the
+             label slot goes (the dot leads the row, the name the sub-line). -->
+        <Style Selector="Border.taskColumn Panel.listItem Button.rowEnd">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Border.taskColumn Panel.listItem:pointerover Button.rowEnd">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border.taskColumn Panel.listItem:focus-within Button.rowEnd">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border.taskColumn Button.listRow.selected Button.rowEnd">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border.taskColumn Panel.categorySlot">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <!-- The lead cell (number, check box) and the row's tools: their place outside a Shelf column (set here, not on the elements, so the
+             column's styles below can move them). -->
+        <Style Selector="StackPanel.leadCell">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+        </Style>
+        <Style Selector="Border.rowTools">
+            <Setter Property="Grid.Column" Value="4" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.taskColumn Border.rowTools">
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Grid.ColumnSpan" Value="4" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="Padding" Value="4,0,0,0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Border.taskColumn Panel.listItem:pointerover Border.rowTools">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border.taskColumn Panel.listItem:focus-within Border.rowTools">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border.taskColumn Button.listRow.selected Border.rowTools">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border.taskColumn StackPanel.leadCell">
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="10,7,4,0" />
+        </Style>
+        <Style Selector="Border.taskColumn :is(Control).compact StackPanel.leadCell">
+            <Setter Property="Margin" Value="10,4,4,0" />
+        </Style>
+        <!-- The leading label dot (a click opens the label picker): filled in the label's colour, hollow and faint without one. -->
+        <Style Selector="Button.leadDot">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.leadDot /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.leadDot:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <!-- A starred row: a faint gold tint (the amber fill token) and a gold star. -->
+        <Style Selector="Border.starTint">
+            <Setter Property="Background" Value="{DynamicResource Ab.AmberFill}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+
         <!-- Quick actions and the open arrow: 28 DIP, faint, ink under the pointer. -->
         <Style Selector="Button.rowTool">
             <Setter Property="Width" Value="28" />
@@ -276,6 +367,9 @@
             <Style Selector="Grid.rowGrid">
                 <Setter Property="ColumnSpacing" Value="3" />
             </Style>
+            <Style Selector="StackPanel.rowToolsList">
+                <Setter Property="Spacing" Value="3" />
+            </Style>
             <Style Selector="Panel.categorySlot">
                 <Setter Property="IsVisible" Value="False" />
             </Style>
@@ -295,15 +389,22 @@
                     </MultiBinding>
                 </Border.IsVisible>
             </Border>
-            <Border Classes="tint" Opacity="0.14" IsVisible="{Binding ShowsHighlightTint}" />
+            <Border Classes="starTint" Opacity="0.75" IsVisible="{Binding ShowsHighlightTint}" />
             <Border Classes="tint" Opacity="0.16" IsVisible="{Binding IsPicked}" />
             <Border Classes="ring" IsVisible="{Binding IsPicked}" />
             <Button x:Name="RowButton" Classes="listRow" Classes.selected="{Binding IsSelected}" Classes.picked="{Binding IsPicked}" Click="OnRowClick"
                     AutomationProperties.Name="{Binding Title}">
                 <Panel>
                 <Border Classes="focusRing" />
-                <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,22" Margin="0,0,4,0">
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" MinWidth="22" VerticalAlignment="Center">
+                <Grid Classes="rowGrid" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,0,4,0">
+                    <StackPanel Grid.Column="0" Classes="leadCell" Orientation="Horizontal" Spacing="6" MinWidth="22">
+                        <Button Classes="leadDot" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="{Binding LeadDotTip}"
+                                IsVisible="{Binding $self.(views:TaskColumnScope.IsColumn)}" IsEnabled="{Binding CanLabel}">
+                            <Panel Width="8" Height="8">
+                                <Ellipse Fill="{Binding CategoryBrush}" IsVisible="{Binding ShowsLabelChip}" />
+                                <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.2" IsVisible="{Binding !HasCategory}" />
+                            </Panel>
+                        </Button>
                         <TextBlock Classes="muted" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
                                    MinWidth="12" IsVisible="{Binding IsNumbered}" />
                         <CheckBox IsChecked="{Binding ShowsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
@@ -312,7 +413,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Classes="rowText" Spacing="2" VerticalAlignment="Center">
                         <DockPanel>
-                            <mi:MaterialIcon DockPanel.Dock="Left" Kind="Star" Width="14" Height="14" Margin="0,0,5,0" Foreground="{DynamicResource Ab.Accent}"
+                            <mi:MaterialIcon DockPanel.Dock="Left" Kind="Star" Width="14" Height="14" Margin="0,0,5,0" Foreground="{DynamicResource Ab.AmberInk}"
                                              VerticalAlignment="Center" IsVisible="{Binding ShowsHighlightTint}" ToolTip.Tip="Highlighted" />
                             <Button Classes="labelPill" DockPanel.Dock="Left" Margin="0,0,6,0" IsVisible="{Binding ShowsLabelPillBefore}" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
                                 <Panel>
@@ -397,7 +498,23 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <DockPanel Classes="rowSub" IsVisible="{Binding ShowsDetailLine}">
+                        <DockPanel Classes="rowSub">
+                            <DockPanel.IsVisible>
+                                <MultiBinding Converter="{x:Static views:TaskRowView.DetailLineShown}">
+                                    <Binding Path="ShowsDetailLine" />
+                                    <Binding Path="ShowsLabelChip" />
+                                    <Binding Path="$self.(views:TaskColumnScope.IsColumn)" />
+                                </MultiBinding>
+                            </DockPanel.IsVisible>
+                            <TextBlock DockPanel.Dock="Left" Classes="muted" Text="{Binding CategoryName}" FontSize="12" Margin="0,0,10,0" MaxWidth="120"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                                <TextBlock.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="ShowsLabelChip" />
+                                        <Binding Path="$self.(views:TaskColumnScope.IsColumn)" />
+                                    </MultiBinding>
+                                </TextBlock.IsVisible>
+                            </TextBlock>
                             <Button Classes="labelPill" DockPanel.Dock="Left" Margin="0,0,10,0" IsVisible="{Binding ShowsLabelPillInDetails}" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
                                     <Panel>
                                         <Border Background="{Binding CategoryBrush}" Opacity="0.18" CornerRadius="999" />
@@ -477,29 +594,36 @@
                             </TextBlock.IsVisible>
                         </TextBlock>
                     </StackPanel>
-                    <!-- Quick actions (hover): ← / the target, →. -->
-                    <StackPanel Grid.Column="4" Classes="quickActions onHover" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
-                        <Button Classes="rowTool" IsVisible="{Binding HasLeftAction}" Command="{Binding LeftAction.Command}"
-                                ToolTip.Tip="{Binding LeftAction.Tip}" AutomationProperties.Name="{Binding LeftAction.Tip}">
-                            <mi:MaterialIcon Kind="{Binding LeftAction.Icon}" Width="17" Height="17" />
-                        </Button>
-                        <Button Classes="rowTool" IsVisible="{Binding HasRightAction}" Command="{Binding RightAction.Command}"
-                                ToolTip.Tip="{Binding RightAction.Tip}" AutomationProperties.Name="{Binding RightAction.Tip}">
-                            <mi:MaterialIcon Kind="{Binding RightAction.Icon}" Width="17" Height="17" />
-                        </Button>
-                    </StackPanel>
-                    <Button Grid.Column="5" Classes="rowTool" Click="OnOpenClick" ToolTip.Tip="{Binding OpenTip}" AutomationProperties.Name="{Binding OpenTip}">
-                        <mi:MaterialIcon Kind="{Binding OpenIcon}" Width="18" Height="18" />
-                    </Button>
-                    <Button Grid.Column="6" Classes="rowTool" AutomationProperties.Name="More actions"
-                            ToolTip.Tip="Rename, label, move, add a step, delete (or right-click the row)" Click="OnMoreClick">
-                        <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
-                    </Button>
-                    <Border Grid.Column="7" Classes="dragHandle onHover" IsVisible="{Binding ShowsDragHandle}"
-                            ToolTip.Tip="Drag to reorder or to another section (Alt+↑/↓)" AutomationProperties.Name="Drag to move"
-                            PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
-                            PointerCaptureLost="OnHandleCaptureLost">
-                        <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                    <!-- The row's tools: the quick actions (hover: ← / the target, →), the open arrow, ⋯ and the drag handle (its 22 kept). In a
+                         Shelf column they float over the end of the title on hover or focus instead of keeping their width (round 2 R3). -->
+                    <Border Classes="rowTools">
+                        <StackPanel Classes="rowToolsList" Orientation="Horizontal" Spacing="6">
+                            <StackPanel Classes="quickActions onHover" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+                                <Button Classes="rowTool" IsVisible="{Binding HasLeftAction}" Command="{Binding LeftAction.Command}"
+                                        ToolTip.Tip="{Binding LeftAction.Tip}" AutomationProperties.Name="{Binding LeftAction.Tip}">
+                                    <mi:MaterialIcon Kind="{Binding LeftAction.Icon}" Width="17" Height="17" />
+                                </Button>
+                                <Button Classes="rowTool" IsVisible="{Binding HasRightAction}" Command="{Binding RightAction.Command}"
+                                        ToolTip.Tip="{Binding RightAction.Tip}" AutomationProperties.Name="{Binding RightAction.Tip}">
+                                    <mi:MaterialIcon Kind="{Binding RightAction.Icon}" Width="17" Height="17" />
+                                </Button>
+                            </StackPanel>
+                            <Button Classes="rowTool rowEnd" Click="OnOpenClick" ToolTip.Tip="{Binding OpenTip}" AutomationProperties.Name="{Binding OpenTip}">
+                                <mi:MaterialIcon Kind="{Binding OpenIcon}" Width="18" Height="18" />
+                            </Button>
+                            <Button Classes="rowTool rowEnd" AutomationProperties.Name="More actions"
+                                    ToolTip.Tip="Rename, label, move, add a step, delete (or right-click the row)" Click="OnMoreClick">
+                                <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                            </Button>
+                            <Panel Width="22">
+                                <Border Classes="dragHandle onHover" IsVisible="{Binding ShowsDragHandle}"
+                                        ToolTip.Tip="Drag to reorder or to another section (Alt+↑/↓)" AutomationProperties.Name="Drag to move"
+                                        PointerPressed="OnHandlePressed" PointerMoved="OnHandleMoved" PointerReleased="OnHandleReleased"
+                                        PointerCaptureLost="OnHandleCaptureLost">
+                                    <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                </Border>
+                            </Panel>
+                        </StackPanel>
                     </Border>
                 </Grid>
                 </Panel>
