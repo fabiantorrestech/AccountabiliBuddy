@@ -8,7 +8,7 @@
              x:DataType="vm:GoalListViewModel">
     <!-- The Goals list pane (round 2 R5.2, change note §4a): the This week card stays at the top (the list scrolls under it), then "Your
          goals" (folds the list) with the view switch By area / Current / All, then soft area blocks (18 px apart, no borders, no row
-         dividers), each row: icon chip, name, "↳ target", the one number or a status pill, the kind's visual, ⋯ on hover or focus. Paused
+         dividers), each row: icon chip, name, "↳ target", the one number or a status pill, the kind's visual; the goal menu on right-click, the Menu key or Shift+F10 (no ⋯ on the row, owner 2026-11-14). Paused
          goals only in All (faded, last). In a small window the pane collapses to its icons. -->
     <UserControl.Styles>
         <Style Selector="Border.weekCard">
@@ -117,10 +117,6 @@
         <Style Selector="Button.textLink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
-        </Style>
-        <!-- The row's menu button sits over the visual's right end: it carries the surface colour so the visual doesn't show through. -->
-        <Style Selector="Button.rowMore /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
         </Style>
         <Style Selector="Button.compactIcon">
             <Setter Property="Width" Value="44" />
@@ -298,11 +294,7 @@
                                                                 </Panel>
                                                             </Grid>
                                                         </Button>
-                                                        <!-- ⋯ on hover or keyboard focus: the goal menu (also right-click, the Menu key, Shift+F10). -->
-                                                        <Button Classes="abHeaderIcon abHoverOnly rowMore" Width="28" Height="28" HorizontalAlignment="Right" Margin="0,0,6,0"
-                                                                Click="OnRowMoreClick" ToolTip.Tip="Goal menu" AutomationProperties.Name="Goal menu">
-                                                            <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" />
-                                                        </Button>
+                                                        <!-- No ⋯ on the row (owner, 2026-11-14): the goal menu opens with a right-click, the Menu key or Shift+F10. -->
                                                         <Border Classes="abMenuRing" CornerRadius="12" />
                                                     </Panel>
                                                 </DataTemplate>

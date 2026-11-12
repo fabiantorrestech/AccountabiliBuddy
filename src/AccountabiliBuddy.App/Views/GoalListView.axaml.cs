@@ -38,13 +38,4 @@ public partial class GoalListView : UserControl
             e.Handled = true;
         }
     }
-
-    private void OnRowMoreClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control button && button.DataContext is GoalRowViewModel item)
-        {
-            MenuRequested?.Invoke(this, (button, item.Id, false));
-            e.Handled = true;
-        }
-    }
 }
