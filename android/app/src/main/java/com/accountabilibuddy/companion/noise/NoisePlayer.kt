@@ -186,6 +186,17 @@ class NoisePlayer(private val context: Context, private val store: NoiseSettings
 
     fun previous() = move(NoisePlaylist.previous(index, files.size))
 
+    /** The sounds in the folder, in playlist order (Today's noise picker lists them); empty with no folder. */
+    fun sounds(): List<NoiseFile> = files
+
+    /** The playlist place of the current sound, or -1 for none. */
+    fun currentIndex(): Int = index
+
+    /** Makes [target] (a place in [sounds]) the current sound; it plays at once if a sound was playing, like Next. */
+    fun choose(target: Int) {
+        if (target in files.indices && target != index) move(target)
+    }
+
     fun setVolume(volume: Int) {
         val level = volume.coerceIn(0, 100)
         store.save(store.settings.value.copy(volume = level))

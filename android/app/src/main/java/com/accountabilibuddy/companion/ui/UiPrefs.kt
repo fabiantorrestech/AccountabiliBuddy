@@ -47,11 +47,18 @@ object UiPrefs {
     private val _barLook = MutableStateFlow(BarLook.Color)
     private val _syncLight = MutableStateFlow(SyncLightSetting.On)
     private val _todayLayout = MutableStateFlow(TodayLayout())
+    private val _todaySessionLayout = MutableStateFlow<TodayLayout?>(null)
 
     val barLook: StateFlow<BarLook> = _barLook.asStateFlow()
 
     /** The order of Today's parts and where each sits (Settings › Appearance › Today layout); this phone only, never synced. */
     val todayLayout: StateFlow<TodayLayout> = _todayLayout.asStateFlow()
+
+    /**
+     * Today's own layout while a session runs (round 2, Settings › Today: "In a session"); null until the person sets one, and then
+     * a session uses [todayLayout] as it always did. This phone only, never synced.
+     */
+    val todaySessionLayout: StateFlow<TodayLayout?> = _todaySessionLayout.asStateFlow()
 
     /** Whether Today shows the sync light (Settings › Devices & sync). It only hides the light: syncing itself is never touched. */
     val syncLight: StateFlow<SyncLightSetting> = _syncLight.asStateFlow()
@@ -72,6 +79,11 @@ object UiPrefs {
         _motion.value = runCatching { MotionSpeed.valueOf(prefs.getString("motion", null) ?: "") }.getOrDefault(MotionSpeed.Normal)
         _barLook.value = runCatching { BarLook.valueOf(prefs.getString("barLook", null) ?: "") }.getOrDefault(BarLook.Color)
         _todayLayout.value = TodayLayout.parse(prefs.getString("todayOrder", null), prefs.getString("todayPlacements", null))
+        _todaySessionLayout.value = if (prefs.getBoolean("todaySessionOwn", false)) {
+            TodayLayout.parse(prefs.getString("todaySessionOrder", null), prefs.getString("todaySessionPlacements", null))
+        } else {
+            null
+        }
         _syncLight.value = runCatching { SyncLightSetting.valueOf(prefs.getString("syncLight", null) ?: "") }.getOrDefault(SyncLightSetting.On)
         _themeName.value = runCatching { ThemeName.valueOf(prefs.getString("themeName", null) ?: "") }.getOrDefault(ThemeName.Instrument)
         _colour.value = ColourMode.fromCode(prefs.getInt("colour", ColourMode.Quiet.code))
@@ -102,6 +114,20 @@ object UiPrefs {
         val edit = prefs(context).edit()
         layout.orderText()?.let { edit.putString("todayOrder", it) } ?: edit.remove("todayOrder")
         layout.placementsText()?.let { edit.putString("todayPlacements", it) } ?: edit.remove("todayPlacements")
+        edit.apply()
+    }
+
+    /** Sets Today's in-session layout; null goes back to using [todayLayout] in a session too. */
+    fun setTodaySessionLayout(context: Context, layout: TodayLayout?) {
+        _todaySessionLayout.value = layout
+        val edit = prefs(context).edit()
+        if (layout == null) {
+            edit.remove("todaySessionOwn").remove("todaySessionOrder").remove("todaySessionPlacements")
+        } else {
+            edit.putBoolean("todaySessionOwn", true)
+            layout.orderText()?.let { edit.putString("todaySessionOrder", it) } ?: edit.remove("todaySessionOrder")
+            layout.placementsText()?.let { edit.putString("todaySessionPlacements", it) } ?: edit.remove("todaySessionPlacements")
+        }
         edit.apply()
     }
 

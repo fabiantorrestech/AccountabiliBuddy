@@ -39,6 +39,8 @@ class TodayActions(
     val onOpenDevices: () -> Unit,
     val onOpenTasks: () -> Unit,
     val onAllowUsage: () -> Unit,
+    /** Settings › Alerts & on-screen, where the noise folder, headphones and schedules are (the Noise picker's links). */
+    val onOpenNoiseSettings: () -> Unit = {},
 )
 
 /** Today's lunch: what the plan says, whether it was taken, and what the buttons do. */

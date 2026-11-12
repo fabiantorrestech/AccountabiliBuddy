@@ -375,6 +375,7 @@ fun MainScreen(
                             onOpenDevices = { nav.open(AppDestination.Settings, SettingsCategory.Devices.key) },
                             onOpenTasks = { nav.select(AppDestination.Tasks) },
                             onAllowUsage = onAllowUsage,
+                            onOpenNoiseSettings = { nav.open(AppDestination.Settings, SettingsCategory.Alerts.key) },
                         ),
                         // On a tablet the sync light lives in the sidebar, on every place.
                         syncLight = if (wide) ({}) else syncLightSlot,

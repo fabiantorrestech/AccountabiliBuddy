@@ -63,6 +63,13 @@ data class TodayLayout(
         return copy(order = next)
     }
 
+    /**
+     * Every part in [newOrder] (Settings › Today's single drag list, round 2); places are kept. An order that doesn't name every part
+     * exactly once changes nothing.
+     */
+    fun withOrder(newOrder: List<TodayItem>): TodayLayout =
+        if (newOrder.size == TodayItem.entries.size && newOrder.toSet() == TodayItem.entries.toSet()) copy(order = newOrder) else this
+
     fun orderText(): String? = order?.joinToString(",") { it.key }
 
     fun placementsText(): String? = placements.takeIf { it.isNotEmpty() }?.entries?.joinToString(",") { "${it.key.key}:${it.value.key}" }

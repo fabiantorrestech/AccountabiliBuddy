@@ -7,11 +7,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
 import com.accountabilibuddy.companion.today.TodayItem
 import com.accountabilibuddy.companion.ui.shell.LocalExpanded
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.runtime.Composable
@@ -49,6 +47,8 @@ import java.util.Locale
  * and in what order is the person's layout ([todayItem], [com.accountabilibuddy.companion.today.TodayLayout]); with none chosen it is the order Today always had.
  * No Scaffold and no fixed width: it fills the pane it is given (the phone's column now, the tablet's pinned 400 dp column later).
  * The buttons of a running session stay at the bottom of the pane; everything else scrolls. Only the timer redraws each second.
+ * On a phone (round 2, brief §4.1) the pane is [PhoneToday]: the same parts with the round 2 header, session card, This session,
+ * More today chips and the thumb zone; the tablet keeps the dashboard below until its own round 2 step.
  */
 @Composable
 fun TodayPane(
@@ -84,7 +84,10 @@ fun TodayPane(
     val stepAway = if (session != null) rememberStepAway(pc, clock) else null
     val hasTimer = rememberHasTimerOrAlarm()
     val chip = lunchChipKind(lunch)
-    val layout by UiPrefs.todayLayout.collectAsState()
+    val idleLayout by UiPrefs.todayLayout.collectAsState()
+    val ownSessionLayout by UiPrefs.todaySessionLayout.collectAsState()
+    // Round 2: a session has its own layout once the person sets one (Settings › Today); until then the one layout serves both.
+    val layout = if (session != null) ownSessionLayout ?: idleLayout else idleLayout
     // A phone with no plan from the PC yet cannot say what is next (its default plan would read as a day off).
     val info = model.today?.let { if (session == null && !state.hasImport) it.copy(dateSuffix = null, next = "No plan on this phone yet.") else it }
 
@@ -115,29 +118,23 @@ fun TodayPane(
         if (dayBarOnTop) todayItem(TodayItem.DayBar, parts)
     }
 
-    Column(Modifier.fillMaxSize()) {
-        if (wide) {
+    if (!wide) {
+        // Round 2 (brief §4.1): the phone's own Today, with the session card, This session, More today chips and the thumb zone.
+        PhoneToday(
+            state = state, model = model, clock = clock, pc = pc, info = info, parts = parts, layout = layout, guardsLock = guardsLock,
+            stepAway = stepAway, actions = actions, syncLight = syncLight, banner = banner, onStart = { starting = true },
+        )
+    } else {
+        Column(Modifier.fillMaxSize()) {
             WideToday(TodayBlocks().apply(body).blocks, Modifier.weight(1f))
-        } else {
-            LazyColumn(
-                Modifier.weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                asTodaySink().body()
-            }
-        }
-        if (session != null) {
-            val actionsRow: @Composable (Modifier) -> Unit = { modifier ->
-                SessionActions(stepAway, canEndEarly = pc.updateNeeded == null && pc.waiting == null, onEndEarly = actions.onEndEarly, modifier = modifier)
-            }
-            if (wide) {
+            if (session != null) {
                 // Not full width: a centred row of the buttons, as wide as a phone.
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    actionsRow(Modifier.widthIn(max = 560.dp).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp))
+                    SessionActions(
+                        stepAway, canEndEarly = pc.updateNeeded == null && pc.waiting == null, onEndEarly = actions.onEndEarly,
+                        modifier = Modifier.widthIn(max = 560.dp).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                    )
                 }
-            } else {
-                actionsRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp))
             }
         }
     }

@@ -26,7 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,15 +70,44 @@ fun rememberTickingNow(): State<Instant> {
     return now
 }
 
-/** Idle (board 5a): "Nothing running." in ink, what comes next in muted text, and the one way to start a session. */
+/**
+ * Idle (board 5a): "Nothing running." in ink, what comes next in muted text, and the one way to start a session. [compact] (the
+ * phone's round 2 Today, board Main) says both on one line; with [showStart] false the Start button is left to the thumb zone's
+ * action bar ([canStartHere] says when it shows), and only the lines that explain why Start isn't offered stay here.
+ */
 @Composable
-fun IdleHero(info: TodayInfo?, fallbackNext: String, pc: TodayPc, clock: ClockFormat, locked: Boolean, onStart: () -> Unit, onCancelWaiting: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        // While the settings rest for a PC session this screen cannot see (its file is out of date), "Nothing running." would be untrue.
-        Text(if (locked) "Session running." else info?.headline ?: TodayInfo.NOTHING_RUNNING, style = Ab.type.title, color = Ab.colors.ink)
-        Text(if (locked) "Its PC has not synced for a while." else info?.next ?: fallbackNext, style = Ab.type.title, color = Ab.colors.muted)
+fun IdleHero(
+    info: TodayInfo?,
+    fallbackNext: String,
+    pc: TodayPc,
+    clock: ClockFormat,
+    locked: Boolean,
+    onStart: () -> Unit,
+    onCancelWaiting: () -> Unit,
+    compact: Boolean = false,
+    showStart: Boolean = true,
+) {
+    // While the settings rest for a PC session this screen cannot see (its file is out of date), "Nothing running." would be untrue.
+    val headline = if (locked) "Session running." else info?.headline ?: TodayInfo.NOTHING_RUNNING
+    val next = if (locked) "Its PC has not synced for a while." else info?.next ?: fallbackNext
+    if (compact) {
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = Ab.colors.ink, fontWeight = FontWeight.SemiBold)) { append(headline) }
+                append(" ")
+                withStyle(SpanStyle(color = Ab.colors.muted)) { append(next) }
+            },
+            style = Ab.type.bodyMedium,
+        )
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(headline, style = Ab.type.title, color = Ab.colors.ink)
+            Text(next, style = Ab.type.title, color = Ab.colors.muted)
+        }
     }
-    Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val startHere = canStartHere(pc, locked)
+    if (startHere && !showStart) return
+    Column(Modifier.padding(top = if (compact) 8.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
             !pc.hasPc -> MutedLine("Link a PC to start sessions from here.")
             pc.updateNeeded != null -> MutedLine(pc.updateNeeded)
@@ -86,6 +119,9 @@ fun IdleHero(info: TodayInfo?, fallbackNext: String, pc: TodayPc, clock: ClockFo
         }
     }
 }
+
+/** True when a session can be started on [pc] from this phone now (the Start button shows). */
+fun canStartHere(pc: TodayPc, locked: Boolean): Boolean = pc.hasPc && pc.updateNeeded == null && pc.waiting == null && !locked
 
 /**
  * A running session (boards 5b, 6a): the timer at 72 sp, the task and when it ends. Only [SessionTimer] redraws each second.
@@ -154,7 +190,7 @@ fun PlanningHero(startedAt: Instant?, endsAt: Instant, profileName: String?) {
 // The timer is a display number: it keeps its size when the phone's font size is large (a 72 sp number at 1.3 would not fit), and
 // an hour or more (h:mm:ss) steps down so seven characters fit a narrow screen.
 @Composable
-private fun BigTimer(text: String, color: androidx.compose.ui.graphics.Color) {
+internal fun BigTimer(text: String, color: androidx.compose.ui.graphics.Color) {
     val density = LocalDensity.current
     val style = if (text.length > 5) Ab.type.timer.copy(fontSize = 52.sp, lineHeight = 57.sp) else Ab.type.timer
     CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = minOf(density.fontScale, 1f))) {
@@ -162,7 +198,7 @@ private fun BigTimer(text: String, color: androidx.compose.ui.graphics.Color) {
     }
 }
 
-private fun secondsLeft(now: Instant, end: Instant): Long = ((Duration.between(now, end).toMillis() + 999) / 1000).coerceAtLeast(0)
+internal fun secondsLeft(now: Instant, end: Instant): Long = ((Duration.between(now, end).toMillis() + 999) / 1000).coerceAtLeast(0)
 
 /** 18:42, or 1:18:42 from an hour. */
 internal fun clockText(totalSeconds: Long): String {

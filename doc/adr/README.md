@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0082](0082-more-session-actions-from-the-phone.md) | More session actions from the phone | Proposed | — |
 | [0081](0081-read-weight-from-health-connect.md) | Read weight from Health Connect | Proposed | — |
 | [0080](0080-send-goal-values-to-beeminder.md) | Send goal values to Beeminder | Proposed | — |
 | [0079](0079-sync-goals-between-the-users-devices.md) | Sync goals between the user's devices | Proposed | — |
