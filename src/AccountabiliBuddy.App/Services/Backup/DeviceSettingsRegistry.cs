@@ -17,6 +17,9 @@ public static class DeviceSettingsRegistry
         "stats.view", "history.hidden", "history.hiddenDistractions", "history.names", "dailySteps", "enforcement.limit",
         "setup.computerType", "classify.exemptionProfiles", "dpAssistant", "planHelperDismissed", "updates", "backup.auto.settings",
         "tasks.viewSearches", "tasks.categoryIds", "tasks.settings", "tasks.reminderSettings", "tasks.layout", "today.layout",
+        // Round 2 R4: this PC's goals, device-local until ADR 79 (the five lists sealed with this PC's key; restored through the goals
+        // store, Deep work's weekly target through its waiting rule).
+        "goals.items", "goals.areas", "goals.entries", "goals.reminders", "goals.reviews", "goals.deepWork", "goals.ui", "goals.settings",
     ];
 
     /// <summary>Restored through their services in synced settings, so the edit reaches the other devices.</summary>
@@ -42,6 +45,7 @@ public static class DeviceSettingsRegistry
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
         "tasks.model", "tasks.modelAttempt", "tasks.running", "tasks.tidyUp",
         "tasks.reminderMissed", "tasks.volumeRestore", "tasks.calendarExport",
+        "goals.model", "goals.modelAttempt",
     ];
 
     // Whole families of state: the sync machinery (identity, keys, received files, settings), dev switches.

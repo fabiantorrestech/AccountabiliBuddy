@@ -113,6 +113,9 @@ public partial class App : Application
     private AccountabiliBuddy.App.Services.Today.TodayLayoutService? _todayLayout;
     private AccountabiliBuddy.App.Services.Tasks.TaskViewService? _taskViews;
     private AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService? _taskTidyUp;
+
+    // Round 2 R4: this PC's goals (store, Deep work rules); the Goals screens come in R5.
+    private AccountabiliBuddy.App.Services.Goals.GoalsService? _goals;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderService? _taskReminders;
     private AccountabiliBuddy.App.Services.Tasks.TaskReminderRinger? _taskReminderRinger;
     private AccountabiliBuddy.App.Services.Tasks.TaskCalendarExportService? _taskCalendarExport;
@@ -1388,6 +1391,17 @@ public partial class App : Application
             _taskCalendarExport.Start();
             _ = StartTaskViewsAsync();
         }
+
+        // Round 2 R4 (brief §5.3): this PC's goals, device-local until ADR 79. Once (database backup first, marker last) the default
+        // area "Work" and the built-in Deep work goal are made; Deep work's daily target stays the "goal" document (ADR 29), its weekly
+        // target and "Track time only" live in "goals.deepWork". A failed first run leaves no marker and changes nothing else; goals that
+        // can't be read stay closed (never rebuilt on a guess). Lowering Deep work follows the looser-change rule (GoalsService); guards
+        // never read goal counts. No screen yet (R5).
+        var goalStore = new AccountabiliBuddy.App.Services.Goals.GoalStore(documents, new DpapiDataProtector(), time);
+        AccountabiliBuddy.App.Services.Goals.GoalsMigration.RunBlocking(database, goalStore, time, dataDirectory);
+        _goals = new AccountabiliBuddy.App.Services.Goals.GoalsService(
+            goalStore, goal, _sessions!, time, () => guidance.IsCompanion, goalLowerWaits, () => _configuration!.Current.Locks.LooseningDelay);
+        guidance.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _goals.ModeChangedAsync());
         autoSaved.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         pastSettled.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         handovers.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -2078,6 +2092,23 @@ public partial class App : Application
                 ? "Task reminders' \"Remind quietly\" takes effect after the countdown."
                 : null;
         };
+
+        // Round 2 R4: the goals go through their store (sealed lists opened with this PC's key and merged in; display preferences as
+        // they are) and Deep work's weekly target through its rules: a lower one, none or Track time only waits like a change made here.
+        if (_goals is { } restoredGoals)
+        {
+            foreach (string goalsKey in AccountabiliBuddy.App.Services.Goals.GoalStore.SealedKeys)
+            {
+                backups.DeviceRestorers[goalsKey] = value => restoredGoals.Store.RestoreListAsync(goalsKey, value);
+            }
+
+            foreach (string goalsKey in new[] { AccountabiliBuddy.App.Services.Goals.GoalStore.UiKey, AccountabiliBuddy.App.Services.Goals.GoalStore.SettingsKey })
+            {
+                backups.DeviceRestorers[goalsKey] = value => restoredGoals.Store.RestoreDisplayAsync(goalsKey, value);
+            }
+
+            backups.DeviceRestorers[AccountabiliBuddy.App.Services.Goals.GoalStore.DeepWorkKey] = restoredGoals.RestoreDeepWorkAsync;
+        }
 
         // ADR 76: the task store keeps these two in memory and saves them back, so a raw restore would be overwritten: it goes through the store.
         foreach (string mapKey in new[] { AccountabiliBuddy.App.Services.Tasks.TaskStore.CategoryIdsKey, AccountabiliBuddy.App.Services.Tasks.TaskStore.ViewSearchesKey })
