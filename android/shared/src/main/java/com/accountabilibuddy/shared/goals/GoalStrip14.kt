@@ -12,6 +12,12 @@ object GoalStrip14 {
     fun forGoal(goal: Goal, data: GoalSourceData, today: LocalDate): List<GoalStripCell> =
         GoalCounting.days(goal, data, today.minusDays((LENGTH - 1).toLong()), today, today).map { cell(goal, it, today) }
 
+    /**
+     * One day's cell by the strip's rule (hit, partial, missed, paused, not due, today with its progress), for other day views of
+     * the same states (the week dots, the This period tile, the goal heatmap); the PC's `GoalStrip14.CellOf`.
+     */
+    fun cellOf(goal: Goal, state: GoalDayState, today: LocalDate): GoalStripCell = cell(goal, state, today)
+
     private fun cell(goal: Goal, state: GoalDayState, today: LocalDate): GoalStripCell {
         val isToday = state.day == today
         val counted = state.status == GoalDayStatus.Counted || state.status == GoalDayStatus.CountedTickedItself

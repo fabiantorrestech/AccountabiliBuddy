@@ -5,6 +5,8 @@ import com.accountabilibuddy.shared.goals.GoalAge
 import com.accountabilibuddy.shared.goals.GoalCounting
 import com.accountabilibuddy.shared.goals.GoalDayState
 import com.accountabilibuddy.shared.goals.GoalHeat
+import com.accountabilibuddy.shared.goals.GoalHeatmapGrid
+import com.accountabilibuddy.shared.goals.GoalHeatmapMonth
 import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.goals.GoalReviewSuggestion
 import com.accountabilibuddy.shared.goals.GoalSourceData
@@ -16,16 +18,18 @@ import com.accountabilibuddy.shared.goals.GoalTargetProgress
 import com.accountabilibuddy.shared.goals.GoalWeekStart
 import com.accountabilibuddy.shared.goals.GoalWhatItTakes
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.LocalDate
+import java.time.OffsetDateTime
 
 /**
  * The Kotlin results in the shape the C# checks write them (GoalFixtures.Snapshot and the computed records through
- * SyncJson.Options: every field written, nulls too), so [JsonParity] can compare them.
+ * SyncJson.Options: every field written, nulls too, whole doubles without a fraction), so [JsonParity] can compare them.
  */
 object GoalSnapshotJson {
     fun snapshot(goal: Goal, data: GoalSourceData, today: LocalDate, weekStart: GoalWeekStart, from: LocalDate): JsonObject {
@@ -38,8 +42,8 @@ object GoalSnapshotJson {
             put("thisPeriod", buildJsonObject {
                 put("start", span.start.toString())
                 put("end", span.end.toString())
-                put("required", period.required)
-                put("progress", period.progress)
+                put("required", num(period.required))
+                put("progress", num(period.progress))
                 put("met", period.met)
                 put("skipped", period.skipped)
                 put("aliveDays", period.aliveDays)
@@ -53,14 +57,17 @@ object GoalSnapshotJson {
         }
     }
 
+    /** A double as the PC writes it (whole ones without a fraction), or JSON null. */
+    fun num(value: Double?): JsonElement = value?.let(GoalJson::number) ?: JsonNull
+
     fun day(goal: Goal, state: GoalDayState): JsonObject = buildJsonObject {
         put("day", state.day.toString())
-        put("value", state.value)
-        put("minutes", state.minutes)
+        put("value", num(state.value))
+        put("minutes", num(state.minutes))
         put("hasValue", state.hasValue)
         put("hit", state.hit)
         put("status", state.status.name)
-        put("short", state.short)
+        put("short", num(state.short))
         put("sources", JsonArray(state.sources.map { JsonPrimitive(it.name) }))
         put("byHand", state.byHand)
         put("backFilled", state.backFilled)
@@ -70,7 +77,7 @@ object GoalSnapshotJson {
     fun stripCell(cell: GoalStripCell): JsonObject = buildJsonObject {
         put("day", cell.day.toString())
         put("kind", cell.kind.name)
-        put("progress", cell.progress)
+        put("progress", num(cell.progress))
         put("isToday", cell.isToday)
     }
 
@@ -82,25 +89,25 @@ object GoalSnapshotJson {
     }
 
     fun target(progress: GoalTargetProgress): JsonObject = buildJsonObject {
-        put("current", progress.current)
-        put("target", progress.target)
-        put("expectedToday", progress.expectedToday)
-        put("start", progress.start)
+        put("current", num(progress.current))
+        put("target", num(progress.target))
+        put("expectedToday", num(progress.expectedToday))
+        put("start", num(progress.start))
         put("met", progress.met)
         put("status", progress.status.name)
     }
 
     fun whatItTakes(takes: GoalWhatItTakes): JsonObject = buildJsonObject {
         put("verdict", takes.verdict.name)
-        put("remaining", takes.remaining)
+        put("remaining", num(takes.remaining))
         put("daysLeft", takes.daysLeft)
-        put("eachDay", takes.eachDay)
-        put("eachWeek", takes.eachWeek)
-        put("pacePerDay", takes.pacePerDay)
+        put("eachDay", num(takes.eachDay))
+        put("eachWeek", num(takes.eachWeek))
+        put("pacePerDay", num(takes.pacePerDay))
         put("projectedFinish", takes.projectedFinish?.toString())
-        put("ownPerDay", takes.ownPerDay)
-        put("morePerDay", takes.morePerDay)
-        put("morePerWeek", takes.morePerWeek)
+        put("ownPerDay", num(takes.ownPerDay))
+        put("morePerDay", num(takes.morePerDay))
+        put("morePerWeek", num(takes.morePerWeek))
     }
 
     fun review(suggestion: GoalReviewSuggestion): JsonObject = buildJsonObject {
@@ -108,12 +115,46 @@ object GoalSnapshotJson {
         put("behindPeriods", suggestion.behindPeriods)
         put("periodsChecked", suggestion.periodsChecked)
         put("behindDays", suggestion.behindDays)
-        put("changePercent30", suggestion.changePercent30)
-        put("pacePerDay", suggestion.pacePerDay)
+        put("changePercent30", num(suggestion.changePercent30))
+        put("pacePerDay", num(suggestion.pacePerDay))
         put("projectedFinish", suggestion.projectedFinish?.toString())
         put("quiet", suggestion.quiet)
     }
 
+    /** A grid as the C# check writes it (the record, then its probes: rows, columns, shown days and three cells). */
+    fun grid(grid: GoalHeatmapGrid): JsonObject = buildJsonObject {
+        put("range", grid.range.name)
+        put("first", grid.first.toString())
+        put("rangeStart", grid.rangeStart.toString())
+        put("end", grid.end.toString())
+        put("columns", grid.columns)
+        put("weekStart", grid.weekStart.name)
+        put("months", JsonArray(grid.months.map(::month)))
+        val probes = listOf(
+            grid.first, grid.rangeStart, grid.end, grid.end.plusDays(1), grid.rangeStart.minusDays(1), grid.first.minusDays(8), grid.rangeStart.plusDays(40),
+        )
+        put("probes", JsonArray(probes.map { day ->
+            buildJsonObject {
+                put("day", day.toString())
+                put("row", grid.rowOf(day))
+                put("column", grid.columnOf(day))
+                put("shows", grid.shows(day))
+            }
+        }))
+        put("dayAt", JsonArray(listOf(grid.dayAt(0, 0), grid.dayAt(6, grid.columns - 1), grid.dayAt(3, 2)).map { JsonPrimitive(it.toString()) }))
+    }
+
+    fun month(month: GoalHeatmapMonth): JsonObject = buildJsonObject {
+        put("year", month.year)
+        put("month", month.month)
+        put("label", month.label)
+        put("firstColumn", month.firstColumn)
+        put("lastColumn", month.lastColumn)
+        put("firstRow", month.firstRow)
+        put("hasDivider", month.hasDivider)
+        put("centreColumn", num(month.centreColumn))
+    }
+
     /** A time as the C# side writes it, or JSON null. */
-    fun time(time: java.time.OffsetDateTime?): JsonPrimitive = time?.let { JsonPrimitive(GoalJson.time(it)) } ?: JsonNull
+    fun time(time: OffsetDateTime?): JsonPrimitive = time?.let { JsonPrimitive(GoalJson.time(it)) } ?: JsonNull
 }

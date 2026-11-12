@@ -9,6 +9,9 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.put
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -40,10 +43,16 @@ object GoalJson {
         .appendOffset("+HH:MM", "+00:00")
         .toFormatter(Locale.ROOT)
 
-    private val dotNetTimeOfDay: DateTimeFormatter = DateTimeFormatterBuilder()
-        .appendPattern("HH:mm:ss")
-        .appendFraction(ChronoField.NANO_OF_SECOND, 0, 7, true)
-        .toFormatter(Locale.ROOT)
+    // .NET writes a TimeOnly with all 7 fraction digits when it has a fraction ("08:15:30.5000000"), none otherwise.
+    private val dotNetTimeOfDay: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)
+    private val dotNetTimeOfDayFraction: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSS", Locale.ROOT)
+
+    // A time as [time] writes it: the one string kind .NET writes without its encoder (a "+05:30" offset is not escaped). A
+    // private text that happens to be exactly such a time would come out unescaped here (Q424).
+    private val dotNetTimeText = Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?[+-]\d{2}:\d{2}""")
+
+    // Printable ASCII that .NET's default encoder (JavaScriptEncoder.Default) still escapes as \uXXXX.
+    private const val ESCAPED_ASCII = "\"&'+<>`"
 
     // System.Text.Json reads a Guid only in its 36-character form.
     private val guidForm = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -172,12 +181,135 @@ object GoalJson {
     /** A time as .NET writes a DateTimeOffset ("2026-11-11T18:00:00-05:00"). */
     fun time(time: OffsetDateTime): String = dotNetTime.format(time)
 
-    /** A time of day as .NET writes a TimeOnly ("08:00:00"). */
-    fun timeOfDay(time: LocalTime): String = dotNetTimeOfDay.format(time)
+    /** A time of day as .NET writes a TimeOnly ("08:00:00", "08:15:30.5000000"). */
+    fun timeOfDay(time: LocalTime): String = (if (time.nano == 0) dotNetTimeOfDay else dotNetTimeOfDayFraction).format(time)
 
-    /** A number as .NET writes a double: whole numbers without a fraction ("120", not "120.0"). */
+    /** A number as .NET writes a double: whole numbers below 1E+17 without a fraction ("120", not "120.0"); see [doubleText] for the rest. */
     fun number(value: Double): JsonPrimitive =
-        if (!value.isNaN() && !value.isInfinite() && value == floor(value) && abs(value) < 1e15) JsonPrimitive(value.toLong()) else JsonPrimitive(value)
+        if (!value.isNaN() && !value.isInfinite() && value == floor(value) && abs(value) < 1e17) JsonPrimitive(value.toLong()) else JsonPrimitive(value)
+
+    // ---------------------------------------------------------------- the stored lists (goals.items, areas, entries, reminders, reviews)
+
+    fun writeGoals(goals: List<Goal>): JsonArray = JsonArray(goals.map(::writeGoal))
+
+    fun writeAreas(areas: List<GoalArea>): JsonArray = JsonArray(areas.map(::writeArea))
+
+    fun writeEntries(entries: List<GoalEntry>): JsonArray = JsonArray(entries.map(::writeEntry))
+
+    fun writeReminders(reminders: List<GoalReminder>): JsonArray = JsonArray(reminders.map(::writeReminder))
+
+    fun writeReviews(reviews: List<GoalReviewRecord>): JsonArray = JsonArray(reviews.map(::writeReview))
+
+    fun readGoals(json: JsonElement): List<Goal> = list(json, "goals").map(::readGoal)
+
+    fun readAreas(json: JsonElement): List<GoalArea> = list(json, "areas").map(::readArea)
+
+    fun readEntries(json: JsonElement): List<GoalEntry> = list(json, "entries").map(::readEntry)
+
+    fun readReminders(json: JsonElement): List<GoalReminder> = list(json, "reminders").map(::readReminder)
+
+    fun readReviews(json: JsonElement): List<GoalReviewRecord> = list(json, "reviews").map(::readReview)
+
+    // ---------------------------------------------------------------- text
+
+    /**
+     * Compact JSON text exactly as System.Text.Json writes it with the PC's options, byte for byte: no spaces; in strings only
+     * printable ASCII is written as is, except [ESCAPED_ASCII] (as \uXXXX), the backslash (two of them) and the short escapes
+     * for a new line, carriage return, tab, backspace and form feed; everything else as \uXXXX (upper-case hex, two for an
+     * emoji); doubles as .NET's shortest round-trip text ([doubleText]).
+     */
+    fun text(json: JsonElement): String = StringBuilder().also { appendText(it, json) }.toString()
+
+    /** A double as .NET Core writes it: the shortest digits that read back the same, plain from 1E-04 to below 1E+17, else "1.5E-07". */
+    fun doubleText(value: Double): String {
+        require(!value.isNaN() && !value.isInfinite()) { "JSON has no NaN or infinity" }
+        if (value == 0.0) {
+            return if (1.0 / value < 0) "-0" else "0"
+        }
+
+        val decimal = shortest(value)
+        val digits = decimal.unscaledValue().abs().toString()
+        val exponent = digits.length - 1 - decimal.scale()
+        if (exponent in -4..16) {
+            return decimal.toPlainString()
+        }
+
+        val mantissa = if (digits.length == 1) digits else digits[0] + "." + digits.substring(1)
+        val sign = if (value < 0) "-" else ""
+        return sign + mantissa + "E" + (if (exponent < 0) "-" else "+") + abs(exponent).toString().padStart(2, '0')
+    }
+
+    // The fewest significant digits that read back as the same double, the nearest such decimal (as .NET Core picks them;
+    // Java's Double.toString keeps two digits for some values, e.g. 4.9E-324 where .NET writes 5E-324).
+    private fun shortest(value: Double): BigDecimal {
+        val exact = BigDecimal(value)
+        for (precision in 1..17) {
+            val rounded = exact.round(MathContext(precision, RoundingMode.HALF_EVEN))
+            if (rounded.toDouble() == value) {
+                return rounded.stripTrailingZeros()
+            }
+        }
+
+        return exact.round(MathContext(17, RoundingMode.HALF_EVEN)).stripTrailingZeros()
+    }
+
+    private fun appendText(out: StringBuilder, json: JsonElement) {
+        when (json) {
+            is JsonObject -> {
+                out.append('{')
+                json.entries.forEachIndexed { index, (key, value) ->
+                    if (index > 0) out.append(',')
+                    appendString(out, key)
+                    out.append(':')
+                    appendText(out, value)
+                }
+                out.append('}')
+            }
+
+            is JsonArray -> {
+                out.append('[')
+                json.forEachIndexed { index, value ->
+                    if (index > 0) out.append(',')
+                    appendText(out, value)
+                }
+                out.append(']')
+            }
+
+            is JsonNull -> out.append("null")
+            is JsonPrimitive -> when {
+                !json.isString -> out.append(literalText(json.content))
+                // .NET writes its dates and times straight, not through the string encoder (so a time's "+" stays "+").
+                dotNetTimeText.matches(json.content) -> out.append('"').append(json.content).append('"')
+                else -> appendString(out, json.content)
+            }
+        }
+    }
+
+    // true / false / a whole number as they are; a double (it has a point or an exponent) as .NET writes it.
+    private fun literalText(content: String): String {
+        if (content == "true" || content == "false" || content.none { it == '.' || it == 'e' || it == 'E' }) {
+            return content
+        }
+
+        return doubleText(content.toDouble())
+    }
+
+    private fun appendString(out: StringBuilder, text: String) {
+        out.append('"')
+        for (char in text) {
+            when {
+                char == '\\' -> out.append("\\\\")
+                char == '\n' -> out.append("\\n")
+                char == '\r' -> out.append("\\r")
+                char == '\t' -> out.append("\\t")
+                char == '\b' -> out.append("\\b")
+                char == '\u000C' -> out.append("\\f")
+                char in ' '..'~' && char !in ESCAPED_ASCII -> out.append(char)
+                else -> out.append("\\u").append(String.format(Locale.ROOT, "%04X", char.code))
+            }
+        }
+        out.append('"')
+    }
 
     // ---------------------------------------------------------------- reading
 
@@ -358,6 +490,8 @@ object GoalJson {
     private fun missing(name: String) = IllegalArgumentException("Goal JSON: \"$name\" is missing or of the wrong kind")
 
     private fun obj(json: JsonElement, name: String): JsonObject = json as? JsonObject ?: throw missing(name)
+
+    private fun list(json: JsonElement, name: String): JsonArray = json as? JsonArray ?: throw missing(name)
 
     // The PC reads property names in any case (JsonSerializerDefaults.Web); an exact match wins.
     private fun JsonObject.field(name: String): JsonElement? = this[name] ?: entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value

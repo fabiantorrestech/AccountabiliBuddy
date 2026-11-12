@@ -27,6 +27,16 @@ private val checks: List<FixtureCheck> = listOf(
     GoalPeriodsCheck(),
     GoalReminderCheck(),
     GoalRoundingCheck(),
+    // R4 milestone review: parity coverage (stored shape byte for byte, numbers, into-ab, sources, label ids, heatmap, strip cells).
+    GoalShapeCheck(),
+    GoalNumbersCheck(),
+    GoalIntoAbCheck(),
+    GoalSourcesCheck(),
+    GoalLabelIdsCheck(),
+    GoalHeatmapGridCheck(),
+    GoalHeatmapStepCheck(),
+    GoalHeatmapFitCheck(),
+    GoalStripCellCheck(),
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

@@ -15,7 +15,7 @@ class GoalDstCheck : FixtureCheck {
             val result = runCatching {
                 val world = GoalFixtureWorld(case.input)
                 val state = GoalCounting.day(world.goal, world.data(), LocalDate.parse(case.text("day")), world.today)
-                JsonParity.difference(case.expected, buildJsonObject { put("minutes", state.minutes) })
+                JsonParity.difference(case.expected, buildJsonObject { put("minutes", GoalSnapshotJson.num(state.minutes)) })
             }
             val detail = result.getOrElse { "threw ${it.message}" }
             report.check("$area/$name: ${case.name}", result.isSuccess && detail == null, detail ?: "")

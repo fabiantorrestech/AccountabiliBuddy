@@ -10,7 +10,8 @@ import kotlin.math.max
 
 /**
  * Compares the C# side's JSON with the Kotlin side's: the same names in the same order, the same texts, booleans and nulls,
- * and numbers equal within a small tolerance (C# prints doubles its own way, e.g. 245.85365853658539).
+ * and numbers equal within a small tolerance (C# prints doubles its own way, e.g. 245.85365853658539); a number C# writes whole
+ * ("120") must be written whole by Kotlin too (not "120.0").
  */
 object JsonParity {
     const val TOLERANCE = 1e-6
@@ -45,6 +46,10 @@ object JsonParity {
 
                 val a = expected.content.toDoubleOrNull()
                 val b = actual.content.toDoubleOrNull()
+                if (a != null && b != null && !hasFraction(expected.content) && hasFraction(actual.content)) {
+                    return "$path: C# writes ${expected.content} without a fraction, kotlin ${actual.content}"
+                }
+
                 if (a != null && b != null) {
                     return if (abs(a - b) <= TOLERANCE * max(1.0, max(abs(a), abs(b)))) null else "$path: C# $a vs kotlin $b"
                 }
@@ -53,4 +58,7 @@ object JsonParity {
             }
         }
     }
+
+    // A point or an exponent: a whole number the PC writes as "120" must not come out as "120.0".
+    private fun hasFraction(number: String): Boolean = number.any { it == '.' || it == 'e' || it == 'E' }
 }
