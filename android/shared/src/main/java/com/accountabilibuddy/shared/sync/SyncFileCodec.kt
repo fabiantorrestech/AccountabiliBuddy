@@ -38,7 +38,14 @@ object SyncFileCodec {
     private val magic = "ABS1".toByteArray(Charsets.US_ASCII)
     private val random = SecureRandom()
 
-    fun seal(file: SyncFile, key: SyncKey): ByteArray = sealJson(SyncFileJson.write(file).toString().toByteArray(Charsets.UTF_8), key, magic)
+    fun seal(file: SyncFile, key: SyncKey): ByteArray = sealJson(sealedText(file).toByteArray(Charsets.UTF_8), key, magic)
+
+    /**
+     * The file as JSON text, written by [com.accountabilibuddy.shared.goals.GoalJson.text] (never JsonObject.toString()): a DateTimeOffset value is
+     * marked inside the JSON tree (U+0001, GoalJson.timeValue) and only that writer drops the mark, as .NET writes the time straight. With the
+     * mark in the text the PC cannot read the time, and leaves out every goal, area, task and label of this phone.
+     */
+    fun sealedText(file: SyncFile): String = com.accountabilibuddy.shared.goals.GoalJson.text(SyncFileJson.write(file))
 
     /**
      * Seals [json] the way [seal] does under another 4-byte [header] (the goal history files, ADR 79: "ABM1" for a month, "ABY1" for a

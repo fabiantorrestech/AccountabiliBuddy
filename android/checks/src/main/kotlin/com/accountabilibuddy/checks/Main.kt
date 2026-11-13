@@ -176,6 +176,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "r74-self" to R74SelfCheck::run,
     // Round 2 R7.5 + HM1 (phone): the tablet sizes of the phone Tasks layout and the heatmaps' month lines (phone only).
     "r75-self" to R75SelfCheck::run,
+    // Phone sync bug: goals and tasks travel both ways (phone only).
+    "phonesync1" to Phonesync1Check::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

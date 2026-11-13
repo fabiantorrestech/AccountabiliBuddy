@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.goals
 
 import com.accountabilibuddy.shared.goals.GoalHistoryCodec
+import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.goals.GoalHistoryJson
 import com.accountabilibuddy.shared.goals.GoalHistoryMonth
 import com.accountabilibuddy.shared.goals.GoalHistoryYear
@@ -14,9 +15,9 @@ import kotlinx.serialization.json.Json
  * write ([GoalHistoryJson]). A file that isn't this group's, can't be read or comes from a newer format opens as null.
  */
 class PhoneGoalHistoryCodec(private val key: () -> SyncKey?) : GoalHistoryCodec {
-    override fun seal(month: GoalHistoryMonth): ByteArray = SyncFileCodec.sealJson(json(GoalHistoryJson.writeMonth(month).toString()), key()!!, MONTH)
+    override fun seal(month: GoalHistoryMonth): ByteArray = SyncFileCodec.sealJson(json(GoalJson.text(GoalHistoryJson.writeMonth(month))), key()!!, MONTH)
 
-    override fun seal(year: GoalHistoryYear): ByteArray = SyncFileCodec.sealJson(json(GoalHistoryJson.writeYear(year).toString()), key()!!, YEAR)
+    override fun seal(year: GoalHistoryYear): ByteArray = SyncFileCodec.sealJson(json(GoalJson.text(GoalHistoryJson.writeYear(year))), key()!!, YEAR)
 
     override fun openMonth(bytes: ByteArray): GoalHistoryMonth? = open(bytes, MONTH)?.let(GoalHistoryJson::readMonth)
 
