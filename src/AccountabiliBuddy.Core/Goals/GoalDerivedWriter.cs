@@ -12,6 +12,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// calendar extras write nothing for a 0 unless they had a value that day (then it becomes 0).</item>
 /// <item>Inside a read's cover (<see cref="GoalDerivedCover"/>) this device's own entry for a day the read no longer has becomes a tombstone;
 /// a reading for a day whose own entry is a tombstone brings it back.</item>
+/// <item>A reading that isn't a finite number (NaN, infinity) is skipped: nothing is written for it and that day's own entry is left as it
+/// is (not removed by the cover), so a bad read never writes NaN or infinity and never churns.</item>
 /// <item>Never touched: hand entries, entries written before devices were recorded (no device), another device's entries, and Beeminder's
 /// (only a PC with a Beeminder token changes or removes those, <see cref="MayChange"/>; their own rules stay in the PC's Beeminder entry rules).</item>
 /// </list>
@@ -47,7 +49,8 @@ public static class GoalDerivedWriter
 
     /// <returns>
     /// The entries to put (new, updated in place, brought back, or made tombstones), ordered by id; empty when nothing changed. A later reading
-    /// for the same goal, source and day replaces an earlier one in <paramref name="readings"/>.
+    /// for the same goal, source and day replaces an earlier one in <paramref name="readings"/>; a non-finite reading is skipped and keeps
+    /// that day's own entry as it is.
     /// </returns>
     /// <exception cref="ArgumentException">A reading or cover of a source that isn't device-measured (<see cref="IsDerived"/>).</exception>
     public static IReadOnlyList<GoalEntry> Changes(
@@ -74,9 +77,20 @@ public static class GoalDerivedWriter
         }
 
         var fresh = new Dictionary<Guid, GoalDerivedReading>();
+        var unreadable = new HashSet<Guid>();
         foreach (GoalDerivedReading reading in readings)
         {
-            fresh[GoalDerivedIds.For(reading.GoalId, reading.Source, deviceId, reading.Day)] = reading;
+            Guid id = GoalDerivedIds.For(reading.GoalId, reading.Source, deviceId, reading.Day);
+            if (double.IsFinite(reading.Value))
+            {
+                fresh[id] = reading;
+                unreadable.Remove(id);
+            }
+            else
+            {
+                fresh.Remove(id);
+                unreadable.Add(id);
+            }
         }
 
         var changes = new Dictionary<Guid, GoalEntry>();
@@ -101,7 +115,7 @@ public static class GoalDerivedWriter
 
         foreach (GoalEntry entry in own.Values)
         {
-            if (entry.IsLive && !fresh.ContainsKey(entry.Id)
+            if (entry.IsLive && !fresh.ContainsKey(entry.Id) && !unreadable.Contains(entry.Id)
                 && covered.Any(cover => cover.GoalId == entry.GoalId && cover.Source == entry.Source && entry.Day >= cover.From && entry.Day <= cover.To))
             {
                 DateTimeOffset at = SharedListMerge.NextStamp(now, entry);

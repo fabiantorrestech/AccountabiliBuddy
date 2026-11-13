@@ -102,9 +102,9 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="GoalReminders">ADR 79: the goal reminders (reasons are private text), merged item by item; null as <paramref name="Goals"/>.</param>
 /// <param name="GoalReviews">ADR 79: the weekly review records, one per week (<see cref="GoalReviewIds"/>); null as <paramref name="Goals"/>.</param>
 /// <param name="GoalYearsMerged">
-/// ADR 79 shared history (GS1b): the goal year files this device has merged, each as its year and the roll-up time of the version merged
+/// ADR 79 shared history (GS1b): the goal year files this device has merged, each as its year, the PC that rolled it and the roll-up time of the version merged
 /// (<see cref="SyncGoalYearMerged"/>, <see cref="GoalHistoryRules.Marked"/>). A month file is removed only once every active device's marker
-/// lists its year file's version (<see cref="GoalHistoryRules.MayRemoveMonth"/>). Numbers and times only; null when none was merged, from an
+/// lists its year file's version (<see cref="GoalHistoryRules.MayRemoveMonth"/>). Ids, numbers and times only; null when none was merged, from an
 /// app that predates it and in a QR file. Read leniently.
 /// </param>
 public sealed record SyncFile(

@@ -27,8 +27,11 @@ namespace AccountabiliBuddy.Core.Goals;
 /// removed device's past days still count); <b>Beeminder</b> as one (a single writer); the PCs' <b>#tag extras</b>
 /// (<see cref="GoalEntrySource.FocusLocal"/>, only with a switched-on #tag rule) add up, this device's own left out; the PCs' <b>calendar</b>
 /// values (only with a switched-on calendar rule) the highest, minus what this device's own calendar windows already added. The #tag and
-/// calendar values add to the time sources' minutes of Time goals and habits. <b>Steps</b>: a day with a Health Connect entry reads it,
-/// else the phone's synced daily count (<see cref="GoalSourceData.Steps"/>), never both. A hand entry still wins wherever it did.</para>
+/// calendar values add to the time sources' minutes of Time goals and habits. <b>Steps</b>: the highest of every device's Health Connect value
+/// and the phone's synced daily count (<see cref="GoalSourceData.Steps"/>, counted as a device of its own), so a real 0 from one device never
+/// hides another's count. <b>Screen time without a device</b>: entries written before devices were recorded count as one device, unless the
+/// day also has a counted device's derived screen-time entry; then only the derived ones count (a device writes screen time one way or the
+/// other, never both for one day, except across the upgrade). A hand entry still wins wherever it did.</para>
 /// The built-in Deep work goal (<see cref="Goal.IsDeepWork"/>) counts all focus and nothing else, whatever its stored record says
 /// (plan §3b 6, <see cref="GoalSources.CountedFor"/>): no hand time, calendar or readings, and its entries are ignored.
 /// </summary>
@@ -108,8 +111,8 @@ public static class GoalCounting
         };
     }
 
-    // The goal's live entries, and for a steps goal the phone's synced count of each day no Health Connect entry holds; none for Deep
-    // work, which counts focus only.
+    // The goal's live entries, and for a steps goal the phone's synced count of each day as one more Health Connect device (the empty id;
+    // the highest device value counts); none for Deep work, which counts focus only.
     private static IEnumerable<GoalEntry> EntriesOf(Goal goal, GoalSourceData data)
     {
         if (goal.IsDeepWork)
@@ -123,11 +126,10 @@ public static class GoalCounting
             return entries;
         }
 
-        var measured = entries.Where(entry => entry.Source == GoalEntrySource.HealthConnect).Select(entry => entry.Day).ToHashSet();
-        foreach (Sync.SyncStepDay stepDay in steps.Days.Where(stepDay => !measured.Contains(stepDay.Date)).GroupBy(stepDay => stepDay.Date).Select(group => group.Last()))
+        foreach (Sync.SyncStepDay stepDay in steps.Days.GroupBy(stepDay => stepDay.Date).Select(group => group.Last()))
         {
             entries.Add(new GoalEntry(GoalDerivedIds.For(goal.Id, GoalEntrySource.HealthConnect, Guid.Empty, stepDay.Date), goal.Id, stepDay.Date, null,
-                stepDay.Count, GoalEntrySource.HealthConnect, steps.ReadAt));
+                stepDay.Count, GoalEntrySource.HealthConnect, steps.ReadAt, 0, null, Guid.Empty));
         }
 
         return entries;
@@ -183,6 +185,10 @@ public static class GoalCounting
     /// One source's readings of a day, combined across devices (see the class summary): each device's value first (the first reading for an
     /// Amount day, else the newest), then Health Connect and calendar the highest, screen time the sum of the counted devices, the #tag extras
     /// the sum without <paramref name="self"/>'s, Beeminder as one. Null when nothing counts.
+    /// <para>Screen time: since GS1b a device writes its screen time only as its own derived entry (<see cref="GoalDerivedWriter"/>); entries
+    /// without a device are an older app's, so a device never holds both for one day except on the day it upgraded. When a day has both, only
+    /// the derived ones of the counted devices count (the no-device ones would count the same minutes twice). A no-device entry still counts
+    /// when no counted device has a derived entry that day.</para>
     /// </summary>
     private static (double Value, GoalEntry Representative)? Combined(Goal goal, GoalEntrySource source, IReadOnlyList<GoalEntry> entries, bool firstReading, Guid? self)
     {
@@ -202,6 +208,12 @@ public static class GoalCounting
         {
             List<GoalSourceRule> screen = GoalSources.CountedFor(goal).Where(rule => rule.Automatic && rule.Type == GoalSourceType.ScreenTime).ToList();
             perDevice = perDevice.Where(entry => entry.DeviceId is not Guid device || screen.Any(rule => GoalAppMatching.CountsOn(rule, device))).ToList();
+
+            // A counted device's derived value and an older app's no-device value for the same day: only the derived count (see above).
+            if (perDevice.Any(entry => entry.DeviceId is not null))
+            {
+                perDevice = perDevice.Where(entry => entry.DeviceId is not null).ToList();
+            }
         }
 
         if (perDevice.Count == 0)

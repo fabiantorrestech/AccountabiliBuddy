@@ -44,6 +44,16 @@ public static class GoalSyncMerge
     /// <returns>The merged lists, tombstones included, each ordered by position and then id, newer items carried at their places.</returns>
     public static GoalSyncLists Merge(GoalSyncLists firstGiven, GoalSyncLists secondGiven, DateTimeOffset now)
     {
+        return MergeReported(firstGiven, secondGiven, now).Lists;
+    }
+
+    /// <returns>
+    /// <see cref="Merge"/>'s lists, and the entries it dropped because neither input holds their goal (live or tombstone): the merged copy of
+    /// each, ordered by id. A goal history file that brought such a row is read again once the goal has arrived
+    /// (<see cref="GoalHistoryRules.Merge"/>).
+    /// </returns>
+    public static GoalSyncMergeResult MergeReported(GoalSyncLists firstGiven, GoalSyncLists secondGiven, DateTimeOffset now)
+    {
         DateTimeOffset limit = now + SharedListMerge.FutureLimit;
         GoalSyncLists first = GoalSyncClean.Lists(firstGiven);
         GoalSyncLists second = GoalSyncClean.Lists(secondGiven);
@@ -58,16 +68,19 @@ public static class GoalSyncMerge
             GoalTombstones.Clean, GoalUnknowns.Keep, keepTombstones: true);
         (List<ISharedItem> reminders, List<JsonElement> remindersKept) = MergeWhole<GoalReminder>(first.Reminders, second.Reminders, now, limit,
             GoalTombstones.Clean, GoalUnknowns.Keep);
+        List<GoalEntry> dropped = entries.OfType<GoalEntry>().Where(entry => !goalIds.Contains(entry.GoalId))
+            .OrderBy(entry => entry.Id.ToString("D"), StringComparer.Ordinal).ToList();
         entries = entries.Where(item => item is not GoalEntry entry || goalIds.Contains(entry.GoalId)).ToList();
         reminders = reminders.Where(item => item is not GoalReminder reminder || goalIds.Contains(reminder.GoalId)).ToList();
         (List<ISharedItem> reviews, List<JsonElement> reviewsKept) = MergeReviews(first.Reviews, second.Reviews, now, limit);
 
-        return new GoalSyncLists(
+        var lists = new GoalSyncLists(
             Split<GoalArea>(areas, areasKept),
             Split<Goal>(goals, goalsKept),
             Split<GoalEntry>(entries, entriesKept),
             Split<GoalReminder>(reminders, remindersKept),
             Split<GoalReviewRecord>(reviews, reviewsKept));
+        return new GoalSyncMergeResult(lists, dropped);
     }
 
     /// <summary>Two live copies of the same goal merged part by part; the same whichever is <paramref name="one"/>.</summary>

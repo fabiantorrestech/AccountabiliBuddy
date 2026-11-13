@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// One device's goal history file for one month (ADR 79 shared history, owner 2026-11-14; GS1b): every goal entry the device holds whose
 /// stamp (edit time, or deletion time when later) falls in that UTC month (<see cref="GoalHistoryRules.MonthOf"/>), its own and the ones it
 /// received (hand entries carry no writer, and holding all of them means a month survives on any device that saw it), as compact rows,
-/// entry tombstones kept for good. Only its device writes it, only while the month is open (<see cref="GoalHistoryRules.MonthToWrite"/>);
+/// entry tombstones kept for good. Only its device writes it, when its content changed, at most daily (<see cref="GoalHistoryRules.MonthToWrite"/>);
 /// sealed by <see cref="GoalHistoryCodec"/>, read by every device of the group, never in a QR file. Private text: none (ids, days, numbers,
 /// times only), but sealed like the sync files.
 /// </summary>

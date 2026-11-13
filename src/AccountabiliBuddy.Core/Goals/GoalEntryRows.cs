@@ -13,20 +13,24 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <item><term><c>g</c></term><description>goal id (<see cref="GuidText"/>); its presence is what makes an object a row.</description></item>
 /// <item><term><c>d</c></term><description>day, the number yyyyMMdd (20261110).</description></item>
 /// <item><term><c>t</c></term><description>time of day as .NET ticks of the day (100 ns since midnight); left out when none.</description></item>
-/// <item><term><c>v</c></term><description>value, a JSON number written the shortest way that reads back exactly; left out when 0.</description></item>
+/// <item><term><c>v</c></term><description>value, a JSON number written the shortest way that reads back exactly; left out when 0 (positive
+/// zero). A negative zero is written <c>-0</c> and reads back as -0.0 (Kotlin: write <c>-0</c> when <c>value == 0.0 &amp;&amp; 1 / value &lt; 0</c>;
+/// <c>"-0".toDouble()</c> is -0.0), so the round trip is exact bit for bit.</description></item>
 /// <item><term><c>s</c></term><description>source code (<see cref="CodeOf"/>): <c>hc</c>, <c>st</c>, <c>bm</c>, <c>ca</c>, <c>fl</c>; left out for a hand entry.</description></item>
 /// <item><term><c>w</c></term><description>the measuring device's id (<see cref="GuidText"/>); left out when none.</description></item>
 /// <item><term><c>e</c></term><description>edit time: UTC .NET ticks (100 ns since 0001-01-01T00:00:00Z), a 64-bit integer (never read as a
 /// double). Kotlin: <c>(epochSecond * 10_000_000 + nano / 100) + 621_355_968_000_000_000</c>.</description></item>
 /// <item><term><c>x</c></term><description>deletion time of a tombstone, the same way; left out when live.</description></item>
 /// <item><term><c>o</c></term><description>the times' UTC offset in whole minutes, as written by the device; left out when 0.</description></item>
-/// <item><term><c>p</c></term><description>position; left out when 0.</description></item>
+/// <item><term><c>p</c></term><description>position; left out when 0, a negative zero written <c>-0</c> as for <c>v</c>.</description></item>
 /// </list>
 /// The object form (the GS1a JSON of <see cref="GoalEntry"/>) is written instead when a row can't hold the entry exactly: unknown fields
 /// (<see cref="GoalEntry.Extra"/>), edit and deletion times with different offsets, or an offset that isn't whole minutes. A newer app adding
 /// a source must write its entries in the object form (an older reader then keeps them as written and merges them by id and stamps). A reader
 /// takes both forms: an object with <c>g</c> is a row; a row with a source code or a name it doesn't know is a newer item, kept as written
-/// (<see cref="GoalNewerValueException"/>). Round trip exact: every field, tick precision, the offset.
+/// (<see cref="GoalNewerValueException"/>). A newer derived row without <c>i</c> (a name this app doesn't know, a known source code) still gets
+/// its id rebuilt from <c>g</c>, <c>s</c>, <c>w</c> and <c>d</c>, so it windows, files and merges by id like any other (<see cref="Stamps"/>).
+/// Round trip exact: every field, tick precision, the offset, the sign of a zero.
 /// </summary>
 public static class GoalEntryRows
 {
@@ -131,9 +135,9 @@ public static class GoalEntryRows
             writer.WriteNumber("t", time.Ticks);
         }
 
-        if (entry.Value != 0)
+        if (!IsPositiveZero(entry.Value))
         {
-            writer.WriteNumber("v", entry.Value);
+            WriteNumber(writer, "v", entry.Value);
         }
 
         if (CodeOf(entry.Source) is string code)
@@ -158,9 +162,9 @@ public static class GoalEntryRows
             writer.WriteNumber("o", offsetMinutes);
         }
 
-        if (entry.Position != 0)
+        if (!IsPositiveZero(entry.Position))
         {
-            writer.WriteNumber("p", entry.Position);
+            WriteNumber(writer, "p", entry.Position);
         }
 
         writer.WriteEndObject();
@@ -220,13 +224,9 @@ public static class GoalEntryRows
         {
             id = Id(row, "i") ?? throw new JsonException("Row id.");
         }
-        else if (GoalDerivedWriter.IsDerived(source) && device is Guid measuredBy)
-        {
-            id = GoalDerivedIds.For(goalId, source, measuredBy, day);
-        }
         else
         {
-            throw new JsonException("A row without an id must be a device's derived value.");
+            id = DerivedId(goalId, source, device, day) ?? throw new JsonException("A row without an id must be a device's derived value.");
         }
 
         return new GoalEntry(id, goalId, day, time, value, source, editedAt, position, deletedAt, device);
@@ -240,7 +240,7 @@ public static class GoalEntryRows
     {
         try
         {
-            Guid? id = Id(row, "i");
+            Guid? id = row.TryGetProperty("i", out _) ? Id(row, "i") : RebuiltId(row);
             int offsetMinutes = row.TryGetProperty("o", out JsonElement offsetValue) && Long(offsetValue) is long minutes and >= -14 * 60 and <= 14 * 60 ? (int)minutes : 0;
             TimeSpan offset = TimeSpan.FromMinutes(offsetMinutes);
             DateTimeOffset? editedAt = Time(row, "e", offset);
@@ -257,6 +257,45 @@ public static class GoalEntryRows
         {
             return null;
         }
+    }
+
+    // A derived row's id from its goal, source, device and day; null when the source isn't device-measured or there is no device.
+    private static Guid? DerivedId(Guid goalId, GoalEntrySource source, Guid? device, DateOnly day)
+    {
+        return GoalDerivedWriter.IsDerived(source) && device is Guid measuredBy ? GoalDerivedIds.For(goalId, source, measuredBy, day) : null;
+    }
+
+    // The id of a row without "i" read only that far (a newer app's row): rebuilt from g, s, w and d when s is a known code of a
+    // device-measured source; null otherwise (the row is then carried along unchanged). A damaged field throws JsonException.
+    private static Guid? RebuiltId(JsonElement row)
+    {
+        if (!row.TryGetProperty("s", out JsonElement sourceValue) || sourceValue.ValueKind != JsonValueKind.String
+            || Codes.FirstOrDefault(item => item.Code == sourceValue.GetString()) is not { Code: not null } match)
+        {
+            return null;
+        }
+
+        Guid? goalId = Id(row, "g");
+        Guid? device = Id(row, "w");
+        return goalId is Guid goal ? DerivedId(goal, match.Source, device, Day(row)) : null;
+    }
+
+    // 0 written as a default (left out); a negative zero is a value of its own (written -0).
+    private static bool IsPositiveZero(double value)
+    {
+        return value == 0 && !double.IsNegative(value);
+    }
+
+    private static void WriteNumber(Utf8JsonWriter writer, string name, double value)
+    {
+        if (value == 0)
+        {
+            writer.WritePropertyName(name);
+            writer.WriteRawValue("-0");
+            return;
+        }
+
+        writer.WriteNumber(name, value);
     }
 
     /// <summary>A day as a row writes it: the number yyyyMMdd.</summary>

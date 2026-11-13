@@ -27,5 +27,5 @@ public sealed record GoalHistoryYear(
 
     /// <summary>The file's key in a listing (<see cref="GoalHistoryRules.ToRead"/>).</summary>
     [JsonIgnore]
-    public GoalHistoryFileKey Key => GoalHistoryFileKey.ForYear(Year);
+    public GoalHistoryFileKey Key => GoalHistoryFileKey.ForYear(Year, RolledBy);
 }
