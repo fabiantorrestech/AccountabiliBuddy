@@ -82,6 +82,10 @@ public sealed partial class GoalHeatmapViewModel : ObservableObject
     [ObservableProperty]
     public partial DateOnly Today { get; set; }
 
+    /// <summary>The month lines' strength (HM1; the one device-local choice, set by whoever shows this heatmap).</summary>
+    [ObservableProperty]
+    public partial GoalMonthLines MonthLines { get; set; } = GoalMonthLines.Normal;
+
     /// <summary>The day the day panel shows (today until a cell is clicked).</summary>
     [ObservableProperty]
     public partial DateOnly? SelectedDay { get; set; }

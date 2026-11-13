@@ -12,6 +12,16 @@ public partial class StatsView : UserControl
         InitializeComponent();
     }
 
+    // Options (tune): under the button, aligned to its right edge (the same menu rules as the other pages).
+    private void OnOptionsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is StatsViewModel stats)
+        {
+            TaskMenus.ShowEntries(StatsOptionsButton, stats.OptionsMenu(), Avalonia.Controls.PlacementMode.BottomEdgeAlignedRight);
+            e.Handled = true;
+        }
+    }
+
     /// <summary>
     /// A search result lies in the Day details (their words are indexed while the fold is shut): opens the fold, and the column
     /// that holds it, so the result can be brought into view and highlighted.

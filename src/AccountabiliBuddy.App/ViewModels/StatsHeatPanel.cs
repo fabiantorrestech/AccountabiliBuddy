@@ -15,8 +15,12 @@ public sealed record StatsHeatPanel(
     IReadOnlyList<string?>? ColumnLabels,
     IReadOnlyList<StatsCard> Cards,
     string Note,
-    string? HelperLine = null)
+    string? HelperLine = null,
+    IReadOnlyList<HeatmapDivider>? MonthDividers = null)
 {
+    /// <summary>The month lines of a year's day grid (HM1); empty for the views without month columns.</summary>
+    public IReadOnlyList<HeatmapDivider> Dividers => MonthDividers ?? [];
+
     public bool HasCards => Cards.Count > 0;
 
     public bool HasHelperLine => HelperLine is not null;

@@ -259,9 +259,31 @@ public sealed partial class StatsViewModel : ObservableObject
 
     public bool ShowsViews => GoalHistory is null;
 
+    /// <summary>Month lines on Stats' heatmaps (HM1): the one device-local choice, kept in step with the goals store by the app.</summary>
+    [ObservableProperty]
+    public partial AccountabiliBuddy.App.Services.Goals.GoalMonthLines MonthLines { get; set; } = AccountabiliBuddy.App.Services.Goals.GoalMonthLines.Normal;
+
+    /// <summary>Saves a new month-lines choice (set by the app: the goals store's page settings).</summary>
+    public Func<AccountabiliBuddy.App.Services.Goals.GoalMonthLines, Task>? SetMonthLines { get; set; }
+
+    partial void OnMonthLinesChanged(AccountabiliBuddy.App.Services.Goals.GoalMonthLines value)
+    {
+        if (GoalHistory is { } history)
+        {
+            history.Heatmap.MonthLines = value;
+        }
+    }
+
+    /// <summary>The Options (tune) menu: Charts › Month lines.</summary>
+    public IReadOnlyList<TaskMenuEntry> OptionsMenu()
+    {
+        return PageOptionsMenus.Stats(MonthLines, lines => SetMonthLines?.Invoke(lines) ?? Task.CompletedTask);
+    }
+
     /// <summary>Shows one goal's history over the views (the Goals page's Stats button).</summary>
     public void ShowGoal(StatsGoalHistoryViewModel history)
     {
+        history.Heatmap.MonthLines = MonthLines;
         history.CloseRequested += (_, _) =>
         {
             if (ReferenceEquals(GoalHistory, history))

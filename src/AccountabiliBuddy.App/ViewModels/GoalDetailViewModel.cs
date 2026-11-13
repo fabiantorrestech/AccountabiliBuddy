@@ -138,6 +138,7 @@ public sealed partial class GoalDetailViewModel : ObservableObject
 
         BuildTiles(facts, data, settings, deepWork, zone);
         WhatItTakes.Update(facts.WhatItTakes, goal, facts.Today, sameGoal);
+        Heatmap.MonthLines = settings.MonthLines;
         Heatmap.Show(goal, data, facts.Today, settings.WeekStart, settings.HeatmapLabels, sameGoal);
         if (!sameGoal)
         {

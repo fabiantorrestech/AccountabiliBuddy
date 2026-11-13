@@ -241,7 +241,8 @@ public sealed partial class GoalsViewModel : ObservableObject
             () => AreasRequested?.Invoke(this, EventArgs.Empty),
             () => OpenGoalsSettings?.Invoke(),
             store.Ui.Sort,
-            sort => _goals.SetUiPreferencesAsync(_goals.Store.Ui with { Sort = sort }, this));
+            sort => _goals.SetUiPreferencesAsync(_goals.Store.Ui with { Sort = sort }, this),
+            settings.MonthLines, lines => _goals.SetPageSettingsAsync(settings with { MonthLines = lines }, this));
     }
 
     /// <summary>

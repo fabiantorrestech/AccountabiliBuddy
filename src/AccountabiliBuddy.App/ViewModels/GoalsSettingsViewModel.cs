@@ -16,6 +16,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class GoalsSettingsViewModel : ObservableObject
 {
     private static readonly GoalWeekStart[] WeekStarts = [GoalWeekStart.Sunday, GoalWeekStart.Monday, GoalWeekStart.Saturday];
+    private static readonly GoalMonthLines[] MonthLineValues = [GoalMonthLines.Darker, GoalMonthLines.Normal, GoalMonthLines.Lighter, GoalMonthLines.Off];
     private static readonly GoalHeatmapLabels[] LabelValues = [GoalHeatmapLabels.All, GoalHeatmapLabels.Some, GoalHeatmapLabels.None];
 
     private readonly GoalsService _goals;
@@ -42,6 +43,8 @@ public sealed partial class GoalsSettingsViewModel : ObservableObject
     public IReadOnlyList<string> WeekStartChoices { get; } = ["Sun", "Mon", "Sat"];
 
     public IReadOnlyList<string> LabelChoices { get; } = ["All", "Some", "None"];
+
+    public IReadOnlyList<string> MonthLineChoices { get; } = ["Darker", "Normal", "Lighter", "Off"];
 
     public string PausingRules =>
         "Pausing a goal (Active off in Edit goal) applies at once: it stops counting toward This week, stops its reminders and nudges, and "
@@ -83,6 +86,9 @@ public sealed partial class GoalsSettingsViewModel : ObservableObject
     public partial int LabelsIndex { get; set; }
 
     [ObservableProperty]
+    public partial int MonthLinesIndex { get; set; }
+
+    [ObservableProperty]
     public partial bool StreakTile { get; set; }
 
     [ObservableProperty]
@@ -121,6 +127,7 @@ public sealed partial class GoalsSettingsViewModel : ObservableObject
             NudgeProductaBuddy = reminders.NudgeWhenBehindProductaBuddy;
             WeekStartIndex = Math.Max(0, Array.IndexOf(WeekStarts, settings.WeekStart));
             LabelsIndex = Math.Max(0, Array.IndexOf(LabelValues, settings.HeatmapLabels));
+            MonthLinesIndex = Math.Max(0, Array.IndexOf(MonthLineValues, settings.MonthLines));
             GoalExtraTiles tiles = settings.ExtraTiles ?? GoalExtraTiles.None;
             StreakTile = tiles.Streak;
             TotalTile = tiles.Total;
@@ -151,6 +158,7 @@ public sealed partial class GoalsSettingsViewModel : ObservableObject
         {
             WeekStart = WeekStarts[Math.Clamp(WeekStartIndex, 0, WeekStarts.Length - 1)],
             HeatmapLabels = LabelValues[Math.Clamp(LabelsIndex, 0, LabelValues.Length - 1)],
+            MonthLines = MonthLineValues[Math.Clamp(MonthLinesIndex, 0, MonthLineValues.Length - 1)],
             ExtraTiles = new GoalExtraTiles(StreakTile, TotalTile),
             // Written only once the review itself was changed (milestone review NIT3): the "goals.page" What's new entry counts a stored
             // review as the user's choice, so a change to any other row must not store the defaults for them.
@@ -192,6 +200,8 @@ public sealed partial class GoalsSettingsViewModel : ObservableObject
     partial void OnWeekStartIndexChanged(int value) => Edited();
 
     partial void OnLabelsIndexChanged(int value) => Edited();
+
+    partial void OnMonthLinesIndexChanged(int value) => Edited();
 
     partial void OnStreakTileChanged(bool value) => Edited();
 

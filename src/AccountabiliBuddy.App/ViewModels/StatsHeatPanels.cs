@@ -69,7 +69,8 @@ internal static class StatsHeatPanels
         }
 
         return new StatsHeatPanel(
-            cells, 7, columns, period.Kind == StatsRange.Year ? null : WeekdayNames(), period.Kind == StatsRange.Year ? MonthLabels(gridStart, columns) : null, cards, note);
+            cells, 7, columns, period.Kind == StatsRange.Year ? null : WeekdayNames(), period.Kind == StatsRange.Year ? MonthLabels(gridStart, columns) : null, cards, note,
+            MonthDividers: period.Kind == StatsRange.Year ? MonthDividers(gridStart, columns, to) : null);
     }
 
     public static StatsHeatPanel? Intensity(StatsData data, StatsRange range)
@@ -153,6 +154,25 @@ internal static class StatsHeatPanels
         return Enumerable.Range(0, 7)
             .Select(row => CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedDayName((DayOfWeek)((row + 1) % 7)))
             .ToArray();
+    }
+
+    /// <summary>
+    /// The line between two months of the year grid (HM1, the same staircase the goal heatmap draws): one per month's first day that sits
+    /// in a column after the first and is not after the last day shown. Rows are Mon–Sun, so the row is the day's offset from Monday.
+    /// </summary>
+    public static IReadOnlyList<HeatmapDivider> MonthDividers(DateOnly gridStart, int columns, DateOnly last)
+    {
+        var dividers = new List<HeatmapDivider>();
+        for (int offset = 1; offset < columns * 7; offset++)
+        {
+            DateOnly date = gridStart.AddDays(offset);
+            if (date.Day == 1 && date <= last && offset / 7 > 0)
+            {
+                dividers.Add(new HeatmapDivider(offset / 7, offset % 7));
+            }
+        }
+
+        return dividers;
     }
 
     // A month's name over the column its first day falls in (and over the first column).

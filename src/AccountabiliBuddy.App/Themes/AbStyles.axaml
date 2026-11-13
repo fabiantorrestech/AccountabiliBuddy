@@ -4,6 +4,17 @@
         xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia">
     <!-- Shared styles over the Ab.* tokens (ADR 49). Flat: no gradients, no drop shadows. -->
 
+    <!-- Heatmap month lines (HM1): Normal = Ab.Faint (the look before), Lighter = Ab.Line, Darker = Ab.Muted; Off is the control's own switch. -->
+    <Style Selector="controls|HeatmapControl">
+        <Setter Property="DividerBrush" Value="{DynamicResource Ab.Faint}" />
+    </Style>
+    <Style Selector="controls|HeatmapControl:monthLinesLighter">
+        <Setter Property="DividerBrush" Value="{DynamicResource Ab.Line}" />
+    </Style>
+    <Style Selector="controls|HeatmapControl:monthLinesDarker">
+        <Setter Property="DividerBrush" Value="{DynamicResource Ab.Muted}" />
+    </Style>
+
     <Style Selector="Border.card">
         <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />

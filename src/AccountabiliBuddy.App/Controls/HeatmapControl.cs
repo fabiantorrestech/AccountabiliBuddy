@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using AccountabiliBuddy.App.Services.Goals;
 
 namespace AccountabiliBuddy.App.Controls;
 
@@ -45,6 +46,17 @@ public sealed class HeatmapControl : Control
     /// <summary>Month dividers, each one continuous staircase line.</summary>
     public static readonly StyledProperty<IReadOnlyList<HeatmapDivider>?> DividersProperty =
         AvaloniaProperty.Register<HeatmapControl, IReadOnlyList<HeatmapDivider>?>(nameof(Dividers));
+
+    /// <summary>
+    /// How strong the month dividers are (HM1): Off draws none (the month labels and the spacing stay); Lighter and Darker switch the
+    /// control's <see cref="DividerBrush"/> through the pseudo-classes below, which AbStyles.axaml maps to theme tokens.
+    /// </summary>
+    public static readonly StyledProperty<GoalMonthLines> MonthLinesProperty =
+        AvaloniaProperty.Register<HeatmapControl, GoalMonthLines>(nameof(MonthLines), GoalMonthLines.Normal);
+
+    /// <summary>The month dividers' colour; set by the control's style from <see cref="MonthLines"/> (theme tokens only).</summary>
+    public static readonly StyledProperty<IBrush?> DividerBrushProperty =
+        AvaloniaProperty.Register<HeatmapControl, IBrush?>(nameof(DividerBrush));
 
     public static readonly StyledProperty<IBrush?> EmptyBrushProperty =
         AvaloniaProperty.Register<HeatmapControl, IBrush?>(nameof(EmptyBrush));
@@ -104,14 +116,32 @@ public sealed class HeatmapControl : Control
     {
         AffectsRender<HeatmapControl>(
             CellsProperty, RowCountProperty, ColumnCountProperty, RowLabelsProperty, ColumnLabelsProperty, ColumnSpansProperty, DividersProperty,
-            EmptyBrushProperty, AccentBrushProperty, LabelBrushProperty, LineBrushProperty, TodayRingBrushProperty, SelectedRingBrushProperty,
+            MonthLinesProperty, DividerBrushProperty, EmptyBrushProperty, AccentBrushProperty, LabelBrushProperty, LineBrushProperty, TodayRingBrushProperty, SelectedRingBrushProperty,
             TodayDateProperty, SelectedDateProperty, MaxCellSizeProperty, FixedCellSizeProperty, RowLabelWidthProperty, CellGapProperty);
         AffectsMeasure<HeatmapControl>(
             RowCountProperty, ColumnCountProperty, RowLabelsProperty, ColumnLabelsProperty, ColumnSpansProperty, MaxCellSizeProperty,
             FixedCellSizeProperty, RowLabelWidthProperty, CellGapProperty);
         CellsProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control.IndexCells());
         RowLabelsProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control._labelWidth = -1);
+        MonthLinesProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control.ShowMonthLinesClass());
         RowLabelWidthProperty.Changed.AddClassHandler<HeatmapControl>((control, _) => control._labelWidth = -1);
+    }
+
+    public HeatmapControl()
+    {
+        ShowMonthLinesClass();
+    }
+
+    public GoalMonthLines MonthLines
+    {
+        get => GetValue(MonthLinesProperty);
+        set => SetValue(MonthLinesProperty, value);
+    }
+
+    public IBrush? DividerBrush
+    {
+        get => GetValue(DividerBrushProperty);
+        set => SetValue(DividerBrushProperty, value);
     }
 
     public IReadOnlyList<HeatCell>? Cells
@@ -476,10 +506,16 @@ public sealed class HeatmapControl : Control
         }
     }
 
+    private void ShowMonthLinesClass()
+    {
+        PseudoClasses.Set(":monthLinesLighter", MonthLines == GoalMonthLines.Lighter);
+        PseudoClasses.Set(":monthLinesDarker", MonthLines == GoalMonthLines.Darker);
+    }
+
     // One continuous line per month: down the right side of the new month's first column to its first row, across, down its left side.
     private void DrawDividers(DrawingContext context, double left, double top, double cell)
     {
-        if (Dividers is not { Count: > 0 } dividers || LineBrush is null)
+        if (MonthLines == GoalMonthLines.Off || Dividers is not { Count: > 0 } dividers || (DividerBrush ?? LineBrush) is not { } brush)
         {
             return;
         }
@@ -489,7 +525,7 @@ public sealed class HeatmapControl : Control
         double gridTop = top - half;
         double gridBottom = top + RowCount * stride - half;
         double corner = Math.Min(DividerCornerRadius, stride / 2);
-        var pen = new Pen(LineBrush, DividerThickness, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        var pen = new Pen(brush, DividerThickness, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
         foreach (HeatmapDivider divider in dividers)
         {
             if (divider.Column < 0 || divider.Column >= ColumnCount)

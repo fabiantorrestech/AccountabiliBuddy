@@ -268,7 +268,8 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
                 <controls:HeatmapControl Cells="{Binding Cells}" RowCount="{Binding Rows}" ColumnCount="{Binding Columns}" RowLabels="{Binding RowLabels}"
-                                         ColumnLabels="{Binding ColumnLabels}" MaxCellSize="30" CellGap="4" Margin="0,10,0,0"
+                                         ColumnLabels="{Binding ColumnLabels}" Dividers="{Binding Dividers}"
+                                         MonthLines="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).MonthLines}" MaxCellSize="30" CellGap="4" Margin="0,10,0,0"
                                          EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{DynamicResource Ab.Accent}" LabelBrush="{DynamicResource Ab.Muted}"
                                          CellCommand="{Binding $parent[views:StatsView].((vm:StatsViewModel)DataContext).OpenDayCommand}" />
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
@@ -386,7 +387,8 @@
                             </StackPanel>
                         </WrapPanel>
                     </StackPanel>
-                    <Border Grid.Column="1" Background="{DynamicResource Ab.Surface2}" CornerRadius="999" Padding="4" VerticalAlignment="Top" IsVisible="{Binding ShowsRange}">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Top">
+                    <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="999" Padding="4" VerticalAlignment="Top" IsVisible="{Binding ShowsRange}">
                         <ItemsControl ItemsSource="{Binding RangeOptions}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -402,6 +404,10 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Border>
+                    <Button x:Name="StatsOptionsButton" Classes="abOptions" Click="OnOptionsClick" ToolTip.Tip="Options" AutomationProperties.Name="Stats options">
+                        <mi:MaterialIcon Kind="Tune" Width="18" Height="18" />
+                    </Button>
+                    </StackPanel>
                 </Grid>
 
                 <!-- The views as chips; the row scrolls sideways when it doesn't fit. -->

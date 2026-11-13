@@ -33,7 +33,7 @@ public sealed partial class StatsGoalHistoryViewModel : ObservableObject
             int streak => $"Streak: {streak}",
         };
         PausedStretches = PausedTexts(goal, today);
-        Heatmap = new GoalHeatmapViewModel { WantedRange = GoalHeatmapRange.Year };
+        Heatmap = new GoalHeatmapViewModel { WantedRange = GoalHeatmapRange.Year, MonthLines = settings.MonthLines };
         Heatmap.Show(goal, data, today, settings.WeekStart, settings.HeatmapLabels, sameGoal: false);
     }
 

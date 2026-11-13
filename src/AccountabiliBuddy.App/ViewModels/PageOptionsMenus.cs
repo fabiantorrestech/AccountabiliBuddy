@@ -129,7 +129,9 @@ public static class PageOptionsMenus
         Action openAreas,
         Action openGoalsSettings,
         AccountabiliBuddy.App.Services.Goals.GoalListSort sort = AccountabiliBuddy.App.Services.Goals.GoalListSort.YourOrder,
-        Func<AccountabiliBuddy.App.Services.Goals.GoalListSort, Task>? setSortOrNull = null)
+        Func<AccountabiliBuddy.App.Services.Goals.GoalListSort, Task>? setSortOrNull = null,
+        AccountabiliBuddy.App.Services.Goals.GoalMonthLines monthLines = AccountabiliBuddy.App.Services.Goals.GoalMonthLines.Normal,
+        Func<AccountabiliBuddy.App.Services.Goals.GoalMonthLines, Task>? setMonthLines = null)
     {
         Func<AccountabiliBuddy.App.Services.Goals.GoalListSort, Task> setSort = setSortOrNull ?? (_ => Task.CompletedTask);
         static string ViewName(AccountabiliBuddy.App.Services.Goals.GoalListView value) => value switch
@@ -178,6 +180,7 @@ public static class PageOptionsMenus
             new TaskMenuEntry("Charts", IsHeading: true),
             new TaskMenuEntry("Week starts on", Segments: weeks, Note: "Heatmaps, week bars and weekly counts"),
             new TaskMenuEntry("Heatmap day labels", Segments: dayLabels, Note: "Every row, or every other row"),
+            MonthLinesEntry(monthLines, setMonthLines ?? (_ => Task.CompletedTask)),
             new TaskMenuEntry("Extra tiles", Children: tiles, Value: tilesValue, Note: "For goals without their own choice"),
             TaskMenuEntry.Separator,
             new TaskMenuEntry("List", IsHeading: true),
@@ -190,6 +193,34 @@ public static class PageOptionsMenus
     }
 
     public const string GoalsSettingsText = "Goals settings";
+
+    /// <summary>Month lines (HM1): Darker / Normal / Lighter / Off, one inline row; the same device-local choice in Goals Options, Stats Options and Settings › Goals.</summary>
+    public static TaskMenuEntry MonthLinesEntry(
+        AccountabiliBuddy.App.Services.Goals.GoalMonthLines current, Func<AccountabiliBuddy.App.Services.Goals.GoalMonthLines, Task> set)
+    {
+        AccountabiliBuddy.App.Services.Goals.GoalMonthLines[] order =
+        [
+            AccountabiliBuddy.App.Services.Goals.GoalMonthLines.Darker,
+            AccountabiliBuddy.App.Services.Goals.GoalMonthLines.Normal,
+            AccountabiliBuddy.App.Services.Goals.GoalMonthLines.Lighter,
+            AccountabiliBuddy.App.Services.Goals.GoalMonthLines.Off,
+        ];
+        List<TaskMenuEntry> segments = order
+            .Select(value => new TaskMenuEntry(value.ToString(), new AsyncRelayCommand(() => set(value)), IsChecked: value == current))
+            .ToList();
+        return new TaskMenuEntry("Month lines", Segments: segments, Note: "The line between months on every heatmap");
+    }
+
+    /// <summary>The Stats page's Options menu (HM1): Charts › Month lines; Stats has no settings section of its own, so no settings row.</summary>
+    public static IReadOnlyList<TaskMenuEntry> Stats(
+        AccountabiliBuddy.App.Services.Goals.GoalMonthLines monthLines, Func<AccountabiliBuddy.App.Services.Goals.GoalMonthLines, Task> setMonthLines)
+    {
+        return
+        [
+            new TaskMenuEntry("Charts", IsHeading: true),
+            MonthLinesEntry(monthLines, setMonthLines),
+        ];
+    }
 
     /// <summary>A page's settings row: always last in its Options menu; opens Settings at <paramref name="section"/>.</summary>
     public static TaskMenuEntry SettingsRow(string text, SettingsSection section, string? note, Action<SettingsSection> openSettings)

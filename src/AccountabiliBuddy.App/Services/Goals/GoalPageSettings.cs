@@ -13,12 +13,14 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// <param name="ExtraTiles">Streak and Total tiles on goal pages; off by default (a goal's own switch in Edit goal overrides it).</param>
 /// <param name="Review">Settings › Goals › Weekly review (R5.6); null = the defaults (<see cref="GoalReviewSettings.Default"/>).</param>
 /// <param name="Reminders">Settings › Goals › Default reminders (R5.6); null = the defaults (<see cref="GoalReminderDefaults.Default"/>).</param>
+/// <param name="MonthLines">Month lines on every heatmap (HM1): Normal by default; stored with the other Charts choices, never synced.</param>
 public sealed record GoalPageSettings(
     GoalWeekStart WeekStart,
     GoalHeatmapLabels HeatmapLabels,
     GoalExtraTiles? ExtraTiles,
     GoalReviewSettings? Review = null,
-    GoalReminderDefaults? Reminders = null)
+    GoalReminderDefaults? Reminders = null,
+    GoalMonthLines MonthLines = GoalMonthLines.Normal)
 {
     public static GoalPageSettings Default { get; } = new(GoalWeekStart.Sunday, GoalHeatmapLabels.All, GoalExtraTiles.None);
 
@@ -43,6 +45,7 @@ public sealed record GoalPageSettings(
             HeatmapLabels = Enum.IsDefined(HeatmapLabels) ? HeatmapLabels : GoalHeatmapLabels.All,
             ExtraTiles = ExtraTiles ?? GoalExtraTiles.None,
             Review = Review?.Clamped(),
+            MonthLines = Enum.IsDefined(MonthLines) ? MonthLines : GoalMonthLines.Normal,
         };
     }
 }

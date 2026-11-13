@@ -1844,6 +1844,10 @@ public partial class App : Application
             OpenInBrowser = address => OpenInBrowser(new Uri(address)),
         };
         // Stats for the goal shown: its year with paused stretches hatched over Stats' own views (R5.4); Stats alone without a goal.
+        // Month lines (HM1): Stats shows the goals store's one choice and saves through it; every open heatmap follows at once.
+        statsViewModel.MonthLines = _goals.Store.PageSettings.MonthLines;
+        statsViewModel.SetMonthLines = lines => _goals.SetPageSettingsAsync(_goals.Store.PageSettings with { MonthLines = lines }, statsViewModel);
+        _goals.Store.Changed += (_, _) => Dispatcher.UIThread.Post(() => statsViewModel.MonthLines = _goals.Store.PageSettings.MonthLines);
         goalsPage.OpenStats = goalId =>
         {
             if (goalId is Guid shownId && goalsPage.Facts.FirstOrDefault(facts => facts.Goal.Id == shownId) is { } shownFacts)

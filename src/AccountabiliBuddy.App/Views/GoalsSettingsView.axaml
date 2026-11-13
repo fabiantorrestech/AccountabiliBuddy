@@ -130,6 +130,17 @@
                                          AutomationProperties.Name="Heatmap day labels" />
                             </Grid>
                         </Border>
+                        <Border Classes="sRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CalendarMonthOutline" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Month lines" />
+                                    <TextBlock Classes="sHint" Text="The line between months on every heatmap, in Goals and Stats (also in their Options)." TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ListBox Grid.Column="2" Classes="segmented" VerticalAlignment="Top" ItemsSource="{Binding MonthLineChoices}" SelectedIndex="{Binding MonthLinesIndex}"
+                                         AutomationProperties.Name="Month lines" />
+                            </Grid>
+                        </Border>
                         <Border Classes="sRow" search:SearchArea.Name="Extra tiles">
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
                                 <mi:MaterialIcon Classes="rowIcon" Kind="ViewDashboardOutline" />

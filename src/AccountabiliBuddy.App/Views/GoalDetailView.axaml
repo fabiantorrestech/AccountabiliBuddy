@@ -278,7 +278,7 @@
                             <StackPanel x:Name="HeatmapHost" Spacing="12">
                                 <controls:HeatmapControl x:Name="GoalHeatmap" HorizontalAlignment="Left" Cells="{Binding Cells}" ColumnCount="{Binding Columns}" RowCount="7"
                                                          RowLabels="{Binding RowLabels}" RowLabelWidth="{Binding RowLabelWidth}" ColumnSpans="{Binding MonthLabels}"
-                                                         Dividers="{Binding Dividers}" FixedCellSize="15" CellGap="3"
+                                                         Dividers="{Binding Dividers}" MonthLines="{Binding MonthLines}" FixedCellSize="15" CellGap="3"
                                                          EmptyBrush="{DynamicResource Ab.Surface2}" AccentBrush="{Binding RampBrush}" LabelBrush="{DynamicResource Ab.Muted}"
                                                          LineBrush="{DynamicResource Ab.Faint}" TodayRingBrush="{DynamicResource Ab.Accent}" SelectedRingBrush="{DynamicResource Ab.Ink}"
                                                          TodayDate="{Binding Today}" SelectedDate="{Binding SelectedDay}" CellCommand="{Binding PickDayCommand}"
