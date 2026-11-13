@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0086](0086-sync-receipts-per-method-and-part.md) | Sync receipts per method and part | Accepted (owner, 2026-11-13: approved the SYNC1 sync troubleshooting plan, which needs this field) | — |
 | [0085](0085-run-focus-sessions-on-the-phone.md) | Run focus sessions on the phone | Accepted (owner decisions, 2026-11-14) | — |
 | [0084](0084-read-beeminder-datapoints-for-goals.md) | Read Beeminder datapoints for goals | Accepted (owner, 2026-11-14) | — |
 | [0083](0083-sync-the-shelf-page-order.md) | Sync the Shelf page order | Proposed | — |
