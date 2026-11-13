@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.today.STEPS_GOAL_EXISTS
 import com.accountabilibuddy.companion.ui.today.addStepsGoal
 
 /**
@@ -25,13 +26,18 @@ internal fun StepsInGoalsSetupPage() {
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
     var message by remember { mutableStateOf<String?>(null) }
+    var added by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Steps now live in Goals", style = MaterialTheme.typography.headlineSmall)
         Text("The step ring is gone from Today. Your steps are seen and tracked through a Steps goal: with Show on Today on, it appears in Today's goals.")
         Text("Counting still needs Track daily steps (Settings → Your day) and Health Connect, as before.")
-        AbTonalButton("Add a steps goal", onClick = {
-            message = addStepsGoal(app) ?: "Added. Find it under Goals."
-            if (message == "Added. Find it under Goals.") UiPrefs.finishStepsMoved(context)
+        AbTonalButton("Add a steps goal", enabled = !added, onClick = {
+            val error = addStepsGoal(app)
+            message = error ?: "Added. Find it under Goals."
+            if (error == null || error == STEPS_GOAL_EXISTS) {
+                added = true
+                UiPrefs.finishStepsMoved(context)
+            }
         })
         message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
