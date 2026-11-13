@@ -22,20 +22,27 @@
         </Style>
         <!-- Optional, only while the time or date is kept solid: a black card (white text on it, whatever the theme) and/or a black
              outline, so the clock reads over any background. -->
-        <Style Selector="Border.clockBack.card">
+        <!-- The plate is a layer behind the clock, never part of its size: turning it on moves nothing and clips nothing. It hugs
+             the two text lines (inset from the button's padding), 1 px outline. -->
+        <Style Selector="Border.clockPlate">
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Margin" Value="2,1" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Panel.clockBox.card > Border.clockPlate">
             <Setter Property="Background" Value="#000000" />
         </Style>
-        <Style Selector="Border.clockBack.outline">
+        <Style Selector="Panel.clockBox.outline > Border.clockPlate">
             <Setter Property="BorderBrush" Value="#000000" />
-            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
-        <Style Selector="Border.clockBack.card TextBlock.clockTime">
+        <Style Selector="Panel.clockBox.card TextBlock.clockTime">
             <Setter Property="Foreground" Value="#FFFFFF" />
         </Style>
-        <Style Selector="Border.clockBack.card TextBlock.clockDate">
+        <Style Selector="Panel.clockBox.card TextBlock.clockDate">
             <Setter Property="Foreground" Value="#B8B8B8" />
         </Style>
-        <Style Selector="Border.clockBack.card TextBlock.clockDate.solid">
+        <Style Selector="Panel.clockBox.card TextBlock.clockDate.solid">
             <Setter Property="Foreground" Value="#FFFFFF" />
         </Style>
         <!-- Icon buttons: flat, 28 px, Muted until hovered (Surface2). -->
@@ -149,14 +156,15 @@
             </StackPanel>
         </DataTemplate>
         <DataTemplate x:Key="clock" x:DataType="vm:TaskbarOverlayViewModel">
-            <Border Classes="clockBack" Classes.solid="{Binding ClockBacked}" Classes.card="{Binding ClockCard}" Classes.outline="{Binding ClockOutline}" VerticalAlignment="Center">
+            <Panel Classes="clockBox" Classes.solid="{Binding ClockBacked}" Classes.card="{Binding ClockCard}" Classes.outline="{Binding ClockOutline}" VerticalAlignment="Center">
+                <Border Classes="clockPlate" />
                 <Button Classes="quiet" Command="{Binding OpenCalendarCommand}" Padding="6,2" MinHeight="0" VerticalAlignment="Center" AutomationProperties.Name="Open the calendar">
                     <StackPanel Spacing="0" HorizontalAlignment="Right">
                         <TextBlock Classes="clockTime" Text="{Binding ClockText}" FontSize="13" TextAlignment="Right" Opacity="{Binding ClockTimeOpacity}" />
                         <TextBlock Classes="clockDate" Classes.solid="{Binding ClockDateSolid}" Text="{Binding DateText}" FontSize="11" TextAlignment="Right" Opacity="{Binding ClockDateOpacity}" />
                     </StackPanel>
                 </Button>
-            </Border>
+            </Panel>
         </DataTemplate>
         <DataTemplate x:Key="batteries" x:DataType="vm:TaskbarOverlayViewModel">
             <ItemsControl ItemsSource="{Binding Batteries}" VerticalAlignment="Center">
