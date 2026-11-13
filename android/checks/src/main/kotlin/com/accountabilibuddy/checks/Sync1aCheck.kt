@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -110,7 +111,10 @@ class Sync1aCheck(override val name: String) : FixtureCheck {
         val sent = SyncSentFacts(time(sentJson.getValue("newest").jsonPrimitive.content), times(sentJson["reachedAt"])!!, times(sentJson["previousSentAt"]))
         val receiver = facts(case.input.getValue("receiver"))
         val dot: SyncDot = if (case.text("kind") == "method") {
-            SyncReceiptBoard.method(case.text("subject"), now, sent, receiver)
+            SyncReceiptBoard.method(
+                case.text("subject"), now, sent, receiver,
+                case.input["intervalMinutes"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.intOrNull?.let { java.time.Duration.ofMinutes(it.toLong()) },
+            )
         } else {
             SyncReceiptBoard.part(case.text("subject"), now, sent, timeOrNull(case.input["reachedAny"]), receiver)
         }
@@ -134,7 +138,7 @@ class Sync1aCheck(override val name: String) : FixtureCheck {
             val from = UUID.fromString(text("from"))
             state = when (text("op")) {
                 "arrival" -> state.recordArrival(from, text("method")!!, time(text("at")!!))
-                "failure" -> state.recordFailure(from, text("method")!!, text("reason")!!)
+                "failure" -> state.recordFailure(from, text("method")!!, text("reason")!!, text("at")?.let { time(it) })
                 "parts" -> state.recordParts(from, time(text("at")!!), op.getValue("states").jsonObject.entries.associateTo(LinkedHashMap()) { it.key to it.value.jsonPrimitive.content })
                 else -> state.recordHistory(from, text("month")!!, time(text("at")!!))
             }

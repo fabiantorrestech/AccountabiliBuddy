@@ -145,11 +145,7 @@ public static class SyncFileCodec
             return new SyncFileOpenResult(null, failure ?? SyncFileOpenFailure.Damaged);
         }
 
-        if (IsNewerFormat(json))
-        {
-            return new SyncFileOpenResult(null, SyncFileOpenFailure.NewerFormat);
-        }
-
+        // The JSON is parsed once on the way that works; the format number is only read when the shape did not read (a newer app's file).
         SyncFile? file;
         try
         {
@@ -157,18 +153,23 @@ public static class SyncFileCodec
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException or FormatException)
         {
-            return new SyncFileOpenResult(null, SyncFileOpenFailure.Damaged);
+            return new SyncFileOpenResult(null, UnreadableReason(json));
         }
 
         if (file is null || !IsComplete(file))
         {
-            return new SyncFileOpenResult(null, SyncFileOpenFailure.Damaged);
+            return new SyncFileOpenResult(null, UnreadableReason(json));
         }
 
         return new SyncFileOpenResult(WithCleanReceipts(WithCleanGoalParts(WithCleanTaskParts(WithCleanCategories(file)))), null);
     }
 
-    // The JSON's own formatVersion, read before the shape: a newer app's file may not read as this app's shape.
+    private static SyncFileOpenFailure UnreadableReason(byte[] json)
+    {
+        return IsNewerFormat(json) ? SyncFileOpenFailure.NewerFormat : SyncFileOpenFailure.Damaged;
+    }
+
+    // The JSON's own formatVersion, read when the shape did not read: a newer app's file may not read as this app's shape.
     private static bool IsNewerFormat(byte[] json)
     {
         try

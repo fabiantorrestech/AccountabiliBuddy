@@ -51,23 +51,28 @@ object SyncReceiptsJson {
                     }
                 }))
             }
+            item.failedAt?.let { map -> put("failedAt", buildJsonObject { map.forEach { (key, time) -> put(key, GoalJson.timeValue(time)) } }) }
         }
     })
 
     private fun readEntry(item: JsonObject): SyncReceipt {
-        val from = item["from"]?.let { uuid(it) } ?: UUID(0L, 0L)
-        val held = item["held"]?.let { time(it) } ?: DotNetTime.MIN
-        val byMethod = item["byMethod"].orNull()?.let { map(it) { value -> time(value) } }
+        val from = field(item, "from")?.let { uuid(it) } ?: UUID(0L, 0L)
+        val held = field(item, "held")?.let { time(it) } ?: DotNetTime.MIN
+        val byMethod = field(item, "byMethod").orNull()?.let { map(it) { value -> time(value) } }
         // A null value in a map is allowed (the PC's clean-up drops it); any other value of the wrong type drops the entry.
-        val failed = item["failed"].orNull()?.let { source ->
+        val failed = field(item, "failed").orNull()?.let { source ->
             map(source) { value -> if (value is JsonNull) null else text(value) }.filterValues { it != null }.mapValues { it.value!! }
         }
-        val parts = item["parts"].orNull()?.let { source ->
+        val parts = field(item, "parts").orNull()?.let { source ->
             map(source) { value -> if (value is JsonNull) null else part(value) }.filterValues { it != null }.mapValues { it.value!! }
         }
-        val history = item["history"].orNull()?.let { months(it) }
-        return SyncReceipt(from, held, byMethod, failed, parts, history)
+        val history = field(item, "history").orNull()?.let { months(it) }
+        val failedAt = field(item, "failedAt").orNull()?.let { map(it) { value -> time(value) } }
+        return SyncReceipt(from, held, byMethod, failed, parts, history, failedAt)
     }
+
+    // The PC reads property names without regard to case (its Web defaults); so do the receipts here. (The rest of the phone's reader reads exact names, which is what both apps write.)
+    private fun field(item: JsonObject, name: String): JsonElement? = item[name] ?: item.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
 
     private fun JsonElement?.orNull(): JsonElement? = if (this == null || this is JsonNull) null else this
 
@@ -83,8 +88,8 @@ object SyncReceiptsJson {
         return array.mapNotNull { element ->
             if (element is JsonNull) return@mapNotNull null
             val obj = element as? JsonObject ?: error("not an object")
-            val month = obj["month"].orNull()?.let { text(it) }
-            val version = obj["version"]?.let { time(it) } ?: DotNetTime.MIN
+            val month = field(obj, "month").orNull()?.let { text(it) }
+            val version = field(obj, "version")?.let { time(it) } ?: DotNetTime.MIN
             // A month this app cannot use (none, or not "yyyy-MM") is cleaned away with the rest of the entry's lists.
             month?.let { SyncHistoryReceipt(it, version) }
         }
@@ -93,8 +98,8 @@ object SyncReceiptsJson {
     // The state may be missing or null (the clean-up drops such a part); a time of the wrong type fails the entry.
     private fun part(value: JsonElement): SyncPartReceipt? {
         val obj = value as? JsonObject ?: error("not an object")
-        val at = obj["at"]?.let { time(it) } ?: DotNetTime.MIN
-        val state = obj["state"].orNull()?.let { text(it) } ?: return null
+        val at = field(obj, "at")?.let { time(it) } ?: DotNetTime.MIN
+        val state = field(obj, "state").orNull()?.let { text(it) } ?: return null
         return SyncPartReceipt(at, state)
     }
 

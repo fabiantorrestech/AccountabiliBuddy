@@ -63,6 +63,9 @@ public enum SyncDotReason
     /// <summary>My newest file has not been put on this method.</summary>
     NotSent,
 
+    /// <summary>The receiver confirms my files by other methods only and has no record of this one (it does not use it): never red.</summary>
+    MethodNotUsed,
+
     /// <summary>This device is alone in its group: nothing to confirm.</summary>
     NoOtherDevices,
 }
@@ -114,15 +117,6 @@ public static class SyncReceiptBoard
     /// <summary>A device that sent no file for this long is "not seen since", grey.</summary>
     public static readonly TimeSpan Silent = TimeSpan.FromDays(30);
 
-    /// <summary>How often a receiver is expected to write when its method delivers by itself: folder, Drive and relay (the relay's heartbeat is 5 minutes). Qr and file are by hand and never "quiet".</summary>
-    public static TimeSpan? ExpectedInterval(string method) => method switch
-    {
-        SyncReceiptParts.Folder => TimeSpan.FromMinutes(5),
-        SyncReceiptParts.Drive => TimeSpan.FromMinutes(5),
-        SyncReceiptParts.Relay => TimeSpan.FromMinutes(5),
-        _ => null,
-    };
-
     /// <summary>A method is quiet after this many expected intervals.</summary>
     public const int QuietIntervals = 3;
 
@@ -130,10 +124,14 @@ public static class SyncReceiptBoard
     /// The dot of one sync method for one receiver; <paramref name="receiver"/> null = no other device in the group. A yellow dot turns red
     /// when files stopped arriving by this method while the receiver writes elsewhere (<see cref="Quiet"/>).
     /// </summary>
-    public static SyncDot Method(string method, DateTimeOffset now, SyncSentFacts sent, SyncReceiverFacts? receiver)
+    /// <param name="expectedInterval">
+    /// How often a receiver is expected to write when this method delivers by itself: the caller's real setting for the method (the folder's
+    /// poll, Drive's, the relay's heartbeat). Null for a method used by hand (QR, file): never quiet.
+    /// </param>
+    public static SyncDot Method(string method, DateTimeOffset now, SyncSentFacts sent, SyncReceiverFacts? receiver, TimeSpan? expectedInterval)
     {
         SyncDot dot = Judge(method, now, sent, receiver);
-        return dot.Color == SyncDotColor.Yellow ? Quiet(method, now, sent, receiver) ?? dot : dot;
+        return dot.Color == SyncDotColor.Yellow ? Quiet(method, now, sent, receiver, expectedInterval) ?? dot : dot;
     }
 
     private static SyncDot Judge(string method, DateTimeOffset now, SyncSentFacts sent, SyncReceiverFacts? receiver)
@@ -160,7 +158,9 @@ public static class SyncReceiptBoard
             return new SyncDot(SyncDotColor.Green, SyncDotReason.Confirmed);
         }
 
-        if (receipt?.Failed is not null && receipt.Failed.ContainsKey(method))
+        // A failure counts when it happened after my newest file reached the method (an old one-off, before that, is old news).
+        if (receipt?.Failed is not null && receipt.Failed.ContainsKey(method)
+            && !(receipt.FailedAt is not null && receipt.FailedAt.TryGetValue(method, out DateTimeOffset failedAt) && failedAt + Skew < reachedAt))
         {
             return new SyncDot(SyncDotColor.Red, SyncDotReason.Failed);
         }
@@ -168,6 +168,13 @@ public static class SyncReceiptBoard
         if (receiver.WrittenAt is not { } receiverWrote)
         {
             return new SyncDot(SyncDotColor.Yellow, SyncDotReason.NoFileYet);
+        }
+
+        // It confirms my files by other methods only and has no record of this one, either way: it does not use this method. Never red.
+        if (receipt?.ByMethod is { Count: > 0 } used && !used.ContainsKey(method)
+            && !(receiver.LastViaMethod is not null && receiver.LastViaMethod.ContainsKey(method)))
+        {
+            return new SyncDot(SyncDotColor.Grey, SyncDotReason.MethodNotUsed);
         }
 
         // Caught up as of its last file: it confirmed everything I had put on this method by then, and my newest file is newer than that.
@@ -207,17 +214,18 @@ public static class SyncReceiptBoard
     /// <summary>
     /// "Files stopped arriving by this method": the receiver's newest file is more than <see cref="QuietIntervals"/> expected intervals
     /// newer than the newest this device read from it by <paramref name="method"/> (or than my file reaching it), while it writes elsewhere.
-    /// Only for methods that deliver by themselves; never for the cases <see cref="Method"/> keeps off red.
+    /// Only for methods that deliver by themselves (the caller's interval), and only when this device has read a file from the receiver by
+    /// this method at least once (no record: nothing "stopped"); never for the cases <see cref="Method"/> keeps off red.
     /// </summary>
-    private static SyncDot? Quiet(string method, DateTimeOffset now, SyncSentFacts sent, SyncReceiverFacts? receiver)
+    private static SyncDot? Quiet(string method, DateTimeOffset now, SyncSentFacts sent, SyncReceiverFacts? receiver, TimeSpan? expectedInterval)
     {
-        if (receiver is null || NeverRed(now, receiver) is not null || ExpectedInterval(method) is not { } interval
-            || !sent.ReachedAt.TryGetValue(method, out DateTimeOffset reachedAt) || receiver.WrittenAt is not { } receiverWrote)
+        if (receiver is null || NeverRed(now, receiver) is not null || expectedInterval is not { } interval
+            || !sent.ReachedAt.ContainsKey(method) || receiver.WrittenAt is not { } receiverWrote
+            || receiver.LastViaMethod is null || !receiver.LastViaMethod.TryGetValue(method, out DateTimeOffset reference))
         {
             return null;
         }
 
-        DateTimeOffset reference = receiver.LastViaMethod is not null && receiver.LastViaMethod.TryGetValue(method, out DateTimeOffset via) ? via : reachedAt;
         return receiverWrote - reference > interval * QuietIntervals ? new SyncDot(SyncDotColor.Red, SyncDotReason.MethodQuiet) : null;
     }
 

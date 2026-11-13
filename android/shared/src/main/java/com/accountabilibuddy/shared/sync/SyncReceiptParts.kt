@@ -50,6 +50,7 @@ object SyncReceiptParts {
                     failed = nonEmpty(receipt.failed?.filter { (key, value) -> key in METHODS && value in FAILURES }?.entries?.take(MAX_METHODS)?.associateTo(LinkedHashMap()) { it.key to it.value }),
                     parts = nonEmpty(receipt.parts?.filter { (key, value) -> key in CODES && value.state in STATES }?.entries?.take(MAX_PARTS)?.associateTo(LinkedHashMap()) { it.key to it.value }),
                     history = cleanMonths(receipt.history),
+                    failedAt = nonEmpty(receipt.failedAt?.filterKeys { it in METHODS }?.entries?.take(MAX_METHODS)?.associateTo(LinkedHashMap()) { it.key to it.value }),
                 ),
             )
         }

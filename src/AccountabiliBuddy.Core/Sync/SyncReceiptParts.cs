@@ -64,6 +64,7 @@ public static class SyncReceiptParts
                 Failed = NonEmpty(receipt.Failed?.Where(pair => Methods.Contains(pair.Key) && pair.Value is not null && Failures.Contains(pair.Value)).Take(MaxMethods).ToDictionary(pair => pair.Key, pair => pair.Value)),
                 Parts = NonEmpty(receipt.Parts?.Where(pair => Codes.Contains(pair.Key) && pair.Value is { State: not null } && States.Contains(pair.Value.State)).Take(MaxParts).ToDictionary(pair => pair.Key, pair => pair.Value)),
                 History = CleanMonths(receipt.History),
+                FailedAt = NonEmpty(receipt.FailedAt?.Where(pair => Methods.Contains(pair.Key)).Take(MaxMethods).ToDictionary(pair => pair.Key, pair => pair.Value)),
             });
         }
 

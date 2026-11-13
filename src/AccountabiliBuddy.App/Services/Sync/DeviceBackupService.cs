@@ -160,6 +160,7 @@ public sealed class DeviceBackupService
             Running = null,
             Actions = null,
             Acks = null,
+            Receipts = null,
             ActionResults = null,
             EndEarly = null,
             Placement = null,

@@ -14,6 +14,7 @@ import java.util.UUID
  * @property failed Per method: why the last attempt on [from]'s file failed ([SyncReceiptParts.FAILURES]); absent after a success.
  * @property parts Per part ([SyncReceiptParts.CODES]): the outcome of the last accept of [from]'s file.
  * @property history The goal history month files merged from [from] (the newest [SyncReceiptParts.MAX_MONTHS]).
+ * @property failedAt Per method in [failed]: this device's own clock when that attempt failed (an unreadable file has no readable `writtenAt`).
  */
 data class SyncReceipt(
     val from: UUID,
@@ -22,6 +23,7 @@ data class SyncReceipt(
     val failed: Map<String, String>? = null,
     val parts: Map<String, SyncPartReceipt>? = null,
     val history: List<SyncHistoryReceipt>? = null,
+    val failedAt: Map<String, OffsetDateTime>? = null,
 )
 
 /** The outcome of the last accept of one part of a sender's file: [at] is the `writtenAt` of the file judged, [state] one of [SyncReceiptParts.STATES]. */

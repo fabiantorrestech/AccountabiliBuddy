@@ -71,6 +71,7 @@ object DeviceBackups {
         running = null,
         actions = null,
         acks = null,
+        receipts = null,
         actionResults = null,
         endEarly = null,
         placement = null,

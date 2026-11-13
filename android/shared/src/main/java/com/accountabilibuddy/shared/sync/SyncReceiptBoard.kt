@@ -9,7 +9,7 @@ enum class SyncDotColor { GREEN, YELLOW, RED, GREY }
 /** Why a dot has its colour (the PC's `SyncDotReason`; the UI picks the words). */
 enum class SyncDotReason {
     CONFIRMED, CAUGHT_UP, WAITING, NO_FILE_YET, OTHER_METHOD, OLDER_APP, HELD, NOT_CONFIRMED, FAILED, REFUSED, METHOD_QUIET, NO_REPORT,
-    NOT_TAKEN, WATCH, REMOVED, SILENT, NOT_SENT, NO_OTHER_DEVICES,
+    NOT_TAKEN, WATCH, REMOVED, SILENT, NOT_SENT, METHOD_NOT_USED, NO_OTHER_DEVICES,
 }
 
 /** One dot: a colour and why. */
@@ -56,19 +56,14 @@ object SyncReceiptBoard {
     /** A method is quiet after this many expected intervals. */
     const val QUIET_INTERVALS = 3
 
-    /** How often a receiver is expected to write when its method delivers by itself (folder, Drive, relay); null for QR and file, which are by hand. */
-    fun expectedInterval(method: String): Duration? = when (method) {
-        SyncReceiptParts.FOLDER, SyncReceiptParts.DRIVE, SyncReceiptParts.RELAY -> Duration.ofMinutes(5)
-        else -> null
-    }
-
     /**
      * The dot of one sync method for one receiver; [receiver] null = no other device in the group. A yellow dot turns red when files stopped
-     * arriving by this method while the receiver writes elsewhere.
+     * arriving by this method while the receiver writes elsewhere. [expectedInterval]: how often a receiver is expected to write when this method
+     * delivers by itself, the caller's real setting for the method (null for a method used by hand, QR and file: never quiet).
      */
-    fun method(method: String, now: OffsetDateTime, sent: SyncSentFacts, receiver: SyncReceiverFacts?): SyncDot {
+    fun method(method: String, now: OffsetDateTime, sent: SyncSentFacts, receiver: SyncReceiverFacts?, expectedInterval: Duration?): SyncDot {
         val dot = judge(method, now, sent, receiver)
-        return if (dot.color == SyncDotColor.YELLOW) quiet(method, now, sent, receiver) ?: dot else dot
+        return if (dot.color == SyncDotColor.YELLOW) quiet(method, now, sent, receiver, expectedInterval) ?: dot else dot
     }
 
     private fun judge(method: String, now: OffsetDateTime, sent: SyncSentFacts, receiver: SyncReceiverFacts?): SyncDot {
@@ -78,8 +73,18 @@ object SyncReceiptBoard {
         val receipt = if (receiver.writesReceipts) receiver.receipt else null
         val byMethod = receipt?.byMethod?.get(method)
         if (byMethod != null && !before(byMethod, sent.newest)) return SyncDot(SyncDotColor.GREEN, SyncDotReason.CONFIRMED)
-        if (receipt?.failed?.containsKey(method) == true) return SyncDot(SyncDotColor.RED, SyncDotReason.FAILED)
+        // A failure counts when it happened after my newest file reached the method (an old one-off, before that, is old news).
+        if (receipt?.failed?.containsKey(method) == true) {
+            val failedAt = receipt.failedAt?.get(method)
+            if (failedAt == null || !before(failedAt.plus(SKEW), reachedAt)) return SyncDot(SyncDotColor.RED, SyncDotReason.FAILED)
+        }
         val receiverWrote = receiver.writtenAt ?: return SyncDot(SyncDotColor.YELLOW, SyncDotReason.NO_FILE_YET)
+
+        // It confirms my files by other methods only and has no record of this one, either way: it does not use this method. Never red.
+        val used = receipt?.byMethod
+        if (used != null && used.isNotEmpty() && !used.containsKey(method) && receiver.lastViaMethod?.containsKey(method) != true) {
+            return SyncDot(SyncDotColor.GREY, SyncDotReason.METHOD_NOT_USED)
+        }
 
         // Caught up as of its last file: it confirmed everything I had put on this method by then, and my newest file is newer than that.
         val previous = sent.previousSentAt?.get(method)
@@ -100,12 +105,13 @@ object SyncReceiptBoard {
         return SyncDot(SyncDotColor.RED, SyncDotReason.NOT_CONFIRMED)
     }
 
-    private fun quiet(method: String, now: OffsetDateTime, sent: SyncSentFacts, receiver: SyncReceiverFacts?): SyncDot? {
+    // Only when this device has read a file from the receiver by this method at least once (no record: nothing "stopped").
+    private fun quiet(method: String, now: OffsetDateTime, sent: SyncSentFacts, receiver: SyncReceiverFacts?, expectedInterval: Duration?): SyncDot? {
         if (receiver == null || neverRed(now, receiver) != null) return null
-        val interval = expectedInterval(method) ?: return null
-        val reachedAt = sent.reachedAt[method] ?: return null
+        val interval = expectedInterval ?: return null
+        if (!sent.reachedAt.containsKey(method)) return null
         val receiverWrote = receiver.writtenAt ?: return null
-        val reference = receiver.lastViaMethod?.get(method) ?: reachedAt
+        val reference = receiver.lastViaMethod?.get(method) ?: return null
         return if (Duration.between(reference, receiverWrote) > interval.multipliedBy(QUIET_INTERVALS.toLong())) SyncDot(SyncDotColor.RED, SyncDotReason.METHOD_QUIET) else null
     }
 

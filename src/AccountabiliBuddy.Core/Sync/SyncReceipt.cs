@@ -14,10 +14,12 @@ namespace AccountabiliBuddy.Core.Sync;
 /// <param name="Failed">Per method: why the last attempt on <paramref name="From"/>'s file failed (<see cref="SyncReceiptParts.Failures"/>); absent after a success.</param>
 /// <param name="Parts">Per part (<see cref="SyncReceiptParts.Codes"/>): the outcome of the last accept of <paramref name="From"/>'s file.</param>
 /// <param name="History">The goal history month files merged from <paramref name="From"/> (the last <see cref="SyncReceiptParts.MaxMonths"/> months; years stay in <c>goalYearsMerged</c>).</param>
+/// <param name="FailedAt">Per method in <paramref name="Failed"/>: this device's own clock when that attempt failed (an unreadable file has no readable <c>WrittenAt</c>), so a sender can tell a failure on its newest file from an old one-off.</param>
 public sealed record SyncReceipt(
     Guid From,
     DateTimeOffset Held,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, DateTimeOffset>? ByMethod = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, string>? Failed = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, SyncPartReceipt>? Parts = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncHistoryReceipt>? History = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncHistoryReceipt>? History = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyDictionary<string, DateTimeOffset>? FailedAt = null);

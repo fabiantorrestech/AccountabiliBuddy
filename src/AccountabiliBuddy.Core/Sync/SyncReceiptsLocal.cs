@@ -31,19 +31,27 @@ public sealed record SyncReceiptsLocal(IReadOnlyList<SyncReceipt> Senders)
                 Held = writtenAt > row.Held ? writtenAt : row.Held,
                 ByMethod = With(row.ByMethod, method, writtenAt > previous ? writtenAt : previous),
                 Failed = Without(row.Failed, method),
+                FailedAt = Without(row.FailedAt, method),
             };
         });
     }
 
-    /// <summary>The last attempt to read <paramref name="from"/>'s file by <paramref name="method"/> failed for <paramref name="reason"/> (a code of <see cref="SyncReceiptParts.Failures"/>).</summary>
-    public SyncReceiptsLocal RecordFailure(Guid from, string method, string reason)
+    /// <summary>
+    /// The last attempt to read <paramref name="from"/>'s file by <paramref name="method"/> failed for <paramref name="reason"/> (a code of
+    /// <see cref="SyncReceiptParts.Failures"/>), at <paramref name="at"/> by this device's clock (null: unknown; the board then treats it as current).
+    /// </summary>
+    public SyncReceiptsLocal RecordFailure(Guid from, string method, string reason, DateTimeOffset? at = null)
     {
         if (!SyncReceiptParts.Methods.Contains(method) || !SyncReceiptParts.Failures.Contains(reason) || from == Guid.Empty)
         {
             return this;
         }
 
-        return Change(from, row => row with { Failed = With(row.Failed, method, reason) });
+        return Change(from, row => row with
+        {
+            Failed = With(row.Failed, method, reason),
+            FailedAt = at is { } time ? With(row.FailedAt, method, time) : Without(row.FailedAt, method),
+        });
     }
 
     /// <summary>The outcome of the last accept of <paramref name="from"/>'s file written at <paramref name="at"/>, per part code. Unknown codes and states are ignored.</summary>
@@ -94,13 +102,19 @@ public sealed record SyncReceiptsLocal(IReadOnlyList<SyncReceipt> Senders)
     /// <summary>
     /// The list this device writes into its file: a row for each of <paramref name="active"/> except <paramref name="self"/>, never a removed
     /// device, cleaned and bounded by <see cref="SyncReceiptParts.Clean"/> (the first <see cref="SyncReceiptParts.MaxEntries"/> rows); a row
-    /// that holds nothing of the sender yet (only a failure) is written too, with the earliest time. Null when there is no other device
-    /// (works alone: nothing is written).
+    /// that holds nothing of the sender yet (only a failure) is written too, with the earliest time. Null only when there is no other
+    /// active device (works alone: nothing is written); an empty list when there are other devices but nothing is held from them yet, so
+    /// a receiver can tell "writes receipts, none yet" from an older app (which writes no list at all).
     /// </summary>
     public IReadOnlyList<SyncReceipt>? ForFile(Guid self, IReadOnlySet<Guid> active)
     {
+        if (!active.Any(id => id != self))
+        {
+            return null;
+        }
+
         List<SyncReceipt> rows = Senders.Where(row => row.From != self && active.Contains(row.From)).ToList();
-        return rows.Count == 0 ? null : SyncReceiptParts.Clean(rows);
+        return SyncReceiptParts.Clean(rows);
     }
 
     private SyncReceiptsLocal Change(Guid from, Func<SyncReceipt, SyncReceipt> change)

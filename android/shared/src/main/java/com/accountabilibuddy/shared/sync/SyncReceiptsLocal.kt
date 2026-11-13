@@ -23,14 +23,20 @@ data class SyncReceiptsLocal(val senders: List<SyncReceipt> = emptyList()) {
                 held = if (DotNetTime.compare(writtenAt, row.held) > 0) writtenAt else row.held,
                 byMethod = with(row.byMethod, method, if (DotNetTime.compare(writtenAt, previous) > 0) writtenAt else previous),
                 failed = without(row.failed, method),
+                failedAt = without(row.failedAt, method),
             )
         }
     }
 
-    /** The last attempt to read [from]'s file by [method] failed for [reason] (a code of [SyncReceiptParts.FAILURES]). */
-    fun recordFailure(from: UUID, method: String, reason: String): SyncReceiptsLocal {
+    /**
+     * The last attempt to read [from]'s file by [method] failed for [reason] (a code of [SyncReceiptParts.FAILURES]), at [at] by this device's
+     * clock (null: unknown; the board then treats it as current).
+     */
+    fun recordFailure(from: UUID, method: String, reason: String, at: OffsetDateTime? = null): SyncReceiptsLocal {
         if (method !in SyncReceiptParts.METHODS || reason !in SyncReceiptParts.FAILURES || from == EMPTY_ID) return this
-        return change(from) { row -> row.copy(failed = with(row.failed, method, reason)) }
+        return change(from) { row ->
+            row.copy(failed = with(row.failed, method, reason), failedAt = if (at != null) with(row.failedAt, method, at) else without(row.failedAt, method))
+        }
     }
 
     /** The outcome of the last accept of [from]'s file written at [at], per part code. Unknown codes and states are ignored. */
@@ -62,11 +68,12 @@ data class SyncReceiptsLocal(val senders: List<SyncReceipt> = emptyList()) {
 
     /**
      * The list this device writes into its file: a row for each of [active] except [self], never a removed device, cleaned and bounded
-     * ([SyncReceiptParts.clean]); null when there is no other device (works alone: nothing is written).
+     * ([SyncReceiptParts.clean]); null only when there is no other active device (works alone: nothing is written); an empty list when there
+     * are other devices but nothing is held from them yet (so a receiver can tell "writes receipts, none yet" from an older app).
      */
     fun forFile(self: UUID, active: Set<UUID>): List<SyncReceipt>? {
-        val rows = senders.filter { it.from != self && it.from in active }
-        return if (rows.isEmpty()) null else SyncReceiptParts.clean(rows)
+        if (active.none { it != self }) return null
+        return SyncReceiptParts.clean(senders.filter { it.from != self && it.from in active })
     }
 
     private fun change(from: UUID, change: (SyncReceipt) -> SyncReceipt): SyncReceiptsLocal {
