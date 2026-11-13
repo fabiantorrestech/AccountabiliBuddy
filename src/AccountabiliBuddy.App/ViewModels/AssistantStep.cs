@@ -82,6 +82,9 @@ public enum AssistantStep
     /// <summary>Round 2 R5 (Q440): Goals, what they are, Deep work built in, and the weekly review's day (only as a new feature).</summary>
     GoalsIntro,
 
+    /// <summary>TD1: every Today part can be hidden, a Show / Hide choice for More today, and steps moved to Goals (only as a new feature).</summary>
+    TodayChoices,
+
     /// <summary>
     /// ADR 68: AccountabiliBuddy or ProductaBuddy, in the first run (ProductaBuddy preselected on a fresh install), as the full
     /// setup's last page, and as a new feature for upgraded installs.

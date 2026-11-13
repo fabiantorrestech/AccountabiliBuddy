@@ -19,8 +19,17 @@ public static class SetupFeatures
         SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard,
         ShutdownService shutdown, GuidanceModeService guidance, Tasks.TaskStore taskStore, Tasks.TaskAccountSettingsService taskAccount,
         Tasks.TaskCalendarExportService? taskExport, Tasks.TaskReminderSettingsService? taskReminderSettings, Func<bool> hasPhones,
-        Goals.GoalsService? goals = null) => new[]
+        Goals.GoalsService? goals = null, Today.TodayLayoutService? todayLayout = null) => new[]
     {
+        // TD1: Today's parts can all be hidden, More today has a Show / Hide choice, steps moved to Goals. Set up once the one-time steps
+        // card has been dealt with (a goal added, dismissed, or it never applied); the page explains the rest.
+        new SetupFeature(
+            "today.choices", "0.1.134",
+            "Today: hide what you don't use, steps live in Goals",
+            "Hide any part of Today (the session card, This session, each sidebar part) in either layout, show or hide the More today card, and track daily steps with a Steps goal instead of a Today card. Ending a session stays in the title bar.",
+            IsRelevant: () => todayLayout is not null,
+            IsSetUp: () => todayLayout is null || todayLayout.Current.StepsMovedNote != Today.StepsMovedNote.Show,
+            Step: ViewModels.AssistantStep.TodayChoices),
         // Round 2 R5 (Q440): the Goals page. Set up once the weekly review's settings were saved (Settings › Goals, or this page's Next).
         new SetupFeature(
             GoalsId, "0.1.131",

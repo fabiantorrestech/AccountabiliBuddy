@@ -140,12 +140,6 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <Style Selector="controls|ProgressRing.stepsRing">
-            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Accent}" />
-        </Style>
-        <Style Selector="controls|ProgressRing.stepsRing.met">
-            <Setter Property="ArcBrush" Value="{DynamicResource Ab.Met}" />
-        </Style>
     </UserControl.Styles>
     <UserControl.Resources>
         <!-- A part's content, the same in its panel and in its chip's pop-up. -->
@@ -398,27 +392,6 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
-
-                <!-- Daily steps a paired phone read from Health Connect: the ring fills to the goal. -->
-                <StackPanel Spacing="6" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsDailySteps, FallbackValue=False}" DataContext="{Binding Owner.Steps}" x:DataType="vm:StepsCardViewModel">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" IsVisible="{Binding IsVisible}">
-                        <controls:ProgressRing Classes="stepsRing" Classes.met="{Binding IsMet}" Width="40" Height="40" Thickness="6"
-                                               Value="{Binding Fraction}" TrackBrush="{DynamicResource Ab.Surface2}" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding CountText}" FontSize="13.5" FontWeight="Medium" TextWrapping="Wrap" />
-                            <TextBlock Classes="muted" Text="{Binding UpdatedText}" FontSize="12" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <Button Grid.Column="2" Classes="sideIcon" Command="{Binding HideCommand}" ToolTip.Tip="Hide the daily steps on this PC"
-                                AutomationProperties.Name="Hide the daily steps">
-                            <mi:MaterialIcon Kind="EyeOffOutline" Width="14" Height="14" />
-                        </Button>
-                    </Grid>
-                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsHidden}">
-                        <mi:MaterialIcon Kind="Walk" Width="16" Height="16" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Classes="muted" Text="Daily steps hidden" FontSize="12.5" VerticalAlignment="Center" />
-                        <Button Classes="quiet" Content="Show" Command="{Binding ShowCommand}" />
-                    </StackPanel>
-                </StackPanel>
             </Panel>
         </DataTemplate>
     </UserControl.Resources>
@@ -481,6 +454,8 @@
                 </Grid>
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="10" Margin="12,0,12,14">
+                        <TextBlock Classes="muted" FontSize="12.5" TextWrapping="Wrap" Margin="2,4" IsVisible="{Binding HasNoParts}"
+                                   Text="Nothing to show here right now. Choose what the sidebar shows in Settings › Today (the list button above)." />
                         <ItemsControl ItemsSource="{Binding Panels}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>

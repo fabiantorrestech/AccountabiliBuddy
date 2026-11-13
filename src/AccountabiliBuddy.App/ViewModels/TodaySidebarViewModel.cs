@@ -31,7 +31,6 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
         Lunch = session.Lunch;
         Beeminder = session.Beeminder;
         CalendarToday = session.CalendarToday;
-        Steps = session.Steps;
         Panels = [];
         Chips = [];
 
@@ -64,7 +63,7 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
         };
         _state.SettingsChanged(_layout.Current.SidebarInSession, _layout.Current.SidebarOutside);
 
-        foreach (INotifyPropertyChanged? part in new INotifyPropertyChanged?[] { NextUp, Lunch, Beeminder, CalendarToday, Steps })
+        foreach (INotifyPropertyChanged? part in new INotifyPropertyChanged?[] { NextUp, Lunch, Beeminder, CalendarToday })
         {
             Watch(part);
         }
@@ -97,8 +96,6 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
 
     public CalendarTodayViewModel? CalendarToday { get; }
 
-    public StepsCardViewModel? Steps { get; }
-
     // ---- What is drawn ----
 
     /// <summary>The panels, in the chosen order (the layout of the state the day is in now).</summary>
@@ -111,6 +108,13 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
     public partial IReadOnlyList<TodaySidebarPartViewModel> Chips { get; set; }
 
     public bool HasChips => Chips.Count > 0;
+
+    /// <summary>
+    /// No part has anything to draw (TD1: every part can be hidden, or each one drawn has nothing yet): the sidebar says so instead of
+    /// showing an empty card.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasNoParts { get; set; }
 
     /// <summary>
     /// Round 2 review (brief §4.2, strictest reading): outside ProductaBuddy the lunch chip stays in view on the rail while the sidebar
@@ -231,7 +235,6 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
         TodayPart.Lunch => true,
         TodayPart.Beeminder => Beeminder is not null,
         TodayPart.CalendarChanges => CalendarToday is not null,
-        TodayPart.DailySteps => Steps is not null,
         _ => false,
     };
 
@@ -246,7 +249,6 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
                 TodayPart.Lunch => Lunch is { IsVisible: true },
                 TodayPart.Beeminder => Beeminder is { HasToken: true },
                 TodayPart.CalendarChanges => CalendarToday is { HasLines: true },
-                TodayPart.DailySteps => Steps is { IsVisible: true } or { IsHidden: true },
                 _ => true,
             };
             part.ChipCount = part.Part switch
@@ -257,6 +259,8 @@ public sealed partial class TodaySidebarViewModel : ObservableObject
                 _ => string.Empty,
             };
         }
+
+        HasNoParts = !Panels.Concat(Chips).Any(part => part.IsAvailable);
     }
 
     private static string Count(int count) => count > 0 ? count.ToString(CultureInfo.InvariantCulture) : string.Empty;

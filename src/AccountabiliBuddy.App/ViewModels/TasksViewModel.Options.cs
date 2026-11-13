@@ -45,7 +45,9 @@ public sealed partial class TasksViewModel
                 {
                     OpenSettingsAt(PageOptionsMenus.TodaySettingsSection);
                 }
-            });
+            },
+            _todayLayout?.Current.ShowMoreToday ?? false,
+            _todayLayout is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => _todayLayout.SetShowMoreTodayAsync(!_todayLayout.Current.ShowMoreToday)));
     }
 
     private void OpenSettingsAt(SettingsSection section)

@@ -51,6 +51,12 @@ public static class TodayLayoutRules
     /// </summary>
     public static bool LunchOnRail(bool sidebarOpen, bool isProductaBuddy, bool lunchShown) => !sidebarOpen && !isProductaBuddy && lunchShown;
 
+    /// <summary>
+    /// TD1: whether the folded "More today" card is drawn: the person's Show choice, or a profile's unlock offer (a way out is never
+    /// hidden). A count of cards inside no longer brings it back.
+    /// </summary>
+    public static bool ShowsMoreToday(bool chosen, bool unlockVisible) => chosen || unlockVisible;
+
     /// <summary>A stored layout made safe: known parts only, no null entries, side-column choices that exist.</summary>
     public static TodayLayoutPreferences Sanitized(TodayLayoutPreferences stored) => stored with
     {
@@ -59,7 +65,39 @@ public static class TodayLayoutRules
         SidebarInSession = Enum.IsDefined(stored.SidebarInSession) ? stored.SidebarInSession : TodaySidebarInSession.Hidden,
         SidebarOutside = Enum.IsDefined(stored.SidebarOutside) ? stored.SidebarOutside : TodaySidebarOutside.Remember,
         SidebarMinWidth = TodayLayoutPreferences.SidebarMinWidths.Contains(stored.SidebarMinWidth) ? stored.SidebarMinWidth : TodayLayoutPreferences.DefaultSidebarMinWidth,
+        HiddenOutside = stored.HiddenOutside & AllMainParts,
+        HiddenInSession = stored.HiddenInSession & AllMainParts,
+        StepsMovedNote = Enum.IsDefined(stored.StepsMovedNote) ? stored.StepsMovedNote : StepsMovedNote.NotChecked,
     };
+
+    private const TodayMainParts AllMainParts = TodayMainParts.SessionCard | TodayMainParts.ThisSession;
+
+    /// <summary>The old Daily steps part's key (removed in TD1; a saved layout may still name it).</summary>
+    public const string RemovedStepsKey = "daily-steps";
+
+    /// <summary>
+    /// TD1: whether the one-time "Steps now live in Goals" card is to be shown, decided from a layout as it was stored, before the
+    /// Daily steps part is dropped from it. Anything already decided stays. Steps were on Today when no layout was stored (the default
+    /// was a chip), or when either layout didn't turn the part Off. A damaged entry counts as not turned off. The card also needs a
+    /// phone sharing steps and no steps goal when it is drawn.
+    /// </summary>
+    public static StepsMovedNote DecideStepsMovedNote(TodayLayoutPreferences? stored)
+    {
+        if (stored is null)
+        {
+            return StepsMovedNote.Show;
+        }
+
+        if (stored.StepsMovedNote != StepsMovedNote.NotChecked)
+        {
+            return Enum.IsDefined(stored.StepsMovedNote) ? stored.StepsMovedNote : StepsMovedNote.Done;
+        }
+
+        bool WasOn(IReadOnlyList<TodayPartChoice>? layout) =>
+            layout?.FirstOrDefault(choice => choice?.Key == RemovedStepsKey) is not { Placement: TodayPartPlacement.Off };
+
+        return WasOn(stored.OutsideSession) || WasOn(stored.InSession) ? StepsMovedNote.Show : StepsMovedNote.Done;
+    }
 
     /// <summary>Off is offered for the part: not for the lunch chip outside ProductaBuddy.</summary>
     public static bool CanTurnOff(TodayPartInfo part, bool isProductaBuddy) => isProductaBuddy || !part.ShownWhileGuarded;

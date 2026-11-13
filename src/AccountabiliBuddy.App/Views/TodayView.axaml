@@ -145,7 +145,7 @@
 
                     <!-- ===== Left: the session card (same slot in and out of a session), then the day's notices and the fold. ===== -->
                     <StackPanel x:Name="CardColumn" Spacing="14" VerticalAlignment="Top">
-                        <views:SessionCardView x:Name="SessionCard" />
+                        <views:SessionCardView x:Name="SessionCard" IsVisible="{Binding MainColumn.ShowsSessionCard, FallbackValue=True}" />
                         <StackPanel Spacing="10">
                             <!-- The error text (a failed Pomodoro start, a read-only settings file). -->
                             <Border Classes="inner" Background="{DynamicResource Ab.InfoBg}" Padding="18,12"
@@ -192,6 +192,24 @@
                                 <Button Grid.Column="2" Classes="quiet" Content="Show" Command="{Binding ShowCommand}" FontSize="12" Padding="8,2" MinHeight="0" />
                             </Grid>
                         </StackPanel>
+
+                        <!-- TD1: one-time quiet card, steps left Today for Goals. One tap makes the goal (never made on its own); × hides it for good. -->
+                        <Border Classes="inner" Padding="14,10" DataContext="{Binding StepsMoved}" x:DataType="vm:StepsMovedCardViewModel"
+                                IsVisible="{Binding IsVisible, FallbackValue=False}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <mi:MaterialIcon Kind="Walk" Width="18" Height="18" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{DynamicResource Ab.Muted}" />
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="Steps now live in Goals" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <Button Classes="quiet" HorizontalAlignment="Left" Command="{Binding AddGoalCommand}" Padding="8,4" AutomationProperties.Name="Add a steps goal">
+                                        <TextBlock Text="Add a steps goal" FontSize="13" />
+                                    </Button>
+                                </StackPanel>
+                                <Button Grid.Column="2" Classes="quiet" VerticalAlignment="Top" Command="{Binding DismissCommand}" Padding="6,4" MinHeight="0"
+                                        ToolTip.Tip="Don't show this again" AutomationProperties.Name="Hide this note">
+                                    <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
+                                </Button>
+                            </Grid>
+                        </Border>
 
                         <!-- Seen while planning: the sites and apps with no rule noticed so far; planning stage only, once there is one. They are
                              asked about together when planning ends. -->
@@ -621,8 +639,14 @@
                         </Border>
                         <!-- TodayPageScope: only here does the running row get its tint, Now badge and open steps. -->
                         <!-- todayRows: the rows' Today look (TaskRowView, TaskSectionView): the indented sub-line, actions on hover, the board's headers. -->
-                        <StackPanel x:Name="TaskList" Classes="todayRows" IsVisible="{Binding !ShowsShutdown}" views:TodayPageScope.IsToday="True"
+                        <StackPanel x:Name="TaskList" Classes="todayRows" views:TodayPageScope.IsToday="True"
                                     Container.Name="TaskColumn" Container.Sizing="Width">
+                            <StackPanel.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="!ShowsShutdown" />
+                                    <Binding Path="MainColumn.ShowsThisSession" FallbackValue="True" />
+                                </MultiBinding>
+                            </StackPanel.IsVisible>
                             <ItemsControl DataContext="{Binding TaskPage}" x:DataType="vm:TasksViewModel" ItemsSource="{Binding TodayTabPanel.Sections, FallbackValue={x:Null}}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="vm:TaskSectionViewModel">

@@ -44,8 +44,6 @@ public sealed partial class TodaySidebarPartViewModel : ObservableObject
 
     public bool IsCalendarChanges => Part == TodayPart.CalendarChanges;
 
-    public bool IsDailySteps => Part == TodayPart.DailySteps;
-
     /// <summary>It has something to show now.</summary>
     [ObservableProperty]
     public partial bool IsAvailable { get; set; }

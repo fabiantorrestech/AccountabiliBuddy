@@ -111,6 +111,7 @@ public partial class App : Application
 
     // Round 2: how the PC's Today page is arranged ("today.layout", device-local; Settings › Today).
     private AccountabiliBuddy.App.Services.Today.TodayLayoutService? _todayLayout;
+    private StepsMovedCardViewModel? _stepsMovedCard;
     private AccountabiliBuddy.App.Services.Tasks.TaskViewService? _taskViews;
     private AccountabiliBuddy.App.Services.Tasks.TaskTidyUpService? _taskTidyUp;
 
@@ -1100,6 +1101,8 @@ public partial class App : Application
                 : null,
             SkipFeature = id => _setupFeatures?.SkipAsync(id) ?? Task.CompletedTask,
             Goals = _goals is { Store.IsReady: true } ? _goals : null,
+            TodayLayout = _todayLayout,
+            StepsMoved = _stepsMovedCard,
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 
@@ -1178,7 +1181,6 @@ public partial class App : Application
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!, sessionTasks);
         sessionViewModel.Timers = new TimersViewModel(_timers!, _sessions);
-        sessionViewModel.Steps = new StepsCardViewModel(dailySteps, time);
         sessionViewModel.Lunch = new LunchCardViewModel(_lunch!, _sessions)
         {
             // The lunch card's "On all your devices" line: the other PCs' and phones' latest files (a watch writes none; removed devices are not in Active).
@@ -2353,7 +2355,7 @@ public partial class App : Application
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
             documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!, _guidance!,
-                taskStore, taskAccount, _taskCalendarExport, _taskReminderSettings, () => _taskReminderAlerts?.HasPhones == true, _goals), BackupService.AppVersion);
+                taskStore, taskAccount, _taskCalendarExport, _taskReminderSettings, () => _taskReminderAlerts?.HasPhones == true, _goals, todayLayout), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -2363,6 +2365,8 @@ public partial class App : Application
         quitGuard.Changed += (_, _) => setupFeatures.Refresh();
         _guidance!.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
+        // TD1: the Today entry is set up once the one-time steps card is dealt with.
+        todayLayout.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         // Round 2 R5: the Goals entry is set up once the weekly review's day is chosen (Settings › Goals or the assistant).
         if (_goals is { } featureGoals)
         {
@@ -2388,6 +2392,13 @@ public partial class App : Application
         sessionViewModel.CalendarToday = new CalendarTodayViewModel(_configuration, effectivePlan, calendars, time, sessionViewModel.Day);
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);
         sessionViewModel.MoreToday = new MoreTodayViewModel(sessionViewModel, todayLayout);
+        // TD1: which of the session card and This session are drawn, and the one-time "Steps now live in Goals" card (never auto-creates).
+        sessionViewModel.MainColumn = new TodayMainColumnViewModel(sessionViewModel, () => sessionViewModel.IsSessionActive, todayLayout);
+        if (_goals is { } stepsGoals)
+        {
+            sessionViewModel.StepsMoved = _stepsMovedCard = new StepsMovedCardViewModel(todayLayout, dailySteps, stepsGoals);
+        }
+
         // Round 2: the Today sidebar (Next up, Today's goals, Come back to, chips) over This session's list, and Settings › Today.
         // Created once the cards it shows exist (Next up and the calendar lines are made just above).
         sessionViewModel.Sidebar = new TodaySidebarViewModel(

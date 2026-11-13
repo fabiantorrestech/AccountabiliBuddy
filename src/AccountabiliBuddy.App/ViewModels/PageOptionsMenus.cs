@@ -96,13 +96,20 @@ public static class PageOptionsMenus
         bool sidebarOpen,
         ICommand? toggleSidebar,
         Action<SettingsSection> openSettings,
-        Action<string> openTodaySettingsAt)
+        Action<string> openTodaySettingsAt,
+        bool showMoreToday = false,
+        ICommand? toggleMoreToday = null)
     {
+        // TD1: "Show More today" (the folded card under the session card) joins the Cards group once the page gives its switch.
+        TaskMenuEntry[] moreToday = toggleMoreToday is null
+            ? []
+            : [new TaskMenuEntry("Show More today", toggleMoreToday, IsChecked: showMoreToday, Icon: MaterialIconKind.UnfoldMoreHorizontal)];
         return
         [
             new TaskMenuEntry("Cards", IsHeading: true),
             new TaskMenuEntry("Arrange cards…", new RelayCommand(() => openTodaySettingsAt(TodayCardsArea)), Icon: MaterialIconKind.ViewDashboardEditOutline, OpensMore: true),
             new TaskMenuEntry("Show finished today", toggleFinished, IsChecked: showFinished, Icon: MaterialIconKind.EyeOutline),
+            .. moreToday,
             TaskMenuEntry.Separator,
             new TaskMenuEntry("Today sidebar", IsHeading: true),
             new TaskMenuEntry("Show the sidebar", toggleSidebar, IsChecked: sidebarOpen, Icon: MaterialIconKind.PageLayoutSidebarRight, Note: "Ctrl+\\ on Today"),

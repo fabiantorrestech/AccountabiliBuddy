@@ -52,10 +52,11 @@ public sealed partial class MoreTodayViewModel : ObservableObject
     public bool HasAlert => AlertCount > 0;
 
     /// <summary>
-    /// The fold card is on the page (round 2 boards draw nothing under the session card): when Settings › Today turned it on, while a
-    /// card inside needs a look, and whenever the unlock card has something to offer or show (a way out is never hidden).
+    /// The fold card is on the page (round 2 boards draw nothing under the session card): when Today's Options or Settings › Today
+    /// turned it on, and whenever the unlock card has something to offer or show (a way out is never hidden). Off, a count inside no
+    /// longer brings it back (TD1: hidden is hidden, nothing else moves).
     /// </summary>
-    public bool ShowsCard => _layout is null || _layout.Current.ShowMoreToday || HasAlert || _session.Unlock.IsVisible;
+    public bool ShowsCard => _layout is null || AccountabiliBuddy.App.Services.Today.TodayLayoutRules.ShowsMoreToday(_layout.Current.ShowMoreToday, _session.Unlock.IsVisible);
 
     public string AlertText => AlertCount.ToString();
 

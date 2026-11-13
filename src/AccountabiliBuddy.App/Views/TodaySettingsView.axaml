@@ -45,9 +45,32 @@
             <!-- Main column: always shown; Finished today is the one card choice. -->
             <StackPanel Spacing="6" search:SearchArea.Name="Today layout">
                 <TextBlock Classes="sGroup" Text="Main column" />
-                <TextBlock Classes="sHint" Text="Always shown: the session card or Start, and This session" />
+                <TextBlock Classes="sHint" TextWrapping="Wrap"
+                           Text="Hide any of it. Ending a session or stepping away stays in the title bar's session control." />
                 <Border Classes="sPanel">
                     <StackPanel Margin="0,0,0,-1">
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="TimerOutline" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="Session card" />
+                                <TextBlock Classes="sHint" TextWrapping="Wrap" Text="The ring with the time left and its buttons, or the start card when nothing runs. Sessions end or pause from the title bar too." />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding ShowSessionCard}" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Show the session card" />
+                        </Grid>
+                    </Border>
+                    <Border Classes="sRow">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                            <mi:MaterialIcon Classes="rowIcon" Kind="FormatListChecks" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Classes="sTitle" Text="This session" />
+                                <TextBlock Classes="sHint" TextWrapping="Wrap" Text="The session's task list, with Queued, Reminders and Finished today under it." />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding ShowThisSession}" VerticalAlignment="Center"
+                                      AutomationProperties.Name="Show This session" />
+                        </Grid>
+                    </Border>
                     <Border Classes="sRow">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                             <mi:MaterialIcon Classes="rowIcon" Kind="CheckAll" />
@@ -65,7 +88,7 @@
                             <StackPanel Grid.Column="1" Spacing="2">
                                 <TextBlock Classes="sTitle" Text="Show More today" />
                                 <TextBlock Classes="sHint" TextWrapping="Wrap"
-                                           Text="The folded card under the session card: today's timeline, the week, a day off, Cold Turkey. Off, it still shows while something in it needs a look or a profile offers an unlock." />
+                                           Text="The folded card under the session card: today's timeline, the week, a day off, Cold Turkey. Off, it is gone and nothing else moves; only a profile's unlock offer still shows it." />
                             </StackPanel>
                             <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding ShowMoreToday}" VerticalAlignment="Center"
                                       AutomationProperties.Name="Show More today" />

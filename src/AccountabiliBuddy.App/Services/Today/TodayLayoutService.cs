@@ -41,7 +41,15 @@ public sealed class TodayLayoutService
         try
         {
             TodayLayoutPreferences? stored = Task.Run(() => _documents.LoadAsync<TodayLayoutPreferences>(DocumentKey)).GetAwaiter().GetResult();
-            Current = stored is null ? TodayLayoutPreferences.Default : TodayLayoutRules.Sanitized(stored);
+            // TD1: decide the one-time steps card from the layout as stored (it still names the removed Daily steps part), once.
+            StepsMovedNote note = TodayLayoutRules.DecideStepsMovedNote(stored);
+            TodayLayoutPreferences read = stored is null ? TodayLayoutPreferences.Default : TodayLayoutRules.Sanitized(stored);
+            Current = read with { StepsMovedNote = note };
+            if (stored is null || stored.StepsMovedNote != note)
+            {
+                TodayLayoutPreferences toSave = Current;
+                Task.Run(() => _documents.SaveAsync(DocumentKey, toSave)).GetAwaiter().GetResult();
+            }
         }
         catch (Exception ex) when (ex is SqliteException or JsonException or InvalidOperationException or NotSupportedException or ArgumentException)
         {
@@ -97,13 +105,30 @@ public sealed class TodayLayoutService
 
     public Task SetShowMoreTodayAsync(bool show) => UpdateAsync(current => current with { ShowMoreToday = show });
 
+    /// <summary>Whether a main-column part is hidden in a state of the day.</summary>
+    public bool IsMainHidden(bool inSession, TodayMainParts part) => (Current.HiddenFor(inSession) & part) == part;
+
+    /// <summary>
+    /// Hides or shows the session card or This session in a layout (TD1). Nothing is refused: ending or stepping away is the title
+    /// bar's session control, which this layout never touches.
+    /// </summary>
+    public Task SetMainHiddenAsync(bool inSession, TodayMainParts part, bool hidden) => UpdateAsync(current =>
+    {
+        TodayMainParts now = current.HiddenFor(inSession);
+        TodayMainParts next = hidden ? now | part : now & ~part;
+        return inSession ? current with { HiddenInSession = next } : current with { HiddenOutside = next };
+    });
+
+    /// <summary>The one-time "Steps now live in Goals" card was added, dismissed or isn't needed: it never shows again.</summary>
+    public Task FinishStepsMovedNoteAsync() => UpdateAsync(current => current with { StepsMovedNote = StepsMovedNote.Done });
+
     /// <summary>One of <see cref="TodayLayoutPreferences.SidebarMinWidths"/>; anything else changes nothing.</summary>
     public Task SetSidebarMinWidthAsync(int width) => TodayLayoutPreferences.SidebarMinWidths.Contains(width)
         ? UpdateAsync(current => current with { SidebarMinWidth = width })
         : Task.CompletedTask;
 
-    /// <summary>Back to the board's layout in both states.</summary>
-    public Task ResetAsync() => UpdateAsync(_ => TodayLayoutPreferences.Default);
+    /// <summary>Back to the board's layout in both states (a finished one-time steps card stays finished).</summary>
+    public Task ResetAsync() => UpdateAsync(current => TodayLayoutPreferences.Default with { StepsMovedNote = current.StepsMovedNote });
 
     /// <summary>
     /// A backup's "today.layout" (ADR 71 device settings): read safely and taken over through this service, so the page redraws and
@@ -122,7 +147,9 @@ public sealed class TodayLayoutService
                 return UnreadableNote;
             }
 
-            cleaned = TodayLayoutRules.Sanitized(wanted);
+            // A backup made before TD1 still names Daily steps: the one-time steps card is decided from it, unless this PC already finished it.
+            StepsMovedNote note = Current.StepsMovedNote == StepsMovedNote.Done ? StepsMovedNote.Done : TodayLayoutRules.DecideStepsMovedNote(wanted);
+            cleaned = TodayLayoutRules.Sanitized(wanted) with { StepsMovedNote = note };
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
         {

@@ -353,7 +353,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsRestore), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
         nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsQuitSafeguard), nameof(IsShutdownRoutine), nameof(IsGuidance), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText),
-        nameof(IsTasksRedesign), nameof(IsTaskViewChooser), nameof(IsTaskRingDevices), nameof(IsTaskCalendarExport), nameof(IsGoalsIntro))]
+        nameof(IsTasksRedesign), nameof(IsTaskViewChooser), nameof(IsTaskRingDevices), nameof(IsTaskCalendarExport), nameof(IsGoalsIntro), nameof(IsTodayChoices))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -674,6 +674,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.TaskRingDevices => "Which devices should ring for reminders?",
         AssistantStep.TaskCalendarExport => "Task reminders in Google Calendar",
         AssistantStep.GoalsIntro => "Goals: more than one, with a weekly review",
+        AssistantStep.TodayChoices => "Today: hide what you don't use",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -712,7 +713,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.CalendarRules => "Finish",
         AssistantStep.Appearance => "Finish",
         AssistantStep.TasksRedesign or AssistantStep.TaskViewChooser or AssistantStep.TaskRingDevices or AssistantStep.TaskCalendarExport
-            or AssistantStep.GoalsIntro
+            or AssistantStep.GoalsIntro or AssistantStep.TodayChoices
             => IsLastPage(Step) ? "Finish" : "Next",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
@@ -943,6 +944,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 break;
             case AssistantStep.GoalsIntro:
                 await FinishGoalsStepAsync();
+                GoToNextQuickStep();
+                break;
+            case AssistantStep.TodayChoices:
+                await FinishTodayChoicesStepAsync();
                 GoToNextQuickStep();
                 break;
             default:

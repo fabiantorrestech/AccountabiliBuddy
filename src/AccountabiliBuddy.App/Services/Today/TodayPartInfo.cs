@@ -5,7 +5,7 @@ namespace AccountabiliBuddy.App.Services.Today;
 /// <summary>One arrangeable part of the Today sidebar (<see cref="TodayParts.All"/>).</summary>
 /// <param name="Key">
 /// Stored in "today.layout". Where the phone's Today has the same thing, the phone's key (<c>TodayItem.key</c>): comebacks, timers,
-/// lunch-chip, beeminder, daily-steps.
+/// lunch-chip, beeminder.
 /// </param>
 /// <param name="Title">The row's name in Settings › Today and the panel's heading.</param>
 /// <param name="About">The row's muted second line in Settings › Today.</param>

@@ -4,9 +4,9 @@ namespace AccountabiliBuddy.App.Services.Today;
 
 /// <summary>
 /// The Today sidebar's parts in their default order (board PC-Settings-Today): Next up, Today's goals and Come back to as panels;
-/// Timers, Lunch and Beeminder as chips; Calendar changes off. Daily steps (not on the board) is a chip, shown only once a phone shares
-/// steps, so the old steps card is not lost. The board's "Phone-free streak" has no PC data yet and
-/// is not listed.
+/// Timers, Lunch and Beeminder as chips; Calendar changes off. Daily steps left Today in TD1 (a Steps goal with Show on Today shows
+/// them in Today's goals). A saved layout that still names "daily-steps" is read with that key dropped
+/// (<see cref="TodayLayoutRules.Resolve"/>). The board's "Phone-free streak" has no PC data yet and is not listed.
 /// </summary>
 public static class TodayParts
 {
@@ -20,7 +20,6 @@ public static class TodayParts
         new(TodayPart.Lunch, "lunch-chip", "Lunch", "Start or skip lunch", MaterialIconKind.SilverwareForkKnife, TodayPartPlacement.Chip, ShownWhileGuarded: true),
         new(TodayPart.Beeminder, "beeminder", "Beeminder", "Read-only goals with their safe days", MaterialIconKind.Bee, TodayPartPlacement.Chip),
         new(TodayPart.CalendarChanges, "calendar-changes", "Calendar changes", "Events added or moved today", MaterialIconKind.CalendarMonthOutline, TodayPartPlacement.Off),
-        new(TodayPart.DailySteps, "daily-steps", "Daily steps", "Steps your phone read today, against the goal", MaterialIconKind.Walk, TodayPartPlacement.Chip),
     ];
 
     public static TodayPartInfo Of(TodayPart part) => All.First(info => info.Part == part);

@@ -495,6 +495,19 @@
                     <TextBlock Classes="muted" TextWrapping="Wrap" Text="Its time, a snooze's length and the tidy-up after it are in Settings › Goals." />
                 </StackPanel>
 
+                <!-- TD1: hide any Today part, More today's Show / Hide, steps moved to Goals -->
+                <StackPanel IsVisible="{Binding IsTodayChoices}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Every part of Today can be hidden now, in the layout for a session and the one for no session: the session card (or the start card), This session, and each sidebar part. Ending a session or stepping away stays in the session control in the title bar." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="The folded More today card has a Show / Hide choice in Today's Options and in Settings › Today. Hidden, it is gone and nothing else moves." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="Daily steps left Today. Steps are tracked in Goals: a Steps goal with Show on Today on appears in Today's goals." />
+                    <Button Classes="pill" HorizontalAlignment="Left" Content="Add a steps goal (8,000 a day)" Command="{Binding StepsMoved.AddGoalCommand, FallbackValue={x:Null}}"
+                            IsVisible="{Binding StepsMoved.IsVisible, FallbackValue=False}" AutomationProperties.Name="Add a steps goal" />
+                    <TextBlock Classes="muted" TextWrapping="Wrap" Text="Settings › Today has all of it." />
+                </StackPanel>
+
                 <!-- Where the account's Tasks view comes from (owner, 2026-11-11) -->
                 <StackPanel IsVisible="{Binding IsTaskViewChooser}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <views:TaskViewChooserView DataContext="{Binding TaskViewChooser}" />

@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// Settings › Today (round 2, plan R2.3, brief §4.2, board PC-Settings-Today): two layouts, in a session and not; the main column
-/// (always the session card or Start, and This session); the sidebar's parts, each Panel / Chip / Off, dragged ≡ (or Alt+↑/↓) into
+/// (the session card or Start, and This session: each can be hidden in either layout, TD1); the sidebar's parts, each Panel / Chip / Off, dragged ≡ (or Alt+↑/↓) into
 /// order; the side column during and outside a session; and Show finished today. Saved at once in "today.layout" through
 /// <see cref="TodayLayoutService"/>. It only changes what Today draws, so it is not locked during a session (like Appearance and the
 /// phone's Today layout); the one rule it holds is that outside ProductaBuddy the lunch row can't be off.
@@ -50,6 +50,14 @@ public sealed partial class TodaySettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool ShowMoreToday { get; set; }
+
+    /// <summary>The session card (or start card) is drawn in the layout being edited (TD1).</summary>
+    [ObservableProperty]
+    public partial bool ShowSessionCard { get; set; } = true;
+
+    /// <summary>This session's list is drawn in the layout being edited (TD1).</summary>
+    [ObservableProperty]
+    public partial bool ShowThisSession { get; set; } = true;
 
     /// <summary>"Any width", "1024 px", "1280 px"…: the window width from which the sidebar shows outside a session.</summary>
     public IReadOnlyList<string> MinWidthChoices { get; } = TodayLayoutPreferences.SidebarMinWidths
@@ -126,6 +134,22 @@ public sealed partial class TodaySettingsViewModel : ObservableObject
         }
     }
 
+    partial void OnShowSessionCardChanged(bool value)
+    {
+        if (!_loading)
+        {
+            _ = _layout.SetMainHiddenAsync(EditsInSession, TodayMainParts.SessionCard, !value);
+        }
+    }
+
+    partial void OnShowThisSessionChanged(bool value)
+    {
+        if (!_loading)
+        {
+            _ = _layout.SetMainHiddenAsync(EditsInSession, TodayMainParts.ThisSession, !value);
+        }
+    }
+
     partial void OnMinWidthIndexChanged(int value)
     {
         if (!_loading && value >= 0 && value < TodayLayoutPreferences.SidebarMinWidths.Count)
@@ -151,6 +175,8 @@ public sealed partial class TodaySettingsViewModel : ObservableObject
         OutsideIndex = (int)current.SidebarOutside;
         ShowFinishedToday = current.ShowFinishedToday;
         ShowMoreToday = current.ShowMoreToday;
+        ShowSessionCard = !_layout.IsMainHidden(EditsInSession, TodayMainParts.SessionCard);
+        ShowThisSession = !_layout.IsMainHidden(EditsInSession, TodayMainParts.ThisSession);
         MinWidthIndex = Math.Max(0, TodayLayoutPreferences.SidebarMinWidths.ToList().IndexOf(current.SidebarMinWidth));
         bool isProductaBuddy = _layout.IsProductaBuddy;
         List<TodayPartRowViewModel> rows = _layout.Parts(EditsInSession)
