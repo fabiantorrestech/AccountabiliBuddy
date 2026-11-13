@@ -95,6 +95,12 @@ class TimersStore(private val context: Context) {
         }
     }
 
+    /** Dismiss on a timer: one that is up is gone (timers are temporary; alarms are the ones that stay); any other is set back. */
+    @Synchronized
+    fun dismissTimer(id: Int) {
+        if (_timers.value.any { it.id == id && it.state == TimerState.DONE }) deleteTimer(id) else reset(id)
+    }
+
     @Synchronized
     fun deleteTimer(id: Int) {
         TimerRinger.stop(context, RingingItem.Kind.TIMER, id)
@@ -165,12 +171,12 @@ class TimersStore(private val context: Context) {
     fun takeDue(nowMs: Long = System.currentTimeMillis()): List<RingingItem> {
         val ring = mutableListOf<RingingItem>()
         val dueBy = nowMs + EARLY_MS
-        val timers = _timers.value.map { timer ->
+        val timers = _timers.value.mapNotNull { timer ->
             val end = timer.endAtMs
-            if (timer.state != TimerState.RUNNING || end == null || end > dueBy) return@map timer
-            if (nowMs - end <= MISSED_MS) {
-                ring += RingingItem(RingingItem.Kind.TIMER, timer.id, "Timer · ${timer.name} is up", "${TimerItem.formatLength(timer.totalMs)} timer")
-            }
+            if (timer.state != TimerState.RUNNING || end == null || end > dueBy) return@mapNotNull timer
+            // Up long ago (the phone was off): it never rings, and a timer nobody will dismiss is simply gone.
+            if (nowMs - end > MISSED_MS) return@mapNotNull null
+            ring += RingingItem(RingingItem.Kind.TIMER, timer.id, "Timer · ${timer.name} is up", "${TimerItem.formatLength(timer.totalMs)} timer")
             timer.copy(state = TimerState.DONE, endAtMs = null, remainingMs = null)
         }
         val clock = ClockFormat(is24Hour = false)

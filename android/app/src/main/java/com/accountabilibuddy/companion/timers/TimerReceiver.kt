@@ -16,7 +16,7 @@ class TimerReceiver : BroadcastReceiver() {
             ACTION_PAUSE -> store.pause(id)
             ACTION_RESUME -> store.resume(id)
             ACTION_ADD_MINUTE -> store.addMinute(id)
-            ACTION_DISMISS_TIMER -> store.reset(id)
+            ACTION_DISMISS_TIMER -> store.dismissTimer(id)
             ACTION_DISMISS_ALARM -> store.dismissAlarm(id)
             ACTION_SNOOZE_ALARM -> store.snoozeAlarm(id)
         }

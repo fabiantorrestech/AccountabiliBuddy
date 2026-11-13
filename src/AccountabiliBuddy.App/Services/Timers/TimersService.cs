@@ -56,7 +56,8 @@ public sealed class TimersService
         try
         {
             TimersDocument? loaded = Task.Run(() => _store.LoadAsync<TimersDocument>(DocumentKey)).GetAwaiter().GetResult();
-            _timers = loaded?.Timers?.ToList() ?? [];
+            // A timer is temporary: one that was up and dismissed (saved by an older version) is simply gone.
+            _timers = loaded?.Timers?.Where(timer => !(timer.State == TimerState.Done && timer.Dismissed)).ToList() ?? [];
             _alarms = loaded?.Alarms?.Select(alarm => alarm with { Days = alarm.Days ?? [] }).ToList() ?? [];
         }
         catch (Exception ex) when (ex is SqliteException or System.Text.Json.JsonException)
@@ -126,16 +127,16 @@ public sealed class TimersService
         return UpdateTimer(id, timer => timer with { State = TimerState.Paused, EndsAt = null, Remaining = timer.Length, Dismissed = false });
     }
 
-    /// <summary>Done now, quietly, and off the on-screen window (its ✕).</summary>
+    /// <summary>Stopped now, quietly, from the on-screen window (its ✕): a timer is temporary, so it is gone from Today too.</summary>
     public Task StopAsync(Guid id)
     {
-        return UpdateTimer(id, timer => timer with { State = TimerState.Done, EndsAt = null, Remaining = null, Dismissed = true });
+        return DeleteTimerAsync(id);
     }
 
-    /// <summary>A done timer leaves the on-screen window and stops ringing; it stays on Today.</summary>
+    /// <summary>A timer that is up stops ringing and is gone (timers are temporary; alarms are the ones that stay).</summary>
     public Task DismissTimerAsync(Guid id)
     {
-        return UpdateTimer(id, timer => timer.State == TimerState.Done ? timer with { Dismissed = true } : timer);
+        return FindTimer(id)?.State == TimerState.Done ? DeleteTimerAsync(id) : Task.CompletedTask;
     }
 
     /// <summary>
@@ -229,13 +230,18 @@ public sealed class TimersService
             }
 
             bool late = now - end > TooLate;
-            TimerItem done = timer with { State = TimerState.Done, EndsAt = null, Remaining = null, Dismissed = late };
-            _timers[index] = done;
             changed = true;
-            if (!late)
+            if (late)
             {
-                timersUp.Add(done);
+                // Up long ago (the PC was off): it never rings, and a timer nobody will dismiss is simply gone.
+                _timers.RemoveAt(index);
+                index--;
+                continue;
             }
+
+            TimerItem done = timer with { State = TimerState.Done, EndsAt = null, Remaining = null, Dismissed = false };
+            _timers[index] = done;
+            timersUp.Add(done);
         }
 
         for (int index = 0; index < _alarms.Count; index++)

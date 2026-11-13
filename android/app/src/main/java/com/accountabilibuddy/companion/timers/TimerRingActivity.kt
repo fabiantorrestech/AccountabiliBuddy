@@ -62,7 +62,7 @@ class TimerRingActivity : ComponentActivity() {
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 if (item.kind == RingingItem.Kind.TIMER) {
                                     OutlinedButton(onClick = { store.addMinute(item.id) }) { Text("+1 min") }
-                                    Button(onClick = { store.reset(item.id) }) { Text("Dismiss") }
+                                    Button(onClick = { store.dismissTimer(item.id) }) { Text("Dismiss") }
                                 } else {
                                     OutlinedButton(onClick = { store.snoozeAlarm(item.id) }) { Text("Snooze 9 min") }
                                     Button(onClick = { store.dismissAlarm(item.id) }) { Text("Dismiss") }
