@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using AccountabiliBuddy.Core.Domain;
 
@@ -8,27 +9,44 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// anything else is read as words: "@label" (the label's name starts with it, no case; an underscore stands for a space, "@deep_w"
 /// finds "Deep work"; the Add box's word rule), "#tag" (a tag starts with it) and plain words (each found, in any order, in the
 /// title, a step, the note or a tag). Every word and token must match (they AND); an "@label" no label starts with finds nothing;
-/// a lone "@" or "#" is ignored. A query that looks like a number matches only by number (a task's former temporary numbers too).
-/// The phone has the same rule (TaskSearch.kt). Pure; the text is the user's, so nothing here logs.
+/// a lone "@" or "#" is ignored. A query that looks like a number ("142", "142b"; ASCII digits only) is looked up by number first (a
+/// task's former temporary numbers too); when no task or step has that number ("10am", "3pm", "1st", "2fa", "4k") it is a word.
+/// Label and tag words are letters, marks, digits, connector punctuation and hyphens in any script. Case folding is one simple
+/// lower-case mapping per character (<see cref="Fold"/>), the same on the phone (TaskSearch.kt). Pure; the text is the user's, so nothing here logs.
 /// </summary>
 public static partial class TaskSearch
 {
     /// <summary>The hint in the search boxes.</summary>
     public const string Hint = "Search · @label #tag";
 
-    [GeneratedRegex(@"^\d+[a-z]{0,4}$")]
+    [GeneratedRegex(@"^[0-9]+[a-z]{0,4}$")]
     private static partial Regex IdPattern();
 
-    [GeneratedRegex(@"^@([\w-]+)$")]
+    [GeneratedRegex(@"^@([\p{L}\p{M}\p{Nd}\p{Pc}-]+)$")]
     private static partial Regex LabelToken();
 
-    [GeneratedRegex(@"^#([\w-]+)$")]
+    [GeneratedRegex(@"^#([\p{L}\p{M}\p{Nd}\p{Pc}-]+)$")]
     private static partial Regex TagToken();
 
-    /// <summary>The query is a task ID ("142", "142b", case and outer spaces ignored): <see cref="Find"/> then matches by number only.</summary>
+    /// <summary>The query looks like a task ID ("142", "142b", case and outer spaces ignored): <see cref="Find"/> tries the number first.</summary>
     public static bool IsId(string query)
     {
-        return IdPattern().IsMatch(query.Trim().ToLowerInvariant());
+        return IdPattern().IsMatch(Fold(query.Trim()));
+    }
+
+    /// <summary>
+    /// The case folding of every comparison here, the same on the phone: each character through its simple lower-case mapping (a
+    /// final sigma stays sigma, "İ" stays as it is), never the whole-string rules of one platform.
+    /// </summary>
+    public static string Fold(string text)
+    {
+        var folded = new StringBuilder(text.Length);
+        foreach (Rune rune in text.EnumerateRunes())
+        {
+            folded.Append(rune.Value == 0x130 ? rune : Rune.ToLowerInvariant(rune));
+        }
+
+        return folded.ToString();
     }
 
     /// <summary>Whether <paramref name="query"/> narrows anything: false for blank text and for lone "@" and "#" words.</summary>
@@ -37,15 +55,22 @@ public static partial class TaskSearch
         return IsId(query) || !Read(query).IsEmpty;
     }
 
+    /// <summary>The task or step an ID query ("142", "142b") names, by number only (no word fallback): what "go to task" uses. Empty when none.</summary>
+    public static IReadOnlyList<TaskSearchHit> FindByNumber(IEnumerable<TaskItem> tasks, string query)
+    {
+        string text = Fold(query.Trim());
+        return IdPattern().IsMatch(text) ? FindById(tasks.Where(task => task.IsLive).ToList(), text) : [];
+    }
+
     /// <summary>The hits for <paramref name="query"/> in list order (a task, then its matching steps); none when it has no criteria.</summary>
     /// <param name="labels">The labels "@label" words are looked up in; without them an "@label" word finds nothing.</param>
     public static IReadOnlyList<TaskSearchHit> Find(IEnumerable<TaskItem> tasks, string query, IReadOnlyList<TaskLabel>? labels = null)
     {
-        string text = query.Trim().ToLowerInvariant();
+        string text = Fold(query.Trim());
         List<TaskItem> live = tasks.Where(task => task.IsLive).ToList();
-        if (IdPattern().IsMatch(text))
+        if (IdPattern().IsMatch(text) && FindById(live, text) is { Count: > 0 } byNumber)
         {
-            return FindById(live, text);
+            return byNumber;
         }
 
         Words words = Read(text);
@@ -72,7 +97,7 @@ public static partial class TaskSearch
             List<TaskStep> steps = (task.Steps ?? []).ToList();
             for (int index = 0; words.Text.Count > 0 && index < steps.Count; index++)
             {
-                if (words.Text.All(word => steps[index].Title.Contains(word, StringComparison.OrdinalIgnoreCase)))
+                if (words.Text.All(word => Fold(steps[index].Title).Contains(word, StringComparison.Ordinal)))
                 {
                     hits.Add(new TaskSearchHit(task, steps[index], index, TaskSearchMatch.Step));
                 }
@@ -93,12 +118,12 @@ public static partial class TaskSearch
             return null;
         }
 
-        if (IsId(query))
+        if (IsId(query) && Find(tasks, query) is { Count: > 0 } byNumber)
         {
-            return Find(tasks, query).Select(hit => hit.Task.Id).ToHashSet();
+            return byNumber.Select(hit => hit.Task.Id).ToHashSet();
         }
 
-        Words words = Read(query.Trim().ToLowerInvariant());
+        Words words = Read(query);
         List<HashSet<Guid>> labelIds = LabelIds(words, labels);
         return tasks.Where(task => task.IsLive && PassesTokens(task, words, labelIds) && (words.Text.Count == 0 || CombinedText(task, words.Text)))
             .Select(task => task.Id).ToHashSet();
@@ -113,7 +138,7 @@ public static partial class TaskSearch
     private static Words Read(string query)
     {
         var words = new Words([], [], []);
-        foreach (string token in query.Trim().ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        foreach (string token in Fold(query.Trim()).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
             if (token is "@" or "#")
             {
@@ -140,7 +165,7 @@ public static partial class TaskSearch
     // A label's name as an "@" word spells it: lower case, spaces as underscores.
     private static string Spelled(string name)
     {
-        return Spaces().Replace(name.Trim().ToLowerInvariant(), "_");
+        return Spaces().Replace(Fold(name.Trim()), "_");
     }
 
     [GeneratedRegex(@"\s+")]
@@ -158,21 +183,21 @@ public static partial class TaskSearch
     private static bool PassesTokens(TaskItem task, Words words, List<HashSet<Guid>> labelIds)
     {
         return labelIds.All(ids => task.LabelId is { } label && ids.Contains(label))
-            && words.Tags.All(word => (task.Tags ?? []).Any(tag => tag.StartsWith(word, StringComparison.OrdinalIgnoreCase)));
+            && words.Tags.All(word => (task.Tags ?? []).Any(tag => Fold(tag).StartsWith(word, StringComparison.Ordinal)));
     }
 
     // Every word is somewhere in the title, a step, the note or a tag ("#home").
     private static bool CombinedText(TaskItem task, List<string> words)
     {
-        string all = string.Join("\n", new[] { task.Title, task.Note ?? string.Empty }
-            .Concat((task.Steps ?? []).Select(step => step.Title)).Concat((task.Tags ?? []).Select(tag => "#" + tag))).ToLowerInvariant();
+        string all = Fold(string.Join("\n", new[] { task.Title, task.Note ?? string.Empty }
+            .Concat((task.Steps ?? []).Select(step => step.Title)).Concat((task.Tags ?? []).Select(tag => "#" + tag))));
         return words.All(word => all.Contains(word, StringComparison.Ordinal));
     }
 
     // What the task-level hit matched: the one field that holds every word, else the words are spread over several fields.
     private static TaskSearchMatch? TextMatch(TaskItem task, List<string> words)
     {
-        bool In(string? field) => field is not null && words.All(word => field.Contains(word, StringComparison.OrdinalIgnoreCase));
+        bool In(string? field) => field is not null && words.All(word => Fold(field).Contains(word, StringComparison.Ordinal));
         if (In(task.Title))
         {
             return TaskSearchMatch.Title;

@@ -150,7 +150,7 @@ fun TasksOptionsSheet(
                 AbSegmented(
                     TaskViewWords.GROUP_PILLS.map { it.second }, TaskViewWords.groupPill(config.group),
                     onSelect = { index -> setConfig { it.copy(group = TaskViewWords.GROUP_PILLS[index].first) } },
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp), groupName = "Group by",
                 )
                 val grouping = state.grouping
                 val pages = ShelfPages.build(lists, config, now, zone, storedOrder = state.orderOf(grouping))

@@ -19,6 +19,12 @@ object TaskViewIcons {
     /** The name to draw for [name]: itself when known, else the bookmark. */
     fun drawn(name: String?): String = name?.trim()?.takeIf { it in DRAWN } ?: DEFAULT
 
-    /** The picker's choice for a view that has [name]: the bookmark when it has none or an unknown one. */
-    fun picked(name: String?): String = drawn(name)
+    /**
+     * The picker's lit choice for a view that has [name]: the bookmark when it has none, null (nothing lit) when the name is one this
+     * app doesn't know, so tapping can't overwrite a newer app's icon unseen. A built-in's own name ("star") lights nothing too.
+     */
+    fun picked(name: String?): String? {
+        val trimmed = name?.trim()
+        return if (trimmed.isNullOrEmpty()) DEFAULT else trimmed.takeIf { it in NAMES }
+    }
 }

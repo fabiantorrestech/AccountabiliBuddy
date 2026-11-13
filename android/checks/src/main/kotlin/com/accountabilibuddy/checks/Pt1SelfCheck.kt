@@ -35,7 +35,12 @@ object Pt1SelfCheck {
 
         report.check("pt1: the picker offers ten icons, no repeats", TaskViewIcons.NAMES.size == 10 && TaskViewIcons.NAMES.toSet().size == 10)
         report.check("pt1: no icon draws the bookmark", TaskViewIcons.drawn(null) == "bookmark-outline" && TaskViewIcons.drawn(" ") == "bookmark-outline")
-        report.check("pt1: an unknown icon draws the bookmark", TaskViewIcons.drawn("zz-not-an-icon") == "bookmark-outline" && TaskViewIcons.picked("zz-not-an-icon") == TaskViewIcons.DEFAULT)
+        report.check("pt1: an unknown icon draws the bookmark", TaskViewIcons.drawn("zz-not-an-icon") == "bookmark-outline" && TaskViewIcons.picked("zz-not-an-icon") == null)
+        report.check(
+            "pt1: the picker lights the bookmark for none, nothing for an unknown name, the pick for a known one",
+            TaskViewIcons.picked(null) == TaskViewIcons.DEFAULT && TaskViewIcons.picked(" ") == TaskViewIcons.DEFAULT &&
+                TaskViewIcons.picked("zz-not-an-icon") == null && TaskViewIcons.NAMES.all { TaskViewIcons.picked(it) == it },
+        )
         report.check("pt1: a known icon draws itself", TaskViewIcons.NAMES.all { TaskViewIcons.drawn(it) == it })
         report.check("pt1: the built-in views' icons are drawn as they are", TaskView.builtIns(at).all { TaskViewIcons.drawn(it.icon) == it.icon }, TaskView.builtIns(at).map { it.icon }.toString())
 
@@ -47,6 +52,16 @@ object Pt1SelfCheck {
         fun shown(search: String?) = TaskViewRules.apply(tasks, TaskViewConfig.EVERYTHING, TaskViewContext(at, ZoneOffset.UTC, listOf(deep), search))
             .groups.sumOf { it.tasks.size }
         report.check("pt1: a view's search takes @label from the shared rule", shown("@deep") == 1 && shown("@deep_work") == 1 && shown("@x") == 0)
+        // A saved view's search text replays through the shared rule: a number-like word that is no task number is a word.
+        val numbered = listOf(task(1, "10am standup", null), task(2, "1st draft", null), task(3, "Mail", null))
+        fun replay(search: String) = TaskViewRules.apply(numbered, TaskViewConfig.EVERYTHING, TaskViewContext(at, ZoneOffset.UTC, listOf(deep), search))
+            .groups.flatMap { it.tasks }.map { it.title }
+        report.check("pt1: a saved view's 10am finds the word", replay("10am") == listOf("10am standup") && replay("1st") == listOf("1st draft"), "${replay("10am")}")
+        report.check("pt1: a saved view's 101 still goes by number", replay("101") == listOf("10am standup") && replay("999").isEmpty())
+        report.check(
+            "pt1: folding is per code point, same as the PC",
+            TaskSearch.fold("\u039F\u0394\u039F\u03A3 \u0130 AB") == "\u03BF\u03B4\u03BF\u03C3 \u0130 ab" && !TaskSearch.isId("\u0661\u0662\u0663"),
+        )
         report.check("pt1: a lone @ or blank search shows everything", shown("@") == 2 && shown("  ") == 2 && shown(null) == 2)
     }
 

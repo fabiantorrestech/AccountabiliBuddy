@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CalendarToday
@@ -37,6 +39,7 @@ object ViewIconVectors {
     fun of(name: String?): ImageVector = when (TaskViewIcons.drawn(name)) {
         "star-outline" -> Icons.Outlined.StarBorder
         "star" -> Icons.Outlined.Star
+        "bookmark" -> Icons.Filled.Bookmark
         "lightning-bolt" -> Icons.Outlined.Bolt
         "head-cog" -> Icons.Outlined.Psychology
         "briefcase-outline" -> Icons.Outlined.Work
@@ -52,12 +55,15 @@ object ViewIconVectors {
     fun spoken(name: String): String = name.removeSuffix("-outline").replace('-', ' ')
 }
 
-/** The picker for a view's icon: the PC's ten, a round 44 dp target each, the picked one raised. [picked] null shows the bookmark picked. */
+/** The picker for a view's icon: the PC's ten, a round 44 dp target each, the picked one raised. [picked] null shows the bookmark picked; an unknown name lights nothing, so a tap can't replace it unseen. */
 @Composable
 fun ViewIconPicker(picked: String?, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = Ab.colors
     val current = TaskViewIcons.picked(picked)
-    FlowRow(modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(
+        modifier.padding(vertical = 4.dp).selectableGroup().semantics { contentDescription = "Icon" },
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         TaskViewIcons.NAMES.forEach { name ->
             val selected = name == current
             Surface(

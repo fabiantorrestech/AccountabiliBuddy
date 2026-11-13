@@ -8,23 +8,36 @@ import java.util.regex.Pattern
  * step's task); anything else is words: "@label" (the label's name starts with it, no case; an underscore stands for a space, so
  * "@deep_w" finds "Deep work": the Add box's word rule), "#tag" (a tag starts with it) and plain words (each found, in any order, in
  * the title, a step, the note or a tag). Every word and token must match (they AND); an "@label" no label starts with finds nothing;
- * a lone "@" or "#" is ignored.
+ * a lone "@" or "#" is ignored. A query that looks like a number ("142", "142b"; ASCII digits only) is looked up by number first; when
+ * no task or step has that number ("10am", "3pm", "1st", "2fa", "4k") it is a word. Label and tag words are letters, marks, digits,
+ * connector punctuation and hyphens in any script. Case folding is one simple lower-case mapping per code point ([fold]), the same
+ * as the PC's.
  */
 object TaskSearch {
     /** The hint in the search boxes. */
     const val HINT = "Search \u00B7 @label #tag"
 
-    private val idPattern = Pattern.compile("^\\d+[a-z]{0,4}$")
-    private val labelToken = Pattern.compile("^@([\\w-]+)$", Pattern.UNICODE_CHARACTER_CLASS)
-    private val tagToken = Pattern.compile("^#([\\w-]+)$", Pattern.UNICODE_CHARACTER_CLASS)
+    private val idPattern = Pattern.compile("^[0-9]+[a-z]{0,4}$")
+    private val labelToken = Pattern.compile("^@([\\p{L}\\p{M}\\p{Nd}\\p{Pc}-]+)$")
+    private val tagToken = Pattern.compile("^#([\\p{L}\\p{M}\\p{Nd}\\p{Pc}-]+)$")
     private val spaces = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS)
 
     private class Words(val labels: List<String>, val tags: List<String>, val text: List<String>) {
         val isEmpty: Boolean get() = labels.isEmpty() && tags.isEmpty() && text.isEmpty()
     }
 
-    /** The query is a task ID ("142", "142b", case and outer spaces ignored). */
-    fun isId(query: String): Boolean = idPattern.matcher(query.trim().lowercase()).matches()
+    /** The query looks like a task ID ("142", "142b", case and outer spaces ignored): it is tried as a number first. */
+    fun isId(query: String): Boolean = idPattern.matcher(fold(query.trim())).matches()
+
+    /**
+     * The case folding of every comparison here, the same as the PC's: each code point through its simple lower-case mapping (a final
+     * sigma stays sigma, U+0130 stays as it is), never the whole-string rules of one platform.
+     */
+    fun fold(text: String): String {
+        val folded = StringBuilder(text.length)
+        text.codePoints().forEach { codePoint -> folded.appendCodePoint(if (codePoint == 0x130) codePoint else Character.toLowerCase(codePoint)) }
+        return folded.toString()
+    }
 
     /** Whether [query] narrows anything: false for blank text and for lone "@" and "#" words. */
     fun hasCriteria(query: String): Boolean = isId(query) || !read(query).isEmpty
@@ -37,9 +50,9 @@ object TaskSearch {
         if (!hasCriteria(query)) return null
         val live = tasks.filter { it.isLive }
         if (isId(query)) {
-            val (task, step) = byNumber(live, query.trim().lowercase()) ?: return emptySet()
-            // A step's letter past the task's last step finds nothing.
-            return if (step == null || step < task.steps.orEmpty().size) setOf(task.id.lowercase()) else emptySet()
+            val (task, step) = byNumber(live, fold(query.trim())) ?: (null to null)
+            // A step's letter past the task's last step is no number: the query is a word then.
+            if (task != null && (step == null || step < task.steps.orEmpty().size)) return setOf(task.id.lowercase())
         }
 
         val words = read(query)
@@ -53,7 +66,7 @@ object TaskSearch {
         val labels = ArrayList<String>()
         val tags = ArrayList<String>()
         val text = ArrayList<String>()
-        for (token in spaces.split(query.trim().lowercase()).filter { it.isNotEmpty() }) {
+        for (token in spaces.split(fold(query.trim())).filter { it.isNotEmpty() }) {
             if (token == "@" || token == "#") continue
             val label = labelToken.matcher(token)
             val tag = tagToken.matcher(token)
@@ -68,7 +81,7 @@ object TaskSearch {
     }
 
     // A label's name as an "@" word spells it: lower case, spaces as underscores.
-    private fun spelled(name: String): String = spaces.matcher(name.trim().lowercase()).replaceAll("_")
+    private fun spelled(name: String): String = spaces.matcher(fold(name.trim())).replaceAll("_")
 
     // Per "@" word, the ids of the live labels whose spelled name starts with it (an empty set: the word finds nothing).
     private fun labelIds(words: Words, labels: List<TaskLabel>): List<Set<String>> =
@@ -77,13 +90,13 @@ object TaskSearch {
     private fun passesTokens(task: TaskItem, words: Words, labelIds: List<Set<String>>): Boolean {
         val label = task.labelId?.lowercase()
         return labelIds.all { ids -> label != null && label in ids } &&
-            words.tags.all { word -> task.tags.orEmpty().any { it.lowercase().startsWith(word) } }
+            words.tags.all { word -> task.tags.orEmpty().any { fold(it).startsWith(word) } }
     }
 
     // Every word is somewhere in the title, a step, the note or a tag ("#home").
     private fun combinedText(task: TaskItem, words: List<String>): Boolean {
         val all = (listOf(task.title, task.note.orEmpty()) + task.steps.orEmpty().map { it.title } + task.tags.orEmpty().map { "#$it" })
-            .joinToString("\n").lowercase()
+            .joinToString("\n").let { fold(it) }
         return words.all { all.contains(it) }
     }
 

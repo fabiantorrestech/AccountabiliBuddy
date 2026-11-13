@@ -81,7 +81,7 @@ public sealed partial class TasksViewModel
             return "Task IDs come with the task list";
         }
 
-        if (TaskSearch.Find(_store.Lists.Tasks.Select(item => item.Task), text).FirstOrDefault() is not { } hit)
+        if (TaskSearch.FindByNumber(_store.Lists.Tasks.Select(item => item.Task), text).FirstOrDefault() is not { } hit)
         {
             return "No task " + text;
         }
