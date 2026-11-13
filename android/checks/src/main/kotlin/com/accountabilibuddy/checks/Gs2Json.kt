@@ -101,9 +101,13 @@ object Gs2Json {
 
     fun year(json: JsonElement) = GoalHistoryJson.readYear(json) ?: error("year file")
 
-    /** Null when the C# JSON and the phone's agree in structure, order and text; else where they differ. */
-    fun same(expected: JsonElement, actual: JsonElement): String? =
-        JsonParity.difference(expected, actual) ?: GoalCaseRunner.sameText(GoalJson.text(expected), GoalJson.text(actual))
+    /**
+     * Null when the C# JSON and the phone's agree in structure and order, and the phone's text is the PC's bytes: [wire] is what the PC's
+     * serializer wrote (the fixture's `expectedWire`). Without it only the trees are compared (the fixture file re-escapes strings, so its
+     * own text proves nothing about the "+" of a time).
+     */
+    fun same(expected: JsonElement, actual: JsonElement, wire: String? = null): String? =
+        JsonParity.difference(expected, actual) ?: wire?.let { GoalCaseRunner.sameText(it, GoalJson.text(actual)) }
 
     fun cleaned(lists: GoalLists): GoalLists = GoalSyncClean.lists(lists)
 

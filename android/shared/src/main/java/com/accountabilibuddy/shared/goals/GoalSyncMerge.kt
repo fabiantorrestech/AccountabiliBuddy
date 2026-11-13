@@ -418,6 +418,7 @@ object GoalSyncMerge {
         val time = min(written ?: recordAt, limit)
         if (written != null && written == time) return time to decision
         val fields = LinkedHashMap(json)
+        // As the PC: the item is read back as JSON after this, so its time is written as any other text of it (a "+" escaped).
         fields["decidedAt"] = JsonPrimitive(GoalJson.time(time))
         return time to Decision.Raw(JsonObject(fields))
     }
@@ -492,11 +493,7 @@ object GoalSyncMerge {
         return Split(known, newer)
     }
 
-    private fun ordered(items: List<GoalMergeItem>): List<GoalMergeItem> =
-        items.sortedWith { a, b ->
-            val byPosition = GoalListMerge.comparePosition(a.position, b.position)
-            if (byPosition != 0) byPosition else a.id.toString().compareTo(b.id.toString())
-        }
+    private fun ordered(items: List<GoalMergeItem>): List<GoalMergeItem> = GoalListMerge.orderedByPosition(items)
 
     private fun min(value: OffsetDateTime, limit: OffsetDateTime): OffsetDateTime = if (DotNetTime.compare(value, limit) > 0) limit else value
 }

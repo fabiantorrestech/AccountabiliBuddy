@@ -58,9 +58,9 @@ object TaskJson {
         put("title", task.title)
         put("bin", task.bin.wire)
         put("position", GoalJson.number(task.position))
-        put("createdAt", GoalJson.time(task.createdAt))
-        put("editedAt", GoalJson.time(task.editedAt))
-        put("touchedAt", GoalJson.time(task.touchedAt))
+        put("createdAt", GoalJson.timeValue(task.createdAt))
+        put("editedAt", GoalJson.timeValue(task.editedAt))
+        put("touchedAt", GoalJson.timeValue(task.touchedAt))
         task.number?.let { put("number", writeNumber(it, unknown)) }
         task.formerNumbers?.let { numbers -> put("formerNumbers", JsonArray(numbers.map { JsonPrimitive(it) })) }
         task.prevBin?.let { put("prevBin", it.wire) }
@@ -76,11 +76,11 @@ object TaskJson {
         if (task.cantMiss) put("cantMiss", true)
         if (task.highlight) put("highlight", true)
         task.origin?.let { put("origin", it) }
-        task.doneAt?.let { put("doneAt", GoalJson.time(it)) }
+        task.doneAt?.let { put("doneAt", GoalJson.timeValue(it)) }
         task.devices?.let { put("devices", texts(it)) }
         if (task.calendar) put("calendar", true)
         task.plannedFor?.let { put("plannedFor", writePlannedFor(it)) }
-        task.deletedAt?.let { put("deletedAt", GoalJson.time(it)) }
+        task.deletedAt?.let { put("deletedAt", GoalJson.timeValue(it)) }
         task.conflicts?.let { conflicts -> put("conflicts", JsonArray(conflicts.map { writeConflict(it, unknown) })) }
         task.autoSavedFor?.let { put("autoSavedFor", it.toString()) }
         putExtra(task.extra, unknown)
@@ -96,7 +96,7 @@ object TaskJson {
         buildJsonObject {
             put("id", step.id)
             put("title", step.title)
-            step.doneAt?.let { put("doneAt", GoalJson.time(it)) }
+            step.doneAt?.let { put("doneAt", GoalJson.timeValue(it)) }
             if (step.focus) put("focus", true)
             step.estimateMinutes?.let { put("estimateMinutes", it) }
             putExtra(step.extra, unknown)
@@ -107,7 +107,7 @@ object TaskJson {
         buildJsonObject {
             put("id", reminder.id)
             put("rule", reminder.rule)
-            reminder.at?.let { put("at", GoalJson.time(it)) }
+            reminder.at?.let { put("at", GoalJson.timeValue(it)) }
             reminder.occurrences?.let { occurrences -> put("occurrences", JsonArray(occurrences.map { writeOccurrence(it, unknown) })) }
             reminder.calendarEventId?.let { put("calendarEventId", it) }
             putExtra(reminder.extra, unknown)
@@ -115,9 +115,9 @@ object TaskJson {
     })
 
     private fun writeOccurrence(occurrence: TaskReminderOccurrence, unknown: Boolean): JsonObject = buildJsonObject {
-        put("due", GoalJson.time(occurrence.due))
+        put("due", GoalJson.timeValue(occurrence.due))
         put("status", occurrence.status.wire)
-        occurrence.snoozedUntil?.let { put("snoozedUntil", GoalJson.time(it)) }
+        occurrence.snoozedUntil?.let { put("snoozedUntil", GoalJson.timeValue(it)) }
         if (occurrence.snoozeCount != 0) put("snoozeCount", occurrence.snoozeCount)
         putExtra(occurrence.extra, unknown)
     }
@@ -126,7 +126,7 @@ object TaskJson {
         put("field", conflict.field)
         put("otherValue", conflict.otherValue)
         put("otherDeviceId", conflict.otherDeviceId)
-        put("otherEditedAt", GoalJson.time(conflict.otherEditedAt))
+        put("otherEditedAt", GoalJson.timeValue(conflict.otherEditedAt))
         putExtra(conflict.extra, unknown)
     }
 
@@ -137,7 +137,7 @@ object TaskJson {
     }
 
     fun writeStamp(stamp: FieldStamp, unknown: Boolean = true): JsonObject = buildJsonObject {
-        put("at", GoalJson.time(stamp.at))
+        put("at", GoalJson.timeValue(stamp.at))
         put("by", stamp.by)
         stamp.bases?.let { put("bases", texts(it)) }
         putExtra(stamp.extra, unknown)
@@ -162,9 +162,9 @@ object TaskJson {
         put("name", label.name)
         put("color", label.color)
         put("position", GoalJson.number(label.position))
-        put("editedAt", GoalJson.time(label.editedAt))
+        put("editedAt", GoalJson.timeValue(label.editedAt))
         label.ringOn?.let { put("ringOn", texts(it)) }
-        label.deletedAt?.let { put("deletedAt", GoalJson.time(it)) }
+        label.deletedAt?.let { put("deletedAt", GoalJson.timeValue(it)) }
         label.ringOnStamp?.let { put("ringOnStamp", writeStamp(it, unknown)) }
         putExtra(label.extra, unknown)
     }
@@ -203,9 +203,9 @@ object TaskJson {
         view.icon?.let { put("icon", it) }
         put("cfg", writeConfig(view.config, unknown))
         put("position", GoalJson.number(view.position))
-        put("editedAt", GoalJson.time(view.editedAt))
+        put("editedAt", GoalJson.timeValue(view.editedAt))
         if (view.builtIn) put("builtIn", true)
-        view.deletedAt?.let { put("deletedAt", GoalJson.time(it)) }
+        view.deletedAt?.let { put("deletedAt", GoalJson.timeValue(it)) }
         putExtra(view.extra, unknown)
     }
 
@@ -217,10 +217,10 @@ object TaskJson {
     fun writeEntry(entry: TaskHistoryEntry, unknown: Boolean = true): JsonObject = buildJsonObject {
         put("id", entry.id)
         put("kind", entry.kind.wire)
-        put("when", GoalJson.time(entry.at))
+        put("when", GoalJson.timeValue(entry.at))
         put("task", writeTask(entry.task, unknown))
-        put("editedAt", GoalJson.time(entry.editedAt))
-        entry.deletedAt?.let { put("deletedAt", GoalJson.time(it)) }
+        put("editedAt", GoalJson.timeValue(entry.editedAt))
+        entry.deletedAt?.let { put("deletedAt", GoalJson.timeValue(it)) }
         putExtra(entry.extra, unknown)
     }
 
@@ -598,7 +598,7 @@ object TaskJson {
 
         fun time(name: String): OffsetDateTime? = text(name)?.let {
             try {
-                DotNetTime.cut(OffsetDateTime.parse(it))
+                DotNetTime.cut(OffsetDateTime.parse(GoalJson.unmark(it)))
             } catch (e: DateTimeParseException) {
                 throw IllegalArgumentException("Not a time: $name", e)
             }

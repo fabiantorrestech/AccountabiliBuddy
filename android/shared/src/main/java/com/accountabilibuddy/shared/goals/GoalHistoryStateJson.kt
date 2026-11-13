@@ -80,7 +80,7 @@ object GoalHistoryStateJson {
 
     private fun times(map: Map<UUID, OffsetDateTime>) = buildJsonObject { map.forEach { (k, v) -> put(k.toString(), GoalJson.time(v)) } }
 
-    private fun textTimes(map: Map<String, OffsetDateTime>) = buildJsonObject { map.forEach { (k, v) -> put(k, GoalJson.time(v)) } }
+    private fun textTimes(map: Map<String, OffsetDateTime>) = buildJsonObject { map.forEach { (k, v) -> put(k, GoalJson.timeValue(v)) } }
 
     private fun ids(ids: Iterable<UUID>) = buildJsonArray { ids.forEach { add(JsonPrimitive(it.toString())) } }
 
@@ -88,7 +88,7 @@ object GoalHistoryStateJson {
 
     private fun marker(marker: List<SyncGoalYearMerged>) = buildJsonArray {
         marker.forEach {
-            add(buildJsonObject { put("year", it.year); put("rolledBy", it.rolledBy.toString()); put("rolledAt", GoalJson.time(it.rolledAt)) })
+            add(buildJsonObject { put("year", it.year); put("rolledBy", it.rolledBy.toString()); put("rolledAt", GoalJson.timeValue(it.rolledAt)) })
         }
     }
 

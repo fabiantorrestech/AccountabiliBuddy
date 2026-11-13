@@ -60,12 +60,12 @@ object Gs2Cases {
         val now = Gs2Json.time(case.input.getValue("now"))
         val expected = case.expected
         val expectedLists = Gs2Json.lists(expected)
-        return Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(first, second, now))).tag("first+second")
-            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(second, first, now))).tag("second+first")
-            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(expectedLists, first, now))).tag("expected+first")
-            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(second, expectedLists, now))).tag("second+expected")
-            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(expectedLists, expectedLists, now))).tag("expected+expected")
-            ?: roundTrip(expected).tag("PC -> phone -> PC")
+        return Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(first, second, now)), case.wire()).tag("first+second")
+            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(second, first, now)), case.wire()).tag("second+first")
+            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(expectedLists, first, now)), case.wire()).tag("expected+first")
+            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(second, expectedLists, now)), case.wire()).tag("second+expected")
+            ?: Gs2Json.same(expected, Gs2Json.parts(GoalSyncMerge.merge(expectedLists, expectedLists, now)), case.wire()).tag("expected+expected")
+            ?: roundTrip(expected, case.wire()).tag("PC -> phone -> PC")
     }
 
     fun reviewId(case: FixtureCase): String? {
@@ -79,8 +79,8 @@ object Gs2Cases {
         val now = Gs2Json.time(case.input.getValue("now"))
         for (order in permutations(listOf(0, 1, 2))) {
             val (x, y, z) = order.map { inputs[it] }
-            Gs2Json.same(case.expected, Gs2Json.parts(GoalSyncMerge.merge(GoalSyncMerge.merge(x, y, now), z, now)))?.let { return "order $order (x+y)+z: $it" }
-            Gs2Json.same(case.expected, Gs2Json.parts(GoalSyncMerge.merge(x, GoalSyncMerge.merge(y, z, now), now)))?.let { return "order $order x+(y+z): $it" }
+            Gs2Json.same(case.expected, Gs2Json.parts(GoalSyncMerge.merge(GoalSyncMerge.merge(x, y, now), z, now)), case.wire())?.let { return "order $order (x+y)+z: $it" }
+            Gs2Json.same(case.expected, Gs2Json.parts(GoalSyncMerge.merge(x, GoalSyncMerge.merge(y, z, now), now)), case.wire())?.let { return "order $order x+(y+z): $it" }
         }
 
         return null
@@ -92,15 +92,15 @@ object Gs2Cases {
         val composed = GoalDeepWorkSync.compose(stored, targets)
         val (split, received) = GoalDeepWorkSync.split(composed)
         val expected = case.expected.jsonObject
-        return Gs2Json.same(expected.getValue("composed"), GoalJson.writeGoal(composed)).tag("composed")
-            ?: Gs2Json.same(expected.getValue("split"), GoalJson.writeGoal(split)).tag("split")
+        return Gs2Json.same(expected.getValue("composed"), GoalJson.writeGoal(composed), case.wire("composed")).tag("composed")
+            ?: Gs2Json.same(expected.getValue("split"), GoalJson.writeGoal(split), case.wire("split")).tag("split")
             ?: Gs2Json.same(expected.getValue("received"), targetsJson(received)).tag("received")
     }
 
     fun deepWorkSplit(case: FixtureCase): String? {
         val (split, received) = GoalDeepWorkSync.split(GoalJson.readGoal(case.input.getValue("record")))
         val expected = case.expected.jsonObject
-        return Gs2Json.same(expected.getValue("split"), GoalJson.writeGoal(split)).tag("split")
+        return Gs2Json.same(expected.getValue("split"), GoalJson.writeGoal(split), case.wire("split")).tag("split")
             ?: Gs2Json.same(expected.getValue("received"), targetsJson(received)).tag("received")
     }
 
@@ -108,19 +108,19 @@ object Gs2Cases {
         val before = GoalJson.readGoal(case.input.getValue("before"))
         val after = GoalJson.readGoal(case.input.getValue("after"))
         val actual = GoalEdits.restamp(before, after, Gs2Json.time(case.input.getValue("now")), case.text("by"))
-        return Gs2Json.same(case.expected, GoalJson.writeGoal(actual))
+        return Gs2Json.same(case.expected, GoalJson.writeGoal(actual), case.wire())
     }
 
     fun tombstones(case: FixtureCase): String? {
         val goal = GoalJson.readGoal(case.input.getValue("goal"))
-        return Gs2Json.same(case.expected, GoalJson.writeGoal(GoalTombstones.delete(goal, Gs2Json.time(case.input.getValue("at")))))
+        return Gs2Json.same(case.expected, GoalJson.writeGoal(GoalTombstones.delete(goal, Gs2Json.time(case.input.getValue("at")))), case.wire())
     }
 
     fun parts(case: FixtureCase): String? {
         val lists = Gs2Json.lists(case.input.getValue("parts"))
         val file = SyncGoalParts.into(lists)
         val back = SyncGoalParts.from(file) ?: return "no parts came back"
-        return Gs2Json.same(case.expected, Gs2Json.parts(back))
+        return Gs2Json.same(case.expected, Gs2Json.parts(back), case.wire())
     }
 
     // ---------------------------------------------------------------- gs1b: entries, rows, derived values
@@ -140,7 +140,7 @@ object Gs2Cases {
         val text = Gs2Json.rowsText(entries)
         GoalCaseRunner.sameText(expected.getValue("rows").jsonPrimitive.content, text)?.let { return "rows: $it" }
         val back = Gs2Json.rows(text) ?: return "rows did not read back"
-        return Gs2Json.same(expected.getValue("back"), Gs2Json.objectForm(back)).tag("back")
+        return Gs2Json.same(expected.getValue("back"), Gs2Json.objectForm(back), case.wire("back")).tag("back")
     }
 
     fun rowsRead(case: FixtureCase): String? {
@@ -151,13 +151,13 @@ object Gs2Cases {
         val expected = case.expected.jsonObject
         if (expected.getValue("known").jsonPrimitive.int != read.entries.size) return "known ${read.entries.size} vs ${expected.getValue("known")}"
         if (expected.getValue("newer").jsonPrimitive.int != read.newer.entries.size) return "newer ${read.newer.entries.size} vs ${expected.getValue("newer")}"
-        return GoalCaseRunner.sameText(plain(expected.getValue("again").jsonPrimitive.content), Gs2Json.rowsText(read))
+        return GoalCaseRunner.sameText(expected.getValue("again").jsonPrimitive.content, Gs2Json.rowsText(read))
     }
 
     fun window(case: FixtureCase): String? {
         val lists = Gs2Json.rows(case.text("rows")) ?: return "rows did not read"
         val recent = GoalSyncWindow.recent(lists, Gs2Json.time(case.input.getValue("now")))
-        return GoalCaseRunner.sameText(plain(case.expected.jsonPrimitive.content), Gs2Json.rowsText(recent))
+        return GoalCaseRunner.sameText(case.expected.jsonPrimitive.content, Gs2Json.rowsText(recent))
     }
 
     fun writer(case: FixtureCase): String? {
@@ -178,7 +178,7 @@ object Gs2Cases {
             )
         }
         val changes = GoalDerivedWriter.changes(held, Gs2Json.id(input.getValue("deviceId")), readings, covered, Gs2Json.time(input.getValue("now")))
-        return Gs2Json.same(case.expected, GoalJson.writeEntries(changes))
+        return Gs2Json.same(case.expected, GoalJson.writeEntries(changes), case.wire())
     }
 
     fun counting(case: FixtureCase): String? {
@@ -293,14 +293,14 @@ object Gs2Cases {
         var orders = 0
         for (order in permutations(inputs.indices.toList())) {
             val (lists, _) = convergeOne(held, now, order.map { inputs[it] })
-            Gs2Json.same(case.expected, Gs2Json.parts(lists))?.let { return "order $order: $it" }
+            Gs2Json.same(case.expected, Gs2Json.parts(lists), case.wire())?.let { return "order $order: $it" }
             orders++
         }
 
-        Gs2Json.same(case.expected, Gs2Json.parts(GoalHistoryRules.merge(held, regular, months + year, now).lists))?.let { return "all at once: $it" }
+        Gs2Json.same(case.expected, Gs2Json.parts(GoalHistoryRules.merge(held, regular, months + year, now).lists), case.wire())?.let { return "all at once: $it" }
         // Merging an input again changes nothing.
         val expectedLists = Gs2Json.lists(case.expected)
-        Gs2Json.same(case.expected, Gs2Json.parts(GoalHistoryRules.merge(expectedLists, regular, months + year, now).lists))?.let { return "again: $it" }
+        Gs2Json.same(case.expected, Gs2Json.parts(GoalHistoryRules.merge(expectedLists, regular, months + year, now).lists), case.wire())?.let { return "again: $it" }
         return if (orders == 120) null else "orders $orders"
     }
 
@@ -365,9 +365,9 @@ object Gs2Cases {
     // ---------------------------------------------------------------- helpers
 
     // The PC's parts read as a sync file opens (read, cleaned) and written again: the same bytes. Also through the file-level reader.
-    private fun roundTrip(expected: JsonElement): String? {
+    private fun roundTrip(expected: JsonElement, wire: String?): String? {
         val parts = SyncGoalParts.cleanOpen(SyncGoalParts.read(expected.jsonObject)) ?: return "no parts read"
-        return Gs2Json.same(expected, JsonObject(SyncGoalParts.write(parts).toMap()))
+        return Gs2Json.same(expected, JsonObject(SyncGoalParts.write(parts).toMap()), wire)
     }
 
     private fun historyRows(json: JsonElement): GoalHistoryRows {
@@ -426,10 +426,6 @@ object Gs2Cases {
         if (items.size <= 1) return listOf(items)
         return items.flatMap { head -> permutations(items - head).map { listOf(head) + it } }
     }
-
-    // A newer app's item the fixture authored with its "+" escaped (the encoder's way): the phone writes a time's "+" as .NET writes a
-    // DateTimeOffset, straight (Q730); the texts are compared with that one escape undone.
-    private fun plain(text: String): String = text.replace(Char(92) + "u002B", "+")
 
     private fun String?.tag(label: String): String? = this?.let { "$label: $it" }
 }

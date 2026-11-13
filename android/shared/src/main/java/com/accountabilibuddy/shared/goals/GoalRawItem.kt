@@ -30,6 +30,8 @@ class GoalRawItem private constructor(
             fields["e"] = JsonPrimitive(GoalEntryRows.ticksOf(editedAt))
             if (deletedAt != null) fields["x"] = JsonPrimitive(GoalEntryRows.ticksOf(deletedAt)) else fields.remove("x")
         } else {
+            // The PC writes the times, then reads the item back as JSON (a JsonElement): written again, every string of it, these times too, goes
+            // through the encoder ("+" as +). So plain text here, not a marked time.
             fields["editedAt"] = JsonPrimitive(GoalJson.time(editedAt))
             if (deletedAt != null) fields["deletedAt"] = JsonPrimitive(GoalJson.time(deletedAt)) else fields.remove("deletedAt")
         }
@@ -58,7 +60,7 @@ class GoalRawItem private constructor(
             return GoalRawItem(json, id, editedAt, deletedAt, position)
         }
 
-        private fun text(value: JsonElement?): String? = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
+        private fun text(value: JsonElement?): String? = (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.let(GoalJson::unmark)
 
         private fun time(text: String): OffsetDateTime? = try {
             OffsetDateTime.parse(text)

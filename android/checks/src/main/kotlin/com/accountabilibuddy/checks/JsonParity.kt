@@ -1,5 +1,6 @@
 package com.accountabilibuddy.checks
 
+import com.accountabilibuddy.shared.goals.GoalJson
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -41,7 +42,9 @@ object JsonParity {
             is JsonPrimitive -> {
                 if (actual !is JsonPrimitive || actual is JsonNull) return "$path: C# $expected vs kotlin $actual"
                 if (expected.isString || actual.isString) {
-                    return if (expected.isString == actual.isString && expected.content == actual.content) null else "$path: C# $expected vs kotlin $actual"
+                    // A time the phone writes carries a mark for the text writer (GoalJson.timeValue); the tree compares without it.
+                    val same = expected.isString == actual.isString && GoalJson.unmark(expected.content) == GoalJson.unmark(actual.content)
+                    return if (same) null else "$path: C# $expected vs kotlin $actual"
                 }
 
                 val a = expected.content.toDoubleOrNull()

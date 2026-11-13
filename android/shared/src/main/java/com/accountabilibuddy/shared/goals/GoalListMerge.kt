@@ -25,13 +25,21 @@ object GoalListMerge {
         }
 
         val keptFrom = now.minus(TOMBSTONES_KEPT)
-        return winners.values
-            .filter { item -> keepTombstones || item.deletedAt == null || DotNetTime.compare(item.deletedAt!!, keptFrom) > 0 }
-            .sortedWith { a, b ->
-                val byPosition = comparePosition(a.position, b.position)
-                if (byPosition != 0) byPosition else a.id.toString().compareTo(b.id.toString())
-            }
+        return orderedByPosition(winners.values.filter { item -> keepTombstones || item.deletedAt == null || DotNetTime.compare(item.deletedAt!!, keptFrom) > 0 })
     }
+
+    /** [items] by position (.NET's double order), then id text; each id's text is made once, not at every comparison. */
+    fun orderedByPosition(items: Collection<GoalMergeItem>): List<GoalMergeItem> =
+        items.map { it to it.id.toString() }
+            .sortedWith { a, b ->
+                val byPosition = comparePosition(a.first.position, b.first.position)
+                if (byPosition != 0) byPosition else a.second.compareTo(b.second)
+            }
+            .map { it.first }
+
+    /** [items] ordered by the text [text] gives (ordinal), made once per item. */
+    fun <T> sortedByText(items: Collection<T>, text: (T) -> String): List<T> =
+        items.map { it to text(it) }.sortedBy { it.second }.map { it.first }
 
     /** The item's newest time: its edit time, or its deletion time when that is later. */
     fun stampOf(item: GoalMergeItem): OffsetDateTime {
@@ -59,6 +67,8 @@ object GoalListMerge {
 
     // More than 0 when [candidate] is the version to keep over [held].
     private fun compare(candidate: GoalMergeItem, held: GoalMergeItem): Int {
+        // The same item again (an unchanged copy from the other device): nothing to decide, and no tie-break text to make.
+        if (candidate === held || candidate == held) return 0
         val byTime = DotNetTime.compare(stampOf(candidate), stampOf(held))
         if (byTime != 0) return byTime
         val byDeletion = (candidate.deletedAt != null).compareTo(held.deletedAt != null)

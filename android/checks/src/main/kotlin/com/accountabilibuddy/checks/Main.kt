@@ -98,6 +98,8 @@ private val checks: List<FixtureCheck> = listOf(
     // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
     // entry rows, derived values, counting across devices, the shared history (gs1b).
     Gs2Check("gs1a", "merge", Gs2Cases::merge),
+    // GS2 review fix: "+" in a time (a known field is written straight, every other string as \u002B), equal edit times; the PC's wire text.
+    Gs2Check("gs1a", "wire-plus", Gs2Cases::merge),
     Gs2Check("gs1a", "review-id", Gs2Cases::reviewId),
     Gs2Check("gs1a", "review-three", Gs2Cases::reviewThree),
     Gs2Check("gs1a", "deep-work", Gs2Cases::deepWork),
@@ -157,6 +159,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "ph1td1-self" to Ph1Td1SelfCheck::run,
     // Round 2 GS4: the phone's goals sync wiring: the weekly receive rule, stamping, derived ownership, what goes out, the history transport (phone only).
     "gs4-self" to Gs4SelfCheck::run,
+    // Round 2 GS2 review fixes: "+" in a time, non-finite numbers, Health Connect's highest, the small reading rules, a 65 000-entry timing check (phone only).
+    "gs2fix-self" to Gs2FixSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

@@ -81,12 +81,12 @@ object TaskModelSelfCheck {
         report.check("r71-self: a merge keeps the unknown fields of the copy edited last, whichever list comes first", forward == swapped && forward.contains("\"zFuture\":\"new\"") && forward.contains("\"zItem\":\"new\"") && forward.contains("\"zField\""), forward)
         report.check("r71-self: unknown fields stay out of the PC's tie-break text", !older.tieBreak.contains("zFuture") && !older.tieBreak.contains("zItem") && !older.tieBreak.contains("zField"))
 
-        val store = Json.parseToJsonElement(
-            """{"tasks":[{"task":{"id":"$TASK","title":"t","bin":"someday","position":1,"createdAt":"2026-11-10T08:00:00Z","editedAt":"2026-11-10T08:00:00Z","touchedAt":"2026-11-10T08:00:00Z"},"stamps":{}}],"labels":[],"views":[],"taskLog":[{"entry":{"id":"$TASK","kind":"merged","when":"2026-11-10T08:00:00Z","task":{"id":"$TASK","title":"t"},"editedAt":"2026-11-10T08:00:00Z"}}],"taskAccountSettings":{"defaultViewStamp":{"at":"2026-11-10T08:00:00+00:00","by":"$PC"},"zSetting":1}}""",
-        ).jsonObject
+        // The store as the PC writes it (its raw bytes: known times straight, so "+00:00" unescaped); the phone must write the same.
+        val storeText = """{"tasks":[{"task":{"id":"$TASK","title":"t","bin":"someday","position":1,"createdAt":"2026-11-10T08:00:00Z","editedAt":"2026-11-10T08:00:00Z","touchedAt":"2026-11-10T08:00:00Z"},"stamps":{}}],"labels":[],"views":[],"taskLog":[{"entry":{"id":"$TASK","kind":"merged","when":"2026-11-10T08:00:00Z","task":{"id":"$TASK","title":"t"},"editedAt":"2026-11-10T08:00:00Z"}}],"taskAccountSettings":{"defaultViewStamp":{"at":"2026-11-10T08:00:00+00:00","by":"$PC"},"zSetting":1}}"""
+        val store = Json.parseToJsonElement(storeText).jsonObject
         val parts = TaskJson.readParts(store)
         report.check("r71-self: a newer app's entries are set aside, not used", parts.tasks?.isEmpty() == true && parts.newerTasks.size == 1 && parts.newerTaskLog.size == 1)
-        report.check("r71-self: a store read and written keeps a newer app's entries and unknown fields as written, in order", TaskJson.text(TaskJson.writeParts(parts)) == TaskJson.text(store), TaskJson.text(TaskJson.writeParts(parts)))
+        report.check("r71-self: a store read and written keeps a newer app's entries and unknown fields as written, in order", TaskJson.text(TaskJson.writeParts(parts)) == storeText, TaskJson.text(TaskJson.writeParts(parts)))
         val numberText = """{"zA":1.0,"zB":1.50,"zC":0.1000000000000000055511,"zD":1e400,"zE":-0.0,"zF":2}"""
         report.check("r71-self (review): unknown numbers are written back exactly as they came", TaskJson.text(Json.parseToJsonElement(numberText)) == numberText, TaskJson.text(Json.parseToJsonElement(numberText)))
         val known = JsonObject(mapOf("a" to GoalJson.number(2.5), "b" to GoalJson.number(1e-5), "c" to GoalJson.number(3.0), "d" to GoalJson.number(1e20)))

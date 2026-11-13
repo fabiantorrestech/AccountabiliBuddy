@@ -54,12 +54,15 @@ object GoalJson {
     private val dotNetTimeOfDay: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)
     private val dotNetTimeOfDayFraction: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSSSSSS", Locale.ROOT)
 
-    // A time as [time] writes it: the one string kind .NET writes without its encoder (a "+05:30" offset is not escaped). A
-    // private text that happens to be exactly such a time would come out unescaped here (Q424).
-    private val dotNetTimeText = Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?[+-]\d{2}:\d{2}""")
+    // A time the app writes as a DateTimeOffset value (a known field) is marked in the JSON tree: .NET writes those straight (a "+05:30"
+    // offset is not escaped), while every other string, an unknown field's or a newer item's included, goes through the encoder and
+    // has its "+" written as \u002B. The mark never reaches the text; readers drop it ([unmark]).
+    private const val TIME_MARK = '\u0001'
 
     // Printable ASCII that .NET's default encoder (JavaScriptEncoder.Default) still escapes as \uXXXX.
     private const val ESCAPED_ASCII = "\"&'+<>`"
+
+    private val textNumberForm = Regex("""-?\d+(\.\d+)?([eE][+-]?\d+)?""")
 
     // System.Text.Json reads a Guid only in its 36-character form.
     private val guidForm = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -72,8 +75,8 @@ object GoalJson {
         put("icon", area.icon)
         put("color", area.color)
         put("position", number(area.position))
-        put("editedAt", time(area.editedAt))
-        area.deletedAt?.let { put("deletedAt", time(it)) }
+        put("editedAt", timeValue(area.editedAt))
+        area.deletedAt?.let { put("deletedAt", timeValue(it)) }
         putExtra(area.extra)
     }
 
@@ -86,16 +89,16 @@ object GoalJson {
         put("kind", goal.kind.name)
         put("target", writeTarget(goal.target))
         put("sources", writeItems(goal.sources, goal.newerSources, ::writeSourceRule))
-        put("createdAt", time(goal.createdAt))
+        put("createdAt", timeValue(goal.createdAt))
         put("position", number(goal.position))
-        put("editedAt", time(goal.editedAt))
+        put("editedAt", timeValue(goal.editedAt))
         put("builtIn", goal.builtIn)
         goal.secondTarget?.let { put("secondTarget", writeTarget(it)) }
         goal.pauses?.let { pauses -> put("pauses", JsonArray(pauses.map(::writePause))) }
         put("showOnToday", goal.showOnToday)
         goal.extraTiles?.let { put("extraTiles", writeExtraTiles(it)) }
         goal.notes?.let { put("notes", it) }
-        goal.deletedAt?.let { put("deletedAt", time(it)) }
+        goal.deletedAt?.let { put("deletedAt", timeValue(it)) }
         goal.stamps?.let { put("stamps", GoalStampJson.write(it)) }
         if (goal.trackTimeOnly) put("trackTimeOnly", true)
         putExtra(goal.extra)
@@ -116,7 +119,7 @@ object GoalJson {
 
     fun writePendingChange(change: GoalPendingChange): JsonObject = buildJsonObject {
         change.amount?.let { put("amount", number(it)) }
-        put("appliesAt", time(change.appliesAt))
+        put("appliesAt", timeValue(change.appliesAt))
         if (change.madeInProductaBuddy) {
             put("madeInProductaBuddy", true)
         }
@@ -173,9 +176,9 @@ object GoalJson {
         entry.time?.let { put("time", timeOfDay(it)) }
         put("value", number(entry.value))
         put("source", entry.source.name)
-        put("editedAt", time(entry.editedAt))
+        put("editedAt", timeValue(entry.editedAt))
         put("position", number(entry.position))
-        entry.deletedAt?.let { put("deletedAt", time(it)) }
+        entry.deletedAt?.let { put("deletedAt", timeValue(it)) }
         entry.deviceId?.let { put("deviceId", it.toString()) }
         putExtra(entry.extra)
     }
@@ -186,14 +189,14 @@ object GoalJson {
         put("days", reminder.days.name)
         put("time", timeOfDay(reminder.time))
         put("position", number(reminder.position))
-        put("editedAt", time(reminder.editedAt))
+        put("editedAt", timeValue(reminder.editedAt))
         reminder.weekdays?.let { days -> put("weekdays", buildJsonArray { days.forEach { add(JsonPrimitive(it.name)) } }) }
         reminder.date?.let { put("date", it.toString()) }
         put("repeat", reminder.repeat)
         reminder.reason?.let { put("reason", it) }
         put("skipWhenDone", reminder.skipWhenDone)
         put("nudgeWhenBehind", reminder.nudgeWhenBehind)
-        reminder.deletedAt?.let { put("deletedAt", time(it)) }
+        reminder.deletedAt?.let { put("deletedAt", timeValue(it)) }
         putExtra(reminder.extra)
     }
 
@@ -202,22 +205,28 @@ object GoalJson {
         put("week", review.week.toString())
         put("decisions", writeItems(review.decisions, review.newerDecisions, ::writeReviewDecision))
         put("position", number(review.position))
-        put("editedAt", time(review.editedAt))
-        review.snoozedUntil?.let { put("snoozedUntil", time(it)) }
+        put("editedAt", timeValue(review.editedAt))
+        review.snoozedUntil?.let { put("snoozedUntil", timeValue(it)) }
         review.notes?.let { put("notes", it) }
-        review.deletedAt?.let { put("deletedAt", time(it)) }
+        review.deletedAt?.let { put("deletedAt", timeValue(it)) }
         putExtra(review.extra)
     }
 
     fun writeReviewDecision(decision: GoalReviewDecision): JsonObject = buildJsonObject {
         put("goalId", decision.goalId.toString())
         put("choice", decision.choice.name)
-        decision.decidedAt?.let { put("decidedAt", time(it)) }
+        decision.decidedAt?.let { put("decidedAt", timeValue(it)) }
         putExtra(decision.extra)
     }
 
     /** A time as .NET writes a DateTimeOffset ("2026-11-11T18:00:00-05:00"). */
     fun time(time: OffsetDateTime): String = dotNetTime.format(time)
+
+    /** A time as a JSON value for a known DateTimeOffset field: [time] marked so [text] writes it straight (see [TIME_MARK]). */
+    fun timeValue(time: OffsetDateTime): JsonPrimitive = JsonPrimitive(TIME_MARK + time(time))
+
+    /** The text of a JSON string without the mark [timeValue] puts on a time. */
+    fun unmark(text: String): String = if (text.isNotEmpty() && text[0] == TIME_MARK) text.substring(1) else text
 
     /** A time of day as .NET writes a TimeOnly ("08:00:00", "08:15:30.5000000"). */
     fun timeOfDay(time: LocalTime): String = (if (time.nano == 0) dotNetTimeOfDay else dotNetTimeOfDayFraction).format(time)
@@ -375,8 +384,8 @@ object GoalJson {
             is JsonNull -> out.append("null")
             is JsonPrimitive -> when {
                 !json.isString -> out.append(literalText(json.content))
-                // .NET writes its dates and times straight, not through the string encoder (so a time's "+" stays "+").
-                dotNetTimeText.matches(json.content) -> out.append('"').append(json.content).append('"')
+                // .NET writes a DateTimeOffset value straight, not through the string encoder (so a time's "+" stays "+").
+                json.content.startsWith(TIME_MARK) -> out.append('"').append(json.content, 1, json.content.length).append('"')
                 else -> appendString(out, json.content)
             }
         }
@@ -386,6 +395,8 @@ object GoalJson {
     // unknown field a newer app wrote ("1.0", "1.50", a long decimal, one too big for a double), goes back exactly as it came
     // (R7.1 review).
     private fun literalText(content: String): String {
+        // JSON has no NaN or infinity: never written bare (the readers refuse them, so one only comes from a bug).
+        require(content != "NaN" && content != "Infinity" && content != "-Infinity") { "JSON has no NaN or infinity" }
         if (content == "true" || content == "false" || content.none { it == '.' || it == 'e' || it == 'E' }) {
             return content
         }
@@ -608,7 +619,7 @@ object GoalJson {
 
     /** Reads a time the way [time] writes it (any ISO offset, "Z" too). */
     fun parseTime(text: String): OffsetDateTime = try {
-        OffsetDateTime.parse(text)
+        OffsetDateTime.parse(unmark(text))
     } catch (e: DateTimeParseException) {
         throw IllegalArgumentException("Not a time: $text", e)
     }
@@ -665,7 +676,8 @@ object GoalJson {
 
     private fun JsonObject.required(name: String): JsonElement = value(name) ?: throw missing(name)
 
-    private fun text(json: JsonElement, name: String): String = (json as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw missing(name)
+    private fun text(json: JsonElement, name: String): String =
+        (json as? JsonPrimitive)?.takeIf { it.isString }?.content?.let(::unmark) ?: throw missing(name)
 
     private fun JsonObject.optionalText(name: String): String? = value(name)?.let { text(it, name) }
 
@@ -680,12 +692,16 @@ object GoalJson {
     // A number, or a number in a string (JsonNumberHandling.AllowReadingFromString).
     private fun JsonObject.optionalNumber(name: String): Double? = value(name)?.let { element ->
         val primitive = element as? JsonPrimitive ?: throw missing(name)
-        (if (primitive.isString) primitive.content.trim().toDoubleOrNull() else primitive.doubleOrNull) ?: throw missing(name)
+        // NaN, Infinity and a number too big for a double (1e400) are damage, as the PC's reader (no named floating-point literals).
+        (if (primitive.isString) textNumber(primitive.content) else primitive.doubleOrNull)?.takeIf { it.isFinite() } ?: throw missing(name)
     }
+
+    // A number in text as .NET reads it (no spaces around it, no "1.5f", no named literals); Kotlin's own parser takes " 1.5 " and "1.5d".
+    private fun textNumber(text: String): Double? = if (textNumberForm.matches(text)) text.toDoubleOrNull() else null
 
     private fun JsonObject.optionalInt(name: String): Int? = value(name)?.let { element ->
         val primitive = element as? JsonPrimitive ?: throw missing(name)
-        (if (primitive.isString) primitive.content.trim() else primitive.content).toIntOrNull() ?: throw missing(name)
+        primitive.content.toIntOrNull() ?: throw missing(name)
     }
 
     private fun guid(text: String, name: String): UUID = if (guidForm.matches(text)) UUID.fromString(text) else throw missing(name)

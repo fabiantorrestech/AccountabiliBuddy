@@ -47,11 +47,12 @@ object GoalHistoryRules {
 
     /** What the month file holds: every entry whose stamp is in that month ordered by id text, newer items after the known ones. */
     fun monthContent(held: GoalLists, year: Int, month: Int): GoalLists {
-        val known = held.entries.filter { monthOf(it) == (year to month) }.sortedBy { it.id.toString() }
-        val newer = held.newer.entries
-            .map { it to GoalRawItem.tryRead(it.json) }
-            .filter { (_, raw) -> raw != null && stampMonth(raw) == (year to month) }
-            .sortedBy { (_, raw) -> raw!!.id.toString() }
+        val known = GoalListMerge.sortedByText(held.entries.filter { monthOf(it) == (year to month) }) { it.id.toString() }
+        val newer = GoalListMerge.sortedByText(
+            held.newer.entries
+                .map { it to GoalRawItem.tryRead(it.json) }
+                .filter { (_, raw) -> raw != null && stampMonth(raw) == (year to month) },
+        ) { (_, raw) -> raw!!.id.toString() }
             .mapIndexed { order, (item, _) -> GoalNewerItem(known.size + order, item.json) }
         return GoalLists(entries = known, newer = GoalNewerLists(entries = newer))
     }
@@ -192,7 +193,7 @@ object GoalHistoryRules {
             }
         }
 
-        val merged = GoalListMerge.merge(items, emptyList(), now, keepTombstones = true).sortedBy { it.id.toString() }
+        val merged = GoalListMerge.sortedByText(GoalListMerge.merge(items, emptyList(), now, keepTombstones = true)) { it.id.toString() }
         val known = merged.filterIsInstance<GoalEntry>()
         val newer = (merged.filterIsInstance<GoalRawItem>().map { it.json } +
             carried.groupBy { GoalJson.text(it) }.entries.sortedBy { it.key }.map { it.value.first() })
@@ -214,7 +215,8 @@ object GoalHistoryRules {
         val read = history
             .filter { item -> item.entries.entries.none { it.id in droppedIds } }
             .map { it.file }
-            .distinct()
+            // The PC's record equality compares a DateTimeOffset by its instant, not by its offset.
+            .distinctBy { it.key to DotNetTime.ticks(it.modifiedAt) }
         return GoalHistoryMerged(merged.lists, read, merged.droppedEntries, goalsPart)
     }
 

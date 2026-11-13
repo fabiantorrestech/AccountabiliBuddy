@@ -25,7 +25,7 @@ object GoalHistoryJson {
         put("deviceId", month.deviceId.toString())
         put("year", month.year)
         put("month", month.month)
-        put("writtenAt", GoalJson.time(month.writtenAt))
+        put("writtenAt", GoalJson.timeValue(month.writtenAt))
         put("entries", GoalSyncJson.entriesJson(month.entries))
     }
 
@@ -33,12 +33,12 @@ object GoalHistoryJson {
         put("formatVersion", year.formatVersion)
         put("year", year.year)
         put("rolledBy", year.rolledBy.toString())
-        put("rolledAt", GoalJson.time(year.rolledAt))
+        put("rolledAt", GoalJson.timeValue(year.rolledAt))
         put("months", JsonArray(year.months.map { piece ->
             buildJsonObject {
                 put("deviceId", piece.deviceId.toString())
                 put("month", piece.month)
-                put("writtenAt", GoalJson.time(piece.writtenAt))
+                put("writtenAt", GoalJson.timeValue(piece.writtenAt))
             }
         }))
         put("entries", GoalSyncJson.entriesJson(year.entries))
@@ -46,7 +46,7 @@ object GoalHistoryJson {
 
     fun readMonth(json: JsonElement): GoalHistoryMonth? = try {
         val obj = json as? JsonObject
-        val entries = obj?.get("entries")?.let { GoalSyncJson.readEntriesCleaned(it) }
+        val entries = field(obj, "entries")?.let { GoalSyncJson.readEntriesCleaned(it) }
         if (obj == null || entries == null) {
             null
         } else {
@@ -61,8 +61,9 @@ object GoalHistoryJson {
 
     fun readYear(json: JsonElement): GoalHistoryYear? = try {
         val obj = json as? JsonObject
-        val entries = obj?.get("entries")?.let { GoalSyncJson.readEntriesCleaned(it) }
-        val pieces = (obj?.get("months") as? JsonArray)?.map { piece ->
+        val entries = field(obj, "entries")?.let { GoalSyncJson.readEntriesCleaned(it) }
+        // A null piece is dropped, as the PC's open does; any other non-object is damage.
+        val pieces = (field(obj, "months") as? JsonArray)?.filter { it !is JsonNull }?.map { piece ->
             val item = piece as? JsonObject ?: throw IllegalArgumentException("piece")
             GoalHistoryPiece(guid(item, "deviceId"), int(item, "month"), time(item, "writtenAt"))
         }
@@ -80,22 +81,25 @@ object GoalHistoryJson {
         null
     }
 
-    // A missing field is the default (0, the empty id, 0001-01-01); a field of the wrong kind is damage.
+    // The PC reads property names in any case (JsonSerializerDefaults.Web); an exact match wins.
+    private fun field(obj: JsonObject?, name: String): JsonElement? = obj?.get(name) ?: obj?.entries?.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
+
+    // A missing field is the default (0, the empty id, 0001-01-01); a field of the wrong kind is damage. A number may be written as text.
     private fun int(obj: JsonObject, name: String): Int {
-        val value = obj[name] ?: return 0
+        val value = field(obj, name) ?: return 0
         val primitive = value as? JsonPrimitive
-        return primitive?.takeIf { !it.isString && it !is JsonNull }?.content?.toIntOrNull() ?: throw IllegalArgumentException(name)
+        return primitive?.takeIf { it !is JsonNull }?.content?.toIntOrNull() ?: throw IllegalArgumentException(name)
     }
 
     private fun guid(obj: JsonObject, name: String): UUID {
-        val value = obj[name] ?: return ZERO
+        val value = field(obj, name) ?: return ZERO
         val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw IllegalArgumentException(name)
         if (!guidForm.matches(text)) throw IllegalArgumentException(name)
         return UUID.fromString(text)
     }
 
     private fun time(obj: JsonObject, name: String): OffsetDateTime {
-        val value = obj[name] ?: return DotNetTime.MIN
+        val value = field(obj, name) ?: return DotNetTime.MIN
         val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw IllegalArgumentException(name)
         return GoalJson.parseTime(text)
     }

@@ -21,7 +21,7 @@ object GoalStampJson {
         for (field in GoalField.values()) {
             val stamp = stamps.of(field) ?: continue
             put(field.jsonName, buildJsonObject {
-                put("at", GoalJson.time(stamp.at))
+                put("at", GoalJson.timeValue(stamp.at))
                 put("by", stamp.by)
             })
         }

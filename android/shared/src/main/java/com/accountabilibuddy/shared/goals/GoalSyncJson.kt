@@ -18,7 +18,7 @@ import kotlinx.serialization.json.put
  */
 object GoalSyncJson {
     private const val ZERO_ID = "00000000-0000-0000-0000-000000000000"
-    private val MIN_TIME = JsonPrimitive(GoalJson.time(DotNetTime.MIN))
+    private val MIN_TIME = GoalJson.timeValue(DotNetTime.MIN)
     private val MIN_DAY = JsonPrimitive("0001-01-01")
     private val PLACEHOLDER_TARGET = JsonObject(
         mapOf("period" to JsonPrimitive("Day"), "unit" to JsonPrimitive("Count"), "direction" to JsonPrimitive("AtLeast")),
@@ -41,7 +41,9 @@ object GoalSyncJson {
             "areaId" to JsonPrimitive(ZERO_ID), "kind" to JsonPrimitive("Habit"), "createdAt" to MIN_TIME, "editedAt" to MIN_TIME,
         )
         if (!live) defaults += "target" to PLACEHOLDER_TARGET
-        GoalJson.readGoal(withDefaults(obj, *defaults.toTypedArray()))
+        // A tombstone written with "target": null keeps its place with the placeholder target, as the PC does (a default only fills an absent field).
+        val source = if (!live && field(obj, "target") is JsonNull) JsonObject(obj.filterKeys { !it.equals("target", ignoreCase = true) }) else obj
+        GoalJson.readGoal(withDefaults(source, *defaults.toTypedArray()))
     }
 
     fun readEntries(json: JsonElement?): Part<GoalEntry>? = readList(json) { item ->

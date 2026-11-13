@@ -25,7 +25,7 @@ class GoalReminderCheck : FixtureCheck {
                 val expected = case.expected.jsonObject
                 JsonParity.difference(expected.getValue("weekdays"), JsonArray(reminder.weekdays.orEmpty().map { JsonPrimitive(it.name) }), "$.weekdays")
                     ?: JsonParity.difference(Json.parseToJsonElement(expected.getValue("json").let { (it as JsonPrimitive).content }), written, "$.json")
-                    ?: (if (written.toString() == (expected.getValue("json") as JsonPrimitive).content) null else "text differs: $written")
+                    ?: (if (GoalJson.text(written) == (expected.getValue("json") as JsonPrimitive).content) null else "text differs: $written")
             }
             val detail = result.getOrElse { "threw ${it.message}" }
             report.check("$area/$name: ${case.name}", result.isSuccess && detail == null, detail ?: "")

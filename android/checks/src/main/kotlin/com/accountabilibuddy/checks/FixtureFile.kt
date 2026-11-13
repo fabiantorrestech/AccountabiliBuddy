@@ -27,7 +27,7 @@ class FixtureFile(val area: String, val name: String, val source: String, val ca
             val json = Json.parseToJsonElement(file.readText()).jsonObject
             val cases = json.getValue("cases").jsonArray.map { item ->
                 val case = item.jsonObject
-                FixtureCase(case.getValue("name").jsonPrimitive.content, objectOf(case.getValue("input")), case.getValue("expected"))
+                FixtureCase(case.getValue("name").jsonPrimitive.content, objectOf(case.getValue("input")), case.getValue("expected"), case["expectedWire"])
             }
             return FixtureFile(
                 json.getValue("area").jsonPrimitive.content,

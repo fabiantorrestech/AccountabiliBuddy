@@ -421,7 +421,7 @@ object SyncFileJson {
         buildJsonObject {
             put("year", item.year)
             put("rolledBy", item.rolledBy.toString())
-            put("rolledAt", com.accountabilibuddy.shared.goals.GoalJson.time(item.rolledAt))
+            put("rolledAt", com.accountabilibuddy.shared.goals.GoalJson.timeValue(item.rolledAt))
         }
     })
 
@@ -918,7 +918,7 @@ object SyncFileJson {
         if (deviceIdForm.matches(text)) UUID.fromString(text) else throw NotASyncFileException()
 
     private fun readTime(text: String): Instant = try {
-        OffsetDateTime.parse(text).toInstant()
+        OffsetDateTime.parse(com.accountabilibuddy.shared.goals.GoalJson.unmark(text)).toInstant()
     } catch (e: DateTimeParseException) {
         throw NotASyncFileException()
     }

@@ -152,7 +152,7 @@ object GoalCounting {
     // (Amount) or the newest (Time); then Health Connect and calendar take the highest device, screen time (the devices the rule counts
     // on) and other PCs' #tag extras add up. A #tag or calendar value of this device itself is never counted twice. Second: the entry
     // standing for the value (ties and order).
-    private fun combined(goal: Goal, source: GoalEntrySource, entries: List<GoalEntry>, firstReading: Boolean, self: UUID?): Pair<Double, GoalEntry>? {
+    internal fun combined(goal: Goal, source: GoalEntrySource, entries: List<GoalEntry>, firstReading: Boolean, self: UUID?): Pair<Double, GoalEntry>? {
         val order = if (firstReading) firstReadingOrder else newestOrder
         if (source == GoalEntrySource.Beeminder) {
             val one = entries.sortedWith(order).firstOrNull()
@@ -176,8 +176,8 @@ object GoalCounting {
             return perDevice.sumOf { it.value } to perDevice.sortedWith(order).first()
         }
 
-        // Health Connect and calendar: the highest device value (ties: the kind's order).
-        val highest = perDevice.sortedWith(compareByDescending<GoalEntry> { it.value }.then(order)).first()
+        // Health Connect and calendar: the highest device value (ties: the kind's order). .NET's double order: -0 equals 0, a NaN is the lowest.
+        val highest = perDevice.sortedWith(Comparator<GoalEntry> { a, b -> GoalListMerge.comparePosition(b.value, a.value) }.then(order)).first()
         return highest.value to highest
     }
 
