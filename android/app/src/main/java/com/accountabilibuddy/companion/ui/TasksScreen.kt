@@ -26,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.key
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
-import com.accountabilibuddy.shared.tasks.TaskListUpdateNotice
 import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.ui.Modifier
@@ -155,9 +154,11 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
     )
 
     val tasksList: @Composable () -> Unit = {
+    // R7.2 review item 3: a PC older than the one task list; its task edits don't reach a phone on the task list (Q583). R7.3b: a
+    // line per device, an × that closes it for 3 days (the same notice, and the same close, as the phone's Tasks page).
+    val updateNotice = com.accountabilibuddy.companion.ui.tasks.page.rememberTaskUpdateNotice(received.map { it.file }, app.taskModel.isActive && app.sync.sharesTaskLists())
     TasksPane(
-        // R7.2 review item 3: a PC older than the one task list; its task edits don't reach a phone on the task list (Q583).
-        notice = if (app.taskModel.isActive && app.sync.sharesTaskLists()) TaskListUpdateNotice.text(TaskListUpdateNotice.pcsWithoutTasks(received.map { it.file })) else null,
+        notice = updateNotice,
         model = model, pc = pc, comebackOldPc = comebacks.legacySource,
         // The newest PC's version says whether Later reaches it (the received copy keeps no Later list to look at).
         laterOldPc = com.accountabilibuddy.companion.sync.PcFileControl.pcs(received).firstOrNull()?.file?.device

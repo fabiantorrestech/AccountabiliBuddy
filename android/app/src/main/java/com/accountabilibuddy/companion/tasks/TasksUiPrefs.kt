@@ -47,6 +47,8 @@ class TasksUiPrefs private constructor(context: Context) {
                 starts = (json["start"] as? JsonObject).orEmpty().mapNotNull { (grouping, key) -> (key as? JsonPrimitive)?.content?.let { grouping to it } }.toMap(),
                 wraps = (json["wrap"] as? JsonObject).orEmpty().mapNotNull { (grouping, on) -> (on as? JsonPrimitive)?.booleanOrNull?.let { grouping to it } }.toMap(),
                 hideShelfInSession = (json["hideShelf"] as? JsonPrimitive)?.booleanOrNull ?: true,
+                noticeDismissedAt = (json["noticeAt"] as? JsonPrimitive)?.content?.let { text -> runCatching { java.time.Instant.parse(text) }.getOrNull() },
+                noticeDismissedFor = (json["noticeFor"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.content },
             )
         }.getOrDefault(TasksUiState())
     }
@@ -59,6 +61,9 @@ class TasksUiPrefs private constructor(context: Context) {
         put("start", JsonObject(state.starts.mapValues { JsonPrimitive(it.value) }))
         put("wrap", JsonObject(state.wraps.mapValues { JsonPrimitive(it.value) }))
         put("hideShelf", state.hideShelfInSession)
+        // The "Update AccountabiliBuddy on" notice: when it was closed and for which devices (their ids only).
+        state.noticeDismissedAt?.let { put("noticeAt", it.toString()) }
+        if (state.noticeDismissedFor.isNotEmpty()) put("noticeFor", JsonArray(state.noticeDismissedFor.map { JsonPrimitive(it) }))
     }
 
     companion object {

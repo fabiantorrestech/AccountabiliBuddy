@@ -296,9 +296,9 @@ object R72FixSelfCheck {
         val olderPhone = file("Pixel", SyncDeviceCard.KIND_PHONE, withTasks = false, oldLists = true)
         val names = TaskListUpdateNotice.pcsWithoutTasks(listOf(old, updated, notSharing, olderPhone))
         report.check("r72-fix (3): only a PC sharing old lists without `tasks` is named (not an updated PC, one not sharing, or a phone)", names == listOf("Desk"), names.toString())
-        report.check("r72-fix (3): the line names it", TaskListUpdateNotice.text(names) == "Update AccountabiliBuddy on Desk: its task edits don't reach this phone until it does.")
+        report.check("r72-fix (3): the notice names it on its own line", TaskListUpdateNotice.lines(names) == listOf("Update AccountabiliBuddy on:", "Desk", "Its task edits don't reach this phone until it is updated."))
         report.check("r72-fix (3): no such PC: no line", TaskListUpdateNotice.text(TaskListUpdateNotice.pcsWithoutTasks(listOf(updated))) == null)
-        report.check("r72-fix (3): two PCs", TaskListUpdateNotice.text(listOf("Desk", "Den"))!!.startsWith("Update AccountabiliBuddy on Desk and Den: their"))
+        report.check("r72-fix (3): two PCs, a line each", TaskListUpdateNotice.lines(listOf("Desk", "Den")).take(3) == listOf("Update AccountabiliBuddy on:", "Desk", "Den"))
     }
 
     // ---- NIT: Add to Today compares what the item says with what was sent ----

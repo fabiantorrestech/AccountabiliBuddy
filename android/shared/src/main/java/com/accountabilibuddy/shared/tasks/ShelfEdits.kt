@@ -13,6 +13,24 @@ import java.time.OffsetDateTime
  * goes to Queued ([ShelfChange.queuedInstead]) and never past the cap.
  */
 object ShelfEdits {
+    /** The longest time limit a task takes (the PC's SessionChecklist.MaxEstimateMinutes). */
+    const val MAX_ESTIMATE_MINUTES = 24 * 60
+
+    /** The longest note kept (the PC's SessionChecklist.MaxNoteLength). */
+    const val MAX_NOTE_LENGTH = 4000
+
+    /** The reminder rules tied to a task's due date and time, as the Add sheet offers them. */
+    val REMINDER_RULES: List<String> = listOf(TaskReminder.AT_START, TaskReminder.TEN_MINUTES_BEFORE, TaskReminder.ONE_HOUR_BEFORE, TaskReminder.DAY_BEFORE_AT_NINE)
+
+    /** A reminder rule in words: "At the time", "10 min before", "1 hr before", "The day before, 9:00 AM". */
+    fun reminderWords(rule: String): String = when (rule) {
+        TaskReminder.AT_START -> "At the time"
+        TaskReminder.TEN_MINUTES_BEFORE -> "10 min before"
+        TaskReminder.ONE_HOUR_BEFORE -> "1 hr before"
+        TaskReminder.DAY_BEFORE_AT_NINE -> "The day before, 9:00 AM"
+        else -> "Reminder"
+    }
+
     /** The fields [restore] puts back after a move, a drop on a label or tag page, or a tick. */
     val MOVE_FIELDS: List<TaskField> = listOf(TaskField.BIN, TaskField.STEPS, TaskField.LABEL, TaskField.TAGS)
 
@@ -98,17 +116,26 @@ object ShelfEdits {
     fun edit(lists: TaskLists, id: String, field: TaskField, self: String, now: OffsetDateTime, change: (TaskItem) -> TaskItem): ShelfChange =
         each(lists, listOf(id), field, self, now, change)
 
+    /** One field of each live task among [ids] changed by [change] (select mode's Label, Tags and Time limit for several). */
+    fun editAll(lists: TaskLists, ids: List<String>, field: TaskField, self: String, now: OffsetDateTime, change: (TaskItem) -> TaskItem): ShelfChange =
+        each(lists, ids, field, self, now, change)
+
     /** The title, trimmed; a blank one changes nothing. */
     fun rename(lists: TaskLists, id: String, title: String, self: String, now: OffsetDateTime): ShelfChange =
         if (title.isBlank()) ShelfChange(lists, emptyList(), emptyList()) else edit(lists, id, TaskField.TITLE, self, now) { it.copy(title = title.trim()) }
 
     /**
      * A new task at the end of [bin] (Queued when This session is full), made on this phone. [labelId] must be a live label's id or
-     * null. Its number comes from the store's own numbering.
+     * null. Its number comes from the store's own numbering. The Add sheet's extras: a time limit ([estimateMinutes]; none for null
+     * or 0, held to [MAX_ESTIMATE_MINUTES]), a [note], [steps] (their titles, blank ones dropped; [stepId] makes each one's id), a
+     * due date with an optional time ([dueOn], [dueAt]) and reminders tied to it ([reminders]: the rules [REMINDER_RULES], each once,
+     * at most [TaskReminder.MAX_PER_TASK]; without a due date they could never ring, so none is kept; [reminderId] makes each id).
      */
     fun add(
         lists: TaskLists, id: String, title: String, bin: TaskBin, labelId: String?, tags: List<String>?, self: String, now: OffsetDateTime,
         sessionActions: Int = TaskLocalEdits.SESSION_ACTIONS,
+        estimateMinutes: Int? = null, note: String? = null, steps: List<String>? = null, stepId: (Int) -> String = { "" },
+        dueOn: java.time.LocalDate? = null, dueAt: java.time.LocalTime? = null, reminders: List<String>? = null, reminderId: (Int) -> String = { "" },
     ): ShelfChange {
         val trimmed = title.trim()
         if (trimmed.isEmpty() || lists.tasks.any { it.id.equals(id, ignoreCase = true) }) return ShelfChange(lists, emptyList(), emptyList())
@@ -116,6 +143,12 @@ object ShelfEdits {
         val task = TaskItem(
             id.lowercase(), trimmed, target, TaskListRules.endOf(lists.tasks, target), now, now, now,
             labelId = labelId, tags = TaskLabels.clean(tags), origin = TaskOrigins.FROM_PHONE,
+            estimateMinutes = estimateMinutes?.takeIf { it > 0 }?.coerceAtMost(MAX_ESTIMATE_MINUTES),
+            note = note?.trim()?.take(MAX_NOTE_LENGTH)?.takeIf { it.isNotEmpty() },
+            steps = steps.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }.mapIndexed { index, step -> TaskStep(stepId(index).lowercase(), step) }.ifEmpty { null },
+            dueOn = dueOn, dueAt = dueAt.takeIf { dueOn != null },
+            reminders = reminders.orEmpty().takeIf { dueOn != null }.orEmpty().filter { it in REMINDER_RULES }.distinct().take(TaskReminder.MAX_PER_TASK)
+                .mapIndexed { index, rule -> TaskReminder(reminderId(index).lowercase(), rule) }.ifEmpty { null },
         )
         val item = SyncTaskItem(task, TaskFieldStamps.allAt(FieldStamp(now, self.lowercase())))
         return ShelfChange(lists.copy(tasks = lists.tasks + item), listOf(task.id), emptyList(), if (target != bin) 1 else 0)

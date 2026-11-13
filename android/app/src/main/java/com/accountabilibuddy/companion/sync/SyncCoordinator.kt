@@ -786,8 +786,11 @@ class SyncCoordinator(
         val mark = if (file.parked != null || held?.file?.parked != null) emptyList<com.accountabilibuddy.shared.sync.SyncParked>() else null
         // A QR file never carries steps, which reads the same as "switched off": it keeps the stored counts rather than wiping them.
         val steps = if (method == SyncDeviceCard.METHOD_QR) file.steps ?: held?.file?.steps else file.steps
-        // ADR 76's task parts stay out of the copy too (R7.2, as on the PC): they merge into the phone's own sealed task list.
-        val outcome = SyncCarry.accept(store.devices.value, com.accountabilibuddy.shared.sync.SyncFileStrip.keptCopy(file, mark, steps), bytes, method, identity.deviceId, now())
+        // ADR 76's task parts stay out of the copy too (R7.2, as on the PC): they merge into the phone's own sealed task list. An
+        // empty `tasks` list stays as the mark that the device writes the one task list (R7.3b: without it every PC that shares its
+        // lists looked like one older than the task list, and Tasks asked to update it).
+        val tasksMark = com.accountabilibuddy.shared.sync.SyncFileStrip.tasksMark(file, held?.file)
+        val outcome = SyncCarry.accept(store.devices.value, com.accountabilibuddy.shared.sync.SyncFileStrip.keptCopy(file, mark, steps, tasksMark), bytes, method, identity.deviceId, now())
         if (outcome.error != null) {
             return outcome.error
         }

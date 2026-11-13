@@ -42,6 +42,7 @@ import com.accountabilibuddy.companion.ui.tasks.SheetField
 import com.accountabilibuddy.companion.ui.tasks.TasksPc
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.TaskLabels
+import com.accountabilibuddy.shared.tasks.TaskReminderRings
 import com.accountabilibuddy.shared.tasks.TaskBins
 import com.accountabilibuddy.shared.tasks.TaskItem
 import com.accountabilibuddy.shared.tasks.TaskLists
@@ -106,7 +107,7 @@ fun TaskMenuSheet(
     ) {
         when (page) {
             TaskMenuPage.Main -> {
-                AbSheetRow("Rename", onClick = { page = TaskMenuPage.Rename }, icon = Icons.Outlined.Edit, subtitle = "Or hold the title", trailing = { AbSheetValue(null) })
+                AbSheetRow("Rename", onClick = { page = TaskMenuPage.Rename }, icon = Icons.Outlined.Edit, subtitle = "Or open the task and tap its title", trailing = { AbSheetValue(null) })
                 MoveToGrid("Move to", task.bin, onPick = { bin ->
                     if (bin != task.bin) controller.move(listOf(task.id), bin, pc)
                     onDismiss()
@@ -177,6 +178,8 @@ fun TaskMenuSheet(
                         AbSheetRow(TaskRowText.reminder(task.copy(reminders = listOf(reminder)), today, zone) ?: "Reminder", onClick = null, icon = Icons.Outlined.Notifications)
                     }
                 }
+                // "Rings on" (M7 T2): whether this phone is among the devices that ring for this task's reminders.
+                TaskReminderRings.line(lists, task, self)?.let { rings -> AbSheetRow(rings, onClick = null, icon = Icons.Outlined.Devices, subtitle = "Rings on is set on your PC, for every task and per label") }
                 SheetFoot("Set and change reminders and the due date on your PC for now. Setting them on the phone comes with the phone's task reminders.")
             }
 

@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,7 +43,8 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * The round 2 phone sheet (brief §3.7; R7 reuses it): one of two fixed heights ([AbSheetHeight]), a drag handle, the [title] with a
  * muted [subtitle], an optional accent back arrow ([onBack], for a nested page), an optional [titleAction] at the end of the title
  * line ("Goals ›"), the content, and a sticky [footer] for a primary action or a note. The header and the footer stay put; content
- * longer than the sheet scrolls between them. The scrim is the theme's scrim at 60%.
+ * longer than the sheet scrolls between them. The scrim is the theme's scrim at 60%. It always opens at its full height (no
+ * half-open step).
  *
  * Rows are [AbSheetRow]s (58 dp or more). The older free-height sheet is [com.accountabilibuddy.companion.ui.kit.AbSheet]; this one is
  * for the round 2 menus and pickers.
@@ -55,6 +59,7 @@ fun AbSheet(
     onBack: (() -> Unit)? = null,
     titleAction: (@Composable () -> Unit)? = null,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
+    aboveKeyboard: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = Ab.colors
@@ -63,6 +68,8 @@ fun AbSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        // A sheet that is typed in handles the keyboard itself (below), so the sheet never grows or moves when the keyboard comes up.
+        contentWindowInsets = if (aboveKeyboard) ({ WindowInsets(0, 0, 0, 0) }) else ({ BottomSheetDefaults.windowInsets }),
         shape = RoundedCornerShape(topStart = shapes.large, topEnd = shapes.large),
         containerColor = colors.surface,
         contentColor = colors.ink,
@@ -71,7 +78,9 @@ fun AbSheet(
             Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 4.dp).background(colors.faint, shapes.pill))
         },
     ) {
-        Column(Modifier.fillMaxWidth().height(sheetHeight).navigationBarsPadding()) {
+        // A sheet that is typed in ([aboveKeyboard]) keeps its height and place: its content and footer make room for the keyboard
+        // inside it, following the keyboard as it slides in, so the sheet itself never jumps.
+        Column(Modifier.fillMaxWidth().height(sheetHeight).navigationBarsPadding().then(if (aboveKeyboard) Modifier.imePadding() else Modifier)) {
             Row(
                 Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 24.dp, end = 12.dp, top = 4.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,

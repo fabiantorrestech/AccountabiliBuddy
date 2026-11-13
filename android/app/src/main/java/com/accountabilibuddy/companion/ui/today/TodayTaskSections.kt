@@ -58,7 +58,7 @@ import java.time.ZoneOffset
 fun TodayTaskSections(inSession: Boolean, onMessage: (String) -> Unit, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val lists by app.taskModel.lists.collectAsState()
-    val controller = remember(app) { ShelfController(app) { toast -> onMessage(toast.message) } }
+    val controller = remember(app) { ShelfController(app, sessionFull = null) { toast -> onMessage(toast.message) } }
     val zone = app.taskModel.zone()
     val self = remember { app.sync.deviceId.toString() }
     val now = DotNetTime.cut(OffsetDateTime.now(ZoneOffset.UTC))
@@ -81,7 +81,8 @@ fun TodayTaskSections(inSession: Boolean, onMessage: (String) -> Unit, modifier:
                 onTick = { if (task.isDone) controller.reopen(task.id) else controller.finish(task.id) },
                 onTap = { expanded = if (expanded == task.id) null else task.id },
                 onMenu = { menu = task.id to TaskMenuPage.Main },
-                onHoldTitle = { menu = task.id to TaskMenuPage.Rename },
+                // A hold anywhere on a Today row (its title too) opens its menu; the title of an open task renames it.
+                onTitle = { menu = task.id to TaskMenuPage.Rename },
                 onHold = { menu = task.id to TaskMenuPage.Main },
             ) {
                 OpenTask(task, self, zone, onTickStep = { step -> controller.tickStep(task.id, step) })

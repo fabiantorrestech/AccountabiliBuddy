@@ -91,6 +91,10 @@ private val checks: List<FixtureCheck> = listOf(
     // against the PC's column order (App TaskColumnOrder).
     R73Check("view-rules", R73Cases::viewRules),
     R73Check("column-order", R73Cases::columnOrder),
+    // Round 2 R7.3b: the Add sheet's typed title, a reorder, the toasts' lives (the PC's own rules).
+    R73Check("typed-title", R73bCases::typedTitle),
+    R73Check("reorder", R73bCases::reorder),
+    R73Check("toast-timing", R73bCases::toastTiming),
 )
 
 /**
@@ -119,6 +123,9 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     // Round 2 R7.3a: the Shelf's paging, pages, the Today strip (words, counts, the drop into Queued), drops on label and tag pages,
     // the page's stamped edits, a row's words (phone only).
     "r73a-self" to TasksPageSelfCheck::run,
+    // Round 2 R7.3b: what a drag's release does where, the selection, stacks, the picker's tiles, reordering, the session cap's swap,
+    // Undo, the toast's and the Add sheet's words, "Rings on" for this phone, the "Update AccountabiliBuddy on" notice (phone only).
+    "r73b-self" to TasksDragSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

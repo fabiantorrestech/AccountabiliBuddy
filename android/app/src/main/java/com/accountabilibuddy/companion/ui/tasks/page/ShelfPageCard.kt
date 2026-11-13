@@ -12,8 +12,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +49,11 @@ import com.accountabilibuddy.shared.tasks.TaskItem
  * One page of the Shelf as a card (board Tasks-Phone): the header (the bin's icon in the accent, or a label's 12 dp dot with no tint;
  * the name at 16 sp / 600; "4 · ★1"; a 38 dp "+" that adds to this page) pinned over its own scrolling list of rows. An empty page
  * says so with the tray icon ([emptyText]). The card fills the space it is given, so every page is the same size.
+ *
+ * [rows] are the rows to draw, in order: the page's tasks, with the dragged ones at the place they would land while a drag is over
+ * the list, and a just-ticked one kept until its toast goes. Rows that change place ease there over 180 ms × [motionScale]
+ * ("neighbours make room"); with motion off they just take their place. The list reports where it is on the screen ([onListBounds])
+ * and scrolls with [listState], so a drag can find its place and scroll the list from its edges.
  */
 @Composable
 fun ShelfPageCard(
@@ -49,6 +61,10 @@ fun ShelfPageCard(
     emptyText: String,
     onAdd: () -> Unit,
     modifier: Modifier = Modifier,
+    rows: List<TaskItem> = page.tasks,
+    listState: LazyListState = rememberLazyListState(),
+    motionScale: Float = 1f,
+    onListBounds: (Rect) -> Unit = {},
     row: @Composable (TaskItem) -> Unit,
 ) {
     val colors = Ab.colors
@@ -72,11 +88,19 @@ fun ShelfPageCard(
                 Icon(Icons.Outlined.Add, contentDescription = null, tint = colors.ink, modifier = Modifier.size(22.dp))
             }
         }
-        if (page.tasks.isEmpty()) {
-            ShelfEmpty(emptyText, Modifier.weight(1f))
+        if (rows.isEmpty()) {
+            ShelfEmpty(emptyText, Modifier.weight(1f).onGloballyPositioned { onListBounds(it.boundsInRoot()) })
         } else {
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 84.dp)) {
-                items(page.tasks, key = { it.id }) { task -> row(task) }
+            val shift = if (motionScale > 0f) tween<IntOffset>((180 * motionScale).toInt()) else null
+            val fade = if (motionScale > 0f) tween<Float>((300 * motionScale).toInt()) else null
+            LazyColumn(
+                Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { onListBounds(it.boundsInRoot()) },
+                state = listState,
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 84.dp),
+            ) {
+                items(rows, key = { it.id }) { task ->
+                    Box(Modifier.animateItem(fadeInSpec = null, placementSpec = shift, fadeOutSpec = fade)) { row(task) }
+                }
             }
         }
     }

@@ -1,6 +1,8 @@
 package com.accountabilibuddy.companion.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,7 +10,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -28,20 +33,30 @@ fun AppScaffold(
     railFooter: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
+    // What a screen puts in the tabs' place for a while (Tasks while a row is dragged): only where there is a bottom bar.
+    val barOverride = remember { BottomBarOverride() }
     when (layout) {
-        NavLayout.BottomBar -> Scaffold(
-            containerColor = Ab.colors.bg,
-            snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = {
-                if (showNav) {
-                    Column {
-                        parkPill?.invoke()
-                        AbBottomBar(selected = nav.destination, onSelect = nav::select)
+        NavLayout.BottomBar -> CompositionLocalProvider(LocalBottomBarOverride provides (if (showNav) barOverride else null)) {
+            Scaffold(
+                containerColor = Ab.colors.bg,
+                snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = {
+                    if (showNav) {
+                        Column {
+                            parkPill?.invoke()
+                            Box {
+                                AbBottomBar(selected = nav.destination, onSelect = nav::select)
+                                // Drawn over the tabs at exactly their size (so nothing above the bar moves); touches stop here.
+                                barOverride.content?.let { over ->
+                                    Box(Modifier.matchParentSize().background(Ab.colors.bg).pointerInput(Unit) { detectTapGestures { } }) { over() }
+                                }
+                            }
+                        }
                     }
-                }
-            },
-            content = content,
-        )
+                },
+                content = content,
+            )
+        }
         // The tablet: a sidebar beside the pane. The pane keeps its own Scaffold (messages, and the park pill at its foot).
         NavLayout.Rail -> Row(Modifier.background(Ab.colors.bg)) {
             if (showNav) AbSideBar(nav.destination, nav::select, footer = railFooter)

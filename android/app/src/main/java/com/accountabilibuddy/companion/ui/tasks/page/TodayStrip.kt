@@ -1,7 +1,6 @@
 package com.accountabilibuddy.companion.ui.tasks.page
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +38,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accountabilibuddy.companion.ui.LocalMotionScale
+import com.accountabilibuddy.companion.ui.motionSpec
 import com.accountabilibuddy.companion.ui.theme.Ab
+import com.accountabilibuddy.shared.tasks.ShelfDrag
 
 /**
  * The Today strip pinned under the Tasks header (boards Tasks-Phone and Tasks-Phone-Drag, change note §2): a dashed 52 dp row with
@@ -53,11 +55,12 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 @Composable
 fun TodayStrip(counts: String, onOpen: () -> Unit, modifier: Modifier = Modifier, lit: Boolean = false, hot: Boolean = false, selecting: Boolean = false) {
     val colors = Ab.colors
-    val height by animateDpAsState(if (lit) 64.dp else 52.dp, tween(160), label = "strip")
+    // It grows inside its reserved 64 dp; with motion off it just is the new size.
+    val height by animateDpAsState(if (lit) 64.dp else 52.dp, motionSpec(LocalMotionScale.current, 160), label = "strip")
     val shape = RoundedCornerShape(18.dp)
-    val border = if (lit) colors.accent else colors.line
+    val border = if (hot) colors.accent else if (lit) colors.accent.copy(alpha = 0.55f) else colors.line
     val fill = when {
-        hot -> colors.accent.copy(alpha = 0.22f)
+        hot -> colors.accent.copy(alpha = 0.26f)
         lit -> colors.accent.copy(alpha = 0.10f)
         else -> Color.Transparent
     }
@@ -81,17 +84,18 @@ fun TodayStrip(counts: String, onOpen: () -> Unit, modifier: Modifier = Modifier
                 if (lit) {
                     Text(
                         buildAnnotatedString {
-                            append(if (selecting) "Or drop to add to " else "Drop to add to ")
-                            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Today · Queued") }
+                            append(ShelfDrag.stripLead(selecting))
+                            withStyle(SpanStyle(fontWeight = FontWeight.ExtraBold)) { append("Today · Queued") }
                         },
-                        style = Ab.type.bodyMedium.copy(fontSize = 14.5.sp), color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = Ab.type.bodyMedium.copy(fontSize = 15.5.sp), fontWeight = FontWeight.Medium, color = colors.accent, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 } else {
                     Text("Today", style = Ab.type.bodyMedium.copy(fontSize = 14.5.sp), fontWeight = FontWeight.SemiBold, color = colors.ink, maxLines = 1)
+                    Text(counts, style = Ab.type.small.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(counts, style = Ab.type.small.copy(fontSize = 12.5.sp), color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = colors.muted, modifier = Modifier.size(22.dp))
+            // The board's lit strip has only its words: the counts and the › come back when the row is let go.
+            if (!lit) Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = colors.muted, modifier = Modifier.size(22.dp))
         }
     }
 }

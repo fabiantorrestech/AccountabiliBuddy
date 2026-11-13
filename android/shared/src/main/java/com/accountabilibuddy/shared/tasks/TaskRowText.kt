@@ -56,6 +56,9 @@ object TaskRowText {
     fun due(on: LocalDate, at: LocalTime?, today: LocalDate): String =
         (if (on.year == today.year) day else dayWithYear).format(on) + (if (at == null) "" else " " + clock.format(at))
 
+    /** "4:05 PM": a time of day, 12-hour with AM/PM. */
+    fun time(at: LocalTime): String = clock.format(at)
+
     /** "Overdue 3 d"; "Overdue" for one due earlier today. */
     fun overdue(on: LocalDate, today: LocalDate): String {
         val days = ChronoUnit.DAYS.between(on, today)
