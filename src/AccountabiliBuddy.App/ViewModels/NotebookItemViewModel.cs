@@ -25,11 +25,12 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
     /// <param name="delete">Deletes the item (null: can't be deleted).</param>
     /// <param name="addStep">Adds a step to a task (null: no steps).</param>
     /// <param name="menu">The ⋯ menu's entries, given the line (null: the ✎ ✕ buttons).</param>
+    /// <param name="editHint">Why the line can't be renamed here (another PC's task), shown as its tooltip.</param>
     public NotebookItemViewModel(
         string kind, string text, string whenText, DateTimeOffset sort, Func<Task>? toggle = null,
         Func<string, Task>? rename = null, Func<Task>? delete = null, bool isSubtask = false, bool isTicked = false,
         Func<string, Task>? addStep = null, Func<NotebookItemViewModel, IReadOnlyList<TaskMenuEntry>>? menu = null,
-        string? categoryColor = null)
+        string? categoryColor = null, string? editHint = null)
     {
         Kind = kind;
         Text = text;
@@ -46,7 +47,11 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
         NewStepText = string.Empty;
         CategoryBrush = TaskCategoryBrushes.Of(categoryColor);
         HasCategory = categoryColor is not null;
+        EditHint = editHint;
     }
+
+    /// <summary>Why it can't be renamed here ("Edit it on Work PC"): a tooltip on the line; null when it can.</summary>
+    public string? EditHint { get; }
 
     public string Kind { get; }
 

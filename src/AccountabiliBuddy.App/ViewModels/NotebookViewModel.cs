@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Sync;
+using AccountabiliBuddy.Core.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
@@ -13,7 +16,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// Focus mode, tasks left unfinished when a session ended, and tasks done, newest first, with their times; searchable
 /// and filtered by kind. Every task, subtask and come-back has a check box (tick it, or untick it to open it again) and a ⋯ menu
 /// (rename, add a subtask, label, move, delete); notes can be edited or deleted. "Recently deleted" lists what was deleted in
-/// the last 30 days, each with Restore.
+/// the last 30 days, each with Restore. The tasks come from <see cref="ArchiveBuilder"/> (AR1-fix), the same rows on every device:
+/// this PC's history, the other PCs' histories, past tasks kept here and the one task list's finished tasks, with every device's
+/// settle records laid over them. A task of another PC can be ticked, unticked and deleted here but not renamed.
 /// </summary>
 public sealed partial class NotebookViewModel : ObservableObject
 {
@@ -21,13 +26,46 @@ public sealed partial class NotebookViewModel : ObservableObject
     private readonly SessionNotesStore _notes;
     private readonly SessionTasksService _tasks;
     private readonly TimeProvider _time;
+    private readonly ReceivedTaskHistoryStore? _received;
+    private readonly KeptPastStore? _kept;
+    private readonly PastSettledStore? _settled;
+    private readonly TaskStore? _taskStore;
+    private readonly Func<TaskActionsService?>? _actions;
 
-    public NotebookViewModel(ComebackStore comebacks, SessionNotesStore notes, SessionTasksService tasks, TimeProvider time)
+    public NotebookViewModel(
+        ComebackStore comebacks, SessionNotesStore notes, SessionTasksService tasks, TimeProvider time,
+        ReceivedTaskHistoryStore? received = null, KeptPastStore? kept = null, PastSettledStore? settled = null,
+        TaskStore? taskStore = null, Func<TaskActionsService?>? actions = null)
     {
         _comebacks = comebacks;
         _notes = notes;
         _tasks = tasks;
         _time = time;
+        _received = received;
+        _kept = kept;
+        _settled = settled;
+        _taskStore = taskStore;
+        _actions = actions;
+        if (_received is not null)
+        {
+            _received.Changed += (_, _) => OnStoreChanged();
+        }
+
+        if (_kept is not null)
+        {
+            _kept.Changed += (_, _) => OnStoreChanged();
+        }
+
+        if (_settled is not null)
+        {
+            _settled.Changed += (_, _) => OnStoreChanged();
+        }
+
+        if (_taskStore is not null)
+        {
+            _taskStore.Changed += (_, _) => OnStoreChanged();
+        }
+
         _comebacks.Changed += (_, _) => OnStoreChanged();
         _notes.Changed += (_, _) => OnStoreChanged();
         _tasks.Changed += (_, _) => OnStoreChanged();
@@ -128,7 +166,8 @@ public sealed partial class NotebookViewModel : ObservableObject
     public void Refresh()
     {
         using IDisposable timing = Services.TickDiag.Measure("archive rebuild");
-        List<NotebookItemViewModel> all = [.. Comebacks(), .. Notes(), .. Tasks()];
+        ArchiveRows archive = ArchiveBuilder.Build(ArchiveInputNow());
+        List<NotebookItemViewModel> all = [.. Comebacks(), .. Notes(), .. Tasks(archive)];
         int open = _comebacks.All.Count(comeback => comeback.DoneAt is null);
         SummaryText = $"{open} open come-backs · {_notes.All.Count} notes · {all.Count(item => item.Kind == UnfinishedKind)} unfinished · {all.Count(item => item.Kind == DoneKind)} done";
 
@@ -151,15 +190,44 @@ public sealed partial class NotebookViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(IsEmpty));
-        RefreshRecentlyDeleted(search);
+        RefreshRecentlyDeleted(search, archive);
     }
 
-    private void RefreshRecentlyDeleted(string search)
+    // What the builder reads: this PC's history, the other PCs' histories, the tasks kept here, every device's settle records and the one task list.
+    private ArchiveInput ArchiveInputNow()
+    {
+        return new ArchiveInput(
+            _tasks.History.Select(checklist => new SyncTaskHistoryEntry(checklist.OutsideSession ? null : checklist.SessionStart, checklist.Tasks, checklist.OutsideSession)).ToList(),
+            (_received?.Devices ?? []).Select(device => new ArchiveReceivedDevice(device.DeviceId, device.Name, device.Entries)).ToList(),
+            _kept?.Items ?? [],
+            _settled?.ForSync() ?? [],
+            _taskStore is { IsActive: true } ? _taskStore.Lists : TaskLists.Empty,
+            _time.GetUtcNow());
+    }
+
+    // The device's own Recently deleted (Undo: steps, Later items, come-backs, tasks) plus what every device can see: tasks deleted from
+    // the one task list and past tasks deleted anywhere. A task the device's own list already holds shows once, as its own line.
+    private void RefreshRecentlyDeleted(string search, ArchiveRows archive)
     {
         RecentlyDeleted.Clear();
-        foreach (DeletedItem item in (_tasks.Deleted?.Items ?? []).Where(item => search.Length == 0 || item.Title.Contains(search, StringComparison.OrdinalIgnoreCase)))
+        IReadOnlyList<DeletedItem> stored = _tasks.Deleted?.Items ?? [];
+        var lines = new List<(DateTimeOffset At, RecentlyDeletedRowViewModel Row)>();
+        foreach (DeletedItem item in stored.Where(item => search.Length == 0 || item.Title.Contains(search, StringComparison.OrdinalIgnoreCase)))
         {
-            RecentlyDeleted.Add(new RecentlyDeletedRowViewModel(item, $"Deleted {When(item.DeletedAt)}", _tasks));
+            lines.Add((item.DeletedAt, new RecentlyDeletedRowViewModel(item, $"Deleted {When(item.DeletedAt)}", _tasks)));
+        }
+
+        HashSet<Guid> held = stored.Select(item => item.ItemId).ToHashSet();
+        foreach (ArchiveDeletedRow row in archive.Deleted.Where(row => !held.Contains(row.Id) && (search.Length == 0 || row.Title.Contains(search, StringComparison.OrdinalIgnoreCase))))
+        {
+            string on = row.DeviceName is null ? string.Empty : $" · on {row.DeviceName}";
+            Func<Task<bool>>? restore = row.EntryId is Guid entry && _actions?.Invoke() is { } actions ? () => actions.BringBackAsync(entry) : null;
+            lines.Add((row.DeletedAt, new RecentlyDeletedRowViewModel(row, $"Deleted {When(row.DeletedAt)}{on}", restore)));
+        }
+
+        foreach ((DateTimeOffset _, RecentlyDeletedRowViewModel row) in lines.OrderByDescending(line => line.At))
+        {
+            RecentlyDeleted.Add(row);
         }
 
         RecentlyDeletedHeader = $"Recently deleted · {RecentlyDeleted.Count}";
@@ -199,65 +267,93 @@ public sealed partial class NotebookViewModel : ObservableObject
             delete: () => _notes.DeleteAsync(note.Id)));
     }
 
-    // Ended sessions' checklists: what was done, and what was left open when the session ended. Each task is followed by
-    // its subtasks (set in, just after it), and both can be renamed or deleted.
-    private IEnumerable<NotebookItemViewModel> Tasks()
+    // The Archive's tasks (ArchiveBuilder): what was done, and what was left open when its session ended, on this PC and the others.
+    // Each task is followed by its steps (set in, just after it).
+    private IEnumerable<NotebookItemViewModel> Tasks(ArchiveRows archive)
     {
-        foreach (SessionChecklist checklist in _tasks.History.Where(checklist => checklist.SessionStart is not null || checklist.OutsideSession))
+        foreach (ArchiveTaskRow row in archive.Tasks)
         {
-            DateTimeOffset start = checklist.SessionStart ?? checklist.Tasks.Max(held => held.DoneAt) ?? default;
-            foreach (SessionTask task in checklist.Tasks)
+            Guid id = row.Id;
+            bool isDone = row.IsDone;
+            // Its category as it is now (as it was when the session ended, if it has since been deleted), e.g. "Work · Session of …".
+            (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_tasks.Categories, row.CategoryId, row.Category, row.CategoryColor);
+            string categoryText = categoryName is not null ? $"{categoryName} · " : string.Empty;
+            string where = row.Source == ArchiveSource.TaskList ? "From your task list"
+                : row.Outside ? "Done outside a session"
+                : $"Session of {When(row.SessionStart ?? row.Sort)}";
+            string on = row.Source switch
             {
-                DateTimeOffset sort = task.DoneAt ?? start;
-                // Its category as it is now (as it was when the session ended, if it has since been deleted), e.g. "Work · Session of …".
-                string category = CategoryName(task) is string name ? $"{name} · " : string.Empty;
-                string session = checklist.OutsideSession ? "Done outside a session" : $"Session of {When(start)}";
-                TaskRowKey key = new(task.DoneAt is null ? TaskRowKind.Past : TaskRowKind.Done, task.Id);
-                yield return new NotebookItemViewModel(
-                    task.DoneAt is null ? UnfinishedKind : DoneKind,
-                    task.Title,
-                    task.DoneAt is DateTimeOffset done
-                        ? $"{category}{session} · done {When(done)}"
-                        : $"{category}{session} · left open",
-                    sort,
-                    toggle: () => _tasks.SetTickedAsync(task.Id, task.DoneAt is null),
-                    rename: title => _tasks.EditHistoryAsync(task.Id, title),
-                    delete: () => _tasks.EditHistoryAsync(task.Id, null),
-                    isTicked: task.DoneAt is not null,
-                    addStep: title => _tasks.AddHistoryStepAsync(task.Id, title),
-                    menu: item => Host?.MenuFor(key, rename: item.BeginRename, addStep: item.BeginAddStep) ?? [],
-                    categoryColor: TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Color);
-                int order = 0;
-                foreach (SessionSubtask subtask in task.Subtasks)
+                ArchiveSource.Received => $" · on {row.DeviceName}",
+                ArchiveSource.Kept => $" · kept here from {row.DeviceName}",
+                _ => string.Empty,
+            };
+            string state = row.DoneAt is DateTimeOffset done ? $"done {When(done)}" : "left open";
+            TaskRowKey key = new(isDone ? TaskRowKind.Done : TaskRowKind.Past, id);
+            bool canEdit = row.CanEdit;
+            string? hint = canEdit ? null : row.DeviceName is not null ? $"Edit it on {row.DeviceName}" : "Edit it on the Tasks page";
+            yield return new NotebookItemViewModel(
+                isDone ? DoneKind : UnfinishedKind,
+                row.Title,
+                $"{categoryText}{where} · {state}{on}",
+                row.Sort,
+                toggle: row.CanTick ? () => _tasks.SetTickedAsync(id, !isDone) : null,
+                rename: canEdit ? title => _tasks.EditHistoryAsync(id, title) : null,
+                delete: row.CanDelete ? () => _tasks.EditHistoryAsync(id, null) : null,
+                isTicked: isDone,
+                addStep: canEdit ? title => _tasks.AddHistoryStepAsync(id, title) : null,
+                menu: row.Source == ArchiveSource.TaskList
+                    ? null
+                    : item => WithoutEdits(Host?.MenuFor(key, rename: item.BeginRename, addStep: item.BeginAddStep) ?? [], canEdit),
+                categoryColor: categoryColor,
+                editHint: hint);
+            int order = 0;
+            foreach (ArchiveStepRow step in row.Steps)
+            {
+                // Just after its task in the newest-first list.
+                order++;
+                Guid stepId = step.Id;
+                bool stepDone = step.DoneAt is not null;
+                string stepWhen = step.DoneAt is DateTimeOffset stepTime ? $"Done {When(stepTime)}" : "Left open";
+                if (!canEdit)
                 {
-                    // Just after its task in the newest-first list.
-                    order++;
+                    // A step of another PC's task (or of the task list) is ticked and edited where it lives.
                     yield return new NotebookItemViewModel(
-                        subtask.DoneAt is null ? UnfinishedSubtaskKind : DoneSubtaskKind,
-                        subtask.Title,
-                        subtask.DoneAt is DateTimeOffset subDone ? $"Done {When(subDone)}" : "Left open",
-                        sort - TimeSpan.FromTicks(order),
-                        toggle: () => _tasks.SetTickedAsync(subtask.Id, subtask.DoneAt is null),
-                        rename: title => _tasks.EditHistoryAsync(subtask.Id, title),
-                        delete: () => _tasks.EditHistoryAsync(subtask.Id, null),
+                        stepDone ? DoneSubtaskKind : UnfinishedSubtaskKind,
+                        step.Title,
+                        stepWhen,
+                        row.Sort - TimeSpan.FromTicks(order),
                         isSubtask: true,
-                        isTicked: subtask.DoneAt is not null,
-                        addStep: title => _tasks.AddHistoryStepAsync(task.Id, title, subtask.Id),
-                        menu: item =>
-                        [
-                            TaskMenuEntry.Do("Rename", item.BeginRename, MaterialIconKind.PencilOutline),
-                            TaskMenuEntry.Do("Add a step after", item.BeginAddStep, MaterialIconKind.PlaylistPlus),
-                            TaskMenuEntry.Separator,
-                            TaskMenuEntry.Async("Delete", () => _tasks.EditHistoryAsync(subtask.Id, null), MaterialIconKind.DeleteOutline),
-                        ]);
+                        isTicked: stepDone,
+                        editHint: hint);
+                    continue;
                 }
+
+                yield return new NotebookItemViewModel(
+                    stepDone ? DoneSubtaskKind : UnfinishedSubtaskKind,
+                    step.Title,
+                    stepWhen,
+                    row.Sort - TimeSpan.FromTicks(order),
+                    toggle: () => _tasks.SetTickedAsync(stepId, !stepDone),
+                    rename: title => _tasks.EditHistoryAsync(stepId, title),
+                    delete: () => _tasks.EditHistoryAsync(stepId, null),
+                    isSubtask: true,
+                    isTicked: stepDone,
+                    addStep: title => _tasks.AddHistoryStepAsync(id, title, stepId),
+                    menu: item =>
+                    [
+                        TaskMenuEntry.Do("Rename", item.BeginRename, MaterialIconKind.PencilOutline),
+                        TaskMenuEntry.Do("Add a step after", item.BeginAddStep, MaterialIconKind.PlaylistPlus),
+                        TaskMenuEntry.Separator,
+                        TaskMenuEntry.Async("Delete", () => _tasks.EditHistoryAsync(stepId, null), MaterialIconKind.DeleteOutline),
+                    ]);
             }
         }
     }
 
-    private string? CategoryName(SessionTask task)
+    // A task of another PC is edited where it lives: its menu keeps label, move and delete, but not rename or steps.
+    private static IReadOnlyList<TaskMenuEntry> WithoutEdits(IReadOnlyList<TaskMenuEntry> entries, bool canEdit)
     {
-        return TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Name;
+        return canEdit ? entries : entries.Where(entry => entry.Header is not ("Rename" or "Add subtask")).ToList();
     }
 
     private string When(DateTimeOffset time)

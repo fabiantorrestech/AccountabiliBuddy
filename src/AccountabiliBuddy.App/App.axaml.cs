@@ -1746,7 +1746,7 @@ public partial class App : Application
         };
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
-        var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time);
+        var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time, receivedHistory, keptPast, pastSettled, taskStore, () => _taskActions);
         // The Plan page (design 5o): the editors (day plan, month view) are sheets over it; the helper remembers what "Leave it" dismissed.
         var calendarFeeds = new CalendarFeedsViewModel(calendars, _calendarSync, _sessions, _configuration, effectivePlan, OpenInBrowser);
         DayPlanViewModel dayPlanViewModel = WithSleepGoal(new DayPlanViewModel(_configuration, _sessions) { Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime) }, sleepSettings);

@@ -250,11 +250,13 @@ public sealed partial class SessionTasksService
             return true;
         }
 
-        if (IsOwnPastTask(id) || ForeignTaskOf?.Invoke(id) is null || PastSettled is null)
+        if (IsOwnPastTask(id) || ForeignTaskOf?.Invoke(id) is not SessionTask foreign || PastSettled is null)
         {
             return false;
         }
 
+        // The other PC's next file no longer carries the task, so this PC keeps its own copy for Recently deleted (AR1-fix): the delete is listed here too.
+        await RecordAsync(new DeletedItem(Guid.NewGuid(), _time.GetUtcNow(), DeletedKind.HistoryTask, foreign.Title, Task: foreign));
         await PastSettled.SetAsync(id, SyncPastSettled.Deleted);
         Changed?.Invoke(this, EventArgs.Empty);
         return true;

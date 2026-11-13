@@ -18,7 +18,7 @@
         <TextBlock Classes="muted" Text="Parked ideas, notes from sessions and tasks, newest first. Written down means you can stop holding it."
                    FontSize="13" TextWrapping="Wrap" />
 
-        <!-- Recently deleted: tasks, steps, Later items and come-backs deleted in the last 30 days, each with Restore. Kept on this PC only. -->
+        <!-- Recently deleted: tasks, steps, Later items and come-backs deleted in the last 30 days, each with Restore. A task deleted on another device is listed too. -->
         <StackPanel Spacing="6" IsVisible="{Binding HasRecentlyDeleted}">
             <Button Classes="quiet" Command="{Binding ToggleRecentlyDeletedCommand}" HorizontalAlignment="Left" Padding="4,6" AutomationProperties.Name="Recently deleted">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -39,9 +39,9 @@
                                     </TextBlock>
                                     <TextBlock Classes="muted" Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
                                 </StackPanel>
-                                <Button Grid.Column="1" Classes="quiet" Content="Restore" Command="{Binding RestoreCommand}" Padding="12,6"
+                                <Button Grid.Column="1" Classes="quiet" Content="Restore" Command="{Binding RestoreCommand}" Padding="12,6" IsVisible="{Binding CanRestore}"
                                         FontWeight="SemiBold" AutomationProperties.Name="Restore" />
-                                <Button Grid.Column="2" Classes="quiet" Command="{Binding ForgetCommand}" Padding="8,6" ToolTip.Tip="Delete it for good (its content is erased from this PC)" AutomationProperties.Name="Delete for good"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
+                                <Button Grid.Column="2" Classes="quiet" Command="{Binding ForgetCommand}" Padding="8,6" IsVisible="{Binding CanForget}" ToolTip.Tip="Delete it for good (its content is erased from this PC)" AutomationProperties.Name="Delete for good"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                             </Grid>
                         </Border>
                     </DataTemplate>
@@ -65,7 +65,7 @@
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
                                 <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding CanTick}"
                                           ToolTip.Tip="Tick it off (untick to open it again)" VerticalAlignment="Top" MinWidth="0" AutomationProperties.Name="Done" />
-                                <StackPanel Grid.Column="1" Spacing="2">
+                                <StackPanel Grid.Column="1" Spacing="2" ToolTip.Tip="{Binding EditHint}">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
                                         <TextBlock Classes.done="{Binding IsTicked}" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsNotEditing}" />
