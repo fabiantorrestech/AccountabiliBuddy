@@ -1,6 +1,7 @@
 package com.accountabilibuddy.shared.goals
 
 import com.accountabilibuddy.shared.sync.DotNetTime
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncGoalYearMerged
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -26,6 +27,21 @@ object GoalHistoryRules {
     val REWRITE_EVERY: Duration = Duration.ofDays(1)
     val FULL_READ_AFTER: Duration = GoalSyncWindow.WINDOW
     val ACTIVE_WITHIN: Duration = GoalSyncWindow.WINDOW
+
+    /** The relay keeps at most this many files a group (ADR 46). */
+    const val RELAY_FILE_LIMIT = 64
+
+    /** Places of the relay's 64 that history files never plan on: the devices' sync files and some slack ([relayQuota]). */
+    const val RELAY_SYNC_RESERVE = 16
+
+    /** The first PC app version that reads and skips goal history files (the PC's `FirstPcVersionWithHistory`). */
+    const val FIRST_PC_VERSION_WITH_HISTORY = "0.1.134"
+
+    /** The first phone app version that reads and skips goal history files (the PC's `FirstPhoneVersionWithHistory`). */
+    const val FIRST_PHONE_VERSION_WITH_HISTORY = "0.1.78"
+
+    /** Rows of an unknown goal count as pruned only when all are older than this (the tombstone retention, [latePrunable]). */
+    val LATE_PRUNE_AGE: Duration = Duration.ofDays(30)
 
     /** The UTC year and month of the entry's stamp: the month file it goes to. */
     fun monthOf(entry: GoalEntry): Pair<Int, Int> = utcMonth(entry.stamp)
@@ -206,18 +222,30 @@ object GoalHistoryRules {
         merge(held, file, history, now, emptySet())
 
     /** As [merge], with Q649's rule: rows of a goal whose tombstone this device pruned never keep a file unread. */
-    fun merge(held: GoalLists, file: GoalLists?, history: List<GoalHistoryRows>, now: OffsetDateTime, prunedGoals: Set<UUID>): GoalHistoryMerged {
+    fun merge(held: GoalLists, file: GoalLists?, history: List<GoalHistoryRows>, now: OffsetDateTime, prunedGoals: Set<UUID>): GoalHistoryMerged =
+        merge(held, file, history, now, prunedGoals, null)
+
+    /**
+     * As [merge] with the late joiner's rule ([latePrunable], review blocker 2): goals it frees are treated as pruned for the "read" decision
+     * and returned in [GoalHistoryMerged.newlyPruned] (the device adds them to its kept set of pruned goal ids). [late] null = off.
+     */
+    fun merge(
+        held: GoalLists, file: GoalLists?, history: List<GoalHistoryRows>, now: OffsetDateTime, prunedGoals: Set<UUID>, late: GoalHistoryLatePrune?,
+    ): GoalHistoryMerged {
         val result = if (file == null) held else GoalSyncMerge.merge(held, file, now)
         val goalsPart = file != null
         if (history.isEmpty()) return GoalHistoryMerged(result, emptyList(), emptyList(), goalsPart)
         val merged = GoalSyncMerge.mergeReported(result, mergeEntries(history.map { it.entries }, now), now)
-        val droppedIds = merged.droppedEntries.filter { it.goalId !in prunedGoals }.map { it.id }.toHashSet()
+        val newlyPruned =
+            if (late == null) emptyList()
+            else latePrunable(merged.droppedEntries, late.firstDropAt, late.active, late.self, late.lastRegularMerge, prunedGoals, now)
+        val droppedIds = merged.droppedEntries.filter { it.goalId !in prunedGoals && it.goalId !in newlyPruned }.map { it.id }.toHashSet()
         val read = history
             .filter { item -> item.entries.entries.none { it.id in droppedIds } }
             .map { it.file }
             // The PC's record equality compares a DateTimeOffset by its instant, not by its offset.
             .distinctBy { it.key to DotNetTime.ticks(it.modifiedAt) }
-        return GoalHistoryMerged(merged.lists, read, merged.droppedEntries, goalsPart)
+        return GoalHistoryMerged(merged.lists, read, merged.droppedEntries, goalsPart, newlyPruned)
     }
 
     /** Q649: the goals whose tombstone went between [before] and [after] (pruned), ordered by id text. */
@@ -232,6 +260,95 @@ object GoalHistoryRules {
 
     /** The rows' JSON text: what "the content changed" compares. */
     fun rowsText(entries: GoalLists): String = GoalJson.text(GoalSyncJson.entriesJson(entries))
+
+    /**
+     * ON THE RELAY ONLY (the PC's `RelayQuota`): the most month files one device keeps there, so that history files never pass 64 - 16 = 48
+     * places together with the year files: `floor((64 - 16 - yearFiles) / knownDevices)`, never below 0. [yearFiles] is how many year files
+     * the listing holds; [knownDevices] the devices not removed from the group that this device knows, itself included (at least 1).
+     */
+    fun relayQuota(yearFiles: Int, knownDevices: Int): Int =
+        maxOf(0, (RELAY_FILE_LIMIT - RELAY_SYNC_RESERVE - maxOf(0, yearFiles)) / maxOf(1, knownDevices))
+
+    /**
+     * ON THE RELAY ONLY (the PC's `RelayKeep`): the months of this device's own history that stay on the relay, newest first: only the PC that
+     * rolls the year ([isRoller]) keeps finished months; every other device keeps its [openMonths] only; then at most [quota] of them, newest
+     * first. A month not returned is not put again (its file expires). Drive keeps every month.
+     */
+    fun relayKeep(months: Iterable<Pair<Int, Int>>, isRoller: Boolean, quota: Int, now: OffsetDateTime): List<Pair<Int, Int>> =
+        months.distinct()
+            .filter { isRoller || isOpen(it.first, it.second, now) }
+            .sortedWith(compareByDescending<Pair<Int, Int>> { it.first }.thenByDescending { it.second })
+            .take(maxOf(0, quota))
+
+    /**
+     * Whether an app of this kind ("pc", "phone", "watch") at this version (a leading dotted number; anything after it is ignored) reads and
+     * skips goal history files (the PC's `KnowsHistory`): pc from [FIRST_PC_VERSION_WITH_HISTORY], phone from [FIRST_PHONE_VERSION_WITH_HISTORY];
+     * a watch never syncs through the relay (true); an unreadable version or an unknown kind is false. ON THE RELAY a device writes history
+     * files only while this is true for every device of the group that is not removed; Drive is unaffected.
+     */
+    fun knowsHistory(kind: String?, appVersion: String?): Boolean {
+        if (kind == SyncDeviceCard.KIND_WATCH) return true
+        val first = when (kind) {
+            SyncDeviceCard.KIND_PC -> FIRST_PC_VERSION_WITH_HISTORY
+            SyncDeviceCard.KIND_PHONE -> FIRST_PHONE_VERSION_WITH_HISTORY
+            else -> return false
+        }
+        if (appVersion == null) return false
+        val version = dotNetVersion(appVersion.takeWhile { it in '0'..'9' || it == '.' }.trimEnd('.')) ?: return false
+        return compareVersions(version, dotNetVersion(first)!!) >= 0
+    }
+
+    // .NET's Version.TryParse: two to four non-empty groups of digits, each an Int32; a missing part counts as -1 (so "0.1" is below "0.1.0").
+    private fun dotNetVersion(text: String): List<Int>? {
+        val parts = text.split('.')
+        if (parts.size !in 2..4 || parts.any { it.isEmpty() }) return null
+        val numbers = parts.map { it.toIntOrNull() ?: return null }
+        return numbers + List(4 - numbers.size) { -1 }
+    }
+
+    private fun compareVersions(a: List<Int>, b: List<Int>): Int {
+        for (i in 0 until 4) {
+            if (a[i] != b[i]) return a[i].compareTo(b[i])
+        }
+
+        return 0
+    }
+
+    /**
+     * Late joiner (the PC's `LatePrunable`): the ids of the goals whose rows in [dropped] (rows no history file could land because the goal
+     * isn't held) can be taken as pruned for good. Only when a first drop was seen ([firstDropAt]) AND every active device other than [self]
+     * has had its regular sync file merged here strictly after it ([lastRegularMerge]); of those, only a goal ALL of whose dropped rows are
+     * older than [LATE_PRUNE_AGE] (by the entry's stamp) and which isn't in [alreadyPruned]. Ordered by id text.
+     */
+    fun latePrunable(
+        dropped: List<GoalEntry>,
+        firstDropAt: OffsetDateTime?,
+        active: List<GoalHistoryDevice>,
+        self: UUID,
+        lastRegularMerge: Map<UUID, OffsetDateTime>,
+        alreadyPruned: Set<UUID>,
+        now: OffsetDateTime,
+    ): List<UUID> {
+        if (firstDropAt == null) return emptyList()
+        val everyoneMerged = active.filter { it.id != self }.all { device ->
+            lastRegularMerge[device.id]?.let { DotNetTime.compare(it, firstDropAt) > 0 } == true
+        }
+        if (!everyoneMerged) return emptyList()
+        val ageLimit = LATE_PRUNE_AGE.toNanos() / 100
+        return dropped
+            .filter { it.goalId !in alreadyPruned }
+            .groupBy { it.goalId }
+            .filter { (_, rows) -> rows.all { DotNetTime.ticks(now) - DotNetTime.ticks(it.stamp) > ageLimit } }
+            .keys
+            .sortedBy { it.toString() }
+    }
+
+    /**
+     * Whether every listed file is accounted for (the PC's `AllAccountedFor`): recorded as read at its listed version in [lastRead], or in
+     * [skipped] (too big or unreadable: logged and left out, they never hold anything back).
+     */
+    fun allAccountedFor(listing: List<GoalHistoryListing>, lastRead: Map<GoalHistoryFileKey, OffsetDateTime>, skipped: Set<GoalHistoryFileKey>): Boolean =
+        listing.all { file -> file.key in skipped || lastRead[file.key]?.let { DotNetTime.same(it, file.modifiedAt) } == true }
 
     private fun monthStart(year: Int, month: Int): OffsetDateTime = OffsetDateTime.of(year, month, 1, 0, 0, 0, 0, ZoneOffset.UTC)
 

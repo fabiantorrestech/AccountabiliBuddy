@@ -35,6 +35,12 @@ class GoalHistoryTransportState {
 
     /** When each year was last checked for a roll-up (at most daily). */
     val rollChecked = LinkedHashMap<Int, OffsetDateTime>()
+
+    /**
+     * New to the group on this transport (the PC's `NewToGroup`): every listed file is read once, this device's own too. Cleared after a pass
+     * with a goals part merged in which every listed file was read or left out ([GoalHistoryRules.allAccountedFor]).
+     */
+    var newToGroup = true
 }
 
 /**
@@ -64,6 +70,9 @@ class GoalHistoryState {
 
     /** The ids of goals whose tombstone this device pruned, kept for good: their rows in history files never keep a file unread. */
     val prunedGoals = LinkedHashSet<UUID>()
+
+    /** When the first merge ran that dropped rows of a goal this device doesn't hold (the late joiner's rule); null for none or none left. */
+    var firstDropAt: OffsetDateTime? = null
 
     val transports = LinkedHashMap<String, GoalHistoryTransportState>()
 

@@ -311,6 +311,7 @@ class CompanionApp : Application() {
                     com.accountabilibuddy.shared.goals.GoalHistoryDeviceInfo(
                         it.file.device.deviceId, it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC,
                         it.file.device.deviceId in removed, java.time.OffsetDateTime.ofInstant(it.receivedAt, java.time.ZoneOffset.UTC),
+                        it.file.device.kind, it.file.device.appVersion,
                     )
                 })
             },

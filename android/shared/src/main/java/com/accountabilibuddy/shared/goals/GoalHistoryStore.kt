@@ -22,6 +22,9 @@ interface GoalHistoryStore {
     /** The most files one group can hold (the relay's 64); null for no limit. */
     val maxFiles: Int?
 
+    /** The most requests (list, get, put) one pass makes; null for no cap. The relay allows 120 a minute: a pass stops at 40 and goes on 15 minutes later. */
+    val maxRequestsPerPass: Int? get() = null
+
     /** True when the store deletes files nobody touched for 30 days (the relay): own files are put again every 25 days. */
     val expires: Boolean
 
@@ -34,11 +37,15 @@ interface GoalHistoryStore {
     /** The file's bytes; null when it is gone. */
     fun get(name: String): ByteArray?
 
+    /** Stores the file. Throws [GoalHistoryGroupFullException] when the store says its group is full (the relay's 429): the pass ends there. */
     fun put(name: String, bytes: ByteArray)
 
     /** Deletes the file; true when it was deleted or already gone, false when this store never deletes. */
     fun delete(name: String): Boolean
 }
+
+/** The store refused a put because its group is full or busy (the relay's 429): the pass ends quietly, with no retry. */
+class GoalHistoryGroupFullException : RuntimeException("The group is full.", null, false, false)
 
 /** Seals and opens the history files with the group's key (the PC's `GoalHistoryCodec`): `ABM1` for a month, `ABY1` for a year; null when a file can't be opened. */
 interface GoalHistoryCodec {
@@ -73,8 +80,19 @@ enum class GoalApplyResult {
     }
 }
 
-/** A device of the sync group as this device knows it from the files it received. [receivedAt]: when a file from it was last accepted (the trusted clock); null for never. */
-data class GoalHistoryDeviceInfo(val id: java.util.UUID, val isPc: Boolean, val removed: Boolean, val receivedAt: OffsetDateTime?)
+/**
+ * A device of the sync group as this device knows it from the files it received. [receivedAt]: when a file from it was last accepted (the
+ * trusted clock); null for never. [kind] and [appVersion] are the card's ("pc", "phone", "watch"; the version null when unknown, which counts as
+ * an app that doesn't know history files on the relay, [GoalHistoryRules.knowsHistory]).
+ */
+data class GoalHistoryDeviceInfo(
+    val id: java.util.UUID,
+    val isPc: Boolean,
+    val removed: Boolean,
+    val receivedAt: OffsetDateTime?,
+    val kind: String = if (isPc) "pc" else "phone",
+    val appVersion: String? = null,
+)
 
 /** What one pass over a transport's goal history files did: counts only, never a name or a value. */
 class GoalHistoryRun {
@@ -88,6 +106,12 @@ class GoalHistoryRun {
     var groupFull = 0
     var unreadable = 0
 
+    /** Writes held back because a device of the group is on an app that doesn't know history files (relay only). */
+    var gated = 0
+
+    /** The pass ended on the store's request cap (not on a 429). */
+    var capped = false
+
     override fun toString(): String =
-        "read=$read written=$written rolled=$rolled removed=$removed reuploaded=$reuploaded tooBig=$tooBig groupFull=$groupFull unreadable=$unreadable"
+        "read=$read written=$written rolled=$rolled removed=$removed reuploaded=$reuploaded tooBig=$tooBig groupFull=$groupFull unreadable=$unreadable gated=$gated capped=${if (capped) 1 else 0}"
 }

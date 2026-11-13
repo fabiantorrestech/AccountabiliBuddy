@@ -143,6 +143,8 @@ object Gs4FixSelfCheck {
                 states = holder, now = { now }, self = { PHONE }, key = { GoalHistorySync.GoalHistoryKey(GROUP, "fp") }, codec = Gs4SelfCheck.FakeCodec,
                 devices = { listOf(GoalHistoryDeviceInfo(PC, true, false, now)) }, enabled = { true }, ready = { true },
             )
+            // The PC's goals part has merged: nothing is downloaded before one has (GS3b mirror).
+            sync.noteRegularFile(PC, null)
         }
 
         fun readCount() = holder.value.transport("relay").read.size
@@ -237,6 +239,8 @@ object Gs4FixSelfCheck {
             thread("store-hook") { repeat(1500) { synchronized(storeLock) { sync.trackPrunedGoals() } } },
             thread("receive") { repeat(1500) { sync.noteRegularFile(PC, null); sync.marker; sync.ownNames("relay"); sync.isHistoryName("0123456789ab.absync", ".absync") } },
         )
+        // The PC's goals part has merged before the passes start (nothing is downloaded before one has, GS3b mirror); the receive thread keeps noting it.
+        sync.noteRegularFile(PC, null)
         passes.forEach { it.start() }
         val deadline = System.currentTimeMillis() + 30_000
         passes.forEach { it.join(maxOf(1, deadline - System.currentTimeMillis())) }

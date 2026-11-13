@@ -23,6 +23,11 @@ import kotlin.concurrent.withLock
  * 4. **Write** this device's month files: any month whose content changed, at most daily per file, every month on the first run.
  * 5. **Remove** own month files that [GoalHistoryRules.mayRemoveMonth] frees: deleted on Drive; on the relay simply no longer put again.
  * 6. **Put again** own files the relay would expire (25 days, the owner's rule) or that went missing.
+ * ON THE RELAY (the PC's review fixes, rule for rule): only the PC that rolls the year keeps finished month files there, every other device its
+ * open months only, each device at most [GoalHistoryRules.relayQuota] files, newest months first ([GoalHistoryRules.relayKeep]); nothing is
+ * written while a device of the group is on an app that doesn't know history files ([GoalHistoryRules.knowsHistory]); a pass makes at most the
+ * store's request cap; a 429 answer to a put ([GoalHistoryGroupFullException]) ends the pass quietly; a month is put again as the same bytes
+ * (get, put); a phone deletes nothing there (own files only, and only when it leaves the group).
  * A file bigger than the store's limit (the relay's 4 MiB) is not written, and the relay keeps room for the devices' sync files. Sealed exactly
  * like the sync files (the group's key, AES-256-GCM, [codec]); never in a QR file. Logs counts only. Pure: no clock, no network, no storage
  * of its own, so the JVM checks drive it with a fake store and codec.
@@ -205,17 +210,19 @@ class GoalHistorySync(
         var markerChanged = false
         try {
             deleteStaleNames(store)
-            val pass = Pass(store, state, state.transport(store.transport), me, k)
+            val pass = Pass(store, state, state.transport(store.transport), me, k, relayGated(store))
+            pass.spend()
             list(pass)
             read(pass, run)
-            if (roll(pass, run)) {
+            if (!pass.stopped && roll(pass, run) && pass.spend()) {
                 list(pass)
                 read(pass, run)
             }
 
-            write(pass, run)
-            remove(pass, run)
-            reuploadYears(pass, run)
+            if (!pass.stopped) write(pass, run)
+            if (!pass.stopped) remove(pass, run)
+            if (!pass.stopped) reuploadYears(pass, run)
+            run.capped = pass.capped
         } catch (e: StalePass) {
             // The group's key changed while the merge was taken in: this pass belongs to the old state; the next one starts over.
         } finally {
@@ -265,6 +272,21 @@ class GoalHistorySync(
         }
     }
 
+    // ON THE RELAY: nothing is written while a device of the group (not removed) is on an app that doesn't know history files.
+    private fun relayGated(store: GoalHistoryStore): Boolean =
+        store.maxFiles != null && devices().filter { !it.removed }.any { !GoalHistoryRules.knowsHistory(it.kind, it.appVersion) }
+
+    // Every device this one knows: itself, the cards it received and the ids its state keeps.
+    private fun knownDevices(me: UUID, state: GoalHistoryState): Set<UUID> {
+        val ids = HashSet<UUID>()
+        ids.add(me)
+        ids.addAll(devices().map { it.id })
+        ids.addAll(state.deviceMarkers.keys)
+        ids.addAll(state.lastRegularMerge.keys)
+        ids.addAll(state.lastMergeFrom.keys)
+        return ids
+    }
+
     // ---------------------------------------------------------------------------------------------------- state
 
     private fun stateFor(k: GoalHistoryKey): GoalHistoryState {
@@ -305,12 +327,7 @@ class GoalHistorySync(
     private fun list(pass: Pass) {
         val listing = pass.store.list()
         val at = now()
-        val ids = HashSet<UUID>()
-        ids.add(pass.me)
-        ids.addAll(devices().map { it.id })
-        ids.addAll(pass.state.deviceMarkers.keys)
-        ids.addAll(pass.state.lastRegularMerge.keys)
-        ids.addAll(pass.state.lastMergeFrom.keys)
+        val ids = knownDevices(pass.me, pass.state)
         val names = GoalHistoryNames.candidates(pass.key.groupId, pass.store.extension, ids, at.withOffsetSameInstant(java.time.ZoneOffset.UTC).year + 1)
         pass.totalFiles = listing.size
         pass.newFiles = 0
@@ -335,8 +352,17 @@ class GoalHistorySync(
         val lastRead = HashMap<GoalHistoryFileKey, OffsetDateTime>()
         for ((text, readAt) in transport.read) GoalHistoryNames.parseKey(text)?.let { lastRead[it] = readAt }
 
-        val newToGroup = !state.goalsPartMerged
-        val toRead = GoalHistoryRules.toRead(pass.history, lastRead, lastMerge, removed, pass.me, newToGroup, at)
+        // Rows read before any regular file's goals part has merged are all dropped (no goal is held yet): nothing is downloaded for them. A
+        // device that knows no other device has no goals part to wait for.
+        val goalsReady = state.goalsPartMerged || infos.none { it.id != pass.me && !it.removed }
+        val newToGroup = transport.newToGroup || !goalsReady
+        var toRead = if (goalsReady) GoalHistoryRules.toRead(pass.history, lastRead, lastMerge, removed, pass.me, newToGroup, at) else emptyList()
+        if (newToGroup && toRead.isNotEmpty()) {
+            // New to the group, a device reads every file once, its own too; one already read at its listed version is not downloaded again.
+            val ordinary = GoalHistoryRules.toRead(pass.history, lastRead, lastMerge, removed, pass.me, false, at).map { it.key }.toSet()
+            toRead = toRead.filter { it.key in ordinary || !DotNetTime.same(lastRead[it.key], it.modifiedAt) }
+        }
+
         val staleBefore = pass.history
             .filter { it.key.kind == GoalHistoryFileKind.Month && it.key.deviceId != null && it.key.deviceId != pass.me && it.key.deviceId !in removed }
             .map { it.key.deviceId!! }
@@ -345,6 +371,7 @@ class GoalHistorySync(
 
         val rows = ArrayList<GoalHistoryRows>()
         val years = HashMap<GoalHistoryFileKey, GoalHistoryYear>()
+        val skipped = HashSet<GoalHistoryFileKey>()
         for (file in toRead) {
             val remote = pass.remote[file.key] ?: continue
             val text = GoalHistoryNames.keyText(file.key)
@@ -356,12 +383,19 @@ class GoalHistorySync(
             }
 
             val tried = unreadableTried[remote.name]
-            if (remote.size > pass.store.maxFileBytes || (tried != null && Duration.between(tried.toInstant(), at.toInstant()) < RETRY_UNREADABLE_AFTER)) continue
+            if (remote.size > pass.store.maxFileBytes || (tried != null && Duration.between(tried.toInstant(), at.toInstant()) < RETRY_UNREADABLE_AFTER)) {
+                // Logged when it was found; it never holds a stale device's complete read or the "new to the group" state back.
+                skipped.add(file.key)
+                continue
+            }
+
+            if (!pass.spend()) break
             val bytes = pass.store.get(remote.name) ?: continue
             if (file.key.kind == GoalHistoryFileKind.Month) {
                 val month = codec.openMonth(bytes)
                 if (month == null || month.key != file.key) {
                     noteUnreadable(remote, run, at)
+                    skipped.add(file.key)
                     continue
                 }
 
@@ -370,6 +404,7 @@ class GoalHistorySync(
                 val year = codec.openYear(bytes)
                 if (year == null || year.key != file.key) {
                     noteUnreadable(remote, run, at)
+                    skipped.add(file.key)
                     continue
                 }
 
@@ -382,9 +417,10 @@ class GoalHistorySync(
             var merged: GoalHistoryMerged? = null
             // The pruned ids as they are now (a copy: another thread may add to the set while the merge runs without the lock).
             val prunedNow = state.prunedGoals.toSet()
+            val late = GoalHistoryLatePrune(state.firstDropAt, activeDevices(pass, at), pass.me, state.lastRegularMerge.toMap())
             val outcome = outsideLock(pass) {
                 applySynced { heldLists ->
-                    val result = GoalHistoryRules.merge(heldLists, null, rows, at, prunedNow)
+                    val result = GoalHistoryRules.merge(heldLists, null, rows, at, prunedNow, late)
                     merged = result
                     result.lists
                 }
@@ -392,9 +428,13 @@ class GoalHistorySync(
 
             // Recorded as read only when the rows were taken in (or were already there): a failed write leaves the files to be read again.
             merged?.takeIf { outcome.recordsReads }?.let { result ->
+                // A late joiner: goals no active device knows any more (all rows older than 30 days) are pruned goals; their files count as read.
+                if (result.newlyPruned.isNotEmpty()) state.prunedGoals.addAll(result.newlyPruned)
+                state.firstDropAt = if (result.dropped.any { it.goalId !in state.prunedGoals }) state.firstDropAt ?: at else null
                 for (readFile in result.read) {
                     val text = GoalHistoryNames.keyText(readFile.key)
                     transport.read[text] = readFile.modifiedAt
+                    lastRead[readFile.key] = readFile.modifiedAt
                     pass.remote[readFile.key]?.tag?.let { transport.readTag[text] = it }
                     run.read++
                     years[readFile.key]?.let { year ->
@@ -407,12 +447,18 @@ class GoalHistorySync(
             }
         }
 
-        // A stale device whose files are all read now has a complete merge: it is not stale again until 90 days pass.
+        // A stale device whose files are all read now has a complete merge: it is not stale again until 90 days pass. A file that is too big or
+        // can't be opened is logged and left out of that.
         for (device in staleBefore) {
             val complete = pass.history
-                .filter { it.key.kind == GoalHistoryFileKind.Month && it.key.deviceId == device }
+                .filter { it.key.kind == GoalHistoryFileKind.Month && it.key.deviceId == device && it.key !in skipped }
                 .all { file -> transport.read[GoalHistoryNames.keyText(file.key)]?.let { DotNetTime.same(it, file.modifiedAt) } == true }
             if (complete) state.lastMergeFrom[device] = at
+        }
+
+        // No longer new to the group once a regular goals part has merged and every listed file is read or left out.
+        if (transport.newToGroup && goalsReady && !pass.stopped && GoalHistoryRules.allAccountedFor(pass.history, lastRead, skipped)) {
+            transport.newToGroup = false
         }
     }
 
@@ -442,6 +488,10 @@ class GoalHistorySync(
             val monthFiles = pass.history.filter { it.key.kind == GoalHistoryFileKind.Month && it.key.year == year }
             val checked = pass.transport.rollChecked[year]
             if (checked != null && Duration.between(checked.toInstant(), at.toInstant()) < ROLL_EVERY && monthFiles.all { DotNetTime.compare(it.modifiedAt, checked) <= 0 }) continue
+            if (pass.gated) {
+                run.gated++
+                continue
+            }
 
             var existing: GoalHistoryYear? = null
             val yearFile = pass.history
@@ -450,6 +500,7 @@ class GoalHistorySync(
                 .firstOrNull()
             if (yearFile != null) {
                 val remote = pass.remote.getValue(yearFile.key)
+                if (remote.size <= pass.store.maxFileBytes && !pass.spend()) return rolled
                 val bytes = if (remote.size > pass.store.maxFileBytes) null else pass.store.get(remote.name)
                 existing = bytes?.let { codec.openYear(it) }
                 if (existing == null || existing.key != yearFile.key) {
@@ -470,6 +521,7 @@ class GoalHistorySync(
                 }
 
                 val remote = pass.remote.getValue(file.key)
+                if (remote.size <= pass.store.maxFileBytes && !pass.spend()) return rolled
                 val bytes = if (remote.size > pass.store.maxFileBytes) null else pass.store.get(remote.name)
                 val month = bytes?.let { codec.openMonth(it) }
                 if (month != null && month.key == file.key) months.add(month)
@@ -481,7 +533,7 @@ class GoalHistorySync(
             val name = GoalHistoryNames.nameFor(pass.key.groupId, rolledYear.key, pass.store.extension)
             if (!fits(pass, run, sealedYear.size, name)) continue
 
-            pass.store.put(name, sealedYear)
+            if (!putFile(pass, run, name, sealedYear)) return rolled
             pass.newFiles++
             pass.transport.ownNames.add(name)
             pass.transport.ownYearNames.add(name)
@@ -497,10 +549,8 @@ class GoalHistorySync(
     private fun activeDevices(pass: Pass, at: OffsetDateTime): List<GoalHistoryDevice> {
         val group = ArrayList<GoalGroupDevice>()
         for (info in devices()) {
-            var merged: OffsetDateTime? = pass.state.lastRegularMerge[info.id]
-            val received = info.receivedAt
-            if (received != null && (merged == null || DotNetTime.compare(received, merged) > 0)) merged = received
-            group.add(GoalGroupDevice(info.id, info.isPc, info.removed, merged, pass.state.deviceMarkers[info.id]))
+            // Only a device whose regular file WITH goal parts merged here counts: an app that doesn't sync goals never merges history.
+            group.add(GoalGroupDevice(info.id, info.isPc, info.removed, pass.state.lastRegularMerge[info.id], pass.state.deviceMarkers[info.id]))
         }
 
         // This device is a phone: counted among the group's devices, never as a PC (a phone never rolls a year).
@@ -514,6 +564,7 @@ class GoalHistorySync(
         val lists = held() ?: return
         val at = now()
         val transport = pass.transport
+        forgetVanishedYears(pass)
         val months = TreeSet<Pair<Int, Int>>(compareBy({ it.first }, { it.second }))
         months.addAll(GoalHistoryRules.monthsOf(lists))
         for (text in transport.written.keys) {
@@ -523,7 +574,11 @@ class GoalHistorySync(
             if (parts.size == 2 && year != null && month != null) months.add(year to month)
         }
 
-        for ((year, month) in months) {
+        // ON THE RELAY: only the roller keeps finished months, a device at most its quota, newest first ([GoalHistoryRules.relayKeep]).
+        val keep = if (pass.store.maxFiles == null) null else relayMonths(pass, months, at)
+        for ((year, month) in months.descendingSet()) {
+            if (pass.stopped) return
+            if (keep != null && (year to month) !in keep) continue
             val monthText = GoalHistoryNames.monthText(year, month)
             val last = transport.written[monthText]
             val fresh = GoalHistoryRules.monthToWrite(last, lists, pass.me, year, month, at)
@@ -531,6 +586,7 @@ class GoalHistorySync(
             val name = GoalHistoryNames.nameFor(pass.key.groupId, GoalHistoryFileKey.forMonth(pass.me, year, month), pass.store.extension)
             val listed = pass.remote.values.any { it.name == name }
             var reupload = false
+            var sameBytes = false
             if (toPut == null && last != null && monthText !in transport.removed) {
                 // The same content: put again only when the file is missing here, or the store would expire it.
                 val missing = !listed
@@ -539,14 +595,29 @@ class GoalHistorySync(
                 if (missing || aging) {
                     toPut = last
                     reupload = true
+                    sameBytes = !missing
                 }
             }
 
             if (toPut == null) continue
-            val sealedMonth = codec.seal(toPut)
-            if (!fits(pass, run, sealedMonth.size, name, listed)) continue
+            if (pass.gated) {
+                // A device of the group is on an app that would take the file for an unreadable sync file.
+                run.gated++
+                continue
+            }
 
-            pass.store.put(name, sealedMonth)
+            var sealedMonth: ByteArray? = null
+            if (sameBytes) {
+                // Like a year file: the very same bytes, so the relay's etag doesn't change and no reader downloads it again.
+                if (!pass.spend()) return
+                val current = pass.store.get(name)
+                if (current != null && codec.openMonth(current)?.key == toPut.key) sealedMonth = current
+            }
+
+            val sealed = sealedMonth ?: codec.seal(toPut)
+            if (!fits(pass, run, sealed.size, name, listed)) continue
+            if (!putFile(pass, run, name, sealed)) return
+
             if (!listed) pass.newFiles++
             transport.written[monthText] = toPut
             transport.uploaded[name] = at
@@ -556,7 +627,44 @@ class GoalHistorySync(
         }
     }
 
-    // The store's limits: a file over its size is not written; the relay's group keeps room for the devices' sync files.
+    // ON THE RELAY: the months this device keeps there now ([GoalHistoryRules.relayKeep] with [GoalHistoryRules.relayQuota]): the roller all,
+    // the others their open months; at most the quota; a month already rolled up and removed is not a candidate.
+    private fun relayMonths(pass: Pass, months: Iterable<Pair<Int, Int>>, at: OffsetDateTime): Set<Pair<Int, Int>> {
+        val removed = devices().filter { it.removed }.map { it.id }.toSet()
+        val roller = GoalHistoryRules.roller(activeDevices(pass, at)) == pass.me
+        val yearFiles = pass.history.count { it.key.kind == GoalHistoryFileKind.Year }
+        val known = maxOf(1, knownDevices(pass.me, pass.state).count { it !in removed })
+        val quota = GoalHistoryRules.relayQuota(yearFiles, known)
+        val candidates = months.filter { GoalHistoryNames.monthText(it.first, it.second) !in pass.transport.removed }
+        return GoalHistoryRules.relayKeep(candidates, roller, quota, at).toSet()
+    }
+
+    // A year file this device has seen that is no longer listed (on the relay: its roller was away for over 30 days): the months of that year
+    // it had removed are put again and rolled again, and the year's old record goes so no month is removed on its account.
+    private fun forgetVanishedYears(pass: Pass) {
+        val transport = pass.transport
+        for (year in transport.years.values.map { it.year }.distinct()) {
+            if (pass.history.any { it.key.kind == GoalHistoryFileKind.Year && it.key.year == year }) continue
+            transport.removed.removeAll { it.startsWith("%04d-".format(year)) }
+            transport.years.entries.removeAll { it.value.year == year }
+            transport.rollChecked.remove(year)
+        }
+    }
+
+    // One put. A 429 on the relay means the group is full (or the rate limit): the pass ends here, quietly, with no retry.
+    private fun putFile(pass: Pass, run: GoalHistoryRun, name: String, bytes: ByteArray): Boolean {
+        if (!pass.spend()) return false
+        return try {
+            pass.store.put(name, bytes)
+            true
+        } catch (e: GoalHistoryGroupFullException) {
+            run.groupFull++
+            pass.stopped = true
+            false
+        }
+    }
+
+    // The store's limits: a file over its size is not written; a last guard keeps a few places of the relay's group free.
     private fun fits(pass: Pass, run: GoalHistoryRun, length: Int, name: String, listed: Boolean = false): Boolean {
         if (length > pass.store.maxFileBytes) {
             run.tooBig++
@@ -586,6 +694,7 @@ class GoalHistorySync(
             if (!mayRemove(transport, monthKey, written.writtenAt, active, at)) continue
 
             if (pass.store.canDelete) {
+                if (!pass.spend()) return
                 pass.store.delete(name)
                 transport.uploaded.remove(name)
                 transport.ownNames.remove(name)
@@ -609,7 +718,12 @@ class GoalHistorySync(
         for (name in pass.transport.ownYearNames.toList()) {
             val uploaded = pass.transport.uploaded[name]
             if (uploaded != null && Duration.between(uploaded.toInstant(), at.toInstant()) < REUPLOAD_EVERY) continue
+            if (pass.gated) {
+                run.gated++
+                continue
+            }
 
+            if (!pass.spend()) return
             val bytes = pass.store.get(name)
             if (bytes == null) {
                 // Gone (expired): the next roll-up writes it again if its month files are still here.
@@ -620,13 +734,19 @@ class GoalHistorySync(
                 continue
             }
 
-            pass.store.put(name, bytes)
+            if (!putFile(pass, run, name, bytes)) return
             pass.transport.uploaded[name] = at
             run.reuploaded++
         }
     }
 
-    private class Pass(val store: GoalHistoryStore, val state: GoalHistoryState, val transport: GoalHistoryTransportState, val me: UUID, val key: GoalHistoryKey) {
+    private class Pass(
+        val store: GoalHistoryStore, val state: GoalHistoryState, val transport: GoalHistoryTransportState, val me: UUID, val key: GoalHistoryKey,
+        /** ON THE RELAY: a device of the group is on an app that doesn't know history files, so nothing is written. */
+        val gated: Boolean,
+    ) {
+        private var requests = 0
+
         /** The history files the listing holds, by key. */
         val remote = HashMap<GoalHistoryFileKey, GoalHistoryRemoteFile>()
         val history = ArrayList<GoalHistoryListing>()
@@ -634,6 +754,27 @@ class GoalHistorySync(
 
         /** Files this pass added to the store (they count toward its file limit). */
         var newFiles = 0
+
+        /** The pass ends here: the request cap was reached, or the relay answered 429 to a put. */
+        var stopped = false
+
+        /** The pass ended on the request cap (not on a 429). */
+        var capped = false
+            private set
+
+        /** Counts one request; false (and the pass is over) when the store's cap per pass is used up. */
+        fun spend(): Boolean {
+            if (stopped) return false
+            val cap = store.maxRequestsPerPass
+            if (cap != null && requests >= cap) {
+                stopped = true
+                capped = true
+                return false
+            }
+
+            requests++
+            return true
+        }
     }
 
     companion object {
@@ -643,8 +784,8 @@ class GoalHistorySync(
         /** A transport is listed and worked through at most this often (a file is still written at most daily). */
         val RUN_EVERY: Duration = Duration.ofMinutes(15)
 
-        /** The relay's file limit leaves this many places for the devices' sync files. */
-        const val RELAY_HEADROOM = 8
+        /** A last guard: no new file when fewer than this many places of the relay's 64 would stay free (the quota is the real limit). */
+        const val RELAY_HEADROOM = 4
 
         private val ROLL_EVERY: Duration = Duration.ofDays(1)
         private val RETRY_UNREADABLE_AFTER: Duration = Duration.ofDays(1)

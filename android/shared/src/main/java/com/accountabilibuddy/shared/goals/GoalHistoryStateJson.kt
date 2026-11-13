@@ -25,6 +25,7 @@ object GoalHistoryStateJson {
         put("ownMarker", marker(state.ownMarker))
         put("tombstonedGoals", ids(state.tombstonedGoals))
         put("prunedGoals", ids(state.prunedGoals))
+        state.firstDropAt?.let { put("firstDropAt", GoalJson.time(it)) }
         put("historyNames", strings(state.historyNames))
         put(
             "transports",
@@ -42,6 +43,7 @@ object GoalHistoryStateJson {
                             put("ownYearNames", strings(t.ownYearNames))
                             put("ownNames", strings(t.ownNames))
                             put("rollChecked", buildJsonObject { t.rollChecked.forEach { (k, v) -> put(k.toString(), GoalJson.time(v)) } })
+                            put("newToGroup", t.newToGroup)
                         },
                     )
                 }
@@ -61,6 +63,7 @@ object GoalHistoryStateJson {
             state.ownMarker = readMarker(obj["ownMarker"])
             state.tombstonedGoals = readIds(obj["tombstonedGoals"]).toSet()
             state.prunedGoals.addAll(readIds(obj["prunedGoals"]))
+            (obj["firstDropAt"] as? JsonPrimitive)?.contentOrNull?.let { state.firstDropAt = GoalJson.parseTime(it) }
             state.historyNames.addAll(readStrings(obj["historyNames"]))
             (obj["transports"] as? JsonObject)?.forEach { (name, value) ->
                 val t = state.transport(name)
@@ -74,6 +77,8 @@ object GoalHistoryStateJson {
                 t.ownYearNames.addAll(readStrings(o["ownYearNames"]))
                 t.ownNames.addAll(readStrings(o["ownNames"]))
                 (o["rollChecked"] as? JsonObject)?.forEach { (k, v) -> t.rollChecked[k.toInt()] = GoalJson.parseTime(v.text()) }
+                // A state written before this field existed was new to the group only if it never merged a goals part (the reads all happened).
+                t.newToGroup = (o["newToGroup"] as? JsonPrimitive)?.booleanOrNull ?: !state.goalsPartMerged
             }
         }
     } catch (e: Exception) {

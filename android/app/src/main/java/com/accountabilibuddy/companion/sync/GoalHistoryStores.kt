@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.sync
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
+import com.accountabilibuddy.shared.goals.GoalHistoryGroupFullException
 import com.accountabilibuddy.shared.goals.GoalHistoryNames
 import com.accountabilibuddy.shared.goals.GoalHistoryRemoteFile
 import com.accountabilibuddy.shared.goals.GoalHistoryStore
@@ -53,6 +54,9 @@ class RelayGoalHistoryStore(private val endpoint: RelayEndpoint) : GoalHistorySt
     override val extension = GoalHistoryNames.RELAY_EXTENSION
     override val maxFileBytes = 4L * 1024 * 1024
     override val maxFiles: Int? = 64
+
+    // The relay allows 120 requests a minute: a pass stops at 40 and goes on 15 minutes later.
+    override val maxRequestsPerPass: Int? = 40
     override val expires = true
     override val canDelete = false
 
@@ -62,7 +66,13 @@ class RelayGoalHistoryStore(private val endpoint: RelayEndpoint) : GoalHistorySt
     override fun get(name: String): ByteArray? = RelayNetwork.get(endpoint, name)?.bytes
 
     override fun put(name: String, bytes: ByteArray) {
-        RelayNetwork.put(endpoint, name, bytes)
+        try {
+            RelayNetwork.put(endpoint, name, bytes)
+        } catch (e: RelayException) {
+            // 429: the group is full (or the rate limit). The pass ends there, quietly, with no retry.
+            if (e.problem == RelayProblem.Busy) throw GoalHistoryGroupFullException()
+            throw e
+        }
     }
 
     override fun delete(name: String): Boolean = false

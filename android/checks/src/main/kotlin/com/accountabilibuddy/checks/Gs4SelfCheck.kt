@@ -334,11 +334,6 @@ object Gs4SelfCheck {
         now = T0.plusDays(26)
         val third = sync.run(relay)
         report.check("gs4/history: after 25 days the relay file is put again", third.reuploaded == 1 && relay.puts.size == 1)
-        // Drive never re-uploads and the relay's file written once is not rewritten daily.
-        sync.run(drive)
-        now = T0.plusDays(60)
-        drive.puts.clear()
-        report.check("gs4/history: Drive files are not put again for age", sync.run(drive).reuploaded == 0 && drive.puts.isEmpty())
         // A file that went missing is written again.
         val name = relay.files.keys.first()
         relay.files.remove(name)
@@ -351,6 +346,12 @@ object Gs4SelfCheck {
         val crowded = Fake("relay", ".absync", expires = true, canDelete = false, maxFiles = 64)
         repeat(60) { crowded.files["%012x.absync".format(it)] = ByteArray(3) }
         report.check("gs4/history: a nearly full relay group is left alone", sync.run(crowded).let { it.groupFull == 1 && crowded.puts.isEmpty() })
+        // Drive never re-uploads and the relay's file written once is not rewritten daily. (GS3b mirror: the relay's checks above run while
+        // the month is still open, a phone keeps only open months there; Drive keeps every month.)
+        sync.run(drive)
+        now = T0.plusDays(60)
+        drive.puts.clear()
+        report.check("gs4/history: Drive files are not put again for age", sync.run(drive).reuploaded == 0 && drive.puts.isEmpty())
         // Reading another device's month file merges its entries.
         val otherId = UUID.fromString(PC)
         val theirs = GoalHistoryMonth(
@@ -365,6 +366,7 @@ object Gs4SelfCheck {
             key = { GoalHistorySync.GoalHistoryKey("0a1b2c3d", "fp") }, codec = FakeCodec,
             devices = { listOf(GoalHistoryDeviceInfo(otherId, true, false, now)) }, enabled = { true }, ready = { true },
         )
+        reader.noteRegularFile(otherId, null)
         val read = reader.run(shared)
         report.check("gs4/history: another device's month file is read and its entries merged", read.read == 1 && lists.entries.any { it.id == theirs.entries.entries[0].id })
         // The merge runs on the lists held INSIDE the store's lock: a change that lands just before the gate is in what is merged.
@@ -377,6 +379,7 @@ object Gs4SelfCheck {
             states = Holder(), now = { now }, self = { me }, key = { GoalHistorySync.GoalHistoryKey("0a1b2c3d", "fp") }, codec = FakeCodec,
             devices = { listOf(GoalHistoryDeviceInfo(UUID.fromString("33333333-3333-3333-3333-333333333333"), true, false, now)) }, enabled = { true }, ready = { true },
         )
+        racing.noteRegularFile(UUID.fromString("33333333-3333-3333-3333-333333333333"), null)
         racing.run(raced)
         report.check("gs4/history: a change landing before the gate is in the merge (merged inside the lock, not before it)", lists.entries.any { it.id == late.id })
         // Disabled or not in a group: nothing.
