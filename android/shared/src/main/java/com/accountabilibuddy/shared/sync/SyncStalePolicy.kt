@@ -8,9 +8,12 @@ import java.util.UUID
  * is unique per device and the relay deletes only when a device leaves the group). Pure, so the checks drive it with names alone.
  */
 object SyncStalePolicy {
-    /** This phone's own file names in the groups it left behind (the past keys' group ids). */
-    fun oldOwnNames(pastGroupIds: Collection<String>, self: UUID): Set<String> =
-        pastGroupIds.map { SyncFolder.fileNameFor(it, self).lowercase() }.toSet()
+    /**
+     * This phone's own file names in the groups it left behind (the past keys' group ids). The [currentGroupId]'s name is never one of them, even
+     * if the past keys list the current group (a device linked back into its old group).
+     */
+    fun oldOwnNames(pastGroupIds: Collection<String>, self: UUID, currentGroupId: String? = null): Set<String> =
+        pastGroupIds.filter { it != currentGroupId }.map { SyncFolder.fileNameFor(it, self).lowercase() }.toSet()
 
     /**
      * The shared folder: an old-group file of this phone, or an extra copy of its current file (a "(conflict ...)" copy of the own name). The
@@ -24,11 +27,12 @@ object SyncStalePolicy {
 
     /**
      * Google Drive, one listed file ([name], [id]): a duplicate of this phone's current name (another id than [ownCurrentId], the first listed) or
-     * a file of an old group. The file Drive lists as the current one is never removable.
+     * a file of an old group. The file Drive lists as the current one is never removable, and before this phone knows which Drive file that is
+     * ([ownCurrentId] null) a file of its current name could be the real one: never a "duplicate" then.
      */
     fun mayRemoveFromDrive(name: String, id: String, ownCurrentName: String, ownCurrentId: String?, oldOwnNames: Set<String>): Boolean {
         if (id == ownCurrentId) return false
-        if (name == ownCurrentName) return true
+        if (name == ownCurrentName) return ownCurrentId != null
         return name.lowercase() in oldOwnNames
     }
 

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What FileProvider may hand out: only the sync files SyncShare writes for the share sheet (ADR 22). -->
+<!-- What FileProvider may hand out: only what SyncShare writes into cache/sync/ for the share sheet: the sealed sync files (ADR 22) and the
+     diagnostics report (SYNC1c, counts only, no names or text). Nothing else of the app's cache is reachable. -->
 <paths>
     <cache-path name="sync" path="sync/" />
 </paths>

@@ -825,3 +825,8 @@ UI round 2 (plan `doc/plans/2026-11-12-ui-round2-plan.md`, branch `ui-round2`). 
 - **Q923.** SYNC1b fix S4: the stale-file question reuses `GoalConfirmDialog` (window title "Sync") rather than a new dialog. Fine, or a dedicated one?
 - **Q924.** SYNC1b fix S5: "Couldn't apply <part> from <device>" is always visible under the device row (not only when the items list is open) and repeats under every method; it clears when the device's next file is taken.
 - **Q925.** SYNC1b fix: device numbers (PC 1, Phone 2) now count removed devices too, on the board as in the report, so a number never shifts when a device is removed (before: the board counted only the active ones).
+
+## SYNC1c review fixes (questions 930-932)
+- **Q930.** S5 on the phone: only the relay re-reads a file that has a refused part. A permanent refusal (a sender's clock more than a minute ahead) makes the relay download that one file every pass until the clocks agree or the file changes. Provisional: acceptable (one small file). Cap it (e.g. once per 15 min per file)?
+- **Q931.** S3: Try again on a relay file shares nothing with Re-read everything: each has its own 5-minute gate (so a Try again then a Re-read can both run). Provisional: yes.
+- **Q932.** The shared-file report button now shows its failure line under itself ("Couldn't finish · try again"), not in the "Fix and re-send" card. Fine?

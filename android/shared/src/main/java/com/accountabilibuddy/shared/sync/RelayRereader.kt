@@ -22,8 +22,8 @@ interface RelayRereadPort {
     /** One request; null when the file is gone. Throws [RelayBusyException] on a 429 and [java.io.IOException] on any other failure. */
     fun get(name: String): RelayRereadDownload?
 
-    /** Whether the downloaded bytes are a goal history file (their own pass reads them: noted, never merged here). */
-    fun isHistoryFile(bytes: ByteArray): Boolean
+    /** Whether the downloaded bytes of [name] are a goal history file (their own pass reads them: the name is noted, never merged here). */
+    fun isHistoryFile(name: String, bytes: ByteArray): Boolean
 
     /** Takes the file in (the same path a normal read uses). True when it is a problem (could not be read). */
     fun accept(name: String, download: RelayRereadDownload): Boolean
@@ -54,7 +54,8 @@ object RelayRereader {
             port.list()
         } catch (e: RelayBusyException) {
             return SyncRereadResult(method, 0, 1, pacer.started, true)
-        } catch (e: java.io.IOException) {
+        } catch (e: Exception) {
+            // Any other failure (a closed store, a bad answer) is one problem: never a crash of the button that asked.
             return SyncRereadResult(method, 0, 1, pacer.started, false)
         }
 
@@ -73,7 +74,7 @@ object RelayRereader {
                 pacer.await()
                 val download = port.get(info.name) ?: continue
                 passBytes += download.bytes.size
-                if (port.isHistoryFile(download.bytes)) continue
+                if (port.isHistoryFile(info.name, download.bytes)) continue
                 files++
                 if (port.accept(info.name, download)) problems++
             } catch (e: RelayBusyException) {
@@ -81,7 +82,7 @@ object RelayRereader {
                 problems++
                 stopped = true
                 break
-            } catch (e: java.io.IOException) {
+            } catch (e: Exception) {
                 problems++
             }
         }

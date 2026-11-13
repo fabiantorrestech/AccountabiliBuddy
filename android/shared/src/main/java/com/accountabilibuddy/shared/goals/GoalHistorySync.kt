@@ -205,7 +205,7 @@ class GoalHistorySync(
      * be put again, and the caller runs a normal pass ([run]). On the relay the "uploaded" time of each own file is forgotten, so a kept month is
      * put again as the same bytes through the same rules (the roller keeps finished months, any other device its open months only, never more than
      * the quota, nothing while an older app is in the group, at most 40 requests a pass, a 429 ends the pass); a month that rolled up and was
-     * removed is never put again. On Drive the kept months are written again (a month that rolled up is not).
+     * removed is never put again. On Drive the kept months are put again as the same version and their tracking is left alone (a month that rolled up is not).
      */
     fun resendKept(transport: String) = lock.withLock {
         val k = key() ?: return@withLock
@@ -214,8 +214,9 @@ class GoalHistorySync(
             // The relay's own files are put again as the very same bytes (the 25-day re-upload path): forgetting when they were uploaded is enough.
             state.uploaded.clear()
         } else {
-            // Drive keeps files until they are removed: the kept months are written again (the content compare sees no "last" version).
-            for (month in state.written.keys.filter { it !in state.removed }) state.written.remove(month)
+            // Drive keeps files until they are removed: the kept months are put again as the very same version (same bytes, same writtenAt) by the
+            // next pass. What this device wrote stays recorded, so a finished month that waits for its removal still goes later.
+            for (month in state.written.keys) if (month !in state.removed) state.resendMonths.add(month)
         }
 
         states.save()
@@ -639,9 +640,10 @@ class GoalHistorySync(
             if (toPut == null && last != null && monthText !in transport.removed) {
                 // The same content: put again only when the file is missing here, or the store would expire it.
                 val missing = !listed
+                val resend = monthText in transport.resendMonths
                 val uploaded = transport.uploaded[name]
                 val aging = pass.store.expires && (uploaded == null || Duration.between(uploaded.toInstant(), at.toInstant()) >= REUPLOAD_EVERY)
-                if (missing || aging) {
+                if (missing || aging || resend) {
                     toPut = last
                     reupload = true
                     sameBytes = !missing
@@ -669,6 +671,7 @@ class GoalHistorySync(
 
             if (!listed) pass.newFiles++
             transport.written[monthText] = toPut
+            transport.resendMonths.remove(monthText)
             transport.uploaded[name] = at
             transport.ownNames.add(name)
             transport.removed.remove(monthText)
@@ -751,6 +754,7 @@ class GoalHistorySync(
 
             // On the relay the file is just not put again; it expires.
             transport.removed.add(monthText)
+            transport.resendMonths.remove(monthText)
             run.removed++
         }
     }

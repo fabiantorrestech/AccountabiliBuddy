@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
  * @property answerConflict Applies the user's pick to one conflict (a stamped edit, no Undo); returns the toast text, or null when the task or the conflict is gone.
  * @property deviceNameOf The name of the device that made a version (the id as the task field holds it); "This phone" for this one.
  * @property dayPlanClash Whether a plan edit of this phone and the PC's plan are waiting for an answer (the existing question, a dialog that stays up until it is answered; here a row only, view-only in a session).
- * @property shareReport Hands the diagnostics report's text to the share sheet (a file in the cache, never sent anywhere by itself).
+ * @property shareReport Hands the diagnostics report's text to the share sheet (a file in the cache, never sent anywhere by itself); false when it could not be shared.
  * @property receiptsSwitch The developer switch "Tell me when sync reaches each device" (moved here, preference key unchanged).
  */
 class SyncTroubleshootUi(
@@ -25,6 +25,6 @@ class SyncTroubleshootUi(
     val answerConflict: (id: String, conflict: TaskConflict, pick: TaskConflictPick) -> String?,
     val deviceNameOf: (String?) -> String,
     val dayPlanClash: StateFlow<Boolean>,
-    val shareReport: (String) -> Unit,
+    val shareReport: suspend (String) -> Boolean,
     val receiptsSwitch: Pair<() -> Boolean, (Boolean) -> Unit>,
 )

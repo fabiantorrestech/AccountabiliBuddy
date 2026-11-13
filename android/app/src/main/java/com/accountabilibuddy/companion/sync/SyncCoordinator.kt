@@ -810,6 +810,19 @@ class SyncCoordinator(
         }
     }
 
+    // How many parts the last [acceptSealed] refused (read through [acceptCounting] under the same lock).
+    private var lastRefused = 0
+
+    /** What taking one file in came to: [error] (null when taken in) and how many of its parts this phone [refused]. */
+    class Accepted(val error: String?, val refused: Int)
+
+    /** [acceptSealed] plus the number of parts it refused: the relay does not mark a file with a refused part as seen, so its next pass reads it again. */
+    @Synchronized
+    fun acceptCounting(bytes: ByteArray, method: String, fileName: String? = null): Accepted {
+        val error = acceptSealed(bytes, method, fileName)
+        return Accepted(error, lastRefused)
+    }
+
     /**
      * Takes in a file another device sealed, carried by [method] (QR, folder, Drive, relay or file).
      * Null when taken in (or already held); otherwise why not.
@@ -819,6 +832,7 @@ class SyncCoordinator(
      */
     @Synchronized
     fun acceptSealed(bytes: ByteArray, method: String, fileName: String? = null): String? {
+        lastRefused = 0
         val settings = settingsStore.settings.value
         when {
             method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Settings › Devices & sync to open sync files."
@@ -886,6 +900,7 @@ class SyncCoordinator(
         val parts = receive(file)
         receipts?.recordParts(file.device.deviceId, utc(file.device.writtenAt), parts)
         countParts(method, parts)
+        lastRefused = parts.values.count { it == SyncReceiptParts.REFUSED }
 
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
             onCarryChanged?.invoke(method)
@@ -916,16 +931,20 @@ class SyncCoordinator(
     )
 
     // What the parts of the accepted files came to, per method, until the method's pass is logged ([takePartCounts]).
-    private val partCounts = HashMap<String, Pair<Int, Int>>()
+    private val partCounts = HashMap<String, Triple<Int, Int, Int>>()
 
     private fun countParts(method: String, outcome: Map<String, String>) {
-        val (taken, held) = partCounts[method] ?: (0 to 0)
-        partCounts[method] = (taken + outcome.values.count { it == SyncReceiptParts.TAKEN }) to (held + outcome.values.count { it == SyncReceiptParts.HELD })
+        val (taken, held, refused) = partCounts[method] ?: Triple(0, 0, 0)
+        partCounts[method] = Triple(
+            taken + outcome.values.count { it == SyncReceiptParts.TAKEN },
+            held + outcome.values.count { it == SyncReceiptParts.HELD },
+            refused + outcome.values.count { it == SyncReceiptParts.REFUSED },
+        )
     }
 
-    /** The parts taken and held back by the files accepted by [method] since the last call; the count starts again. */
+    /** The parts taken, held back and refused by the files accepted by [method] since the last call; the count starts again. */
     @Synchronized
-    fun takePartCounts(method: String): Pair<Int, Int> = partCounts.remove(method) ?: (0 to 0)
+    fun takePartCounts(method: String): Triple<Int, Int, Int> = partCounts.remove(method) ?: Triple(0, 0, 0)
 
     /** This phone's file reached [method] (SYNC1c): the send log and the sync log, times and counts only. */
     fun noteSent(method: String, writtenAt: Instant, milliseconds: Int) {
@@ -935,8 +954,8 @@ class SyncCoordinator(
 
     /** A read pass over [method] ended (SYNC1c): one line of counts in the sync log. */
     fun noteReadPass(method: String, files: Int, skipped: Int, unreadable: Int, milliseconds: Int) {
-        val (taken, held) = takePartCounts(method)
-        syncLogger?.pass(method, SyncLogDirection.READ, files, taken, held, skipped, unreadable, milliseconds)
+        val (taken, held, refused) = takePartCounts(method)
+        syncLogger?.pass(method, SyncLogDirection.READ, files, taken, held, skipped, unreadable, milliseconds, refused)
     }
 
     /** What a source found in a downloaded file before taking it in ([inspect]). */
@@ -987,7 +1006,7 @@ class SyncCoordinator(
 
     /** The names this phone's own files had in the groups it left behind ([PastKeysStore] knows their ids): stale, and this phone's to remove. */
     fun ownOldNames(): Set<String> =
-        com.accountabilibuddy.shared.sync.SyncStalePolicy.oldOwnNames(pastKeys.forFile().orEmpty().map { it.groupId }, identity.deviceId)
+        com.accountabilibuddy.shared.sync.SyncStalePolicy.oldOwnNames(pastKeys.forFile().orEmpty().map { it.groupId }, identity.deviceId, identity.key.value?.groupId)
 
     /** Whether [fileName] is this phone's own file of an old group. A current-group name is never stale here. */
     fun isOwnStale(fileName: String): Boolean = fileName.lowercase() in ownOldNames()

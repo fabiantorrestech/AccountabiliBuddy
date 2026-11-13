@@ -24,6 +24,9 @@ class GoalHistoryTransportState {
     /** The own month files that rolled up and are no longer kept (deleted on Drive, not put again on the relay), by month text. */
     val removed = LinkedHashSet<String>()
 
+    /** Own month files "Send my files again" asked to be put again as the very same version (Drive; the relay uses [uploaded]): cleared when put or removed. */
+    val resendMonths = LinkedHashSet<String>()
+
     /** The year files seen (read, or rolled here), without their rows: the pieces and the version, by key text. */
     val years = LinkedHashMap<String, GoalHistoryYear>()
 

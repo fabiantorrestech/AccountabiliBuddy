@@ -199,11 +199,11 @@ class DriveSyncSource(
         groupIds.retainAll(listedIds)
         namesById.clear()
         listed.forEach { namesById[it.id] = it.name }
-        var ownSeenId: String? = null
+        val ownId = currentOwn(listed, ownName)?.id
         for (file in listed) {
-            // The first of this phone's own name is its file; any more are stale copies (listed for "Remove my stale file").
+            // The newest of this phone's own name is its file; any more are stale copies (listed for "Remove my stale file").
             if (file.name.equals(ownName, ignoreCase = true)) {
-                if (ownSeenId == null) ownSeenId = file.id else sync.unreadable?.report(SyncReceiptParts.DRIVE, file.id, SyncUnreadableFile.OWN_COPY, sync.deviceId, ownStale = true)
+                if (file.id != ownId) sync.unreadable?.report(SyncReceiptParts.DRIVE, file.id, SyncUnreadableFile.OWN_COPY, sync.deviceId, ownStale = true)
                 continue
             }
 
@@ -247,9 +247,14 @@ class DriveSyncSource(
         return unreadable
     }
 
+    // Of several Drive files with this phone's own name, the newest (by modified time; the first listed on a tie) is its file and the rest are stale copies.
+    private fun currentOwn(listed: List<DriveFileInfo>, ownName: String): DriveFileInfo? =
+        listed.filter { it.name.equals(ownName, ignoreCase = true) }.maxByOrNull { it.modifiedAt }
+
     private fun write(token: String, listed: List<DriveFileInfo>) {
-        // The first listed of a name is the file (a duplicate is stale, see read).
-        val existing = listed.asReversed().associate { it.name to it.id }
+        // The first listed of a name is the file (a duplicate is stale, see read); of this phone's own name the newest one is.
+        val existing = listed.asReversed().associate { it.name to it.id }.toMutableMap()
+        currentOwn(listed, sync.ownFolderFileName().orEmpty())?.let { existing[it.name] = it.id }
         for (file in sync.filesForFolder(inDrive, ownGate, SyncDeviceCard.METHOD_DRIVE)) {
             files.upload(token, file.name, file.sealed, existing[file.name])
             inDrive[file.deviceId] = file.writtenAt
@@ -318,7 +323,7 @@ class DriveSyncSource(
             withContext(Dispatchers.IO) {
                 try {
                     val listing = files.list(token)
-                    val current = listing.firstOrNull { it.name.equals(ownName, ignoreCase = true) }?.id
+                    val current = currentOwn(listing, ownName)?.id
                     val info = listing.firstOrNull { it.id == name } ?: listing.firstOrNull { it.name == name && it.id != current }
                     if (info == null) {
                         sync.unreadable?.clear(SyncReceiptParts.DRIVE, name)
@@ -329,6 +334,8 @@ class DriveSyncSource(
                     files.delete(token, info.id)
                     sync.unreadable?.clear(SyncReceiptParts.DRIVE, name)
                     seen.remove(info.id)
+                    // A removal may have changed which copy is current: the next pass writes this phone's file again.
+                    ownGate.reset()
                     true
                 } catch (e: Exception) {
                     false

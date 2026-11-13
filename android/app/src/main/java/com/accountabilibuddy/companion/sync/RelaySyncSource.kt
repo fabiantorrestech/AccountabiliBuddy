@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -451,11 +452,12 @@ class RelaySyncSource(
         }
 
         inRelay[card.deviceId] = maxOf(card.writtenAt, inRelay[card.deviceId] ?: Instant.MIN)
-        val error = sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY, file.name)
-        // Remembered only once taken in, or when this phone holds a copy at least as new (nothing to gain by
-        // reading it again); a refusal for any other reason is retried at the next pass.
+        val accepted = sync.acceptCounting(downloaded.bytes, SyncDeviceCard.METHOD_RELAY, file.name)
+        val error = accepted.error
+        // Remembered only once taken in with every part applied, or when this phone holds a copy at least as new (nothing to gain by reading it
+        // again); a refusal for any other reason, or a file with a refused part (a closed store, a clock too far ahead), is read again at the next pass.
         val held = sync.received.value.firstOrNull { it.file.device.deviceId == card.deviceId }
-        if (error == null || error == SyncCoordinator.REMOVED_DEVICE || (held != null && held.file.device.writtenAt >= card.writtenAt)) {
+        if ((error == null && accepted.refused == 0) || error == SyncCoordinator.REMOVED_DEVICE || (held != null && held.file.device.writtenAt >= card.writtenAt && accepted.refused == 0)) {
             seen[file.name] = etag
         }
 
@@ -492,9 +494,9 @@ class RelaySyncSource(
         val ownName = sync.ownFolderFileName() ?: return SyncRereadResult.none(methodCode)
         val pacer = pacerFactory()
         val started = System.currentTimeMillis()
-        val result = running.withLock {
-            withContext(Dispatchers.IO) { RelayRereader.run(methodCode, RereadPort(endpoint, ownName), pacer) }
-        }
+        // The gate is taken per request inside the port, never across the pacer's waits: this phone's own writes and heartbeats are not blocked
+        // for the minutes a paced re-read takes.
+        val result = withContext(Dispatchers.IO) { RelayRereader.run(methodCode, RereadPort(endpoint, ownName), pacer) }
 
         sync.noteReadPass(methodCode, result.files, 0, result.problems, (System.currentTimeMillis() - started).toInt())
         return result
@@ -506,21 +508,29 @@ class RelaySyncSource(
         private val infos = HashMap<String, RelayFileInfo>()
         private val group = signatureOf(endpoint)
 
-        override fun list(): List<RelayRereadFile> = guard {
+        // One request (or one taking in) under the relay's gate; runs on the IO thread of the re-read, so blocking here is fine.
+        private fun <T> gated(block: () -> T): T = runBlocking { running.withLock { block() } }
+
+        override fun list(): List<RelayRereadFile> = gated { guard {
             RelayNetwork.list(endpoint)
                 .filter { RelayNetwork.isFileName(it.name) && SyncFolder.isOtherDevicesFile(it.name, ownName) }
                 .filter { goalHistory?.isHistoryName(it.name, com.accountabilibuddy.shared.goals.GoalHistoryNames.RELAY_EXTENSION) != true }
                 .onEach { infos[it.name] = it }
                 .map { RelayRereadFile(it.name, it.size, it.etag) }
+        } }
+
+        override fun get(name: String): RelayRereadDownload? = gated { guard { RelayNetwork.get(endpoint, name)?.let { RelayRereadDownload(it.bytes, it.etag) } } }
+
+        // A history file under a name this phone didn't know: the name is noted so it is never downloaded again (the same as a normal pass).
+        override fun isHistoryFile(name: String, bytes: ByteArray): Boolean {
+            val history = com.accountabilibuddy.shared.goals.GoalHistoryNames.isHistoryFile(bytes)
+            if (history) goalHistory?.noteHistoryName(name)
+            return history
         }
-
-        override fun get(name: String): RelayRereadDownload? = guard { RelayNetwork.get(endpoint, name)?.let { RelayRereadDownload(it.bytes, it.etag) } }
-
-        override fun isHistoryFile(bytes: ByteArray): Boolean = com.accountabilibuddy.shared.goals.GoalHistoryNames.isHistoryFile(bytes)
 
         override fun accept(name: String, download: RelayRereadDownload): Boolean {
             val info = infos[name] ?: return false
-            return takeIn(info, RelayFile(download.bytes, download.etag)) == Taken.Problem
+            return gated { takeIn(info, RelayFile(download.bytes, download.etag)) == Taken.Problem }
         }
 
         override fun sameGroup(): Boolean = endpoint()?.let(::signatureOf) == group

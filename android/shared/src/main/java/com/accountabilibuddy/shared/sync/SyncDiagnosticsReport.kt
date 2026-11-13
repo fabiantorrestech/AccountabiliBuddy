@@ -43,6 +43,7 @@ object SyncDiagnosticsReport {
                 device.confirmedFile?.let { text.append("; confirmed this phone's file from ${SyncBoardWords.clock(it, now, zone)}") }
                 device.lastFileAt?.let { text.append("; its newest file ${SyncBoardWords.clock(it, now, zone)}") }
                 text.appendLine()
+                for (code in device.refusedHere) text.appendLine("      Couldn't apply ${SyncBoardWords.partName(code)} from this device")
                 for (part in device.parts) {
                     text.appendLine("      ${SyncBoardWords.partName(part.code)}: ${part.dot.color} - ${SyncBoardWords.words(part.dot)}")
                 }

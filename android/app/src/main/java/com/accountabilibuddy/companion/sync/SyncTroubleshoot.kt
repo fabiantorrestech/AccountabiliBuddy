@@ -4,12 +4,16 @@ import com.accountabilibuddy.shared.goals.GoalHistorySync
 import com.accountabilibuddy.shared.sync.SyncBoard
 import com.accountabilibuddy.shared.sync.SyncBoardBuilder
 import com.accountabilibuddy.shared.sync.SyncDiagnosticsReport
+import com.accountabilibuddy.shared.sync.SyncPassGate
+import com.accountabilibuddy.shared.sync.SyncTroubleshootRules
 import com.accountabilibuddy.shared.sync.SyncReceiptParts
 import com.accountabilibuddy.shared.sync.SyncRereadResult
 import com.accountabilibuddy.shared.sync.SyncUnreadableFile
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -39,6 +43,20 @@ class SyncTroubleshoot(
 
     private var lastRelayReread: Instant = Instant.MIN
     private var lastSendAgain: Instant = Instant.MIN
+    private val relayHistoryGate = SyncPassGate(RELAY_REREAD_EVERY)
+    private val relayTryGate = SyncPassGate(RELAY_REREAD_EVERY)
+
+    /**
+     * Whether a forced goal history pass on the relay (Re-read goal history, and the history part of Send my files again) may start: the relay's
+     * quota is shared by every device on one address, so these passes run at most once per [RELAY_REREAD_EVERY]. True when the relay is off.
+     */
+    fun relayHistoryOpen(): Boolean =
+        sources().none { it.isLive && it.methodCode == SyncReceiptParts.RELAY } || relayHistoryGate.isOpen(now())
+
+    /** The goal history button's text: "Wait a few minutes" while the relay's gate for forced history passes is shut. */
+    fun rereadHistoryText(): String = if (relayHistoryOpen()) "Re-read goal history" else SyncTroubleshootRules.WAIT_TEXT
+
+    private suspend fun safely(action: suspend () -> String): String = SyncTroubleshootRules.safely(action)
 
     /** The unreadable and leftover files this phone found (the list's source). */
     fun files(): List<SyncUnreadableFile> = sync.unreadable?.shown().orEmpty()
@@ -68,7 +86,9 @@ class SyncTroubleshoot(
      * idempotent). The relay is paced (30 requests a minute at most), once per [RELAY_REREAD_EVERY], never alongside a goal history pass. Returns
      * the result line.
      */
-    suspend fun rereadAll(): String {
+    suspend fun rereadAll(): String = safely { rereadAllNow() }
+
+    private suspend fun rereadAllNow(): String {
         if (_busy.value) return "Already working."
         if (!sync.isJoined) return "Not syncing: this phone isn't in a device group."
         _busy.value = true
@@ -107,7 +127,9 @@ class SyncTroubleshoot(
      * "Send my files again now": this phone's sync file is written and put on every method that is on, and its goal history files are marked to be
      * put again and a normal pass runs (the history rules stay: only kept months, the relay's quota and request cap). At most once a minute.
      */
-    suspend fun sendAgain(): String {
+    suspend fun sendAgain(): String = safely { sendAgainNow() }
+
+    private suspend fun sendAgainNow(): String {
         val at = now()
         if (_busy.value) return "Already working."
         if (Duration.between(lastSendAgain, at) < SEND_AGAIN_EVERY) return "Sent a moment ago. Try again in a minute."
@@ -122,23 +144,40 @@ class SyncTroubleshoot(
             }
 
             val history = sync.sharesTaskLists() && sources().any { it.isLive && it.methodCode in HISTORY_METHODS }
-            if (sync.sharesTaskLists()) resendHistory()
+            val relayHistoryWaits = if (sync.sharesTaskLists()) resendHistory() else false
             sync.syncLogger?.note("resend")
             if (sent + failed == 0) return "No sync method is on: nothing to send."
-            return "Sent to $sent ${if (sent == 1) "place" else "places"} · $failed failed" + if (history) " · goal history goes by its normal pass" else ""
+            val historyText = when {
+                relayHistoryWaits -> " · relay goal history can go again in a few minutes"
+                history -> " · goal history goes by its normal pass"
+                else -> ""
+            }
+            return "Sent to $sent ${if (sent == 1) "place" else "places"} · $failed failed$historyText"
         } finally {
             _busy.value = false
         }
     }
 
-    private suspend fun resendHistory() {
-        val history = goalHistory ?: return
+    // Returns true when the relay's part was left for later (the 5-minute gate).
+    private suspend fun resendHistory(): Boolean {
+        val history = goalHistory ?: return false
+        var waits = false
         for (source in sources().filter { it.isLive && it.methodCode in HISTORY_METHODS }) {
+            if (source.methodCode == SyncReceiptParts.RELAY) {
+                if (!relayHistoryOpen()) {
+                    waits = true
+                    continue
+                }
+
+                relayHistoryGate.mark(now())
+            }
+
             history.resendKept(source.methodCode)
             source.historyNow()
         }
 
         sync.syncLogger?.note("history-resend")
+        return waits
     }
 
     /**
@@ -146,49 +185,93 @@ class SyncTroubleshoot(
      * once through the normal pass: its request cap, the relay's quota and the "no download before a goals part merged" gate all stay), then a pass
      * runs. A relay pass stops at its cap and goes on at the next one.
      */
-    suspend fun rereadHistory(): String {
+    suspend fun rereadHistory(): String = safely { rereadHistoryNow() }
+
+    private suspend fun rereadHistoryNow(): String {
         if (_busy.value) return "Already working."
         val live = sources().filter { it.isLive && it.methodCode in HISTORY_METHODS }
         if (!sync.isJoined || !sync.sharesTaskLists() || live.isEmpty()) return "Goal history travels by the shared folder, Google Drive or the relay, with task lists shared: none is on."
         _busy.value = true
         try {
             val history = goalHistory
+            var relayWaits = false
             for (source in live) {
+                if (source.methodCode == SyncReceiptParts.RELAY) {
+                    if (!relayHistoryOpen()) {
+                        relayWaits = true
+                        continue
+                    }
+
+                    relayHistoryGate.mark(now())
+                }
+
                 history?.forceReread(source.methodCode)
                 source.historyNow()
             }
 
+            if (relayWaits && live.none { it.methodCode != SyncReceiptParts.RELAY }) return "$SyncTroubleshootRules.WAIT_TEXT: the relay was read a moment ago."
             sync.syncLogger?.note("history-reread")
-            return "Goal history read again · a big history continues in the next pass"
+            return if (relayWaits) {
+                "Goal history read again on the other ways · the relay can be read again in a few minutes"
+            } else {
+                "Goal history read again · a big history continues in the next pass"
+            }
         } finally {
             _busy.value = false
         }
     }
 
     /** "Try again" on one unreadable file: its "seen" mark goes and its method reads now. */
-    suspend fun tryAgain(file: SyncUnreadableFile): String {
-        val source = sources().firstOrNull { it.methodCode == file.method && it.isLive } ?: return "That way of syncing is off."
-        source.tryAgain(file.name)
+    suspend fun tryAgain(file: SyncUnreadableFile): String = safely {
+        val source = sources().firstOrNull { it.methodCode == file.method && it.isLive } ?: return@safely "That way of syncing is off."
+        if (_busy.value) return@safely "Already working."
+        val at = now()
+        if (source.methodCode == SyncReceiptParts.RELAY) {
+            // A relay read is a request on the shared quota: once per five minutes, the same rule as Re-read everything.
+            if (!relayTryGate.isOpen(at)) return@safely "$SyncTroubleshootRules.WAIT_TEXT: the relay was read a moment ago."
+            relayTryGate.mark(at)
+        }
+
+        _busy.value = true
+        try {
+            source.tryAgain(file.name)
+        } finally {
+            _busy.value = false
+        }
+
         sync.syncLogger?.note("retry")
-        return if (sync.unreadable?.find(file.method, file.key) == null) "Read it now: it's fine." else "Still can't be read."
+        if (sync.unreadable?.find(file.method, file.key) == null) "Read it now: it's fine." else "Still can't be read."
     }
 
     /** "Ignore": hides the line. Nothing else changes. */
     fun ignore(file: SyncUnreadableFile) {
-        sync.unreadable?.ignore(file.method, file.key)
-        sync.syncLogger?.note("ignored")
+        try {
+            sync.unreadable?.ignore(file.method, file.key)
+            sync.syncLogger?.note("ignored")
+        } catch (e: Exception) {
+            // A line that can't be hidden stays; never a crash.
+        }
     }
 
     /**
      * "Remove my stale file": only this phone's own old-group or extra copy, on the shared folder or Google Drive. Never on the relay (a relay name
      * is unique per device and the relay deletes only when a device leaves, ADR 46), never another device's file and never this phone's current one.
      */
-    suspend fun removeStale(file: SyncUnreadableFile): String {
-        if (!file.ownStale) return "That isn't this phone's own file."
-        val source = sources().firstOrNull { it.methodCode == file.method && it.isLive && it.methodCode != SyncReceiptParts.RELAY } ?: return "That can't be removed from here."
+    suspend fun removeStale(file: SyncUnreadableFile): String = safely {
+        if (!file.ownStale) return@safely "That isn't this phone's own file."
+        val source = sources().firstOrNull { it.methodCode == file.method && it.isLive && it.methodCode != SyncReceiptParts.RELAY } ?: return@safely "That can't be removed from here."
         val removed = source.removeOwnStale(file.name)
         if (removed) sync.syncLogger?.note("stale-removed")
-        return if (removed) "Removed this phone's old copy." else "Couldn't remove it; try again later."
+        if (removed) "Removed this phone's old copy." else "Couldn't remove it; try again later."
+    }
+
+    /**
+     * "Share a diagnostics report": the text is built off the main thread and handed to [share] (the share sheet); false from it, or anything
+     * thrown, is one line, never a crash.
+     */
+    suspend fun shareReport(share: suspend (String) -> Boolean): String = safely {
+        val text = withContext(Dispatchers.IO) { report() }
+        if (share(text)) "Choose where to send the report." else SyncTroubleshootRules.FAILED_TEXT
     }
 
     /** The diagnostics report's text ([SyncDiagnosticsReport]). */

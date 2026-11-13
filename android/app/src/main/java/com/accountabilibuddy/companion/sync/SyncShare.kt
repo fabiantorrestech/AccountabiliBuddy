@@ -5,6 +5,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.core.content.IntentCompat
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
@@ -45,16 +48,32 @@ object SyncShare {
      * Opens the share sheet with the sync diagnostics report ([text], SYNC1c): one text file in the app's cache, offered through the FileProvider.
      * Nothing is sent by itself; the file before it is deleted first, and the cache folder is the one the share sheet may read.
      */
-    fun shareReport(context: Context, text: String) {
-        val folder = File(context.cacheDir, "sync").apply { mkdirs() }
-        val file = File(folder, "sync-diagnostics.txt")
-        file.delete()
-        file.writeText(text, Charsets.UTF_8)
-        val send = Intent(Intent.ACTION_SEND)
-            .putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, "${context.packageName}.files", file))
-            .setType("text/plain")
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        context.startActivity(Intent.createChooser(send, "Share sync report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    suspend fun shareReport(context: Context, text: String): Boolean {
+        // The file is written off the main thread; any failure (a full disk, no app to share with) is false, never a crash.
+        val uri = try {
+            withContext(Dispatchers.IO) {
+                val folder = File(context.cacheDir, "sync").apply { mkdirs() }
+                val file = File(folder, "sync-diagnostics.txt")
+                file.delete()
+                file.writeText(text, Charsets.UTF_8)
+                FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return false
+        }
+
+        return try {
+            val send = Intent(Intent.ACTION_SEND)
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .setType("text/plain")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            context.startActivity(Intent.createChooser(send, "Share sync report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /** The files in an intent that opened or shared one or more with the app (view, send or send-multiple). */

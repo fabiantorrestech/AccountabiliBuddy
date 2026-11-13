@@ -98,6 +98,7 @@ fun SyncTroubleshootSection(ui: SyncTroubleshootUi, joined: Boolean, sessionLock
     val conflicts = remember(taskLists) { TaskConflictPicker.rows(taskLists) }
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<String?>(null) }
+    var reportResult by remember { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf<SyncUnreadableFile?>(null) }
     var picking by remember { mutableStateOf<String?>(null) }
     var receiptsOn by remember { mutableStateOf(ui.receiptsSwitch.first()) }
@@ -141,7 +142,7 @@ fun SyncTroubleshootSection(ui: SyncTroubleshootUi, joined: Boolean, sessionLock
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AbTonalButton("Re-read everything", onClick = { scope.launch { result = troubleshoot.rereadAll() } }, enabled = joined && !busy)
                 AbTonalButton("Send my files again", onClick = { scope.launch { result = troubleshoot.sendAgain() } }, enabled = joined && !busy)
-                AbTonalButton("Re-read goal history", onClick = { scope.launch { result = troubleshoot.rereadHistory() } }, enabled = joined && !busy)
+                AbTonalButton(troubleshoot.rereadHistoryText(), onClick = { scope.launch { result = troubleshoot.rereadHistory() } }, enabled = joined && !busy)
             }
             Text(
                 if (busy) "Working…" else result ?: "Re-reading merges every file again: nothing changes that was already merged. The relay is read at most every 5 minutes.",
@@ -188,7 +189,8 @@ fun SyncTroubleshootSection(ui: SyncTroubleshootUi, joined: Boolean, sessionLock
                     "The report is the log plus this board, saved only where you send it; nothing is sent by itself.",
                 style = Ab.type.small, color = Ab.colors.muted,
             )
-            AbTonalButton("Share a diagnostics report", onClick = { ui.shareReport(troubleshoot.report()) })
+            AbTonalButton("Share a diagnostics report", onClick = { scope.launch { reportResult = troubleshoot.shareReport(ui.shareReport) } }, enabled = !busy)
+            reportResult?.let { Text(it, style = Ab.type.small, color = Ab.colors.muted) }
         }
 
         AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
@@ -262,6 +264,19 @@ private fun BoardDeviceRow(method: String, device: SyncBoardDevice, now: java.ti
                 Text(detail, style = Ab.type.small, color = Ab.colors.muted)
             }
             Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = if (open) "Hide items" else "Show items", tint = Ab.colors.muted, modifier = Modifier.size(24.dp))
+        }
+
+        // What this phone itself refused from the device's newest file: always visible, whatever the method (red, with its own icon).
+        device.refusedHere.forEach { code ->
+            val text = "Couldn't apply ${SyncBoardWords.partName(code)} from ${device.name}"
+            Row(
+                Modifier.fillMaxWidth().padding(start = 34.dp, bottom = 4.dp).semantics { contentDescription = text },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Filled.Error, contentDescription = null, tint = Ab.colors.drift, modifier = Modifier.size(18.dp))
+                Text(text, style = Ab.type.small, color = Ab.colors.ink, modifier = Modifier.weight(1f))
+            }
         }
 
         if (open) {

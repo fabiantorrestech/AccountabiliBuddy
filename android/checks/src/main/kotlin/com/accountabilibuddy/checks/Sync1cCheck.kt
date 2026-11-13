@@ -98,6 +98,7 @@ object Sync1cCheck {
         log(report)
         picker(report)
         structure(report)
+        Sync1cFixCheck.run(report)
     }
 
     // ---- the confirmation board
@@ -303,7 +304,7 @@ object Sync1cCheck {
             return sealed[name]?.let { RelayRereadDownload(it, "e-$name") }
         }
 
-        override fun isHistoryFile(bytes: ByteArray) = bytes.isEmpty() || history.any { sealed[it]?.contentEquals(bytes) == true }
+        override fun isHistoryFile(name: String, bytes: ByteArray) = bytes.isEmpty() || history.any { sealed[it]?.contentEquals(bytes) == true }
 
         override fun accept(name: String, download: RelayRereadDownload): Boolean {
             accepted.add(name)
@@ -356,7 +357,7 @@ object Sync1cCheck {
         val big = FakeRelay(listOf(names[1]), sealed, clock = { 0L }).also { it.key = key }
         val oversized = object : RelayRereadPort by big {
             override fun list() = listOf(RelayRereadFile("huge.absync", RelayRereader.MAX_FILE_BYTES + 1, "e"), RelayRereadFile(historyName, 5, "e"))
-            override fun isHistoryFile(bytes: ByteArray) = bytes.contentEquals(sealed.getValue(historyName))
+            override fun isHistoryFile(name: String, bytes: ByteArray) = bytes.contentEquals(sealed.getValue(historyName))
         }
         val skipped = RelayRereader.run("relay", oversized, RelayRequestPacer({ 0L }, { }))
         report.check("sync1c/reread: a file over the size limit is a problem and a goal history file is left to its own pass", skipped.problems == 1 && skipped.files == 0 && big.accepted.isEmpty(), "$skipped")
@@ -390,7 +391,7 @@ object Sync1cCheck {
             val quiet = log.lines().count { it.contains(" quiet ") }
             report.check("sync1c/log: quiet passes are folded into one line per way and hour", quiet in 1..(7 * 24 * 3 + 6), "$quiet quiet lines for ${lines} minutes")
             report.check("sync1c/log: an unknown way is not logged", run { log.pass(SECRET_RELAY, SyncLogDirection.READ, 1, 1, 0, 0, 0, 1); !log.lines().any { it.contains("example") } })
-            val shape = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z (folder|drive|relay) (send|read|history) (files=\\d+ merged=\\d+ held=\\d+ skipped=\\d+ unreadable=\\d+ ms=\\d+|quiet passes=\\d+ files=\\d+ ms=\\d+)$|^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z note [a-z-]+$")
+            val shape = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z (folder|drive|relay) (send|read|history) (files=\\d+ merged=\\d+ held=\\d+ skipped=\\d+ unreadable=\\d+ refused=\\d+ ms=\\d+|quiet passes=\\d+ files=\\d+ ms=\\d+)$|^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z note [a-z-]+$")
             report.check("sync1c/log: every line is a time, a way, a direction and numbers (or a fixed note) and nothing else", log.lines().all { shape.matches(it) }, log.lines().firstOrNull { !shape.matches(it) } ?: "")
         } finally {
             dir.deleteRecursively()
@@ -451,14 +452,14 @@ object Sync1cCheck {
 
     // ---- structure: what the sources do and never do (read from the app's source, as the receipts check reads DeviceBackups)
 
-    private fun appSource(path: String): String? =
+    internal fun appSource(path: String): String? =
         listOf(File("app/src/main/java/com/accountabilibuddy/companion/$path"), File("../app/src/main/java/com/accountabilibuddy/companion/$path"), File("../../app/src/main/java/com/accountabilibuddy/companion/$path"))
             .firstOrNull { it.isFile }?.readText()
 
     // The code of a source: its comment lines left out (the words may be explained there).
-    private fun code(text: String): String = text.lines().filter { line -> line.trim().let { !it.startsWith("*") && !it.startsWith("/*") && !it.startsWith("//") } }.joinToString("\n")
+    internal fun code(text: String): String = text.lines().filter { line -> line.trim().let { !it.startsWith("*") && !it.startsWith("/*") && !it.startsWith("//") } }.joinToString("\n")
 
-    private fun body(text: String, start: String, end: String): String? {
+    internal fun body(text: String, start: String, end: String): String? {
         val from = text.indexOf(start)
         if (from < 0) return null
         val to = text.indexOf(end, from + start.length)

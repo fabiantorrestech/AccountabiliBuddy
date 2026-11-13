@@ -41,15 +41,15 @@ class SyncLog(private val file: File, private val now: () -> OffsetDateTime) {
     private var lastTrim: OffsetDateTime? = null
 
     /**
-     * One pass. A read or history pass that merged nothing, held nothing, skipped nothing and found nothing unreadable is "quiet": it is
+     * One pass. A read or history pass that merged nothing, held nothing, skipped nothing and refused no part and found nothing unreadable is "quiet": it is
      * counted into the hour's one line instead of getting its own.
      */
     @Synchronized
-    fun pass(method: String, direction: SyncLogDirection, files: Int, merged: Int, held: Int, skipped: Int, unreadable: Int, milliseconds: Int) {
+    fun pass(method: String, direction: SyncLogDirection, files: Int, merged: Int, held: Int, skipped: Int, unreadable: Int, milliseconds: Int, refused: Int = 0) {
         if (method !in SyncReceiptParts.METHODS) return
         val at = now()
         closeQuietRunsBefore(hour(at))
-        if (merged == 0 && held == 0 && unreadable == 0 && skipped == 0 && direction != SyncLogDirection.SEND) {
+        if (merged == 0 && held == 0 && unreadable == 0 && skipped == 0 && refused == 0 && direction != SyncLogDirection.SEND) {
             val run = quiet.getOrPut(method to direction) { QuietRun(hour(at)) }
             run.passes++
             run.files += files
@@ -58,7 +58,7 @@ class SyncLog(private val file: File, private val now: () -> OffsetDateTime) {
             return
         }
 
-        add(at, "$method ${direction.text} files=$files merged=$merged held=$held skipped=$skipped unreadable=$unreadable ms=$milliseconds")
+        add(at, "$method ${direction.text} files=$files merged=$merged held=$held skipped=$skipped unreadable=$unreadable refused=$refused ms=$milliseconds")
     }
 
     /** A fixed note (a code from [NOTES]), never text of any kind. */

@@ -39,6 +39,7 @@ object GoalHistoryStateJson {
                             put("written", buildJsonObject { t.written.forEach { (k, v) -> put(k, GoalHistoryJson.writeMonth(v)) } })
                             put("uploaded", textTimes(t.uploaded))
                             put("removed", strings(t.removed))
+                            put("resendMonths", strings(t.resendMonths))
                             put("years", buildJsonObject { t.years.forEach { (k, v) -> put(k, GoalHistoryJson.writeYear(v.copy(entries = GoalLists.EMPTY))) } })
                             put("ownYearNames", strings(t.ownYearNames))
                             put("ownNames", strings(t.ownNames))
@@ -73,6 +74,7 @@ object GoalHistoryStateJson {
                 (o["written"] as? JsonObject)?.forEach { (k, v) -> t.written[k] = GoalHistoryJson.readMonth(v) ?: throw IllegalArgumentException("month") }
                 (o["uploaded"] as? JsonObject)?.forEach { (k, v) -> t.uploaded[k] = GoalJson.parseTime(v.text()) }
                 t.removed.addAll(readStrings(o["removed"]))
+                t.resendMonths.addAll(readStrings(o["resendMonths"]))
                 (o["years"] as? JsonObject)?.forEach { (k, v) -> t.years[k] = GoalHistoryJson.readYear(v) ?: throw IllegalArgumentException("year") }
                 t.ownYearNames.addAll(readStrings(o["ownYearNames"]))
                 t.ownNames.addAll(readStrings(o["ownNames"]))

@@ -25,6 +25,8 @@ data class SyncBoardDevice(
     val confirmedFile: OffsetDateTime?,
     val lastFileAt: OffsetDateTime?,
     val parts: List<SyncBoardPart>,
+    /** Part codes this phone itself refused from the device's newest accepted file ("Couldn't apply Day plan from ..."), whatever the method. */
+    val refusedHere: List<String> = emptyList(),
 )
 
 /** One sync method in use, with a row per other device (empty while this phone is alone in the group). */
@@ -121,7 +123,9 @@ object SyncBoardBuilder {
         val reachedAny = sentFacts.reachedAt.values.minWithOrNull { a, b -> DotNetTime.compare(a, b) }
         val parts = SHOWN_PARTS.map { code -> SyncBoardPart(code, SyncReceiptBoard.part(code, now, sentFacts, reachedAny, facts)) }
         val confirmed = mine?.byMethod?.get(method)
-        return SyncBoardDevice(card.deviceId, card.name, ordinals.getValue(card.deviceId), card.kind, card.appVersion, dot, confirmed, wrote, parts)
+        // What this phone itself refused from that device's newest accepted file (ADR 86 "refused"): shown under the device, whatever the method.
+        val refusedHere = SHOWN_PARTS.filter { code -> theirs?.parts?.get(code)?.state == SyncReceiptParts.REFUSED }
+        return SyncBoardDevice(card.deviceId, card.name, ordinals.getValue(card.deviceId), card.kind, card.appVersion, dot, confirmed, wrote, parts, refusedHere)
     }
 }
 
