@@ -64,4 +64,19 @@ object ShelfPages {
 
     /** "Show 10 tasks" / "Show 1 task". */
     fun showText(count: Int): String = "Show $count " + (if (count == 1) "task" else "tasks")
+
+    /**
+     * A ticked task stays on its page, struck through, until its toast goes; its page may have no other live task, and the
+     * grouping then drops it. Each [held] pair (the page as it was, its place among the pages) puts the page back, empty, at that
+     * place while it is missing, so Undo returns to the same page and the same position and the pages beside it don't shift.
+     */
+    fun keepHeld(pages: List<ShelfPage>, held: List<Pair<ShelfPage, Int>>): List<ShelfPage> {
+        var result = pages
+        for ((page, at) in held.sortedBy { it.second }) {
+            if (result.any { it.key == page.key }) continue
+            result = result.toMutableList().also { it.add(at.coerceIn(0, it.size), page.copy(tasks = emptyList())) }
+        }
+
+        return result
+    }
 }

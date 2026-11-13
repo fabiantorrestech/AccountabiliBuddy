@@ -8,6 +8,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import com.accountabilibuddy.shared.tasks.ShelfDrag
+import com.accountabilibuddy.shared.tasks.ShelfHold
+import com.accountabilibuddy.shared.tasks.ShelfHoldState
 
 /**
  * What the page does with the one drag gesture ([shelfDrag]).
@@ -45,17 +47,21 @@ fun Modifier.shelfDrag(state: ShelfDragState, handlers: State<ShelfDragHandlers>
         if (state.blockers.values.any { it.contains(start) }) return@awaitEachGesture
         val row = state.rows.entries.firstOrNull { it.value.contains(start) }?.key ?: return@awaitEachGesture
 
-        // The hold: null when the time is up with the finger still down and nothing else having taken the touch.
-        val calledOff = withTimeoutOrNull(ShelfDrag.LIFT_MS) {
+        // The hold (ShelfHold decides): watched on the Initial pass, before any child, and never by "consumed": the row's own tap
+        // handler consumes the down of every touch, which called every hold off at once.
+        val hold = ShelfHold(slop)
+        withTimeoutOrNull(ShelfDrag.LIFT_MS) {
             while (true) {
-                val event = awaitPointerEvent(PointerEventPass.Main)
+                val event = awaitPointerEvent(PointerEventPass.Initial)
                 val change = event.changes.firstOrNull { it.id == down.id }
-                if (change == null || !change.pressed || change.isConsumed || (change.position - down.position).getDistance() > slop) break
-                if (awaitPointerEvent(PointerEventPass.Final).changes.any { it.isConsumed }) break
+                if (change == null) { hold.onMove(Float.MAX_VALUE, 0L); break }
+                val elapsed = change.uptimeMillis - down.uptimeMillis
+                if (!change.pressed) { hold.onUp(elapsed); break }
+                hold.onMove((change.position - down.position).getDistance(), elapsed)
+                if (hold.state != ShelfHoldState.WAITING) break
             }
-            true
-        }
-        if (calledOff != null) return@awaitEachGesture
+        } ?: hold.onTimeout()
+        if (hold.state != ShelfHoldState.LIFTED) return@awaitEachGesture
         if (!handlers.value.onLift(row, start)) return@awaitEachGesture
 
         var finished = false

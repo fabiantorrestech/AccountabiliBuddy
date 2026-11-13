@@ -75,12 +75,14 @@ fun ShelfPageCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             PageMarker(page, iconSize = 19.dp, dotSize = 12.dp)
-            Text(
-                page.title, style = Ab.type.body.copy(fontSize = 16.sp), fontWeight = FontWeight.SemiBold, color = colors.ink,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).semantics { heading() },
-            )
-            Text(page.countText, style = Ab.type.bodyMedium.copy(fontSize = 14.5.sp, fontFeatureSettings = "tnum"), color = colors.faint, maxLines = 1)
-            Spacer(Modifier.weight(1f))
+            // The name and count take all the space left (they share it in their own row), so the "+" always sits at the card's right.
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    page.title, style = Ab.type.body.copy(fontSize = 16.sp), fontWeight = FontWeight.SemiBold, color = colors.ink,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).semantics { heading() },
+                )
+                Text(page.countText, style = Ab.type.bodyMedium.copy(fontSize = 14.5.sp, fontFeatureSettings = "tnum"), color = colors.faint, maxLines = 1)
+            }
             Box(
                 Modifier.size(38.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onAdd).semantics { contentDescription = page.addText },
                 contentAlignment = Alignment.Center,

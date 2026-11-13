@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.ui.theme.Ab
+import com.accountabilibuddy.shared.tasks.ShelfTitleTap
 import com.accountabilibuddy.shared.tasks.TaskItem
 import com.accountabilibuddy.shared.tasks.TaskRowPart
 import kotlinx.coroutines.launch
@@ -214,7 +215,7 @@ fun ShelfRow(
                             Icon(Icons.Outlined.Star, contentDescription = "Highlighted", tint = colors.amberInk, modifier = Modifier.padding(top = 2.dp).size(17.dp))
                         }
                         // An open task's title renames it (a tap or a hold); a closed row's title is part of the row.
-                        val rename = if (expanded && !state.selecting) {
+                        val rename = if (ShelfTitleTap.of(expanded, state.selecting) == ShelfTitleTap.Action.RENAME) {
                             Modifier.combinedClickable(onClick = onTitle, onLongClick = onTitle, onClickLabel = "Rename", onLongClickLabel = "Rename")
                         } else {
                             Modifier

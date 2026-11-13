@@ -129,7 +129,7 @@ private const val SCROLL_STEP_DP = 14
 private const val PICKER_CLOSE_DP = 24
 
 /** A row ticked and kept in its place, struck through, until its toast goes (bundle spec §4: struck through, then the collapse). */
-private class FinishingRow(val task: TaskItem, val pageKey: String, val index: Int, val undo: () -> Unit)
+private class FinishingRow(val task: TaskItem, val pageKey: String, val index: Int, val undo: () -> Unit, val page: ShelfPage, val pageIndex: Int)
 
 /**
  * The phone's Tasks tab (round 2 R7.3; boards Tasks-Phone, -Label, -Session, -Drag, -Drag-Bin, -Label-Drag, -Drag-Pick, -Moved; brief
@@ -230,9 +230,11 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     val byBins = grouping == TaskViewConfig.GROUP_BINS || grouping == null
     val labels = lists.labels.map { it.label }.filter { it.isLive }.sortedBy { it.position }
     val inSession = pc != null
-    val pages = remember(lists, config, now, search, state.orders, chipLabel, chipBin, inSession) {
+    val built = remember(lists, config, now, search, state.orders, chipLabel, chipBin, inSession) {
         ShelfPages.build(lists, config, now, zone, search.takeIf { it.isNotBlank() }, state.orderOf(grouping), chipLabel, chipBin, sessionRuns = inSession)
     }
+    // A page whose only live task was just ticked stays (empty, the row struck through) until the toast goes, so Undo returns to it.
+    val pages = if (finishing.isEmpty()) built else ShelfPages.keepHeld(built, finishing.values.map { it.page to it.pageIndex })
     val keys = pages.map { it.key }
     val wrap = state.wrapOf(grouping)
     // The page showing: the one last picked while it exists, else the start page (Tasks opens on it), else the nearest one left.
@@ -597,8 +599,11 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                                     task.isDone -> controller.reopen(task.id)
                                     else -> {
                                         val at = page.tasks.indexOfFirst { it.id == task.id }.coerceAtLeast(0)
+                                        // The page showing is kept as it is: the grouping may drop it once this task is done.
+                                        currentKey = page.key
+                                        lastIndex = index
                                         val undo = controller.finish(task.id, onGone = { finishing.remove(task.id) })
-                                        if (undo != null) finishing[task.id] = FinishingRow(task, page.key, at, undo)
+                                        if (undo != null) finishing[task.id] = FinishingRow(task, page.key, at, undo, page, index)
                                     }
                                 }
                             },

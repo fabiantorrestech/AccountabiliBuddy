@@ -85,6 +85,7 @@ object TasksDragSelfCheck {
         tasks.map { it.task }.filter { it.isLive && it.bin == bin }.sortedBy { it.position }.map { it.id.takeLast(2).toInt() }
 
     fun run(report: CheckReport) {
+        PhoneBug1Check.run(report)
         resolve(report)
         selection(report)
         stack(report)
