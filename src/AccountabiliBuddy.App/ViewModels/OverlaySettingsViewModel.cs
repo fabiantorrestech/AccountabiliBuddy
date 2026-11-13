@@ -115,6 +115,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
             TimelineHeldOpacity = TimelineHeldOpacityPercent / 100,
             SolidClockTime = SolidClockTime,
             SolidClockDate = SolidClockDate,
+            ClickThrough = ClickThrough,
             ContentOrder = _usesDefaultOrder ? null : Items.Select(row => row.ToItem()).ToList(),
         });
     }
@@ -170,6 +171,10 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     /// <summary>The same for its date (<see cref="OverlaySettings.SolidClockDate"/>).</summary>
     [ObservableProperty]
     public partial bool SolidClockDate { get; set; }
+
+    /// <summary>Clicks pass through the tile (<see cref="OverlaySettings.ClickThrough"/>).</summary>
+    [ObservableProperty]
+    public partial bool ClickThrough { get; set; }
 
     /// <summary>The tile at rest during a session, 20 to 100% (<see cref="OverlaySettings.Opacity"/>).</summary>
     [ObservableProperty]
@@ -279,6 +284,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         TimelineHeldOpacityPercent = Math.Round(settings.TimelineHeldOpacity * 100);
         SolidClockTime = settings.SolidClockTime;
         SolidClockDate = settings.SolidClockDate;
+        ClickThrough = settings.ClickThrough;
         PanelSizeIndex = (int)settings.PanelSize;
         HoldToPeek = settings.HoldToPeek;
         PeekDelayIndex = Array.IndexOf(PeekDelayValues, settings.PeekDelayMs);
@@ -506,6 +512,11 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     partial void OnSolidClockDateChanged(bool value)
     {
         Save(s => s with { SolidClockDate = value });
+    }
+
+    partial void OnClickThroughChanged(bool value)
+    {
+        Save(s => s with { ClickThrough = value });
     }
 
     partial void OnPanelStickyChanged(bool value)

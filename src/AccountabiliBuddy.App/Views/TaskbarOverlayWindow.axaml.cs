@@ -30,6 +30,7 @@ public partial class TaskbarOverlayWindow : Window
     private Point _pressPoint;
     private bool _dragging;
     private int _pressWindowY;
+    private bool? _clickThrough;
 
     // Used by the XAML previewer.
     public TaskbarOverlayWindow()
@@ -45,11 +46,8 @@ public partial class TaskbarOverlayWindow : Window
         DataContext = model;
         Opened += (_, _) =>
         {
-            if (TryGetPlatformHandle() is IPlatformHandle handle)
-            {
-                _control.SetClickThrough(handle.Handle, false);
-            }
-
+            _clickThrough = null;
+            ApplyClickThrough();
             Reposition();
         };
         SizeChanged += (_, _) => Reposition();
@@ -100,6 +98,7 @@ public partial class TaskbarOverlayWindow : Window
         _settings = settings;
         _rule = rule;
         _model.ApplyLayout(settings);
+        ApplyClickThrough();
 
         string key = $"{target.Kind}|{target.CoversTray}|{target.AlignRight}|{settings.Size}|{settings.Progress}|{settings.Shape}|{string.Join(',', settings.Items)}";
         double heightDips = OverlayTileGeometry.HeightFor(target, settings);
@@ -163,6 +162,25 @@ public partial class TaskbarOverlayWindow : Window
     {
         PixelRect area = (Screens.Primary ?? Screens.All.First()).WorkingArea;
         return new PixelBox(area.X, area.Y, area.Right, area.Bottom);
+    }
+
+    // Overlay settings' "Click through": the window's extended style, set again only when the choice changes.
+    private void ApplyClickThrough()
+    {
+        bool wanted = _settings.ClickThrough;
+        if (_clickThrough == wanted || TryGetPlatformHandle() is not IPlatformHandle handle)
+        {
+            return;
+        }
+
+        _control.SetClickThrough(handle.Handle, wanted);
+        _clickThrough = wanted;
+        if (wanted)
+        {
+            // A press that started before the switch must not finish as a click or a drag.
+            _press = null;
+            _dragging = false;
+        }
     }
 
     protected override void OnPointerEntered(PointerEventArgs e)

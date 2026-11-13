@@ -144,6 +144,13 @@
                     </StackPanel>
                     <ToggleSwitch Grid.Column="1" IsChecked="{Binding ShowSeconds}" OnContent="" OffContent="" AutomationProperties.Name="Count seconds" />
                 </Grid>
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                        <TextBlock Text="Click through" />
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap" Text="Clicks go to whatever is under the overlay. Hold Ctrl+Alt for its panel. Off: a click opens the panel and its buttons work." />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding ClickThrough}" OnContent="" OffContent="" AutomationProperties.Name="Click through the overlay" />
+                </Grid>
             </StackPanel>
         </Border>
         <Border Classes="row">
