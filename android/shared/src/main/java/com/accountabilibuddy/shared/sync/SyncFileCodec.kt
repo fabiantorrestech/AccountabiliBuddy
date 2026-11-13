@@ -3,6 +3,8 @@ package com.accountabilibuddy.shared.sync
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
@@ -57,12 +59,16 @@ object SyncFileCodec {
      * The inflated JSON of bytes sealed by [sealJson] under [header] with this group's key; null for another header, group or key, changed
      * or cut-off bytes, or JSON over the 16 MB limit (the PC's `SyncFileCodec.OpenJson`).
      */
-    fun openJson(sealedBytes: ByteArray, key: SyncKey, header: ByteArray): ByteArray? {
-        if (sealedBytes.size < HEADER_BYTES + TAG_BYTES
-            || !sealedBytes.startsWith(header, 0)
-            || !sealedBytes.startsWith(key.groupIdBytes, MAGIC_BYTES)
-        ) {
-            return null
+    fun openJson(sealedBytes: ByteArray, key: SyncKey, header: ByteArray): ByteArray? = openJsonDetailed(sealedBytes, key, header).first
+
+    /** [openJson], saying why it gave null (OTHER_GROUP only for a header of [header] with another group id; ADR 86). */
+    private fun openJsonDetailed(sealedBytes: ByteArray, key: SyncKey, header: ByteArray): Pair<ByteArray?, SyncFileOpenFailure?> {
+        if (sealedBytes.size < HEADER_BYTES + TAG_BYTES || !sealedBytes.startsWith(header, 0)) {
+            return null to SyncFileOpenFailure.DAMAGED
+        }
+
+        if (!sealedBytes.startsWith(key.groupIdBytes, MAGIC_BYTES)) {
+            return null to SyncFileOpenFailure.OTHER_GROUP
         }
 
         val compressed = try {
@@ -72,10 +78,11 @@ object SyncFileCodec {
             cipher.doFinal(sealedBytes, HEADER_BYTES, sealedBytes.size - HEADER_BYTES)
         } catch (e: GeneralSecurityException) {
             // The tag doesn't match: another key, or the bytes were changed.
-            return null
+            return null to SyncFileOpenFailure.DAMAGED
         }
 
-        return inflate(compressed)
+        val inflated = inflate(compressed)
+        return inflated.bytes to if (inflated.bytes != null) null else if (inflated.tooBig) SyncFileOpenFailure.TOO_BIG else SyncFileOpenFailure.DAMAGED
     }
 
     /** A sync file ("ABS1") whose header names another group than [key]'s: a leftover (from before a device removal), not a problem. */
@@ -87,18 +94,33 @@ object SyncFileCodec {
     /**
      * The file, or null when it isn't one this group's devices wrote or can't be read: another group or key, a changed
      * or cut-off file, a header other than "ABS1", JSON that isn't UTF-8 or isn't a complete sync file, or a format
-     * version newer than this app's.
+     * version newer than this app's ([tryOpen] says which).
      */
-    fun open(sealedBytes: ByteArray, key: SyncKey): SyncFile? {
-        val text = openJson(sealedBytes, key, magic)?.let(::decodeUtf8) ?: return null
+    fun open(sealedBytes: ByteArray, key: SyncKey): SyncFile? = tryOpen(sealedBytes, key).file
+
+    /**
+     * [open] with the reason it did not open (ADR 86; the PC's `TryOpen`): DAMAGED, OTHER_GROUP (an "ABS1" file of another group), TOO_BIG
+     * (JSON over 16 MB) or NEWER_FORMAT (the JSON's own format version is above this app's, told before the shape is read).
+     */
+    fun tryOpen(sealedBytes: ByteArray, key: SyncKey): SyncFileOpenResult {
+        val (bytes, failure) = openJsonDetailed(sealedBytes, key, magic)
+        val text = bytes?.let(::decodeUtf8) ?: return SyncFileOpenResult(null, failure ?: SyncFileOpenFailure.DAMAGED)
         val json = try {
             Json.parseToJsonElement(text)
         } catch (e: SerializationException) {
-            return null
+            return SyncFileOpenResult(null, SyncFileOpenFailure.DAMAGED)
         }
 
-        // ADR 79: every goal item the merge cannot use is left out as the file opens (the PC's WithCleanGoalParts).
-        return (json as? JsonObject)?.let(SyncFileJson::read)?.let { file -> file.copy(goalParts = SyncGoalParts.cleanOpen(file.goalParts)) }
+        if (json is JsonObject && isNewerFormat(json)) return SyncFileOpenResult(null, SyncFileOpenFailure.NEWER_FORMAT)
+        val file = (json as? JsonObject)?.let(SyncFileJson::read) ?: return SyncFileOpenResult(null, SyncFileOpenFailure.DAMAGED)
+        // ADR 79: every goal item the merge cannot use is left out as the file opens (the PC's WithCleanGoalParts); ADR 86: the receipts are
+        // cleaned to the known codes and their bounds (WithCleanReceipts).
+        return SyncFileOpenResult(file.copy(goalParts = SyncGoalParts.cleanOpen(file.goalParts), receipts = SyncReceiptParts.clean(file.receipts)), null)
+    }
+
+    private fun isNewerFormat(json: JsonObject): Boolean {
+        val version = json["formatVersion"] as? JsonPrimitive ?: return false
+        return !version.isString && (version.intOrNull ?: return false) > SyncFile.CURRENT_FORMAT_VERSION
     }
 
     private fun ByteArray.startsWith(prefix: ByteArray, offset: Int): Boolean =
@@ -122,8 +144,10 @@ object SyncFileCodec {
         }
     }
 
-    /** The inflated bytes, or null when they aren't complete raw Deflate data or exceed [MAX_JSON_BYTES]. */
-    private fun inflate(compressed: ByteArray): ByteArray? {
+    private class Inflated(val bytes: ByteArray?, val tooBig: Boolean)
+
+    /** The inflated bytes, or none when they aren't complete raw Deflate data or exceed [MAX_JSON_BYTES] ([Inflated.tooBig]). */
+    private fun inflate(compressed: ByteArray): Inflated {
         val inflater = Inflater(true)
         try {
             inflater.setInput(compressed)
@@ -133,19 +157,19 @@ object SyncFileCodec {
                 val read = inflater.inflate(buffer)
                 if (read == 0 && !inflater.finished()) {
                     // It wants more input (cut off) or a dictionary: not a file a device wrote.
-                    return null
+                    return Inflated(null, false)
                 }
 
                 if (output.size() + read > MAX_JSON_BYTES) {
-                    return null
+                    return Inflated(null, true)
                 }
 
                 output.write(buffer, 0, read)
             }
 
-            return output.toByteArray()
+            return Inflated(output.toByteArray(), false)
         } catch (e: DataFormatException) {
-            return null
+            return Inflated(null, false)
         } finally {
             inflater.end()
         }

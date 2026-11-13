@@ -107,6 +107,12 @@ namespace AccountabiliBuddy.Core.Sync;
 /// lists its year file's version (<see cref="GoalHistoryRules.MayRemoveMonth"/>). Ids, numbers and times only; null when none was merged, from an
 /// app that predates it and in a QR file. Read leniently.
 /// </param>
+/// <param name="Receipts">
+/// ADR 86: what this device holds and applied of each OTHER device's files, per sync method and per part (<see cref="SyncReceipt"/>), so that device
+/// can show whether its newest file arrived and was taken. Ids, times and fixed codes only. Read leniently (a bad entry is dropped) and cleaned
+/// to its bounds (<see cref="SyncReceiptParts.Clean"/>); never in a QR file, kept in the receiver's stored copy (it holds no text), never in a
+/// backup. Null from an app that predates it, in a QR file and when this device is alone in its group. Receiving a file never triggers a write.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -159,7 +165,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalEntryListConverter))] IReadOnlyList<GoalEntry>? GoalEntries = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalReminder>))] IReadOnlyList<GoalReminder>? GoalReminders = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalReviewRecord>))] IReadOnlyList<GoalReviewRecord>? GoalReviews = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncGoalYearMerged>))] IReadOnlyList<SyncGoalYearMerged>? GoalYearsMerged = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncGoalYearMerged>))] IReadOnlyList<SyncGoalYearMerged>? GoalYearsMerged = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncReceipt>))] IReadOnlyList<SyncReceipt>? Receipts = null)
 {
     public const int CurrentFormatVersion = 1;
 }

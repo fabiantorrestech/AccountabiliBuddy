@@ -244,6 +244,8 @@ object SyncFileJson {
                 }
             }))
         }
+        // Optional (ADR 86): the receipts, last as in the PC's file; older apps ignore them.
+        file.receipts?.let { put("receipts", SyncReceiptsJson.write(it)) }
     }
 
     /** Null when the JSON isn't a complete sync file this app can read (see the class comment). */
@@ -400,6 +402,7 @@ object SyncFileJson {
             readTaskParts(json),
             SyncGoalParts.read(json),
             readGoalYearsMerged(json["goalYearsMerged"]),
+            SyncReceiptsJson.read(json["receipts"]),
         )
     }
 

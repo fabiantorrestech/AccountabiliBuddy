@@ -135,6 +135,12 @@ data class SyncFile(
     val goalParts: SyncGoalParts? = null,
     /** ADR 79: the year files (year, rolling PC, version) this device has merged, so month files can be removed. Ids and times only. */
     val goalYearsMerged: List<SyncGoalYearMerged>? = null,
+    /**
+     * ADR 86: what this device holds and applied of each OTHER device's files, per method and per part. Ids, times and fixed codes only.
+     * Read leniently and cleaned ([SyncReceiptParts.clean]); never in a QR file, kept in the copy a receiver stores (it holds no text),
+     * never in a backup. Null from an app that predates it, in a QR file and while this device is alone in its group.
+     */
+    val receipts: List<SyncReceipt>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

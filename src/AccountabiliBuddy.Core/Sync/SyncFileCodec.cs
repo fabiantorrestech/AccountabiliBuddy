@@ -71,47 +71,22 @@ public static class SyncFileCodec
     /// </returns>
     internal static byte[]? OpenJson(ReadOnlySpan<byte> sealedBytes, SyncKey key, byte[] magic)
     {
-        if (sealedBytes.Length < HeaderBytes + TagBytes
-            || !sealedBytes[..MagicBytes].SequenceEqual(magic)
-            || !sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId)))
+        return OpenJsonDetailed(sealedBytes, key, magic, out _);
+    }
+
+    /// <summary><see cref="OpenJson"/>, saying why it gave null (<see cref="SyncFileOpenFailure.OtherGroup"/> only for an "ABS1" header with another group id).</summary>
+    private static byte[]? OpenJsonDetailed(ReadOnlySpan<byte> sealedBytes, SyncKey key, byte[] magic, out SyncFileOpenFailure? failure)
+    {
+        failure = null;
+        if (sealedBytes.Length < HeaderBytes + TagBytes || !sealedBytes[..MagicBytes].SequenceEqual(magic))
         {
+            failure = SyncFileOpenFailure.Damaged;
             return null;
         }
 
-        ReadOnlySpan<byte> cipherText = sealedBytes[HeaderBytes..^TagBytes];
-        byte[] compressed = new byte[cipherText.Length];
-        try
+        if (!sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId)))
         {
-            using var aes = new AesGcm(key.Key, TagBytes);
-            aes.Decrypt(sealedBytes.Slice(MagicBytes + GroupIdBytes, NonceBytes), cipherText, sealedBytes[^TagBytes..], compressed);
-        }
-        catch (CryptographicException)
-        {
-            return null;
-        }
-
-        return Inflate(compressed);
-    }
-
-    /// <summary>A sync file ("ABS1") whose header names another group than <paramref name="key"/>'s: a leftover (from before a device removal), not a problem.</summary>
-    public static bool IsOtherGroups(ReadOnlySpan<byte> sealedBytes, SyncKey key)
-    {
-        return sealedBytes.Length >= MagicBytes + GroupIdBytes
-            && sealedBytes[..MagicBytes].SequenceEqual(Magic)
-            && !sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId));
-    }
-
-    /// <returns>
-    /// The file, or null when it isn't one this group's devices wrote or can't be read: another group or key, a
-    /// changed or cut-off file, a header other than "ABS1", JSON that isn't a complete sync file, or a format version
-    /// newer than this app's.
-    /// </returns>
-    public static SyncFile? Open(ReadOnlySpan<byte> sealedBytes, SyncKey key)
-    {
-        if (sealedBytes.Length < HeaderBytes + TagBytes
-            || !sealedBytes[..MagicBytes].SequenceEqual(Magic)
-            || !sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId)))
-        {
+            failure = SyncFileOpenFailure.OtherGroup;
             return null;
         }
 
@@ -125,13 +100,54 @@ public static class SyncFileCodec
         catch (CryptographicException)
         {
             // The tag doesn't match: another key, or the bytes were changed.
+            failure = SyncFileOpenFailure.Damaged;
             return null;
         }
 
-        byte[]? json = Inflate(compressed);
+        byte[]? json = Inflate(compressed, out bool tooBig);
         if (json is null)
         {
-            return null;
+            failure = tooBig ? SyncFileOpenFailure.TooBig : SyncFileOpenFailure.Damaged;
+        }
+
+        return json;
+    }
+
+    /// <summary>A sync file ("ABS1") whose header names another group than <paramref name="key"/>'s: a leftover (from before a device removal), not a problem.</summary>
+    public static bool IsOtherGroups(ReadOnlySpan<byte> sealedBytes, SyncKey key)
+    {
+        return sealedBytes.Length >= MagicBytes + GroupIdBytes
+            && sealedBytes[..MagicBytes].SequenceEqual(Magic)
+            && !sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId));
+    }
+
+    /// <returns>
+    /// The file, or null when it isn't one this group's devices wrote or can't be read: another group or key, a
+    /// changed or cut-off file, a header other than "ABS1", JSON that isn't a complete sync file, or a format version
+    /// newer than this app's (<see cref="TryOpen"/> says which).
+    /// </returns>
+    public static SyncFile? Open(ReadOnlySpan<byte> sealedBytes, SyncKey key)
+    {
+        return TryOpen(sealedBytes, key).File;
+    }
+
+    /// <summary>
+    /// <see cref="Open"/> with the reason it did not open (ADR 86): <see cref="SyncFileOpenFailure.Damaged"/> (not a sync file, cut off,
+    /// changed, another key, JSON that isn't a complete sync file), <see cref="SyncFileOpenFailure.OtherGroup"/> (an "ABS1" file of another
+    /// group), <see cref="SyncFileOpenFailure.TooBig"/> (JSON over 16 MB) or <see cref="SyncFileOpenFailure.NewerFormat"/> (format version above
+    /// <see cref="SyncFile.CurrentFormatVersion"/>, told by the JSON's own number so a newer shape that does not read still says so).
+    /// </summary>
+    public static SyncFileOpenResult TryOpen(ReadOnlySpan<byte> sealedBytes, SyncKey key)
+    {
+        byte[]? json = OpenJsonDetailed(sealedBytes, key, Magic, out SyncFileOpenFailure? failure);
+        if (json is null)
+        {
+            return new SyncFileOpenResult(null, failure ?? SyncFileOpenFailure.Damaged);
+        }
+
+        if (IsNewerFormat(json))
+        {
+            return new SyncFileOpenResult(null, SyncFileOpenFailure.NewerFormat);
         }
 
         SyncFile? file;
@@ -141,10 +157,37 @@ public static class SyncFileCodec
         }
         catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException or ArgumentException or FormatException)
         {
-            return null;
+            return new SyncFileOpenResult(null, SyncFileOpenFailure.Damaged);
         }
 
-        return file is not null && IsComplete(file) ? WithCleanGoalParts(WithCleanTaskParts(WithCleanCategories(file))) : null;
+        if (file is null || !IsComplete(file))
+        {
+            return new SyncFileOpenResult(null, SyncFileOpenFailure.Damaged);
+        }
+
+        return new SyncFileOpenResult(WithCleanReceipts(WithCleanGoalParts(WithCleanTaskParts(WithCleanCategories(file)))), null);
+    }
+
+    // The JSON's own formatVersion, read before the shape: a newer app's file may not read as this app's shape.
+    private static bool IsNewerFormat(byte[] json)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(json);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("formatVersion", out JsonElement version)
+                && version.ValueKind == JsonValueKind.Number && version.TryGetInt32(out int number) && number > SyncFile.CurrentFormatVersion;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>ADR 86's receipts, cleaned to the known codes and the bounds (<see cref="SyncReceiptParts.Clean"/>); a missing list stays missing.</summary>
+    private static SyncFile WithCleanReceipts(SyncFile file)
+    {
+        return file.Receipts is null ? file : file with { Receipts = SyncReceiptParts.Clean(file.Receipts) };
     }
 
     /// <summary>
@@ -272,9 +315,10 @@ public static class SyncFileCodec
         return output.ToArray();
     }
 
-    /// <returns>The inflated bytes, or null when they aren't raw Deflate data or exceed <see cref="MaxJsonBytes"/>.</returns>
-    private static byte[]? Inflate(byte[] compressed)
+    /// <returns>The inflated bytes, or null when they aren't raw Deflate data or exceed <see cref="MaxJsonBytes"/> (<paramref name="tooBig"/>).</returns>
+    private static byte[]? Inflate(byte[] compressed, out bool tooBig)
     {
+        tooBig = false;
         try
         {
             using var deflate = new DeflateStream(new MemoryStream(compressed), CompressionMode.Decompress);
@@ -285,6 +329,7 @@ public static class SyncFileCodec
             {
                 if (output.Length + read > MaxJsonBytes)
                 {
+                    tooBig = true;
                     return null;
                 }
 

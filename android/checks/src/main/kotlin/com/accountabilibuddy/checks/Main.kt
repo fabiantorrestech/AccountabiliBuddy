@@ -126,6 +126,11 @@ private val checks: List<FixtureCheck> = listOf(
     // GS4 review: the history file names and the PC-sealed ABM1 / ABY1 files opened by the phone codec (the C# checks write gs4/*.json).
     Gs4Check("names"),
     Gs4Check("sealed"),
+    // SYNC1a (ADR 86): receipts in sealed files, the read-failure reasons, the colour rule, the receiver-local record, "Keep both".
+    Sync1aCheck("receipts-file"),
+    Sync1aCheck("board"),
+    Sync1aCheck("local"),
+    Sync1aCheck("keep-both"),
 )
 
 /**
@@ -174,7 +179,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

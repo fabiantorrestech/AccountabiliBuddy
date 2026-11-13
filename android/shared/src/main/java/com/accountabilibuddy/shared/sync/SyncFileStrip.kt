@@ -32,6 +32,6 @@ object SyncFileStrip {
         return if (decides) file.taskParts?.tasks != null else held?.taskParts?.tasks != null
     }
 
-    /** This phone's own file as QR codes carry it: no shared lists, past keys, categories, steps or task parts. */
-    fun forQr(file: SyncFile): SyncFile = file.copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null, taskParts = null, goalParts = null, goalYearsMerged = null)
+    /** This phone's own file as QR codes carry it: no shared lists, past keys, categories, steps, task parts or receipts (ADR 86: the codes' room goes to sessions). */
+    fun forQr(file: SyncFile): SyncFile = file.copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null, taskParts = null, goalParts = null, goalYearsMerged = null, receipts = null)
 }
