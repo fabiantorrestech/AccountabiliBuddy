@@ -15,6 +15,17 @@ object TaskViewWords {
         TaskViewConfig.GROUP_NONE to "None · one list",
     )
 
+    /** Group by's pill segment, in order: the value and the short word on the pill (the PC's menu says "None · one list"). */
+    val GROUP_PILLS: List<Pair<String, String>> = listOf(
+        TaskViewConfig.GROUP_BINS to "Bins",
+        TaskViewConfig.GROUP_LABEL to "Label",
+        TaskViewConfig.GROUP_TAG to "Tag",
+        TaskViewConfig.GROUP_NONE to "None",
+    )
+
+    /** The pill [value] lights; Bins for a grouping this app doesn't know (the rule's own fallback). */
+    fun groupPill(value: String): Int = GROUP_PILLS.indexOfFirst { it.first == value }.coerceAtLeast(0)
+
     /** Sort's choices in the sheet's order (Shuffle last). */
     val SORTS: List<Pair<String, String>> = listOf(
         TaskViewConfig.SORT_DEFAULT to "Your order",

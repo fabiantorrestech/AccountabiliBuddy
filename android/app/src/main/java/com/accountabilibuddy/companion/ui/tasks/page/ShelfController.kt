@@ -330,15 +330,30 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
     }
 
     /** Saves [config] as a new view named [name] (synced with the other views); returns its id, or null for a blank name. */
-    fun createView(name: String, config: TaskViewConfig): String? {
+    fun createView(name: String, config: TaskViewConfig, icon: String? = null): String? {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return null
         val id = UUID.randomUUID().toString()
         change { lists, _, now ->
             val position = (lists.views.filter { it.view.isLive }.maxOfOrNull { it.view.position } ?: 0.0) + 1
-            ShelfChange(lists.copy(views = lists.views + SyncTaskView(TaskView(id, trimmed, null, config, position, now))), listOf(id), emptyList())
+            ShelfChange(lists.copy(views = lists.views + SyncTaskView(TaskView(id, trimmed, icon, config, position, now))), listOf(id), emptyList())
         }
         return id
+    }
+
+    /** Gives a saved view (never a built-in one) another icon (a name from TaskViewIcons); synced with the other devices. */
+    fun setViewIcon(id: String, icon: String) {
+        change { lists, _, now ->
+            val views = lists.views.map { item ->
+                val view = item.view
+                if (!view.id.equals(id, ignoreCase = true) || view.builtIn || !view.isLive || view.icon == icon) {
+                    item
+                } else {
+                    item.copy(view = view.copy(icon = icon, editedAt = FieldStamps.next(now, view.editedAt)))
+                }
+            }
+            ShelfChange(lists.copy(views = views), if (views == lists.views) emptyList() else listOf(id), emptyList())
+        }
     }
 
     /** Deletes a saved view (never a built-in one). */

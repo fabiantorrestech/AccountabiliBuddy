@@ -228,7 +228,7 @@ public sealed class TaskViewService
     /// <summary>The tasks and steps a search finds (a number like "142b", or words), whatever the view; for the search box's own list.</summary>
     public IReadOnlyList<TaskSearchHit> Find(string query)
     {
-        return TaskSearch.Find(_store.Lists.Tasks.Select(item => item.Task), query);
+        return TaskSearch.Find(_store.Lists.Tasks.Select(item => item.Task), query, _store.Lists.Labels.Select(item => item.Label).ToList());
     }
 
     /// <summary>

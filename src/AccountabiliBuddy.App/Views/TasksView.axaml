@@ -477,7 +477,7 @@
                         <Border Classes="searchPill" Padding="12,0" Height="38" Width="200" VerticalAlignment="Center">
                             <Grid ColumnDefinitions="Auto,*">
                                 <mi:MaterialIcon Kind="Magnify" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                <TextBox Grid.Column="1" Classes="searchEntry" Text="{Binding Shelf.SearchText}" PlaceholderText="Search" KeyDown="OnSearchKeyDown"
+                                <TextBox Grid.Column="1" Classes="searchEntry" Text="{Binding Shelf.SearchText}" PlaceholderText="Search · @label #tag" KeyDown="OnSearchKeyDown"
                                          AutomationProperties.Name="Search the Shelf">
                                     <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
                                 </TextBox>

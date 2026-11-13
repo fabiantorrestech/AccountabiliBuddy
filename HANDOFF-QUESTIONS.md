@@ -830,3 +830,7 @@ UI round 2 (plan `doc/plans/2026-11-12-ui-round2-plan.md`, branch `ui-round2`). 
 - **Q930.** S5 on the phone: only the relay re-reads a file that has a refused part. A permanent refusal (a sender's clock more than a minute ahead) makes the relay download that one file every pass until the clocks agree or the file changes. Provisional: acceptable (one small file). Cap it (e.g. once per 15 min per file)?
 - **Q931.** S3: Try again on a relay file shares nothing with Re-read everything: each has its own 5-minute gate (so a Try again then a Re-read can both run). Provisional: yes.
 - **Q932.** The shared-file report button now shows its failure line under itself ("Couldn't finish · try again"), not in the "Fix and re-send" card. Fine?
+- **Q940.** Search: a label with spaces is typed with an underscore (`@deep_work`); `@deep work` is the label prefix plus the word "work". The Add box's `@word` rule has no spaces, so I mirrored its `[\w-]+` token and chose `_` over quoted `@"Deep work"`. Provisional: underscore. Support the quoted form too?
+- **Q941.** `#tag` is a prefix match (`#lau` finds `launch-prep`), like `@label`; before, `#home` also matched `#smarthome` as text. Provisional: prefix. Keep?
+- **Q942.** On the phone a lone number now finds the task by its number only (as the PC does), so "2" no longer finds tasks with a 2 in the title. Provisional: yes, parity with the PC.
+- **Q943.** Phone view editing is only the icon (a pencil on a custom view's row); there is no rename on the phone. Provisional: enough for PT1. Add rename?

@@ -93,6 +93,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.DotNetTime
 import com.accountabilibuddy.shared.sync.TaskLabels
 import com.accountabilibuddy.shared.tasks.ShelfDrag
+import com.accountabilibuddy.shared.tasks.TaskSearch
 import com.accountabilibuddy.shared.tasks.ShelfDrop
 import com.accountabilibuddy.shared.tasks.ShelfDropSpot
 import com.accountabilibuddy.shared.tasks.ShelfPage
@@ -872,7 +873,7 @@ private fun HeaderIcon(icon: ImageVector, description: String, active: Boolean, 
     }
 }
 
-// The search field in the chip row's place: it finds titles, steps, notes and tags in what is loaded; the text is kept in memory only.
+// The search field in the chip row's place: it finds words, "@label" and "#tag" (TaskSearch) in what is loaded; the text is kept in memory only.
 @Composable
 private fun SearchSlot(text: String, onChange: (String) -> Unit) {
     val colors = Ab.colors
@@ -886,7 +887,7 @@ private fun SearchSlot(text: String, onChange: (String) -> Unit) {
     ) {
         Icon(Icons.Outlined.Search, contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (text.isEmpty()) Text("Search titles, steps and notes", style = Ab.type.bodyMedium, color = colors.faint, maxLines = 1)
+            if (text.isEmpty()) Text(TaskSearch.HINT, style = Ab.type.bodyMedium, color = colors.faint, maxLines = 1)
             BasicTextField(
                 value = text, onValueChange = onChange, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(focus),
                 textStyle = Ab.type.bodyMedium.copy(color = colors.ink), cursorBrush = SolidColor(colors.ink),

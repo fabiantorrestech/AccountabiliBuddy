@@ -12,7 +12,7 @@ import java.time.format.DateTimeParseException
  * the view pins them. Ticks inside one filter widen it (any can match), different filters narrow it (each must match); a value from a
  * newer app matches nothing. Sort and group values this app doesn't know fall back to manual order and bins.
  *
- * The search here is the phone's own (every word in the title, a step, the note or a tag); the PC's ranked search isn't mirrored.
+ * The search is [TaskSearch] (the PC's rule: words, "@label", "#tag", a task number); the PC's ranked hit list isn't mirrored.
  */
 object TaskViewRules {
     const val SORT_DUE_ASCENDING = "dueAsc"
@@ -31,8 +31,8 @@ object TaskViewRules {
 
     fun apply(tasks: List<TaskItem>, config: TaskViewConfig, context: TaskViewContext): TaskViewResult {
         val inScope = tasks.filter { it.isLive && (context.scope == null || it.bin in context.scope) }
-        val words = context.search?.trim()?.lowercase()?.split(' ', '\t')?.filter { it.isNotEmpty() }.orEmpty()
-        val shown = inScope.filter { task -> (words.isEmpty() || found(task, words)) && matches(task, config, context) }
+        val found = context.search?.let { TaskSearch.matchingIds(inScope, it, context.labels) }
+        val shown = inScope.filter { task -> (found == null || task.id.lowercase() in found) && matches(task, config, context) }
         val order = order(config)
         val groups = when (config.group) {
             TaskViewConfig.GROUP_LABEL -> byLabel(shown, context)
@@ -63,12 +63,6 @@ object TaskViewRules {
     fun isOverdue(task: TaskItem, today: LocalDate, time: LocalTime): Boolean {
         val due = task.dueOn ?: return false
         return !task.isDone && (due < today || (due == today && task.dueAt != null && task.dueAt < time))
-    }
-
-    private fun found(task: TaskItem, words: List<String>): Boolean {
-        val text = (listOf(task.title, task.note.orEmpty()) + task.steps.orEmpty().map { it.title } + task.tags.orEmpty().map { "#$it" })
-            .joinToString("\n").lowercase()
-        return words.all { text.contains(it) }
     }
 
     private fun dueMatches(task: TaskItem, pick: String, today: LocalDate, time: LocalTime): Boolean {

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.History
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.tasks.TasksUiState
 import com.accountabilibuddy.companion.ui.kit.AbOutlinedButton
 import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
+import com.accountabilibuddy.companion.ui.kit.AbSegmented
 import com.accountabilibuddy.companion.ui.kit.AbSegmentedCompact
 import com.accountabilibuddy.companion.ui.kit.AbSwitch
 import com.accountabilibuddy.companion.ui.sheets.AbSheet
@@ -58,6 +60,7 @@ import com.accountabilibuddy.shared.tasks.TaskLists
 import com.accountabilibuddy.shared.tasks.TaskRowText
 import com.accountabilibuddy.shared.tasks.TaskView
 import com.accountabilibuddy.shared.tasks.TaskViewConfig
+import com.accountabilibuddy.shared.tasks.TaskViewIcons
 import com.accountabilibuddy.shared.tasks.TaskViewRules
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -65,8 +68,8 @@ import kotlin.random.Random
 
 /**
  * The Tasks Options sheet (board Tasks-Phone-Options, brief §4.5), 80% tall: "Options · View, filter and sort". The saved view chips
- * first (★ Default, Quick wins, Deep work, + Save); **ARRANGE** first on purpose, so the paging settings are easy to find (Group the
- * Shelf by · Page order · Sort · Rows Normal / Compact · Pin highlights to the top); **SHOW ONLY** (Due date · Labels · Tags · Time
+ * first (★ Default, Quick wins, Deep work, + Save); **ARRANGE** first on purpose, so the paging settings are easy to find (Group by,
+* a pill segment Bins · Label · Tag · None in the sheet · Page order · Sort · Rows Normal / Compact · Pin highlights to the top); **SHOW ONLY** (Due date · Labels · Tags · Time
  * limit · Untouched for · Highlighted only); **MORE** (History · Tasks settings ›, always the last row). The sticky footer on this
  * sheet and every sub-page: Clear · Save (faded until something changed; tapping it then says what to do) · **Show 10 tasks**, a live
  * count.
@@ -89,6 +92,8 @@ fun TasksOptionsSheet(
     val colors = Ab.colors
     var page by remember { mutableStateOf(start) }
     var explain by remember { mutableStateOf(false) }
+    // The saved view whose icon the View icon page is changing.
+    var iconOf by remember { mutableStateOf<String?>(null) }
     // The grouping the Page order page is showing (its Bins | Labels | Tags switch); null follows the view's own grouping.
     var orderGrouping by remember { mutableStateOf<String?>(null) }
     val config = state.config
@@ -104,6 +109,7 @@ fun TasksOptionsSheet(
         page == start && start != OptionsPage.Main -> onDismiss
         page == OptionsPage.Main -> null
         page == OptionsPage.CreateView && start == OptionsPage.Views -> ({ page = OptionsPage.Views })
+        page == OptionsPage.ViewIcon -> ({ page = OptionsPage.Views })
         else -> ({ page = OptionsPage.Main })
     }
 
@@ -140,9 +146,11 @@ fun TasksOptionsSheet(
                     ShelfChip("+ Save", selected = false, height = 34) { if (changed) page = OptionsPage.CreateView else explain = true }
                 }
                 SheetSectionHead("Arrange")
-                AbSheetRow(
-                    "Group the Shelf by", onClick = { page = OptionsPage.GroupBy }, icon = Icons.Outlined.GridView, subtitle = "Each group is a page you swipe between",
-                    trailing = { AbSheetValue(TaskViewWords.group(config.group).substringBefore(" ·")) },
+                AbSheetRow("Group by", onClick = null, icon = Icons.Outlined.GridView, subtitle = "Each group is a page you swipe between")
+                AbSegmented(
+                    TaskViewWords.GROUP_PILLS.map { it.second }, TaskViewWords.groupPill(config.group),
+                    onSelect = { index -> setConfig { it.copy(group = TaskViewWords.GROUP_PILLS[index].first) } },
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp),
                 )
                 val grouping = state.grouping
                 val pages = ShelfPages.build(lists, config, now, zone, storedOrder = state.orderOf(grouping))
@@ -187,12 +195,15 @@ fun TasksOptionsSheet(
             OptionsPage.Views -> {
                 views.forEach { view ->
                     AbSheetRow(
-                        TaskViewWords.chip(view), onClick = { applyView(view) }, role = Role.RadioButton,
+                        TaskViewWords.chip(view), onClick = { applyView(view) }, role = Role.RadioButton, icon = ViewIconVectors.of(view.icon),
                         subtitle = if (view.builtIn) "Built in" else null,
                         trailing = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 AbSheetCheck(view == active && !changed)
                                 if (!view.builtIn) {
+                                    IconButton(onClick = { iconOf = view.id; page = OptionsPage.ViewIcon }) {
+                                        Icon(Icons.Outlined.Edit, contentDescription = "Change the icon of the view ${view.name}", tint = colors.muted)
+                                    }
                                     IconButton(onClick = { controller.deleteView(view.id); if (state.viewId.equals(view.id, ignoreCase = true)) onState { it.copy(viewId = null) } }) {
                                         Icon(Icons.Outlined.Delete, contentDescription = "Delete the view ${view.name}", tint = colors.muted)
                                     }
@@ -209,9 +220,10 @@ fun TasksOptionsSheet(
 
             OptionsPage.CreateView -> {
                 var name by remember { mutableStateOf("") }
+                var icon by remember { mutableStateOf(TaskViewIcons.DEFAULT) }
                 val taken = views.any { it.name.trim().equals(name.trim(), ignoreCase = true) }
                 val save = {
-                    val id = if (taken) null else controller.createView(name, config)
+                    val id = if (taken) null else controller.createView(name, config, icon)
                     if (id != null) {
                         onState { it.copy(viewId = id) }
                         page = if (start == OptionsPage.Views) OptionsPage.Views else OptionsPage.Main
@@ -220,12 +232,18 @@ fun TasksOptionsSheet(
                 Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SheetField(value = name, onValueChange = { name = it.take(40) }, placeholder = "View name", onDone = save, singleLine = true)
                     if (taken) Text("You already have a view with that name.", style = Ab.type.small, color = colors.muted)
+                    Text("Icon", style = Ab.type.small, color = colors.muted)
+                    ViewIconPicker(icon, onPick = { icon = it })
                     AbPrimaryButton("Save view", onClick = save, enabled = name.isNotBlank() && !taken, modifier = Modifier.fillMaxWidth())
                 }
             }
 
-            OptionsPage.GroupBy -> TaskViewWords.GROUPS.forEach { (value, name) ->
-                AbSheetRow(name, onClick = { setConfig { it.copy(group = value) }; page = OptionsPage.Main }, role = Role.RadioButton, trailing = { AbSheetCheck(config.group == value) })
+            OptionsPage.ViewIcon -> {
+                val target = views.firstOrNull { it.id.equals(iconOf, ignoreCase = true) }
+                Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (target != null) Text(target.name, style = Ab.type.small, color = colors.muted)
+                    ViewIconPicker(target?.icon, onPick = { name -> target?.let { controller.setViewIcon(it.id, name) }; page = OptionsPage.Views })
+                }
             }
 
             OptionsPage.PageOrder -> PageOrderPage(state, onState, lists, now, zone, orderGrouping ?: state.grouping ?: TaskViewConfig.GROUP_BINS, onGrouping = { orderGrouping = it })

@@ -5,7 +5,7 @@ enum class OptionsPage(val title: String, val subtitle: String?) {
     Main("Options", "View, filter and sort"),
     Views("Saved views", "A view keeps the grouping, sort and filters"),
     CreateView("Create a view", "Saves the grouping, sort and filters as they are now"),
-    GroupBy("Group the Shelf by", "Each group is a page you swipe between"),
+    ViewIcon("View icon", "Shown beside the view in the list"),
     PageOrder("Page order", "Drag ≡ to set left to right. Tasks opens on your start page."),
     Sort("Sort", null),
     Due("Due date", null),

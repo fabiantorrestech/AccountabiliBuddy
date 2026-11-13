@@ -54,6 +54,8 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/today/TodayLayout.kt",
             "com/accountabilibuddy/companion/today/TodayPlacement.kt",
             "com/accountabilibuddy/companion/today/StepsMovedRules.kt",
+            // PT1: the Options sheet's words (the Group by pills); pure.
+            "com/accountabilibuddy/companion/ui/tasks/page/TaskViewWords.kt",
             // GS4 review: the phone's history codec (no Android API) opens the PC's sealed ABM1 / ABY1 files; the weekly environment's
             // fail-safe default and the wiring decisions are pure too.
             "com/accountabilibuddy/companion/goals/PhoneGoalHistoryCodec.kt",

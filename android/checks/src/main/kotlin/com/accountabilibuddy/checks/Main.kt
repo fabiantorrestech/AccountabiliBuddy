@@ -95,6 +95,11 @@ private val checks: List<FixtureCheck> = listOf(
     R73Check("typed-title", R73bCases::typedTitle),
     R73Check("reorder", R73bCases::reorder),
     R73Check("toast-timing", R73bCases::toastTiming),
+    // PT1: the search grammar (words, @label, #tag, a task number) against the PC's Core TaskSearch, and the view icons' names against the PC editor's.
+    Pt1Check("search", Pt1Cases::search),
+    Pt1Check("view-icons", Pt1Cases::viewIcons),
+    // AR1-fix: the Archive's rows (every source, the settle records, Recently deleted) against the PC's Core ArchiveBuilder.
+    Ar1Check("archive-rows", Ar1Cases::rows),
     // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
     // entry rows, derived values, counting across devices, the shared history (gs1b).
     Gs2Check("gs1a", "merge", Gs2Cases::merge),
@@ -173,6 +178,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     // Round 2 R7.3b: what a drag's release does where, the selection, stacks, the picker's tiles, reordering, the session cap's swap,
     // Undo, the toast's and the Add sheet's words, "Rings on" for this phone, the "Update AccountabiliBuddy on" notice (phone only).
     "r73b-self" to TasksDragSelfCheck::run,
+    // PT1 (phone): the Group by pills, the view icons, the search hint and a view's search through the shared rule.
+    "pt1-self" to Pt1SelfCheck::run,
     // PH1 + TD1 (phone): the day panel's one height, every Today part hideable in both layouts, More today bar show / hide, the steps part
     // gone with old layouts read fine, the one-time "Steps now live in Goals" card (phone only).
     "ph1td1-self" to Ph1Td1SelfCheck::run,
@@ -197,7 +204,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

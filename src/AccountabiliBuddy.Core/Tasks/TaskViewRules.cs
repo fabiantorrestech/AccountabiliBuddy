@@ -20,7 +20,7 @@ public static class TaskViewRules
     public static TaskViewResult Apply(IEnumerable<TaskItem> tasks, TaskViewConfig config, TaskViewContext context)
     {
         List<TaskItem> inScope = tasks.Where(task => task.IsLive && (context.Scope is null || context.Scope.Contains(task.Bin))).ToList();
-        HashSet<Guid>? found = string.IsNullOrWhiteSpace(context.Search) ? null : TaskSearch.MatchingTaskIds(inScope, context.Search);
+        HashSet<Guid>? found = string.IsNullOrWhiteSpace(context.Search) ? null : TaskSearch.MatchingTaskIds(inScope, context.Search, context.Labels);
         List<TaskItem> shown = inScope.Where(task => (found is null || found.Contains(task.Id)) && Matches(task, config, context)).ToList();
         Comparison<TaskItem> order = Order(config);
 

@@ -13,4 +13,10 @@ public enum TaskSearchMatch
     Note,
 
     Tag,
+
+    /// <summary>The task's label ("@label").</summary>
+    Label,
+
+    /// <summary>The words are spread over the task's title, steps, note and tags.</summary>
+    Text,
 }
