@@ -191,6 +191,9 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "r75-self" to R75SelfCheck::run,
     // Phone sync bug: goals and tasks travel both ways (phone only).
     "phonesync1" to Phonesync1Check::run,
+    // SYNC1c (phone sync troubleshooting): the board, the send log, what each part came to, the unreadable list, the stale-file rule, the paced
+    // relay re-read, the log and the report with no private text, the conflict picker (phone only; the picker's parity runs in sync1a/keep-both).
+    "sync1c" to Sync1cCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

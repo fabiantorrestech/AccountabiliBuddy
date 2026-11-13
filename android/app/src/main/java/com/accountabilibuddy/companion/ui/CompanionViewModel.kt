@@ -92,6 +92,48 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
     /** The PC the open plan conflict is with. */
     fun conflictPcName(): String? = planFileSync.conflictPcName.takeIf { planFileSync.conflict.value != null }
 
+    /**
+     * Troubleshoot sync (SYNC1c, ADR 86), the last section of Settings › Devices & sync: the board and its actions, the tasks "Changed on both
+     * devices" with the picker, the day plan question and the diagnostics report. Display and maintenance only.
+     */
+    val troubleshootUi: SyncTroubleshootUi by lazy {
+        val app = getApplication<CompanionApp>()
+        SyncTroubleshootUi(
+            troubleshoot = app.syncTroubleshoot,
+            version = app.troubleshootVersion,
+            taskLists = app.taskModel.lists,
+            answerConflict = ::answerTaskConflict,
+            deviceNameOf = ::conflictDeviceName,
+            dayPlanClash = planFileSync.conflict.map { it != null }.stateIn(viewModelScope, SharingStarted.Eagerly, planFileSync.conflict.value != null),
+            shareReport = { text -> SyncShare.shareReport(app, text) },
+            receiptsSwitch = ({ app.syncReceipts.isOn } to { on: Boolean -> app.syncReceipts.isOn = on }),
+        )
+    }
+
+    // The name of the device that made a version in the picker: this phone, a device of the group, or nobody known.
+    private fun conflictDeviceName(id: String?): String {
+        if (id == null) return "An earlier copy"
+        if (id.equals(sync.deviceId.toString(), ignoreCase = true)) return "This phone"
+        return sync.allReceived.value.firstOrNull { it.file.device.deviceId.toString().equals(id, ignoreCase = true) }?.file?.device?.name ?: "Another device"
+    }
+
+    // A pick in "Changed on both devices": one stamped edit in the task list, no Undo (an Undo would bring the old text back without the choice).
+    // Returns the toast text, or why nothing changed.
+    private fun answerTaskConflict(id: String, conflict: com.accountabilibuddy.shared.tasks.TaskConflict, pick: com.accountabilibuddy.shared.tasks.TaskConflictPick): String? {
+        val tasks = getApplication<CompanionApp>().taskModel
+        if (tasks.isClosed || !tasks.isActive) return "The task list can't be changed right now."
+        var toast: String? = null
+        val changed = tasks.change { lists, self, now ->
+            val result = com.accountabilibuddy.shared.tasks.TaskConflictPicker.answer(
+                lists, id, conflict, pick, java.util.UUID.randomUUID().toString(), self, now,
+            ) { java.util.UUID.randomUUID().toString() }
+            toast = result.toast.ifEmpty { null }
+            result.lists
+        }
+
+        return if (changed) toast else "That one changed again; it is no longer waiting."
+    }
+
     /** Ending the PC's session early: the PC's terms while the dialog is open (a sync file's offer). */
     val endEarlyTerms = MutableStateFlow<EndEarlyTerms?>(null)
 

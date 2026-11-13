@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion
 
 import android.app.Application
+import kotlinx.coroutines.flow.update
 import android.os.Build
 import android.provider.Settings
 import com.accountabilibuddy.companion.data.CompanionStore
@@ -283,6 +284,29 @@ class CompanionApp : Application() {
     /** Developer switch: a notification when sync reaches each device (off by default). */
     val syncReceipts by lazy { com.accountabilibuddy.companion.sync.SyncReceipts(this) }
 
+    /**
+     * SYNC1c (ADR 86): the receiver-local record behind this phone's receipts, its send log, the files the methods hold that it does not take in,
+     * the rolling sync log and the troubleshooting actions. Device-local private files (allowBackup is off and no backup kind holds them), never
+     * sent as they are; the log holds counts and times only.
+     */
+    val syncReceiptsStore by lazy { com.accountabilibuddy.companion.sync.SyncReceiptsStore(File(filesDir, "companion/sync-receipts.json")) }
+    val syncSendLogStore by lazy { com.accountabilibuddy.companion.sync.SyncSendLogStore(File(filesDir, "companion/sync-sendlog.json")) }
+    val syncUnreadable by lazy {
+        com.accountabilibuddy.shared.sync.SyncUnreadableFiles { java.time.OffsetDateTime.ofInstant(com.accountabilibuddy.companion.guidance.TrustedTime.now(), java.time.ZoneOffset.UTC) }
+    }
+    val syncLog by lazy {
+        com.accountabilibuddy.shared.sync.SyncLog(File(filesDir, "companion/sync.log")) { java.time.OffsetDateTime.ofInstant(com.accountabilibuddy.companion.guidance.TrustedTime.now(), java.time.ZoneOffset.UTC) }
+    }
+    val syncTroubleshoot by lazy {
+        com.accountabilibuddy.companion.sync.SyncTroubleshoot(
+            sync, { listOf(folderSource, driveSource, relaySource) }, goalHistory,
+            { com.accountabilibuddy.companion.guidance.TrustedTime.now() }, { java.time.ZoneId.systemDefault() }, appVersion(),
+        )
+    }
+
+    /** Moves whenever something the troubleshooting board shows changed (a receipt, a send, an unreadable file, a file received). */
+    val troubleshootVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
+
     /** Work finished on this phone (ADR 67), written into its sync file for the PCs. */
     val phoneWorkEnded by lazy { com.accountabilibuddy.companion.sync.PhoneWorkEndedStore(this) }
 
@@ -409,6 +433,17 @@ class CompanionApp : Application() {
         )
         // ADR 55, 56: a removed device's backup opens with the group's key or a past key.
         backupOpener = BackupOpener({ sync.key.value }, pastKeys, { sync.deviceId })
+        // SYNC1c (ADR 86): what arrived by which method and what each part came to (recording never writes this phone's file), the send log, the
+        // unreadable files and the log. The board redraws when any of them moves.
+        sync.receipts = syncReceiptsStore
+        sync.sendLog = syncSendLogStore
+        sync.unreadable = syncUnreadable
+        sync.syncLogger = syncLog
+        val troubleshootChanged = { troubleshootVersion.update { it + 1 } }
+        syncReceiptsStore.onChanged = troubleshootChanged
+        syncSendLogStore.onChanged = troubleshootChanged
+        syncUnreadable.onChanged = troubleshootChanged
+        appScope.launch { sync.received.collect { troubleshootChanged() } }
         // A new file that came by QR code, a folder or a share goes on to the PCs through Drive and the relay soon; one
         // that came by Drive also goes to the relay, and one that came by the relay to Drive (after a pause, since a
         // busy PC's file arrives every few seconds), never back where it came from.
@@ -723,6 +758,13 @@ class CompanionApp : Application() {
             }
         }
         goalHistory.onMarkerChanged = { sendSyncFilesSoon() }
+        // ADR 86: a goal history month file of another device that was merged goes into the receipts (an id, a month and a time only).
+        goalHistory.onMonthMerged = { id, month, version -> syncReceiptsStore.recordHistory(id, month, version) }
+        // What a receipt says about the parts: a closed task list or goal store refuses them, a plan question waiting is "held".
+        sync.tasksReady = { taskModel.isActive && !taskModel.isClosed }
+        sync.oldListsReady = { !taskModel.isClosed }
+        sync.goalsReady = { goals.status.value == com.accountabilibuddy.companion.goals.PhoneGoalStatus.Ready }
+        sync.dayPlanHeld = { planFileSync.conflict.value != null }
         com.accountabilibuddy.companion.goals.PhoneGoalsMigration.run(goals)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         driveSource.goalHistory = goalHistory

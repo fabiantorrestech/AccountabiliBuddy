@@ -12,7 +12,8 @@ import com.accountabilibuddy.shared.sync.SyncReceiptsLocal
 import com.accountabilibuddy.shared.sync.SyncReceiverFacts
 import com.accountabilibuddy.shared.sync.SyncSentFacts
 import com.accountabilibuddy.shared.tasks.TaskConflict
-import com.accountabilibuddy.shared.tasks.TaskConflictActions
+import com.accountabilibuddy.shared.tasks.TaskConflictPick
+import com.accountabilibuddy.shared.tasks.TaskConflictPicker
 import com.accountabilibuddy.shared.tasks.TaskJson
 import com.accountabilibuddy.shared.tasks.TaskLists
 import kotlinx.serialization.json.JsonArray
@@ -197,11 +198,9 @@ class Sync1aCheck(override val name: String) : FixtureCheck {
         val now = DotNetTime.cut(time(case.text("now")))
         val conflict = conflict(case.input.getValue("conflict").jsonObject)
         val self = case.text("self")
-        val result = if (case.text("kind") == "both") {
-            TaskConflictActions.keepBothVersions(lists, id, conflict, newId, self, now) { index -> "s$index" }
-        } else {
-            TaskConflictActions.resolveConflict(lists, id, conflict, case.input.getValue("keepOther").jsonPrimitive.booleanOrNull!!, self, now)
-        }
+        // SYNC1c: through the picker the phone's screen uses (keep this one, keep the other, keep both), against the PC's TaskActions outcomes.
+        val pick = if (case.text("kind") == "both") TaskConflictPick.KEEP_BOTH else if (case.input.getValue("keepOther").jsonPrimitive.booleanOrNull!!) TaskConflictPick.KEEP_OTHER else TaskConflictPick.KEEP_THIS
+        val result = TaskConflictPicker.answer(lists, id, conflict, pick, newId, self, now) { index -> "s$index" }
 
         val expected = case.expected.jsonObject
         val wantAffected = expected.getValue("affected").jsonArray.map { it.jsonPrimitive.content.lowercase() }

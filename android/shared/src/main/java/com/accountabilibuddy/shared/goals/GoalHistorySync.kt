@@ -68,6 +68,12 @@ class GoalHistorySync(
     /** Raised when this device's "merged year files" marker changed: its regular sync file is written again. */
     var onMarkerChanged: () -> Unit = {}
 
+    /**
+     * A goal history month file of another device was merged (ADR 86 receipts; the PC's `MonthMerged`): the device, the month as "yyyy-MM" and the
+     * file's listed time. Ids, a month and a time only; set by the app to record it in the receiver-local record.
+     */
+    var onMonthMerged: (UUID, String, OffsetDateTime) -> Unit = { _, _, _ -> }
+
     /** What the cheap readers see: replaced whole after each locked step, so a reader never waits for a pass or sees a half-changed state. */
     private class Snapshot(val marker: List<SyncGoalYearMerged>?, val pruned: Set<UUID>, val ownNames: Map<String, List<String>>, val knownIds: Set<UUID>)
 
@@ -177,6 +183,42 @@ class GoalHistorySync(
         if (yearsMerged != null) state.deviceMarkers[deviceId] = yearsMerged else state.deviceMarkers.remove(deviceId)
         states.save()
         publish()
+    }
+
+    /**
+     * "Re-read goal history (full)" (SYNC1c; the PC's `ForceRereadAsync`): this device is new to the group on [transport] again, so the next pass
+     * reads every listed file once, its own too (what a first run does; nothing is deleted, nothing bypasses the pass's request cap, the relay's
+     * quota or the "no download before a goals part merged" gate). The caller then runs a normal pass ([run]).
+     */
+    fun forceReread(transport: String) = lock.withLock {
+        val k = key() ?: return@withLock
+        val state = stateFor(k).transport(transport)
+        state.newToGroup = true
+        state.read.clear()
+        state.readTag.clear()
+        unreadableTried.clear()
+        states.save()
+    }
+
+    /**
+     * "Send my files again" for the goal history (SYNC1c; the PC's `ResendKeptAsync`): this device's KEPT month files on [transport] are marked to
+     * be put again, and the caller runs a normal pass ([run]). On the relay the "uploaded" time of each own file is forgotten, so a kept month is
+     * put again as the same bytes through the same rules (the roller keeps finished months, any other device its open months only, never more than
+     * the quota, nothing while an older app is in the group, at most 40 requests a pass, a 429 ends the pass); a month that rolled up and was
+     * removed is never put again. On Drive the kept months are written again (a month that rolled up is not).
+     */
+    fun resendKept(transport: String) = lock.withLock {
+        val k = key() ?: return@withLock
+        val state = stateFor(k).transport(transport)
+        if (transport == "relay") {
+            // The relay's own files are put again as the very same bytes (the 25-day re-upload path): forgetting when they were uploaded is enough.
+            state.uploaded.clear()
+        } else {
+            // Drive keeps files until they are removed: the kept months are written again (the content compare sees no "last" version).
+            for (month in state.written.keys.filter { it !in state.removed }) state.written.remove(month)
+        }
+
+        states.save()
     }
 
     /** Whether a pass over [transport] is due ([RUN_EVERY]). */
@@ -444,6 +486,13 @@ class GoalHistorySync(
                 }
 
                 trackPrunedGoals()
+                for (readFile in result.read) {
+                    val owner = readFile.key.deviceId
+                    val month = readFile.key.month
+                    if (readFile.key.kind == GoalHistoryFileKind.Month && owner != null && owner != pass.me && month != null) {
+                        runCatching { onMonthMerged(owner, GoalHistoryNames.monthText(readFile.key.year, month), readFile.modifiedAt) }
+                    }
+                }
             }
         }
 

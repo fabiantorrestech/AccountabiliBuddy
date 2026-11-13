@@ -567,6 +567,7 @@ fun MainScreen(
                                 chosenPcId = chosenPcId,
                                 onChoosePc = viewModel::choosePc,
                                 syncNow = syncNow,
+                                troubleshoot = viewModel.troubleshootUi,
                             ),
                         )
                     }

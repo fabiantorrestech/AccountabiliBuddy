@@ -39,5 +39,5 @@ object SyncFolder {
         name.endsWith(EXTENSION, ignoreCase = true) && !name.equals(ownName, ignoreCase = true) && !isConflictCopy(name)
 
     /** A copy Autosync or Drive made in a clash ("<id> (conflict <date>).absync"): never a device's file, which is `<12 hex>.absync`. */
-    private fun isConflictCopy(name: String): Boolean = name.contains("(conflict", ignoreCase = true)
+    fun isConflictCopy(name: String): Boolean = name.contains("(conflict", ignoreCase = true)
 }

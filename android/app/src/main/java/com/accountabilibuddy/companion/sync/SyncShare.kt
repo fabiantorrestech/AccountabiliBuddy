@@ -41,6 +41,22 @@ object SyncShare {
         context.startActivity(Intent.createChooser(send, "Share sync files").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
+    /**
+     * Opens the share sheet with the sync diagnostics report ([text], SYNC1c): one text file in the app's cache, offered through the FileProvider.
+     * Nothing is sent by itself; the file before it is deleted first, and the cache folder is the one the share sheet may read.
+     */
+    fun shareReport(context: Context, text: String) {
+        val folder = File(context.cacheDir, "sync").apply { mkdirs() }
+        val file = File(folder, "sync-diagnostics.txt")
+        file.delete()
+        file.writeText(text, Charsets.UTF_8)
+        val send = Intent(Intent.ACTION_SEND)
+            .putExtra(Intent.EXTRA_STREAM, FileProvider.getUriForFile(context, "${context.packageName}.files", file))
+            .setType("text/plain")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(send, "Share sync report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     /** The files in an intent that opened or shared one or more with the app (view, send or send-multiple). */
     fun urisIn(intent: Intent): List<Uri> = when (intent.action) {
         Intent.ACTION_VIEW -> listOfNotNull(intent.data?.takeIf { it.scheme == "content" || it.scheme == "file" })

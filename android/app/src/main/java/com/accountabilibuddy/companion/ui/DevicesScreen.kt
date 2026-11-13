@@ -218,21 +218,6 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
         add(PageRow(SettingsAnchors.FOLDER) { FolderMethodCard(devices, actions, now) { pickFolder.launch(null) } })
         add(PageRow(SettingsAnchors.RELAY) { RelayMethodCard(devices, actions, now, relayFields) })
 
-        add(PageRow(SettingsAnchors.SYNC_RECEIPTS) {
-            // For testing (developer): a notification when sync reaches each device, from the device cards' "seen"; off by default.
-            val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
-            var receiptsOn by remember { mutableStateOf(app.syncReceipts.isOn) }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AbSectionLabel("For testing", Modifier.padding(horizontal = 4.dp))
-                AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp), verticalSpacing = 0.dp) {
-                    AbToggleRow(
-                        "Tell me when sync reaches each device", receiptsOn,
-                        { on -> app.syncReceipts.isOn = on; receiptsOn = on },
-                        subtitle = "A quiet notification when another device's file shows it has this phone's latest one, and which don't yet. Every way of syncing; a watch can't confirm.",
-                    )
-                }
-            }
-        })
         add(PageRow(SettingsAnchors.BY_HAND) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AbSectionLabel("By hand", Modifier.padding(horizontal = 4.dp))
@@ -332,6 +317,11 @@ fun DevicesScreen(page: DevicesPageInputs, anchor: String?) {
         }
 
         add(PageRow(SettingsAnchors.WATCH) { WatchSection(page.watch, page.watchActions) })
+
+        // SYNC1c: always shown, last (display and maintenance only; the "For testing" switch lives in it).
+        page.troubleshoot?.let { troubleshoot ->
+            add(PageRow(SettingsAnchors.TROUBLESHOOT) { SyncTroubleshootSection(troubleshoot, devices.joined, locked) })
+        }
     }
 
     Column(Modifier.fillMaxSize()) {

@@ -84,6 +84,7 @@ object SettingsSearch {
         SearchEntry("PC this phone controls", Devices, A.PC_CONTROL, listOf("pc", "control", "start", "end early", "several pcs")),
         SearchEntry("Link this phone", Devices, A.LINK, listOf("link code", "join", "leave group", "add a device", "code")),
         SearchEntry("Restore from an older device", Devices, A.RESTORE, listOf("backup", "restore", "removed device", "history")),
+        SearchEntry("Troubleshoot sync", Devices, A.TROUBLESHOOT, listOf("troubleshoot", "sync problem", "not syncing", "re-read", "re-send", "send again", "confirm", "receipts", "conflict", "changed on both devices", "unreadable", "log", "diagnostics", "report", "for testing")),
         SearchEntry("Pixel Watch", Devices, A.WATCH, listOf("watch", "wear os", "link watch", "unlink", "data layer", "google's encrypted relay", "relay", "smartwatch")),
 
         // Connections

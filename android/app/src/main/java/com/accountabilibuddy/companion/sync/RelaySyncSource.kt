@@ -4,7 +4,15 @@ import com.accountabilibuddy.shared.sync.RekeyCodec
 import com.accountabilibuddy.shared.sync.RelayIdentity
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFolder
+import com.accountabilibuddy.shared.sync.RelayBusyException
+import com.accountabilibuddy.shared.sync.RelayRequestPacer
+import com.accountabilibuddy.shared.sync.RelayRereadDownload
+import com.accountabilibuddy.shared.sync.RelayRereadFile
+import com.accountabilibuddy.shared.sync.RelayRereadPort
+import com.accountabilibuddy.shared.sync.RelayRereader
 import com.accountabilibuddy.shared.sync.SyncKey
+import com.accountabilibuddy.shared.sync.SyncReceiptParts
+import com.accountabilibuddy.shared.sync.SyncRereadResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +53,7 @@ class RelaySyncSource(
     private val scope: CoroutineScope,
     /** Runs before each full sync, so this phone's file says what's true now (e.g. its linked watch is still valid). */
     private val beforeSync: suspend () -> Unit = {},
-) : RekeySyncMethod {
+) : RekeySyncMethod, SyncTroubleshootSource {
     private val running = Mutex()
     private val _status = MutableStateFlow(FolderStatus())
 
@@ -361,10 +369,20 @@ class RelaySyncSource(
         }
     }
 
+    // What taking in one downloaded file came to: it was read and merged, it could not be read, or it was left alone (a history file, a rekey, another group's).
+    private enum class Taken { Read, Problem, Left }
+
+    // The files the last read looked at and how many of them could not be read (the troubleshooting result line).
+    private var passFiles = 0
+    private var passProblems = 0
+
     // True when a file couldn't be read (damaged, or newer than this app; another group's files are skipped).
     private fun read(endpoint: RelayEndpoint, listed: List<RelayFileInfo>, ownName: String): Boolean {
         var unreadable = false
         var passBytes = 0L
+        passFiles = 0
+        passProblems = 0
+        val started = System.currentTimeMillis()
         for (file in listed) {
             if (passBytes >= MAX_PASS_BYTES) {
                 break // Enough for one pass; the rest waits for the next.
@@ -383,48 +401,65 @@ class RelaySyncSource(
 
             val downloaded = RelayNetwork.get(endpoint, file.name) ?: continue
             passBytes += downloaded.bytes.size
-            val etag = downloaded.etag ?: file.etag
-            // A name this phone doesn't know yet (a device it hasn't heard from): the relay's names allow no other shape than a sync file's,
-            // so the header tells. The name is remembered (kept across restarts), so the file is not downloaded again.
-            if (com.accountabilibuddy.shared.goals.GoalHistoryNames.isHistoryFile(downloaded.bytes)) {
-                goalHistory?.noteHistoryName(file.name)
-                seen[file.name] = etag
-                continue
-            }
-
-            // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the relay's cache follows
-            // the group's id, so the next pass after the switch reads the new group's files).
-            if (RekeyCodec.isRekey(downloaded.bytes)) {
-                sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY)
-                seen[file.name] = etag
-                continue
-            }
-
-            // Another group's file (from before a device removal) is a leftover, not a problem.
-            if (sync.isOtherGroupsFile(downloaded.bytes)) {
-                seen[file.name] = etag
-                continue
-            }
-
-            val card = sync.cardOf(downloaded.bytes)
-            if (card == null) {
-                // Damaged: not read again until it changes.
-                seen[file.name] = etag
-                unreadable = true
-                continue
-            }
-
-            inRelay[card.deviceId] = maxOf(card.writtenAt, inRelay[card.deviceId] ?: Instant.MIN)
-            val error = sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY)
-            // Remembered only once taken in, or when this phone holds a copy at least as new (nothing to gain by
-            // reading it again); a refusal for any other reason is retried at the next pass.
-            val held = sync.received.value.firstOrNull { it.file.device.deviceId == card.deviceId }
-            if (error == null || error == SyncCoordinator.REMOVED_DEVICE || (held != null && held.file.device.writtenAt >= card.writtenAt)) {
-                seen[file.name] = etag
+            when (takeIn(file, downloaded)) {
+                Taken.Problem -> {
+                    unreadable = true
+                    passFiles++
+                    passProblems++
+                }
+                Taken.Read -> passFiles++
+                Taken.Left -> Unit
             }
         }
 
+        sync.unreadable?.prune(SyncReceiptParts.RELAY, listed.map { it.name }.toSet())
+        sync.noteReadPass(SyncReceiptParts.RELAY, passFiles, 0, passProblems, (System.currentTimeMillis() - started).toInt())
         return unreadable
+    }
+
+    // One downloaded file: the history header, the rekey file, another group's leftover, an unreadable one, or a sync file taken in.
+    private fun takeIn(file: RelayFileInfo, downloaded: RelayFile): Taken {
+        val etag = downloaded.etag ?: file.etag
+        // A name this phone doesn't know yet (a device it hasn't heard from): the relay's names allow no other shape than a sync file's,
+        // so the header tells. The name is remembered (kept across restarts), so the file is not downloaded again.
+        if (com.accountabilibuddy.shared.goals.GoalHistoryNames.isHistoryFile(downloaded.bytes)) {
+            goalHistory?.noteHistoryName(file.name)
+            seen[file.name] = etag
+            return Taken.Left
+        }
+
+        // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the relay's cache follows
+        // the group's id, so the next pass after the switch reads the new group's files).
+        if (RekeyCodec.isRekey(downloaded.bytes)) {
+            sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY)
+            seen[file.name] = etag
+            return Taken.Left
+        }
+
+        // Another group's file (from before a device removal) is a leftover, not a problem.
+        val inspected = sync.inspect(downloaded.bytes, SyncDeviceCard.METHOD_RELAY, file.name)
+        if (inspected.otherGroup) {
+            seen[file.name] = etag
+            return Taken.Left
+        }
+
+        val card = inspected.card
+        if (card == null) {
+            // Damaged: not read again until it changes.
+            seen[file.name] = etag
+            return Taken.Problem
+        }
+
+        inRelay[card.deviceId] = maxOf(card.writtenAt, inRelay[card.deviceId] ?: Instant.MIN)
+        val error = sync.acceptSealed(downloaded.bytes, SyncDeviceCard.METHOD_RELAY, file.name)
+        // Remembered only once taken in, or when this phone holds a copy at least as new (nothing to gain by
+        // reading it again); a refusal for any other reason is retried at the next pass.
+        val held = sync.received.value.firstOrNull { it.file.device.deviceId == card.deviceId }
+        if (error == null || error == SyncCoordinator.REMOVED_DEVICE || (held != null && held.file.device.writtenAt >= card.writtenAt)) {
+            seen[file.name] = etag
+        }
+
+        return Taken.Read
     }
 
     private fun write(endpoint: RelayEndpoint) {
@@ -433,6 +468,95 @@ class RelaySyncSource(
             inRelay[file.deviceId] = file.writtenAt
             if (file.own) {
                 ownGate.written(Instant.now())
+                sync.noteSent(SyncReceiptParts.RELAY, file.writtenAt, 0)
+            }
+        }
+    }
+
+    override val methodCode: String = SyncReceiptParts.RELAY
+
+    override val isLive: Boolean get() = isEnabled()
+
+    /** The pacer a re-read uses (a fake clock in checks): at most [RelayRequestPacer.PER_MINUTE] requests a minute. */
+    var pacerFactory: () -> RelayRequestPacer = { RelayRequestPacer({ System.currentTimeMillis() }, { Thread.sleep(it) }) }
+
+    /**
+     * SYNC1c "Re-read everything" on the relay: one listing and one download per sync file, spread to at most 30 requests a minute (a PC and a
+     * phone on one home network share the relay's 120 a minute, and a goal history pass may take up to 40), never alongside a goal history pass or
+     * another read (they hold the same gate), ended at once by a 429 answer, at most 32 MiB of downloads. Goal history files are skipped (their own
+     * pass reads them). The caller keeps it to once per five minutes.
+     */
+    override suspend fun rereadAll(): SyncRereadResult {
+        if (!isEnabled()) return SyncRereadResult.none(methodCode)
+        val endpoint = endpoint() ?: return SyncRereadResult.none(methodCode)
+        val ownName = sync.ownFolderFileName() ?: return SyncRereadResult.none(methodCode)
+        val pacer = pacerFactory()
+        val started = System.currentTimeMillis()
+        val result = running.withLock {
+            withContext(Dispatchers.IO) { RelayRereader.run(methodCode, RereadPort(endpoint, ownName), pacer) }
+        }
+
+        sync.noteReadPass(methodCode, result.files, 0, result.problems, (System.currentTimeMillis() - started).toInt())
+        return result
+    }
+
+    // The relay's side of a re-read: a listing of the sync file names of other devices (history names are left to their own pass), the downloads,
+    // and the same taking in a normal read does. A 429 ends it; any other relay failure is one problem.
+    private inner class RereadPort(private val endpoint: RelayEndpoint, private val ownName: String) : RelayRereadPort {
+        private val infos = HashMap<String, RelayFileInfo>()
+        private val group = signatureOf(endpoint)
+
+        override fun list(): List<RelayRereadFile> = guard {
+            RelayNetwork.list(endpoint)
+                .filter { RelayNetwork.isFileName(it.name) && SyncFolder.isOtherDevicesFile(it.name, ownName) }
+                .filter { goalHistory?.isHistoryName(it.name, com.accountabilibuddy.shared.goals.GoalHistoryNames.RELAY_EXTENSION) != true }
+                .onEach { infos[it.name] = it }
+                .map { RelayRereadFile(it.name, it.size, it.etag) }
+        }
+
+        override fun get(name: String): RelayRereadDownload? = guard { RelayNetwork.get(endpoint, name)?.let { RelayRereadDownload(it.bytes, it.etag) } }
+
+        override fun isHistoryFile(bytes: ByteArray): Boolean = com.accountabilibuddy.shared.goals.GoalHistoryNames.isHistoryFile(bytes)
+
+        override fun accept(name: String, download: RelayRereadDownload): Boolean {
+            val info = infos[name] ?: return false
+            return takeIn(info, RelayFile(download.bytes, download.etag)) == Taken.Problem
+        }
+
+        override fun sameGroup(): Boolean = endpoint()?.let(::signatureOf) == group
+
+        private fun <T> guard(block: () -> T): T = try {
+            block()
+        } catch (e: RelayException) {
+            if (e.problem == RelayProblem.Busy) throw RelayBusyException() else throw e
+        }
+    }
+
+    // "Try again" on one file: its etag mark goes and the relay is read now (one listing, only the files whose mark is gone are downloaded).
+    override suspend fun tryAgain(name: String) {
+        seen.remove(name)
+        readOnly()
+    }
+
+    /** Reads only (no write), at once. */
+    suspend fun readOnly() = syncOnce(write = false)
+
+    override suspend fun writeNow(): Boolean {
+        ownGate.reset()
+        syncOnce(write = true)
+        return _status.value.problem == null
+    }
+
+    // The relay never offers it (ADR 46: a relay name is unique per device and the PUT replaces it, so no own stale file can exist there; the relay
+    // deletes a file only when its device leaves the group).
+    override suspend fun removeOwnStale(name: String): Boolean = false
+
+    override suspend fun historyNow() {
+        if (!isEnabled()) return
+        val endpoint = endpoint() ?: return
+        running.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching { goalHistory?.run(RelayGoalHistoryStore(endpoint)) }
             }
         }
     }

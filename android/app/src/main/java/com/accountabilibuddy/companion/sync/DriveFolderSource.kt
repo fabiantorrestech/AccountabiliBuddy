@@ -10,6 +10,10 @@ import com.accountabilibuddy.shared.sync.RekeyCodec
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFolder
 import com.accountabilibuddy.shared.sync.SyncKey
+import com.accountabilibuddy.shared.sync.SyncReceiptParts
+import com.accountabilibuddy.shared.sync.SyncRereadResult
+import com.accountabilibuddy.shared.sync.SyncStalePolicy
+import com.accountabilibuddy.shared.sync.SyncUnreadableFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,7 +47,7 @@ data class FolderStatus(
  * minutes through WorkManager, faster (1 or 5 minutes) only while the pinned timeline notification runs. It also carries the
  * rekey file and clears an old group's files after a removal (ADR 54).
  */
-class DriveFolderSource(private val context: Context, private val sync: SyncCoordinator) : RekeySyncMethod {
+class DriveFolderSource(private val context: Context, private val sync: SyncCoordinator) : RekeySyncMethod, SyncTroubleshootSource {
     private val running = Mutex()
     private val _status = MutableStateFlow(FolderStatus())
 
@@ -177,6 +181,71 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
 
     private fun isOn(): Boolean = sync.settings.value.let { it.folderOn && it.folderUri != null } && sync.isJoined
 
+    override val methodCode: String = SyncReceiptParts.FOLDER
+
+    override val isLive: Boolean get() = isOn()
+
+    // The folder keeps no "seen" marks: every pass reads every file again, so "re-read" is one read pass without the write.
+    override suspend fun rereadAll(): SyncRereadResult {
+        val tree = sync.settings.value.folderUri?.takeIf { isOn() }?.let(Uri::parse) ?: return SyncRereadResult.none(methodCode)
+        val ownName = sync.ownFolderFileName() ?: return SyncRereadResult.none(methodCode)
+        return running.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    followKey()
+                    read(tree, ownName)
+                    SyncRereadResult(methodCode, passFiles, passProblems, 0, false)
+                } catch (e: Exception) {
+                    SyncRereadResult(methodCode, passFiles, passProblems + 1, 0, false)
+                }
+            }
+        }
+    }
+
+    override suspend fun tryAgain(name: String) {
+        rereadAll()
+    }
+
+    override suspend fun writeNow(): Boolean {
+        ownGate.reset()
+        syncNow()
+        return _status.value.problem == null
+    }
+
+    // The folder: an old-group file of this phone, or an extra copy of its current file (SyncStalePolicy); never another device's, never the current one.
+    override suspend fun removeOwnStale(name: String): Boolean {
+        val tree = sync.settings.value.folderUri?.takeIf { isOn() }?.let(Uri::parse) ?: return false
+        val ownName = sync.ownFolderFileName() ?: return false
+        if (!SyncStalePolicy.mayRemoveFromFolder(name, ownName, sync.ownOldNames())) return false
+        return running.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    val uri = children(tree).firstOrNull { it.first == name }?.second
+                    if (uri == null) {
+                        sync.unreadable?.clear(SyncReceiptParts.FOLDER, name)
+                        true
+                    } else if (DocumentsContract.deleteDocument(context.contentResolver, uri)) {
+                        sync.unreadable?.clear(SyncReceiptParts.FOLDER, name)
+                        true
+                    } else {
+                        false
+                    }
+                } catch (e: Exception) {
+                    false
+                }
+            }
+        }
+    }
+
+    override suspend fun historyNow() {
+        val tree = sync.settings.value.folderUri?.takeIf { isOn() }?.let(Uri::parse) ?: return
+        running.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching { goalHistory?.run(FolderGoalHistoryStore(context, tree)) }
+            }
+        }
+    }
+
     // The background work also runs Drive's (ADR 26) and the relay's (ADR 46) 15-minute sync.
     private fun backgroundOn(): Boolean = (isOn() || sync.settings.value.driveOn || sync.settings.value.relayOn) && sync.isJoined
 
@@ -186,12 +255,26 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     // How many files of another group the last read skipped (same lock).
     private var otherGroupFilesSeen = 0
 
+    // The files the last read looked at and how many of them could not be read (the troubleshooting result line).
+    private var passFiles = 0
+    private var passProblems = 0
+
     // True when a file couldn't be read (damaged, or newer than this app; another group's files are skipped).
     private fun read(tree: Uri, ownName: String): Boolean {
         var unreadable = false
         otherFilesSeen = 0
         otherGroupFilesSeen = 0
-        for ((name, uri) in children(tree)) {
+        passFiles = 0
+        passProblems = 0
+        val started = System.currentTimeMillis()
+        val listing = children(tree)
+        val ownStem = ownName.substringBeforeLast('.')
+        for ((name, uri) in listing) {
+            // This phone's own extra copies the folder's sync made (a "conflict" copy of its own file) are listed as stale (SYNC1c).
+            if (SyncFolder.isConflictCopy(name) && name.startsWith(ownStem, ignoreCase = true)) {
+                sync.unreadable?.report(SyncReceiptParts.FOLDER, name, SyncUnreadableFile.OWN_COPY, sync.deviceId, ownStale = true)
+            }
+
             if (!SyncFolder.isOtherDevicesFile(name, ownName)) {
                 continue
             }
@@ -205,14 +288,17 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
             }
 
             // Another group's file (from before a device removal) is a leftover, not a problem.
-            if (sync.isOtherGroupsFile(bytes)) {
+            val inspected = sync.inspect(bytes, SyncDeviceCard.METHOD_FOLDER, name)
+            if (inspected.otherGroup) {
                 otherGroupFilesSeen++
                 continue
             }
 
-            val card = sync.cardOf(bytes)
+            val card = inspected.card
+            passFiles++
             if (card == null) {
                 unreadable = true
+                passProblems++
                 continue
             }
 
@@ -222,9 +308,11 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
             }
 
             inFolder[card.deviceId] = maxOf(card.writtenAt, inFolder[card.deviceId] ?: Instant.MIN)
-            sync.acceptSealed(bytes, SyncDeviceCard.METHOD_FOLDER)
+            sync.acceptSealed(bytes, SyncDeviceCard.METHOD_FOLDER, name)
         }
 
+        sync.unreadable?.prune(SyncReceiptParts.FOLDER, listing.map { it.first }.toSet())
+        sync.noteReadPass(SyncReceiptParts.FOLDER, passFiles, 0, passProblems, (System.currentTimeMillis() - started).toInt())
         return unreadable
     }
 
@@ -237,6 +325,7 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
             inFolder[file.deviceId] = file.writtenAt
             if (file.own) {
                 ownGate.written(Instant.now())
+                sync.noteSent(SyncReceiptParts.FOLDER, file.writtenAt, 0)
             }
         }
     }

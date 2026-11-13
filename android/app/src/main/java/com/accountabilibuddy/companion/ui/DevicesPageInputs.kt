@@ -17,4 +17,6 @@ data class DevicesPageInputs(
     val chosenPcId: String?,
     val onChoosePc: (String?) -> Unit,
     val syncNow: SyncNow,
+    /** Troubleshoot sync (SYNC1c), the last section; null where it is not wired (a preview). */
+    val troubleshoot: SyncTroubleshootUi? = null,
 )

@@ -11,6 +11,14 @@ import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import com.accountabilibuddy.shared.sync.SyncPickup
 import com.accountabilibuddy.shared.sync.SyncFileCodec
+import com.accountabilibuddy.shared.sync.SyncFileOpenFailure
+import com.accountabilibuddy.shared.sync.SyncLog
+import com.accountabilibuddy.shared.sync.SyncLogDirection
+import com.accountabilibuddy.shared.sync.SyncReceiptParts
+import com.accountabilibuddy.shared.sync.SyncReceiveHooks
+import com.accountabilibuddy.shared.sync.SyncReceiveParts
+import com.accountabilibuddy.shared.sync.SyncUnreadableFile
+import com.accountabilibuddy.shared.sync.SyncUnreadableFiles
 import com.accountabilibuddy.shared.sync.SyncFolder
 import com.accountabilibuddy.shared.sync.SyncKey
 import com.accountabilibuddy.shared.sync.SyncKeyCode
@@ -20,6 +28,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -46,7 +56,11 @@ class SyncCoordinator(
 
     init {
         // The live list follows the removed list (ADR 54).
-        removedStore.onChanged = { store.refreshActive() }
+        removedStore.onChanged = {
+            store.refreshActive()
+            // ADR 86: a removed device has no receipt row any more.
+            receipts?.forget(removedStore.devices.value.map { it.deviceId }.toSet())
+        }
         // A phone that is in a group is not unlinked (the file was left over from a race or a restore).
         if (identity.key.value != null && removedStore.unlinked.value != null) {
             removedStore.setUnlinked(null)
@@ -82,6 +96,17 @@ class SyncCoordinator(
     var keyGeneration: Int = 0
         private set
 
+    // The group's key changed (joined, left, rekeyed, unlinked): the unreadable files listed were the old group's, and with no group left the record
+    // of what arrived and what was sent goes too (SYNC1c; the PC's ForgetGroupWork).
+    private fun onGroupChanged() {
+        keyGeneration++
+        unreadable?.clearAll()
+        if (identity.key.value == null) {
+            receipts?.forget(emptySet(), all = true)
+            sendLog?.clear()
+        }
+    }
+
     /** The folder, Drive and the relay, which carry the rekey file and clear old files (ADR 54); set by the app. */
     var rekeyMethods: List<RekeySyncMethod> = emptyList()
 
@@ -94,6 +119,33 @@ class SyncCoordinator(
     /** True while the phone is in a device group. */
     val isJoined: Boolean
         get() = identity.key.value != null
+
+    /**
+     * The receiver-local record behind this phone's receipts (ADR 86, SYNC1c): what arrived by which method, why a read failed, what each part came
+     * to. Recording never writes this phone's own file (receiving a file never triggers a write); set by the app.
+     */
+    var receipts: SyncReceiptsStore? = null
+
+    /** This phone's own puts per method, times only (SYNC1c); set by the app. */
+    var sendLog: SyncSendLogStore? = null
+
+    /** The files the methods hold but this phone does not take in (SYNC1c); set by the app. */
+    var unreadable: SyncUnreadableFiles? = null
+
+    /** The rolling sync log (counts and times only, SYNC1c); set by the app. */
+    var syncLogger: SyncLog? = null
+
+    /** Whether this phone's task list can take parts in (open and readable); set by the app. A closed one reports "refused" in the receipt. */
+    var tasksReady: () -> Boolean = { true }
+
+    /** Whether this phone's older task lists (next session, come-backs, Later) can take items in (the task list is not closed); set by the app. */
+    var oldListsReady: () -> Boolean = { true }
+
+    /** Whether this phone's goals can take parts in (set up and readable); set by the app. */
+    var goalsReady: () -> Boolean = { true }
+
+    /** Whether a day plan from another device waits for an answer or a session here (the receipt says "held"); set by the app. */
+    var dayPlanHeld: () -> Boolean = { false }
 
     /** The wait for turning off the last way of syncing (prefs "syncOff"); set by the app. Without it a turn-off applies at once. */
     var offWait: SyncOffWait? = null
@@ -235,6 +287,9 @@ class SyncCoordinator(
     }
 
     // The methods on the phone's card: what's switched on.
+    /** The methods this phone has on, as its card lists them (SYNC1c: the board shows one block for each). */
+    fun ownMethods(): List<String> = methods()
+
     private fun methods(): List<String> = settingsStore.settings.value.let { settings ->
         listOfNotNull(
             SyncDeviceCard.METHOD_QR.takeIf { settings.qrOn },
@@ -384,7 +439,7 @@ class SyncCoordinator(
         store.clear()
         scan.reset()
         removedStore.setUnlinked(null)
-        keyGeneration++
+        onGroupChanged()
         return true
     }
 
@@ -400,7 +455,7 @@ class SyncCoordinator(
         // Leaving the group forgets its past keys too (ADR 56); continuing unsynced and joining again keep them.
         pastKeys.clear()
         scan.reset()
-        keyGeneration++
+        onGroupChanged()
         return null
     }
 
@@ -416,7 +471,7 @@ class SyncCoordinator(
         removedStore.setUnlinked(null)
         identity.leave()
         scan.reset()
-        keyGeneration++
+        onGroupChanged()
         return null
     }
 
@@ -721,7 +776,7 @@ class SyncCoordinator(
             removedStore.setUnlinked(UnlinkedState(now(), reading.kind == RekeyReadingKind.Removed, payload.removedBy.name))
             identity.leave()
             scan.reset()
-            keyGeneration++
+            onGroupChanged()
         }
     }
 
@@ -736,7 +791,7 @@ class SyncCoordinator(
         removedStore.setUnlinked(null)
         store.save(store.devices.value.map { ReceivedDevice(it.file, it.receivedAt, it.method, ByteArray(0)) })
         scan.reset()
-        keyGeneration++
+        onGroupChanged()
         val methods = rekeyMethods
         backgroundScope?.launch(Dispatchers.IO) {
             for (method in methods) {
@@ -758,9 +813,12 @@ class SyncCoordinator(
     /**
      * Takes in a file another device sealed, carried by [method] (QR, folder, Drive, relay or file).
      * Null when taken in (or already held); otherwise why not.
+     *
+     * @param fileName The file's name on a folder, Drive or the relay (null for a QR code or an imported file): it tells whose file it is when it
+     * can't be read (the names are [SyncFolder.fileNameFor] of a device) and keys the troubleshooting list. Never logged or shown.
      */
     @Synchronized
-    fun acceptSealed(bytes: ByteArray, method: String): String? {
+    fun acceptSealed(bytes: ByteArray, method: String, fileName: String? = null): String? {
         val settings = settingsStore.settings.value
         when {
             method == SyncDeviceCard.METHOD_FILE && !settings.fileOn -> return "Turn on \"Sync files\" in Settings › Devices & sync to open sync files."
@@ -774,7 +832,18 @@ class SyncCoordinator(
             return acceptRekey(bytes, method)
         }
 
-        val file = SyncFileCodec.open(bytes, key) ?: return CANNOT_READ
+        if (SyncFileCodec.isOtherGroups(bytes, key)) {
+            noteUnreadable(key, method, fileName, SyncUnreadableFile.OTHER_GROUP)
+            return CANNOT_READ
+        }
+
+        val opened = SyncFileCodec.tryOpen(bytes, key)
+        val file = opened.file
+        if (file == null) {
+            noteUnreadable(key, method, fileName, opened.failure?.code ?: SyncFileOpenFailure.DAMAGED.code)
+            return CANNOT_READ
+        }
+
         // A removed device's file is refused (ADR 54). One that opens with the group's NEW key, written after the removal, can
         // only come from a device that was linked again: it is a member once more.
         removedStore.devices.value.firstOrNull { it.deviceId == file.device.deviceId }?.let { removed ->
@@ -786,6 +855,12 @@ class SyncCoordinator(
         }
 
         noteDelivery(method, file.device, settings)
+
+        // ADR 86: the method this file arrived by is recorded before any "already has newer data" decision, so a copy that came late (the relay
+        // delivered first, Drive after) still proves the method works. It reads fine now: it leaves the troubleshooting list. Recording never
+        // writes this phone's own file: the receipts leave with its next scheduled write.
+        if (fileName != null) unreadable?.clear(method, fileName)
+        receipts?.recordArrival(file.device.deviceId, method, utc(file.device.writtenAt))
 
         val held = store.devices.value.firstOrNull { it.file.device.deviceId == file.device.deviceId }
         // The copy kept of the sender's file doesn't hold the shared lists (ADR 48): they merge into this phone's own sealed
@@ -808,22 +883,9 @@ class SyncCoordinator(
         pastKeys.merge(file.pastKeys)
         // An erase that waited for a focus session to end (ADR 55) is done at the next file after it.
         applyPendingErases()
-        // Not from a device whose clock runs more than a minute ahead; a later file from it, once the clocks agree, is taken.
-        // ADR 71: nor are the others' lists taken while this phone doesn't share its own.
-        if (sharesTaskLists() && (file.nextTasks != null || file.parked != null || file.later != null) && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
-            // A file with a "later" list (even empty) comes from a writer that knows ADR 50's fields; one without, from an older app.
-            onSharedLists(file.nextTasks, file.parked, file.later, file.later != null)
-        }
-
-        // ADR 72: the rest of the task lists, under the same rules (not while this phone keeps its lists to itself, nor from a fast clock).
-        if (sharesTaskLists() && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
-            onTaskExtras(file)
-            // R7.2 (ADR 76): the task list's parts; a file without them (an older app, a QR file) leaves the task list alone (Q583).
-            file.taskParts?.let { onTaskParts(it) }
-            // ADR 79 (GS4): the goal parts, behind the same rules (not while this phone keeps its lists to itself, nor from a fast clock); a file
-            // without them (an older app, a QR file) leaves the goals alone.
-            if (file.goalParts != null) onGoalParts(file)
-        }
+        val parts = receive(file)
+        receipts?.recordParts(file.device.deviceId, utc(file.device.writtenAt), parts)
+        countParts(method, parts)
 
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
             onCarryChanged?.invoke(method)
@@ -831,6 +893,106 @@ class SyncCoordinator(
 
         return null
     }
+
+    // ADR 86: what each part of this file came to here (taken, held back, off, not in the file, refused): kept in the receiver-local record and
+    // sent back in this phone's next file ([SyncReceiveParts]). The hooks are this phone's own merges; none writes its own file. Not from a
+    // device whose clock runs more than a minute ahead; a later file from it, once the clocks agree, is taken. ADR 71: nor are the others' lists
+    // taken while this phone doesn't share its own.
+    private fun receive(file: SyncFile): Map<String, String> = SyncReceiveParts.outcome(
+        file,
+        SyncReceiveHooks(
+            sharesTaskLists = sharesTaskLists(),
+            clockAhead = file.device.writtenAt.isAfter(now().plusSeconds(60)),
+            dayPlanHeld = dayPlanHeld,
+            tasksReady = tasksReady,
+            oldListsReady = oldListsReady,
+            goalsReady = goalsReady,
+            // A file with a "later" list (even empty) comes from a writer that knows ADR 50's fields; one without, from an older app.
+            onSharedLists = { onSharedLists(it.nextTasks, it.parked, it.later, it.later != null) },
+            onTaskExtras = onTaskExtras,
+            onTaskParts = onTaskParts,
+            onGoalParts = onGoalParts,
+        ),
+    )
+
+    // What the parts of the accepted files came to, per method, until the method's pass is logged ([takePartCounts]).
+    private val partCounts = HashMap<String, Pair<Int, Int>>()
+
+    private fun countParts(method: String, outcome: Map<String, String>) {
+        val (taken, held) = partCounts[method] ?: (0 to 0)
+        partCounts[method] = (taken + outcome.values.count { it == SyncReceiptParts.TAKEN }) to (held + outcome.values.count { it == SyncReceiptParts.HELD })
+    }
+
+    /** The parts taken and held back by the files accepted by [method] since the last call; the count starts again. */
+    @Synchronized
+    fun takePartCounts(method: String): Pair<Int, Int> = partCounts.remove(method) ?: (0 to 0)
+
+    /** This phone's file reached [method] (SYNC1c): the send log and the sync log, times and counts only. */
+    fun noteSent(method: String, writtenAt: Instant, milliseconds: Int) {
+        sendLog?.record(method, utc(writtenAt), utc(now()))
+        syncLogger?.pass(method, SyncLogDirection.SEND, 1, 0, 0, 0, 0, milliseconds)
+    }
+
+    /** A read pass over [method] ended (SYNC1c): one line of counts in the sync log. */
+    fun noteReadPass(method: String, files: Int, skipped: Int, unreadable: Int, milliseconds: Int) {
+        val (taken, held) = takePartCounts(method)
+        syncLogger?.pass(method, SyncLogDirection.READ, files, taken, held, skipped, unreadable, milliseconds)
+    }
+
+    /** What a source found in a downloaded file before taking it in ([inspect]). */
+    class Inspection(val otherGroup: Boolean, val card: SyncDeviceCard?)
+
+    /**
+     * Looks at a downloaded file without taking it in: its card when it opens, or why not (another group's leftover, or unreadable). What does not
+     * open goes into the troubleshooting list and, when its name says whose it is, into that device's receipt row (ADR 86 "failed"); a readable one
+     * leaves the list. Nothing is logged here.
+     */
+    fun inspect(bytes: ByteArray, method: String, fileName: String?): Inspection {
+        val key = identity.key.value ?: return Inspection(false, null)
+        if (SyncFileCodec.isOtherGroups(bytes, key)) {
+            noteUnreadable(key, method, fileName, SyncUnreadableFile.OTHER_GROUP)
+            return Inspection(true, null)
+        }
+
+        val opened = SyncFileCodec.tryOpen(bytes, key)
+        val opening = opened.file
+        if (opening == null) {
+            noteUnreadable(key, method, fileName, opened.failure?.code ?: SyncFileOpenFailure.DAMAGED.code)
+            return Inspection(false, null)
+        }
+
+        return Inspection(false, opening.device)
+    }
+
+    /** A file over the size limit was not downloaded (SYNC1c): listed, and its device's receipt row says "too big". */
+    fun noteTooBig(method: String, fileName: String) {
+        val key = identity.key.value ?: return
+        noteUnreadable(key, method, fileName, "tooBig")
+    }
+
+    private fun noteUnreadable(key: SyncKey, method: String, fileName: String?, reason: String) {
+        if (fileName == null) return
+        val device = deviceOfName(key, fileName)
+        unreadable?.report(method, fileName, reason, device, isOwnStale(fileName))
+        if (device != null && reason != SyncUnreadableFile.OTHER_GROUP) {
+            receipts?.recordFailure(device, method, reason, utc(now()))
+        }
+    }
+
+    /** The device a file name is [SyncFolder.fileNameFor] of (in the current group), among those this phone knows; null when none. */
+    fun deviceOfName(key: SyncKey, fileName: String): UUID? {
+        val known = store.devices.value.map { it.file.device.deviceId } + removedStore.devices.value.map { it.deviceId }
+        return known.distinct().firstOrNull { SyncFolder.fileNameFor(key.groupId, it).equals(fileName, ignoreCase = true) }
+    }
+
+    /** The names this phone's own files had in the groups it left behind ([PastKeysStore] knows their ids): stale, and this phone's to remove. */
+    fun ownOldNames(): Set<String> =
+        com.accountabilibuddy.shared.sync.SyncStalePolicy.oldOwnNames(pastKeys.forFile().orEmpty().map { it.groupId }, identity.deviceId)
+
+    /** Whether [fileName] is this phone's own file of an old group. A current-group name is never stale here. */
+    fun isOwnStale(fileName: String): Boolean = fileName.lowercase() in ownOldNames()
+
+    private fun utc(time: Instant): OffsetDateTime = time.atOffset(ZoneOffset.UTC)
 
     /** Whether [card]'s file at [method]'s place is a copy this phone wrote there itself to carry it on (see [filesForFolder]). */
     fun writtenByThisPhone(method: String, card: SyncDeviceCard): Boolean {
@@ -903,6 +1065,8 @@ class SyncCoordinator(
         steps = runCatching { steps() }.getOrNull(),
         workEnded = runCatching { workEnded() }.getOrNull(),
         guidance = runCatching { guidance() }.getOrNull(),
+        // ADR 86: what this phone holds and applied of the other devices' files; none while it is alone in its group (works alone).
+        receipts = receipts?.forFile(identity.deviceId, store.active.value.map { it.file.device.deviceId }.toSet()),
     )
 
     /**

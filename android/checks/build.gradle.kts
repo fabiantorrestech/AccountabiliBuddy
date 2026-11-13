@@ -59,6 +59,9 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/goals/PhoneGoalHistoryCodec.kt",
             "com/accountabilibuddy/companion/goals/PhoneWeeklyEnvironment.kt",
             "com/accountabilibuddy/companion/goals/PhoneGoalSyncWiring.kt",
+            // SYNC1c: what the phone keeps of a received file (pure: the re-read check runs a second pass over it).
+            "com/accountabilibuddy/companion/sync/SyncCarry.kt",
+            "com/accountabilibuddy/companion/sync/ReceivedDevice.kt",
         )
     }
     into(layout.buildDirectory.dir("sharedSrc"))
