@@ -98,7 +98,7 @@ public static class BackupAccess
                     includeSecrets ? lists.Reminders : lists.Reminders.Select(reminder => reminder with { Reason = null }).ToList(),
                     includeSecrets ? lists.Reviews : lists.Reviews.Select(review => review with { Notes = null }).ToList(),
                     IncludesNotes: includeSecrets,
-                    DeepWork: new GoalsBackupDeepWork(store.DeepWork.EffectiveWeekly));
+                    DeepWork: new GoalsBackupDeepWork(store.DeepWork.EffectiveWeekly, store.DeepWork.TrackTimeOnly));
                 return JsonSerializer.SerializeToElement(export, SyncJson.Options);
             },
             Import: async (value, restore) =>
@@ -131,8 +131,14 @@ public static class BackupAccess
                 }
 
                 // Deep work's weekly target: a raise at once, a lower one or none waits (never during a session), as a change made here.
-                string? weeklyNote = await goals.RestoreDeepWorkAsync(
-                    JsonSerializer.SerializeToElement(new DeepWorkGoalSettings(deepWork.WeeklyMinutes), GoalStore.DocumentJson));
+                System.Text.Json.Nodes.JsonNode part = JsonSerializer.SerializeToNode(
+                    new DeepWorkGoalSettings(deepWork.WeeklyMinutes, deepWork.TrackTimeOnly ?? false), GoalStore.DocumentJson)!;
+                if (deepWork.TrackTimeOnly is null)
+                {
+                    part.AsObject().Remove("trackTimeOnly"); // a phone-shaped part: no word on it, so this PC's stays
+                }
+
+                string? weeklyNote = await goals.RestoreDeepWorkAsync(JsonSerializer.SerializeToElement(part));
                 return weeklyNote is null ? note : note + " " + weeklyNote;
             });
     }

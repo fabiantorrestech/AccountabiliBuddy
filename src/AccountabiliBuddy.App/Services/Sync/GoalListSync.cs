@@ -50,13 +50,14 @@ public sealed class GoalListSync
             return false;
         }
 
-        if (!_goals.Store.IsReady || SyncGoalParts.From(file) is not GoalSyncLists incoming || HeldLists() is not GoalSyncLists held)
+        if (!_goals.Store.IsReady || SyncGoalParts.From(file) is not GoalSyncLists incoming)
         {
             return false;
         }
 
-        GoalSyncMergeResult merged = GoalSyncMerge.MergeReported(held, incoming, _time.GetUtcNow());
-        return await _goals.ApplySyncedAsync(merged.Lists, this);
+        // The held lists are read and merged inside the service's gate, not before it (a change saved while this waits is not lost).
+        return await _goals.ApplySyncedAsync(
+            () => HeldLists() is GoalSyncLists held ? GoalSyncMerge.MergeReported(held, incoming, _time.GetUtcNow()).Lists : null, this);
     }
 
     // Everything held here (null while the goals aren't ready), Deep work's record composed: the merge sees this PC's effective weekly

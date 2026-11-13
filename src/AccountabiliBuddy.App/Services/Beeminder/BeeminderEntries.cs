@@ -12,7 +12,7 @@ namespace AccountabiliBuddy.App.Services.Beeminder;
 /// touched (a hand value wins in <see cref="GoalCounting"/>). ADR 79 (GS3a): the entries travel to the user's other devices like every
 /// goal entry, so a removal is a tombstone (kept for good, it reaches every device and a stale file never brings the day back) and only
 /// a PC with a Beeminder token changes or removes them (<see cref="GoalDerivedWriter.MayChange"/>): a PC without one keeps the values
-/// another PC read. A read brings a removed day back when Beeminder has it again (a goal linked again).
+/// another PC read, and removing the token removes only this PC's own entries (<see cref="Prune"/>). A read brings a removed day back when Beeminder has it again (a goal linked again).
 /// </summary>
 public static partial class BeeminderEntries
 {
@@ -68,22 +68,20 @@ public static partial class BeeminderEntries
     }
 
     /// <summary>
-    /// On a PC with a Beeminder token (<paramref name="hasToken"/>): removes (a tombstone) every live Beeminder entry of a live goal that no
-    /// live Read link owns (unlinked, direction changed, source switched off). A deleted goal's entries stay, hidden, and come back with it
-    /// (ADR 79). Without a token nothing is removed: the values may be another PC's reading (GS3a, plan check 1.10).
+    /// Removes (a tombstone) every live Beeminder entry of a live goal that no live Read link owns (unlinked, direction changed, source
+    /// switched off, or no token: <paramref name="active"/> is then empty). Only this PC's own entries go: those it wrote
+    /// (<see cref="GoalEntry.DeviceId"/> is <paramref name="self"/>) and the ones from before devices were recorded (null: they never
+    /// synced, so they are this PC's). Another PC's entries are never removed here; that PC removes them, or revives them on its next
+    /// read (ADR 84). A deleted goal's entries stay, hidden, and come back with it (ADR 79).
     /// </summary>
-    public static GoalLists Prune(GoalLists lists, IReadOnlyCollection<BeeminderLink> active, bool hasToken, DateTimeOffset now)
+    public static GoalLists Prune(GoalLists lists, IReadOnlyCollection<BeeminderLink> active, Guid self, DateTimeOffset now)
     {
-        if (!hasToken)
-        {
-            return lists;
-        }
-
         var liveGoals = lists.Goals.Where(goal => goal.IsLive).Select(goal => goal.Id).ToHashSet();
         bool changed = false;
         List<GoalEntry> entries = lists.Entries.Select(entry =>
         {
             if (entry.Source != GoalEntrySource.Beeminder || !entry.IsLive || !liveGoals.Contains(entry.GoalId)
+                || !IsOwn(entry, self)
                 || active.Any(link => link.GoalId == entry.GoalId && IdFor(link.GoalId, link.Key, entry.Day) == entry.Id))
             {
                 return entry;
@@ -100,7 +98,7 @@ public static partial class BeeminderEntries
     /// brought back when it was removed (ADR 79: a removal is a tombstone); a day from <paramref name="from"/> on that the read no longer
     /// has loses its entry (a tombstone: the datapoint was deleted on Beeminder). Returns the same lists when nothing changed.
     /// </summary>
-    public static GoalLists Apply(GoalLists lists, BeeminderLink link, DateOnly from, IReadOnlyDictionary<DateOnly, double> days, DateTimeOffset now)
+    public static GoalLists Apply(GoalLists lists, BeeminderLink link, DateOnly from, IReadOnlyDictionary<DateOnly, double> days, Guid self, DateTimeOffset now)
     {
         var entries = lists.Entries.ToList();
         bool changed = false;
@@ -110,12 +108,12 @@ public static partial class BeeminderEntries
             int index = entries.FindIndex(entry => entry.Id == id);
             if (index < 0)
             {
-                entries.Add(new GoalEntry(id, link.GoalId, day, null, value, GoalEntrySource.Beeminder, now));
+                entries.Add(new GoalEntry(id, link.GoalId, day, null, value, GoalEntrySource.Beeminder, now, DeviceId: DeviceOf(self)));
                 changed = true;
             }
             else if (!entries[index].IsLive || entries[index].Value != value)
             {
-                entries[index] = entries[index] with { Value = value, EditedAt = Next(now, entries[index]), DeletedAt = null };
+                entries[index] = entries[index] with { Value = value, EditedAt = Next(now, entries[index]), DeletedAt = null, DeviceId = DeviceOf(self) };
                 changed = true;
             }
         }
@@ -133,6 +131,11 @@ public static partial class BeeminderEntries
 
         return changed ? lists with { Entries = entries } : lists;
     }
+
+    // The empty id (before a device group) is written as no device: such an entry is this PC's like a pre-GS3a one.
+    private static Guid? DeviceOf(Guid self) => self == Guid.Empty ? null : self;
+
+    private static bool IsOwn(GoalEntry entry, Guid self) => entry.DeviceId is null || entry.DeviceId == self || self == Guid.Empty;
 
     // A tombstone stamped after the entry's own stamp (another PC's clock may run ahead), so it wins the merge everywhere.
     private static GoalEntry Removed(GoalEntry entry, DateTimeOffset now)

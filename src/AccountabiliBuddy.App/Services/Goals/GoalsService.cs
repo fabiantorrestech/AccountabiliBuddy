@@ -322,7 +322,11 @@ public sealed class GoalsService
             }
             else
             {
-                steps.Add(await SetTrackTimeOnlyGatedAsync(false));
+                if (value.TryGetProperty("trackTimeOnly", out _))
+                {
+                    steps.Add(await SetTrackTimeOnlyGatedAsync(false));
+                }
+
                 steps.Add(await SetWeeklyGatedAsync(wanted.WeeklyMinutes));
             }
 
@@ -729,8 +733,12 @@ public sealed class GoalsService
             return GoalChangeResult.NotAllowed;
         }
 
-        GoalArea saved = area with { DeletedAt = null, EditedAt = Now };
-        await _store.ChangeAsync(source, (lists, _) => lists with { Areas = Upsert(lists.Areas, item => item.Id == area.Id, saved) });
+        // ADR 48: a local edit is stamped after the version it replaces (the held one, a tombstone included), read inside the change.
+        await _store.ChangeAsync(source, (lists, now) => lists with
+        {
+            Areas = Upsert(lists.Areas, item => item.Id == area.Id,
+                area with { DeletedAt = null, EditedAt = SharedListMerge.NextStamp(now, lists.Areas.FirstOrDefault(item => item.Id == area.Id)) }),
+        });
         return GoalChangeResult.Applied;
     }
 
@@ -750,7 +758,7 @@ public sealed class GoalsService
 
         await _store.ChangeAsync(source, (lists, now) => lists with
         {
-            Areas = Replace(lists.Areas, item => item.Id == areaId, area with { Name = string.Empty, DeletedAt = now, EditedAt = now }),
+            Areas = Replace(lists.Areas, item => item.Id == areaId, Tomb(area, lists.Areas, areaId, now)),
         });
         return GoalChangeResult.Applied;
     }
@@ -773,23 +781,27 @@ public sealed class GoalsService
         }
 
         // "Your latest decision wins" (GoalCounting.LatestHand orders by edit time, then id): a hand entry saved now is stamped after every
-        // other hand entry of that goal and day, so a tick and an untick within one clock reading never tie on a random id.
-        DateTimeOffset stamp = Now;
-        if (entry.Source == GoalEntrySource.Hand)
+        // other hand entry of that goal and day, so a tick and an untick within one clock reading never tie on a random id; and (ADR 48)
+        // after the version of its own id it replaces. Read inside the change, so a version that arrived meanwhile counts.
+        await _store.ChangeAsync(source, (lists, now) =>
         {
-            DateTimeOffset latest = _store.Lists.Entries
-                .Where(item => item.GoalId == entry.GoalId && item.Day == entry.Day && item.Source == GoalEntrySource.Hand && item.Id != entry.Id)
-                .Select(item => item.EditedAt)
-                .DefaultIfEmpty(DateTimeOffset.MinValue)
-                .Max();
-            if (latest >= stamp)
+            DateTimeOffset stamp = SharedListMerge.NextStamp(now, lists.Entries.FirstOrDefault(item => item.Id == entry.Id));
+            if (entry.Source == GoalEntrySource.Hand)
             {
-                stamp = latest.AddTicks(1);
+                DateTimeOffset latest = lists.Entries
+                    .Where(item => item.GoalId == entry.GoalId && item.Day == entry.Day && item.Source == GoalEntrySource.Hand && item.Id != entry.Id)
+                    .Select(item => item.Stamp)
+                    .DefaultIfEmpty(DateTimeOffset.MinValue)
+                    .Max();
+                if (latest >= stamp)
+                {
+                    stamp = latest.AddTicks(1);
+                }
             }
-        }
 
-        GoalEntry saved = entry with { DeletedAt = null, EditedAt = stamp };
-        await _store.ChangeAsync(source, (lists, _) => lists with { Entries = Upsert(lists.Entries, item => item.Id == entry.Id, saved) });
+            GoalEntry saved = entry with { DeletedAt = null, EditedAt = stamp };
+            return lists with { Entries = Upsert(lists.Entries, item => item.Id == entry.Id, saved) };
+        });
         return GoalChangeResult.Applied;
     }
 
@@ -806,7 +818,7 @@ public sealed class GoalsService
             return GoalChangeResult.NotAllowed;
         }
 
-        await _store.ChangeAsync(source, (lists, now) => lists with { Entries = Replace(lists.Entries, item => item.Id == entryId, entry with { DeletedAt = now, EditedAt = now }) });
+        await _store.ChangeAsync(source, (lists, now) => lists with { Entries = Replace(lists.Entries, item => item.Id == entryId, Tomb(entry, lists.Entries, entryId, now)) });
         return GoalChangeResult.Applied;
     }
 
@@ -824,8 +836,11 @@ public sealed class GoalsService
             return GoalChangeResult.NotAllowed;
         }
 
-        GoalReminder saved = reminder with { DeletedAt = null, EditedAt = Now };
-        await _store.ChangeAsync(source, (lists, _) => lists with { Reminders = Upsert(lists.Reminders, item => item.Id == reminder.Id, saved) });
+        await _store.ChangeAsync(source, (lists, now) => lists with
+        {
+            Reminders = Upsert(lists.Reminders, item => item.Id == reminder.Id,
+                reminder with { DeletedAt = null, EditedAt = SharedListMerge.NextStamp(now, lists.Reminders.FirstOrDefault(item => item.Id == reminder.Id)) }),
+        });
         return GoalChangeResult.Applied;
     }
 
@@ -844,7 +859,7 @@ public sealed class GoalsService
 
         await _store.ChangeAsync(source, (lists, now) => lists with
         {
-            Reminders = Replace(lists.Reminders, item => item.Id == reminderId, reminder with { Reason = null, DeletedAt = now, EditedAt = now }),
+            Reminders = Replace(lists.Reminders, item => item.Id == reminderId, Tomb(reminder with { Reason = null }, lists.Reminders, reminderId, now)),
         });
         return GoalChangeResult.Applied;
     }
@@ -862,8 +877,11 @@ public sealed class GoalsService
             return GoalChangeResult.NotAllowed;
         }
 
-        GoalReviewRecord saved = review with { DeletedAt = null, EditedAt = Now };
-        await _store.ChangeAsync(source, (lists, _) => lists with { Reviews = Upsert(lists.Reviews, item => item.Id == review.Id, saved) });
+        await _store.ChangeAsync(source, (lists, now) => lists with
+        {
+            Reviews = Upsert(lists.Reviews, item => item.Id == review.Id,
+                review with { DeletedAt = null, EditedAt = SharedListMerge.NextStamp(now, lists.Reviews.FirstOrDefault(item => item.Id == review.Id)) }),
+        });
         return GoalChangeResult.Applied;
     }
 
@@ -879,14 +897,16 @@ public sealed class GoalsService
     /// Another device's goals merged with this PC's (<see cref="Sync.GoalListSync"/>) taken in: the lists as merged, and Deep work's record
     /// split (<see cref="GoalDeepWorkSync.Split"/>) so the weekly target and "Track time only" it carried go through this PC's rule (the
     /// class summary) and the stored record keeps this PC's own stamp. One store change for both (<see cref="GoalStore.ApplySyncedAsync"/>).
-    /// Refused (false) unless the goals are ready.
+    /// Refused (false) unless the goals are ready. <paramref name="merge"/> takes this PC's held goals and the received ones together and
+    /// is called INSIDE the gate, right before the result is stored with nothing awaited in between, so a change saved while this call
+    /// waited for the gate is in what is merged and is never overwritten by a stale result; null from it = nothing to take in.
     /// </summary>
     /// <returns>Whether anything changed here.</returns>
-    public Task<bool> ApplySyncedAsync(GoalSyncLists merged, object? source = null) => GatedAsync(() => ApplySyncedGatedAsync(merged, source));
+    public Task<bool> ApplySyncedAsync(Func<GoalSyncLists?> merge, object? source = null) => GatedAsync(() => ApplySyncedGatedAsync(merge, source));
 
-    private async Task<bool> ApplySyncedGatedAsync(GoalSyncLists merged, object? source)
+    private async Task<bool> ApplySyncedGatedAsync(Func<GoalSyncLists?> merge, object? source)
     {
-        if (!_store.IsReady || _store.Lists.DeepWorkRecord is not Goal ownRecord)
+        if (!_store.IsReady || _store.Lists.DeepWorkRecord is not Goal ownRecord || merge() is not GoalSyncLists merged)
         {
             return false;
         }
@@ -914,8 +934,9 @@ public sealed class GoalsService
     private DeepWorkGoalSettings Received(DeepWorkGoalSettings held, GoalDeepWorkTargets received, GoalFieldStamp own, Goal record)
     {
         DeepWorkGoalSettings settings = held.Stamp is null ? held with { Stamp = own } : held;
-        if (received.Stamp == own)
+        if (received.Stamp == own || !IsNewer(received.Stamp, own))
         {
+            // The same, or older than what is in effect here (a stale file, say 600 after a raise to 900): nothing to take.
             return settings;
         }
 
@@ -980,6 +1001,13 @@ public sealed class GoalsService
         return received.TrackTimeOnly
             ? settings with { PendingTrackTimeOnly = pending, PendingWeekly = null, PendingStamp = received.Stamp, PendingAfterSession = afterSession }
             : settings with { PendingWeekly = pending, PendingTrackTimeOnly = null, PendingStamp = received.Stamp, PendingAfterSession = afterSession };
+    }
+
+    // The merge's order for two stamps: the later time, then the device id.
+    private static bool IsNewer(GoalFieldStamp candidate, GoalFieldStamp than)
+    {
+        int byTime = candidate.At.UtcTicks.CompareTo(than.At.UtcTicks);
+        return byTime != 0 ? byTime > 0 : string.CompareOrdinal(candidate.By.ToString("D"), than.By.ToString("D")) > 0;
     }
 
     // The stamp of the weekly target in effect here: the stored one, else the record's own part stamp (a store from before GS3a).
@@ -1093,6 +1121,13 @@ public sealed class GoalsService
     }
 
     private bool IsLiveArea(Guid areaId) => _store.Lists.Areas.Any(area => area.IsLive && area.Id == areaId);
+
+    // A tombstone of an item, stamped after the held version of that id (ADR 48), so it wins the merge on every device.
+    private static T Tomb<T>(T item, IReadOnlyList<T> held, Guid id, DateTimeOffset now) where T : ISharedItem
+    {
+        DateTimeOffset at = SharedListMerge.NextStamp(now, held.FirstOrDefault(other => other.Id == id) ?? item);
+        return (T)item.WithStamps(at, at);
+    }
 
     private static List<T> Replace<T>(IReadOnlyList<T> items, Func<T, bool> match, T replacement)
     {

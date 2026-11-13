@@ -461,13 +461,17 @@ public sealed class GoalStore
             goals.Insert(0, GoalDefaults.Normalized(deepWork));
         }
 
+        // A goal tombstone old enough to go takes its entries and reminders with it (a received merge already did the same).
+        HashSet<Guid> pruned = kind == Kind.Synced
+            ? []
+            : after.Goals.Where(goal => goal.DeletedAt is DateTimeOffset at && at < cutoff).Select(goal => goal.Id).ToHashSet();
         IReadOnlyList<Goal> stamped = kind == Kind.Local ? Restamped(before.Goals, GoalUnknowns.Keep(before.Goals, goals), now, SelfId()) : goals;
         (IReadOnlyList<GoalArea> areas, IReadOnlyList<Goal> placed) = GoalAreaTidy.Rehome(after.Areas, stamped, GoalDefaults.NewWorkArea(now));
         var tidied = new GoalLists(
             areas.Where(area => area.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
             MovesStamped(stamped, placed).Where(goal => goal.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
-            after.Entries.ToList(),
-            after.Reminders.Where(reminder => reminder.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList(),
+            after.Entries.Where(entry => !pruned.Contains(entry.GoalId)).ToList(),
+            after.Reminders.Where(reminder => !pruned.Contains(reminder.GoalId) && (reminder.DeletedAt is not DateTimeOffset at || at >= cutoff)).ToList(),
             after.Reviews.Where(review => review.DeletedAt is not DateTimeOffset at || at >= cutoff).ToList())
         {
             Newer = after.Newer,

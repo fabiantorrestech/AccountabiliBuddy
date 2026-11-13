@@ -216,7 +216,15 @@ public sealed class GoalReviewService : IDisposable
         GoalReviewRecord record = RecordFor(week) ?? NewRecord(week);
         List<GoalReviewDecision> decisions = record.Decisions.Where(decision => decision.GoalId != goalId).ToList();
         // ADR 79: each goal's answer carries its own time, so two devices' answers for the same week merge goal by goal (newest wins).
-        decisions.Add(new GoalReviewDecision(goalId, choice) { DecidedAt = Now });
+        // ADR 48: stamped after the held answer for this goal, so a faster clock's earlier answer never beats a later one made here.
+        DateTimeOffset decidedAt = Now;
+        DateTimeOffset? held = record.Decisions.FirstOrDefault(decision => decision.GoalId == goalId)?.DecidedAt;
+        if (held is DateTimeOffset heldAt && heldAt >= decidedAt)
+        {
+            decidedAt = heldAt.AddTicks(1);
+        }
+
+        decisions.Add(new GoalReviewDecision(goalId, choice) { DecidedAt = decidedAt });
         return await _goals.SaveReviewAsync(record with { Decisions = decisions });
     }
 

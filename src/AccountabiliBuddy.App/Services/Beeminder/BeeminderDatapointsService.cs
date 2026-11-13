@@ -62,12 +62,11 @@ public sealed class BeeminderDatapointsService
     public event EventHandler? Changed;
 
     /// <summary>
-    /// Removes the Beeminder entries no live Read link owns, only while this PC has a token (ADR 79: without one the values may be another
-    /// PC's reading, and stay).
+    /// Removes this PC's Beeminder entries no live Read link owns (ADR 84: with no token that is all of this PC's own; another PC's stay, <see cref="BeeminderEntries.Prune"/>).
     /// </summary>
     public Task ReconcileAsync()
     {
-        return _store.ChangeAsync(this, (lists, at) => BeeminderEntries.Prune(lists, ActiveLinks(lists), _beeminder.HasToken, at));
+        return _store.ChangeAsync(this, (lists, at) => BeeminderEntries.Prune(lists, ActiveLinks(lists), _store.SelfId(), at));
     }
 
     /// <summary>Reads the datapoints of every linked goal (called by <see cref="BeeminderService"/> after it read the goals).</summary>
@@ -215,7 +214,7 @@ public sealed class BeeminderDatapointsService
             .GroupBy(point => point.Day)
             .ToDictionary(group => group.Key, group => BeeminderDayValue.Of(aggDay, group.ToList()));
         await _store.ChangeAsync(this, (lists, at) =>
-            ActiveLinks(lists).Contains(link) ? BeeminderEntries.Apply(lists, link, coveredFrom, days, at) : lists);
+            ActiveLinks(lists).Contains(link) ? BeeminderEntries.Apply(lists, link, coveredFrom, days, _store.SelfId(), at) : lists);
         return ReadOutcome.Done;
     }
 
