@@ -102,10 +102,13 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
 
     /// <summary>
     /// The fallback tick: 5 minutes while the push stream is open (changes already travel by push), else, while it is down,
-    /// 10 seconds during a session, a work part or busy noise, and 5 minutes otherwise.
+    /// 10 seconds during a session, a work part, busy noise or while a lunch runs or is due (<see cref="LunchBusy"/>), and 5 minutes otherwise.
     /// </summary>
     public TimeSpan PollInterval =>
-        !IsConnected && (_sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true) ? BusyPoll : IdlePoll;
+        !IsConnected && (_sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true || LunchBusy?.Invoke() == true) ? BusyPoll : IdlePoll;
+
+    /// <summary>True while a lunch runs here or in a received file, or one is due soon (<see cref="Core.Sync.LunchListening"/>); set by the app.</summary>
+    public Func<bool>? LunchBusy { get; set; }
 
     /// <summary>True during the day plan's work parts (polled as often as in a session); set by the app.</summary>
     public Func<bool>? InWorkHours { get; set; }

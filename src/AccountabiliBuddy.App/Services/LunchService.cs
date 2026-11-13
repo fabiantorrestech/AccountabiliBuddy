@@ -226,6 +226,9 @@ public sealed class LunchService
             return false;
         }
 
+        // A device whose clock runs ahead stamps its edits in the future; held to now, a later real edit here or elsewhere still wins (LU1-fix).
+        lunch = LunchListening.ClampFuture(lunch, _sessions.Now);
+
         if (lunch.End > lunch.Start + MaxLength)
         {
             // Another device's lunch is never longer than this one's longest either.

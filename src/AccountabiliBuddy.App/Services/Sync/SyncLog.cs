@@ -31,6 +31,7 @@ public sealed class SyncLog
     private readonly List<string> _buffer = [];
     private readonly Dictionary<(string Method, SyncLogDirection Direction), QuietRun> _quiet = [];
     private readonly object _lock = new();
+    private readonly Dictionary<(string Method, SyncLogDirection Direction), (DateTimeOffset Start, DateTimeOffset End)> _lastLunch = [];
     private bool _flushScheduled;
     private DateTimeOffset _lastTrim = DateTimeOffset.MinValue;
 
@@ -70,6 +71,30 @@ public sealed class SyncLog
             }
 
             Add(now, $"{method} {NameOf(direction)} files={files} merged={merged} held={held} skipped={skipped} unreadable={unreadable} refused={refused} ms={milliseconds}");
+        }
+    }
+
+    /// <summary>
+    /// A lunch in a file written or read (LU1-fix): the method, the direction and the lunch's start and end as UTC times, nothing else. The same lunch
+    /// on the same method and direction is logged once, so the next "late" report shows as write lag (the write's stamp against the start or
+    /// edit) or read lag (the read's stamp against the writer's).
+    /// </summary>
+    public void Lunch(string method, SyncLogDirection direction, DateTimeOffset start, DateTimeOffset end)
+    {
+        if (!SyncReceiptParts.Methods.Contains(method))
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            if (_lastLunch.TryGetValue((method, direction), out (DateTimeOffset Start, DateTimeOffset End) last) && last == (start, end))
+            {
+                return;
+            }
+
+            _lastLunch[(method, direction)] = (start, end);
+            Add(_time.GetUtcNow(), $"{method} {NameOf(direction)} lunch start={Stamp(start)} end={Stamp(end)}");
         }
     }
 

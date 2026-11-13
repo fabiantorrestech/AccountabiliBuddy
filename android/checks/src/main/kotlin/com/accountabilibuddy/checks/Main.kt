@@ -180,6 +180,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "r73b-self" to TasksDragSelfCheck::run,
     // PT1 (phone): the Group by pills, the view icons, the search hint and a view's search through the shared rule.
     "pt1-self" to Pt1SelfCheck::run,
+    // LU1-fix: the shared "listen fast" rule for lunch (running here or in a received file, or due) and the future-stamp clamp.
+    "lu1-self" to Lu1SelfCheck::run,
     // PH1 + TD1 (phone): the day panel's one height, every Today part hideable in both layouts, More today bar show / hide, the steps part
     // gone with old layouts read fine, the one-time "Steps now live in Goals" card (phone only).
     "ph1td1-self" to Ph1Td1SelfCheck::run,

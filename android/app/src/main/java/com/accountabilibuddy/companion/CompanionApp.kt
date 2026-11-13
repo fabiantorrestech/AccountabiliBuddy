@@ -996,9 +996,6 @@ class CompanionApp : Application() {
         }
     }
 
-    /** How long before a planned lunch window the phone starts listening for a lunch started elsewhere. */
-    private val LUNCH_LEAD: java.time.Duration = java.time.Duration.ofHours(1)
-
     /** Screen on and an unlock this close together refresh once. */
     private val SCREEN_REFRESH_GAP_MS = 2_000L
 
@@ -1014,29 +1011,18 @@ class CompanionApp : Application() {
         )
     }
 
-    // Today's work parts, and lunch: running, or about to come from the plan's flexible break. Lunch is started on any
-    // device, so the phone must hear of it (and be heard) within about 30 seconds, not 15 minutes, but only from an hour
-    // before the planned lunch window until it ends: never all night.
+    // Today's work parts, and lunch: running here or in any received file, or about to come (1 hour before the plan's flexible break or
+    // fixed lunch until its end). Lunch is started on any device, so the phone must hear of it (and be heard) within about 30 seconds,
+    // not 15 minutes, but only then: never all night. The rule is shared code (LunchListening, the PC's twin is the same).
     private fun inWorkPartOrLunchExpected(now: java.time.Instant): Boolean {
         val state = store.state.value
         val plan = state.document.dayPlan
         val local = java.time.LocalDateTime.ofInstant(now, java.time.ZoneId.systemDefault())
-        if (lunch.isOnLunch(now)) {
-            return true
-        }
-
-        val flexibleBreak = plan.flexibleBreakOn(local.toLocalDate())
-        if (flexibleBreak != null && lunch.today(now) == null &&
-            !local.isBefore(flexibleBreak.window.start.minus(LUNCH_LEAD)) && local.isBefore(flexibleBreak.window.end)
-        ) {
-            return true
-        }
-
-        // A fixed lunch period starts by itself on the PC: hear of it as quickly as a flexible one.
-        val fixedLunch = plan.fixedLunchOn(local.toLocalDate())
-        if (fixedLunch != null && lunch.today(now) == null &&
-            !local.isBefore(fixedLunch.window.start.minus(LUNCH_LEAD)) && local.isBefore(fixedLunch.window.end)
-        ) {
+        val planned = listOfNotNull(
+            plan.flexibleBreakOn(local.toLocalDate())?.let { com.accountabilibuddy.shared.sync.LunchWindow(it.window.start, it.window.end) },
+            plan.fixedLunchOn(local.toLocalDate())?.let { com.accountabilibuddy.shared.sync.LunchWindow(it.window.start, it.window.end) },
+        )
+        if (com.accountabilibuddy.shared.sync.LunchListening.isListening(now, local, lunch.today(now), sync.received.value.map { it.file.lunch }, planned)) {
             return true
         }
 

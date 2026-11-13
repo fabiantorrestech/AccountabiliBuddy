@@ -580,6 +580,11 @@ public sealed class SyncCoordinator
 
         Receipts?.RecordParts(sender.DeviceId, sender.WrittenAt, outcome);
         CountParts(method, outcome);
+        if (file.Lunch is SyncLunch lunch)
+        {
+            SyncLogger?.Lunch(method, SyncLogDirection.Read, lunch.Start, lunch.End);
+        }
+
         return null;
     }
 
@@ -608,6 +613,10 @@ public sealed class SyncCoordinator
     {
         SendLog?.Record(method, writtenAt, _sessions.Now);
         SyncLogger?.Pass(method, SyncLogDirection.Send, files: 1, merged: 0, held: 0, skipped: 0, unreadable: 0, milliseconds);
+        if (Lunch?.Invoke() is SyncLunch lunch)
+        {
+            SyncLogger?.Lunch(method, SyncLogDirection.Send, lunch.Start, lunch.End);
+        }
     }
 
     /// <summary>A read pass over <paramref name="method"/> ended (SYNC1b): one line of counts in the sync log.</summary>

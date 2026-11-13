@@ -531,7 +531,7 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
             _watcher = null;
         }
 
-        _timer = new DispatcherTimer { Interval = IntervalOf(_settings.Current.Interval) };
+        _timer = new DispatcherTimer { Interval = ReadInterval };
         _timer.Tick += OnTick;
         _timer.Start();
         _ = WriteThenReadAsync();
@@ -575,7 +575,33 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
 
     private void OnTick(object? sender, EventArgs e)
     {
+        // A lunch started or came due since the last tick: the next one follows the new rate.
+        UpdateInterval();
         _ = WriteThenReadAsync();
+    }
+
+    /// <summary>True while a lunch runs here or in a received file, or one is due soon (<see cref="Core.Sync.LunchListening"/>): the folder is read every minute whatever the interval setting; set by the app.</summary>
+    public Func<bool>? LunchBusy { get; set; }
+
+    /// <summary>Follows the lunch state now (a lunch started or ended), not only at the next tick.</summary>
+    public void UpdateInterval()
+    {
+        TimeSpan interval = ReadInterval;
+        if (_timer is not null && _timer.Interval != interval)
+        {
+            _timer.Interval = interval;
+        }
+    }
+
+    /// <summary>How often the folder is read now: the interval setting, but at most a minute while a lunch runs or is due (every device listens fast then).</summary>
+    public TimeSpan ReadInterval
+    {
+        get
+        {
+            TimeSpan setting = IntervalOf(_settings.Current.Interval);
+            TimeSpan fast = TimeSpan.FromMinutes(1);
+            return LunchBusy?.Invoke() == true && setting > fast ? fast : setting;
+        }
     }
 
     private void OnSettingsChanged(object? sender, SyncSettings settings)

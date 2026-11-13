@@ -886,6 +886,9 @@ public partial class App : Application
         _lunch.Changed += (_, _) =>
         {
             syncCoordinator.NotifyHistoryChanged();
+            _syncDrive?.UpdatePollInterval();
+            _syncRelay?.UpdatePollInterval();
+            _syncFolder?.UpdateInterval();
             AccountabiliBuddy.Core.Sync.SyncLunch? taken = _lunch.Taken;
             if (taken != lastLunch)
             {
@@ -900,6 +903,11 @@ public partial class App : Application
             {
                 taken |= _lunch.Receive(lunch);
             }
+
+            // A lunch running in a received file (taken here or not) speeds the polls up now, not at the next tick.
+            _syncDrive?.UpdatePollInterval();
+            _syncRelay?.UpdatePollInterval();
+            _syncFolder?.UpdateInterval();
 
             // The day bar redrew when the file arrived, before the lunch was taken: once more now, not at its next 30-second redraw.
             if (taken)
@@ -955,6 +963,9 @@ public partial class App : Application
         timelineDay.UseTasks(sessionTasks);
         timelineDay.UseReceived(receivedDevices);
         _syncFolder = new AccountabiliBuddy.App.Services.Sync.SyncFolderService(syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions);
+        // LU1-fix: every sync method listens fast while a lunch runs (here or in a received file) or is due.
+        var lunchListening = new AccountabiliBuddy.App.Services.Sync.LunchListeningSource(_lunch!, receivedDevices, () => _configuration!.Current.DayPlan, time);
+        _syncFolder.LunchBusy = lunchListening.IsListening;
         // Google Drive (ADR 26): signed in with the user's own Google client, drive.file only, through CalendarNetwork.
         GoogleEndpoints googleEndpoints = GoogleEndpointsFromEnvironment();
         var driveAccount = new AccountabiliBuddy.App.Services.Sync.DriveAccountService(
@@ -966,6 +977,7 @@ public partial class App : Application
         {
             IsSignedIn = () => driveAccount.IsSignedIn,
             NoiseBusy = () => remoteNoise.WantsFastPoll,
+            LunchBusy = lunchListening.IsListening,
             // Every 10 seconds during work parts too, for pickups across PCs (design K).
             InWorkHours = () =>
             {
@@ -983,6 +995,7 @@ public partial class App : Application
         {
             NoiseBusy = _syncDrive.NoiseBusy,
             InWorkHours = _syncDrive.InWorkHours,
+            LunchBusy = lunchListening.IsListening,
         };
         // Removing devices from the group and learning of a removal (ADR 54): the rekey file travels by every method in use.
         _syncRemoval = new AccountabiliBuddy.App.Services.Sync.SyncRemovalService(documents, syncIdentity, receivedDevices, _sessions)

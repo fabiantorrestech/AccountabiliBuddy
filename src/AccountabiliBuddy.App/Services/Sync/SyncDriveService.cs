@@ -60,9 +60,12 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
     /// <summary>False while no Drive account is signed in (set by the app); then nothing is written or read.</summary>
     public Func<bool> IsSignedIn { get; set; } = () => true;
 
-    /// <summary>How often it writes and reads now: 10 seconds while a session runs, in a work part or while noise is busy, else 5 minutes.</summary>
+    /// <summary>How often it writes and reads now: 10 seconds while a session runs, in a work part, while noise is busy or while a lunch runs or is due (<see cref="LunchBusy"/>), else 5 minutes.</summary>
     public TimeSpan PollInterval =>
-        _sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true ? BusyPoll : IdlePoll;
+        _sessions.State.IsActive || InWorkHours?.Invoke() == true || NoiseBusy?.Invoke() == true || LunchBusy?.Invoke() == true ? BusyPoll : IdlePoll;
+
+    /// <summary>True while a lunch runs here or in a received file, or one is due soon (<see cref="Core.Sync.LunchListening"/>): polled as often as in a session; set by the app.</summary>
+    public Func<bool>? LunchBusy { get; set; }
 
     /// <summary>True during the day plan's work parts (polled as often as in a session); set by the app.</summary>
     public Func<bool>? InWorkHours { get; set; }

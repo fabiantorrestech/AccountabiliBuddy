@@ -106,7 +106,8 @@ class LunchStore(private val context: Context) {
     @Synchronized
     fun receive(received: SyncLunch, now: Instant = Instant.now()): Boolean {
         if (!isToday(received.start, now)) return false
-        val lunch = clamped(received)
+        // A device whose clock runs ahead stamps its edits in the future; held to now, a later real edit still wins (LU1-fix).
+        val lunch = clamped(com.accountabilibuddy.shared.sync.LunchListening.clampFuture(received, now))
         val ours = today(now)
         if (ours != null && (ours.lastEdit >= lunch.lastEdit || (ours.start == lunch.start && ours.end == lunch.end))) return false
         save(lunch, overTold = now >= lunch.end)
