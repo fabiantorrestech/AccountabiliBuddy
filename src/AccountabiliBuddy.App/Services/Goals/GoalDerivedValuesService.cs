@@ -24,6 +24,12 @@ public sealed class GoalDerivedValuesService
     /// <summary>How many days back (today included) a run measures.</summary>
     public const int Days = 90;
 
+    /// <summary>
+    /// True while this PC is in a sync group (it holds the group's key). Set by the app; null counts as in a group (checks that drive the service
+    /// directly). Without a group nothing is written, even when the PC has a device id of its own (review SHOULD c).
+    /// </summary>
+    public Func<bool>? InGroup { get; set; }
+
     /// <summary>A run asked for by <see cref="Request"/> happens at most this often.</summary>
     public static readonly TimeSpan MinGap = TimeSpan.FromMinutes(5);
 
@@ -53,7 +59,7 @@ public sealed class GoalDerivedValuesService
     public async Task<int> RunAsync()
     {
         Guid me = _store.SelfId();
-        if (_running || me == Guid.Empty || !_store.IsReady || !_data.IsLoaded)
+        if (_running || me == Guid.Empty || InGroup?.Invoke() == false || !_store.IsReady || !_data.IsLoaded)
         {
             return 0;
         }

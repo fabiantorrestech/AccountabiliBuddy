@@ -34,6 +34,15 @@ public sealed class GoalHistoryState
     /// <summary>The ids of goals whose tombstone this PC pruned, kept for good (about 16 bytes a goal): their rows in history files never keep a file unread.</summary>
     public HashSet<Guid> PrunedGoals { get; set; } = [];
 
+    /// <summary>
+    /// When the first merge ran that dropped a row of a goal this PC doesn't hold (null: none open). The late joiner's rule
+    /// (<c>GoalHistoryRules.LatePrunable</c>) waits until every active device's regular file has merged after it.
+    /// </summary>
+    public DateTimeOffset? FirstDropAt { get; set; }
+
+    /// <summary>Names put under an earlier key, by transport: deleted at the next pass of a store that deletes (Drive), kept until they are gone.</summary>
+    public Dictionary<string, List<string>> StaleNames { get; set; } = [];
+
     /// <summary>By transport ("drive", "relay").</summary>
     public Dictionary<string, GoalHistoryTransportState> Transports { get; set; } = [];
 

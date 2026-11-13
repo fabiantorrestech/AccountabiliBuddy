@@ -30,6 +30,8 @@ public sealed class RelayGoalHistoryStore : IGoalHistoryStore
 
     public int? MaxFiles => RelayMaxFiles;
 
+    public int? MaxRequestsPerPass => 40;
+
     public bool Expires => true;
 
     public bool CanDelete => false;

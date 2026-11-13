@@ -21,6 +21,8 @@ public sealed class DriveGoalHistoryStore : IGoalHistoryStore
 
     public int? MaxFiles => null;
 
+    public int? MaxRequestsPerPass => null;
+
     public bool Expires => false;
 
     public bool CanDelete => true;

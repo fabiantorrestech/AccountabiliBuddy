@@ -1,3 +1,4 @@
+using System.Net;
 using AccountabiliBuddy.App.Services.Goals;
 using AccountabiliBuddy.Core.Goals;
 using AccountabiliBuddy.Core.Sync;
@@ -23,6 +24,11 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// deletes only when a device leaves) simply no longer put again, so they expire.</item>
 /// <item><b>Put again</b> own files the relay would expire (25 days, the owner's rule) or that went missing.</item>
 /// </list>
+/// <b>On the relay</b> (owner 2026-11-13, review fixes): only the PC that rolls the year keeps finished month files there, every other device
+/// its open months only, each device at most <see cref="GoalHistoryRules.RelayQuota"/> files, newest months first
+/// (<see cref="GoalHistoryRules.RelayKeep"/>); nothing is written while a device of the group is on an app that doesn't know history files
+/// (<see cref="GoalHistoryRules.KnowsHistory"/>); a pass makes at most <see cref="IGoalHistoryStore.MaxRequestsPerPass"/> requests; a 429 answer to
+/// a put means the group is full and ends the pass quietly (no retry). A month is put again as the same bytes (get, put), like a year file.
 /// A file bigger than the store's limit (the relay's 4 MiB) is not written, and the relay keeps room for the devices' sync files. Sealed
 /// exactly like the sync files (the group's key, AES-256-GCM); never in a QR file. Logs counts only. Use from the UI thread only.
 /// </summary>
@@ -34,8 +40,8 @@ public sealed class GoalHistorySync
     /// <summary>A transport is listed and worked through at most this often (a file is still written at most daily).</summary>
     public static readonly TimeSpan RunEvery = TimeSpan.FromMinutes(15);
 
-    /// <summary>The relay's file limit leaves this many places for the devices' sync files.</summary>
-    public const int RelayHeadroom = 8;
+    /// <summary>A last guard on top of the quota: no new history file is put while the relay's group holds fewer than this many free places.</summary>
+    public const int RelayHeadroom = 4;
 
     private static readonly TimeSpan RollEvery = TimeSpan.FromDays(1);
     private static readonly TimeSpan RetryUnreadableAfter = TimeSpan.FromDays(1);
@@ -52,7 +58,6 @@ public sealed class GoalHistorySync
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, DateTimeOffset> _lastRun = [];
     private readonly Dictionary<string, DateTimeOffset> _unreadableTried = [];
-    private readonly Dictionary<string, List<string>> _staleNames = [];
     private GoalSyncLists? _previousGoals;
     private HashSet<string>? _names;
     private string _namesKey = string.Empty;
@@ -206,20 +211,34 @@ public sealed class GoalHistorySync
             _lastRun[store.Transport] = _time.GetUtcNow();
             state = StateFor(key);
             markerText = MarkerText(state);
-            await DeleteStaleNamesAsync(store, cancellationToken);
-            var pass = new Pass(store, state, state.Transport(store.Transport), me, key);
+            var pass = new Pass(store, state, state.Transport(store.Transport), me, key, RelayGated(store));
 
+            pass.Spend();
             await ListAsync(pass, cancellationToken);
+            await DeleteStaleNamesAsync(pass, cancellationToken);
             await ReadAsync(pass, run, cancellationToken);
-            if (await RollAsync(pass, run, cancellationToken))
+            if (!pass.Stopped && await RollAsync(pass, run, cancellationToken) && pass.Spend())
             {
                 await ListAsync(pass, cancellationToken);
                 await ReadAsync(pass, run, cancellationToken);
             }
 
-            await WriteAsync(pass, run, cancellationToken);
-            await RemoveAsync(pass, run, cancellationToken);
-            await ReuploadYearsAsync(pass, run, cancellationToken);
+            if (!pass.Stopped)
+            {
+                await WriteAsync(pass, run, cancellationToken);
+            }
+
+            if (!pass.Stopped)
+            {
+                await RemoveAsync(pass, run, cancellationToken);
+            }
+
+            if (!pass.Stopped)
+            {
+                await ReuploadYearsAsync(pass, run, cancellationToken);
+            }
+
+            run.Capped = pass.Capped;
         }
         finally
         {
@@ -239,6 +258,54 @@ public sealed class GoalHistorySync
         return run;
     }
 
+    /// <summary>
+    /// This PC has left its group (no key): the history files it put in a store that deletes (Drive) go, with its state of that transport
+    /// (the relay's go with its sync file, <see cref="OwnNames"/>). Best effort: the caller catches transport errors.
+    /// </summary>
+    public async Task LeaveAsync(IGoalHistoryStore store, CancellationToken cancellationToken)
+    {
+        if (!store.CanDelete || _key() is not null)
+        {
+            return;
+        }
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            GoalHistoryState state = _stateStore.Value;
+            if (!state.Transports.TryGetValue(store.Transport, out GoalHistoryTransportState? transport) || transport.OwnNames.Count == 0)
+            {
+                return;
+            }
+
+            IReadOnlyList<GoalHistoryRemoteFile> listing = await store.ListAsync(cancellationToken);
+            var listed = listing.Select(file => file.Name).ToHashSet(StringComparer.Ordinal);
+            int deleted = 0;
+            foreach (string name in transport.OwnNames.ToList())
+            {
+                if (listed.Contains(name))
+                {
+                    await store.DeleteAsync(name, cancellationToken);
+                    deleted++;
+                }
+            }
+
+            state.Transports.Remove(store.Transport);
+            await _stateStore.SaveAsync();
+            _log($"goal history {store.Transport}: left deleted={deleted}");
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    // ON THE RELAY: nothing is written while a device of the group (not removed) is on an app that doesn't know history files (Q740).
+    private bool RelayGated(IGoalHistoryStore store)
+    {
+        return store.MaxFiles is not null && _devices().Where(info => !info.Removed).Any(info => !GoalHistoryRules.KnowsHistory(info.Kind, info.AppVersion));
+    }
+
     // ---------------------------------------------------------------------------------------------------- state
 
     private GoalHistoryState StateFor(SyncKey key)
@@ -252,13 +319,14 @@ public sealed class GoalHistorySync
 
         // A different key (the group was rekeyed or joined again): everything is new. The files under the old key are of no use to the
         // new group; Drive's are deleted at the next pass, the relay's expire (its own group was deleted on leaving).
+        Dictionary<string, List<string>> stale = state.StaleNames;
         if (state.Group.Length > 0)
         {
             foreach ((string transport, GoalHistoryTransportState old) in state.Transports)
             {
                 if (old.OwnNames.Count > 0)
                 {
-                    _staleNames[transport] = old.OwnNames.ToList();
+                    stale[transport] = stale.GetValueOrDefault(transport, []).Concat(old.OwnNames).Distinct().ToList();
                 }
             }
         }
@@ -270,20 +338,33 @@ public sealed class GoalHistorySync
         state.Group = group;
         state.PrunedGoals = pruned;
         state.TombstonedGoals = tombstoned;
+        state.StaleNames = stale;
         return state;
     }
 
-    private async Task DeleteStaleNamesAsync(IGoalHistoryStore store, CancellationToken cancellationToken)
+    // The old key's files, after the listing (a store deletes by what it listed). Kept in the saved state until they are gone; a store that
+    // never deletes (the relay) lets them expire.
+    private async Task DeleteStaleNamesAsync(Pass pass, CancellationToken cancellationToken)
     {
-        if (!store.CanDelete || !_staleNames.Remove(store.Transport, out List<string>? names))
+        if (!pass.State.StaleNames.TryGetValue(pass.Store.Transport, out List<string>? names))
         {
             return;
         }
 
-        foreach (string name in names)
+        if (pass.Store.CanDelete)
         {
-            await store.DeleteAsync(name, cancellationToken);
+            foreach (string name in names.Where(pass.AllNames.Contains).ToList())
+            {
+                if (!pass.Spend())
+                {
+                    return;
+                }
+
+                await pass.Store.DeleteAsync(name, cancellationToken);
+            }
         }
+
+        pass.State.StaleNames.Remove(pass.Store.Transport);
     }
 
     private static string MarkerText(GoalHistoryState state) => MarkerKey(state.OwnMarker);
@@ -339,8 +420,10 @@ public sealed class GoalHistorySync
         pass.NewFiles = 0;
         pass.Remote.Clear();
         pass.History.Clear();
+        pass.AllNames.Clear();
         foreach (GoalHistoryRemoteFile file in listing)
         {
+            pass.AllNames.Add(file.Name);
             if (names.TryGetValue(file.Name, out GoalHistoryFileKey? key))
             {
                 pass.Remote[key] = file;
@@ -368,8 +451,20 @@ public sealed class GoalHistorySync
             }
         }
 
-        bool newToGroup = !state.GoalsPartMerged;
-        IReadOnlyList<GoalHistoryListing> toRead = GoalHistoryRules.ToRead(pass.History, lastRead, lastMerge, removed, pass.Me, newToGroup, now);
+        // Rows read before any regular file's goals part has merged are all dropped (no goal is held yet): nothing is downloaded for them.
+        // A PC that knows no other device has no goals part to wait for (its own files are all there is).
+        bool goalsReady = state.GoalsPartMerged || !infos.Any(info => info.Id != pass.Me && !info.Removed);
+        bool newToGroup = transport.NewToGroup || !goalsReady;
+        IReadOnlyList<GoalHistoryListing> toRead = goalsReady
+            ? GoalHistoryRules.ToRead(pass.History, lastRead, lastMerge, removed, pass.Me, newToGroup, now)
+            : [];
+        if (newToGroup && toRead.Count > 0)
+        {
+            // New to the group, a device reads every file once, its own too; one already read at its listed version is not downloaded again.
+            HashSet<GoalHistoryFileKey> ordinary = GoalHistoryRules.ToRead(pass.History, lastRead, lastMerge, removed, pass.Me, false, now).Select(file => file.Key).ToHashSet();
+            toRead = toRead.Where(file => ordinary.Contains(file.Key) || !lastRead.TryGetValue(file.Key, out DateTimeOffset read) || read != file.ModifiedAt).ToList();
+        }
+
         HashSet<Guid> staleBefore = pass.History
             .Where(file => file.Key.Kind == GoalHistoryFileKind.Month && file.Key.DeviceId is Guid device && device != pass.Me && !removed.Contains(device))
             .Select(file => file.Key.DeviceId!.Value)
@@ -378,6 +473,7 @@ public sealed class GoalHistorySync
 
         var rows = new List<GoalHistoryRows>();
         var years = new Dictionary<GoalHistoryFileKey, GoalHistoryYear>();
+        var skipped = new HashSet<GoalHistoryFileKey>();
         foreach (GoalHistoryListing file in toRead)
         {
             GoalHistoryRemoteFile remote = pass.Remote[file.Key];
@@ -391,7 +487,14 @@ public sealed class GoalHistorySync
 
             if (remote.Size > pass.Store.MaxFileBytes || (_unreadableTried.TryGetValue(remote.Name, out DateTimeOffset tried) && now - tried < RetryUnreadableAfter))
             {
+                // Logged when it was found; it never holds a stale device's complete read or the "new to the group" state back.
+                skipped.Add(file.Key);
                 continue;
+            }
+
+            if (!pass.Spend())
+            {
+                break;
             }
 
             byte[]? bytes = await pass.Store.GetAsync(remote.Name, cancellationToken);
@@ -406,6 +509,7 @@ public sealed class GoalHistorySync
                 if (month is null || month.Key != file.Key)
                 {
                     NoteUnreadable(remote, run, now);
+                    skipped.Add(file.Key);
                     continue;
                 }
 
@@ -417,6 +521,7 @@ public sealed class GoalHistorySync
                 if (year is null || year.Key != file.Key)
                 {
                     NoteUnreadable(remote, run, now);
+                    skipped.Add(file.Key);
                     continue;
                 }
 
@@ -436,12 +541,20 @@ public sealed class GoalHistorySync
                         return null;
                     }
 
-                    merged = GoalHistoryRules.Merge(held, null, rows, now, state.PrunedGoals);
+                    var late = new GoalHistoryLatePrune(state.FirstDropAt, ActiveDevices(pass, now), pass.Me, state.LastRegularMerge);
+                    merged = GoalHistoryRules.Merge(held, null, rows, now, state.PrunedGoals, late);
                     return merged.Lists;
                 },
                 this);
             if (merged is not null)
             {
+                // A late joiner: goals no active device knows any more (all rows older than 30 days) are pruned goals; their files count as read.
+                if (merged.NewlyPruned is { Count: > 0 } freed)
+                {
+                    state.PrunedGoals.UnionWith(freed);
+                }
+
+                state.FirstDropAt = merged.Dropped.Any(entry => !state.PrunedGoals.Contains(entry.GoalId)) ? state.FirstDropAt ?? now : null;
                 foreach (GoalHistoryListing read in merged.Read)
                 {
                     string text = GoalHistoryNames.KeyText(read.Key);
@@ -451,6 +564,7 @@ public sealed class GoalHistorySync
                         transport.ReadTag[text] = tag;
                     }
 
+                    lastRead[read.Key] = read.ModifiedAt;
                     run.Read++;
                     if (years.TryGetValue(read.Key, out GoalHistoryYear? year))
                     {
@@ -463,16 +577,23 @@ public sealed class GoalHistorySync
             }
         }
 
-        // A stale device whose files are all read now has a complete merge: it is not stale again until 90 days pass.
+        // A stale device whose files are all read now has a complete merge: it is not stale again until 90 days pass. A file that is too big
+        // or can't be opened is logged and left out of that.
         foreach (Guid device in staleBefore)
         {
             bool complete = pass.History
-                .Where(file => file.Key.Kind == GoalHistoryFileKind.Month && file.Key.DeviceId == device)
+                .Where(file => file.Key.Kind == GoalHistoryFileKind.Month && file.Key.DeviceId == device && !skipped.Contains(file.Key))
                 .All(file => transport.Read.TryGetValue(GoalHistoryNames.KeyText(file.Key), out DateTimeOffset at) && at == file.ModifiedAt);
             if (complete)
             {
                 state.LastMergeFrom[device] = now;
             }
+        }
+
+        // No longer new to the group once a regular goals part has merged and every listed file is read or left out.
+        if (transport.NewToGroup && goalsReady && !pass.Stopped && GoalHistoryRules.AllAccountedFor(pass.History, lastRead, skipped))
+        {
+            transport.NewToGroup = false;
         }
     }
 
@@ -517,6 +638,12 @@ public sealed class GoalHistorySync
                 continue;
             }
 
+            if (pass.Gated)
+            {
+                run.Gated++;
+                continue;
+            }
+
             GoalHistoryYear? existing = null;
             GoalHistoryListing? yearFile = pass.History
                 .Where(file => file.Key.Kind == GoalHistoryFileKind.Year && file.Key.Year == year)
@@ -525,6 +652,11 @@ public sealed class GoalHistorySync
                 .FirstOrDefault();
             if (yearFile is not null)
             {
+                if (pass.Remote[yearFile.Key].Size <= pass.Store.MaxFileBytes && !pass.Spend())
+                {
+                    return rolled;
+                }
+
                 byte[]? bytes = pass.Remote[yearFile.Key].Size > pass.Store.MaxFileBytes ? null : await pass.Store.GetAsync(pass.Remote[yearFile.Key].Name, cancellationToken);
                 existing = bytes is null ? null : GoalHistoryCodec.OpenYear(bytes, pass.Key);
                 if (existing is null || existing.Key != yearFile.Key)
@@ -547,6 +679,11 @@ public sealed class GoalHistorySync
                 }
 
                 GoalHistoryRemoteFile remote = pass.Remote[file.Key];
+                if (remote.Size <= pass.Store.MaxFileBytes && !pass.Spend())
+                {
+                    return rolled;
+                }
+
                 byte[]? bytes = remote.Size > pass.Store.MaxFileBytes ? null : await pass.Store.GetAsync(remote.Name, cancellationToken);
                 GoalHistoryMonth? month = bytes is null ? null : GoalHistoryCodec.OpenMonth(bytes, pass.Key);
                 if (month is not null && month.Key == file.Key)
@@ -569,7 +706,11 @@ public sealed class GoalHistorySync
                 continue;
             }
 
-            await pass.Store.PutAsync(name, sealedYear, cancellationToken);
+            if (!await PutAsync(pass, run, name, sealedYear, cancellationToken))
+            {
+                return rolled;
+            }
+
             pass.NewFiles++;
             pass.Transport.OwnNames.Add(name);
             pass.Transport.OwnYearNames.Add(name);
@@ -608,6 +749,7 @@ public sealed class GoalHistorySync
 
         DateTimeOffset now = _time.GetUtcNow();
         GoalHistoryTransportState transport = pass.Transport;
+        ForgetVanishedYears(pass);
         var months = new SortedSet<(int Year, int Month)>(GoalHistoryRules.MonthsOf(held.Entries));
         foreach (string text in transport.Written.Keys)
         {
@@ -618,8 +760,20 @@ public sealed class GoalHistorySync
             }
         }
 
-        foreach ((int year, int month) in months)
+        // ON THE RELAY: only the roller keeps finished months, a device at most its quota, newest first (GoalHistoryRules.RelayKeep).
+        HashSet<(int Year, int Month)>? keep = pass.Store.MaxFiles is null ? null : RelayMonths(pass, months, now);
+        foreach ((int year, int month) in months.Reverse())
         {
+            if (pass.Stopped)
+            {
+                return;
+            }
+
+            if (keep is not null && !keep.Contains((year, month)))
+            {
+                continue;
+            }
+
             string monthText = GoalHistoryNames.MonthText(year, month);
             transport.Written.TryGetValue(monthText, out GoalHistoryMonth? last);
             GoalHistoryMonth? fresh = GoalHistoryRules.MonthToWrite(last, held.Entries, pass.Me, year, month, now);
@@ -627,6 +781,7 @@ public sealed class GoalHistorySync
             string name = GoalHistoryNames.NameFor(pass.Key.GroupId, GoalHistoryFileKey.ForMonth(pass.Me, year, month), pass.Store.Extension);
             bool listed = pass.Remote.Values.Any(file => file.Name == name);
             bool reupload = false;
+            bool sameBytes = false;
             if (toPut is null && last is not null && !transport.Removed.Contains(monthText))
             {
                 // The same content: put again only when the file is missing here, or the store would expire it.
@@ -636,6 +791,7 @@ public sealed class GoalHistorySync
                 {
                     toPut = last;
                     reupload = true;
+                    sameBytes = !missing;
                 }
             }
 
@@ -644,13 +800,40 @@ public sealed class GoalHistorySync
                 continue;
             }
 
-            byte[] sealedMonth = GoalHistoryCodec.Seal(toPut, pass.Key);
+            if (pass.Gated)
+            {
+                // A device of the group is on an app that would take the file for an unreadable sync file.
+                run.Gated++;
+                continue;
+            }
+
+            byte[]? sealedMonth = null;
+            if (sameBytes)
+            {
+                // Like a year file: the very same bytes, so the relay's etag doesn't change and no reader downloads it again.
+                if (!pass.Spend())
+                {
+                    return;
+                }
+
+                byte[]? current = await pass.Store.GetAsync(name, cancellationToken);
+                if (current is not null && GoalHistoryCodec.OpenMonth(current, pass.Key) is { } opened && opened.Key == toPut.Key)
+                {
+                    sealedMonth = current;
+                }
+            }
+
+            sealedMonth ??= GoalHistoryCodec.Seal(toPut, pass.Key);
             if (!Fits(pass, run, sealedMonth.Length, name, listed))
             {
                 continue;
             }
 
-            await pass.Store.PutAsync(name, sealedMonth, cancellationToken);
+            if (!await PutAsync(pass, run, name, sealedMonth, cancellationToken))
+            {
+                return;
+            }
+
             if (!listed)
             {
                 pass.NewFiles++;
@@ -671,7 +854,65 @@ public sealed class GoalHistorySync
         }
     }
 
-    // The store's limits: a file over its size is not written; the relay's group keeps room for the devices' sync files.
+    // ON THE RELAY: the months this device keeps there now (GoalHistoryRules.RelayKeep with RelayQuota): the roller all, the others their
+    // open months; at most the quota; a month already rolled up and removed is not a candidate.
+    private HashSet<(int Year, int Month)> RelayMonths(Pass pass, IEnumerable<(int Year, int Month)> months, DateTimeOffset now)
+    {
+        var removed = _devices().Where(info => info.Removed).Select(info => info.Id).ToHashSet();
+        bool roller = GoalHistoryRules.Roller(ActiveDevices(pass, now)) == pass.Me;
+        int yearFiles = pass.History.Count(file => file.Key.Kind == GoalHistoryFileKind.Year);
+        int devices = Math.Max(1, KnownDevices(pass.State).Count(id => !removed.Contains(id)));
+        int quota = GoalHistoryRules.RelayQuota(yearFiles, devices);
+        return GoalHistoryRules.RelayKeep(months.Where(month => !pass.Transport.Removed.Contains(GoalHistoryNames.MonthText(month.Year, month.Month))), roller, quota, now).ToHashSet();
+    }
+
+    // A year file this PC has seen that is no longer listed (on the relay: its roller was away for over 30 days): the months of that year it
+    // had removed are put again and rolled again, and the year's old record goes so no month is removed on its account.
+    private static void ForgetVanishedYears(Pass pass)
+    {
+        foreach (int year in pass.Transport.Years.Values.Select(item => item.Year).Distinct().ToList())
+        {
+            if (pass.History.Any(file => file.Key.Kind == GoalHistoryFileKind.Year && file.Key.Year == year))
+            {
+                continue;
+            }
+
+            foreach (string monthText in pass.Transport.Removed.Where(text => text.StartsWith($"{year:D4}-", StringComparison.Ordinal)).ToList())
+            {
+                pass.Transport.Removed.Remove(monthText);
+            }
+
+            foreach (string text in pass.Transport.Years.Where(pair => pair.Value.Year == year).Select(pair => pair.Key).ToList())
+            {
+                pass.Transport.Years.Remove(text);
+            }
+
+            pass.Transport.RollChecked.Remove(year);
+        }
+    }
+
+    // One put. A 429 on the relay means the group is full (or the rate limit): the pass ends here, quietly, with no retry.
+    private static async Task<bool> PutAsync(Pass pass, GoalHistoryRun run, string name, byte[] bytes, CancellationToken cancellationToken)
+    {
+        if (!pass.Spend())
+        {
+            return false;
+        }
+
+        try
+        {
+            await pass.Store.PutAsync(name, bytes, cancellationToken);
+            return true;
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            run.GroupFull++;
+            pass.Stopped = true;
+            return false;
+        }
+    }
+
+    // The store's limits: a file over its size is not written; a last guard keeps a few places of the relay's group free.
     private bool Fits(Pass pass, GoalHistoryRun run, int length, string name, bool listed = false)
     {
         if (length > pass.Store.MaxFileBytes)
@@ -713,6 +954,11 @@ public sealed class GoalHistorySync
 
             if (pass.Store.CanDelete)
             {
+                if (!pass.Spend())
+                {
+                    return;
+                }
+
                 await pass.Store.DeleteAsync(name, cancellationToken);
                 transport.Uploaded.Remove(name);
                 transport.OwnNames.Remove(name);
@@ -749,6 +995,17 @@ public sealed class GoalHistorySync
                 continue;
             }
 
+            if (pass.Gated)
+            {
+                run.Gated++;
+                continue;
+            }
+
+            if (!pass.Spend())
+            {
+                return;
+            }
+
             byte[]? bytes = await pass.Store.GetAsync(name, cancellationToken);
             if (bytes is null)
             {
@@ -760,14 +1017,20 @@ public sealed class GoalHistorySync
                 continue;
             }
 
-            await pass.Store.PutAsync(name, bytes, cancellationToken);
+            if (!await PutAsync(pass, run, name, bytes, cancellationToken))
+            {
+                return;
+            }
+
             pass.Transport.Uploaded[name] = now;
             run.Reuploaded++;
         }
     }
 
-    private sealed class Pass(IGoalHistoryStore store, GoalHistoryState state, GoalHistoryTransportState transport, Guid me, SyncKey key)
+    private sealed class Pass(IGoalHistoryStore store, GoalHistoryState state, GoalHistoryTransportState transport, Guid me, SyncKey key, bool gated)
     {
+        private int _requests;
+
         public IGoalHistoryStore Store { get; } = store;
 
         public GoalHistoryState State { get; } = state;
@@ -778,14 +1041,45 @@ public sealed class GoalHistorySync
 
         public SyncKey Key { get; } = key;
 
+        /// <summary>ON THE RELAY: a device of the group is on an app that doesn't know history files, so nothing is written (Q740).</summary>
+        public bool Gated { get; } = gated;
+
         /// <summary>The history files the listing holds, by key.</summary>
         public Dictionary<GoalHistoryFileKey, GoalHistoryRemoteFile> Remote { get; } = [];
 
         public List<GoalHistoryListing> History { get; } = [];
 
+        /// <summary>Every name the listing holds (history files and others).</summary>
+        public HashSet<string> AllNames { get; } = new(StringComparer.Ordinal);
+
         public int TotalFiles { get; set; }
 
         /// <summary>Files this pass added to the store (they count toward its file limit).</summary>
         public int NewFiles { get; set; }
+
+        /// <summary>The pass ends here: the request cap was reached, or the relay answered 429 to a put.</summary>
+        public bool Stopped { get; set; }
+
+        /// <summary>The pass ended on the request cap (not on a 429).</summary>
+        public bool Capped { get; private set; }
+
+        /// <summary>Counts one request; false (and the pass is over) when the store's cap per pass is used up.</summary>
+        public bool Spend()
+        {
+            if (Stopped)
+            {
+                return false;
+            }
+
+            if (Store.MaxRequestsPerPass is int cap && _requests >= cap)
+            {
+                Stopped = true;
+                Capped = true;
+                return false;
+            }
+
+            _requests++;
+            return true;
+        }
     }
 }

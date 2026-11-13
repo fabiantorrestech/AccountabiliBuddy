@@ -40,6 +40,21 @@ public static class GoalHistoryRules
     /// <summary>A device whose regular sync file was merged here within this time is active (<see cref="ActiveDevices"/>).</summary>
     public static readonly TimeSpan ActiveWithin = GoalSyncWindow.Window;
 
+    /// <summary>The relay keeps at most this many files a group (ADR 46).</summary>
+    public const int RelayFileLimit = 64;
+
+    /// <summary>Places of the relay's 64 that history files never plan on: the devices' sync files and some slack (<see cref="RelayQuota"/>).</summary>
+    public const int RelaySyncReserve = 16;
+
+    /// <summary>The first PC app version that reads and skips goal history files (ADR 79; set by the release that ships GS3b).</summary>
+    public const string FirstPcVersionWithHistory = "0.1.134";
+
+    /// <summary>The first phone app version that reads and skips goal history files (GS4).</summary>
+    public const string FirstPhoneVersionWithHistory = "0.1.78";
+
+    /// <summary>Rows of an unknown goal count as pruned only when all are older than this (the tombstone retention, <see cref="LatePrunable"/>).</summary>
+    public static readonly TimeSpan LatePruneAge = TimeSpan.FromDays(30);
+
     private static readonly JsonSerializerOptions RowsOptions = new(SyncJson.Options) { Converters = { new SyncGoalEntryListConverter() } };
 
     /// <summary>The UTC year and month of the entry's stamp: the month file it goes to.</summary>
@@ -353,6 +368,17 @@ public static class GoalHistoryRules
     public static GoalHistoryMerged Merge(
         GoalSyncLists held, GoalSyncLists? file, IReadOnlyList<GoalHistoryRows> history, DateTimeOffset now, IReadOnlySet<Guid> prunedGoals)
     {
+        return Merge(held, file, history, now, prunedGoals, null);
+    }
+
+    /// <summary>
+    /// <see cref="Merge(GoalSyncLists, GoalSyncLists?, IReadOnlyList{GoalHistoryRows}, DateTimeOffset, IReadOnlySet{Guid})"/> with the late
+    /// joiner's rule (<see cref="LatePrunable"/>, review blocker 2): goals it frees are treated as pruned for the "read" decision and returned in
+    /// <see cref="GoalHistoryMerged.NewlyPruned"/> (the device adds them to its kept set of pruned goal ids). <paramref name="late"/> null = off.
+    /// </summary>
+    public static GoalHistoryMerged Merge(
+        GoalSyncLists held, GoalSyncLists? file, IReadOnlyList<GoalHistoryRows> history, DateTimeOffset now, IReadOnlySet<Guid> prunedGoals, GoalHistoryLatePrune? late)
+    {
         GoalSyncLists result = file is null ? held : GoalSyncMerge.Merge(held, file, now);
         bool goalsPart = file is not null;
         List<GoalHistoryRows> files = history.Where(item => item is { File: not null, Entries: not null }).ToList();
@@ -363,13 +389,19 @@ public static class GoalHistoryRules
 
         GoalSyncMergeResult merged = GoalSyncMerge.MergeReported(
             result, GoalSyncLists.Empty with { Entries = MergeEntries(files.Select(item => item.Entries), now) }, now);
-        var droppedIds = merged.DroppedEntries.Where(entry => !prunedGoals.Contains(entry.GoalId)).Select(entry => entry.Id).ToHashSet();
+        IReadOnlyList<Guid> newlyPruned = late is null
+            ? []
+            : LatePrunable(merged.DroppedEntries, late.FirstDropAt, late.Active, late.Self, late.LastRegularMerge, prunedGoals, now);
+        var droppedIds = merged.DroppedEntries
+            .Where(entry => !prunedGoals.Contains(entry.GoalId) && !newlyPruned.Contains(entry.GoalId))
+            .Select(entry => entry.Id)
+            .ToHashSet();
         List<GoalHistoryListing> read = files
             .Where(item => !item.Entries.Any(entry => entry is not null && droppedIds.Contains(entry.Id)))
             .Select(item => item.File)
             .Distinct()
             .ToList();
-        return new GoalHistoryMerged(merged.Lists, read, merged.DroppedEntries, goalsPart);
+        return new GoalHistoryMerged(merged.Lists, read, merged.DroppedEntries, goalsPart, newlyPruned);
     }
 
     /// <summary>
@@ -410,6 +442,113 @@ public static class GoalHistoryRules
     public static string RowsText(IReadOnlyList<GoalEntry> entries)
     {
         return JsonSerializer.Serialize(entries, RowsOptions);
+    }
+
+    /// <summary>
+    /// ON THE RELAY ONLY (owner 2026-11-13; ADR 79): the most month files one device keeps there, so that history files never pass
+    /// <c>64 - 16 = 48</c> places together with the year files: <c>floor((64 - 16 - yearFiles) / knownDevices)</c>, never below 0.
+    /// <paramref name="yearFiles"/> is how many year files the listing holds; <paramref name="knownDevices"/> the devices not removed from the
+    /// group that this device knows, itself included (at least 1). Drive has no quota.
+    /// </summary>
+    public static int RelayQuota(int yearFiles, int knownDevices)
+    {
+        return Math.Max(0, (RelayFileLimit - RelaySyncReserve - Math.Max(0, yearFiles)) / Math.Max(1, knownDevices));
+    }
+
+    /// <summary>
+    /// ON THE RELAY ONLY: the months of this device's own history that stay on the relay, newest first: only the PC that rolls the year
+    /// (<paramref name="isRoller"/>, <see cref="Roller"/>) keeps finished months; every other device keeps its open months only
+    /// (<see cref="OpenMonths"/>: the current UTC month and the one before); then at most <paramref name="quota"/> of them, newest months
+    /// first (<see cref="RelayQuota"/>). A month not returned is not put again (its file expires); Drive keeps every month. Every month file
+    /// holds everything its writer held for that month (<see cref="MonthContent"/>), so the roller's finished months carry the others' entries.
+    /// </summary>
+    public static IReadOnlyList<(int Year, int Month)> RelayKeep(IEnumerable<(int Year, int Month)> months, bool isRoller, int quota, DateTimeOffset now)
+    {
+        return months
+            .Distinct()
+            .Where(month => isRoller || IsOpen(month.Year, month.Month, now))
+            .OrderByDescending(month => month.Year)
+            .ThenByDescending(month => month.Month)
+            .Take(Math.Max(0, quota))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Whether an app of this kind ("pc", "phone", "watch" as in <see cref="SyncDeviceCard.Kind"/>) at this version (the card's
+    /// <see cref="SyncDeviceCard.AppVersion"/>, a leading dotted number; anything after it is ignored) reads and skips goal history files:
+    /// pc from <see cref="FirstPcVersionWithHistory"/>, phone from <see cref="FirstPhoneVersionWithHistory"/>; a watch never syncs through the
+    /// relay (true); an unreadable version or an unknown kind is false. ON THE RELAY a device writes history files only while this is true
+    /// for every device of the group that is not removed (an older reader would take the files for unreadable sync files); Drive is unaffected.
+    /// </summary>
+    public static bool KnowsHistory(string? kind, string? appVersion)
+    {
+        if (string.Equals(kind, SyncDeviceCard.KindWatch, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        string? first = kind switch
+        {
+            SyncDeviceCard.KindPc => FirstPcVersionWithHistory,
+            SyncDeviceCard.KindPhone => FirstPhoneVersionWithHistory,
+            _ => null,
+        };
+        if (first is null || appVersion is null)
+        {
+            return false;
+        }
+
+        int end = 0;
+        while (end < appVersion.Length && (char.IsAsciiDigit(appVersion[end]) || appVersion[end] == '.'))
+        {
+            end++;
+        }
+
+        return Version.TryParse(appVersion[..end].TrimEnd('.'), out Version? version) && version >= Version.Parse(first);
+    }
+
+    /// <summary>
+    /// Late joiner (Q649 follow-up, review blocker 2): the ids of the goals whose rows in <paramref name="dropped"/> (rows no history file could
+    /// land because the goal isn't held) can be taken as pruned for good, so their files count as read and the year files get marked. Only when
+    /// a first drop was seen (<paramref name="firstDropAt"/>, the time of the first merge that dropped a row; null = none) AND every active device
+    /// other than <paramref name="self"/> (<paramref name="active"/>, <see cref="ActiveDevices"/>) has had its regular sync file merged here after
+    /// that time (<paramref name="lastRegularMerge"/>): a live goal or a tombstone would have arrived with it. Of those, only a goal ALL of whose
+    /// dropped rows are older than <see cref="LatePruneAge"/> (by <see cref="GoalEntry.Stamp"/>) and which isn't in
+    /// <paramref name="alreadyPruned"/>. Ordered by id text.
+    /// </summary>
+    public static IReadOnlyList<Guid> LatePrunable(
+        IReadOnlyList<GoalEntry> dropped,
+        DateTimeOffset? firstDropAt,
+        IEnumerable<GoalHistoryDevice> active,
+        Guid self,
+        IReadOnlyDictionary<Guid, DateTimeOffset> lastRegularMerge,
+        IReadOnlySet<Guid> alreadyPruned,
+        DateTimeOffset now)
+    {
+        if (firstDropAt is not DateTimeOffset since
+            || !active.Where(device => device.Id != self).All(device => lastRegularMerge.TryGetValue(device.Id, out DateTimeOffset merged) && merged > since))
+        {
+            return [];
+        }
+
+        return dropped
+            .Where(entry => entry is not null && !alreadyPruned.Contains(entry.GoalId))
+            .GroupBy(entry => entry.GoalId)
+            .Where(group => group.All(entry => now - entry.Stamp > LatePruneAge))
+            .Select(group => group.Key)
+            .OrderBy(id => id.ToString("D"), StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Whether every listed file is accounted for: recorded as read at its listed version in <paramref name="lastRead"/>, or in
+    /// <paramref name="skipped"/> (too big for the store, or unreadable: logged and left out, they never hold anything back). A device that was
+    /// new to the group stops being new after a pass for which this is true (and a regular goals part has merged).
+    /// </summary>
+    public static bool AllAccountedFor(
+        IReadOnlyList<GoalHistoryListing> listing, IReadOnlyDictionary<GoalHistoryFileKey, DateTimeOffset> lastRead, IReadOnlySet<GoalHistoryFileKey> skipped)
+    {
+        return listing.All(file => skipped.Contains(file.Key) || (lastRead.TryGetValue(file.Key, out DateTimeOffset read) && read == file.ModifiedAt));
     }
 
     private static DateTimeOffset MonthStart(int year, int month)

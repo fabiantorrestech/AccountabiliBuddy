@@ -18,6 +18,9 @@ public interface IGoalHistoryStore
     /// <summary>The most files one group can hold (the relay's 64); null for no limit.</summary>
     int? MaxFiles { get; }
 
+    /// <summary>The most requests (list, get, put, delete) one pass makes; null for no cap. The relay allows 120 a minute; a pass stops at 40 and goes on 15 minutes later.</summary>
+    int? MaxRequestsPerPass { get; }
+
     /// <summary>True when the store deletes files nobody touched for 30 days (the relay): own files are put again every 25 days.</summary>
     bool Expires { get; }
 

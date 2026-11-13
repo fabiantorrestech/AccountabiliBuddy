@@ -10,4 +10,6 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Dropped">The rows dropped because their goal isn't held (live or tombstone), ordered by id.</param>
 /// <param name="GoalsPartMerged">Whether a regular file's goals part took part. A device stays "new to the group" (reads every file) until
 /// one has (<see cref="GoalHistoryRules.StillNewToGroup"/>).</param>
-public sealed record GoalHistoryMerged(GoalSyncLists Lists, IReadOnlyList<GoalHistoryListing> Read, IReadOnlyList<GoalEntry> Dropped, bool GoalsPartMerged);
+/// <param name="NewlyPruned">Goals the late joiner's rule freed (<see cref="GoalHistoryRules.LatePrunable"/>); null or empty for none.</param>
+public sealed record GoalHistoryMerged(
+    GoalSyncLists Lists, IReadOnlyList<GoalHistoryListing> Read, IReadOnlyList<GoalEntry> Dropped, bool GoalsPartMerged, IReadOnlyList<Guid>? NewlyPruned = null);

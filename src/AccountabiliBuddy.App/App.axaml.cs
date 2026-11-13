@@ -1461,7 +1461,7 @@ public partial class App : Application
         dailySteps.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         // ADR 79 (GS3b): the derived day values this PC measures (#tag extras, calendar) go into its own goal entries, marked with its id,
         // for the other devices; at most every five minutes, and only when a value changed.
-        var goalDerived = new AccountabiliBuddy.App.Services.Goals.GoalDerivedValuesService(goalStore, goalData, time);
+        var goalDerived = new AccountabiliBuddy.App.Services.Goals.GoalDerivedValuesService(goalStore, goalData, time) { InGroup = () => syncIdentity.Key is not null };
         goalData.Changed += (_, _) => goalDerived.Request();
         var goalDerivedTimer = new DispatcherTimer { Interval = AccountabiliBuddy.App.Services.Goals.GoalDerivedValuesService.MinGap };
         goalDerivedTimer.Tick += (_, _) => _ = goalDerived.RunAsync();
@@ -1476,7 +1476,7 @@ public partial class App : Application
             () => receivedDevices.Devices
                 .Select(device => new AccountabiliBuddy.App.Services.Sync.GoalHistoryDeviceInfo(
                     device.File.Device.DeviceId, device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPc,
-                    receivedDevices.IsRemoved(device.File.Device.DeviceId), device.ReceivedAt))
+                    receivedDevices.IsRemoved(device.File.Device.DeviceId), device.ReceivedAt, device.File.Device.Kind, device.File.Device.AppVersion))
                 .ToList(),
             () => syncSettings.Current.ShareTaskLists,
             line =>

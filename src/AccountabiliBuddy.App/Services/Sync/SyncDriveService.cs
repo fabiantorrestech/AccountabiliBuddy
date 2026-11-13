@@ -352,15 +352,23 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
     public async Task HistoryAsync(bool force = false)
     {
         GoalHistorySync? history = GoalHistory;
-        if (history is null || !TryGetName(out _, out _))
+        if (history is null || _disposed || !_settings.Current.DriveOn || !IsSignedIn())
         {
             return;
         }
 
+        bool inGroup = TryGetName(out _, out _);
         await _busy.WaitAsync();
         try
         {
             var store = new DriveGoalHistoryStore(_drive);
+            if (!inGroup)
+            {
+                // Left the group: the history files this PC put in the Drive folder go (best effort).
+                await history.LeaveAsync(store, CancellationToken.None);
+                return;
+            }
+
             await (force ? history.RunAsync(store, CancellationToken.None) : history.RunIfDueAsync(store, CancellationToken.None));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or SqliteException)
@@ -403,7 +411,11 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
 
     private void OnSettingsChanged(object? sender, SyncSettings settings) => Restart();
 
-    private void OnIdentityChanged(object? sender, EventArgs e) => Restart();
+    private void OnIdentityChanged(object? sender, EventArgs e)
+    {
+        Restart();
+        _ = HistoryAsync();
+    }
 
     // The group got a new key (ADR 54): this PC's file and the removed devices' files of the old group leave Drive. Best
     // effort; the rekey file stays, since a device that is behind (or the removed one) still has to read it.

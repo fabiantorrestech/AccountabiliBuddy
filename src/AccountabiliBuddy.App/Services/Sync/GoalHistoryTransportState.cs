@@ -8,6 +8,12 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// </summary>
 public sealed class GoalHistoryTransportState
 {
+    /// <summary>
+    /// New to the group on this transport: it reads every listed file, its own too, until a pass has every listed file read or left out
+    /// (too big, unreadable) after a regular goals part has merged.
+    /// </summary>
+    public bool NewToGroup { get; set; } = true;
+
     /// <summary>The files read, by key text (<see cref="GoalHistoryNames.KeyText"/>), at the version listed when they were read.</summary>
     public Dictionary<string, DateTimeOffset> Read { get; set; } = [];
 

@@ -27,8 +27,14 @@ public sealed class GoalHistoryRun
     /// <summary>Listed files that could not be opened (a newer format, or damaged).</summary>
     public int Unreadable { get; set; }
 
+    /// <summary>Files not written (relay only) because a device of the group is on an app that doesn't know history files.</summary>
+    public int Gated { get; set; }
+
+    /// <summary>The pass stopped at the store's request cap; the rest is done at the next pass.</summary>
+    public bool Capped { get; set; }
+
     public override string ToString()
     {
-        return $"read={Read} written={Written} rolled={Rolled} removed={Removed} reuploaded={Reuploaded} tooBig={TooBig} groupFull={GroupFull} unreadable={Unreadable}";
+        return $"read={Read} written={Written} rolled={Rolled} removed={Removed} reuploaded={Reuploaded} tooBig={TooBig} groupFull={GroupFull} unreadable={Unreadable} gated={Gated} capped={(Capped ? 1 : 0)}";
     }
 }
