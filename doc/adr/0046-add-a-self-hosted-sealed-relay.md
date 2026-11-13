@@ -8,6 +8,8 @@ Accepted
 
 Amends [26. Sync through Google Drive only](0026-sync-through-google-drive-only.md) (a second network sync method next to Drive) and [45. Delete the Wi-Fi link](0045-delete-the-wi-fi-link.md) (it brings back a fast path that needs no Google account).
 
+Amended by [79. Sync goals between the user's devices](0079-sync-goals-between-the-users-devices.md) (2026-11-13): sealed goal history files share the group's 64-file cap with the sync files; ADR 79 limits how many each device keeps there.
+
 ## Context
 
 With the Wi-Fi link deleted (ADR 45), every device syncs through sealed files (ADR 22) carried by Google Drive (ADR 26) or by a folder another tool keeps in step. Drive is polled, so a phone action reaches the PC in seconds to minutes, and without a Google account there is no network path at all. The user wants a self-hosted option (C 3) and chose, on 2026-10-27, a small standalone relay program in addition to the existing Syncthing/Nextcloud guide. They want it reachable three ways: on the home network plus their own VPN, from the public internet with a real certificate, and on a rented VPS.
