@@ -605,7 +605,9 @@ fun MainScreen(
         PlanWaitSheet(wait, onDismiss = viewModel::planWaitSeen)
     }
 
-    planConflict?.let { conflict ->
+    // The Day plan is locked during a focus session the user started, and an answer is a Day plan change: the question waits until the session
+    // ends (Troubleshoot sync says "Answer after the session"). Q913.
+    planConflict?.takeIf { removalLocked == null }?.let { conflict ->
         DayPlanConflictDialog(conflict, viewModel.conflictPcName(), viewModel.clock, onKeepPc = viewModel::keepPcPlan, onUseMine = viewModel::useMyPlan)
     }
 
