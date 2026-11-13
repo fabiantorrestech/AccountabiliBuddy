@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.App.Services.Navigation;
 /// <summary>
 /// Where a swipe must not navigate (owner 2026-11-14): over anything that scrolls sideways, the scrolling wins. That is any
 /// <see cref="ScrollViewer"/> above the pointer whose content is wider than what it shows, even when it already sits at its end
-/// (a swipe then must not be mistaken for the end of the scroll). A scroller that only scrolls up and down doesn't count.
+/// (a swipe then must not be mistaken for the end of the scroll), and the Shelf's columns while they are paged (PG1). A scroller that only scrolls up and down doesn't count.
 /// </summary>
 public static class HorizontalScrollGuard
 {
@@ -24,6 +24,12 @@ public static class HorizontalScrollGuard
 
         foreach (Visual visual in source.GetSelfAndVisualAncestors())
         {
+            // PG1: paged Shelf columns (more columns than one page shows) take the swipe too: they page by the bar and the keys only.
+            if (visual is Controls.TaskColumnsPanel { ColumnsPerPage: var perPage } columns && perPage < columns.Children.Count)
+            {
+                return true;
+            }
+
             if (visual is ScrollViewer scroller && CanScrollSideways(scroller.HorizontalScrollBarVisibility, scroller.Extent, scroller.Viewport))
             {
                 return true;

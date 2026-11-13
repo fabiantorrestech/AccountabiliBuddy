@@ -35,6 +35,9 @@ public sealed partial class ShelfViewModel : ObservableObject
 
     public TaskSectionsPanelViewModel Panel { get; }
 
+    /// <summary>The page bar under the columns (round 2 PG1): which columns show when they do not all fit.</summary>
+    public ColumnPagerViewModel Pager { get; } = new();
+
     /// <summary>The search or a view changed what the Shelf shows: the page builds it again.</summary>
     public event EventHandler? Changed;
 

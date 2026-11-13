@@ -303,6 +303,7 @@ public partial class TaskSectionView : UserControl
 
     internal void EndDrag()
     {
+        Controls.PageTurnHover.Cancel();
         ShowDropTarget(null);
         if (DataContext is TaskSectionViewModel { TodayStrip: { } strip })
         {
@@ -325,9 +326,12 @@ public partial class TaskSectionView : UserControl
         Point at = e.GetPosition(top);
         if (top.InputHitTest(at) is not Visual hit)
         {
+            Controls.PageTurnHover.Cancel();
             return null;
         }
 
+        // PG1: held over the page bar's ‹ › the drag turns the page, so it can reach any column.
+        Controls.PageTurnHover.Update(hit);
         Control? item = null;
         foreach (Visual visual in hit.GetSelfAndVisualAncestors())
         {

@@ -1,20 +1,76 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.ShelfView"
              x:DataType="vm:ShelfViewModel">
-    <!-- The Shelf's columns (round 2 R3, change note §2, board Tasks-PC): Group by Bins shows To sort, Next and Later side by side, Label
-         or Tag one column per group, None one list across the width. The columns share the width; when they'd get narrower than 300
-         (many labels or tags) they keep 300 and the row of columns scrolls sideways. The page itself never scrolls: each column scrolls
-         on its own under its pinned header (TaskColumnView). The order is this PC's (Ctrl+Alt+← / Ctrl+Alt+→, the header grip). The page draws
-         the header, the Today strip, the add row, the label chips and the tidy-up card above this. -->
-    <ScrollViewer x:Name="ColumnsScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-        <ItemsControl ItemsSource="{Binding Panel.Sections}">
+    <!-- The Shelf's columns (round 2 R3, change note §2, board Tasks-PC; paged in PG1): Group by Bins shows To sort, Next and Later side by
+         side, Label or Tag one column per group, None one list across the width. The columns share the width evenly and are never narrower
+         than 300 (the three bins may shrink to 220 first, so they fit the smallest window); when they don't fit, as many whole columns as fit
+         show and the rest are paged with the page bar under them (‹ ›, a dot per page or "2 / 9" past seven, Ctrl+PageUp / Ctrl+PageDown): no
+         sideways scrolling, ever (owner 2026-11-14). The page itself never scrolls: each column scrolls on its own under its pinned header
+         (TaskColumnView). The order is this PC's (Ctrl+Alt+← / Ctrl+Alt+→, the header grip); the page you are on is remembered per grouping
+         for the session. The page draws the header, the Today strip, the add row, the label chips and the tidy-up card above this. -->
+    <UserControl.Styles>
+        <Style Selector="Button.pagerButton">
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.pagerButton /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Button.pagerButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <!-- A dragged task or column is held over the button: it turns the page after a moment. -->
+        <Style Selector="Button.pagerButton.dragHot /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <Style Selector="Button.pagerButton:disabled">
+            <Setter Property="Opacity" Value="0.35" />
+        </Style>
+        <Style Selector="Button.pagerDot">
+            <Setter Property="Padding" Value="3,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Height" Value="24" />
+        </Style>
+        <Style Selector="Button.pagerDot /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Border.pagerMark">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Height" Value="6" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Border.pagerMark.current">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.pagerCount">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10,2" />
+        </Style>
+    </UserControl.Styles>
+    <Grid RowDefinitions="*,Auto">
+        <ItemsControl x:Name="Columns" ItemsSource="{Binding Panel.Sections}"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <controls:TaskColumnsPanel ViewportWidth="{Binding $parent[ScrollViewer].Viewport.Width}" MinColumnWidth="300" Spacing="14" />
+                    <controls:TaskColumnsPanel x:Name="ColumnsPanel" FirstIndex="{Binding Pager.FirstIndex}" ColumnsPerPage="{Binding Pager.PerPage, Mode=OneWayToSource}"
+                                               MinColumnWidth="300" SmallestColumnWidth="220" Spacing="14" />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -23,5 +79,35 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-    </ScrollViewer>
+
+        <!-- The page bar: ‹ ›, a dot per page (the current one a bar) or "2 / 9" past seven. Only when the columns don't all fit. -->
+        <StackPanel x:Name="PageBar" Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6" Margin="0,6,0,2" Height="28"
+                    IsVisible="{Binding Pager.HasPages}" AutomationProperties.Name="{Binding Pager.SummaryText}">
+            <Button x:Name="PreviousPageButton" Classes="pagerButton" Command="{Binding Pager.PreviousCommand}" controls:PageTurnHover.Step="-1"
+                    ToolTip.Tip="Previous page (Ctrl+PageUp)" AutomationProperties.Name="Previous page">
+                <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+            </Button>
+            <ItemsControl ItemsSource="{Binding Pager.Dots}" IsVisible="{Binding Pager.ShowDots}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ColumnPagerDotViewModel">
+                        <Button Classes="pagerDot" Command="{Binding Command}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Tip}">
+                            <Border Classes="pagerMark" Classes.current="{Binding IsCurrent}" VerticalAlignment="Center" />
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border Classes="pagerCount" IsVisible="{Binding Pager.ShowCount}" VerticalAlignment="Center">
+                <TextBlock Classes="faint" Text="{Binding Pager.CountText}" FontSize="13" FontWeight="SemiBold" FontFeatures="+tnum" />
+            </Border>
+            <Button x:Name="NextPageButton" Classes="pagerButton" Command="{Binding Pager.NextCommand}" controls:PageTurnHover.Step="1"
+                    ToolTip.Tip="Next page (Ctrl+PageDown)" AutomationProperties.Name="Next page">
+                <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
+            </Button>
+        </StackPanel>
+    </Grid>
 </UserControl>

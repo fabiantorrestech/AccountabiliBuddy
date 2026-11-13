@@ -129,6 +129,7 @@ public partial class TaskColumnView : UserControl
 
     private void EndGripDrag()
     {
+        Controls.PageTurnHover.Cancel();
         ShowTarget(null);
         _gripPressed = false;
         _isDragging = false;
@@ -139,8 +140,12 @@ public partial class TaskColumnView : UserControl
     {
         if (TopLevel.GetTopLevel(this) is not TopLevel top || top.InputHitTest(e.GetPosition(top)) is not Visual hit)
         {
+            Controls.PageTurnHover.Cancel();
             return null;
         }
+
+        // PG1: held over the page bar's ‹ › the drag turns the page, so the column can be put on another page.
+        Controls.PageTurnHover.Update(hit);
 
         TaskColumnView? column = hit.GetSelfAndVisualAncestors().OfType<TaskColumnView>().FirstOrDefault();
         return column is not null && !ReferenceEquals(column, this) && column.DataContext is TaskSectionViewModel section ? section : null;

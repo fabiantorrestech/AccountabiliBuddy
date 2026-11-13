@@ -34,16 +34,16 @@ public sealed partial class TasksViewModel
     // Ctrl+Alt+←/→ on a column's header: one place left or right among the columns shown, stored for the grouping.
     private Task MoveColumnAsync(string key, int step)
     {
-        return StoreColumnOrder(stored => TaskColumnOrder.MovedBy(ShownColumnKeys(), stored, key, step));
+        return StoreColumnOrder(key, stored => TaskColumnOrder.MovedBy(ShownColumnKeys(), stored, key, step));
     }
 
     // A column's grip let go over another column: it takes that column's place.
     private Task MoveColumnOntoAsync(string key, string targetKey)
     {
-        return StoreColumnOrder(stored => TaskColumnOrder.MovedOnto(ShownColumnKeys(), stored, key, targetKey));
+        return StoreColumnOrder(key, stored => TaskColumnOrder.MovedOnto(ShownColumnKeys(), stored, key, targetKey));
     }
 
-    private Task StoreColumnOrder(Func<IReadOnlyList<string>?, IReadOnlyList<string>?> move)
+    private Task StoreColumnOrder(string key, Func<IReadOnlyList<string>?, IReadOnlyList<string>?> move)
     {
         string? grouping = Shelf.HasViews ? TaskColumnOrder.GroupingOf(Shelf.Grouping) : Core.Domain.TaskViewConfig.GroupBins;
         if (grouping is null)
@@ -52,7 +52,15 @@ public sealed partial class TasksViewModel
         }
 
         IReadOnlyList<string>? order = move(_layout.Current.ColumnOrderOf(grouping));
-        return order is null ? Task.CompletedTask : _layout.SetColumnOrderAsync(grouping, order);
+        if (order is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        // PG1: a column moved across a page edge takes its page with it (the next rebuild turns to the page that holds it).
+        Shelf.Pager.Reveal(key);
+
+        return _layout.SetColumnOrderAsync(grouping, order);
     }
 
     // The columns shown, in the order last stored: a second Ctrl+Alt+←/→ before the page has been rebuilt builds on the first.

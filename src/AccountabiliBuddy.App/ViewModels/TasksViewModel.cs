@@ -1418,6 +1418,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         Shelf.Panel.Show(sections);
+        Shelf.Pager.Use(grouping ?? "none", sections.Select(section => section.Key).ToList());
         Shelf.CountText = rows.Count == 1 ? "1 task" : $"{rows.Count} tasks";
         Shelf.Refresh();
         ShelfHiddenText = HiddenShelfText(rows.Count, sections.Select(section => section.Title).ToList());

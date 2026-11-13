@@ -1,18 +1,28 @@
+using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Tasks;
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Styling;
 
 namespace AccountabiliBuddy.App.Controls;
 
 /// <summary>
-/// Lays the Shelf's columns side by side (round 2 R3, change note §2): each column gets an equal share of <see cref="ViewportWidth"/>
-/// (the room the page gives them), but never less than <see cref="MinColumnWidth"/>. When they don't fit at that width the columns
-/// first shrink, down to <see cref="SmallestColumnWidth"/> (so the three bins fit the smallest window, 901 × 567, with no sideways
-/// scrolling: the repo's smallest-window rule); only when they still don't fit (many labels or tags) is the row of columns wider than
-/// the room, and its host scrolls sideways. Every column is as tall as the panel, so each one
-/// scrolls on its own and its header stays put. One column (Group by None) takes the whole width.
+/// Lays the Shelf's columns side by side (round 2 R3, change note §2; paged in PG1, owner 2026-11-14). The columns share the room the
+/// panel is given evenly, never narrower than <see cref="MinColumnWidth"/>. The three bins may shrink to <see cref="SmallestColumnWidth"/>
+/// first (so they fit the smallest window, 901 × 567); when the columns still do not fit, only as many whole columns as fit are shown
+/// (<see cref="ColumnsPerPage"/>) and the rest are on other pages: <see cref="FirstIndex"/> is the column the page was turned to, the
+/// page holding it is the one drawn. There is no sideways scrolling. Hidden columns are neither measured nor focusable. Every column is
+/// as tall as the panel, so each one scrolls on its own and its header stays put. Turning the page slides the columns in (Settings ›
+/// Animations; Off = no slide). <see cref="TaskColumnPaging"/> holds the numbers.
 /// </summary>
 public sealed class TaskColumnsPanel : Panel
 {
+    private const double SlideDistance = 36;
+    private static readonly TimeSpan SlideTime = TimeSpan.FromMilliseconds(170);
+
     public static readonly StyledProperty<double> ViewportWidthProperty =
         AvaloniaProperty.Register<TaskColumnsPanel, double>(nameof(ViewportWidth), double.NaN);
 
@@ -25,12 +35,21 @@ public sealed class TaskColumnsPanel : Panel
     public static readonly StyledProperty<double> SpacingProperty =
         AvaloniaProperty.Register<TaskColumnsPanel, double>(nameof(Spacing), 14);
 
+    /// <summary>The index of a column of the page to show (the page that holds it is drawn).</summary>
+    public static readonly StyledProperty<int> FirstIndexProperty =
+        AvaloniaProperty.Register<TaskColumnsPanel, int>(nameof(FirstIndex));
+
+    public static readonly DirectProperty<TaskColumnsPanel, int> ColumnsPerPageProperty =
+        AvaloniaProperty.RegisterDirect<TaskColumnsPanel, int>(nameof(ColumnsPerPage), panel => panel.ColumnsPerPage);
+
+    private int _columnsPerPage = 1;
+
     static TaskColumnsPanel()
     {
-        AffectsMeasure<TaskColumnsPanel>(ViewportWidthProperty, MinColumnWidthProperty, SmallestColumnWidthProperty, SpacingProperty);
+        AffectsMeasure<TaskColumnsPanel>(ViewportWidthProperty, MinColumnWidthProperty, SmallestColumnWidthProperty, SpacingProperty, FirstIndexProperty);
     }
 
-    /// <summary>The width the columns share (the scroll host's viewport); NaN uses the width offered, when it is finite.</summary>
+    /// <summary>The width the columns share; NaN uses the width offered, when it is finite.</summary>
     public double ViewportWidth
     {
         get => GetValue(ViewportWidthProperty);
@@ -43,7 +62,7 @@ public sealed class TaskColumnsPanel : Panel
         set => SetValue(MinColumnWidthProperty, value);
     }
 
-    /// <summary>How narrow a column may get before the row scrolls sideways instead; never above <see cref="MinColumnWidth"/>.</summary>
+    /// <summary>How narrow the (up to three) bins may get before paging starts instead; never above <see cref="MinColumnWidth"/>.</summary>
     public double SmallestColumnWidth
     {
         get => GetValue(SmallestColumnWidthProperty);
@@ -56,51 +75,133 @@ public sealed class TaskColumnsPanel : Panel
         set => SetValue(SpacingProperty, value);
     }
 
+    public int FirstIndex
+    {
+        get => GetValue(FirstIndexProperty);
+        set => SetValue(FirstIndexProperty, value);
+    }
+
+    /// <summary>How many columns one page shows now (all of them when they fit); set while measuring.</summary>
+    public int ColumnsPerPage
+    {
+        get => _columnsPerPage;
+        private set => SetAndRaise(ColumnsPerPageProperty, ref _columnsPerPage, value);
+    }
+
+    /// <summary>The index of the first column of the page drawn now.</summary>
+    public int ShownFirst { get; private set; }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == FirstIndexProperty && IsEffectivelyVisible && change.OldValue is int old && change.NewValue is int now)
+        {
+            int perPage = Math.Max(1, _columnsPerPage);
+            int count = Children.Count;
+            int from = TaskColumnPaging.PageOf(old, count, perPage);
+            int to = TaskColumnPaging.PageOf(now, count, perPage);
+            if (from != to)
+            {
+                Slide(to > from ? 1 : -1);
+            }
+        }
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
-        double width = ColumnWidth(availableSize.Width);
+        int count = Children.Count;
+        double room = Room(availableSize.Width);
+        int perPage = TaskColumnPaging.ColumnsPerPage(room, count, MinColumnWidth, SmallestColumnWidth, Spacing);
+        ColumnsPerPage = perPage;
+        double width = TaskColumnPaging.ColumnWidth(room, perPage, Spacing);
+        int first = TaskColumnPaging.FirstOfPage(TaskColumnPaging.PageOf(FirstIndex, count, perPage), count, perPage);
+        ShownFirst = first;
         double height = double.IsInfinity(availableSize.Height) ? 0 : availableSize.Height;
-        foreach (Control child in Children)
+        for (int index = 0; index < count; index++)
         {
-            child.Measure(new Size(width, double.IsInfinity(availableSize.Height) ? double.PositiveInfinity : availableSize.Height));
-            height = Math.Max(height, double.IsInfinity(availableSize.Height) ? child.DesiredSize.Height : 0);
+            Control child = Children[index];
+            bool shown = index >= first && index < first + perPage;
+            if (child.IsVisible != shown)
+            {
+                child.IsVisible = shown;
+            }
+
+            if (shown)
+            {
+                child.Measure(new Size(width, availableSize.Height));
+                if (double.IsInfinity(availableSize.Height))
+                {
+                    height = Math.Max(height, child.DesiredSize.Height);
+                }
+            }
         }
 
-        return new Size(TotalWidth(width), height);
+        return new Size(double.IsFinite(room) ? room : perPage * width + (perPage - 1) * Spacing, height);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        double width = ColumnWidth(finalSize.Width);
+        int count = Children.Count;
+        double room = Room(finalSize.Width);
+        int perPage = TaskColumnPaging.ColumnsPerPage(room, count, MinColumnWidth, SmallestColumnWidth, Spacing);
+        double width = TaskColumnPaging.ColumnWidth(room, perPage, Spacing);
+        int first = TaskColumnPaging.FirstOfPage(TaskColumnPaging.PageOf(FirstIndex, count, perPage), count, perPage);
         double x = 0;
-        foreach (Control child in Children)
+        for (int index = first; index < Math.Min(count, first + perPage); index++)
         {
-            child.Arrange(new Rect(x, 0, width, finalSize.Height));
+            Children[index].Arrange(new Rect(x, 0, width, finalSize.Height));
             x += width + Spacing;
         }
 
-        return new Size(Math.Max(finalSize.Width, TotalWidth(width)), finalSize.Height);
+        return finalSize;
     }
 
-    // The share each column gets of the room: at least the minimum while that fits, else down to the smallest width.
-    private double ColumnWidth(double offered)
+    // The room the columns share: the viewport width when one is given, else the width offered.
+    private double Room(double offered)
     {
-        int count = Children.Count;
-        if (count == 0)
+        if (!double.IsNaN(ViewportWidth) && ViewportWidth > 0)
         {
-            return 0;
+            return ViewportWidth;
         }
 
-        double room = !double.IsNaN(ViewportWidth) && ViewportWidth > 0 ? ViewportWidth
-            : double.IsFinite(offered) ? offered
-            : count * MinColumnWidth + (count - 1) * Spacing;
-        double share = (room - (count - 1) * Spacing) / count;
-        return Math.Max(Math.Min(MinColumnWidth, SmallestColumnWidth), Math.Floor(share));
+        return double.IsFinite(offered) ? offered : Children.Count * MinColumnWidth + Math.Max(0, Children.Count - 1) * Spacing;
     }
 
-    private double TotalWidth(double columnWidth)
+    // A page turn: the columns slide in a few pixels from the side the page came from while they fade in (Animations Off: nothing).
+    private async void Slide(int direction)
     {
-        int count = Children.Count;
-        return count == 0 ? 0 : count * columnWidth + (count - 1) * Spacing;
+        if (Motion.Current is not { IsOn: true } motion)
+        {
+            return;
+        }
+
+        var shift = RenderTransform as TranslateTransform ?? new TranslateTransform();
+        RenderTransform = shift;
+        var easing = new CubicEaseOut();
+        TimeSpan duration = motion.Scale(SlideTime);
+        try
+        {
+            await Task.WhenAll(
+                Frames(duration, easing, Visual.OpacityProperty, 0.0, 1.0).RunAsync(this),
+                Frames(duration, easing, TranslateTransform.XProperty, direction * SlideDistance, 0.0).RunAsync(shift));
+        }
+        catch (Exception)
+        {
+            // Never leave the columns half-faded.
+            Opacity = 1;
+            shift.X = 0;
+        }
     }
+
+    private static Animation Frames(TimeSpan duration, Easing easing, AvaloniaProperty property, double from, double to) => new()
+    {
+        Duration = duration,
+        Easing = easing,
+        FillMode = FillMode.None,
+        Children =
+        {
+            new KeyFrame { Cue = new Cue(0), Setters = { new Setter(property, from) } },
+            new KeyFrame { Cue = new Cue(1), Setters = { new Setter(property, to) } },
+        },
+    };
 }

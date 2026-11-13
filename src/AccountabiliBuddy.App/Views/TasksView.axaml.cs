@@ -479,7 +479,21 @@ public partial class TasksView : UserControl
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key != Key.Escape || e.Handled || DataContext is not TasksViewModel page)
+        if (e.Handled || DataContext is not TasksViewModel pager)
+        {
+            return;
+        }
+
+        // PG1: Ctrl+PageUp / Ctrl+PageDown turn the Shelf's column page (the keyboard stays in the columns when it was in them).
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key is Key.PageUp or Key.PageDown && pager.Shelf.Pager.HasPages
+            && this.GetVisualDescendants().OfType<ShelfView>().FirstOrDefault() is { } shelf)
+        {
+            shelf.TurnPage(e.Key == Key.PageDown ? 1 : -1, shelf.KeyboardIsInColumns());
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Escape || DataContext is not TasksViewModel page)
         {
             return;
         }
