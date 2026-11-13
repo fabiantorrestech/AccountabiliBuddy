@@ -12,6 +12,7 @@ import com.accountabilibuddy.companion.ui.SettingsCategory.Goals
 import com.accountabilibuddy.companion.ui.SettingsCategory.Guards
 import com.accountabilibuddy.companion.ui.SettingsCategory.Setup
 import com.accountabilibuddy.companion.ui.SettingsCategory.Sleep
+import com.accountabilibuddy.companion.ui.SettingsCategory.Tasks
 import com.accountabilibuddy.companion.ui.SettingsCategory.YourDay
 import com.accountabilibuddy.companion.ui.settings.SettingsAnchors as A
 
@@ -32,6 +33,14 @@ object SettingsSearch {
         SearchEntry("Weekly goals review", Goals, A.GOALS_REVIEW, listOf("review", "weekly", "snooze", "tidy-up", "tidy up", "day", "time")),
         SearchEntry("Default goal reminders", Goals, A.GOALS_REMINDERS, listOf("reminders", "nudge", "skip when done", "behind", "pace")),
         SearchEntry("Goal charts and areas", Goals, A.GOALS_CHARTS, listOf("week starts", "heatmap", "labels", "extra tiles", "streak", "total", "areas", "pausing")),
+
+        // Tasks (R7.4)
+        SearchEntry("Task reminders: ringing and snooze", Tasks, A.TASKS_REMINDERS, listOf("reminders", "rings on", "ring", "snooze", "devices", "alarm")),
+        SearchEntry("Labels", Tasks, A.TASKS_LABELS, listOf("label", "colour", "color", "opacity", "rings on per label", "delete label", "tasks")),
+        SearchEntry("Hide the Shelf during a session", Tasks, A.TASKS_SESSION, listOf("shelf", "session", "hide", "focus", "tasks")),
+        SearchEntry("Default view", Tasks, A.TASKS_NEW, listOf("view", "views", "tasks page", "opens with", "new tasks")),
+        SearchEntry("Rebuild the task list", Tasks, A.TASKS_RESET, listOf("reset", "repair", "unreadable", "can't open", "rebuild", "tasks")),
+        SearchEntry("Task reminders ring on", Alerts, A.TASK_REMINDERS, listOf("tasks", "rings on", "phones", "devices", "reminders", "ring")),
 
         // Sleep
         SearchEntry("Sleep times", Sleep, A.SLEEP_TIMES, listOf("sleep mode", "bedtime", "wake time", "weeknights", "weekend", "same every night", "night")),

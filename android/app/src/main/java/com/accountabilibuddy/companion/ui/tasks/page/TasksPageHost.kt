@@ -172,6 +172,8 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     }
     val zone = app.taskModel.zone()
     val self = remember { app.sync.deviceId.toString() }
+    // A waiting "show the Shelf in a session" (Settings › Tasks) applies once its time has come and no session runs.
+    LaunchedEffect(now) { prefs.settleHideShelf(TasksUiPrefs.environment(context)) }
     val pc = TasksPc.of(controlPc, received, now.toInstant(), app.runningTaskEdits.isAvailable)
 
     var searching by remember { mutableStateOf(false) }

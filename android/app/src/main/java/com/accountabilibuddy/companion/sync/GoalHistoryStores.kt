@@ -1,5 +1,8 @@
 package com.accountabilibuddy.companion.sync
 
+import android.content.Context
+import android.net.Uri
+import android.provider.DocumentsContract
 import com.accountabilibuddy.shared.goals.GoalHistoryNames
 import com.accountabilibuddy.shared.goals.GoalHistoryRemoteFile
 import com.accountabilibuddy.shared.goals.GoalHistoryStore
@@ -63,4 +66,76 @@ class RelayGoalHistoryStore(private val endpoint: RelayEndpoint) : GoalHistorySt
     }
 
     override fun delete(name: String): Boolean = false
+}
+
+/**
+ * The goal history files in the user's sync folder (ADR 22 way B, NG1): the same names and `.abgh` extension as on Drive, kept next to
+ * the sync files, which the regular folder reader skips by extension. Only this phone's own files are ever put or deleted (the pass's
+ * rules); a folder whose provider can't delete is said so in [canDelete] and the pass then never deletes.
+ * [problem] says why the folder can't be used safely (it can't list); the caller skips the pass then.
+ */
+class FolderGoalHistoryStore(private val context: Context, private val tree: Uri) : GoalHistoryStore {
+    private val resolver get() = context.contentResolver
+    private val uris = HashMap<String, Uri>()
+
+    override val transport = "folder"
+    override val extension = GoalHistoryNames.DRIVE_EXTENSION
+    override val maxFileBytes = 16L * 1024 * 1024
+    override val maxFiles: Int? = null
+    override val expires = false
+    override val canDelete: Boolean = supportsDelete()
+
+    override fun list(): List<GoalHistoryRemoteFile> {
+        uris.clear()
+        val treeId = DocumentsContract.getTreeDocumentId(tree)
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, treeId)
+        val columns = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED, DocumentsContract.Document.COLUMN_SIZE,
+        )
+        val files = ArrayList<GoalHistoryRemoteFile>()
+        // A folder that can't be listed throws or gives no cursor: the pass is skipped (the caller's catch), never guessed at.
+        val cursor = resolver.query(children, columns, null, null, null) ?: throw IllegalStateException("the sync folder can't be listed")
+        cursor.use {
+            while (it.moveToNext()) {
+                val id = it.getString(0) ?: continue
+                val name = it.getString(1) ?: continue
+                uris[name] = DocumentsContract.buildDocumentUriUsingTree(tree, id)
+                val at = if (it.isNull(2)) 0L else it.getLong(2)
+                files += GoalHistoryRemoteFile(name, OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(at), ZoneOffset.UTC), if (it.isNull(3)) 0L else it.getLong(3), null)
+            }
+        }
+
+        return files
+    }
+
+    override fun get(name: String): ByteArray? = uris[name]?.let { resolver.openInputStream(it)?.use { stream -> stream.readBytes() } }
+
+    override fun put(name: String, bytes: ByteArray) {
+        val target = uris[name]
+            ?: DocumentsContract.createDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)), MIME, name)
+            ?: throw IllegalStateException("the sync folder won't take a file")
+        val out = resolver.openOutputStream(target, "wt") ?: throw IllegalStateException("the sync folder won't take a file")
+        out.use { it.write(bytes) }
+        uris[name] = target
+    }
+
+    override fun delete(name: String): Boolean {
+        val target = uris[name] ?: return true
+        val gone = runCatching { DocumentsContract.deleteDocument(resolver, target) }.getOrDefault(false)
+        if (gone) uris.remove(name)
+        return gone
+    }
+
+    // The tree's folder lets its files be deleted (the provider's flag on each file is checked by the delete itself).
+    private fun supportsDelete(): Boolean = runCatching {
+        val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        resolver.query(root, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)?.use {
+            it.moveToFirst() && (it.getInt(0) and DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE) != 0
+        } ?: false
+    }.getOrDefault(false)
+
+    private companion object {
+        const val MIME = "application/octet-stream"
+    }
 }

@@ -190,7 +190,7 @@ fun GoalReviewSheet(overview: PhoneGoalsOverview, onDismiss: () -> Unit, onAdjus
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Icon(Icons.Outlined.CleaningServices, contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
-                Text("Then the tidy-up · about 2 minutes · on your PC for now", style = Ab.type.small, color = colors.muted)
+                Text(if (overview.hasPc) "Then the tidy-up · about 2 minutes · on your PC for now" else "Then the tidy-up · about 2 minutes · not on the phone yet", style = Ab.type.small, color = colors.muted)
             }
         }
     }

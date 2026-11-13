@@ -153,8 +153,8 @@ fun GoalMenuSheet(
 
     val items = GoalMenuPlan.of(
         goal, page.facts.todayState, page.facts.isPaused, page.reminderCount, page.areaName,
-        startValue = "Default", startBlocked = if (start == null) "Link a PC to start sessions from here" else start.blocked,
-        reminderNext = page.reminderNext,
+        startValue = "Default", startBlocked = if (start == null) GoalSessionStart.NO_PC_TEXT else start.blocked,
+        reminderNext = page.reminderNext, noPc = !com.accountabilibuddy.companion.goals.PhoneDeepWork.hasPc(app.sync.received.value.map { it.file }),
     )
     val heading = items.first()
     AbSheet(title = heading.title, subtitle = listOfNotNull(page.areaName, GoalTexts.targetLine(goal, today)).joinToString(" · "), onDismiss = onDismiss, height = AbSheetHeight.Tall) {

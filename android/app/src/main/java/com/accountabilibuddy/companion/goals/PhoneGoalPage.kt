@@ -59,7 +59,7 @@ data class PhoneGoalPage(
             slept: List<GoalWindow> = emptyList(),
         ): PhoneGoalPage? {
             val stored = lists.liveGoals.firstOrNull { it.id == goalId } ?: return null
-            val goal = PhoneDeepWork.view(stored, PhoneDeepWork.pcDailyMinutes(goalFiles), weekly)
+            val goal = PhoneDeepWork.view(stored, PhoneDeepWork.dailyMinutes(goalFiles), weekly)
             val today = now.atZone(zone).toLocalDate()
             val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone, slept)
             val facts = GoalFactsBuilder.build(goal, data, today, display.weekStart)

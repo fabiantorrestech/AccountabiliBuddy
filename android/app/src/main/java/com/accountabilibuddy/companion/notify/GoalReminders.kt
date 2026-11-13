@@ -82,7 +82,7 @@ object GoalReminders {
         val now = TrustedTime.now()
         val zone = ZoneId.systemDefault()
         val lists = app.goals.lists.value
-        val pcDaily = PhoneDeepWork.pcDailyMinutes(app.sync.received.value.map { it.file })
+        val pcDaily = PhoneDeepWork.dailyMinutes(app.sync.received.value.map { it.file })
         val weekly = app.goals.deepWork.current()
         val goals = lists.liveGoals.map { PhoneDeepWork.view(it, pcDaily, weekly) }
         val data = runCatching {

@@ -33,6 +33,8 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
     val steps by app.steps.state.collectAsStateWithLifecycle()
     // A change of Deep work's weekly target (or its waiting change) recounts.
     val weeklyState by app.goals.deepWork.state.collectAsStateWithLifecycle()
+    // NG1: the phone-owned daily target (no PC in the group) recounts too.
+    val dailyState by app.goals.deepWorkDaily.state.collectAsStateWithLifecycle()
     val minute by produceState(Instant.now()) {
         while (true) {
             val now = Instant.now()
@@ -40,7 +42,7 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    return produceState<PhoneGoalPage?>(null, goalId, status, lists, weeklyState, display.weekStart, display.extraTiles, allReceived, received, steps, minute) {
+    return produceState<PhoneGoalPage?>(null, goalId, status, lists, weeklyState, dailyState, display.weekStart, display.extraTiles, allReceived, received, steps, minute) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState

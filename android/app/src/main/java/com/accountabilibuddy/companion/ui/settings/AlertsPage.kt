@@ -28,6 +28,7 @@ fun AlertsPage(
                 AbTonalButton("Add timeline widget to home screen", onClick = onAddWidget)
             }
         })
+        add(PageRow(SettingsAnchors.TASK_REMINDERS) { TaskRemindersCard() })
         if (noise != null) add(PageRow(SettingsAnchors.NOISE) { NoiseSection(noise, noiseSettings) })
         add(PageRow(SettingsAnchors.HEADPHONES) { HeadphonesSection() })
     }

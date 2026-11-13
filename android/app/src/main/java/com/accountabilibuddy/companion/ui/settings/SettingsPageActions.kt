@@ -22,6 +22,7 @@ data class SettingsPageActions(
     val onOpenConnections: () -> Unit,
     val onOpenPlan: () -> Unit,
     val onOpenCurboxSetup: () -> Unit,
+    val onOpenTaskReminders: () -> Unit,
     val onOpenWhatsNew: () -> Unit,
     val onReenableTime: (Boolean, LocalTime) -> String?,
     val pause: PauseActions,

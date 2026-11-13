@@ -14,6 +14,30 @@ object TaskLabelEdits {
     /** The live label named [name] (any case, trimmed). */
     fun named(lists: TaskLists, name: String): TaskLabel? = lists.labels.map { it.label }.firstOrNull { it.isLive && TaskLabel.sameName(it.name, name) }
 
+    /** Whether [name] can be the name of the label [labelId] (null: a new one): blank or another live label's name can't. */
+    fun checkName(lists: TaskLists, labelId: String?, name: String): TaskLabelNameCheck {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return TaskLabelNameCheck.Blank
+        val taken = lists.labels.map { it.label }.any { it.isLive && !it.id.equals(labelId, ignoreCase = true) && TaskLabel.sameName(it.name, trimmed) }
+        return if (taken) TaskLabelNameCheck.Taken else TaskLabelNameCheck.Fine
+    }
+
+    /** How many live, unfinished tasks wear the label [labelId]. */
+    fun useCount(lists: TaskLists, labelId: String): Int = lists.tasks.count { it.task.isLive && !it.task.isDone && it.task.labelId.equals(labelId, ignoreCase = true) }
+
+    /**
+     * The phones the label's reminders ring on (null: every device), stamped on its own ([TaskLabel.ringOnStamp]: now, or just after a stamp
+     * ahead) by [self]; unchanged when it already rings on those (the PC's SetRingOn).
+     */
+    fun setRingOn(lists: TaskLists, labelId: String, ringOn: List<String>?, now: OffsetDateTime, self: String): TaskLists {
+        val wanted = TaskRingDevices.normalized(ringOn)
+        val label = lists.labels.map { it.label }.firstOrNull { it.isLive && it.id.equals(labelId, ignoreCase = true) } ?: return lists
+        if (TaskRingDevices.same(label.ringOn, wanted)) return lists
+        val at = label.ringOnStamp?.let { after(now, it.at) } ?: now
+        val changed = label.copy(ringOn = wanted, ringOnStamp = FieldStamp(at, self.lowercase()), editedAt = after(now, label.editedAt))
+        return lists.copy(labels = lists.labels.map { if (it.label.id == label.id) it.copy(label = changed) else it })
+    }
+
     /** A new label (or the live one of that name, unchanged); [color] when valid, else the first unused colour. */
     fun add(lists: TaskLists, name: String, color: String?, now: OffsetDateTime, self: String): TaskLists {
         val trimmed = name.trim()

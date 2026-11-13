@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -300,17 +301,23 @@ private fun TakesBox(draft: GoalDraft, stored: Goal?, allReceived: List<Received
     }
 }
 
-// Deep work: the daily target is the PC's and read only; the weekly target is this phone's, and lowering it waits.
+// Deep work: the daily target is the PC's and read only while a PC is in the group; with none (NG1) it is this phone's own and lowering it
+// waits like any looser change. The weekly target is this phone's, and lowering it waits.
 @Composable
 private fun DeepWorkTarget(draft: GoalDraft, onDraft: (GoalDraft) -> Unit, weekly: GoalDeepWorkWeekly, received: List<ReceivedDevice>, companion: Boolean, onCancelWeekly: () -> Unit) {
     val colors = Ab.colors
-    val pcDaily = PhoneDeepWork.pcDailyMinutes(received.map { it.file })
+    val files = received.map { it.file }
     GoalFieldLabel("TARGET")
-    AbSheetRow(
-        "Daily target", onClick = null, icon = Icons.Outlined.Timer, enabled = false,
-        subtitle = "Set on your PC (it can't be changed here)",
-        trailing = { AbSheetValue(pcDaily?.let { GoalTexts.minutes(it.toDouble()) } ?: "Not set yet", opens = false) },
-    )
+    if (PhoneDeepWork.hasPc(files)) {
+        val pcDaily = PhoneDeepWork.pcDailyMinutes(files)
+        AbSheetRow(
+            "Daily target", onClick = null, icon = Icons.Outlined.Timer, enabled = false,
+            subtitle = "Set on your PC (it can't be changed here)",
+            trailing = { AbSheetValue(pcDaily?.let { GoalTexts.minutes(it.toDouble()) } ?: "Not set yet", opens = false) },
+        )
+    } else {
+        PhoneDailyTarget()
+    }
     AbTextField(
         draft.weeklyHours, { onDraft(draft.copy(weeklyHours = it)) }, "Weekly target (hours, optional)",
         Modifier.padding(horizontal = 24.dp, vertical = 6.dp), keyboardType = KeyboardType.Decimal,
@@ -360,3 +367,53 @@ private fun unitText(unit: GoalUnit): String = when (unit) {
 }
 
 private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
+
+// NG1: Deep work's daily target on a phone with no PC in its group: typed in minutes, applied at once when it goes up, waiting (never in a
+// session) when it goes down. Saved with its own button, not with Edit goal's Save: it is a different rule from the goal's other fields.
+@Composable
+private fun PhoneDailyTarget() {
+    val app = LocalContext.current.applicationContext as CompanionApp
+    val daily by app.goals.deepWorkDaily.state.collectAsStateWithLifecycle()
+    var text by remember(daily.minutes) { androidx.compose.runtime.mutableStateOf(daily.minutes?.toString() ?: "") }
+    var message by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val colors = Ab.colors
+    AbTextField(
+        text, { text = it.filter(Char::isDigit).take(3) }, "Daily target (minutes, 15 to 480)",
+        Modifier.padding(horizontal = 24.dp, vertical = 6.dp), keyboardType = KeyboardType.Number,
+    )
+    val wanted = text.toIntOrNull()
+    val changed = wanted != daily.minutes && (wanted != null || text.isEmpty())
+    if (changed) {
+        AbTonalButton(
+            if (wanted == null) "Remove the daily target" else "Set the daily target", modifier = Modifier.padding(horizontal = 24.dp),
+            onClick = {
+                message = when (app.goals.deepWorkDaily.set(wanted)) {
+                    com.accountabilibuddy.shared.goals.GoalDeepWorkWeeklyResult.Waiting -> dailyWaitingText(app)
+                    com.accountabilibuddy.shared.goals.GoalDeepWorkWeeklyResult.RefusedDuringSession -> "Lowering the daily target isn't possible during a focus session (raising it is)."
+                    else -> null
+                }
+            },
+        )
+    }
+    daily.pending?.let { pending ->
+        val at = pending.appliesAt.atZoneSameInstant(ZoneId.systemDefault()).format(CLOCK)
+        val to = pending.amount?.let { GoalTexts.minutes(it) } ?: "no target"
+        AbSheetRow(
+            "Lowers to $to at $at", onClick = null, icon = Icons.Outlined.Schedule,
+            subtitle = "Never during a session · no apply now",
+            trailing = { AbTextButton("Cancel", onClick = { app.goals.deepWorkDaily.cancel(); message = null }) },
+        )
+    }
+    message?.let { Text(it, style = Ab.type.small, color = colors.amberInk, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) }
+    Text(
+        "No PC is linked, so this phone keeps the daily target. When a PC joins, its target is the one that counts.",
+        style = Ab.type.small, color = colors.muted, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+    )
+}
+
+private fun dailyWaitingText(app: CompanionApp): String {
+    val pending = app.goals.deepWorkDaily.state.value.pending ?: return "Lowering the daily target waits like any looser change."
+    val at = pending.appliesAt.atZoneSameInstant(ZoneId.systemDefault()).format(CLOCK)
+    val to = pending.amount?.let { GoalTexts.minutes(it) } ?: "no target"
+    return "The daily target lowers to $to at $at, and never during a session."
+}

@@ -27,6 +27,8 @@ import com.accountabilibuddy.shared.tasks.TaskHistoryRules
 import com.accountabilibuddy.shared.tasks.TaskItem
 import com.accountabilibuddy.shared.tasks.TaskLabelEdits
 import com.accountabilibuddy.shared.tasks.TaskLists
+import com.accountabilibuddy.shared.tasks.TaskReminder
+import com.accountabilibuddy.shared.tasks.TaskReminderEdits
 import com.accountabilibuddy.shared.tasks.TaskLocalEdits
 import com.accountabilibuddy.shared.tasks.TaskStep
 import com.accountabilibuddy.shared.tasks.TaskView
@@ -167,6 +169,25 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
 
     /** The task's label: a live label's id, or null for No label. */
     fun setLabel(id: String, labelId: String?) = edit(id, TaskField.LABEL) { it.copy(labelId = labelId) }
+
+    /** "Done by": a date with a time or for the whole day ([time] null); [on] null removes it (R7.4; the PC's SetDue). */
+    fun setDue(id: String, on: java.time.LocalDate?, time: java.time.LocalTime?) = edit(id, TaskField.DUE) { TaskReminderEdits.setDue(it, on, time) }
+
+    /** Adds a reminder by one of the relative rules or [TaskReminder.ABSOLUTE] at [at]; false when it was refused (full, repeated, unknown). */
+    fun addReminder(id: String, rule: String, at: OffsetDateTime?): Boolean {
+        var added = true
+        edit(id, TaskField.REMINDERS) { task -> TaskReminderEdits.add(task, UUID.randomUUID().toString(), rule, at) ?: task.also { added = false } }
+        return added
+    }
+
+    /** Takes one reminder off the task. */
+    fun removeReminder(id: String, reminderId: String) = edit(id, TaskField.REMINDERS) { task -> TaskReminderEdits.remove(task, reminderId) ?: task }
+
+    /** Which devices the task syncs to: only this phone (a local task) or everywhere. */
+    fun setOnlyThisDevice(id: String, only: Boolean) {
+        val self = app.sync.deviceId.toString()
+        edit(id, TaskField.DEVICES) { TaskReminderEdits.setDevices(it, only, self) }
+    }
 
     /** Select mode's Label for several tasks: a live label's id, or null for No label; with Undo. */
     fun setLabelAll(ids: List<String>, labelId: String?) = bulk(ids, TaskField.LABEL, "relabelled") { it.copy(labelId = labelId) }

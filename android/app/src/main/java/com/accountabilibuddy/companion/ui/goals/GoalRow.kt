@@ -43,18 +43,18 @@ import com.accountabilibuddy.shared.goals.GoalTexts
  * A paused goal (All only) is faded with "since Mon 10/12". A tap opens the goal; a hold opens the goal menu (the board draws no ⋮
  * on a row: the goal's page has it), and the row keeps an accent outline while its menu is open ([menuOpen], brief §3.6).
  *
- * @param noPcGoal Deep work has no daily target yet because no PC file has carried one: its line says where it comes from.
+ * @param noPcGoal Deep work has no daily target yet: its line says where it comes from (the PC, or with no PC [hasPc] false: not set yet, set in Edit goal, NG1).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GoalRow(facts: GoalFacts, noPcGoal: Boolean, onOpen: () -> Unit, onMenu: () -> Unit, modifier: Modifier = Modifier, menuOpen: Boolean = false) {
+fun GoalRow(facts: GoalFacts, noPcGoal: Boolean, onOpen: () -> Unit, onMenu: () -> Unit, modifier: Modifier = Modifier, menuOpen: Boolean = false, hasPc: Boolean = true) {
     val colors = Ab.colors
     val goal = facts.goal
     val tint = GoalIcons.color(goal.color) ?: colors.accent
     val pill = GoalNumbers.pill(facts)
     val amber = pill?.second == true
     val number = GoalNumbers.number(facts)
-    val subLine = if (goal.isDeepWork && noPcGoal) "daily target from your PC" else GoalTexts.targetLine(goal, facts.today)
+    val subLine = if (goal.isDeepWork && noPcGoal) (if (hasPc) "daily target from your PC" else "no daily target yet") else GoalTexts.targetLine(goal, facts.today)
     Row(
         modifier
             .fillMaxWidth()

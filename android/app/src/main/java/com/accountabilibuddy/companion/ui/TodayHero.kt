@@ -109,7 +109,7 @@ fun IdleHero(
     if (startHere && !showStart) return
     Column(Modifier.padding(top = if (compact) 8.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
-            !pc.hasPc -> MutedLine("Link a PC to start sessions from here.")
+            !pc.hasPc -> MutedLine("Phone sessions are coming.")
             pc.updateNeeded != null -> MutedLine(pc.updateNeeded)
             pc.waiting != null -> WaitingLine(pc, clock, onCancelWaiting)
             // The settings rest for a PC session whose file is out of date (not the phone's own test session: a real session comes

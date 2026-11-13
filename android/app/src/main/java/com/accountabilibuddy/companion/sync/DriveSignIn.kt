@@ -39,6 +39,8 @@ class DriveSignIn(private val context: Context) {
                 continuation.resume(step)
             }
             .addOnFailureListener { continuation.resume(DriveSignInStep.Failed(FAILED)) }
+            // NG1: a cancelled task would otherwise leave the sign-in waiting for ever.
+            .addOnCanceledListener { if (continuation.isActive) continuation.resume(DriveSignInStep.Failed(FAILED)) }
     }
 
     /** The answer from Google's consent screen: the token, or null when it was refused or cancelled. */
@@ -50,6 +52,7 @@ class DriveSignIn(private val context: Context) {
         client.authorize(request())
             .addOnSuccessListener { result -> continuation.resume(if (result.hasResolution()) null else result.accessToken) }
             .addOnFailureListener { continuation.resume(null) }
+            .addOnCanceledListener { if (continuation.isActive) continuation.resume(null) }
     }
 
     companion object {

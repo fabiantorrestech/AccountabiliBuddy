@@ -155,7 +155,7 @@ fun GoalEditorSheets(
             reminders = reminders + GoalReminderEdits.newReminder(draft.id, reminders.size + 1.0, skipWhenDone, nudgeWhenBehind, OffsetDateTime.now())
             remindersOpen = true
         },
-        suggestedNote = if (suggested != null && stored != null) adjustNote(stored.isDeepWork) else null,
+        suggestedNote = if (suggested != null && stored != null) adjustNote(stored.isDeepWork, com.accountabilibuddy.companion.goals.PhoneDeepWork.hasPc(received.map { it.file })) else null,
         onBack = { step = 1 }, onDismiss = onDismiss,
         onSave = save@{
             val error = save(app, draft, stored, weeklyEdited, GoalReminderEdits.withRules(reminders, skipWhenDone, nudgeWhenBehind), onMessage)
@@ -164,8 +164,8 @@ fun GoalEditorSheets(
     )
 }
 
-private fun adjustNote(deepWork: Boolean): String =
-    if (deepWork) "From the weekly review: Deep work's daily target is set on your PC; its weekly target is below."
+private fun adjustNote(deepWork: Boolean, hasPc: Boolean = true): String =
+    if (deepWork) "From the weekly review: Deep work's daily target is set " + (if (hasPc) "on your PC" else "below") + "; its weekly target is below."
     else "From the weekly review: the suggested numbers are filled in. Nothing changes until you save."
 
 // Makes the goal and keeps it with its reminders; returns the reason it couldn't (the screen shows it), or null when saved.

@@ -263,7 +263,7 @@ object R72FixSelfCheck {
     private fun numbering(report: CheckReport) {
         val phone = TaskNumbering.PHONE_KIND
         val pc = TaskNumbering.PC_KIND
-        report.check("r72-fix (5): an unjoined phone numbers nothing final", TaskNumbering.groupNumberingDevice(false, listOf(PHONE2 to phone), PHONE) == null)
+        report.check("r72-fix (5) / NG1: an unjoined phone (no group, no PC to wait for) numbers its own tasks final", TaskNumbering.groupNumberingDevice(false, listOf(PHONE2 to phone), PHONE) == PHONE)
         report.check("r72-fix (5): joined, no file received yet (a PC may be in the group): temporary numbers", TaskNumbering.groupNumberingDevice(true, emptyList(), PHONE) == null)
         report.check("r72-fix (5): a phone-only group (a phone's file, no PC's): the lowest phone numbers", TaskNumbering.groupNumberingDevice(true, listOf(PHONE2 to phone), PHONE) == PHONE)
         report.check("r72-fix (5): a PC's file received: the PC numbers, never the phone", TaskNumbering.groupNumberingDevice(true, listOf(PHONE2 to phone, PC to pc), PHONE) == PC)

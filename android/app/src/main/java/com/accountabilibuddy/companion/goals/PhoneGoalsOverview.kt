@@ -19,7 +19,8 @@ import java.time.ZoneId
  * live goal's [GoalFacts] (area order, then the goal's own), Deep work as its view (the PC's daily goal, read only), and the week's
  * counts for the subtitle. Computed from the store and what the phone already holds; never stored.
  *
- * @property pcDailyMinutes The PC's daily goal Deep work shows; null when no PC file has carried one yet.
+ * @property pcDailyMinutes The daily goal Deep work shows: the PC's while a PC is in the group, else this phone's own (NG1); null when none is set yet.
+ * @property hasPc A PC is in the group (the daily target is its, read only here); false: the phone owns the target.
  * @property data What the numbers were counted from (the weekly review's suggestions and facts read it too).
  */
 data class PhoneGoalsOverview(
@@ -29,6 +30,7 @@ data class PhoneGoalsOverview(
     val summary: GoalWeekSummary,
     val pcDailyMinutes: Int?,
     val data: GoalSourceData? = null,
+    val hasPc: Boolean = true,
 ) {
     companion object {
         /**
@@ -47,7 +49,7 @@ data class PhoneGoalsOverview(
             slept: List<GoalWindow> = emptyList(),
         ): PhoneGoalsOverview {
             val today = now.atZone(zone).toLocalDate()
-            val pcDaily = PhoneDeepWork.pcDailyMinutes(goalFiles)
+            val pcDaily = PhoneDeepWork.dailyMinutes(goalFiles)
             val areas = lists.liveAreas
             val areaOrder = areas.withIndex().associate { (index, area) -> area.id to index }
             val goals = lists.liveGoals
@@ -55,7 +57,7 @@ data class PhoneGoalsOverview(
                 .sortedWith(compareBy({ areaOrder[it.areaId] ?: Int.MAX_VALUE }, { it.position }))
             val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone, slept)
             val facts = goals.map { GoalFactsBuilder.build(it, data, today, display.weekStart) }
-            return PhoneGoalsOverview(today, areas, facts, GoalWeekSummary.of(facts, today, display.weekStart), pcDaily, data)
+            return PhoneGoalsOverview(today, areas, facts, GoalWeekSummary.of(facts, today, display.weekStart), pcDaily, data, PhoneDeepWork.hasPc(goalFiles))
         }
     }
 }

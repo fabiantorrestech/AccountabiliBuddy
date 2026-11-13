@@ -77,6 +77,9 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
         }
     }
 
+    /** NG1: Deep work's daily target when no PC is in the group (this phone's own, never sent; the PC's wins once one joins). */
+    val deepWorkDaily: PhoneDeepWorkDaily = PhoneDeepWorkDaily(context).also { daily -> daily.environment = { deepWork.environment() } }
+
     /** This device's id as lower-case text (the empty id before the phone is in a group): the device a goal part changed here is stamped with. Set by the app. */
     var selfId: () -> String = { com.accountabilibuddy.shared.sync.FieldStamp.NOBODY }
         set(value) {

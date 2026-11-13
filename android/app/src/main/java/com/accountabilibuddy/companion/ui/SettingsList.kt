@@ -147,6 +147,7 @@ private fun settingsSummaries(inputs: SettingsListInputs, appearance: String, pe
             "reminders".takeIf { sleep.reminders.on },
         ).joinToString(" · "),
         SettingsCategory.FocusSessions to "Test session",
+        SettingsCategory.Tasks to "Labels · reminders · during a session",
         SettingsCategory.Guards to listOfNotNull(
             inputs.pause?.let { if (it.pausedAt != null) "Paused" else "Guarding" },
             "work card".takeIf { inputs.takeoverOn },

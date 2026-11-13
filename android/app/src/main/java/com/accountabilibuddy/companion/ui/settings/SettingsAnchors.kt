@@ -18,6 +18,14 @@ object SettingsAnchors {
     const val GOALS_AREAS = "goals-areas"
     const val GOALS_PAUSING = "goals-pausing"
 
+    // Tasks (round 2 R7.4)
+    const val TASKS_REMINDERS = "tasks-reminders"
+    const val TASKS_LABELS = "tasks-labels"
+    const val TASKS_SESSION = "tasks-session"
+    const val TASKS_NEW = "tasks-new"
+    const val TASKS_RESET = "tasks-reset"
+    const val TASK_REMINDERS = "task-reminders"
+
     // Sleep
     const val SLEEP_TIMES = "sleep-times"
     const val WAKE_ALARM = "wake-alarm"

@@ -58,6 +58,9 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
 
     val status: StateFlow<FolderStatus> = _status.asStateFlow()
 
+    /** The goal history pass (NG1: the folder method runs it like Drive, same rules, own files, names and sealing); set by the app. */
+    var goalHistory: com.accountabilibuddy.shared.goals.GoalHistorySync? = null
+
     override val method: String = SyncDeviceCard.METHOD_FOLDER
 
     /** Starts or stops the 15-minute background sync to match the folder switch. */
@@ -106,6 +109,8 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
                     // A rekey the coordinator applied in the background may have changed the key meanwhile: write for the key as it is now.
                     followKey()
                     write(tree)
+                    // A folder that can't be listed or written is skipped, tried again at the next pass; never shown as a sync problem.
+                    runCatching { goalHistory?.runIfDue(FolderGoalHistoryStore(context, tree)) }
                     FolderStatus(Instant.now(), if (unreadable) "Can't read a file from the sync folder." else null, otherFilesSeen, otherGroupFilesSeen > 0 && otherFilesSeen == 0)
                 } catch (e: Exception) {
                     // A folder whose permission was taken away, or a storage app that's gone.

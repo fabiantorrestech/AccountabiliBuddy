@@ -19,6 +19,9 @@ class GoalSessionStart(
     val profiles: List<PcProfile> get() = pcState?.profiles.orEmpty()
 
     companion object {
+        /** NG1: with no PC the phone can't start a session yet; sessions on the phone itself come later (ADR 85), so it doesn't say "Link a PC". */
+        const val NO_PC_TEXT = "Phone sessions are coming"
+
         /** A preset's length: the first of the lengths Today's Start offers. */
         const val PRESET_MINUTES = 25
 
@@ -27,7 +30,7 @@ class GoalSessionStart(
          * plus a session already running; null when a session can be started.
          */
         fun blockedReason(pcName: String?, pcState: PcState?, updateNeeded: String?, waiting: Boolean, settingsRest: Boolean): String? = when {
-            pcName == null || pcState == null -> "Link a PC to start sessions from here"
+            pcName == null || pcState == null -> NO_PC_TEXT
             pcState.isActive -> "A session is running"
             updateNeeded != null -> updateNeeded
             waiting -> "Waiting for $pcName's answer"

@@ -501,6 +501,7 @@ fun MainScreen(
                                 onOpenConnections = { nav.open(AppDestination.Settings, SettingsCategory.Connections.key) },
                                 onOpenPlan = { nav.select(AppDestination.Plan) },
                                 onOpenCurboxSetup = { nav.open(AppDestination.Settings, SettingsCategory.Guards.key, SettingsAnchors.CURBOX_SETUP) },
+                                onOpenTaskReminders = { nav.open(AppDestination.Settings, SettingsCategory.Alerts.key, SettingsAnchors.TASK_REMINDERS) },
                                 onOpenWhatsNew = { whatsNewOpen = true },
                                 onReenableTime = viewModel::setReenableTime,
                                 pause = pauseActions,

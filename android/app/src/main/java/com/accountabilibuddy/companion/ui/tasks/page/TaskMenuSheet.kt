@@ -166,22 +166,7 @@ fun TaskMenuSheet(
                 }
             }
 
-            TaskMenuPage.Reminders -> {
-                val today = LocalDate.now(zone)
-                val due = task.dueOn
-                AbSheetRow("Done by", onClick = null, subtitle = if (due == null) "No due date" else TaskRowText.due(due, task.dueAt, today))
-                val reminders = task.reminders.orEmpty()
-                if (reminders.isEmpty()) {
-                    AbSheetRow("No reminders", onClick = null, icon = Icons.Outlined.Notifications)
-                } else {
-                    reminders.forEach { reminder ->
-                        AbSheetRow(TaskRowText.reminder(task.copy(reminders = listOf(reminder)), today, zone) ?: "Reminder", onClick = null, icon = Icons.Outlined.Notifications)
-                    }
-                }
-                // "Rings on" (M7 T2): whether this phone is among the devices that ring for this task's reminders.
-                TaskReminderRings.line(lists, task, self)?.let { rings -> AbSheetRow(rings, onClick = null, icon = Icons.Outlined.Devices, subtitle = "Rings on is set on your PC, for every task and per label") }
-                SheetFoot("Set and change reminders and the due date on your PC for now. Setting them on the phone comes with the phone's task reminders.")
-            }
+            TaskMenuPage.Reminders -> TaskRemindersPage(task, lists, self, zone, controller)
 
             TaskMenuPage.Label -> {
                 SheetMarkRow("No label", onClick = { controller.setLabel(task.id, null); closeOrMain() }, leading = { LabelDot(null, 12.dp) }) { AbSheetCheck(label == null) }
@@ -220,10 +205,7 @@ fun TaskMenuSheet(
                 }
             }
 
-            TaskMenuPage.Sync -> {
-                AbSheetRow("Syncs to", onClick = null, icon = Icons.Outlined.Devices, subtitle = TaskRowText.devices(task, self))
-                SheetFoot("Which devices a task syncs to is chosen on your PC for now.")
-            }
+            TaskMenuPage.Sync -> TaskSyncPage(task, self, controller)
         }
     }
 }

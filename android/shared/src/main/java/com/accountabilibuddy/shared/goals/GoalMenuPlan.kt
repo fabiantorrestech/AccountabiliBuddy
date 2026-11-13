@@ -6,7 +6,7 @@ package com.accountabilibuddy.shared.goals
  * Open in Beeminder when linked) │ Edit goal…, Reminders, Move to area, Show on Today, Pause or Resume │ Delete goal… (red), or for
  * Deep work Track time only. [GoalMenuItemId.Separator] rows are the thin dividers between the groups.
  *
- * On the phone: Deep work's targets are the PC's (ADR 29), so its last row is greyed; Beeminder is read on the PC, so Open in
+ * On the phone: Deep work's daily target is the PC's (ADR 29; with no PC in the group, [noPc], it is the phone's own and is set in Edit goal), so its last row is greyed; Beeminder is read on the PC, so Open in
  * Beeminder is greyed; "Open its tasks" is "Coming soon" (plan §3b 2). Whether a row's screen exists yet is the screen's business.
  */
 object GoalMenuPlan {
@@ -24,6 +24,7 @@ object GoalMenuPlan {
         startValue: String? = null,
         startBlocked: String? = null,
         reminderNext: String? = null,
+        noPc: Boolean = false,
     ): List<GoalMenuItem> {
         val items = mutableListOf(GoalMenuItem(GoalMenuItemId.Heading, goal.name))
         items += GoalMenuItem(
@@ -31,7 +32,7 @@ object GoalMenuPlan {
             value = startValue.takeIf { startBlocked == null }, enabled = startBlocked == null, opensMore = true,
         )
         items += separator
-        items += quickLog(goal, todayState, paused)
+        items += quickLog(goal, todayState, paused, noPc)
         items += separator
         items += GoalMenuItem(GoalMenuItemId.EditGoal, "Edit goal…", note = "Target, tracking & sources, notes", opensMore = true)
         items += GoalMenuItem(GoalMenuItemId.Reminders, "Reminders", note = reminderNext, value = if (reminderCount == 0) "None" else "$reminderCount set", opensMore = true)
@@ -44,7 +45,10 @@ object GoalMenuPlan {
         }
         items += separator
         items += if (goal.isDeepWork) {
-            GoalMenuItem(GoalMenuItemId.TrackTimeOnly, "Track time only, no target", note = "Its target is set on your PC", enabled = false)
+            GoalMenuItem(
+                GoalMenuItemId.TrackTimeOnly, "Track time only, no target",
+                note = if (noPc) "Set its daily target in Edit goal" else "Its target is set on your PC", enabled = false,
+            )
         } else {
             GoalMenuItem(GoalMenuItemId.Delete, "Delete goal…", danger = true)
         }
@@ -53,10 +57,11 @@ object GoalMenuPlan {
 
     private val separator = GoalMenuItem(GoalMenuItemId.Separator, "")
 
-    private fun quickLog(goal: Goal, state: GoalDayState, paused: Boolean): List<GoalMenuItem> {
+    private fun quickLog(goal: Goal, state: GoalDayState, paused: Boolean, noPc: Boolean): List<GoalMenuItem> {
         val log = when {
             goal.isDeepWork -> GoalMenuItem(
-                GoalMenuItemId.AddTimeByHand, "Add time by hand…", note = "Deep work counts focus only: add a session in History on your PC", enabled = false,
+                GoalMenuItemId.AddTimeByHand, "Add time by hand…",
+                note = if (noPc) "Deep work counts focus sessions only" else "Deep work counts focus only: add a session in History on your PC", enabled = false,
             )
             paused -> GoalMenuItem(GoalMenuItemId.TickToday, if (goal.kind == GoalKind.Habit) "Tick today" else "Log today", note = "Paused: nothing to log", enabled = false)
             else -> when (goal.kind) {

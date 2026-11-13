@@ -323,7 +323,7 @@ class CompanionApp : Application() {
 
     // The PC's daily target (what Track time only would take away); null before any PC file arrived.
     private fun goalPcDailyMinutes(): Double? =
-        com.accountabilibuddy.companion.goals.PhoneDeepWork.pcDailyMinutes(sync.allReceived.value.map { it.file })?.toDouble()
+        com.accountabilibuddy.companion.goals.PhoneDeepWork.dailyMinutes(sync.received.value.map { it.file })?.toDouble()
 
     // Not the key: a short hash that tells one group's key from another's, kept in the history's state.
     private fun keyFingerprint(key: com.accountabilibuddy.shared.sync.SyncKey): String =
@@ -702,6 +702,9 @@ class CompanionApp : Application() {
         // here goes out in this phone's file soon; the five goal parts and the year-file marker go in the file, other devices' parts merge in.
         goals.selfId = { if (sync.isJoined) sync.deviceId.toString().lowercase() else com.accountabilibuddy.shared.sync.FieldStamp.NOBODY }
         goals.deepWork.pcDailyMinutes = ::goalPcDailyMinutes
+        // NG1: with no PC in the group the phone owns Deep work's daily target; a change goes the way a weekly one does (backup soon).
+        com.accountabilibuddy.companion.goals.PhoneDeepWork.ownDaily = { goals.deepWorkDaily.current().minutes }
+        goals.deepWorkDaily.onChanged = { autoBackup.soon() }
         goals.restoreRefusedReason = {
             val env = goals.deepWork.environment()
             if (!env.productaBuddy && env.sessionRunning) "not during a focus session." else null
@@ -722,6 +725,7 @@ class CompanionApp : Application() {
         com.accountabilibuddy.companion.goals.PhoneGoalsMigration.run(goals)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         driveSource.goalHistory = goalHistory
+        folderSource.goalHistory = goalHistory
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
         relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
         relaySource.goalHistory = goalHistory

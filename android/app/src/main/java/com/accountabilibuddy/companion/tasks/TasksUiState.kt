@@ -12,6 +12,7 @@ import com.accountabilibuddy.shared.tasks.TaskViewConfig
  * @property config The view's settings in use: grouping, sort, rows, filters.
  * @property viewId The saved view [config] started from; null for the default view.
  * @property hideShelfInSession The Shelf hides behind "Show the Shelf" while a session runs (Settings › Tasks › During a session).
+ * @property showShelfAt When a waiting "show the Shelf in a session" applies (the looser-change wait, [com.accountabilibuddy.shared.tasks.TaskHideShelfRule]); null for none.
  */
 data class TasksUiState(
     val config: TaskViewConfig = TaskViewConfig.EVERYTHING.copy(pinHighlights = true),
@@ -20,6 +21,7 @@ data class TasksUiState(
     val starts: Map<String, String> = emptyMap(),
     val wraps: Map<String, Boolean> = emptyMap(),
     val hideShelfInSession: Boolean = true,
+    val showShelfAt: java.time.Instant? = null,
     val noticeDismissedAt: java.time.Instant? = null,
     val noticeDismissedFor: List<String> = emptyList(),
 ) {

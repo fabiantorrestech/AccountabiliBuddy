@@ -166,6 +166,9 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "gs4fix-self" to Gs4FixSelfCheck::run,
     // Round 2 GS2 review fixes: "+" in a time, non-finite numbers, Health Connect's highest, the small reading rules, a 65 000-entry timing check (phone only).
     "gs2fix-self" to Gs2FixSelfCheck::run,
+    // Round 2 R7.4 + NG1 (phone): account-settings edits, label colours and rings, reminder/due/device edits, Hide the Shelf, Rebuild, the
+    // phone-owned Deep work daily target and the no-PC words (phone only).
+    "r74-self" to R74SelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

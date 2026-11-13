@@ -13,6 +13,9 @@ object TaskLabelColors {
         "#C2410C", "#0E7490", "#A21CAF", "#4D7C0F", "#B45309", "#BE123C",
     )
 
+    /** The lowest opacity a custom colour may have. */
+    const val MIN_OPACITY = 0.2
+
     /** Whether the text is a colour in one of the accepted forms. */
     fun isValid(color: String?): Boolean = parse(color) != null
 
@@ -24,6 +27,33 @@ object TaskLabelColors {
 
     /** The colour's opacity, from 0 to 1; 1 when it can't be read. */
     fun opacityOf(color: String?): Double = parse(color)?.alpha ?: 1.0
+
+    /** Whether two colours look the same once their opacity is ignored. */
+    fun sameOpaque(first: String?, second: String?): Boolean = opaque(first) == opaque(second)
+
+    /**
+     * The colour with [opacity] (kept between [MIN_OPACITY] and 1): "#RRGGBB" when fully opaque, else "rgba(r,g,b,a)" with up to two
+     * decimals (the PC's WithOpacity). The set's first colour when [color] can't be read.
+     */
+    fun withOpacity(color: String?, opacity: Double): String {
+        val opaque = opaque(color)
+        val alpha = Math.round(opacity.coerceIn(MIN_OPACITY, 1.0) * 100.0) / 100.0
+        if (alpha >= 1.0) return opaque
+        val parsed = parse(opaque)!!
+        val text = java.text.DecimalFormat("0.##", java.text.DecimalFormatSymbols(Locale.ROOT)).format(alpha)
+        return "rgba(${parsed.red},${parsed.green},${parsed.blue},$text)"
+    }
+
+    /**
+     * What was typed as a colour ("#RRGGBB", "#RRGGBBAA", the same without the #, or "rgba(r,g,b,a)") in its stored form: "#RRGGBB" in
+     * upper case when opaque, else "rgba(r,g,b,a)" ([withOpacity]; an opacity under [MIN_OPACITY] is raised to it). Null when it isn't a colour.
+     */
+    fun typed(text: String?): String? {
+        var trimmed = (text ?: "").trim()
+        if ((trimmed.length == 6 || trimmed.length == 8) && trimmed.all(::isAsciiHexDigit)) trimmed = "#$trimmed"
+        val parsed = parse(trimmed) ?: return null
+        return if (parsed.alpha >= 1.0 && !trimmed.startsWith("rgba", ignoreCase = true) && trimmed.length == 7) trimmed.uppercase(Locale.ROOT) else withOpacity(trimmed, parsed.alpha)
+    }
 
     /** The first colour of [SET] no live label uses (by its opaque form); the first one when all are used. */
     fun firstUnused(labels: List<TaskLabel>): String {

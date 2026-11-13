@@ -24,13 +24,16 @@ object TaskNumbering {
     }
 
     /**
-     * The phone's numbering device in its group (R7.2 review item 5, Q599): none while it isn't joined, or while it hasn't received a
+     * The phone's numbering device in its group (R7.2 review item 5, Q599): the phone itself while it isn't joined to any group (NG1: no
+     * group, no PC to wait for, so its tasks get final numbers at once; they are renumbered only if it later joins a group with a PC, as
+     * the join rule already does); none while it is joined but hasn't received a
      * file from any other device (a PC may be in the group, so it numbers nothing final); the lowest PC once one of the [received]
      * files is a PC's; the phone rule ([numberingDevice] with [self] as a phone) only when the group is known to have no PC (at least
      * one received file, none of them a PC's). [received]: (sync device id, kind) of each device whose file this phone holds.
      */
     fun groupNumberingDevice(joined: Boolean, received: List<Pair<String, String>>, self: String): String? {
-        if (!joined || received.isEmpty()) return null
+        if (!joined) return self.lowercase().takeIf { it != FieldStamp.NOBODY }
+        if (received.isEmpty()) return null
         return numberingDevice(received + (self to PHONE_KIND))
     }
 

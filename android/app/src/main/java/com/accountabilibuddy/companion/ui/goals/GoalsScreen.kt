@@ -87,6 +87,8 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
     val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
     val steps by app.steps.state.collectAsStateWithLifecycle()
     val weeklyState by app.goals.deepWork.state.collectAsStateWithLifecycle()
+    // NG1: the phone-owned daily target (no PC in the group) recounts too.
+    val dailyState by app.goals.deepWorkDaily.state.collectAsStateWithLifecycle()
     var areaFilter by rememberSaveable { mutableStateOf<String?>(null) }
     var optionsOpen by rememberSaveable { mutableStateOf(false) }
     // A hold on a row, or its ⋮: the goal menu (the same rows and order as the PC's).
@@ -111,7 +113,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, display.weekStart, allReceived, received, steps, minute) {
+    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, dailyState, display.weekStart, allReceived, received, steps, minute) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState
@@ -192,6 +194,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
                 GoalBlock(
                     section = section,
                     noPcGoal = shown.pcDailyMinutes == null,
+                    hasPc = shown.hasPc,
                     onToggle = { area -> GoalDisplayPrefs.setCollapsed(context, area, !section.collapsed) },
                     actions = actions,
                     onMenu = { id -> menuGoal = id.toString() },
@@ -289,7 +292,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
 
 // One soft block (brief §3.5: no dividers, rows apart by spacing): an area's header and its goals, or the one block of Current / All.
 @Composable
-private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions, onMenu: (UUID) -> Unit, onEditArea: (UUID) -> Unit, openMenu: String?) {
+private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, hasPc: Boolean, onToggle: (UUID) -> Unit, actions: GoalsActions, onMenu: (UUID) -> Unit, onEditArea: (UUID) -> Unit, openMenu: String?) {
     val scale = LocalMotionScale.current
     val area = section.area
     Column(
@@ -317,6 +320,7 @@ private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, onToggle: (UU
                     GoalRow(
                         facts = facts,
                         noPcGoal = noPcGoal,
+                        hasPc = hasPc,
                         onOpen = { actions.onOpenGoal(facts.goal.id) },
                         onMenu = { onMenu(facts.goal.id) },
                         menuOpen = openMenu == facts.goal.id.toString(),

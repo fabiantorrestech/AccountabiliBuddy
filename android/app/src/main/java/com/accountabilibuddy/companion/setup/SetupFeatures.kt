@@ -33,10 +33,33 @@ object SetupFeatures {
     const val GUIDANCE = "guidance.mode"
     const val GOALS_REVIEW = "goals.review"
     const val STEPS_IN_GOALS = "steps.inGoals"
+    const val TASKS_REDESIGN = "tasks.redesign"
+    const val TASK_RING_DEVICES = "tasks.ringDevices"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            TASKS_REDESIGN, "0.1.79", "Tasks: pages per bin, label and tag, labels, saved views and the view the page opens with",
+            // Only once the one task list is in use; set up once seen in the assistant, or a default view was chosen for the account.
+            relevant = { (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).taskModel.isActive },
+            setUp = {
+                val app = it.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                done(it, TASKS_REDESIGN) || com.accountabilibuddy.shared.tasks.TaskAccountSettingsEdits.isChosen(app.taskModel.lists.value.account?.defaultViewStamp)
+            },
+        ),
+        SetupFeature(
+            TASK_RING_DEVICES, "0.1.79", "Task reminders: which of your devices ring (a PC always rings for its own)",
+            // Only with another phone in the group (a PC alone always rings, a lone phone has nothing to choose); set up once seen, or the list was chosen.
+            relevant = {
+                val app = it.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                app.taskModel.isActive && com.accountabilibuddy.companion.tasks.TaskSettingsActions(app).phones().size > 1
+            },
+            setUp = {
+                val app = it.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                done(it, TASK_RING_DEVICES) || com.accountabilibuddy.shared.tasks.TaskAccountSettingsEdits.isChosen(app.taskModel.lists.value.account?.ringOnStamp)
+            },
+        ),
         SetupFeature(
             STEPS_IN_GOALS, "0.1.78", "Steps now live in Goals: add a steps goal in place of the Today ring",
             // Only for a phone whose Today showed steps and that still tracks them with no steps goal; set up once added, closed or seen.

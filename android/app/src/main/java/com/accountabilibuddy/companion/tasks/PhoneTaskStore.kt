@@ -16,6 +16,7 @@ import com.accountabilibuddy.shared.tasks.TaskModelStartup
 import com.accountabilibuddy.shared.tasks.TaskNewerEntries
 import com.accountabilibuddy.shared.tasks.TaskParts
 import com.accountabilibuddy.shared.tasks.TaskStoreOpening
+import com.accountabilibuddy.shared.tasks.TaskStoreRebuild
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -112,6 +113,30 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
                 isActive = true
             }
         }
+    }
+
+    /**
+     * Rebuild (Q640) of a closed store: the unreadable sealed copy stays set aside ([TaskStoreRebuild.keptAside]: never deleted or
+     * overwritten, merged back in by [load] if it ever opens), the store starts empty and the lists come back from the other devices'
+     * next files or a backup. The caller asks first and refuses in a session ([TaskStoreRebuild.refusal]). True when it started.
+     */
+    @Synchronized
+    fun rebuild(): Boolean {
+        if (!isClosed) return false
+        val aside = TaskStoreRebuild.keptAside(prefs.getString(KEY_LISTS, null), prefs.getString(KEY_UNREADABLE, null))
+        val edit = prefs.edit()
+        if (aside != null) edit.putString(KEY_UNREADABLE, aside)
+        edit.putString(KEY_LISTS, TokenVault.seal(encode(TaskLists.EMPTY).toString(), ALIAS))
+        if (!edit.commit()) return false
+        newer = TaskParts(null, null, null, null, null)
+        fileCache = null
+        searches = readSearches()
+        _lists.value = TaskLists.EMPTY
+        isClosed = false
+        isActive = true
+        log("rebuilt: an empty task list started; the unreadable copy is kept aside" + if (aside == null) " (there was none to keep)" else "")
+        tell()
+        return true
     }
 
     /** The task list can't be used this run (its start failed): closed, like an unreadable one. */

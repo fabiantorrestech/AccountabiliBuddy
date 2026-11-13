@@ -40,6 +40,12 @@ fun SettingsDetailHost(
         return
     }
 
+    // Tasks has a page below it (Labels), so it draws its own headers too.
+    if (category == SettingsCategory.Tasks) {
+        TasksSettingsPage(anchor, onBack, actions.onOpenTaskReminders)
+        return
+    }
+
     SettingsPageFrame(category, onBack) {
         when (category) {
             SettingsCategory.YourDay -> YourDayPage(anchor, actions.onOpenPlan)
@@ -61,7 +67,7 @@ fun SettingsDetailHost(
                 anchor, inputs.health, actions.onConnectHealth, actions.onAllowUsage, actions.onOpenSetup, actions.onOpenDevices,
             )
             SettingsCategory.About -> AboutScreen(pcName = inputs.pcName, onOpenWhatsNew = actions.onOpenWhatsNew)
-            SettingsCategory.Appearance, SettingsCategory.Guards -> Unit
+            SettingsCategory.Appearance, SettingsCategory.Guards, SettingsCategory.Tasks -> Unit
         }
     }
 }

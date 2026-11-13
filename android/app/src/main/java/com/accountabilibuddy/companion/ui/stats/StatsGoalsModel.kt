@@ -65,6 +65,8 @@ fun rememberStatsGoals(allReceived: List<ReceivedDevice>, received: List<Receive
     val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
     val steps by app.steps.state.collectAsStateWithLifecycle()
     val weeklyState by app.goals.deepWork.state.collectAsStateWithLifecycle()
+    // NG1: the phone-owned daily target (no PC in the group) recounts too.
+    val dailyState by app.goals.deepWorkDaily.state.collectAsStateWithLifecycle()
     val minute by produceState(Instant.now()) {
         while (true) {
             val now = Instant.now()
@@ -72,7 +74,7 @@ fun rememberStatsGoals(allReceived: List<ReceivedDevice>, received: List<Receive
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, display.weekStart, allReceived, received, steps, minute) {
+    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, dailyState, display.weekStart, allReceived, received, steps, minute) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState

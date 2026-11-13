@@ -79,6 +79,7 @@ fun rememberTodayGoals(allReceived: List<ReceivedDevice>, received: List<Receive
     val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
     val steps by app.steps.state.collectAsStateWithLifecycle()
     val weekly by app.goals.deepWork.state.collectAsStateWithLifecycle()
+    val daily by app.goals.deepWorkDaily.state.collectAsStateWithLifecycle()
     val minute by produceState(Instant.now()) {
         while (true) {
             val now = Instant.now()
@@ -86,7 +87,7 @@ fun rememberTodayGoals(allReceived: List<ReceivedDevice>, received: List<Receive
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    return produceState<GoalTodayCard?>(null, status, lists, weekly, display.weekStart, allReceived, received, steps, minute, inSession) {
+    return produceState<GoalTodayCard?>(null, status, lists, weekly, daily, display.weekStart, allReceived, received, steps, minute, inSession) {
         if (status != PhoneGoalStatus.Ready || lists.liveGoals.none { it.showOnToday }) {
             value = null
             return@produceState
