@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.Core.Goals;
 
@@ -6,7 +8,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// One value for a goal on a day (brief §5.1): a hand tick or log, time added by hand, or a reading (Health Connect, screen
 /// time, Beeminder, calendar). Every entry is kept. How a day's value comes from them depends on the goal's kind
 /// (<see cref="GoalCounting"/>): for an Amount goal the latest hand edit wins (over any later reading or sync), else the day's
-/// first reading. Carries the shared-item stamps of ADR 48/72 for a later ADR 79 merge; nothing syncs it now.
+/// first reading. A shared item of ADR 48/72 that travels in the sealed sync files (ADR 79, part <c>goalEntries</c>), newest version
+/// wins (<see cref="GoalSyncMerge"/>); deleting its goal leaves it alone (hidden while the goal is gone, dropped with the goal's tombstone).
 /// </summary>
 /// <param name="Day">The local date it is for (a past date when back-filled).</param>
 /// <param name="Time">
@@ -32,7 +35,7 @@ public sealed record GoalEntry(
     GoalEntrySource Source,
     DateTimeOffset EditedAt,
     double Position = 0,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null) : ISharedItem
 {
     /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
     [JsonExtensionData]
@@ -40,6 +43,15 @@ public sealed record GoalEntry(
 
     [JsonIgnore]
     public bool IsLive => DeletedAt is null;
+
+    /// <summary>The item as one text, for the rare tie of two versions with the same stamp (<see cref="SharedListMerge"/>). Never logged or shown.</summary>
+    [JsonIgnore]
+    public string TieBreak => JsonSerializer.Serialize(this, SyncJson.Options);
+
+    public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
+    {
+        return this with { EditedAt = editedAt, DeletedAt = deletedAt };
+    }
 
     /// <summary>Whether it was made after its day (a back-fill, change note §4a): it updates that week and the streak, never a guard.</summary>
     public bool IsBackFill(TimeZoneInfo zone)

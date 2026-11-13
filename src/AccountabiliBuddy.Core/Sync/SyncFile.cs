@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using AccountabiliBuddy.Core.Goals;
 
 namespace AccountabiliBuddy.Core.Sync;
 
@@ -85,6 +86,17 @@ namespace AccountabiliBuddy.Core.Sync;
 /// by field by <see cref="TaskAccountSettingsMerge"/>; null as <paramref name="Tasks"/>, and when nothing was ever chosen. Read
 /// leniently (<see cref="SyncLenientObjectConverter{T}"/>).
 /// </param>
+/// <param name="Goals">
+/// ADR 79: the goals with their per-part stamps and tombstones, merged part by part by <see cref="GoalSyncMerge"/> (Deep work's
+/// record composed with this device's effective weekly target, <see cref="GoalDeepWorkSync"/>; never a waiting change). Null from an
+/// app that predates it, in a QR file and while task lists aren't shared; a receiver then keeps its own goals unchanged. Private text
+/// (names, notes, a source's #tag or app): only inside the sealed file, never in the copy a receiver stores, never logged. Read leniently
+/// and forward compatibly (<see cref="SyncGoalListConverter{T}"/>: a newer app's item is kept as written).
+/// </param>
+/// <param name="GoalAreas">ADR 79: the goal areas, merged item by item (newest wins); null as <paramref name="Goals"/>.</param>
+/// <param name="GoalEntries">ADR 79: every goal entry (all history travels, owner 2026-11-14), merged item by item; null as <paramref name="Goals"/>.</param>
+/// <param name="GoalReminders">ADR 79: the goal reminders (reasons are private text), merged item by item; null as <paramref name="Goals"/>.</param>
+/// <param name="GoalReviews">ADR 79: the weekly review records, one per week (<see cref="GoalReviewIds"/>); null as <paramref name="Goals"/>.</param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -131,7 +143,12 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLabel>))] IReadOnlyList<SyncTaskLabel>? Labels = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskView>))] IReadOnlyList<SyncTaskView>? Views = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLogItem>))] IReadOnlyList<SyncTaskLogItem>? TaskLog = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientObjectConverter<SyncTaskAccountSettings>))] SyncTaskAccountSettings? TaskAccountSettings = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientObjectConverter<SyncTaskAccountSettings>))] SyncTaskAccountSettings? TaskAccountSettings = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<Goal>))] IReadOnlyList<Goal>? Goals = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalArea>))] IReadOnlyList<GoalArea>? GoalAreas = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalEntry>))] IReadOnlyList<GoalEntry>? GoalEntries = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalReminder>))] IReadOnlyList<GoalReminder>? GoalReminders = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalReviewRecord>))] IReadOnlyList<GoalReviewRecord>? GoalReviews = null)
 {
     public const int CurrentFormatVersion = 1;
 }

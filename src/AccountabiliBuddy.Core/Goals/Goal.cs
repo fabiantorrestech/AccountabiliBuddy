@@ -1,11 +1,13 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.Core.Goals;
 
 /// <summary>
-/// One goal (brief §5.1). Carries the shared-item stamps of ADR 48/72 (stable id, position, edit time, tombstone) so syncing
-/// it later (ADR 79, Proposed) is a merge, not a migration; nothing syncs it now. Its day values and statuses are computed
-/// (<see cref="GoalCounting"/>), never stored.
+/// One goal (brief §5.1). A shared item of ADR 48/72 (stable id, position, edit time, tombstone) that travels in the sealed sync files
+/// (ADR 79, part <c>goals</c>), merged part by part (<see cref="GoalSyncMerge"/>, <see cref="Stamps"/>). Its day values and statuses are
+/// computed (<see cref="GoalCounting"/>), never stored.
 /// </summary>
 /// <param name="AreaId">The <see cref="GoalArea"/> it sits in.</param>
 /// <param name="Name">"Spanish". The user's private text: sealed at rest with the device's key, never logged; a name: in a backup it travels readable like a task title. The target is a separate field everywhere.</param>
@@ -43,7 +45,7 @@ public sealed record Goal(
     bool ShowOnToday = false,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GoalExtraTiles? ExtraTiles = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Notes = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null) : ISharedItem
 {
     /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
     [JsonExtensionData]
@@ -52,8 +54,33 @@ public sealed record Goal(
     /// <summary>The built-in Deep work goal's id: the same on every device, so its record merges as one item once goals sync.</summary>
     public static Guid DeepWorkId { get; } = Guid.Parse("d33b0a11-6f0c-4e2a-9d51-0000000000d1");
 
+    /// <summary>
+    /// When each part was last changed and by which device (ADR 79, owner 2026-11-14), for the field-by-field merge; null on a goal stored
+    /// before goals synced, which counts every part as changed at <see cref="EditedAt"/> (<see cref="GoalFieldStamps.For"/>). Set by
+    /// <see cref="GoalEdits"/>; a tombstone has none.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GoalFieldStamps? Stamps { get; init; }
+
+    /// <summary>
+    /// Deep work's "Track time only" as its record carries it in a sync file (ADR 79 owner decision 5; part
+    /// <see cref="GoalField.SecondTarget"/>); written only when on. Never stored on the goal: the device keeps it in its own Deep work
+    /// settings, and <see cref="GoalDeepWorkSync"/> puts it in and takes it out.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool TrackTimeOnly { get; init; }
+
     [JsonIgnore]
     public bool IsLive => DeletedAt is null;
+
+    /// <summary>The goal as one text, for the rare tie of two versions with the same stamp (<see cref="SharedListMerge"/>). Never logged or shown.</summary>
+    [JsonIgnore]
+    public string TieBreak => JsonSerializer.Serialize(this, SyncJson.Options);
+
+    public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
+    {
+        return this with { EditedAt = editedAt, DeletedAt = deletedAt };
+    }
 
     /// <summary>
     /// Whether this is the built-in Deep work goal: flagged built in, or carrying its fixed id (a record that lost the flag is

@@ -1,10 +1,13 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.Core.Goals;
 
 /// <summary>
 /// A goal reminder (brief §5.1, §5.9): a suggestion that rings through the task reminder engine; nothing locks or waits.
-/// Carries the shared-item stamps of ADR 48/72 for a later ADR 79 merge; nothing syncs it now. Never exported to Google Calendar.
+/// A shared item of ADR 48/72 that travels in the sealed sync files (ADR 79, part <c>goalReminders</c>), newest version wins
+/// (<see cref="GoalSyncMerge"/>); deleting its goal leaves it alone (hidden while the goal is gone). Never exported to Google Calendar.
 /// </summary>
 /// <param name="Weekdays">For <see cref="GoalReminderDays.Weekdays"/>: the days it rings on, by name; null otherwise.</param>
 /// <param name="Date">For <see cref="GoalReminderDays.Date"/> and <see cref="GoalReminderDays.Today"/>: the date; null otherwise.</param>
@@ -26,7 +29,7 @@ public sealed record GoalReminder(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason = null,
     bool SkipWhenDone = true,
     bool NudgeWhenBehind = false,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null) : ISharedItem
 {
     /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
     [JsonExtensionData]
@@ -34,4 +37,13 @@ public sealed record GoalReminder(
 
     [JsonIgnore]
     public bool IsLive => DeletedAt is null;
+
+    /// <summary>The item as one text, for the rare tie of two versions with the same stamp (<see cref="SharedListMerge"/>). Never logged or shown.</summary>
+    [JsonIgnore]
+    public string TieBreak => JsonSerializer.Serialize(this, SyncJson.Options);
+
+    public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
+    {
+        return this with { EditedAt = editedAt, DeletedAt = deletedAt };
+    }
 }
