@@ -103,7 +103,7 @@ object R71OldFieldCases {
         return JsonParity.difference(expected.getValue("counts"), actual)
     }
 
-    private fun json(fields: OldTaskFields): JsonObject = buildJsonObject {
+    internal fun json(fields: OldTaskFields): JsonObject = buildJsonObject {
         put("nextTasks", SyncFileJson.writeNextTasks(fields.nextTasks))
         put("later", SyncFileJson.writeLater(fields.later))
         put("parked", SyncFileJson.writeParked(fields.parked))

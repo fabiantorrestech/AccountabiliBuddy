@@ -51,6 +51,13 @@ object R71Json {
             ?: GoalCaseRunner.sameText(wanted.getValue("text").jsonPrimitive.content, TaskJson.text(actual))
     }
 
+    /** Every object key starting with "z" under [json] with its value's raw JSON ("zName=value"), with repeats. */
+    fun unknownEntries(json: JsonElement): List<String> = when (json) {
+        is JsonObject -> json.entries.flatMap { (key, value) -> (if (key.startsWith("z")) listOf("$key=$value") else emptyList()) + unknownEntries(value) }
+        is JsonArray -> json.flatMap(::unknownEntries)
+        is JsonPrimitive -> emptyList()
+    }
+
     /** Every object key starting with "z" under [json] (the fixtures' unknown fields), with repeats. */
     fun unknownNames(json: JsonElement): List<String> = when (json) {
         is JsonObject -> json.entries.flatMap { (key, value) -> (if (key.startsWith("z")) listOf(key) else emptyList()) + unknownNames(value) }

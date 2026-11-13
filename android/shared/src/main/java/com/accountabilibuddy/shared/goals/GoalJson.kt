@@ -373,13 +373,17 @@ object GoalJson {
         }
     }
 
-    // true / false / a whole number as they are; a double (it has a point or an exponent) as .NET writes it.
+    // true / false / a whole number as they are; a double this app made (Kotlin's own text of it) as .NET writes it. Anything else, an
+    // unknown field a newer app wrote ("1.0", "1.50", a long decimal, one too big for a double), goes back exactly as it came
+    // (R7.1 review).
     private fun literalText(content: String): String {
         if (content == "true" || content == "false" || content.none { it == '.' || it == 'e' || it == 'E' }) {
             return content
         }
 
-        return doubleText(content.toDouble())
+        val value = content.toDoubleOrNull()?.takeIf { !it.isInfinite() && !it.isNaN() } ?: return content
+        val madeHere = content == value.toString() && (value != floor(value) || abs(value) >= 1e17)
+        return if (madeHere) doubleText(value) else content
     }
 
     private fun appendString(out: StringBuilder, text: String) {

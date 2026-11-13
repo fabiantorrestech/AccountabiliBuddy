@@ -108,6 +108,12 @@ object SharedListMerge {
 
     // More than 0 when [candidate] is the version to keep over [held].
     private fun compare(candidate: SharedItem, held: SharedItem): Int {
+        // R7.1 review (performance): the same item (often the very instance a field merge just made for both lists) ties at once,
+        // without building its tie-break text; equal items would tie on it anyway.
+        if (candidate === held || candidate == held) {
+            return 0
+        }
+
         val byTime = stampOf(candidate).ticks().compareTo(stampOf(held).ticks())
         if (byTime != 0) {
             return byTime

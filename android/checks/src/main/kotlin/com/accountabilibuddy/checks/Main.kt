@@ -79,6 +79,14 @@ private val checks: List<FixtureCheck> = listOf(
     R71Check("old-fields-write", R71OldFieldCases::write),
     R71Check("old-fields-json", R71OldFieldCases::json),
     R71Check("migration", R71OldFieldCases::migration),
+    // Round 2 R7.2: the phone's task store against the PC's (normalize, History, the store's migration, Q128, Q583, strip, file parts).
+    R72Check("normalize", R72Cases::normalize),
+    R72Check("history", R72Cases::history),
+    R72Check("store-migration", R72Cases::storeMigration),
+    R72Check("old-fields-session", R72Cases::oldFieldsSession),
+    R72Check("receive-without-tasks", R72Cases::receiveWithoutTasks),
+    R72Check("strip", R72Cases::strip),
+    R72Check("with-parts", R72Cases::withParts),
 )
 
 /**
@@ -99,10 +107,12 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "goals-ui-stats-series" to GoalsUiStatsSeriesCheck::run,
     // Round 2 R7.1: unknown fields and newer entries kept, the shared stamp helper, phone-only numbering, the label book, the migration's promises.
     "r71-self" to TaskModelSelfCheck::run,
+    // Round 2 R7.2: the phone's own edits, label edits, the switch's refusal, newer entries, timing (phone only).
+    "r72-self" to TaskStoreSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "r71")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "r71", "r72")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

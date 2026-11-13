@@ -23,6 +23,8 @@ object TaskFieldMerge {
 
     /** The merged list, tombstones included, ordered as [SharedListMerge.merge] orders it. */
     fun merge(first: List<SyncTaskItem>, second: List<SyncTaskItem>, now: OffsetDateTime, self: String? = null): List<SyncTaskItem> {
+        // R7.1 review: the time cut to the PC's ticks, as every stamp is.
+        val now = DotNetTime.cut(now)
         val limit = now.plus(SharedListMerge.FUTURE_LIMIT)
         val firstById = folded(first.map { clamped(it, limit) }, now, self)
         val secondById = folded(second.map { clamped(it, limit) }, now, self)
@@ -63,11 +65,12 @@ object TaskFieldMerge {
         for (field in TaskFieldValues.ALL) {
             val stampA = one.stamps.of(field) ?: unstamped(a)
             val stampB = other.stamps.of(field) ?: unstamped(b)
-            val valueA = TaskFieldValues.canonical(a, field)
-            val valueB = TaskFieldValues.canonical(b, field)
+            // R7.1 review (performance): a field's text is made only when the stamps' time and device tie; title and note are their text.
+            val valueA = { TaskFieldValues.canonical(a, field) }
+            val valueB = { TaskFieldValues.canonical(b, field) }
 
             val pick = when (field) {
-                TaskField.TITLE, TaskField.NOTE -> pickText(field, a, b, stampA, stampB, valueA, valueB)
+                TaskField.TITLE, TaskField.NOTE -> pickText(field, a, b, stampA, stampB, valueA(), valueB())
                 TaskField.NUMBER -> pickNumber(a, b, stampA, stampB, valueA, valueB)
                 else -> pickNewer(stampA, stampB, valueA, valueB)
             }
@@ -86,14 +89,20 @@ object TaskFieldMerge {
 
     private class FieldPick(val fromFirst: Boolean, val stamp: FieldStamp, val conflict: TaskConflict? = null)
 
-    private fun pickNewer(stampA: FieldStamp, stampB: FieldStamp, valueA: String, valueB: String): FieldPick {
+    private fun pickNewer(stampA: FieldStamp, stampB: FieldStamp, valueA: () -> String, valueB: () -> String): FieldPick {
         val firstWins = FieldStamps.firstIsNewer(stampA, stampB, valueA, valueB)
         return FieldPick(firstWins, if (firstWins) stampA else stampB)
     }
 
     private fun pickText(field: TaskField, a: TaskItem, b: TaskItem, stampA: FieldStamp, stampB: FieldStamp, valueA: String, valueB: String): FieldPick {
-        val firstWins = FieldStamps.firstIsNewer(stampA, stampB, valueA, valueB)
+        var firstWins = FieldStamps.firstIsNewer(stampA, stampB, valueA, valueB)
         if (valueA == valueB) {
+            // Q584: on a full tie (time, device, value) the newer is the one whose bases, joined, sort later (ordinal), so the
+            // union's order no longer depends on which copy came first. Both twins together (the PC lane takes the same rule).
+            if (DotNetTime.compare(stampA.at, stampB.at) == 0 && stampA.by == stampB.by) {
+                firstWins = joinedBases(stampA) >= joinedBases(stampB)
+            }
+
             // The same value: either history leads to it, so the stamp keeps both.
             val newer = if (firstWins) stampA else stampB
             val older = if (firstWins) stampB else stampA
@@ -139,7 +148,7 @@ object TaskFieldMerge {
     }
 
     // A final number beats a temporary one (the numbering device's word is final); otherwise the newer stamp.
-    private fun pickNumber(a: TaskItem, b: TaskItem, stampA: FieldStamp, stampB: FieldStamp, valueA: String, valueB: String): FieldPick {
+    private fun pickNumber(a: TaskItem, b: TaskItem, stampA: FieldStamp, stampB: FieldStamp, valueA: () -> String, valueB: () -> String): FieldPick {
         val rankA = numberRank(a.number)
         val rankB = numberRank(b.number)
         if (rankA != rankB) {
@@ -203,6 +212,9 @@ object TaskFieldMerge {
 
     private fun holds(bases: List<String>?, hash: String): Boolean = bases != null && hash in bases
 
+    /** Q584: a stamp's bases as one text for the full-tie rule ("," between, none = ""). */
+    internal fun joinedBases(stamp: FieldStamp): String = stamp.bases.orEmpty().joinToString(",")
+
     private fun unionBases(first: List<String>?, second: List<String>?): List<String>? {
         val all = first.orEmpty() + second.orEmpty().filter { !holds(first, it) }
         if (all.isEmpty()) {
@@ -242,8 +254,10 @@ object TaskFieldMerge {
     private fun folded(items: List<SyncTaskItem>, now: OffsetDateTime, self: String?): LinkedHashMap<String, SyncTaskItem> {
         val byId = LinkedHashMap<String, SyncTaskItem>()
         for (item in items) {
-            val held = byId[item.id]
-            byId[item.id] = when {
+            // R7.1 review: ids by lower case, as the shared lists compare them.
+            val key = item.id.lowercase()
+            val held = byId[key]
+            byId[key] = when {
                 held == null -> item
                 held.task.isLive && item.task.isLive -> mergeItem(held, item)
                 // Tombstones kept here whatever their age: the merge of the two lists applies the 30-day rule to the winner.

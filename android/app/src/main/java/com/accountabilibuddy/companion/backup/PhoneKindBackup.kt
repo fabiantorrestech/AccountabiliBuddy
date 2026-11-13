@@ -138,6 +138,22 @@ object PhoneKindBackup {
     }
 
     private fun tasks(app: CompanionApp): JsonObject = buildJsonObject {
+        val parts = app.taskModel.backupParts()
+        if (parts != null) {
+            // R7.2 (ADR 76): the task list itself (the PC's names: tasks, labels, views, taskLog, accountSettings), with the old lists
+            // rebuilt from it (local items with their text) for an older app.
+            val lists = app.taskModel.lists.value
+            val old = com.accountabilibuddy.shared.tasks.OldTaskFieldsWriter.write(
+                lists.tasks, lists.labels, lists.log, java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC), app.taskModel.zone(), stubLocalItems = false,
+            )
+            put("nextTasks", SyncFileJson.writeNextTasks(old.nextTasks))
+            put("comebacks", SyncFileJson.writeParked(old.parked))
+            put("later", SyncFileJson.writeLater(old.later))
+            put("categories", SyncFileJson.writeCategories(old.categories))
+            com.accountabilibuddy.shared.tasks.TaskJson.writeParts(parts).forEach { (name, value) -> put(if (name == "taskAccountSettings") "accountSettings" else name, value) }
+            return@buildJsonObject
+        }
+
         put("nextTasks", SyncFileJson.writeNextTasks(app.sharedLists.nextTasksForSync()))
         put("comebacks", SyncFileJson.writeParked(app.sharedLists.parkedForSync()))
         put("later", SyncFileJson.writeLater(app.sharedLists.laterForSync()))
@@ -145,6 +161,7 @@ object PhoneKindBackup {
     }
 
     private fun importTasks(app: CompanionApp, tasks: JsonObject, restore: Boolean): String {
+        if (app.taskModel.isActive) return importIntoTaskList(app, tasks, restore)
         val now = Instant.now()
         // Restore: the backup's live items are stamped now, so they win over later edits and deletions; its deletions don't come back.
         val next = SyncFileJson.readNextTasks(tasks["nextTasks"]).orEmpty().let { list -> if (restore) list.filter { it.deletedAt == null }.map { it.copy(editedAt = now) } else list }
@@ -158,6 +175,38 @@ object PhoneKindBackup {
         }
         val count = next.count { it.deletedAt == null } + parked.count { it.deletedAt == null } + later.count { it.deletedAt == null }
         return if (restore) "Task lists restored ($count items from the backup)." else "Task lists merged ($count items in the backup; the newest edit of each kept)."
+    }
+
+    // R7.2: a backup taken into the task list through its merge rules (a backup with the task list) or, an older backup's old lists,
+    // as this phone's edits (Restore: every live item as the backup has it; Merge: only items the task list has never held).
+    private fun importIntoTaskList(app: CompanionApp, tasks: JsonObject, restore: Boolean): String {
+        val store = app.taskModel
+        val named = JsonObject(tasks + listOfNotNull(tasks["accountSettings"]?.let { "taskAccountSettings" to it }))
+        val parts = com.accountabilibuddy.shared.tasks.TaskJson.readParts(named)
+        val count: Int
+        if (parts.tasks != null) {
+            count = store.import(
+                com.accountabilibuddy.shared.tasks.TaskLists(parts.tasks!!, parts.labels.orEmpty(), parts.views.orEmpty(), parts.taskLog.orEmpty(), parts.accountSettings),
+                restore,
+            )
+        } else {
+            val known = store.lists.value.tasks.map { it.id.lowercase() }.toSet()
+            fun <T : com.accountabilibuddy.shared.sync.SharedItem> wanted(list: List<T>) = list.filter { it.deletedAt == null && (restore || it.id.lowercase() !in known) }
+            val changed = com.accountabilibuddy.shared.tasks.OldTaskFields(
+                wanted(SyncFileJson.readNextTasks(tasks["nextTasks"]).orEmpty()), wanted(SyncFileJson.readLater(tasks["later"]).orEmpty()),
+                wanted(SyncFileJson.readParked(tasks["comebacks"]).orEmpty()), emptyList(), emptyList(), emptyList(),
+            )
+            count = changed.nextTasks.size + changed.later.size + changed.parked.size
+            store.change { lists, self, now -> com.accountabilibuddy.shared.tasks.TaskLocalEdits.apply(lists, changed, self, now, store.zone()) }
+        }
+
+        SyncFileJson.readCategories(tasks["categories"]).orEmpty().forEach { category ->
+            val taken = app.taskCategories.categories.value.map { it.color }
+            val added = app.taskCategories.add(category.name, taken)
+            if (restore && !added.color.equals(category.color, ignoreCase = true)) app.taskCategories.recolor(added.name, category.color)
+        }
+        app.sharedLists.onChanged()
+        return if (restore) "Task lists restored ($count tasks from the backup)." else "Task lists merged ($count tasks in the backup; the newest edit of each kept)."
     }
 
     private fun readFile(app: CompanionApp, name: String): JsonElement? =

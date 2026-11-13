@@ -121,6 +121,12 @@ data class SyncFile(
     val handovers: List<SyncHandover>? = null,
     /** ADR 72: this device's receipts for the handovers it took in. */
     val handoverAcks: List<SyncHandoverAck>? = null,
+    /**
+     * ADR 76: the task list's parts (`tasks`, `labels`, `views`, `taskLog`, `taskAccountSettings`), read leniently and cleaned like
+     * the PC's ([com.accountabilibuddy.shared.tasks.TaskJson.readParts]); null when the file carries none of them (an older app, a QR
+     * file, task lists not shared). Never in a QR file or in the copy a receiver keeps of this file.
+     */
+    val taskParts: com.accountabilibuddy.shared.tasks.TaskParts? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

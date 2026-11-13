@@ -289,6 +289,9 @@ class CompanionApp : Application() {
     /** The shared next-session tasks and come-backs (ADR 48): items with edit times, merged with the other devices' lists. */
     val sharedLists by lazy { com.accountabilibuddy.companion.sync.SharedListsStore(this) }
 
+    /** R7.2 (ADR 76): the one task list, the source once its one-time migration ran ([com.accountabilibuddy.companion.tasks.PhoneTaskModelMigration]). */
+    val taskModel by lazy { com.accountabilibuddy.companion.tasks.PhoneTaskStore(this) }
+
     /** Round 2 R6: this phone's goals (device-local until ADR 79; Keystore-sealed lists). Set up at start ([onCreate]). */
     val goals by lazy { com.accountabilibuddy.companion.goals.PhoneGoalStore(this) }
 
@@ -478,6 +481,23 @@ class CompanionApp : Application() {
                 driveSource.syncNow()
                 Refresher.refresh(this@CompanionApp)
             }
+        }
+        // R7.2 (ADR 76): the one task list takes over from the old lists once (backup first, counts must balance, marker last);
+        // the old lists' screens then show its views. Its parts go out beside the old fields, other devices' parts merge in.
+        taskModel.selfId = { sync.deviceId.toString() }
+        taskModel.numberingDevice = {
+            if (!sync.isJoined) null
+            else com.accountabilibuddy.shared.tasks.TaskNumbering.numberingDevice(
+                sync.received.value.map { it.file.device.deviceId.toString() to it.file.device.kind } +
+                    (sync.deviceId.toString() to com.accountabilibuddy.shared.tasks.TaskNumbering.PHONE_KIND),
+            )
+        }
+        com.accountabilibuddy.companion.tasks.PhoneTaskModelMigration.runOnce(this)
+        sharedLists.attach(taskModel)
+        taskCategories.attach(taskModel)
+        sync.taskParts = { taskModel.fileParts()?.second }
+        sync.onTaskParts = { parts ->
+            if (taskModel.mergeFile(parts)) appScope.launch { runCatching { Refresher.refresh(this@CompanionApp) } }
         }
         // ADR 48: the next session's tasks and the come-backs are shared lists; this phone's go out in its file, other devices' merge in.
         sync.nextTasks = { sharedLists.nextTasksForSync() }

@@ -46,7 +46,8 @@ object TaskEdits {
         // never stamped, just past the task's creation: the edit must be newer than all of them.
         val deleted = item.task.deletedAt
         val itemStamp = if (deleted != null && DotNetTime.compare(deleted, item.task.editedAt) > 0) deleted else item.task.editedAt
-        val at = FieldStamps.next(now, itemStamp, item.stamps.newest, item.stamps.of(field)?.at ?: item.task.createdAt)
+        // R7.1 review: the time cut to the PC's ticks first, as every stamp is.
+        val at = FieldStamps.next(DotNetTime.cut(now), itemStamp, item.stamps.newest, item.stamps.of(field)?.at ?: item.task.createdAt)
         val task = changed.copy(editedAt = at, touchedAt = if (DotNetTime.compare(at, changed.touchedAt) > 0) at else changed.touchedAt)
         return item.copy(task = task, stamps = item.stamps.with(field, FieldStamp(at, by.lowercase(), bases)))
     }

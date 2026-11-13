@@ -7,6 +7,8 @@ import com.accountabilibuddy.shared.sync.SyncCategory
 import com.accountabilibuddy.shared.sync.SyncNextTask
 import com.accountabilibuddy.shared.tasks.SyncTaskItem
 import com.accountabilibuddy.shared.tasks.TaskBin
+import com.accountabilibuddy.shared.tasks.TaskEdits
+import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.tasks.TaskField
 import com.accountabilibuddy.shared.tasks.TaskFieldMerge
 import com.accountabilibuddy.shared.tasks.TaskFieldStamps
@@ -84,7 +86,11 @@ object TaskModelSelfCheck {
         ).jsonObject
         val parts = TaskJson.readParts(store)
         report.check("r71-self: a newer app's entries are set aside, not used", parts.tasks?.isEmpty() == true && parts.newerTasks.size == 1 && parts.newerTaskLog.size == 1)
-        report.check("r71-self: a store read and written keeps a newer app's entries and unknown fields as written", TaskJson.writeParts(parts) == store, TaskJson.text(TaskJson.writeParts(parts)))
+        report.check("r71-self: a store read and written keeps a newer app's entries and unknown fields as written, in order", TaskJson.text(TaskJson.writeParts(parts)) == TaskJson.text(store), TaskJson.text(TaskJson.writeParts(parts)))
+        val numberText = """{"zA":1.0,"zB":1.50,"zC":0.1000000000000000055511,"zD":1e400,"zE":-0.0,"zF":2}"""
+        report.check("r71-self (review): unknown numbers are written back exactly as they came", TaskJson.text(Json.parseToJsonElement(numberText)) == numberText, TaskJson.text(Json.parseToJsonElement(numberText)))
+        val known = JsonObject(mapOf("a" to GoalJson.number(2.5), "b" to GoalJson.number(1e-5), "c" to GoalJson.number(3.0), "d" to GoalJson.number(1e20)))
+        report.check("r71-self (review): numbers this app made still go as .NET writes them", TaskJson.text(known) == """{"a":2.5,"b":1E-05,"c":3,"d":1E+20}""", TaskJson.text(known))
         report.check("r71-self: a file without the parts reads them as absent and writes none", TaskJson.readParts(JsonObject(emptyMap())).let { it.tasks == null && it.accountSettings == null && TaskJson.writeParts(it).isEmpty() })
 
         val odd = Json.parseToJsonElement(
@@ -137,7 +143,15 @@ object TaskModelSelfCheck {
         val view = first.views.first { it.view.name == "Errands only" }.view
         report.check("r71-self: a saved filter on a category only an item carried shows that label; its search words stay local", view.config.labels == listOf(TaskLabel.idFor("Errands")) && first.viewSearches[view.id] == "milk" && !TaskJson.text(TaskJson.writeViews(first.views)).contains("milk"))
         val lists = TaskLists.from(first)
-        val merged = TaskListMerge.mergeLists(lists, TaskLists.from(again), PHONE, at("2026-11-12T17:00:00Z"))
-        report.check("r71-self: merging a migration's result with another run's adds nothing", merged.tasks.size == lists.tasks.size && merged.labels == lists.labels && merged.views == lists.views && merged.tasks.map { it.task } == lists.tasks.map { it.task })
+        // R7.1 review: not a self-merge. A PC's later title edit of one task arrives; nothing else changes, and merging it again adds nothing.
+        val now = at("2026-11-12T17:00:00Z")
+        val target = lists.tasks.first { it.task.isLive }
+        val editedItem = TaskEdits.edit(target, TaskField.TITLE, target.task.copy(title = "Edited on the PC"), at("2026-11-12T16:00:00Z"), PC)
+        val incoming = lists.copy(tasks = lists.tasks.map { if (it.id == target.id) editedItem else it })
+        val merged = TaskListMerge.mergeLists(lists, incoming, PHONE, now)
+        fun others(held: TaskLists) = held.tasks.filter { it.id != target.id }.map { it.task }
+        report.check("r71-self: a PC's later edit of a migrated task arrives, the rest stays as migrated", merged.tasks.first { it.id == target.id }.task.title == "Edited on the PC" && others(merged) == others(lists) && merged.labels == lists.labels && first == again)
+        val twice = TaskListMerge.mergeLists(merged, incoming, PHONE, now)
+        report.check("r71-self: the same file merged again adds nothing", TaskJson.text(TaskJson.writeTasks(twice.tasks)) == TaskJson.text(TaskJson.writeTasks(merged.tasks)))
     }
 }

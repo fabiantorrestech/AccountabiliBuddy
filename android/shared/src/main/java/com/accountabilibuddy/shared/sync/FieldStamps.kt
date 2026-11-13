@@ -26,6 +26,24 @@ object FieldStamps {
         return firstValue >= secondValue
     }
 
+    /**
+     * [firstIsNewer] with the values made only when the time and the device tie (R7.1 review: a merge of thousands of tasks would
+     * otherwise build every field's text twice). The same answer.
+     */
+    fun firstIsNewer(first: FieldStamp, second: FieldStamp, firstValue: () -> String, secondValue: () -> String): Boolean {
+        val byTime = DotNetTime.compare(first.at, second.at)
+        if (byTime != 0) {
+            return byTime > 0
+        }
+
+        val byDevice = first.by.compareTo(second.by)
+        if (byDevice != 0) {
+            return byDevice > 0
+        }
+
+        return firstValue() >= secondValue()
+    }
+
     /** As [firstIsNewer] where a value may never have been chosen: a stamped value beats an unstamped one (neither stamped: the second). */
     fun firstWins(first: FieldStamp?, second: FieldStamp?, firstValue: String, secondValue: String): Boolean {
         if (first == null || second == null) {

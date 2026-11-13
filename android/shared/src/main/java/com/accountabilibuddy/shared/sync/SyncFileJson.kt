@@ -203,6 +203,8 @@ object SyncFileJson {
         file.autoSaved?.let { put("autoSaved", writeAutoSaved(it)) }
         file.handovers?.let { put("handovers", writeHandovers(it)) }
         file.handoverAcks?.let { acks -> put("handoverAcks", JsonArray(acks.map { ack -> buildJsonObject { put("id", ack.id); put("editedAt", writeTime(ack.editedAt)) } })) }
+        // Optional (ADR 76): the task list's parts; a part the file doesn't carry is left out, as the PC leaves it out.
+        file.taskParts?.let { parts -> com.accountabilibuddy.shared.tasks.TaskJson.writeParts(parts).forEach { (name, value) -> put(name, value) } }
         // Optional (ADR 68): the guidance mode this device chose; older apps ignore it.
         file.guidance?.let { guidance ->
             put("guidance", buildJsonObject {
@@ -392,8 +394,16 @@ object SyncFileJson {
             readAutoSaved(json["autoSaved"]),
             readHandovers(json["handovers"]),
             readHandoverAcks(json["handoverAcks"]),
+            readTaskParts(json),
         )
     }
+
+    /** ADR 76's parts of a file, leniently (TaskJson.readParts); null when it carries none of the five names. */
+    fun readTaskParts(json: JsonObject): com.accountabilibuddy.shared.tasks.TaskParts? =
+        if (TASK_PART_NAMES.none { json[it] != null && json[it] !is JsonNull }) null else com.accountabilibuddy.shared.tasks.TaskJson.readParts(json)
+
+    /** The five names ADR 76's parts have in a sync file. */
+    val TASK_PART_NAMES: List<String> = listOf("tasks", "labels", "views", "taskLog", "taskAccountSettings")
 
     /** The guidance mode (ADR 68), leniently: a value without a mode or a time reads as none. */
     fun readGuidance(value: JsonElement?): SyncGuidance? {

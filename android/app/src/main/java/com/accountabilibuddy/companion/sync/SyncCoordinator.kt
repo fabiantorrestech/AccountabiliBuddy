@@ -230,7 +230,8 @@ class SyncCoordinator(
     fun ownQrLinks(): List<String> {
         val key = identity.key.value ?: return emptyList()
         // The shared lists with their tombstones (ADR 48) stay out of QR codes, as on the PC: a file without them leaves them alone.
-        return SyncQr.links(SyncFileCodec.seal(ownFile().copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null), key), key.groupId)
+        // ADR 76's task parts never go in a QR file either (R7.2, as on the PC).
+        return SyncQr.links(SyncFileCodec.seal(com.accountabilibuddy.shared.sync.SyncFileStrip.forQr(ownFile()), key), key.groupId)
     }
 
     // The methods on the phone's card: what's switched on.
@@ -307,6 +308,12 @@ class SyncCoordinator(
      * are in place.
      */
     var categories: () -> List<com.accountabilibuddy.shared.sync.SyncCategory>? = { null }
+
+    /** R7.2 (ADR 76): the task list's parts for this phone's file (with "Sync task lists" on); null before the task list is the source. */
+    var taskParts: () -> com.accountabilibuddy.shared.tasks.TaskParts? = { null }
+
+    /** R7.2: another device's task parts arrived (only a file that carries some, under the same rules as the shared lists); set by the app. */
+    var onTaskParts: (com.accountabilibuddy.shared.tasks.TaskParts) -> Unit = {}
 
     /**
      * Another device's shared lists (ADR 48), from a file just taken in; a list the file doesn't carry is null. The app
@@ -779,7 +786,8 @@ class SyncCoordinator(
         val mark = if (file.parked != null || held?.file?.parked != null) emptyList<com.accountabilibuddy.shared.sync.SyncParked>() else null
         // A QR file never carries steps, which reads the same as "switched off": it keeps the stored counts rather than wiping them.
         val steps = if (method == SyncDeviceCard.METHOD_QR) file.steps ?: held?.file?.steps else file.steps
-        val outcome = SyncCarry.accept(store.devices.value, file.copy(nextTasks = null, parked = mark, later = null, pastKeys = null, steps = steps, taskHistory = null, pastSettled = null, autoSaved = null, handovers = null, handoverAcks = null), bytes, method, identity.deviceId, now())
+        // ADR 76's task parts stay out of the copy too (R7.2, as on the PC): they merge into the phone's own sealed task list.
+        val outcome = SyncCarry.accept(store.devices.value, com.accountabilibuddy.shared.sync.SyncFileStrip.keptCopy(file, mark, steps), bytes, method, identity.deviceId, now())
         if (outcome.error != null) {
             return outcome.error
         }
@@ -798,6 +806,8 @@ class SyncCoordinator(
         // ADR 72: the rest of the task lists, under the same rules (not while this phone keeps its lists to itself, nor from a fast clock).
         if (sharesTaskLists() && !file.device.writtenAt.isAfter(now().plusSeconds(60))) {
             onTaskExtras(file)
+            // R7.2 (ADR 76): the task list's parts; a file without them (an older app, a QR file) leaves the task list alone (Q583).
+            file.taskParts?.let { onTaskParts(it) }
         }
 
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
@@ -870,6 +880,8 @@ class SyncCoordinator(
         pastKeys = pastKeys.forFile(),
         // Only the categories made or recoloured here (TaskCategoriesStore); the PCs list theirs.
         categories = if (sharesTaskLists()) runCatching { categories() }.getOrNull() else null,
+        // R7.2 (ADR 76): the task list's parts beside the old fields above (rebuilt from it, for one release).
+        taskParts = if (sharesTaskLists()) runCatching { taskParts() }.getOrNull() else null,
         steps = runCatching { steps() }.getOrNull(),
         workEnded = runCatching { workEnded() }.getOrNull(),
         guidance = runCatching { guidance() }.getOrNull(),

@@ -87,8 +87,9 @@ object R71ModelCases {
 
     // The phone's full writing holds every unknown name of the input and reads back to the same JSON (a store round trip).
     private fun keepsUnknown(input: JsonElement, written: JsonElement, again: (JsonElement) -> JsonElement): String? {
-        val wanted = R71Json.unknownNames(input).filter { it != "zPlan" }.sorted()
-        val kept = R71Json.unknownNames(written).sorted()
+        // R7.1 review: the values too, as the phone's text writes them (an unknown number goes back exactly as it came).
+        val wanted = R71Json.unknownEntries(input).filter { !it.startsWith("zPlan=") }.sorted()
+        val kept = R71Json.unknownEntries(kotlinx.serialization.json.Json.parseToJsonElement(TaskJson.text(written))).sorted()
         if (wanted != kept) return "unknown fields: the input has $wanted, the phone wrote back $kept"
         val second = again(written)
         return if (TaskJson.text(second) == TaskJson.text(written)) null else "reading the phone's own writing and writing it again changed it"

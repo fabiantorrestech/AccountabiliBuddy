@@ -29,6 +29,11 @@ import kotlinx.serialization.json.put
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import com.accountabilibuddy.companion.tasks.PhoneTaskStore
+import com.accountabilibuddy.shared.tasks.OldTaskFields
+import com.accountabilibuddy.shared.tasks.OldTaskList
+import com.accountabilibuddy.shared.tasks.TaskFacadeLists
+import com.accountabilibuddy.shared.tasks.TaskLocalEdits
 
 /**
  * The lists the user's devices share (ADR 48, 50): the next session's tasks, the come-backs (the parked thoughts) and the
@@ -43,10 +48,21 @@ import java.util.UUID
  * A change reads the clock once, and each item it touches is stamped with [SharedListMerge.nextStamp] (that time, or one
  * tick past the item's own newest time), so it always outranks what it changed. A task's position only means something
  * among the tasks of its category (the PC groups its checklist by category).
+ *
+ * R7.2 (ADR 76): once the one task list is the source ([attach], [PhoneTaskStore.isActive]) the four task lists here (next session,
+ * come-backs, Later, Auto-saved) are views of it ([TaskFacadeLists]) and every change to them goes into it as stamped edits
+ * ([TaskLocalEdits]); moves between them keep the task ([TaskLocalEdits.move]). Their old stored copies are kept as they were (never
+ * written again), as the way back. Other devices' old fields are no longer merged in (Q583: only a file's `tasks` part is). ADR 72's
+ * other parts (history, settle records, kept past tasks, receipts) stay here as before.
  */
 class SharedListsStore(context: Context, private val now: () -> Instant = { Instant.now().truncatedTo(ChronoUnit.MILLIS) }) {
     private val prefs = context.getSharedPreferences("shared_lists", Context.MODE_PRIVATE)
     private var all = read()
+
+    // The four task lists exactly as stored when the task list took over (written back unchanged, never pruned again).
+    private var frozen: Lists? = null
+    private var model: PhoneTaskStore? = null
+    private val modelActive: Boolean get() = model?.isActive == true
     private val _nextTasks = MutableStateFlow(liveNextTasks())
     private val _parked = MutableStateFlow(liveParked())
     private val _later = MutableStateFlow(liveLater())
@@ -90,7 +106,12 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
      * Carries a renamed or deleted category ([newName] null) to the items in it, as ordinary stamped edits, the same as the PC does. A limit,
      * also the PC's: merge works on whole items, so such an edit can win over an older edit made on a device that hasn't synced yet.
      */
-    fun relabelCategory(oldName: String, newName: String?, newColor: String?) = edit { lists, time ->
+    fun relabelCategory(oldName: String, newName: String?, newColor: String?) {
+        // R7.2: tasks hold their label's id, so a rename or delete of the label (TaskCategoriesStore) already reaches them.
+        if (!modelActive) relabelCategoryOld(oldName, newName, newColor)
+    }
+
+    private fun relabelCategoryOld(oldName: String, newName: String?, newColor: String?) = edit { lists, time ->
         fun held(category: String?) = category.equals(oldName, ignoreCase = true)
         lists.copy(
             nextTasks = lists.nextTasks.map { if (it.deletedAt == null && held(it.category)) it.copy(category = newName, categoryColor = newColor, editedAt = SharedListMerge.nextStamp(time, it)) else it },
@@ -99,9 +120,24 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         )
     }
 
+    /** R7.2: the task list is the source from now on (when it is active): the four lists become its views. */
+    fun attach(store: PhoneTaskStore) {
+        model = store
+        store.addListener { refreshFromModel() }
+        refreshFromModel()
+    }
+
+    /** The old lists as stored (tombstones and local items included), for the one-time migration. */
+    @Synchronized
+    fun storedForMigration(): OldTaskFields {
+        val held = frozen ?: all
+        return OldTaskFields(held.nextTasks, held.later, held.parked, emptyList(), emptyList(), held.autoSaved)
+    }
+
     /** The next session's list for this phone's sync file: its tasks and the tombstones of the last 30 days. */
     @Synchronized
     fun nextTasksForSync(): List<SyncNextTask> {
+        model?.fileParts()?.let { return it.first.nextTasks }
         val keptFrom = now().minus(SharedListMerge.TOMBSTONES_KEPT)
         return SharedListMerge.forFile(all.nextTasks.filter { it.deletedAt?.isAfter(keptFrom) ?: true || it.localTo != null })
     }
@@ -109,6 +145,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     /** The Later list for this phone's sync file (ADR 50): its items and the tombstones of the last 30 days. */
     @Synchronized
     fun laterForSync(): List<SyncLaterItem> {
+        model?.fileParts()?.let { return it.first.later }
         val keptFrom = now().minus(SharedListMerge.TOMBSTONES_KEPT)
         return SharedListMerge.forFile(all.later.filter { it.deletedAt?.isAfter(keptFrom) ?: true || it.localTo != null })
     }
@@ -116,6 +153,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     /** The come-backs for this phone's sync file: the open and recently ticked ones, and the tombstones of the last 30 days. */
     @Synchronized
     fun parkedForSync(): List<SyncParked> {
+        model?.fileParts()?.let { return it.first.parked }
         val keptFrom = now().minus(SharedListMerge.TOMBSTONES_KEPT)
         return SharedListMerge.forFile(all.parked.filter { item -> (item.deletedAt?.isAfter(keptFrom) ?: item.doneAt?.isAfter(keptFrom) ?: true) || item.localTo != null })
     }
@@ -132,6 +170,8 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
      */
     @Synchronized
     fun receive(nextTasks: List<SyncNextTask>?, parked: List<SyncParked>?, later: List<SyncLaterItem>? = null, knowsDetails: Boolean = true): Boolean {
+        // R7.2 (Q583): with the task list the source, other devices' old fields are not read in (their `tasks` part is).
+        if (modelActive) return false
         val time = now()
         val incoming = if (knowsDetails) nextTasks else nextTasks?.map { task ->
             val own = all.nextTasks.firstOrNull { it.id == task.id && it.deletedAt == null }
@@ -300,6 +340,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** Moves a come-back to the end of the next session's tasks (keeping its category) and ticks it, as "Add to Today" does on the PC. */
     fun moveParkedToNext(id: String): String? {
+        if (modelActive) return moveInModel(id, OldTaskList.NEXT_TASKS)
         var newTaskId: String? = null
         edit { lists, time ->
             val parked = lists.parked.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
@@ -384,6 +425,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
      * estimate and note; its due date and plan go) and leaves the Later list. Returns the new task's id.
      */
     fun moveLaterToNext(id: String): String? {
+        if (modelActive) return moveInModel(id, OldTaskList.NEXT_TASKS)
         var newTaskId: String? = null
         edit { lists, time ->
             val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
@@ -403,6 +445,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** "Move to Later" for an open next-session task: it joins the Later list with its open steps, category, estimate and note. */
     fun moveNextToLater(id: String): String? {
+        if (modelActive) return moveInModel(id, OldTaskList.LATER)
         var newItemId: String? = null
         edit { lists, time ->
             val task = lists.nextTasks.firstOrNull { it.id == id && it.deletedAt == null && !it.isDone } ?: return@edit lists
@@ -422,6 +465,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** A come-back becomes a Later item (its text, category and colour) and leaves the come-backs. */
     fun moveParkedToLater(id: String): String? {
+        if (modelActive) return moveInModel(id, OldTaskList.LATER)
         var newItemId: String? = null
         edit { lists, time ->
             val parked = lists.parked.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
@@ -440,6 +484,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** A Later item becomes a come-back (its title, with " (+N steps)", category and colour) and leaves the Later list. */
     fun moveLaterToParked(id: String): String? {
+        if (modelActive) return moveInModel(id, OldTaskList.PARKED)
         var newParkedId: String? = null
         edit { lists, time ->
             val item = lists.later.firstOrNull { it.id == id && it.deletedAt == null && it.doneAt == null } ?: return@edit lists
@@ -490,17 +535,24 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         }
 
         settled?.let { lists = lists.copy(pastSettled = SharedListMerge.merge(lists.pastSettled, it, time)) }
-        autoSaved?.let { lists = lists.copy(autoSaved = SharedListMerge.merge(lists.autoSaved, it, time, me)) }
+        // R7.2: Auto-saved is part of the task list (its `tasks` part carries it).
+        if (!modelActive) autoSaved?.let { lists = lists.copy(autoSaved = SharedListMerge.merge(lists.autoSaved, it, time, me)) }
+        var adopted = false
         if (me != null) {
             for (handover in handovers.orEmpty().filter { it.to.equals(me, ignoreCase = true) }) {
                 if (lists.receipts.any { it.id.equals(handover.id, ignoreCase = true) && !it.editedAt.isBefore(handover.editedAt) }) continue
-                lists = adopt(lists, handover, me)
+                lists = if (modelActive && handover.list != SyncHandover.HISTORY) {
+                    adopted = adoptInModel(handover, me) || adopted
+                    lists
+                } else {
+                    adopt(lists, handover, me)
+                }
                 lists = lists.copy(receipts = lists.receipts.filterNot { it.id.equals(handover.id, ignoreCase = true) } + SyncHandoverAck(handover.id, handover.editedAt))
             }
         }
 
         if (lists == all) {
-            return false
+            return adopted
         }
 
         save(lists, time)
@@ -513,7 +565,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** The Auto-saved list for this phone's file: tombstones included, local items as stubs. */
     @Synchronized
-    fun autoSavedForSync(): List<SyncAutoSavedItem> = SharedListMerge.forFile(all.autoSaved)
+    fun autoSavedForSync(): List<SyncAutoSavedItem> = model?.fileParts()?.first?.autoSaved ?: SharedListMerge.forFile(all.autoSaved)
 
     /** This phone's receipts for the handovers it took in (30 days). */
     @Synchronized
@@ -549,7 +601,16 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     }
 
     /** Moves an Auto-saved item to Later; it leaves Auto-saved on every device. */
-    fun autoSavedToLater(id: String) = edit { lists, time ->
+    fun autoSavedToLater(id: String) {
+        if (modelActive) {
+            moveInModel(id, OldTaskList.LATER)
+            return
+        }
+
+        autoSavedToLaterOld(id)
+    }
+
+    private fun autoSavedToLaterOld(id: String) = edit { lists, time ->
         val held = lists.autoSaved.firstOrNull { it.id == id && it.deletedAt == null } ?: return@edit lists
         val last = lists.later.maxOfOrNull { it.position }
         val item = SyncLaterItem(newId(), held.title, null, held.category, held.categoryColor, null, null, null, time, null, SharedListMerge.positionBetween(last, null), labels = held.labels)
@@ -592,11 +653,24 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private fun edit(change: (Lists, Instant) -> Lists) {
         val changed = synchronized(this) {
             val time = now()
+            val before = all
             val updated = change(all, time)
             if (updated == all) {
                 false
             } else {
-                save(updated, time)
+                val store = model
+                if (store != null && store.isActive) {
+                    // R7.2: the changed items go into the task list as this phone's stamped edits; ADR 72's own parts are kept here.
+                    val changedItems = OldTaskFields(
+                        changedOf(before.nextTasks, updated.nextTasks), changedOf(before.later, updated.later), changedOf(before.parked, updated.parked),
+                        emptyList(), emptyList(), changedOf(before.autoSaved, updated.autoSaved),
+                    )
+                    store.change { lists, self, at -> TaskLocalEdits.apply(lists, changedItems, self, at, store.zone()) }
+                    save(updated, time)
+                    refreshFromModelLocked()
+                } else {
+                    save(updated, time)
+                }
                 true
             }
         }
@@ -622,12 +696,16 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             lists.kept.filter { (it.sessionStart ?: it.editedAt).isAfter(time.minus(SyncPastSettled.KEPT)) },
             lists.receipts.filter { it.editedAt.isAfter(time.minus(SyncHandover.KEPT)) },
         )
-        prefs.edit().putString(KEY, TokenVault.seal(write(all).toString(), ALIAS)).apply()
+        // R7.2: with the task list the source, the four lists' stored copies stay exactly as they were (the way back).
+        val stored = frozen?.let { all.copy(nextTasks = it.nextTasks, parked = it.parked, later = it.later, autoSaved = it.autoSaved) } ?: all
+        prefs.edit().putString(KEY, TokenVault.seal(write(stored).toString(), ALIAS)).apply()
         _nextTasks.value = liveNextTasks()
         _parked.value = liveParked()
         _later.value = liveLater()
         _autoSaved.value = liveAutoSaved()
         _unfinished.value = unfinishedNow()
+        // R7.2: the four lists shown are always the task list's views.
+        if (modelActive) refreshFromModelLocked()
     }
 
     private fun liveNextTasks() = all.nextTasks.filter { it.deletedAt == null }
@@ -640,7 +718,9 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     private fun unfinishedNow(): List<PastTaskRow> {
         val since = now().minus(java.time.Duration.ofDays(14))
-        val settled = all.pastSettled.filter { it.deletedAt == null && it.hidesTask }.map { it.id.lowercase() }.toSet()
+        // R7.2 (Q170, Q174): a past session's open task that is live in the task list again ("End and mark the rest unfinished" sent it
+        // back to Queued) is used by that list: it isn't offered from past sessions too.
+        val settled = all.pastSettled.filter { it.deletedAt == null && it.hidesTask }.map { it.id.lowercase() }.toSet() + liveModelIds()
         val fromPcs = all.history.flatMap { device ->
             device.entries.filter { !it.outside && it.sessionStart?.isAfter(since) == true }.flatMap { entry ->
                 entry.tasks.filter { !it.isDone && it.title.isNotEmpty() && it.localTo == null && it.id.lowercase() !in settled }
@@ -652,6 +732,62 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     }
 
     private fun newId(): String = UUID.randomUUID().toString()
+
+    private fun liveModelIds(): Set<String> =
+        model?.takeIf { it.isActive }?.lists?.value?.tasks?.filter { it.task.isLive }?.map { it.id.lowercase() }?.toSet() ?: emptySet()
+
+    // The items a change made or changed (by id), tombstones included.
+    private fun <T : com.accountabilibuddy.shared.sync.SharedItem> changedOf(before: List<T>, after: List<T>): List<T> {
+        val held = before.associateBy { it.id.lowercase() }
+        return after.filter { held[it.id.lowercase()] != it }
+    }
+
+    // A move between the lists that keeps the task (R7.2, Q52); returns its id (the same).
+    private fun moveInModel(id: String, to: OldTaskList): String? {
+        val store = model ?: return null
+        val changed = store.change { lists, self, at -> TaskLocalEdits.move(lists, id, to, self, at, store.zone()) }
+        if (changed) {
+            refreshFromModel()
+            onChanged()
+        }
+        return id.takeIf { changed }
+    }
+
+    // A task handed to this phone to keep (ADR 72), into the task list: it comes back over its stub, kept here.
+    private fun adoptInModel(handover: SyncHandover, me: String): Boolean {
+        val store = model ?: return false
+        val none = OldTaskFields(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
+        val changed = when (handover.list) {
+            SyncHandover.NEXT_TASKS -> handover.nextTask?.let { none.copy(nextTasks = listOf(it.copy(deletedAt = null, localTo = me))) }
+            SyncHandover.LATER -> handover.laterItem?.let { none.copy(later = listOf(it.copy(deletedAt = null, localTo = me))) }
+            SyncHandover.PARKED -> handover.parkedItem?.let { none.copy(parked = listOf(it.copy(deletedAt = null, localTo = me))) }
+            SyncHandover.AUTO_SAVED -> handover.autoSavedItem?.let { none.copy(autoSaved = listOf(it.copy(deletedAt = null, localTo = me))) }
+            else -> null
+        } ?: return false
+        return store.change { lists, self, at -> TaskLocalEdits.apply(lists, changed, self, at, store.zone()) }
+    }
+
+    private fun refreshFromModel() = synchronized(this) { refreshFromModelLocked() }
+
+    // The four lists as the task list's views (only while it is the source); the stored copies are kept aside, unchanged.
+    private fun refreshFromModelLocked() {
+        val store = model ?: return
+        if (!store.isActive) return
+        if (frozen == null) frozen = all
+        val lists = store.lists.value
+        val at = java.time.OffsetDateTime.ofInstant(now(), java.time.ZoneOffset.UTC)
+        all = all.copy(
+            nextTasks = TaskFacadeLists.draft(lists, at),
+            parked = TaskFacadeLists.parked(lists, at),
+            later = TaskFacadeLists.later(lists, at),
+            autoSaved = TaskFacadeLists.autoSaved(lists, at),
+        )
+        _nextTasks.value = liveNextTasks()
+        _parked.value = liveParked()
+        _later.value = liveLater()
+        _autoSaved.value = liveAutoSaved()
+        _unfinished.value = unfinishedNow()
+    }
 
     private fun write(lists: Lists): JsonObject = buildJsonObject {
         put("nextTasks", SyncFileJson.writeNextTasks(lists.nextTasks))
