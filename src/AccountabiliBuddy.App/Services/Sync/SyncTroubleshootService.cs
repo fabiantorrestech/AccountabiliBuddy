@@ -32,6 +32,7 @@ public sealed class SyncTroubleshootService
     private bool _busy;
     private DateTimeOffset _lastRelayReread = DateTimeOffset.MinValue;
     private DateTimeOffset _lastSendAgain = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastRelayHistory = DateTimeOffset.MinValue;
 
     public SyncTroubleshootService(
         SyncCoordinator coordinator, SyncIdentityService identity, SyncSettingsService settings, ReceivedDevicesService received,
@@ -59,6 +60,15 @@ public sealed class SyncTroubleshootService
     /// <summary>The unreadable and leftover files this PC found (the list's source).</summary>
     public SyncUnreadableFiles? Files => _coordinator.Unreadable;
 
+    /// <summary>
+    /// A forced goal history pass on the relay (Re-read goal history, and the history part of Send my files again) may start: the relay's quota is
+    /// shared by every device on one address, so these passes run at most once per <see cref="RelayRereadEvery"/>. True when the relay is off.
+    /// </summary>
+    public bool RelayHistoryOpen => !_settings.Current.RelayOn || _time.GetUtcNow() - _lastRelayHistory >= RelayRereadEvery;
+
+    /// <summary>The device numbering ("PC 1", "Phone 1") the board, the unreadable list, the report and the log share: every device this PC holds a file of, removed ones too.</summary>
+    public IReadOnlyDictionary<Guid, string> Ordinals() => SyncBoardBuilder.Ordinals(_received.Devices.Select(device => device.File.Device));
+
     /// <summary>The confirmation board as of now.</summary>
     public SyncBoard BuildBoard()
     {
@@ -67,7 +77,7 @@ public sealed class SyncTroubleshootService
             return new SyncBoard([], null);
         }
 
-        return SyncBoardBuilder.Build(_time.GetUtcNow(), _identity.DeviceId, _coordinator.OwnMethods(), _received.Active, receipts.Value, sent, ExpectedInterval);
+        return SyncBoardBuilder.Build(_time.GetUtcNow(), _identity.DeviceId, _coordinator.OwnMethods(), _received.Active, receipts.Value, sent, ExpectedInterval, Ordinals());
     }
 
     /// <summary>
@@ -229,15 +239,19 @@ public sealed class SyncTroubleshootService
                 }
             }
 
+            bool relayHistoryWaits = false;
             if (settings.ShareTaskLists)
             {
-                await ResendHistoryAsync(settings);
+                relayHistoryWaits = await ResendHistoryAsync(settings);
             }
 
             _coordinator.SyncLogger?.Note("resend");
+            string history = !settings.ShareTaskLists
+                ? string.Empty
+                : relayHistoryWaits ? " · relay goal history can go again in a few minutes" : " · goal history goes by its normal pass";
             return sent + failed == 0
                 ? "No sync method is on: nothing to send."
-                : $"Sent to {sent} {(sent == 1 ? "place" : "places")} · {failed} failed" + (settings.ShareTaskLists ? " · goal history goes by its normal pass" : string.Empty);
+                : $"Sent to {sent} {(sent == 1 ? "place" : "places")} · {failed} failed" + history;
         }
         finally
         {
@@ -245,7 +259,8 @@ public sealed class SyncTroubleshootService
         }
     }
 
-    private async Task ResendHistoryAsync(SyncSettings settings)
+    // Returns true when the relay's part was left for later (the 5-minute gate).
+    private async Task<bool> ResendHistoryAsync(SyncSettings settings)
     {
         if (settings.DriveOn && _drive.GoalHistory is { } driveHistory)
         {
@@ -253,13 +268,23 @@ public sealed class SyncTroubleshootService
             await _drive.HistoryAsync(force: true);
         }
 
+        bool waits = false;
         if (settings.RelayOn && _relay.GoalHistory is { } relayHistory)
         {
-            await relayHistory.ResendKeptAsync("relay");
-            await _relay.HistoryAsync(force: true);
+            if (RelayHistoryOpen)
+            {
+                _lastRelayHistory = _time.GetUtcNow();
+                await relayHistory.ResendKeptAsync("relay");
+                await _relay.HistoryAsync(force: true);
+            }
+            else
+            {
+                waits = true;
+            }
         }
 
         _coordinator.SyncLogger?.Note("history-resend");
+        return waits;
     }
 
     /// <summary>
@@ -289,14 +314,30 @@ public sealed class SyncTroubleshootService
                 await _drive.HistoryAsync(force: true);
             }
 
+            bool relayWaits = false;
             if (settings.RelayOn && _relay.GoalHistory is { } relayHistory)
             {
-                await relayHistory.ForceRereadAsync("relay");
-                await _relay.HistoryAsync(force: true);
+                if (RelayHistoryOpen)
+                {
+                    _lastRelayHistory = _time.GetUtcNow();
+                    await relayHistory.ForceRereadAsync("relay");
+                    await _relay.HistoryAsync(force: true);
+                }
+                else
+                {
+                    relayWaits = true;
+                }
+            }
+
+            if (relayWaits && !settings.DriveOn)
+            {
+                return "Wait a few minutes: the relay was read a moment ago.";
             }
 
             _coordinator.SyncLogger?.Note("history-reread");
-            return "Goal history read again · a big history continues in the next pass";
+            return relayWaits
+                ? "Goal history read again on Google Drive · the relay can be read again in a few minutes"
+                : "Goal history read again · a big history continues in the next pass";
         }
         finally
         {
@@ -347,25 +388,30 @@ public sealed class SyncTroubleshootService
             return "That isn't this PC's own file.";
         }
 
-        bool removed = file.Method switch
+        SyncRemoveOutcome outcome = file.Method switch
         {
             SyncReceiptParts.Folder => await _folder.RemoveOwnStaleAsync(file.Name),
             SyncReceiptParts.Drive => await _drive.RemoveOwnStaleAsync(file.Name),
-            _ => false,
+            _ => SyncRemoveOutcome.Refused,
         };
-        if (removed)
+        if (outcome == SyncRemoveOutcome.Removed)
         {
             _coordinator.SyncLogger?.Note("stale-removed");
         }
 
-        return removed ? "Removed this PC's old copy." : "Couldn't remove it; try again later.";
+        return outcome switch
+        {
+            SyncRemoveOutcome.Removed => "Removed this PC's old copy.",
+            SyncRemoveOutcome.AlreadyGone => "Already gone.",
+            _ => "Couldn't remove it; try again later.",
+        };
     }
 
     /// <summary>The diagnostics report's text (<see cref="SyncDiagnosticsExport"/>).</summary>
     public string BuildReport()
     {
         SyncBoard board = BuildBoard();
-        IReadOnlyDictionary<Guid, string> ordinals = SyncBoardBuilder.Ordinals(_received.Devices.Select(device => device.File.Device));
+        IReadOnlyDictionary<Guid, string> ordinals = Ordinals();
         return SyncDiagnosticsExport.Build(
             _time.GetUtcNow(), _time.LocalTimeZone, BackupService.AppVersion, board, Files?.All ?? [], ordinals, _coordinator.SyncLogger?.Lines() ?? []);
     }

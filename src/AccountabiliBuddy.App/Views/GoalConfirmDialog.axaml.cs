@@ -23,6 +23,11 @@ public partial class GoalConfirmDialog : TaskDialogWindow
         : this()
     {
         _request = request;
+        if (request.WindowTitle is { } windowTitle)
+        {
+            Title = windowTitle;
+        }
+
         TitleText.Text = request.Title;
         BodyText.Text = request.Text;
         RunButton.Content = request.ActionText;

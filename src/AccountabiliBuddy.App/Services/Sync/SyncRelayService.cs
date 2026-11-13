@@ -416,7 +416,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
     /// <summary>
     /// "Re-read everything" on the relay (SYNC1b): one listing and one download per sync file, spread to at most
     /// <see cref="RelayRequestPacer.PerMinute"/> requests a minute (a PC and a phone on one home network share the relay's 120 a minute, and a goal
-    /// history pass may take up to 40), never alongside a goal history pass or another read (they hold the same gate), ended at once by a 429
+    /// history pass may take up to 40), each request taking the same gate as a goal history pass or another read (so never beside one, but the gate is free between paced requests), ended at once by a 429
     /// answer, and at most <see cref="MaxPassBytes"/> of downloads. Goal history files are skipped (their own pass reads them). Merging is
     /// idempotent: nothing changes that was already merged.
     /// </summary>
@@ -429,43 +429,55 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
             return SyncRereadResult.None(SyncDeviceCard.MethodRelay);
         }
 
-        CancellationToken token = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken).Token;
-        await _busy.WaitAsync(cancellationToken);
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
+        CancellationToken token = linked.Token;
         int files = 0;
         int problems = 0;
         bool stopped = false;
         long started = Environment.TickCount64;
+
+        // The gate is held for one request at a time and released while the pacer waits, so this PC's own writes, heartbeats and a history pass
+        // are not blocked for the minutes a paced re-read takes (the pacer's 30 a minute plus a pass's 40 stay under the relay's 120).
+        IReadOnlyList<RelayFileInfo> listed;
         try
         {
-            IReadOnlyList<RelayFileInfo> listed;
+            await pacer.WaitAsync(token);
+            await _busy.WaitAsync(token);
+            try
+            {
+                listed = await _network.ListRelayFilesAsync(access, token);
+            }
+            finally
+            {
+                _busy.Release();
+            }
+        }
+        catch (Exception ex) when (IsRelayFailure(ex) || ex is SqliteException)
+        {
+            return new SyncRereadResult(SyncDeviceCard.MethodRelay, 0, 1, pacer.Started, ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests });
+        }
+
+        long passBytes = 0;
+        SyncKey? passKey = _identity.Key;
+        foreach (RelayFileInfo info in listed.Where(info => IsSyncFileName(info.Name) && info.Name != _ownName && GoalHistory?.IsHistoryName(info.Name, SyncFolderService.Extension) != true))
+        {
+            if (_disposed || _identity.Key?.SameGroupAs(passKey) != true || passBytes >= MaxPassBytes)
+            {
+                break;
+            }
+
+            if (info.Size > MaxFileBytes)
+            {
+                problems++;
+                continue;
+            }
+
             try
             {
                 await pacer.WaitAsync(token);
-                listed = await _network.ListRelayFilesAsync(access, token);
-            }
-            catch (Exception ex) when (IsRelayFailure(ex))
-            {
-                return new SyncRereadResult(SyncDeviceCard.MethodRelay, 0, 1, pacer.Started, ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests });
-            }
-
-            long passBytes = 0;
-            SyncKey? passKey = _identity.Key;
-            foreach (RelayFileInfo info in listed.Where(info => IsSyncFileName(info.Name) && info.Name != _ownName && GoalHistory?.IsHistoryName(info.Name, SyncFolderService.Extension) != true))
-            {
-                if (_identity.Key?.SameGroupAs(passKey) != true || passBytes >= MaxPassBytes)
-                {
-                    break;
-                }
-
-                if (info.Size > MaxFileBytes)
-                {
-                    problems++;
-                    continue;
-                }
-
+                await _busy.WaitAsync(token);
                 try
                 {
-                    await pacer.WaitAsync(token);
                     RelayDownload? download = await _network.GetRelayFileAsync(access, info.Name, token);
                     if (download is null)
                     {
@@ -483,30 +495,30 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                     problems += reason == SyncCoordinator.CannotReadReason ? 1 : 0;
                     _seen[info.Name] = download.ETag ?? info.ETag;
                 }
-                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                finally
                 {
+                    _busy.Release();
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                stopped = true;
+                break;
+            }
+            catch (Exception ex) when (IsRelayFailure(ex) || ex is SqliteException)
+            {
+                problems++;
+                if (ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests })
+                {
+                    // The relay's answer to too many requests: this run ends here (no retry); the next one is five minutes away.
                     stopped = true;
                     break;
                 }
-                catch (Exception ex) when (IsRelayFailure(ex))
-                {
-                    problems++;
-                    if (ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests })
-                    {
-                        // The relay's answer to too many requests: this run ends here (no retry); the next one is five minutes away.
-                        stopped = true;
-                        break;
-                    }
-                }
             }
+        }
 
-            _coordinator.NoteReadPass(SyncDeviceCard.MethodRelay, files, 0, problems, (int)(Environment.TickCount64 - started));
-            return new SyncRereadResult(SyncDeviceCard.MethodRelay, files, problems, pacer.Started, stopped);
-        }
-        finally
-        {
-            _busy.Release();
-        }
+        _coordinator.NoteReadPass(SyncDeviceCard.MethodRelay, files, 0, problems, (int)(Environment.TickCount64 - started));
+        return new SyncRereadResult(SyncDeviceCard.MethodRelay, files, problems, pacer.Started, stopped);
     }
 
     /// <summary>

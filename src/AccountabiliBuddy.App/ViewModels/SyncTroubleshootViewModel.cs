@@ -72,6 +72,9 @@ public sealed partial class SyncTroubleshootViewModel : ObservableObject, IDispo
     /// <summary>Opens the resolve dialog for one task (newer first, keep this one, keep the other, keep both); the page shows it.</summary>
     public event EventHandler<ConflictDialogViewModel>? ConflictRequested;
 
+    /// <summary>Asks before "Remove my stale file" (Remove / Cancel); the page shows it. Nothing is removed unless something shows it and runs it.</summary>
+    public event EventHandler<GoalConfirmRequest>? ConfirmRequested;
+
     /// <summary>For testing: the receipts switch (<see cref="SyncReceiptsViewModel"/>), moved here from "For testing" (its key is unchanged). Set by the app.</summary>
     public SyncReceiptsViewModel? Receipts { get; init; }
 
@@ -134,6 +137,10 @@ public sealed partial class SyncTroubleshootViewModel : ObservableObject, IDispo
 
     public bool CanAnswerClash => HasClash && !IsClashLocked;
 
+    /// <summary>The goal history button: "Wait a few minutes" while the relay's 5-minute gate for forced history passes is shut.</summary>
+    [ObservableProperty]
+    public partial string RereadHistoryText { get; set; } = "Re-read goal history";
+
     /// <summary>One line of counts after an action ("Re-read 4 files · 0 problems").</summary>
     [ObservableProperty]
     public partial string ResultText { get; set; }
@@ -169,7 +176,8 @@ public sealed partial class SyncTroubleshootViewModel : ObservableObject, IDispo
             Methods.Add(new SyncBoardMethodViewModel(method, now, zone, _open));
         }
 
-        IReadOnlyDictionary<Guid, string> ordinals = SyncBoardBuilder.Ordinals(_received.Devices.Select(device => device.File.Device));
+        IReadOnlyDictionary<Guid, string> ordinals = _service.Ordinals();
+        RereadHistoryText = _service.RelayHistoryOpen ? "Re-read goal history" : "Wait a few minutes";
         Unreadable.Clear();
         foreach (SyncUnreadableFile file in _service.Files?.Shown ?? [])
         {
@@ -251,13 +259,28 @@ public sealed partial class SyncTroubleshootViewModel : ObservableObject, IDispo
         }
     }
 
+    // Asks first: the dialog names the method and "this PC's old copy"; only its Remove button runs the removal.
     [RelayCommand]
-    private async Task RemoveStaleAsync(SyncUnreadableRowViewModel? row)
+    private void RemoveStale(SyncUnreadableRowViewModel? row)
     {
-        if (row is not null)
+        if (row is null)
         {
-            await RunAsync(() => _service.RemoveStaleAsync(row.File));
+            return;
         }
+
+        string where = SyncBoardBuilder.TitleOf(row.File.Method);
+        ConfirmRequested?.Invoke(this, new GoalConfirmRequest(
+            "Remove this PC's old copy?",
+            $"This deletes this PC's own old copy of its sync file from {where}. Other devices don't use it and this PC's current file stays. It can't be brought back from here.",
+            "Remove",
+            IsDanger: true,
+            CanRun: true,
+            async () =>
+            {
+                await RunAsync(() => _service.RemoveStaleAsync(row.File));
+                return null;
+            },
+            "Sync"));
     }
 
     [RelayCommand]
@@ -299,6 +322,11 @@ public sealed partial class SyncTroubleshootViewModel : ObservableObject, IDispo
         try
         {
             ResultText = await action();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A store or a network call that failed unexpectedly (a locked database, a closed store): one fixed line, no detail, never a crash.
+            ResultText = "Couldn't finish · try again";
         }
         finally
         {

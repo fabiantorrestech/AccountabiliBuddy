@@ -26,6 +26,9 @@ public sealed class GoalHistoryTransportState
     /// <summary>When each own file (by name) was last put: the relay's 25-day re-upload.</summary>
     public Dictionary<string, DateTimeOffset> Uploaded { get; set; } = [];
 
+    /// <summary>Own month files "Send my files again" asked to be put again as the very same version (Drive; the relay uses <see cref="Uploaded"/>): cleared when put or removed.</summary>
+    public HashSet<string> ResendMonths { get; set; } = [];
+
     /// <summary>The own month files that rolled up and are no longer kept (deleted on Drive, not put again on the relay), by month text.</summary>
     public HashSet<string> Removed { get; set; } = [];
 

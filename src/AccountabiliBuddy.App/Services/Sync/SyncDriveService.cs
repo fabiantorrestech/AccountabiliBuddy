@@ -327,11 +327,11 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
     /// Removes one of this PC's own stale files from Drive (SYNC1b), by its Drive id as listed (the entry's name): an extra copy of its current
     /// name, or its file of an old group (<see cref="SyncCoordinator.IsOwnStale"/>). Never another device's, never the current file.
     /// </summary>
-    public async Task<bool> RemoveOwnStaleAsync(string driveId)
+    public async Task<SyncRemoveOutcome> RemoveOwnStaleAsync(string driveId)
     {
         if (!TryGetName(out string ownName, out _))
         {
-            return false;
+            return SyncRemoveOutcome.Refused;
         }
 
         await _busy.WaitAsync();
@@ -342,24 +342,26 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
             if (info is null)
             {
                 _coordinator.Unreadable?.Clear(SyncDeviceCard.MethodDrive, driveId);
-                return true;
+                return SyncRemoveOutcome.AlreadyGone;
             }
 
             driveId = info.Id;
-            bool duplicate = info.Name == ownName && info.Id != _ownId;
+
+            // Before this PC knows which Drive file is its own, a file with its current name could be the real one: never a "duplicate" then.
+            bool duplicate = info.Name == ownName && _ownId is not null && info.Id != _ownId;
             if (!duplicate && !_coordinator.IsOwnStale(info.Name))
             {
-                return false;
+                return SyncRemoveOutcome.Refused;
             }
 
             await _drive.DeleteAsync(info.Id, CancellationToken.None);
             _coordinator.Unreadable?.Clear(SyncDeviceCard.MethodDrive, driveId);
             _seen.Remove(driveId);
-            return true;
+            return SyncRemoveOutcome.Removed;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException)
         {
-            return false;
+            return SyncRemoveOutcome.Refused;
         }
         finally
         {

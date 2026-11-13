@@ -90,6 +90,16 @@
                                                             </Panel>
                                                         </Button>
                                                     </Grid>
+                                                    <ItemsControl ItemsSource="{Binding RefusedLines}" Margin="28,0,0,0" IsVisible="{Binding HasRefused}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="x:String">
+                                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,1">
+                                                                    <mi:MaterialIcon Classes="dot red" Kind="AlertCircle" Width="16" Height="16" AutomationProperties.Name="Problem" />
+                                                                    <TextBlock Grid.Column="1" Classes="sHint" TextWrapping="Wrap" Text="{Binding}" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
                                                     <ItemsControl ItemsSource="{Binding Parts}" Margin="28,0,0,4" IsVisible="{Binding IsExpanded}">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate x:DataType="vm:SyncBoardPartViewModel">
@@ -165,7 +175,7 @@
                     <WrapPanel ItemSpacing="8" LineSpacing="8">
                         <Button Content="Re-read everything" Command="{Binding RereadAllCommand}" IsEnabled="{Binding IsIdle}" />
                         <Button Content="Send my files again" Command="{Binding SendAgainCommand}" IsEnabled="{Binding IsIdle}" />
-                        <Button Content="Re-read goal history" Command="{Binding RereadHistoryCommand}" IsEnabled="{Binding IsIdle}" />
+                        <Button Content="{Binding RereadHistoryText}" Command="{Binding RereadHistoryCommand}" IsEnabled="{Binding IsIdle}" />
                     </WrapPanel>
                     <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" IsVisible="{Binding ResultText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>

@@ -7,4 +7,5 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="ActionText">The button that does it ("Delete goal").</param>
 /// <param name="IsDanger">The button is red.</param>
 /// <param name="CanRun">False when it can't happen now (the text says why); the dialog offers only Close.</param>
-public sealed record GoalConfirmRequest(string Title, string Text, string ActionText, bool IsDanger, bool CanRun, Func<Task<string?>> Run);
+/// <param name="WindowTitle">The dialog window's title; null for "Goals" (the sync screen reuses this dialog and says "Sync").</param>
+public sealed record GoalConfirmRequest(string Title, string Text, string ActionText, bool IsDanger, bool CanRun, Func<Task<string?>> Run, string? WindowTitle = null);

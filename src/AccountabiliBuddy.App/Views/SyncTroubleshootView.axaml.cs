@@ -21,13 +21,21 @@ public partial class SyncTroubleshootView : UserControl
         if (_subscribed is not null)
         {
             _subscribed.ConflictRequested -= OnConflictRequested;
+            _subscribed.ConfirmRequested -= OnConfirmRequested;
         }
 
         _subscribed = DataContext as SyncTroubleshootViewModel;
         if (_subscribed is not null)
         {
             _subscribed.ConflictRequested += OnConflictRequested;
+            _subscribed.ConfirmRequested += OnConfirmRequested;
         }
+    }
+
+    // "Remove my stale file" asks first (Remove / Cancel).
+    private void OnConfirmRequested(object? sender, GoalConfirmRequest request)
+    {
+        _ = GoalConfirmDialog.ShowAsync(this, request);
     }
 
     private void OnConflictRequested(object? sender, ConflictDialogViewModel dialog)

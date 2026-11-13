@@ -120,7 +120,7 @@ public sealed class GoalHistorySync
     /// and the caller runs a normal pass. On the relay the "uploaded" time of each own file is forgotten, so a kept month is put again as the same
     /// bytes through the same rules (the roller keeps finished months, any other device its open months only, never more than the quota, nothing
     /// while an older app is in the group, at most 40 requests a pass, a 429 ends the pass); a month that rolled up and was removed is never put again.
-    /// On Drive the kept months are written again (a month that rolled up is not).
+    /// On Drive the kept months are put again as the same version, and their tracking is left alone (a month that rolled up is not).
     /// </summary>
     public async Task ResendKeptAsync(string transport)
     {
@@ -137,10 +137,11 @@ public sealed class GoalHistorySync
         }
         else
         {
-            // Drive keeps files until they are removed: the kept months are written again (the content compare sees no "last" version).
-            foreach (string month in state.Written.Keys.Where(month => !state.Removed.Contains(month)).ToList())
+            // Drive keeps files until they are removed: the kept months are put again as the very same version (same bytes, same WrittenAt) by the next
+            // pass. What this PC wrote stays recorded, so a finished month that waits for its removal still goes later, and nothing is read as new.
+            foreach (string month in state.Written.Keys.Where(month => !state.Removed.Contains(month)))
             {
-                state.Written.Remove(month);
+                state.ResendMonths.Add(month);
             }
         }
 
@@ -849,7 +850,8 @@ public sealed class GoalHistorySync
                 // The same content: put again only when the file is missing here, or the store would expire it.
                 bool missing = !listed;
                 bool aging = pass.Store.Expires && (!transport.Uploaded.TryGetValue(name, out DateTimeOffset uploaded) || now - uploaded >= ReuploadEvery);
-                if (missing || aging)
+                bool resend = transport.ResendMonths.Contains(monthText);
+                if (missing || aging || resend)
                 {
                     toPut = last;
                     reupload = true;
@@ -902,6 +904,7 @@ public sealed class GoalHistorySync
             }
 
             transport.Written[monthText] = toPut;
+            transport.ResendMonths.Remove(monthText);
             transport.Uploaded[name] = now;
             transport.OwnNames.Add(name);
             transport.Removed.Remove(monthText);
@@ -1028,6 +1031,7 @@ public sealed class GoalHistorySync
 
             // On the relay the file is just not put again; it expires.
             transport.Removed.Add(monthText);
+            transport.ResendMonths.Remove(monthText);
             run.Removed++;
         }
     }

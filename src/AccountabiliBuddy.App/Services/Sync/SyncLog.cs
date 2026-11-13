@@ -41,10 +41,10 @@ public sealed class SyncLog
     }
 
     /// <summary>
-    /// One pass. A read or history pass that merged nothing, held nothing, skipped nothing and found nothing unreadable is "quiet": it is
+    /// One pass. A read or history pass that merged nothing, held nothing, skipped nothing, refused no part and found nothing unreadable is "quiet": it is
     /// counted into the hour's one line instead of getting its own.
     /// </summary>
-    public void Pass(string method, SyncLogDirection direction, int files, int merged, int held, int skipped, int unreadable, int milliseconds)
+    public void Pass(string method, SyncLogDirection direction, int files, int merged, int held, int skipped, int unreadable, int milliseconds, int refused = 0)
     {
         if (!SyncReceiptParts.Methods.Contains(method))
         {
@@ -55,7 +55,7 @@ public sealed class SyncLog
         lock (_lock)
         {
             CloseQuietRunsBefore(Hour(now));
-            if (merged == 0 && held == 0 && unreadable == 0 && skipped == 0 && direction != SyncLogDirection.Send)
+            if (merged == 0 && held == 0 && unreadable == 0 && skipped == 0 && refused == 0 && direction != SyncLogDirection.Send)
             {
                 if (!_quiet.TryGetValue((method, direction), out QuietRun? run))
                 {
@@ -69,7 +69,7 @@ public sealed class SyncLog
                 return;
             }
 
-            Add(now, $"{method} {NameOf(direction)} files={files} merged={merged} held={held} skipped={skipped} unreadable={unreadable} ms={milliseconds}");
+            Add(now, $"{method} {NameOf(direction)} files={files} merged={merged} held={held} skipped={skipped} unreadable={unreadable} refused={refused} ms={milliseconds}");
         }
     }
 
@@ -90,28 +90,27 @@ public sealed class SyncLog
     /// <summary>Writes what is buffered now; <paramref name="everything"/> also closes the current hour's quiet lines (an export).</summary>
     public void Flush(bool everything = false)
     {
-        string[] lines;
+        // The append and the trim run inside the lock too: two flushes (the timer's and an export's) never write or trim the file at once.
         lock (_lock)
         {
             CloseQuietRunsBefore(everything ? DateTimeOffset.MaxValue : Hour(_time.GetUtcNow()));
-            lines = [.. _buffer];
+            string[] lines = [.. _buffer];
             _buffer.Clear();
             _flushScheduled = false;
-        }
+            if (lines.Length == 0)
+            {
+                return;
+            }
 
-        if (lines.Length == 0)
-        {
-            return;
-        }
-
-        try
-        {
-            File.AppendAllText(_path, string.Join(Environment.NewLine, lines) + Environment.NewLine, Encoding.UTF8);
-            Trim();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // The log is a help, never a reason to stop.
+            try
+            {
+                File.AppendAllText(_path, string.Join(Environment.NewLine, lines) + Environment.NewLine, Encoding.UTF8);
+                Trim();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The log is a help, never a reason to stop.
+            }
         }
     }
 
@@ -121,7 +120,10 @@ public sealed class SyncLog
         Flush(everything: true);
         try
         {
-            return File.Exists(_path) ? File.ReadAllLines(_path, Encoding.UTF8) : [];
+            lock (_lock)
+            {
+                return File.Exists(_path) ? File.ReadAllLines(_path, Encoding.UTF8) : [];
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

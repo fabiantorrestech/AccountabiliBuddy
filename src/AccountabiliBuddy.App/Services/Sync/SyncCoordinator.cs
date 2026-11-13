@@ -584,18 +584,21 @@ public sealed class SyncCoordinator
     }
 
     // What the parts of the accepted files came to, per method, until the method's pass is logged (TakePartCounts).
-    private readonly Dictionary<string, (int Taken, int Held)> _partCounts = [];
+    private readonly Dictionary<string, (int Taken, int Held, int Refused)> _partCounts = [];
 
     private void CountParts(string method, IReadOnlyDictionary<string, string> outcome)
     {
-        (int taken, int held) = _partCounts.GetValueOrDefault(method);
-        _partCounts[method] = (taken + outcome.Values.Count(state => state == SyncReceiptParts.Taken), held + outcome.Values.Count(state => state == SyncReceiptParts.Held));
+        (int taken, int held, int refused) = _partCounts.GetValueOrDefault(method);
+        _partCounts[method] = (
+            taken + outcome.Values.Count(state => state == SyncReceiptParts.Taken),
+            held + outcome.Values.Count(state => state == SyncReceiptParts.Held),
+            refused + outcome.Values.Count(state => state == SyncReceiptParts.Refused));
     }
 
-    /// <summary>The parts taken and held back by the files accepted by <paramref name="method"/> since the last call; the count starts again.</summary>
-    public (int Taken, int Held) TakePartCounts(string method)
+    /// <summary>The parts taken, held back and refused by the files accepted by <paramref name="method"/> since the last call; the count starts again.</summary>
+    public (int Taken, int Held, int Refused) TakePartCounts(string method)
     {
-        (int, int) counts = _partCounts.GetValueOrDefault(method);
+        (int, int, int) counts = _partCounts.GetValueOrDefault(method);
         _partCounts.Remove(method);
         return counts;
     }
@@ -610,8 +613,8 @@ public sealed class SyncCoordinator
     /// <summary>A read pass over <paramref name="method"/> ended (SYNC1b): one line of counts in the sync log.</summary>
     public void NoteReadPass(string method, int files, int skipped, int unreadable, int milliseconds)
     {
-        (int taken, int held) = TakePartCounts(method);
-        SyncLogger?.Pass(method, SyncLogDirection.Read, files, taken, held, skipped, unreadable, milliseconds);
+        (int taken, int held, int refused) = TakePartCounts(method);
+        SyncLogger?.Pass(method, SyncLogDirection.Read, files, taken, held, skipped, unreadable, milliseconds, refused);
     }
 
     private static async Task<string> Guarded(Func<Task<string>> part)
@@ -678,7 +681,10 @@ public sealed class SyncCoordinator
             return false;
         }
 
-        return past.Any(old => string.Equals(SyncFolderService.FileNameFor(old.GroupId, _identity.DeviceId), fileName, StringComparison.OrdinalIgnoreCase));
+        // The current group's own name is never stale, even if the past keys list holds the current group's id (a device linked back in).
+        string? current = _identity.Key?.GroupId;
+        return past.Any(old => old.GroupId != current
+            && string.Equals(SyncFolderService.FileNameFor(old.GroupId, _identity.DeviceId), fileName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static readonly TimeSpan FutureWrittenAtLimit = TimeSpan.FromSeconds(60);

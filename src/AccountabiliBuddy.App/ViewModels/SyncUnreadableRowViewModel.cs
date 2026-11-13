@@ -8,9 +8,13 @@ public sealed class SyncUnreadableRowViewModel
     public SyncUnreadableRowViewModel(SyncUnreadableFile file, IReadOnlyDictionary<Guid, string> ordinals, DateTimeOffset now, TimeZoneInfo zone, bool canRemoveStale)
     {
         File = file;
-        string who = file.Device is Guid id && ordinals.TryGetValue(id, out string? ordinal) ? ordinal : file.OwnStale ? "This PC" : "A device";
+        bool oldGroup = file.OwnStale && file.Reason == SyncUnreadableFile.OtherGroup;
+        string who = file.Device is Guid id && ordinals.TryGetValue(id, out string? ordinal)
+            ? ordinal
+            : oldGroup ? "This PC's file from an old group" : file.OwnStale ? "This PC" : "A device";
         Title = $"{SyncBoardBuilder.TitleOf(file.Method)} · {who}";
-        Detail = $"{SyncBoardWords.Clock(file.At, now, zone)} · {SyncBoardWords.ReasonOfFile(file.Reason)}";
+        string reason = oldGroup ? "Left behind when this PC changed groups" : SyncBoardWords.ReasonOfFile(file.Reason);
+        Detail = $"{SyncBoardWords.Clock(file.At, now, zone)} · {reason}";
         IsProblem = file.IsProblem;
         CanRemoveStale = canRemoveStale && file.OwnStale && file.Method is "folder" or "drive";
         CanTryAgain = file.Method is "folder" or "drive" or "relay";

@@ -23,11 +23,12 @@ public static class SyncBoardBuilder
     /// <param name="local">The receiver-local record (what arrived by which method).</param>
     /// <param name="sent">The send log.</param>
     /// <param name="interval">The method's real expected write interval (null: used by hand, never quiet).</param>
+    /// <param name="sharedOrdinals">The numbering the report and the lists use (every device this PC holds a file of); null numbers just <paramref name="devices"/>.</param>
     public static SyncBoard Build(
         DateTimeOffset now, Guid self, IReadOnlyCollection<string> ownMethods, IReadOnlyList<ReceivedDevice> devices, SyncReceiptsLocal local, SyncSendLog sent,
-        Func<string, TimeSpan?> interval)
+        Func<string, TimeSpan?> interval, IReadOnlyDictionary<Guid, string>? sharedOrdinals = null)
     {
-        IReadOnlyDictionary<Guid, string> ordinals = Ordinals(devices.Select(device => device.File.Device));
+        IReadOnlyDictionary<Guid, string> ordinals = sharedOrdinals ?? Ordinals(devices.Select(device => device.File.Device));
         var methods = new List<SyncBoardMethod>();
         foreach (string method in Order.Where(ownMethods.Contains))
         {
@@ -94,6 +95,10 @@ public static class SyncBoardBuilder
             .Select(code => new SyncBoardPart(code, SyncReceiptBoard.Part(code, now, sentFacts, reachedAny, facts)))
             .ToList();
         DateTimeOffset? confirmed = mine?.ByMethod is not null && mine.ByMethod.TryGetValue(method, out DateTimeOffset at) ? at : null;
-        return new SyncBoardDevice(card.DeviceId, card.Name, ordinals[card.DeviceId], card.Kind, card.AppVersion, dot, confirmed, card.WrittenAt, parts);
+        // What this PC itself refused from that device's newest accepted file (ADR 86 "refused"): shown under the device, whatever the method.
+        List<string> refusedHere = ShownParts
+            .Where(code => theirs?.Parts is { } held && held.TryGetValue(code, out SyncPartReceipt? state) && state.State == SyncReceiptParts.Refused)
+            .ToList();
+        return new SyncBoardDevice(card.DeviceId, card.Name, ordinals[card.DeviceId], card.Kind, card.AppVersion, dot, confirmed, card.WrittenAt, parts, refusedHere);
     }
 }

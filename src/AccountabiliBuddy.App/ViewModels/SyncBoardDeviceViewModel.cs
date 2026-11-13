@@ -21,6 +21,7 @@ public sealed partial class SyncBoardDeviceViewModel : ObservableObject
         };
         string confirmed = device.ConfirmedFile is { } at ? $" · confirmed your file from {SyncBoardWords.Clock(at, now, zone)}" : string.Empty;
         Detail = $"{kind} · app {device.AppVersion}{confirmed}";
+        RefusedLines = (device.RefusedHere ?? []).Select(code => $"Couldn't apply {SyncBoardWords.PartName(code)} from {device.Name}").ToList();
         Key = device.Id;
         IsExpanded = expanded;
     }
@@ -35,6 +36,11 @@ public sealed partial class SyncBoardDeviceViewModel : ObservableObject
     public SyncDotViewModel Dot { get; }
 
     public IReadOnlyList<SyncBoardPartViewModel> Parts { get; }
+
+    /// <summary>"Couldn't apply Day plan from Pixel 7": what this PC itself refused from this device's newest file (shown under the device whatever the method).</summary>
+    public IReadOnlyList<string> RefusedLines { get; }
+
+    public bool HasRefused => RefusedLines.Count > 0;
 
     /// <summary>The items list is open.</summary>
     [ObservableProperty]

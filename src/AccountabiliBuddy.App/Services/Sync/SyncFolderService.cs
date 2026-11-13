@@ -405,30 +405,40 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
     /// Removes one of this PC's own stale files from the folder (SYNC1b): an old group's file (<see cref="SyncCoordinator.IsOwnStale"/>) or an extra
     /// copy of its current file. Never another device's file, never this PC's current one. True when it is gone.
     /// </summary>
-    public async Task<bool> RemoveOwnStaleAsync(string name)
+    public async Task<SyncRemoveOutcome> RemoveOwnStaleAsync(string name)
     {
         if (!TryGetFolder(out string folder, out string ownName, out _) || string.Equals(name, ownName, StringComparison.OrdinalIgnoreCase)
             || name != Path.GetFileName(name) || !name.EndsWith(Extension, StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            return SyncRemoveOutcome.Refused;
         }
 
         string stem = Path.GetFileNameWithoutExtension(ownName);
         bool own = _coordinator.IsOwnStale(name) || (IsConflictCopy(name) && name.StartsWith(stem, StringComparison.OrdinalIgnoreCase));
         if (!own)
         {
-            return false;
+            return SyncRemoveOutcome.Refused;
         }
 
         try
         {
-            await Task.Run(() => File.Delete(Path.Combine(folder, name)));
+            string path = Path.Combine(folder, name);
+            bool existed = await Task.Run(() =>
+            {
+                if (!File.Exists(path))
+                {
+                    return false;
+                }
+
+                File.Delete(path);
+                return true;
+            });
             _coordinator.Unreadable?.Clear(SyncDeviceCard.MethodFolder, name);
-            return true;
+            return existed ? SyncRemoveOutcome.Removed : SyncRemoveOutcome.AlreadyGone;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            return false;
+            return SyncRemoveOutcome.Refused;
         }
     }
 
