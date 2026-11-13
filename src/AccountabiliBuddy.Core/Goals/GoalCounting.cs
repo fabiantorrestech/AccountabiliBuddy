@@ -20,6 +20,15 @@ namespace AccountabiliBuddy.Core.Goals;
 /// so back-filling a past day updates its week and streak and never changes a guard decision already made.</item>
 /// </list>
 /// Readings only count from a source the goal has a switched-on rule for; hand entries always count (the user's own decision).
+/// <para>Derived values from several devices (ADR 79, owner 2026-11-14; <see cref="GoalDerivedWriter"/>): each device's value for a day is
+/// read first (for a goal source, the entries of one device, or of no device for entries written before devices were recorded, give one
+/// value by the kind's rule above), then the devices combine: <b>Health Connect</b> the highest; <b>screen time</b> the sum over the devices
+/// the goal's screen-time rules count on (<see cref="GoalAppMatching.CountsOn"/>; another device's entries are kept but not counted, a
+/// removed device's past days still count); <b>Beeminder</b> as one (a single writer); the PCs' <b>#tag extras</b>
+/// (<see cref="GoalEntrySource.FocusLocal"/>, only with a switched-on #tag rule) add up, this device's own left out; the PCs' <b>calendar</b>
+/// values (only with a switched-on calendar rule) the highest, minus what this device's own calendar windows already added. The #tag and
+/// calendar values add to the time sources' minutes of Time goals and habits. <b>Steps</b>: a day with a Health Connect entry reads it,
+/// else the phone's synced daily count (<see cref="GoalSourceData.Steps"/>), never both. A hand entry still wins wherever it did.</para>
 /// The built-in Deep work goal (<see cref="Goal.IsDeepWork"/>) counts all focus and nothing else, whatever its stored record says
 /// (plan §3b 6, <see cref="GoalSources.CountedFor"/>): no hand time, calendar or readings, and its entries are ignored.
 /// </summary>
@@ -84,7 +93,7 @@ public static class GoalCounting
             .GroupBy(entry => entry.Day)
             .OrderBy(group => group.Key)
             .FirstOrDefault();
-        return first is null ? null : AmountValue(first.ToList(), readable).Value;
+        return first is null ? null : AmountValue(goal, first.ToList(), readable).Value;
     }
 
     /// <summary>Which entry source a reading rule reads; null for a rule that counts time or ticks.</summary>
@@ -99,10 +108,29 @@ public static class GoalCounting
         };
     }
 
-    // The goal's live entries; none for Deep work, which counts focus only.
+    // The goal's live entries, and for a steps goal the phone's synced count of each day no Health Connect entry holds; none for Deep
+    // work, which counts focus only.
     private static IEnumerable<GoalEntry> EntriesOf(Goal goal, GoalSourceData data)
     {
-        return goal.IsDeepWork ? [] : data.Entries.Where(entry => entry.GoalId == goal.Id && entry.IsLive);
+        if (goal.IsDeepWork)
+        {
+            return [];
+        }
+
+        List<GoalEntry> entries = data.Entries.Where(entry => entry is not null && entry.GoalId == goal.Id && entry.IsLive).ToList();
+        if (data.Steps is not { } steps || !GoalSources.CountedFor(goal).Any(rule => rule.Automatic && rule.Type == GoalSourceType.HealthSteps))
+        {
+            return entries;
+        }
+
+        var measured = entries.Where(entry => entry.Source == GoalEntrySource.HealthConnect).Select(entry => entry.Day).ToHashSet();
+        foreach (Sync.SyncStepDay stepDay in steps.Days.Where(stepDay => !measured.Contains(stepDay.Date)).GroupBy(stepDay => stepDay.Date).Select(group => group.Last()))
+        {
+            entries.Add(new GoalEntry(GoalDerivedIds.For(goal.Id, GoalEntrySource.HealthConnect, Guid.Empty, stepDay.Date), goal.Id, stepDay.Date, null,
+                stepDay.Count, GoalEntrySource.HealthConnect, steps.ReadAt));
+        }
+
+        return entries;
     }
 
     private static HashSet<GoalEntrySource> ReadableSources(Goal goal)
@@ -124,24 +152,74 @@ public static class GoalCounting
             .FirstOrDefault();
     }
 
-    // An Amount day: the latest hand edit, else the first reading (by its time, then edit time, then id).
-    private static (double? Value, bool ByHand) AmountValue(IReadOnlyList<GoalEntry> dayEntries, HashSet<GoalEntrySource> readable)
+    // An Amount day: the latest hand edit, else the first reading (by its time, then edit time, then id), each source's devices combined.
+    private static (double? Value, bool ByHand) AmountValue(Goal goal, IReadOnlyList<GoalEntry> dayEntries, HashSet<GoalEntrySource> readable)
     {
         if (LatestHand(dayEntries) is GoalEntry hand)
         {
             return (hand.Value, true);
         }
 
-        GoalEntry? first = dayEntries
+        var candidates = new List<(double Value, GoalEntry Representative)>();
+        foreach (IGrouping<GoalEntrySource, GoalEntry> group in dayEntries
             .Where(entry => entry.Source != GoalEntrySource.Hand && readable.Contains(entry.Source))
-            .OrderBy(entry => entry.Time ?? TimeOnly.MinValue)
-            .ThenBy(entry => entry.EditedAt)
-            .ThenBy(entry => entry.Id.ToString("D"), StringComparer.Ordinal)
-            .FirstOrDefault();
-        return (first?.Value, false);
+            .GroupBy(entry => entry.Source))
+        {
+            if (Combined(goal, group.Key, group.ToList(), firstReading: true, self: null) is { } candidate)
+            {
+                candidates.Add(candidate);
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            return (null, false);
+        }
+
+        return (candidates.OrderBy(candidate => candidate.Representative, FirstReadingOrder.Instance).First().Value, false);
     }
 
-    private static double WholeMinutes(IEnumerable<LocalWindow> windows)
+    /// <summary>
+    /// One source's readings of a day, combined across devices (see the class summary): each device's value first (the first reading for an
+    /// Amount day, else the newest), then Health Connect and calendar the highest, screen time the sum of the counted devices, the #tag extras
+    /// the sum without <paramref name="self"/>'s, Beeminder as one. Null when nothing counts.
+    /// </summary>
+    private static (double Value, GoalEntry Representative)? Combined(Goal goal, GoalEntrySource source, IReadOnlyList<GoalEntry> entries, bool firstReading, Guid? self)
+    {
+        IComparer<GoalEntry> order = firstReading ? FirstReadingOrder.Instance : NewestOrder.Instance;
+        if (source == GoalEntrySource.Beeminder)
+        {
+            GoalEntry? one = entries.OrderBy(entry => entry, order).FirstOrDefault();
+            return one is null ? null : (one.Value, one);
+        }
+
+        List<GoalEntry> perDevice = entries
+            .Where(entry => source is not (GoalEntrySource.FocusLocal or GoalEntrySource.Calendar) || self is null || entry.DeviceId != self)
+            .GroupBy(entry => entry.DeviceId)
+            .Select(group => group.OrderBy(entry => entry, order).First())
+            .ToList();
+        if (source == GoalEntrySource.ScreenTime)
+        {
+            List<GoalSourceRule> screen = GoalSources.CountedFor(goal).Where(rule => rule.Automatic && rule.Type == GoalSourceType.ScreenTime).ToList();
+            perDevice = perDevice.Where(entry => entry.DeviceId is not Guid device || screen.Any(rule => GoalAppMatching.CountsOn(rule, device))).ToList();
+        }
+
+        if (perDevice.Count == 0)
+        {
+            return null;
+        }
+
+        if (source is GoalEntrySource.ScreenTime or GoalEntrySource.FocusLocal)
+        {
+            return (perDevice.Sum(entry => entry.Value), perDevice.OrderBy(entry => entry, order).First());
+        }
+
+        // Health Connect and calendar: the highest device value (ties: the kind's order).
+        GoalEntry highest = perDevice.OrderByDescending(entry => entry.Value).ThenBy(entry => entry, order).First();
+        return (highest.Value, highest);
+    }
+
+    internal static double WholeMinutes(IEnumerable<LocalWindow> windows)
     {
         double minutes = DayTimeline.Union(windows).Sum(window => (window.End - window.Start).TotalMinutes);
         return Math.Floor(minutes + 1e-9);
@@ -159,6 +237,10 @@ public static class GoalCounting
         private readonly double? _threshold;
         private readonly bool _reachesDown;
         private readonly IReadOnlyList<GoalSourceRule> _sources;
+        private readonly bool _countsTagExtras;
+        private readonly bool _countsCalendarValues;
+        private readonly List<LocalWindow> _focusWindows;
+        private readonly List<LocalWindow> _calendarWindows;
 
         public Context(Goal goal, GoalSourceData data)
         {
@@ -179,6 +261,42 @@ public static class GoalCounting
                 .Select(rule => rule.ThresholdMinutes)
                 .Min();
             _reachesDown = goal.Target.Direction == GoalDirection.Reach && ReachesDown(goal, data);
+            _countsTagExtras = !goal.IsDeepWork && _sources.Any(rule => rule.Automatic && rule.Type == GoalSourceType.FocusTag);
+            _countsCalendarValues = !goal.IsDeepWork && _sources.Any(rule => rule.Automatic && rule.Type == GoalSourceType.CalendarCategory);
+            _focusWindows = _timeRules.Where(item => item.Rule.Type != GoalSourceType.CalendarCategory).SelectMany(item => item.Windows).ToList();
+            _calendarWindows = _timeRules.Where(item => item.Rule.Type == GoalSourceType.CalendarCategory).SelectMany(item => item.Windows).ToList();
+        }
+
+        // The other PCs' derived #tag and calendar minutes for the day (Time goals and habits): the #tag extras added up, the calendar
+        // values' highest beyond what this device's own calendar windows already added.
+        private (double Tags, double Calendar) TimeValues(List<GoalEntry> dayEntries, LocalWindow dayWindow)
+        {
+            if (_goal.Kind is not (GoalKind.Time or GoalKind.Habit))
+            {
+                return (0, 0);
+            }
+
+            double tags = 0;
+            List<GoalEntry> tagEntries = dayEntries.Where(entry => entry.Source == GoalEntrySource.FocusLocal).ToList();
+            if (_countsTagExtras && Combined(_goal, GoalEntrySource.FocusLocal, tagEntries, false, _data.DeviceId) is { } extra)
+            {
+                tags = extra.Value;
+            }
+
+            double calendar = 0;
+            List<GoalEntry> calendarEntries = dayEntries.Where(entry => entry.Source == GoalEntrySource.Calendar).ToList();
+            if (_countsCalendarValues && Combined(_goal, GoalEntrySource.Calendar, calendarEntries, false, _data.DeviceId) is { } highest)
+            {
+                double own = GoalDerivedMinutes.Extra(Clip(_focusWindows, dayWindow), Clip(_calendarWindows, dayWindow));
+                calendar = Math.Max(0, highest.Value - own);
+            }
+
+            return (tags, calendar);
+        }
+
+        private static List<LocalWindow> Clip(IEnumerable<LocalWindow> windows, LocalWindow dayWindow)
+        {
+            return windows.Select(window => DayTimeline.Clip(window, dayWindow)).OfType<LocalWindow>().ToList();
         }
 
         public GoalDayState Day(DateOnly day, DateOnly today)
@@ -201,7 +319,19 @@ public static class GoalCounting
                 autoWindows.AddRange(clipped);
             }
 
-            double autoMinutes = WholeMinutes(autoWindows);
+            (double tagMinutes, double calendarMinutes) = TimeValues(dayEntries, dayWindow);
+            if (tagMinutes > 0 && !sources.Contains(GoalSourceType.FocusTag))
+            {
+                sources.Add(GoalSourceType.FocusTag);
+            }
+
+            if (calendarMinutes > 0 && !sources.Contains(GoalSourceType.CalendarCategory))
+            {
+                sources.Add(GoalSourceType.CalendarCategory);
+            }
+
+            double timeValues = tagMinutes + calendarMinutes;
+            double autoMinutes = WholeMinutes(autoWindows) + timeValues;
 
             // Readings from the goal's switched-on reading sources.
             List<GoalEntry> readings = dayEntries.Where(entry => entry.Source != GoalEntrySource.Hand && _readable.Contains(entry.Source)).ToList();
@@ -238,8 +368,8 @@ public static class GoalCounting
                     double untimed = handTime.Where(entry => entry.Time is null).Sum(entry => entry.Value);
                     double readingTotal = readings
                         .GroupBy(entry => entry.Source)
-                        .Sum(group => group.OrderByDescending(entry => entry.EditedAt).ThenByDescending(entry => entry.Id.ToString("D"), StringComparer.Ordinal).First().Value);
-                    minutes = WholeMinutes(autoWindows.Concat(timed)) + untimed;
+                        .Sum(group => Combined(_goal, group.Key, group.ToList(), false, _data.DeviceId)?.Value ?? 0);
+                    minutes = WholeMinutes(autoWindows.Concat(timed)) + timeValues + untimed;
                     value = minutes + readingTotal;
                     valueWithoutHand = autoMinutes + readingTotal;
                     byHand = handTime.Count > 0;
@@ -262,7 +392,7 @@ public static class GoalCounting
 
                 case GoalKind.Amount:
                 {
-                    (double? amount, bool fromHand) = AmountValue(dayEntries, _readable);
+                    (double? amount, bool fromHand) = AmountValue(_goal, dayEntries, _readable);
                     value = amount ?? 0;
                     valueWithoutHand = value;
                     byHand = fromHand;
@@ -389,12 +519,40 @@ public static class GoalCounting
         {
             if (rule.Type == GoalSourceType.CalendarCategory)
             {
-                return rule.CalendarCategoryId is Guid category && data.CalendarWindows is { } calendar && calendar.TryGetValue(category, out IReadOnlyList<LocalWindow>? windows)
-                    ? DayTimeline.Union(windows)
-                    : [];
+                return GoalDerivedMinutes.CalendarWindows(rule, data);
             }
 
             return GoalFocusAttribution.FocusWindows(data.Focus, [rule], data.TagsAvailable);
+        }
+    }
+
+    // A device's reading for an Amount day: the first (by its time, then edit time, then id).
+    private sealed class FirstReadingOrder : IComparer<GoalEntry>
+    {
+        public static FirstReadingOrder Instance { get; } = new();
+
+        public int Compare(GoalEntry? x, GoalEntry? y)
+        {
+            int byTime = (x!.Time ?? TimeOnly.MinValue).CompareTo(y!.Time ?? TimeOnly.MinValue);
+            if (byTime != 0)
+            {
+                return byTime;
+            }
+
+            int byEdit = x.EditedAt.CompareTo(y.EditedAt);
+            return byEdit != 0 ? byEdit : string.CompareOrdinal(x.Id.ToString("D"), y.Id.ToString("D"));
+        }
+    }
+
+    // A device's reading for a Time day: the newest (by edit time, then id, both descending).
+    private sealed class NewestOrder : IComparer<GoalEntry>
+    {
+        public static NewestOrder Instance { get; } = new();
+
+        public int Compare(GoalEntry? x, GoalEntry? y)
+        {
+            int byEdit = y!.EditedAt.CompareTo(x!.EditedAt);
+            return byEdit != 0 ? byEdit : string.CompareOrdinal(y.Id.ToString("D"), x.Id.ToString("D"));
         }
     }
 }

@@ -1,4 +1,5 @@
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.Core.Goals;
 
@@ -14,10 +15,23 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="CalendarWindows">
 /// Calendar time per ADR 58 category, local windows (PC only, plan §3b 7; never in focus totals, Stats or guards); null = none.
 /// </param>
-/// <param name="TagsAvailable">False where #tag rules aren't counted (the phone until ADR 79, plan §3b 5).</param>
+/// <param name="TagsAvailable">
+/// False where #tag rules aren't counted from the sessions themselves (the phone, plan §3b 5); it counts the PCs' #tag extras
+/// (<see cref="GoalEntrySource.FocusLocal"/>) instead.
+/// </param>
+/// <param name="Steps">
+/// The phone's daily step counts as the sync file carries them (<see cref="SyncSteps"/>; the PC's fresh copy), or null. A steps goal counts
+/// a day from them only when no Health Connect entry holds that day (ADR 79: the derived entry when present, else these, never both).
+/// </param>
+/// <param name="DeviceId">
+/// This device's id (ADR 79): its own #tag and calendar extras are left out (it counts its own sessions and calendar itself); null where it
+/// isn't known (then every device's extras count).
+/// </param>
 public sealed record GoalSourceData(
     IReadOnlyList<GoalFocusSession> Focus,
     IReadOnlyList<GoalEntry> Entries,
     TimeZoneInfo Zone,
     IReadOnlyDictionary<Guid, IReadOnlyList<LocalWindow>>? CalendarWindows = null,
-    bool TagsAvailable = true);
+    bool TagsAvailable = true,
+    SyncSteps? Steps = null,
+    Guid? DeviceId = null);

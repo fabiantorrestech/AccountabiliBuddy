@@ -11,7 +11,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <item>Goals merge part by part (<see cref="GoalField"/>, owner 2026-11-14): where both hold a live copy, each part takes the newer
 /// stamp's value (time, then device id, then value), silently. Tombstones, a revive by a later edit, the order, 30-day tombstones and the
 /// 2-minute future clamp are <see cref="SharedListMerge"/>'s.</item>
-/// <item>Areas, entries and reminders: whole item, newest wins. Reviews: one record per week (<see cref="GoalReviewIds"/>), old records
+/// <item>Areas, entries and reminders: whole item, newest wins. Entry tombstones are kept for good (GS1b): the goal history files keep
+/// them for good, so a stale month, year or sync file can never bring a removed entry back, whatever order files arrive in. Reviews: one record per week (<see cref="GoalReviewIds"/>), old records
 /// of the same week fold into it, each goal's decision the newest by its own time (<see cref="GoalReviewDecision.DecidedAt"/>, else
 /// its record's edit time, written in by the fold), decisions ordered by goal id.</item>
 /// <item>The first run's "Work" and Deep work, untouched (<see cref="GoalSeeds"/>), never win over an edited copy, whatever their
@@ -54,7 +55,7 @@ public static class GoalSyncMerge
 
         var goalIds = goals.Select(item => item.Id).ToHashSet();
         (List<ISharedItem> entries, List<JsonElement> entriesKept) = MergeWhole<GoalEntry>(first.Entries, second.Entries, now, limit,
-            GoalTombstones.Clean, GoalUnknowns.Keep);
+            GoalTombstones.Clean, GoalUnknowns.Keep, keepTombstones: true);
         (List<ISharedItem> reminders, List<JsonElement> remindersKept) = MergeWhole<GoalReminder>(first.Reminders, second.Reminders, now, limit,
             GoalTombstones.Clean, GoalUnknowns.Keep);
         entries = entries.Where(item => item is not GoalEntry entry || goalIds.Contains(entry.GoalId)).ToList();
@@ -406,14 +407,16 @@ public static class GoalSyncMerge
     // ---------------------------------------------------------------- whole items
 
     private static (List<ISharedItem> Merged, List<JsonElement> Kept) MergeWhole<T>(
-        IReadOnlyList<T> first, IReadOnlyList<T> second, DateTimeOffset now, DateTimeOffset limit, Func<T, T> clean, Func<T, T, T> keep)
+        IReadOnlyList<T> first, IReadOnlyList<T> second, DateTimeOffset now, DateTimeOffset limit, Func<T, T> clean, Func<T, T, T> keep,
+        bool keepTombstones = false)
         where T : class, ISharedItem
     {
         List<T> firstKnown = first.Select(item => Clamped(clean(item), limit)).ToList();
         List<T> secondKnown = second.Select(item => Clamped(clean(item), limit)).ToList();
         (List<ISharedItem> rawFirst, List<JsonElement> keptFirst) = Raw(first);
         (List<ISharedItem> rawSecond, List<JsonElement> keptSecond) = Raw(second);
-        List<ISharedItem> merged = SharedListMerge.Merge(firstKnown.Cast<ISharedItem>().Concat(rawFirst), secondKnown.Cast<ISharedItem>().Concat(rawSecond), now);
+        List<ISharedItem> merged = SharedListMerge.Merge(firstKnown.Cast<ISharedItem>().Concat(rawFirst), secondKnown.Cast<ISharedItem>().Concat(rawSecond), now,
+            keepTombstones: keepTombstones);
 
         // Missing unknown fields are kept from another copy of the same item (newest first) only where the winner has none at all.
         ILookup<Guid, T> copies = firstKnown.Concat(secondKnown).ToLookup(item => item.Id);

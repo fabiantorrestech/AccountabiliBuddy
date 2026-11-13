@@ -117,13 +117,13 @@ public static class SyncFileBuilder
         // ADR 72's history, settled records, Auto-saved list and handovers stay out for the same reasons.
         // ADR 76's task list (tasks, labels, views, History) never goes in a QR file: it is private text, and it would not fit. Nor do the
         // account's Tasks settings, which go with it. ADR 79's goal parts never go either (private text; a file without them leaves the
-        // receiver's goals alone).
+        // receiver's goals alone), nor the goal history marker (GS1b: QR files carry nothing of the history).
         file = file with
         {
             Events = null, NextTasks = null, Parked = null, Later = null, PastKeys = null, Categories = null,
             TaskHistory = null, PastSettled = null, AutoSaved = null, Handovers = null, HandoverAcks = null,
             Tasks = null, Labels = null, Views = null, TaskLog = null, TaskAccountSettings = null,
-            Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null,
+            Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null, GoalYearsMerged = null,
         };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);

@@ -79,6 +79,15 @@ public static class GoalNewerJson
     /// </summary>
     public static void WriteList<T>(Utf8JsonWriter writer, IReadOnlyList<T> known, IReadOnlyList<GoalNewerItem> newer, JsonSerializerOptions options)
     {
+        WriteList(writer, known, newer, (output, item) => JsonSerializer.Serialize(output, item, options));
+    }
+
+    /// <summary>
+    /// <see cref="WriteList{T}(Utf8JsonWriter, IReadOnlyList{T}, IReadOnlyList{GoalNewerItem}, JsonSerializerOptions)"/> with each known item
+    /// written by <paramref name="writeItem"/> (goal entries as rows, <see cref="GoalEntryRows"/>).
+    /// </summary>
+    public static void WriteList<T>(Utf8JsonWriter writer, IReadOnlyList<T> known, IReadOnlyList<GoalNewerItem> newer, Action<Utf8JsonWriter, T> writeItem)
+    {
         List<GoalNewerItem> waiting = newer.OrderBy(item => item.Index).ToList();
         int nextNewer = 0;
         int written = 0;
@@ -91,7 +100,7 @@ public static class GoalNewerJson
                 written++;
             }
 
-            JsonSerializer.Serialize(writer, item, options);
+            writeItem(writer, item);
             written++;
         }
 

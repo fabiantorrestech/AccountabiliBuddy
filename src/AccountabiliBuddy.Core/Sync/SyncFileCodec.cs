@@ -32,9 +32,18 @@ public static class SyncFileCodec
 
     public static byte[] Seal(SyncFile file, SyncKey key)
     {
-        byte[] compressed = Compress(file);
+        return SealJson(JsonSerializer.SerializeToUtf8Bytes(file, SyncJson.Options), key, Magic);
+    }
+
+    /// <summary>
+    /// Seals JSON the way <see cref="Seal"/> does under another 4-byte header (the goal history files, <see cref="Goals.GoalHistoryCodec"/>):
+    /// header, the key's group id, a random nonce, AES-256-GCM over the raw-Deflated JSON, the tag.
+    /// </summary>
+    internal static byte[] SealJson(byte[] json, SyncKey key, byte[] magic)
+    {
+        byte[] compressed = Deflate(json);
         byte[] output = new byte[HeaderBytes + compressed.Length + TagBytes];
-        Magic.CopyTo(output, 0);
+        magic.CopyTo(output, 0);
         Convert.FromHexString(key.GroupId).CopyTo(output, MagicBytes);
         Span<byte> nonce = output.AsSpan(MagicBytes + GroupIdBytes, NonceBytes);
         RandomNumberGenerator.Fill(nonce);
@@ -48,6 +57,40 @@ public static class SyncFileCodec
     public static int SealedLength(SyncFile file)
     {
         return HeaderBytes + Compress(file).Length + TagBytes;
+    }
+
+    /// <returns>How many bytes <see cref="SealJson"/> gives for <paramref name="json"/>.</returns>
+    internal static int SealedJsonLength(byte[] json)
+    {
+        return HeaderBytes + Deflate(json).Length + TagBytes;
+    }
+
+    /// <returns>
+    /// The inflated JSON of bytes sealed by <see cref="SealJson"/> under <paramref name="magic"/> with this group's key; null for another
+    /// header, group or key, changed or cut-off bytes, or JSON over the 16 MB limit.
+    /// </returns>
+    internal static byte[]? OpenJson(ReadOnlySpan<byte> sealedBytes, SyncKey key, byte[] magic)
+    {
+        if (sealedBytes.Length < HeaderBytes + TagBytes
+            || !sealedBytes[..MagicBytes].SequenceEqual(magic)
+            || !sealedBytes.Slice(MagicBytes, GroupIdBytes).SequenceEqual(Convert.FromHexString(key.GroupId)))
+        {
+            return null;
+        }
+
+        ReadOnlySpan<byte> cipherText = sealedBytes[HeaderBytes..^TagBytes];
+        byte[] compressed = new byte[cipherText.Length];
+        try
+        {
+            using var aes = new AesGcm(key.Key, TagBytes);
+            aes.Decrypt(sealedBytes.Slice(MagicBytes + GroupIdBytes, NonceBytes), cipherText, sealedBytes[^TagBytes..], compressed);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+
+        return Inflate(compressed);
     }
 
     /// <summary>A sync file ("ABS1") whose header names another group than <paramref name="key"/>'s: a leftover (from before a device removal), not a problem.</summary>

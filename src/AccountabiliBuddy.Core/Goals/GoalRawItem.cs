@@ -34,9 +34,17 @@ public sealed class GoalRawItem : ISharedItem
 
     public string TieBreak => Json.GetRawText();
 
-    /// <summary>The item's id, edit time, deletion time and place, when its id and edit time read; null otherwise.</summary>
+    /// <summary>
+    /// The item's id, edit time, deletion time and place, when its id and edit time read; null otherwise. A goal entry row (GS1b,
+    /// <see cref="GoalEntryRows"/>) reads its one-letter names (<c>i</c>, <c>e</c>, <c>x</c>, <c>o</c>, <c>p</c>).
+    /// </summary>
     public static GoalRawItem? TryRead(JsonElement json)
     {
+        if (GoalEntryRows.IsRow(json))
+        {
+            return GoalEntryRows.Stamps(json) is { } row ? new GoalRawItem(json.Clone(), row.Id, row.EditedAt, row.DeletedAt, row.Position) : null;
+        }
+
         if (json.ValueKind != JsonValueKind.Object
             || !json.TryGetProperty("id", out JsonElement idValue) || idValue.ValueKind != JsonValueKind.String || !idValue.TryGetGuid(out Guid id)
             || !json.TryGetProperty("editedAt", out JsonElement editedValue) || editedValue.ValueKind != JsonValueKind.String
@@ -64,6 +72,23 @@ public sealed class GoalRawItem : ISharedItem
     public ISharedItem WithStamps(DateTimeOffset editedAt, DateTimeOffset? deletedAt)
     {
         JsonObject node = JsonNode.Parse(Json.GetRawText())!.AsObject();
+        if (GoalEntryRows.IsRow(Json))
+        {
+            // A row's times are UTC ticks; its offset ("o") is kept.
+            node["e"] = GoalEntryRows.TicksOf(editedAt);
+            if (deletedAt is DateTimeOffset deletedRow)
+            {
+                node["x"] = GoalEntryRows.TicksOf(deletedRow);
+            }
+            else
+            {
+                node.Remove("x");
+            }
+
+            using JsonDocument rowDocument = JsonDocument.Parse(node.ToJsonString(SyncJson.Options));
+            return new GoalRawItem(rowDocument.RootElement.Clone(), Id, editedAt, deletedAt, Position);
+        }
+
         node["editedAt"] = JsonSerializer.SerializeToNode(editedAt, SyncJson.Options);
         if (deletedAt is DateTimeOffset deleted)
         {

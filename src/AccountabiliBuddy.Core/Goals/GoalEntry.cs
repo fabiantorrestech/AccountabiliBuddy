@@ -24,7 +24,14 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Position">Its place in the day's list (ADR 48 items carry one); 0 when unordered.</param>
 /// <param name="DeletedAt">
 /// Set on a tombstone: a removed log (Delete in the day panel, or the goal deleted). The day goes back to what its other entries
-/// and sources say; for a habit that may be ticking itself again. Never used to untick.
+/// and sources say; for a habit that may be ticking itself again. Never used to untick. Entry tombstones are kept for good (GS1b: the
+/// goal history files keep them for good, so a stale file never brings a removed entry back).
+/// </param>
+/// <param name="DeviceId">
+/// The device that measured a derived day value (ADR 79: Health Connect, screen time, a PC's #tag extra <see cref="GoalEntrySource.FocusLocal"/>,
+/// calendar; Beeminder entries carry the reading PC's), whose id then comes from <see cref="GoalDerivedIds"/>; only that device changes or
+/// removes it (<see cref="GoalDerivedWriter"/>). Null for a hand entry and for an entry written before devices were recorded. Written
+/// only when set (JSON <c>deviceId</c>).
 /// </param>
 public sealed record GoalEntry(
     Guid Id,
@@ -35,7 +42,8 @@ public sealed record GoalEntry(
     GoalEntrySource Source,
     DateTimeOffset EditedAt,
     double Position = 0,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null) : ISharedItem
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DeviceId = null) : ISharedItem
 {
     /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
     [JsonExtensionData]
@@ -43,6 +51,10 @@ public sealed record GoalEntry(
 
     [JsonIgnore]
     public bool IsLive => DeletedAt is null;
+
+    /// <summary>Its version's time for a merge: the edit time, or the deletion time when that is later (<see cref="SharedListMerge"/>).</summary>
+    [JsonIgnore]
+    public DateTimeOffset Stamp => DeletedAt is DateTimeOffset deletedAt && deletedAt > EditedAt ? deletedAt : EditedAt;
 
     /// <summary>The item as one text, for the rare tie of two versions with the same stamp (<see cref="SharedListMerge"/>). Never logged or shown.</summary>
     [JsonIgnore]
