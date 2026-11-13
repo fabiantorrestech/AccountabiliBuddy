@@ -34,7 +34,7 @@ internal fun TasksRedesignSetupPage() {
     val chosen = lists.account?.defaultViewId ?: TaskView.DEFAULT_ID
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Tasks: pages, labels and views", style = MaterialTheme.typography.headlineSmall)
-        Text("Your tasks are now one list on every device: a page per bin, label or tag, saved views, labels with colours and steps. Tasks, labels and views sync with your other devices.")
+        Text("Your tasks are now one list on every device: a page per bin, label or tag, saved views, labels with colours and steps. Tasks, labels and views sync with your other devices. Your open tasks from the earlier version wait in To sort, so you sort them once.")
         Text("Which view should the Tasks page open with? It is the same on all your devices; change it any time in Settings › Tasks.", style = MaterialTheme.typography.titleSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             views.forEach { view ->

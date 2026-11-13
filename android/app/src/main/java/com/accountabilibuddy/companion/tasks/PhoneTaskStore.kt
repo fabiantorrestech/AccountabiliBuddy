@@ -20,6 +20,7 @@ import com.accountabilibuddy.shared.tasks.TaskStoreRebuild
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -66,6 +67,28 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
     @Volatile
     var isClosed: Boolean = false
         private set
+
+    // MIG1: how many open tasks the migration moved into To sort and nobody has closed the card for yet (a number, never text).
+    private val _earlierNotice = MutableStateFlow(prefs.getInt(KEY_EARLIER_NOTICE, 0))
+
+    /** The one-time "N tasks from the earlier version are in To sort" card's count (MIG1); 0: no card. Kept on this phone only. */
+    val earlierNotice: StateFlow<Int> = _earlierNotice.asStateFlow()
+
+    /** Set by "Sort them now" on Today: the Tasks page opens on To sort once and clears it ([takeSortRequest]). */
+    private val _sortRequest = MutableStateFlow(false)
+    val sortRequest: StateFlow<Boolean> = _sortRequest.asStateFlow()
+
+    fun requestSort() {
+        _sortRequest.value = true
+    }
+
+    fun takeSortRequest(): Boolean = _sortRequest.getAndUpdate { false }
+
+    /** The × on the card: closed for good. */
+    fun dismissEarlierNotice() {
+        prefs.edit().putInt(KEY_EARLIER_NOTICE, 0).commit()
+        _earlierNotice.value = 0
+    }
 
     /** This phone's sync device id (stamps name it). Set by the app. */
     var selfId: () -> String = { FieldStamp.NOBODY }
@@ -150,12 +173,16 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
     /** The migration's lists and the marker, written in one commit; true when kept (the store is the source from now on). */
     @Synchronized
     fun activate(lists: TaskLists, viewSearches: Map<String, String>): Boolean {
+        // MIG1: every open task of the earlier version waits in To sort; the card tells how many.
+        val earlierOpen = lists.tasks.count { it.task.isLive && it.task.bin == com.accountabilibuddy.shared.tasks.TaskBin.SORT }
         val written = prefs.edit()
             .putString(KEY_LISTS, TokenVault.seal(encode(lists).toString(), ALIAS))
             .putString(KEY_SEARCHES, TokenVault.seal(JsonObject(viewSearches.mapValues { JsonPrimitive(it.value) }).toString(), ALIAS))
             .putInt(KEY_MARKER, MODEL_VERSION)
+            .putInt(KEY_EARLIER_NOTICE, earlierOpen)
             .commit()
         if (!written) return false
+        _earlierNotice.value = earlierOpen
         searches = viewSearches
         _lists.value = lists
         isActive = true
@@ -304,6 +331,7 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
         private const val PREFS = "task_model"
         private const val ALIAS = "accountabilibuddy-task-model"
         private const val KEY_MARKER = "model"
+        private const val KEY_EARLIER_NOTICE = "earlierNotice"
         private const val KEY_LISTS = "lists"
         private const val KEY_UNREADABLE = "lists.unreadable"
         private const val KEY_SEARCHES = "viewSearches"

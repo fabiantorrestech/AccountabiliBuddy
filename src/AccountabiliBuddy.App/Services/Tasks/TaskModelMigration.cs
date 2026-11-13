@@ -20,7 +20,8 @@ public static class TaskModelMigration
     /// <returns>Where the task lists come from from now on. <see cref="TaskModelState.OldLists"/> here always means the migration failed (the caller shows a notice).</returns>
     public static TaskModelState RunBlocking(
         LocalDatabase database, TaskStore store, SessionTasksService sessionTasks, LaterStore later, ComebackStore comebacks,
-        AutoSavedTaskStore autoSaved, TaskFilterPresetStore presets, TaskViewStore view, TimeProvider time, string dataDirectory)
+        AutoSavedTaskStore autoSaved, TaskFilterPresetStore presets, TaskViewStore view, TimeProvider time, string dataDirectory,
+        EarlierTasksNoticeStore? earlierNotice = null)
     {
         string logPath = Path.Combine(dataDirectory, LogFileName);
         bool migrated;
@@ -88,6 +89,8 @@ public static class TaskModelMigration
             }
 
             store.ActivateBlocking(result, CategoryIds(sessionTasks.Categories, result.Labels));
+            // MIG1: the open tasks of the earlier version all wait in To sort; the card tells the owner how many (a number, never text).
+            earlierNotice?.RecordBlocking(result.Counts.Bins.GetValueOrDefault(TaskBin.Sort));
             Log(logPath, time, $"switched over: {store.Lists.Tasks.Count(item => item.Task.IsLive)} live tasks, {store.Lists.Log.Count} History entries");
             return TaskModelState.TaskList;
         }

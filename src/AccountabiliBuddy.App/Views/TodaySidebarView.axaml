@@ -36,6 +36,22 @@
         <Style Selector="Border#SidebarPanel.quiet:focus-within">
             <Setter Property="Opacity" Value="1" />
         </Style>
+        <!-- The whole rail and the open sidebar's header row are one click target (code-behind): a hand and a soft hover over all of it. -->
+        <Style Selector="Border#Rail">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Border#Rail:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border#SidebarHeader">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="12,12,0,0" />
+        </Style>
+        <Style Selector="Border#SidebarHeader:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
         <!-- A part: a soft block inside the sidebar. -->
         <Style Selector="Border.sidePart">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
@@ -399,7 +415,8 @@
     <Panel>
         <!-- The rail: always there at the right edge (reserved space), so opening or hiding the sidebar never moves the list. -->
         <Border x:Name="Rail" Width="30" HorizontalAlignment="Right" VerticalAlignment="Stretch" BorderBrush="{DynamicResource Ab.Line}"
-                BorderThickness="1,0,0,0" Margin="0,0,0,8">
+                BorderThickness="1,0,0,0" Margin="0,0,0,8" PointerPressed="OnRailPressed"
+                ToolTip.Tip="Show or hide the Today sidebar (Ctrl+\)">
             <StackPanel Spacing="12" Margin="0,8,0,0">
                 <Button Classes="sideIcon" HorizontalAlignment="Center" Command="{Binding ToggleCommand}" ToolTip.Tip="Show or hide the Today sidebar (Ctrl+\)"
                         AutomationProperties.Name="Show or hide the Today sidebar">
@@ -439,7 +456,8 @@
                 </Transitions>
             </Border.Transitions>
             <DockPanel>
-                <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="14,10,8,6">
+                <Border x:Name="SidebarHeader" DockPanel.Dock="Top" PointerPressed="OnHeaderPressed" ToolTip.Tip="Hide the sidebar (Ctrl+\)">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="14,10,8,6">
                     <TextBlock Text="Today sidebar" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Classes="faint" Text="{Binding HeaderNote, StringFormat='· {0}'}" FontSize="11.5" VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis" />
@@ -452,6 +470,7 @@
                         <mi:MaterialIcon Kind="ChevronRight" Width="16" Height="16" />
                     </Button>
                 </Grid>
+                </Border>
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="10" Margin="12,0,12,14">
                         <TextBlock Classes="muted" FontSize="12.5" TextWrapping="Wrap" Margin="2,4" IsVisible="{Binding HasNoParts}"

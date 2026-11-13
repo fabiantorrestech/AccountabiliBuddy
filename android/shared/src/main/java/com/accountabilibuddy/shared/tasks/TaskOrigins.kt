@@ -15,6 +15,9 @@ object TaskOrigins {
     const val FROM_STEP = "From a step"
     const val COME_BACK_TO = "Come back to"
 
+    /** The open tasks the one-time move (and an older device's new items) brought into To sort (MIG1; the PC's EarlierVersion). */
+    const val EARLIER_VERSION = "From the earlier version"
+
     private val parkedForm: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE M/d h:mm a", Locale.US)
     private val dayForm: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE M/d", Locale.US)
 

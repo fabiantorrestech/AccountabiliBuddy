@@ -43,7 +43,7 @@ public static class SetupFeatures
         new SetupFeature(
             TasksRedesignId, "0.1.131",
             "Tasks: one list with Today and the Shelf",
-            "Today holds This session, Queued and Finished today; the Shelf holds To sort, Next and Later with saved views. Labels, #tags, steps, reminders and a weekly tidy-up. Pick where your Tasks view comes from: a backup file from this PC, the copy stored in your account, or a fresh start.",
+            "Today holds This session, Queued and Finished today; the Shelf holds To sort, Next and Later with saved views. Labels, #tags, steps, reminders and a weekly tidy-up. Your open tasks from the earlier version wait in To sort, so you sort them once. Pick where your Tasks view comes from: a backup file from this PC, the copy stored in your account, or a fresh start.",
             IsRelevant: () => taskStore.IsActive,
             IsSetUp: () => Core.Tasks.TaskAccountSettingsEdits.IsChosen(taskAccount.Current.DefaultViewStamp),
             Step: ViewModels.AssistantStep.TasksRedesign),

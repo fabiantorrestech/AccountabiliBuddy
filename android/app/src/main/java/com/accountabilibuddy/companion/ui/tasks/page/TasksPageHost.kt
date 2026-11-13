@@ -183,6 +183,13 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     var search by remember { mutableStateOf("") }
     var chipLabel by remember { mutableStateOf<String?>(null) }
     var chipBin by remember { mutableStateOf<TaskBin?>(null) }
+    // MIG1: "Sort them now" on Today opens this page on To sort, once.
+    LaunchedEffect(Unit) {
+        if (app.taskModel.takeSortRequest()) {
+            chipLabel = null
+            chipBin = TaskBin.SORT
+        }
+    }
     var currentKey by remember { mutableStateOf<String?>(null) }
     var lastIndex by remember { mutableIntStateOf(0) }
     var shelfShown by remember { mutableStateOf(false) }
@@ -526,6 +533,14 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
             )
             // R7.2 review item 3 and R7.3b (owner): the PCs older than the one task list, a line each; × closes it for 3 days.
             notice?.let { TaskUpdateNoticeCard(it, Modifier.padding(horizontal = AbPageHeaderDefaults.PaneEdge, vertical = 4.dp)) }
+            // MIG1: the earlier version's open tasks wait in To sort; one card, never during a session.
+            val earlierCount by app.taskModel.earlierNotice.collectAsState()
+            if (!inSession) {
+                EarlierTasksCard(
+                    earlierCount, onSort = { chipLabel = null; chipBin = TaskBin.SORT },
+                    onDismiss = app.taskModel::dismissEarlierNotice, modifier = Modifier.padding(horizontal = AbPageHeaderDefaults.PaneEdge, vertical = 4.dp),
+                )
+            }
             // One 48 dp slot: the chips, or the search field in their place, so opening the search moves nothing.
             Box(Modifier.fillMaxWidth().height(ChipRowHeight)) {
                 if (searching) {

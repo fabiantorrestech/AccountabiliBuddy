@@ -5,6 +5,7 @@ using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace AccountabiliBuddy.App.Views;
 
@@ -57,6 +58,31 @@ public partial class TodaySidebarView : UserControl
         bool open = _viewModel?.IsOpen == true;
         SidebarPanel.Classes.Set(HiddenClass, !open);
         SidebarPanel.IsVisible = open;
+    }
+
+    // The whole rail, and the open sidebar's header row, toggle the sidebar; a button inside them (the arrow, Lunch, the settings list)
+    // keeps its own job.
+    private void OnRailPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e) => ToggleFromClick(Rail, e);
+
+    private void OnHeaderPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e) => ToggleFromClick(SidebarHeader, e);
+
+    private void ToggleFromClick(Control target, Avalonia.Input.PointerPressedEventArgs e)
+    {
+        if (e.Handled || !e.GetCurrentPoint(target).Properties.IsLeftButtonPressed || _viewModel is null)
+        {
+            return;
+        }
+
+        for (Avalonia.Visual? visual = e.Source as Avalonia.Visual; visual is not null && !ReferenceEquals(visual, target); visual = visual.GetVisualParent())
+        {
+            if (visual is Button)
+            {
+                return;
+            }
+        }
+
+        e.Handled = true;
+        _viewModel.ToggleCommand.Execute(null);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

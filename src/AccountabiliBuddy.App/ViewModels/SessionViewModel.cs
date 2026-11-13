@@ -19,6 +19,10 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial WhatsNewCardViewModel? WhatsNew { get; set; }
 
+    /// <summary>The one-time "N tasks from the earlier version are in To sort" card (MIG1); set by the app, shared with the Tasks page.</summary>
+    [ObservableProperty]
+    public partial EarlierTasksCardViewModel? EarlierTasks { get; set; }
+
     private readonly SessionController _sessions;
     private readonly ConfigurationService _configuration;
     private readonly SessionEndFlow _endFlow;

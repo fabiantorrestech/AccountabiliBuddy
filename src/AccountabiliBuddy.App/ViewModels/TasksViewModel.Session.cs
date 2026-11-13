@@ -191,6 +191,10 @@ public sealed partial class TasksViewModel
     [ObservableProperty]
     public partial bool ShowsEndedNotice { get; set; }
 
+    /// <summary>The one-time "N tasks from the earlier version are in To sort" card (MIG1); set by the app, shared with Today.</summary>
+    [ObservableProperty]
+    public partial EarlierTasksCardViewModel? EarlierTasks { get; set; }
+
     /// <summary>"Session ended at 12:52 AM".</summary>
     [ObservableProperty]
     public partial string EndedTitle { get; set; } = string.Empty;

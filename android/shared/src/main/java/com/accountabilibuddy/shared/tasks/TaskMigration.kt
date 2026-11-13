@@ -21,11 +21,10 @@ import java.time.format.DateTimeParseException
  * it reads the old stores' contents and the time, and gives the new lists; the app backs up first, runs it once behind a marker
  * and leaves the old stores untouched as the way back (R7.2).
  * - Categories become labels (id from the name, same name and colour); a category only an item names becomes one too.
- * - The next session's list: open tasks fill This session up to the session's actions in order (a task's first open steps are its
- *   actions), the rest go to Queued; tasks done today go to Finished; tasks done before today go to History.
- * - Later stays Later (Next when a newer PC marked it); ticked Later items go to History.
- * - Come-backs and parked thoughts go to To sort ("Parked" and when); ticked ones go to History.
- * - Auto-saved goes to To sort ("Auto-saved" and its day); past its 30 days it is left out.
+ * - Every open task of the old lists goes to To sort, in the order of the lists (next session, Later, come-backs, auto-saved, each in
+ *   its own order): next-session and Later tasks carry "From the earlier version", come-backs "Parked" and when, auto-saved
+ *   "Auto-saved" and its day; auto-saved past its 30 days is left out. Nothing goes to This session, Queued, Next or Later.
+ * - Finished: tasks done today in the next session's list go to Finished; every other ticked task goes to History.
  * - The saved filters become views (their search words stay local).
  * - Numbers go in creation order; ADR 72 labels become tags; a local item's keeper becomes its one device.
  *
@@ -107,7 +106,7 @@ object TaskMigration {
 
         val tasks = ArrayList<TaskItem>()
         val history = ArrayList<TaskHistoryEntry>()
-        val openNext = ArrayList<TaskItem>()
+        val openDrafts = ArrayList<Draft>()
         for (draft in winners) {
             val task = draft.task
             if (!task.isLive) {
@@ -129,10 +128,16 @@ object TaskMigration {
                 continue
             }
 
-            if (draft.source == NEXT_TASKS_SOURCE) openNext += task else tasks += task
+            openDrafts += draft
         }
 
-        tasks += fillSession(openNext, input.sessionActions)
+        // Every open task lands in To sort: the lists one after the other, each in its own order, then numbered 1, 2, 3 ...
+        var sortPosition = 0.0
+        for (draft in openDrafts.sortedWith(compareBy<Draft> { it.sourceOrder }.thenBy { it.task.position }.thenBy { it.task.id })) {
+            sortPosition += 1.0
+            val open = draft.task.copy(bin = TaskBin.SORT, position = sortPosition)
+            tasks += if (draft.source == NEXT_TASKS_SOURCE || draft.source == LATER_SOURCE) open.copy(origin = TaskOrigins.EARLIER_VERSION) else open
+        }
 
         // Numbers in creation order over every live task and History snapshot.
         var nextNumber = maxOf(1, input.firstNumber)

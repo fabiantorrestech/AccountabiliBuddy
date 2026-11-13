@@ -404,6 +404,19 @@
                     </controls:PageHeader.Actions>
                 </controls:PageHeader>
 
+                <!-- MIG1: after the task migration, the open tasks of the earlier version wait in To sort; never shown during a session. -->
+                <Border DockPanel.Dock="Top" Margin="26,14,16,0" Padding="14,8,8,8" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Ab.Line}"
+                        DataContext="{Binding EarlierTasks}" x:DataType="vm:EarlierTasksCardViewModel" IsVisible="{Binding IsVisible, FallbackValue=False}">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Sort them now" Command="{Binding SortThemNowCommand}" />
+                        <Button Grid.Column="2" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" Command="{Binding DismissCommand}"
+                                AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss for good">
+                            <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
+                        </Button>
+                    </Grid>
+                </Border>
+
                 <!-- "Session ended at 12:52 AM" (P4): Tasks switches to planning the next time it opens, or now; × closes it (a 15-second ring). -->
                 <Border DockPanel.Dock="Top" Classes="endedStrip" Margin="26,14,16,0" Padding="14,10,8,10" IsVisible="{Binding ShowsEndedNotice}">
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">

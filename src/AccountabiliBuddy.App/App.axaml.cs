@@ -1307,9 +1307,11 @@ public partial class App : Application
         taskStore.SelfId = selfId;
         taskStore.OtherDevices = () => receivedDevices.Active.Select(device => (device.File.Device.DeviceId, device.File.Device.Kind)).ToList();
         _filterPresets = new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector());
+        var earlierTasksNotice = new AccountabiliBuddy.App.Services.Tasks.EarlierTasksNoticeStore(documents);
         AccountabiliBuddy.App.Services.Tasks.TaskModelState taskModel = AccountabiliBuddy.App.Services.Tasks.TaskModelMigration.RunBlocking(
             database, taskStore, sessionTasks, _later!, _comebacks!, autoSaved,
-            _filterPresets, new TaskViewStore(documents), time, dataDirectory);
+            _filterPresets, new TaskViewStore(documents), time, dataDirectory, earlierTasksNotice);
+        earlierTasksNotice.LoadBlocking();
         if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.Unreadable)
         {
             // The migration ran but its task list can't be read: the old documents stopped at the migration, so they are never the
@@ -2424,6 +2426,21 @@ public partial class App : Application
         // The store raises this on any thread, inside a lock: only post.
         calendarOverlay.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
+        // MIG1: one card, shown on Today and on Tasks, never during a session; Sort them now opens Tasks (To sort is the Shelf's first column).
+        var earlierTasksCard = new EarlierTasksCardViewModel(earlierTasksNotice, () => sessionViewModel.IsSessionActive, () => mainViewModel.SelectedTab = (int)MainTab.Tasks);
+        sessionViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SessionViewModel.IsSessionActive))
+            {
+                earlierTasksCard.Refresh();
+            }
+        };
+        sessionViewModel.EarlierTasks = earlierTasksCard;
+        if (mainViewModel.Tasks is not null)
+        {
+            mainViewModel.Tasks.EarlierTasks = earlierTasksCard;
+        }
+
         sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks) { GuardedPlan = guardedPlan };
         sessionViewModel.CalendarToday = new CalendarTodayViewModel(_configuration, effectivePlan, calendars, time, sessionViewModel.Day);
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);

@@ -138,7 +138,8 @@ object TaskModelSelfCheck {
         val first = TaskMigration.run(input)
         val again = TaskMigration.run(input)
         report.check("r71-self: the migration gives the same result every time", first == again)
-        report.check("r71-self: the migration's counts balance", first.counts.isBalanced && first.counts.sources.values.sum() == 2 && first.counts.bins[TaskBin.SESSION] == 2)
+        report.check("r71-self: the migration's counts balance", first.counts.isBalanced && first.counts.sources.values.sum() == 2 && first.counts.bins[TaskBin.SORT] == 2)
+        report.check("r71-self: MIG1: open next-session tasks land in To sort in order, with the earlier-version note, none in This session or Queued", first.tasks.filter { it.task.isLive }.sortedBy { it.position }.map { it.task.bin to it.task.origin } == List(2) { TaskBin.SORT to com.accountabilibuddy.shared.tasks.TaskOrigins.EARLIER_VERSION } && first.counts.bins[TaskBin.SESSION] == 0 && first.counts.bins[TaskBin.QUEUED] == 0)
         report.check("r71-self: an old id in upper case becomes the PC's lower case", first.tasks.any { it.id == TASK })
         val view = first.views.first { it.view.name == "Errands only" }.view
         report.check("r71-self: a saved filter on a category only an item carried shows that label; its search words stay local", view.config.labels == listOf(TaskLabel.idFor("Errands")) && first.viewSearches[view.id] == "milk" && !TaskJson.text(TaskJson.writeViews(first.views)).contains("milk"))

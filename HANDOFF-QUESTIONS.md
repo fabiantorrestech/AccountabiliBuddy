@@ -781,3 +781,6 @@ UI round 2 (plan `doc/plans/2026-11-12-ui-round2-plan.md`, branch `ui-round2`). 
 - **Q821.** GS3b fix: with many devices and years the roller's relay quota can be smaller than its finished months (5 devices + 10 year files = 7 files), so the oldest months of a year may be missing from the relay's year file. Drive keeps everything; every device still holds its own copy. Accepted as the owner's quota rule; say if the roller should instead roll earlier.
 - **Q822.** GS3b fix: a device that is not removed but has never sent a card (so no version) cannot gate; an unreadable version counts as older and holds relay history writes. A removed device never gates.
 - **Q823.** GS3b fix: the guard on a new relay file is now "fewer than 4 free places of 64" (was 8); the quota is the real limit, the 429 handling the last resort.
+- **Q840.** MIG1: come-backs and auto-saved keep their own origin ("Parked ...", "Auto-saved ...") instead of "From the earlier version" (more information; they were already To sort). Say if all should read "From the earlier version".
+- **Q841.** MIG1: older apps read To sort tasks as come-backs (old fields), so steps/notes of migrated tasks are not shown to an older device. Accepted?
+- **Q842.** MIG1: "Sort them now" opens Tasks (To sort is the first Shelf column); it does not scroll or filter to it on the PC.

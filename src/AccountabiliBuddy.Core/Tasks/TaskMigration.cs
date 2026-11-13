@@ -9,11 +9,11 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// documents for a release as the way back.
 /// <list type="bullet">
 /// <item>Categories become labels (id from the name, same name and colour); a category only an item names becomes one too.</item>
-/// <item>The next session's list: open tasks fill This session up to the session's actions in order (a task's first open steps
-/// are its actions), the rest go to Queued; tasks done today go to Finished; tasks done before today go to History.</item>
-/// <item>Later stays Later (Next when a newer PC marked it); ticked Later items go to History.</item>
-/// <item>Come-backs and parked thoughts go to To sort ("Parked" and when); ticked ones go to History.</item>
-/// <item>Auto-saved goes to To sort ("Auto-saved" and its day); past its 30 days it is left out.</item>
+/// <item>Every open task of the old lists goes to To sort, in the order of the lists (next session, Later, come-backs, auto-saved,
+/// each in its own order), so the owner sorts them once: next-session and Later tasks carry "From the earlier version", come-backs
+/// "Parked" and when, auto-saved "Auto-saved" and its day; auto-saved past its 30 days is left out. Nothing goes to This session,
+/// Queued, Next or Later.</item>
+/// <item>Finished: tasks done today in the next session's list go to Finished; every other ticked task goes to History.</item>
 /// <item>The old filter becomes the Default view's settings, the saved filters become views (their search words stay local).</item>
 /// <item>Numbers go in creation order; ADR 72 labels become tags; a local item's keeper becomes its one device.</item>
 /// </list>
@@ -102,7 +102,7 @@ public static class TaskMigration
 
         var tasks = new List<TaskItem>();
         var history = new List<TaskHistoryEntry>();
-        var openNext = new List<TaskItem>();
+        var openDrafts = new List<Draft>();
         foreach (Draft draft in winners)
         {
             TaskItem task = draft.Task;
@@ -129,17 +129,18 @@ public static class TaskMigration
                 continue;
             }
 
-            if (draft.Source == NextTasksSource)
-            {
-                openNext.Add(task);
-            }
-            else
-            {
-                tasks.Add(task);
-            }
+            openDrafts.Add(draft);
         }
 
-        tasks.AddRange(FillSession(openNext, input.SessionActions));
+        // Every open task lands in To sort: the lists one after the other, each in its own order, then numbered 1, 2, 3 ...
+        double sortPosition = 0;
+        foreach (Draft draft in openDrafts
+            .OrderBy(draft => draft.SourceOrder).ThenBy(draft => draft.Task.Position).ThenBy(draft => draft.Task.Id.ToString("D"), StringComparer.Ordinal))
+        {
+            sortPosition++;
+            TaskItem open = draft.Task with { Bin = TaskBin.Sort, Position = sortPosition };
+            tasks.Add(draft.Source is NextTasksSource or LaterSource ? open with { Origin = TaskOrigins.EarlierVersion } : open);
+        }
 
         // Numbers in creation order over every live task and History snapshot.
         int nextNumber = Math.Max(1, input.FirstNumber);

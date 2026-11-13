@@ -14,6 +14,9 @@ public static class TaskOrigins
     public const string CopyFromPc = "Copy from PC";
     public const string ComeBackTo = "Come back to";
 
+    /// <summary>The open tasks the one-time move (and an older device's new items) brought into To sort (MIG1).</summary>
+    public const string EarlierVersion = "From the earlier version";
+
     /// <summary>"Done again from 142" (a History copy of a finished task); "Done again" when the original had no number.</summary>
     public static string DoneAgain(TaskNumber? original)
     {

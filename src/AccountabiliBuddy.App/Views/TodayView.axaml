@@ -270,6 +270,19 @@
                                         </StackPanel>
                                     </Expander>
 
+                                    <!-- MIG1: after the task migration, the open tasks of the earlier version wait in To sort; never shown during a session. -->
+                                    <Border Classes="inner" DataContext="{Binding EarlierTasks}" x:DataType="vm:EarlierTasksCardViewModel"
+                                            IsVisible="{Binding IsVisible, FallbackValue=False}">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="Sort them now" Command="{Binding SortThemNowCommand}" />
+                                            <Button Grid.Column="2" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" Command="{Binding DismissCommand}"
+                                                    AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss for good">
+                                                <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+
                                     <!-- Migration assistant: after an upgrade that brought something to set up. -->
                                     <Border Classes="inner" DataContext="{Binding WhatsNew}" x:DataType="vm:WhatsNewCardViewModel"
                                             IsVisible="{Binding IsVisible, FallbackValue=False}">

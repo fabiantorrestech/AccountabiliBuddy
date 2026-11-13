@@ -388,6 +388,16 @@ fun MainScreen(
                             // ADR 66: waits running in the background (this phone's armed end, a PC's), each with Cancel.
                             RunningWaitLines()
                             WhatsNewCard(appVersion, onSetUp = { whatsNewOpen = true }, onDismissed = { whatsNewTick++ })
+                            // MIG1: the earlier version's open tasks wait in To sort; one card, never during a session.
+                            val earlierCount by app.taskModel.earlierNotice.collectAsStateWithLifecycle()
+                            if (todayPc.state?.isActive != true) {
+                                com.accountabilibuddy.companion.ui.tasks.page.EarlierTasksCard(
+                                    earlierCount,
+                                    onSort = { app.taskModel.requestSort(); nav.select(AppDestination.Tasks) },
+                                    onDismiss = app.taskModel::dismissEarlierNotice,
+                                    modifier = Modifier.padding(top = 12.dp),
+                                )
+                            }
                         },
                     )
                 }
