@@ -1399,7 +1399,7 @@ public partial class App : Application
             _ = StartTaskViewsAsync();
         }
 
-        // Round 2 R4 (brief §5.3): this PC's goals, device-local until ADR 79. Once (database backup first, marker last) the default
+        // Round 2 R4 (brief §5.3): this PC's goals (synced with the other devices under ADR 79, below). Once (database backup first, marker last) the default
         // area "Work" and the built-in Deep work goal are made; Deep work's daily target stays the "goal" document (ADR 29), its weekly
         // target and "Track time only" live in "goals.deepWork". A failed first run leaves no marker and changes nothing else; goals that
         // can't be read stay closed (never rebuilt on a guess). Lowering Deep work follows the looser-change rule (GoalsService); guards
@@ -1409,12 +1409,22 @@ public partial class App : Application
         _goals = new AccountabiliBuddy.App.Services.Goals.GoalsService(
             goalStore, goal, _sessions!, time, () => guidance.IsCompanion, goalLowerWaits, () => _configuration!.Current.Locks.LooseningDelay);
         guidance.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = _goals.ModeChangedAsync());
+        // ADR 79 (GS3a): goals travel in the sealed sync files while this PC shares its task lists: every goal part changed here is stamped
+        // with this PC's id, a received file's goals merge part by part, Deep work's received lower weekly target waits this PC's own
+        // looser-change delay (never during a session outside PB), and a change here writes this PC's file again.
+        goalStore.SelfId = () => selfId() ?? Guid.Empty;
+        _goals.Self = goalStore.SelfId;
+        var goalListSync = new AccountabiliBuddy.App.Services.Sync.GoalListSync(_goals, selfId, time);
+        syncCoordinator.GoalParts = goalListSync.Decorate;
+        syncCoordinator.MergeGoals = goalListSync.ReceiveAsync;
+        goalStore.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
         // ADR 84: a goal with a Beeminder source in direction Read counts that goal's datapoints day by day, read after each goals read
-        // (the 30-minute schedule, Today and Goals opening) while a token is set; the entries stay on this PC and leave with the link or the token.
+        // (the 30-minute schedule, Today and Goals opening) while a token is set; the entries travel like every goal entry (ADR 79) and only
+        // a PC with a token changes or removes them.
         _beeminderDatapoints = new AccountabiliBuddy.App.Services.Beeminder.BeeminderDatapointsService(_calendarNetwork, goalStore, _beeminder!, time);
         _ = _beeminderDatapoints.ReconcileAsync();
         // ADR 71: the goals go in backups with the task lists, readable inside the file (notes and reasons only with a password).
-        backups.Goals = AccountabiliBuddy.App.Services.Backup.BackupAccess.Goals(goalStore);
+        backups.Goals = AccountabiliBuddy.App.Services.Backup.BackupAccess.Goals(goalStore, _goals, () => _sessions!.IsEnforcing);
         // Round 2 R5: what the Goals page and Today's goals count from: this PC's counted sessions with their checklists (the day bar's
         // records and omitted-session rule), each other device's synced sessions, and the goals' own entries. The log is read again when
         // it is written; a received file, a goal change, the daily goal or a minute of focus only recompute. Never read by a guard.
@@ -1442,6 +1452,11 @@ public partial class App : Application
             }
         });
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
+        // ADR 79 (GS1b/GS3a): this PC's id (its own #tag and calendar extras aren't counted twice) and the phone's daily steps (a steps
+        // goal counts the highest of them and a synced Health Connect value, never both).
+        goalData.DeviceId = selfId;
+        goalData.Steps = () => dailySteps.Current;
+        dailySteps.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         goal.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         _ = goalData.ReloadAsync();

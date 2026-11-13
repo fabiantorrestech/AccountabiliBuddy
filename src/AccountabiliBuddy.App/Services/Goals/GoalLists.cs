@@ -4,8 +4,8 @@ using AccountabiliBuddy.Core.Goals;
 namespace AccountabiliBuddy.App.Services.Goals;
 
 /// <summary>
-/// Everything the goals store keeps that a backup carries and a future goals sync (ADR 79, Proposed) would merge: areas, goals, entries,
-/// reminders and weekly review records, tombstones included. Each list is sealed at rest in its own document (<see cref="GoalStore"/>).
+/// Everything the goals store keeps that a backup carries and goals sync merges (ADR 79; <see cref="GoalStore.ToSync"/>): areas, goals,
+/// entries, reminders and weekly review records, tombstones included. Each list is sealed at rest in its own document (<see cref="GoalStore"/>).
 /// </summary>
 public sealed record GoalLists(
     IReadOnlyList<GoalArea> Areas,

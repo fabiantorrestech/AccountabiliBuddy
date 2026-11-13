@@ -341,6 +341,18 @@ public static class GoalHistoryRules
     /// </summary>
     public static GoalHistoryMerged Merge(GoalSyncLists held, GoalSyncLists? file, IReadOnlyList<GoalHistoryRows> history, DateTimeOffset now)
     {
+        return Merge(held, file, history, now, new HashSet<Guid>());
+    }
+
+    /// <summary>
+    /// <see cref="Merge(GoalSyncLists, GoalSyncLists?, IReadOnlyList{GoalHistoryRows}, DateTimeOffset)"/>, with Q649's rule (orchestrator,
+    /// proposal 1): rows of a goal whose tombstone this device pruned (<paramref name="prunedGoals"/>, kept for good,
+    /// <see cref="PrunedGoalIds"/>) are dropped for good and never keep a file unread, so a month or year file that still holds them isn't
+    /// downloaded again on every sync. A file is left unread only for rows of a goal that may still arrive. The phone's twin does the same.
+    /// </summary>
+    public static GoalHistoryMerged Merge(
+        GoalSyncLists held, GoalSyncLists? file, IReadOnlyList<GoalHistoryRows> history, DateTimeOffset now, IReadOnlySet<Guid> prunedGoals)
+    {
         GoalSyncLists result = file is null ? held : GoalSyncMerge.Merge(held, file, now);
         bool goalsPart = file is not null;
         List<GoalHistoryRows> files = history.Where(item => item is { File: not null, Entries: not null }).ToList();
@@ -351,13 +363,38 @@ public static class GoalHistoryRules
 
         GoalSyncMergeResult merged = GoalSyncMerge.MergeReported(
             result, GoalSyncLists.Empty with { Entries = MergeEntries(files.Select(item => item.Entries), now) }, now);
-        var droppedIds = merged.DroppedEntries.Select(entry => entry.Id).ToHashSet();
+        var droppedIds = merged.DroppedEntries.Where(entry => !prunedGoals.Contains(entry.GoalId)).Select(entry => entry.Id).ToHashSet();
         List<GoalHistoryListing> read = files
             .Where(item => !item.Entries.Any(entry => entry is not null && droppedIds.Contains(entry.Id)))
             .Select(item => item.File)
             .Distinct()
             .ToList();
         return new GoalHistoryMerged(merged.Lists, read, merged.DroppedEntries, goalsPart);
+    }
+
+    /// <summary>
+    /// Q649: the goals whose tombstone went between <paramref name="before"/> and <paramref name="after"/> (a tombstone before, absent after:
+    /// pruned at 30 days by the merge or the store), ordered by id text. The device adds them to its kept set of pruned goal ids (ids only,
+    /// about 16 bytes a goal, kept for good) for <see cref="Merge(GoalSyncLists, GoalSyncLists?, IReadOnlyList{GoalHistoryRows}, DateTimeOffset, IReadOnlySet{Guid})"/>.
+    /// A goal that comes back live later (a newer edit elsewhere) is simply held again; its rows then land as usual.
+    /// </summary>
+    public static IReadOnlyList<Guid> PrunedGoalIds(GoalSyncLists before, GoalSyncLists after)
+    {
+        var stillHeld = new HashSet<Guid>(after.Goals.Where(goal => goal is not null).Select(goal => goal.Id));
+        foreach (GoalNewerItem raw in GoalNewerJson.NewerOf(after.Goals))
+        {
+            if (GoalRawItem.TryRead(raw.Json) is { } item)
+            {
+                stillHeld.Add(item.Id);
+            }
+        }
+
+        return before.Goals
+            .Where(goal => goal is not null && !goal.IsLive && !stillHeld.Contains(goal.Id))
+            .Select(goal => goal.Id)
+            .Distinct()
+            .OrderBy(id => id.ToString("D"), StringComparer.Ordinal)
+            .ToList();
     }
 
     /// <summary>

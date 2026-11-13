@@ -215,7 +215,8 @@ public sealed class GoalReviewService : IDisposable
 
         GoalReviewRecord record = RecordFor(week) ?? NewRecord(week);
         List<GoalReviewDecision> decisions = record.Decisions.Where(decision => decision.GoalId != goalId).ToList();
-        decisions.Add(new GoalReviewDecision(goalId, choice));
+        // ADR 79: each goal's answer carries its own time, so two devices' answers for the same week merge goal by goal (newest wins).
+        decisions.Add(new GoalReviewDecision(goalId, choice) { DecidedAt = Now });
         return await _goals.SaveReviewAsync(record with { Decisions = decisions });
     }
 
@@ -228,7 +229,8 @@ public sealed class GoalReviewService : IDisposable
     private GoalReviewRecord NewRecord(DateOnly week)
     {
         double position = _goals.Lists.Reviews.Select(record => record.Position).DefaultIfEmpty(0).Max() + 1;
-        return new GoalReviewRecord(Guid.NewGuid(), week, [], position, Now);
+        // ADR 79: one record per week on every device (its id from the week), so two devices reviewing the same week fold into one.
+        return new GoalReviewRecord(GoalReviewIds.For(week), week, [], position, Now);
     }
 
     // Wakes at the next due moment or snooze end (at most every 30 minutes), so the row comes without a restart.

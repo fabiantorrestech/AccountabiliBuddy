@@ -8,20 +8,24 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// One row of Edit goal › Tracking &amp; sources › "Counting now" (round 2 R5.7, board Goals-PC-Edit): what the source is, its setting
 /// (the label, the #tag, the calendar category, the app, the Beeminder goal and its direction: Read only; Send and Both "Coming soon"
-/// until ADR 80), and its switch (counts by itself, brief §5.10). Phone-only sources say "Measured on your phone" (counted there only,
-/// until ADR 79). Deep work's one row is locked. <see cref="ToRule"/> gives the stored rule back.
+/// until ADR 80), and its switch (counts by itself, brief §5.10). Phone-only sources say "Measured on your phone"; since ADR 79 (GS3a)
+/// their synced day values count here once the phone sends them, and a Beeminder link on a PC without a token says its values come
+/// from the PC that reads Beeminder. The device picker of screen time stays greyed until ST2. Deep work's one row is locked.
+/// <see cref="ToRule"/> gives the stored rule back.
 /// </summary>
 public sealed partial class GoalSourceRowViewModel : ObservableObject
 {
     private readonly GoalSourceRule _rule;
     private readonly Action<GoalSourceRowViewModel> _remove;
     private readonly Action _changed;
+    private readonly bool _beeminderConnected;
 
     public GoalSourceRowViewModel(GoalSourceRule rule, GoalEditorLookups lookups, bool locked, Action<GoalSourceRowViewModel> remove, Action changed)
     {
         _rule = rule;
         _remove = remove;
         _changed = changed;
+        _beeminderConnected = lookups.BeeminderConnected;
         IsLocked = locked;
         Labels = lookups.Labels;
         Categories = lookups.CalendarCategories;
@@ -97,8 +101,10 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         GoalSourceType.FocusTag => "Sessions with a task carrying this #tag. Counted on this PC (the phone shows it as measured on your PC).",
         GoalSourceType.Hand => "Here or on Today.",
         GoalSourceType.HealthSteps => "Measured on your phone (Health Connect, Pixel Watch through it). Daily steps already reach this PC.",
-        GoalSourceType.HealthSleep or GoalSourceType.ScreenTime => "Measured on your phone: counted there only for now.",
+        GoalSourceType.HealthSleep => "Measured on your phone (Health Connect). Its daily values count here once your phone syncs them.",
+        GoalSourceType.ScreenTime => "Measured on your phone: counted there only for now.",
         GoalSourceType.CalendarCategory => "Time in events of this day plan category. This PC only; it never counts as focus or for a guard.",
+        GoalSourceType.Beeminder when !_beeminderConnected => "Read on the PC that has your Beeminder token; its daily values reach this PC when it syncs",
         GoalSourceType.Beeminder => SelectedBeeminder?.Note is string note ? $"Counts its daily values on this PC · {note}" : "Counts its daily values on this PC",
         _ => string.Empty,
     };

@@ -61,10 +61,13 @@ public sealed class BeeminderDatapointsService
 
     public event EventHandler? Changed;
 
-    /// <summary>Removes the Beeminder entries no live Read link owns (also all of them without a token).</summary>
+    /// <summary>
+    /// Removes the Beeminder entries no live Read link owns, only while this PC has a token (ADR 79: without one the values may be another
+    /// PC's reading, and stay).
+    /// </summary>
     public Task ReconcileAsync()
     {
-        return _store.ChangeAsync(this, (lists, _) => BeeminderEntries.Prune(lists, ActiveLinks(lists)));
+        return _store.ChangeAsync(this, (lists, at) => BeeminderEntries.Prune(lists, ActiveLinks(lists), _beeminder.HasToken, at));
     }
 
     /// <summary>Reads the datapoints of every linked goal (called by <see cref="BeeminderService"/> after it read the goals).</summary>

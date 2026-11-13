@@ -286,7 +286,30 @@ public sealed class SyncCoordinator
         // ADR 72: the task history, settle records, Auto-saved list and handovers, while task lists are shared (ADR 71).
         SyncFile decorated = ShareTaskLists() && DecorateTaskLists is { } decorate ? decorate(built) : built;
         // ADR 76: the one task list's parts, and the old fields rebuilt from it for older apps (they replace the lists' own).
-        return ShareTaskLists() && TaskModelParts is { } parts ? parts(decorated) : decorated;
+        SyncFile withTasks = ShareTaskLists() && TaskModelParts is { } parts ? parts(decorated) : decorated;
+        // ADR 79: the goal lists follow the same switch (none while the goals aren't ready).
+        return ShareTaskLists() && GoalParts is { } goalParts ? goalParts(withTasks) : withTasks;
+    }
+
+    /// <summary>ADR 79 (GS3a): adds the five goal parts to this PC's file (<see cref="GoalListSync.Decorate"/>). Set by the app.</summary>
+    public Func<SyncFile, SyncFile>? GoalParts { get; set; }
+
+    /// <summary>ADR 79 (GS3a): takes another device's goal parts in (<see cref="GoalListSync.ReceiveAsync"/>). Set by the app.</summary>
+    public Func<SyncFile, Task<bool>>? MergeGoals { get; set; }
+
+    /// <summary>
+    /// The copy of a received file this PC keeps (<see cref="ReceivedDevicesService"/>, stored in the clear): without what is merged into
+    /// this PC's own sealed stores (the shared lists, ADR 48; the past keys, ADR 56; ADR 76's task parts and the account's Tasks settings;
+    /// ADR 79's goal parts and the goal history marker), so their text is never kept a second time in the clear. <paramref name="steps"/>
+    /// is the step count to keep (a QR file's, which carries none, keeps the stored one).
+    /// </summary>
+    public static SyncFile KeptCopy(SyncFile file, SyncSteps? steps)
+    {
+        return file with
+        {
+            NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps, Tasks = null, Labels = null, Views = null, TaskLog = null,
+            TaskAccountSettings = null, Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null, GoalYearsMerged = null,
+        };
     }
 
     /// <summary>
@@ -482,13 +505,11 @@ public sealed class SyncCoordinator
         // The shared lists (ADR 48) are merged into this PC's own, encrypted stores below; the copy kept of the sender's file
         // doesn't hold them, so their text isn't kept a second time, in the clear (the sealed bytes it passes on are sealed).
         // The past keys (ADR 56) are merged into their own encrypted store and left out of the copy kept here too.
-        // So are ADR 76's task parts and the account's Tasks settings (the picked calendar id can be the account's address).
+        // So are ADR 76's task parts and the account's Tasks settings (the picked calendar id can be the account's address), and ADR 79's
+        // goal parts (KeptCopy).
         // A QR file never carries steps, which reads the same as "switched off": it keeps the stored counts rather than wiping them.
         SyncSteps? steps = method == SyncDeviceCard.MethodQr ? file.Steps ?? stored?.File.Steps : file.Steps;
-        await _received.AcceptAsync(
-            file with { NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps, Tasks = null, Labels = null, Views = null, TaskLog = null, TaskAccountSettings = null },
-            method,
-            sealedBytes);
+        await _received.AcceptAsync(KeptCopy(file, steps), method, sealedBytes);
         if (PastKeys is not null)
         {
             await PastKeys.MergeAsync(file.PastKeys);
@@ -548,6 +569,12 @@ public sealed class SyncCoordinator
         if (ReceiveTaskLists is { } receive)
         {
             await receive(file);
+        }
+
+        // ADR 79: the goal lists, under the same switch; a file without them (an older app, a QR file) leaves the goals alone.
+        if (MergeGoals is { } mergeGoals)
+        {
+            await mergeGoals(file);
         }
     }
 

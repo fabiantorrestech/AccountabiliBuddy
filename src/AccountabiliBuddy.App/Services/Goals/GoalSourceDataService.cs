@@ -72,6 +72,18 @@ public sealed class GoalSourceDataService
     /// </summary>
     public Func<IReadOnlyDictionary<Guid, IReadOnlyList<LocalWindow>>?>? CalendarWindows { get; set; }
 
+    /// <summary>
+    /// ADR 79 (GS3a): this PC's device id (its own #tag and calendar extras are left out of the count, <see cref="GoalSourceData.DeviceId"/>);
+    /// null = not in a group. Set by the app; read on every recompute.
+    /// </summary>
+    public Func<Guid?>? DeviceId { get; set; }
+
+    /// <summary>
+    /// The phone's daily step counts as its sync file carries them (<see cref="GoalSourceData.Steps"/>: a steps goal counts the highest of
+    /// them and any synced Health Connect value for a day, never both added). Set by the app; read on every recompute.
+    /// </summary>
+    public Func<SyncSteps?>? Steps { get; set; }
+
     /// <summary>Raised after <see cref="Current"/> changed.</summary>
     public event EventHandler? Changed;
 
@@ -109,7 +121,7 @@ public sealed class GoalSourceDataService
             focus.AddRange(GoalFocusAttribution.FromSynced(device, now, zone));
         }
 
-        Current = new GoalSourceData(focus, _store.Lists.Entries, zone, CalendarWindows?.Invoke());
+        Current = new GoalSourceData(focus, _store.Lists.Entries, zone, CalendarWindows?.Invoke(), Steps: Steps?.Invoke(), DeviceId: DeviceId?.Invoke());
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

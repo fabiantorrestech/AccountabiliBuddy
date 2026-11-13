@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AccountabiliBuddy.Core.Goals;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.App.Services.Goals;
 
@@ -17,6 +18,13 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// <item><b>Deep work</b> can't be paused, deleted or logged by hand, and its sources stay "all counted focus" (plan §3b 6).</item>
 /// <item><b>Every other goal</b> feeds no guard: target changes, pausing and deleting apply at once in both modes.</item>
 /// </list>
+/// <b>ADR 79 (GS3a):</b> the goals travel between the user's devices (<see cref="Sync.GoalListSync"/>). Deep work's weekly target and
+/// "Track time only" travel in its record with their own stamp (<see cref="DeepWorkGoalSettings.Stamp"/>: this PC's EFFECTIVE values,
+/// never a waiting one); one received from another device goes through the same rule as a change made here (<see cref="ApplySyncedAsync"/>):
+/// higher or new at once (also during a session); lower, removed or "Track time only" turning on waits THIS PC's looser-change delay from
+/// the moment it arrived here (the trusted clock), is held while a focus session the user started runs (outside ProductaBuddy mode) and
+/// counts its wait from that session's end, keeps the work-hours rule, and lands with the sender's stamp, so nothing echoes. Cancel on such
+/// a change stamps this PC's value again, which the sender then takes as a raise.
 /// Guards, the goal unlock and the phone's focusDay read counted focus (<see cref="DeepWorkService"/>) and the "goal" document only,
 /// never goal counts or entries. Use from the UI thread only.
 /// </summary>
@@ -60,6 +68,18 @@ public sealed class GoalsService
     }
 
     public GoalStore Store => _store;
+
+    /// <summary>This device's sync id (ADR 79), the device Deep work's weekly target changed here is stamped with; the empty id before this PC is in a group. Set by the app.</summary>
+    public Func<Guid> Self { get; set; } = () => Guid.Empty;
+
+    /// <summary>
+    /// ADR 79: Deep work's weekly target and "Track time only" as this PC sends them (<see cref="GoalDeepWorkSync.Compose"/>): the values
+    /// in effect (never a waiting one) with their own stamp. Null until the goals are ready.
+    /// </summary>
+    public GoalDeepWorkTargets? DeepWorkTargetsForSync =>
+        _store.IsReady && _store.Lists.DeepWorkRecord is Goal record
+            ? new GoalDeepWorkTargets(_store.DeepWork.EffectiveWeekly, _store.DeepWork.TrackTimeOnly, OwnStamp(_store.DeepWork, record))
+            : null;
 
     public GoalModelState State => _store.State;
 
@@ -192,12 +212,20 @@ public sealed class GoalsService
             if (_store.IsReady)
             {
                 DeepWorkGoalSettings settings = _store.DeepWork;
-                await _store.SetDeepWorkAsync(kind switch
+                DeepWorkGoalSettings cancelled = kind switch
                 {
                     DeepWorkTargetKind.Daily => settings with { PendingDaily = null },
                     DeepWorkTargetKind.Weekly => settings with { PendingWeekly = null },
                     _ => settings with { PendingTrackTimeOnly = null },
-                });
+                };
+                if (kind != DeepWorkTargetKind.Daily && settings.PendingStamp is not null && _store.Lists.DeepWorkRecord is Goal record)
+                {
+                    // ADR 79: a lower value received from another device, cancelled here: this PC's value is stamped again (newer than the
+                    // received one), so the other device takes it back as a raise.
+                    cancelled = cancelled with { Stamp = NewStamp(settings, record), PendingStamp = null };
+                }
+
+                await SaveDeepWorkAsync(cancelled);
             }
 
             return true;
@@ -322,7 +350,7 @@ public sealed class GoalsService
         // Setting a daily target ends Track time only: adding a target is stricter, at once.
         if (_store.DeepWork is { } held && (held.TrackTimeOnly || held.PendingTrackTimeOnly is not null))
         {
-            await _store.SetDeepWorkAsync(held with { TrackTimeOnly = false, PendingTrackTimeOnly = null });
+            await SaveDeepWorkAsync(held with { TrackTimeOnly = false, PendingTrackTimeOnly = null, Stamp = held.TrackTimeOnly ? NewStamp(held, record) : held.Stamp });
         }
 
         // The guards read the "goal" document's minutes, so lower or not is judged against them.
@@ -331,11 +359,11 @@ public sealed class GoalsService
         switch (decision.Outcome)
         {
             case GoalChangeOutcome.Unchanged:
-                await _store.SetDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
+                await SaveDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
                 return GoalChangeResult.Unchanged;
             case GoalChangeOutcome.ApplyNow:
                 await WriteDailyAsync(wanted);
-                await _store.SetDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
+                await SaveDeepWorkAsync(_store.DeepWork with { PendingDaily = null });
                 return GoalChangeResult.Applied;
             default:
                 return await KeepWaitingAsync(
@@ -354,7 +382,12 @@ public sealed class GoalsService
         if (wanted is not null && _store.DeepWork is { } held && (held.TrackTimeOnly || held.PendingTrackTimeOnly is not null))
         {
             // A weekly target ends Track time only: stricter, at once.
-            await _store.SetDeepWorkAsync(held with { TrackTimeOnly = false, PendingTrackTimeOnly = null });
+            await SaveDeepWorkAsync(held with
+            {
+                TrackTimeOnly = false,
+                PendingTrackTimeOnly = null,
+                Stamp = held.TrackTimeOnly ? NewStamp(held, record) : held.Stamp,
+            });
         }
 
         DeepWorkGoalSettings settings = _store.DeepWork;
@@ -363,14 +396,15 @@ public sealed class GoalsService
         switch (decision.Outcome)
         {
             case GoalChangeOutcome.Unchanged:
-                await _store.SetDeepWorkAsync(_store.DeepWork with { PendingWeekly = null });
+                await SaveDeepWorkAsync(_store.DeepWork with { PendingWeekly = null });
                 return GoalChangeResult.Unchanged;
             case GoalChangeOutcome.ApplyNow:
-                await _store.SetDeepWorkAsync(_store.DeepWork with { WeeklyMinutes = wanted, PendingWeekly = null });
+                await SaveDeepWorkAsync(_store.DeepWork with { WeeklyMinutes = wanted, PendingWeekly = null, Stamp = NewStamp(_store.DeepWork, record) });
                 return GoalChangeResult.Applied;
             default:
                 return await KeepWaitingAsync(
-                    held => held.PendingWeekly, decision.Pending(wanted)!, (held, pending) => held with { PendingWeekly = pending });
+                    held => held.PendingWeekly, decision.Pending(wanted)!,
+                    (held, pending) => held with { PendingWeekly = pending, PendingStamp = null, PendingAfterSession = false });
         }
     }
 
@@ -389,7 +423,12 @@ public sealed class GoalsService
                 return GoalChangeResult.Unchanged;
             }
 
-            await _store.SetDeepWorkAsync(settings with { TrackTimeOnly = false, PendingTrackTimeOnly = null });
+            await SaveDeepWorkAsync(settings with
+            {
+                TrackTimeOnly = false,
+                PendingTrackTimeOnly = null,
+                Stamp = settings.TrackTimeOnly ? NewStamp(settings, record) : settings.Stamp,
+            });
             return GoalChangeResult.Applied;
         }
 
@@ -402,17 +441,18 @@ public sealed class GoalsService
         GoalChangeDecision decision = GoalLowering.Decide(record, current, null, _isProductaBuddy(), _lowerWaitsNow(), Now, _looserWait());
         if (decision.Outcome == GoalChangeOutcome.ApplyNow)
         {
-            await _store.SetDeepWorkAsync(TrackingTimeOnly(_store.DeepWork));
+            await SaveDeepWorkAsync(TrackingTimeOnly(_store.DeepWork) with { Stamp = NewStamp(_store.DeepWork, record) });
             return GoalChangeResult.Applied;
         }
 
         return await KeepWaitingAsync(
-            held => held.PendingTrackTimeOnly, decision.Pending(null)!, (held, pending) => held with { PendingTrackTimeOnly = pending });
+            held => held.PendingTrackTimeOnly, decision.Pending(null)!,
+            (held, pending) => held with { PendingTrackTimeOnly = pending, PendingStamp = null, PendingAfterSession = false });
     }
 
     private async Task ApplyPendingGatedAsync()
     {
-        if (!_store.IsReady || !_store.DeepWork.HasPending)
+        if (!_store.IsReady || !_store.DeepWork.HasPending || _store.Lists.DeepWorkRecord is null)
         {
             return;
         }
@@ -424,6 +464,20 @@ public sealed class GoalsService
         bool Ready(GoalPendingChange? pending) => pending is not null && GoalLowering.CanApply(pending, now, session, productaBuddy, lowerWaits);
 
         DeepWorkGoalSettings settings = _store.DeepWork;
+        if (settings.PendingAfterSession && (productaBuddy || !session))
+        {
+            // ADR 79: a looser value received during a session waits its delay from the session's end (none in ProductaBuddy mode).
+            DateTimeOffset from = now + _looserWait();
+            GoalPendingChange? Rebased(GoalPendingChange? pending) =>
+                pending is null || productaBuddy || pending.AppliesAt >= from ? pending : pending with { AppliesAt = from };
+            settings = settings with
+            {
+                PendingWeekly = Rebased(settings.PendingWeekly),
+                PendingTrackTimeOnly = Rebased(settings.PendingTrackTimeOnly),
+                PendingAfterSession = false,
+            };
+        }
+
         if (!productaBuddy)
         {
             // A change made in ProductaBuddy mode seen in AccountabiliBuddy mode (a switch this service didn't see, e.g. while the
@@ -437,14 +491,23 @@ public sealed class GoalsService
             };
         }
 
+        // A received change lands with its sender's stamp (nothing echoes); one made here is stamped as it lands (ADR 79).
         if (Ready(settings.PendingTrackTimeOnly))
         {
-            settings = TrackingTimeOnly(settings);
+            GoalFieldStamp stamp = settings.PendingStamp ?? NewStamp(settings, _store.Lists.DeepWorkRecord!);
+            settings = TrackingTimeOnly(settings) with { Stamp = stamp, PendingStamp = null };
         }
 
         if (Ready(settings.PendingWeekly))
         {
-            settings = settings with { WeeklyMinutes = settings.PendingWeekly!.Amount is double weekly ? (int?)(int)weekly : null, PendingWeekly = null };
+            GoalFieldStamp stamp = settings.PendingStamp ?? NewStamp(settings, _store.Lists.DeepWorkRecord!);
+            settings = settings with
+            {
+                WeeklyMinutes = settings.PendingWeekly!.Amount is double weekly ? (int?)(int)weekly : null,
+                PendingWeekly = null,
+                Stamp = stamp,
+                PendingStamp = null,
+            };
         }
 
         int? dailyTo = null;
@@ -463,7 +526,7 @@ public sealed class GoalsService
         // Deep work's own values first (nothing else changes them while the gate is held), then the "goal" document, only if nobody
         // set it meanwhile: the goal card, another PC or a restore can raise it during the save above (outside this gate), and that
         // later choice wins; the waiting lowering is then dropped, never written over it (R4 milestone review).
-        await _store.SetDeepWorkAsync(settings);
+        await SaveDeepWorkAsync(settings);
         if (dailyTo is int lowered && _daily.Current.DailyMinutes == dailySeen)
         {
             await WriteDailyAsync(lowered);
@@ -628,7 +691,11 @@ public sealed class GoalsService
         return GoalChangeResult.Applied;
     }
 
-    /// <summary>Delete a goal (at once): a tombstone with no text, its entries and reminders with it. Deep work can't be deleted.</summary>
+    /// <summary>
+    /// Delete a goal (at once): a tombstone with no text (<see cref="GoalTombstones.Delete"/>, ADR 79). Its entries and reminders stay, hidden
+    /// while the goal isn't live, and come back with it if a later edit on another device revives it; they go with its tombstone (30 days).
+    /// Deep work can't be deleted.
+    /// </summary>
     public async Task<GoalChangeResult> DeleteGoalAsync(Guid goalId, object? source = null)
     {
         if (!_store.IsReady)
@@ -644,11 +711,7 @@ public sealed class GoalsService
 
         await _store.ChangeAsync(source, (lists, now) => lists with
         {
-            Goals = Replace(lists.Goals, item => item.Id == goalId, goal with { Name = string.Empty, Notes = null, Sources = [], DeletedAt = now, EditedAt = now }),
-            Entries = lists.Entries.Select(entry => entry.GoalId == goalId && entry.IsLive ? entry with { DeletedAt = now, EditedAt = now } : entry).ToList(),
-            Reminders = lists.Reminders.Select(reminder => reminder.GoalId == goalId && reminder.IsLive
-                ? reminder with { Reason = null, DeletedAt = now, EditedAt = now }
-                : reminder).ToList(),
+            Goals = Replace(lists.Goals, item => item.Id == goalId, GoalTombstones.Delete(goal, SharedListMerge.NextStamp(now, goal))),
         });
         return GoalChangeResult.Applied;
     }
@@ -810,6 +873,145 @@ public sealed class GoalsService
     /// <summary>Options › Charts (week start, heatmap labels, extra tiles; at once in both modes).</summary>
     public Task SetPageSettingsAsync(GoalPageSettings settings, object? source = null) => _store.SetPageSettingsAsync(settings, source);
 
+    // ---- ADR 79: another device's goals ----
+
+    /// <summary>
+    /// Another device's goals merged with this PC's (<see cref="Sync.GoalListSync"/>) taken in: the lists as merged, and Deep work's record
+    /// split (<see cref="GoalDeepWorkSync.Split"/>) so the weekly target and "Track time only" it carried go through this PC's rule (the
+    /// class summary) and the stored record keeps this PC's own stamp. One store change for both (<see cref="GoalStore.ApplySyncedAsync"/>).
+    /// Refused (false) unless the goals are ready.
+    /// </summary>
+    /// <returns>Whether anything changed here.</returns>
+    public Task<bool> ApplySyncedAsync(GoalSyncLists merged, object? source = null) => GatedAsync(() => ApplySyncedGatedAsync(merged, source));
+
+    private async Task<bool> ApplySyncedGatedAsync(GoalSyncLists merged, object? source)
+    {
+        if (!_store.IsReady || _store.Lists.DeepWorkRecord is not Goal ownRecord)
+        {
+            return false;
+        }
+
+        IReadOnlyList<Goal> known = merged.Goals is GoalNewerList<Goal> carrier ? carrier.Known : merged.Goals;
+        int index = known.ToList().FindIndex(goal => goal.Id == Goal.DeepWorkId && goal.IsLive);
+        if (index < 0)
+        {
+            return await _store.ApplySyncedAsync(merged, null, source);
+        }
+
+        GoalFieldStamp own = OwnStamp(_store.DeepWork, ownRecord);
+        (Goal stored, GoalDeepWorkTargets received) = GoalDeepWorkSync.Split(known[index]);
+        DeepWorkGoalSettings settings = Received(_store.DeepWork, received, own, ownRecord);
+        // The stored record keeps its own weekly-part stamp: the one in effect is Deep work's settings' (they always hold one from here
+        // on), so a merge never rewrites the record for it (no change, no event, no echo).
+        GoalFieldStamp? storedStamp = GoalFieldStamps.For(ownRecord).Of(GoalField.SecondTarget);
+        var goals = known.ToList();
+        goals[index] = stored with { Stamps = GoalFieldStamps.For(stored).With(GoalField.SecondTarget, storedStamp) };
+        GoalSyncLists lists = merged with { Goals = GoalNewerJson.WithNewer(goals, GoalNewerJson.NewerOf(merged.Goals)) };
+        return await _store.ApplySyncedAsync(lists, settings, source);
+    }
+
+    // The weekly target and "Track time only" another device sent, against the ones in effect here (stamped "own").
+    private DeepWorkGoalSettings Received(DeepWorkGoalSettings held, GoalDeepWorkTargets received, GoalFieldStamp own, Goal record)
+    {
+        DeepWorkGoalSettings settings = held.Stamp is null ? held with { Stamp = own } : held;
+        if (received.Stamp == own)
+        {
+            return settings;
+        }
+
+        int? wanted = received.TrackTimeOnly || received.WeeklyMinutes is not double minutes ? null : Math.Max(1, (int)Math.Round(minutes));
+        bool sameInEffect = received.TrackTimeOnly == settings.TrackTimeOnly && (settings.TrackTimeOnly || wanted == settings.WeeklyMinutes);
+        if (sameInEffect)
+        {
+            // The same values: their newer stamp is taken; a change received earlier and still waiting is older than it and goes.
+            return settings.PendingStamp is null
+                ? settings with { Stamp = received.Stamp }
+                : settings with { Stamp = received.Stamp, PendingWeekly = null, PendingTrackTimeOnly = null, PendingStamp = null, PendingAfterSession = false };
+        }
+
+        bool looser = received.TrackTimeOnly || (!settings.TrackTimeOnly && GoalLowering.IsLooser(GoalDirection.AtLeast, settings.WeeklyMinutes, wanted));
+        if (!looser)
+        {
+            // Higher, new, or "Track time only" turning off: stricter, at once (also during a session); any waiting weekly change goes.
+            return settings with
+            {
+                WeeklyMinutes = wanted,
+                TrackTimeOnly = false,
+                Stamp = received.Stamp,
+                PendingWeekly = null,
+                PendingTrackTimeOnly = null,
+                PendingStamp = null,
+                PendingAfterSession = false,
+            };
+        }
+
+        DateTimeOffset now = Now;
+        bool productaBuddy = _isProductaBuddy();
+        GoalPendingChange? running = received.TrackTimeOnly ? settings.PendingTrackTimeOnly : settings.PendingWeekly;
+        if (running is not null && settings.PendingStamp == received.Stamp && Nullable.Equals(running.Amount, (double?)wanted))
+        {
+            // Already waiting for this very change: its time stays (the same file read again).
+            return settings;
+        }
+
+        GoalPendingChange pending;
+        bool afterSession = false;
+        if (!productaBuddy && SessionRunning)
+        {
+            // Held while the session runs; its wait counts from the session's end (ApplyPendingIfReadyAsync).
+            pending = new GoalPendingChange(wanted, now + _looserWait());
+            afterSession = true;
+        }
+        else
+        {
+            GoalTarget current = received.TrackTimeOnly
+                ? new GoalTarget(GoalPeriod.Day, _daily.Current.DailyMinutes, GoalUnit.Minutes)
+                : new GoalTarget(GoalPeriod.Week, settings.WeeklyMinutes, GoalUnit.Minutes);
+            GoalChangeDecision decision = GoalLowering.Decide(record, current, wanted, productaBuddy, _lowerWaitsNow(), now, _looserWait());
+            if (decision.Outcome != GoalChangeOutcome.Wait)
+            {
+                DeepWorkGoalSettings applied = received.TrackTimeOnly ? TrackingTimeOnly(settings) : settings with { WeeklyMinutes = wanted, PendingWeekly = null, PendingTrackTimeOnly = null };
+                return applied with { Stamp = received.Stamp, PendingStamp = null, PendingAfterSession = false };
+            }
+
+            pending = decision.Pending(wanted)!;
+        }
+
+        return received.TrackTimeOnly
+            ? settings with { PendingTrackTimeOnly = pending, PendingWeekly = null, PendingStamp = received.Stamp, PendingAfterSession = afterSession }
+            : settings with { PendingWeekly = pending, PendingTrackTimeOnly = null, PendingStamp = received.Stamp, PendingAfterSession = afterSession };
+    }
+
+    // The stamp of the weekly target in effect here: the stored one, else the record's own part stamp (a store from before GS3a).
+    private static GoalFieldStamp OwnStamp(DeepWorkGoalSettings settings, Goal record)
+    {
+        return settings.Stamp ?? GoalFieldStamps.For(record).Of(GoalField.SecondTarget)!;
+    }
+
+    // A change made here: now, by this device, after every stamp it replaces (a faster clock's received stamp included).
+    private GoalFieldStamp NewStamp(DeepWorkGoalSettings settings, Goal record)
+    {
+        DateTimeOffset at = Now;
+        foreach (GoalFieldStamp? earlier in new[] { OwnStamp(settings, record), settings.PendingStamp })
+        {
+            if (earlier is not null && earlier.At >= at)
+            {
+                at = earlier.At.AddTicks(1);
+            }
+        }
+
+        return new GoalFieldStamp(at, Self());
+    }
+
+    // Deep work's values saved: a received change's stamp and hold go once no weekly or "Track time only" change waits.
+    private Task SaveDeepWorkAsync(DeepWorkGoalSettings settings)
+    {
+        DeepWorkGoalSettings tidied = settings.PendingWeekly is null && settings.PendingTrackTimeOnly is null
+            ? settings with { PendingStamp = null, PendingAfterSession = false }
+            : settings;
+        return _store.SetDeepWorkAsync(tidied);
+    }
+
     // ---- helpers ----
 
     // Keeps a looser change waiting (refused during a session outside ProductaBuddy mode); built on Deep work's values as they are now.
@@ -828,7 +1030,7 @@ public sealed class GoalsService
             return GoalChangeResult.Waiting;
         }
 
-        await _store.SetDeepWorkAsync(with(settings, wanted));
+        await SaveDeepWorkAsync(with(settings, wanted));
         return GoalChangeResult.Waiting;
     }
 

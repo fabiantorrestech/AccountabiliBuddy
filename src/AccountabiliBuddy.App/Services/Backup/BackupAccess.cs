@@ -76,9 +76,11 @@ public static class BackupAccess
     /// <summary>
     /// This PC's goals with the task lists (round 2 R4 review; the way task lists travel): readable inside the backup so it restores on
     /// another PC; notes and reasons only in a file with a password; a restore goes through the goals store's guards and is re-sealed
-    /// with this PC's key there.
+    /// with this PC's key there. ADR 79 (GS3a): a phone's goals backup restores here the same way (one shape); Deep work's weekly target
+    /// travels with the lists and comes back through its looser-change rule (<paramref name="goals"/>); a restore during a focus session
+    /// the user started is refused (<paramref name="enforcing"/>), and a restored goal syncs out like an edit made here.
     /// </summary>
-    public static GoalsAccess Goals(GoalStore store)
+    public static GoalsAccess Goals(GoalStore store, GoalsService? goals = null, Func<bool>? enforcing = null)
     {
         return new GoalsAccess(
             Export: includeSecrets =>
@@ -95,7 +97,8 @@ public static class BackupAccess
                     lists.Entries,
                     includeSecrets ? lists.Reminders : lists.Reminders.Select(reminder => reminder with { Reason = null }).ToList(),
                     includeSecrets ? lists.Reviews : lists.Reviews.Select(review => review with { Notes = null }).ToList(),
-                    IncludesNotes: includeSecrets);
+                    IncludesNotes: includeSecrets,
+                    DeepWork: new GoalsBackupDeepWork(store.DeepWork.EffectiveWeekly));
                 return JsonSerializer.SerializeToElement(export, SyncJson.Options);
             },
             Import: async (value, restore) =>
@@ -115,8 +118,22 @@ public static class BackupAccess
                     return "The goals in this backup couldn't be read; this PC's goals were kept.";
                 }
 
+                if (enforcing?.Invoke() == true)
+                {
+                    return "Goals weren't restored during a focus session you started; this PC's goals were kept.";
+                }
+
                 var lists = new GoalLists(export.Areas ?? [], export.Goals ?? [], export.Entries ?? [], export.Reminders ?? [], export.Reviews ?? []);
-                return await store.ImportAsync(lists, replace: restore, includesNotes: export.IncludesNotes);
+                string note = await store.ImportAsync(lists, replace: restore, includesNotes: export.IncludesNotes);
+                if (goals is null || export.DeepWork is not { } deepWork || !store.IsReady)
+                {
+                    return note;
+                }
+
+                // Deep work's weekly target: a raise at once, a lower one or none waits (never during a session), as a change made here.
+                string? weeklyNote = await goals.RestoreDeepWorkAsync(
+                    JsonSerializer.SerializeToElement(new DeepWorkGoalSettings(deepWork.WeeklyMinutes), GoalStore.DocumentJson));
+                return weeklyNote is null ? note : note + " " + weeklyNote;
             });
     }
 
