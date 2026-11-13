@@ -559,7 +559,6 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                             showDot = !onLabelPage,
                             compact = config.density == TaskViewConfig.DENSITY_COMPACT,
                             expanded = isOpen,
-                            menuOpen = menu?.first == task.id,
                             swipe = if (selecting || kept != null) null else swipeOf(task, controller),
                             onTick = {
                                 when {

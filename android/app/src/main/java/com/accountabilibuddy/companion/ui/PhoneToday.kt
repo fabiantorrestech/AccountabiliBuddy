@@ -30,6 +30,8 @@ import com.accountabilibuddy.companion.engine.TodayInfo
 import com.accountabilibuddy.companion.guidance.isCompanionMode
 import com.accountabilibuddy.companion.placement.GuardsLock
 import com.accountabilibuddy.companion.sync.PcState
+import com.accountabilibuddy.shared.goals.GoalStepsRules
+import com.accountabilibuddy.companion.today.StepsMovedRules
 import com.accountabilibuddy.companion.today.TodayItem
 import com.accountabilibuddy.companion.today.TodayLayout
 import com.accountabilibuddy.companion.today.TodayPlacement
@@ -41,6 +43,7 @@ import com.accountabilibuddy.companion.ui.today.MoreTodayChip
 import com.accountabilibuddy.companion.ui.today.MoreTodayChipRow
 import com.accountabilibuddy.companion.ui.today.NoisePickerSheet
 import com.accountabilibuddy.companion.ui.today.SessionActionBar
+import com.accountabilibuddy.companion.ui.today.StepsMovedCard
 import com.accountabilibuddy.companion.ui.today.SessionCard
 import com.accountabilibuddy.companion.ui.today.SessionMenuSheet
 import com.accountabilibuddy.companion.ui.today.StartActionBar
@@ -91,12 +94,21 @@ internal fun PhoneToday(
     var noisePicker by remember { mutableStateOf(false) }
     var options by remember { mutableStateOf(false) }
     var arranging by remember { mutableStateOf(false) }
+    val moreTodayBar by UiPrefs.moreTodayBar.collectAsState()
+    val stepsMoved by UiPrefs.stepsMoved.collectAsState()
+    val stepsState by app.steps.state.collectAsState()
+    val goalLists by app.goals.lists.collectAsState()
+    val context = LocalContext.current
 
-    // A phone with no plan yet shows the import card on Today itself (the fold used to start open for it).
+    // A phone with no plan yet shows the import card on Today itself (the fold used to start open for it). With the More today bar
+    // hidden (TD1) its parts have no chips: a part that can't be hidden is drawn above, the others are not drawn.
     fun placeOf(part: TodayItem): TodayPlacement {
-        val placed = layout.placementOf(part)
+        val placed = layout.placementWith(part, moreTodayBar)
         return if (part == TodayItem.Import && !state.hasImport && placed == TodayPlacement.Fold) TodayPlacement.Above else placed
     }
+    val showStepsMoved = StepsMovedRules.shows(
+        stepsMoved, trackStepsOn = stepsState.enabled, hasStepsGoal = GoalStepsRules.hasStepsGoal(goalLists.liveGoals), inSession = session != null,
+    )
     val ordered = layout.orderFor(parts.inSession)
     val above = ordered.filter { placeOf(it) == TodayPlacement.Above && it != TodayItem.Noise }
     val timers by app.timers.timers.collectAsState()
@@ -136,21 +148,38 @@ internal fun PhoneToday(
                     banner()
                 }
             }
-            if (session == null) {
-                item(key = "hero") {
-                    Column(Modifier.fillMaxWidth()) {
-                        IdleHero(info, model.statusText, pc, clock, locked, onStart, actions.onCancelWaiting, compact = true, showStart = false)
-                    }
-                }
-            } else {
-                sessionItems(session, pc, clock, stepAway, actions)
+            if (showStepsMoved) {
+                item(key = "steps-moved") { StepsMovedCard(onDone = { UiPrefs.finishStepsMoved(context) }, onMessage = actions.onMessage) }
             }
-            // Round 2 R7.3: today's task sections from the one task list (This session before a session, Queued, Finished today).
-            if (app.taskModel.isActive && com.accountabilibuddy.companion.ui.today.hasTodayTasks(taskLists, session != null)) {
-                item(key = "today-tasks") { com.accountabilibuddy.companion.ui.today.TodayTaskSections(inSession = session != null, onMessage = actions.onMessage) }
-            }
+            // The body parts (TD1): the session card (idle: what's next) and This session are arranged and can be hidden like the rest.
+            // What a hidden card carried that must stay reachable stays: the waiting line, "update needed", the PC-off notes. Ending
+            // and stepping away are in the action bar below, which is not a part.
             val sink = asTodaySink()
-            above.forEach { part -> sink.todayItem(part, parts) }
+            if (TodayItem.SessionCard !in above) sessionNotes(session, pc, clock, actions, cardShown = false)
+            above.forEach { part ->
+                when (part) {
+                    TodayItem.SessionCard -> {
+                        if (session == null) {
+                            item(key = "hero") {
+                                Column(Modifier.fillMaxWidth()) {
+                                    IdleHero(info, model.statusText, pc, clock, locked, onStart, actions.onCancelWaiting, compact = true, showStart = false)
+                                }
+                            }
+                        } else {
+                            sessionCardItem(session, clock, stepAway, pc)
+                        }
+                        sessionNotes(session, pc, clock, actions, cardShown = true)
+                    }
+                    TodayItem.ThisSession -> {
+                        if (session != null && !session.isPlanning && !session.isBreak && pc.tasks != null && pc.tasks.tasks.isNotEmpty()) item(key = "this-session") { ThisSessionCard(pc.tasks) }
+                        // Round 2 R7.3: today's task sections from the one task list (This session before a session, Queued, Finished today).
+                        if (app.taskModel.isActive && com.accountabilibuddy.companion.ui.today.hasTodayTasks(taskLists, session != null)) {
+                            item(key = "today-tasks") { com.accountabilibuddy.companion.ui.today.TodayTaskSections(inSession = session != null, onMessage = actions.onMessage) }
+                        }
+                    }
+                    else -> sink.todayItem(part, parts)
+                }
+            }
         }
 
         // The thumb zone (CN §3): always at the bottom of the pane, above the tabs and the park pill. More today sits at its top, as
@@ -242,28 +271,31 @@ private fun TodayTitleLine(
     com.accountabilibuddy.companion.ui.today.TodayTitleHeader(line, companion, syncLight, onOptions)
 }
 
-// A running session's head on the phone: the session card (or the planning count), what the PC says, and This session.
-private fun androidx.compose.foundation.lazy.LazyListScope.sessionItems(
-    session: PcState,
-    pc: TodayPc,
-    clock: ClockFormat,
-    stepAway: StepAwayState?,
-    actions: TodayActions,
-) {
-    val tasks = pc.tasks
-    val planning = session.isPlanning
+// A running session's card on the phone: the session card (or the planning count). Hidden with the Time left part (TD1).
+private fun androidx.compose.foundation.lazy.LazyListScope.sessionCardItem(session: PcState, clock: ClockFormat, stepAway: StepAwayState?, pc: TodayPc) {
     item(key = "hero") {
         val planEnd = session.planningEndsAt?.toInstant()
-        if (planning && planEnd != null) {
+        if (session.isPlanning && planEnd != null) {
             PlanningHero(session.planningStartedAt?.toInstant(), planEnd, session.profileName)
         } else {
             SessionCard(session, clock, stepAway?.text, pc.awaySince)
         }
+    }
+}
+
+// What the PC says around the session card (or the start card), drawn whether or not the card is: "update needed", the PC-off time,
+// and the wait with its Cancel. Outside a session only the wait and "update needed" (the start card carried them).
+private fun androidx.compose.foundation.lazy.LazyListScope.sessionNotes(session: PcState?, pc: TodayPc, clock: ClockFormat, actions: TodayActions, cardShown: Boolean) {
+    if (session == null) {
+        // The start card carries these itself; they are drawn here only when that card is hidden.
+        if (cardShown) return
+        if (pc.updateNeeded != null) item(key = "update-needed") { MutedLine(pc.updateNeeded) }
+        else if (pc.waiting != null) item(key = "waiting") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { WaitingLine(pc, clock, actions.onCancelWaiting) } }
+        return
     }
     if (pc.updateNeeded != null) item(key = "update-needed") { MutedLine(pc.updateNeeded) }
     if (pc.offMinutesToday > 0) {
         item(key = "pc-off-today") { MutedLine("PC off ${WatchText.duration(pc.offMinutesToday)} during sessions today (not counted)") }
     }
     if (pc.waiting != null) item(key = "waiting") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { WaitingLine(pc, clock, actions.onCancelWaiting) } }
-    if (!planning && !session.isBreak && tasks != null && tasks.tasks.isNotEmpty()) item(key = "this-session") { ThisSessionCard(tasks) }
 }

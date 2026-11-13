@@ -30,6 +30,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -42,7 +43,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 /**
  * The round 2 phone sheet (brief §3.7; R7 reuses it): one of two fixed heights ([AbSheetHeight]), a drag handle, the [title] with a
  * muted [subtitle], an optional accent back arrow ([onBack], for a nested page), an optional [titleAction] at the end of the title
- * line ("Goals ›"), the content, and a sticky [footer] for a primary action or a note. The header and the footer stay put; content
+ * line ("Goals ›"), an optional [icon] (the section's own, beside the title), the content, and a sticky [footer] for a primary action or a note. The header and the footer stay put; content
  * longer than the sheet scrolls between them. The scrim is the theme's scrim at 60%. It always opens at its full height (no
  * half-open step).
  *
@@ -58,6 +59,7 @@ fun AbSheet(
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
     titleAction: (@Composable () -> Unit)? = null,
+    icon: ImageVector? = null,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
     aboveKeyboard: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
@@ -89,6 +91,9 @@ fun AbSheet(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", tint = colors.accent, modifier = Modifier.size(22.dp))
                     }
+                }
+                if (icon != null) {
+                    Icon(icon, contentDescription = null, tint = colors.muted, modifier = Modifier.padding(end = 10.dp).size(24.dp))
                 }
                 Column(Modifier.weight(1f)) {
                     Text(

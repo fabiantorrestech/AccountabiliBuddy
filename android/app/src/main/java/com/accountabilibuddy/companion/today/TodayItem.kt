@@ -10,7 +10,13 @@ import com.accountabilibuddy.companion.today.TodayPlacement.Hidden
  * version takes its default place, so it never vanishes for a saved choice.
  *
  * [sessionDefault] is where it sits while a session runs when that differs (boards B-Phone-Session, Today-Layout-Phone: Today's goals,
- * Next up and Deep work are More today chips in a session, Daily steps is hidden there).
+ * Next up and Deep work are More today chips in a session).
+ *
+ * TD1 (owner, 2026-11-13): the session card ([SessionCard]: the time left in a session, what's next and Start outside) and
+ * [ThisSession] are parts like the others and can each be hidden in either layout, but never folded (they are the page's body, not a
+ * chip). Hiding them never hides how to end or step away from a running session: the action bar at the foot of Today (Step away and
+ * ⋯ › End session) is not a part. Daily steps left Today in TD1: steps are seen through a Steps goal ([key] "daily-steps" in an old
+ * saved layout is read and ignored).
  *
  * [allowed] is the safety rule: a part that carries a guard or an obligation (the guard banner, the lunch chip, the "link a PC"
  * card, "Need it for work", "Not working today", the import card) is never [Hidden]; the first three are never folded either. What a running session
@@ -24,6 +30,8 @@ enum class TodayItem(
     val allowed: Set<TodayPlacement> = setOf(Above, Fold, Hidden),
     val sessionDefault: TodayPlacement? = null,
 ) {
+    SessionCard("session-card", "Time left and Start", "The time left in a session; what's next and Start outside one. Step away and End stay in the bar below", Above, setOf(Above, Hidden)),
+    ThisSession("this-session", "This session", "Today's task sections, the current one first", Above, setOf(Above, Hidden)),
     Guard("guard", "Guard banner", "Says why the settings rest during a session", Above, setOf(Above)),
     LunchChip("lunch-chip", "Lunch chip", "Start lunch, or I'm back; in a session also the Budget pace", Above, setOf(Above)),
     PcMissing("pc-missing", "Link a PC", "Shown until a PC's file reaches this phone", Above, setOf(Above)),
@@ -33,7 +41,6 @@ enum class TodayItem(
     Comebacks("comebacks", "Come back to", "Parked thoughts you can tick off", Fold),
     SmallCards("small", "Timer and phone time", "The nearest timer or alarm, and today's time on the phone", Above),
     Noise("noise", "Noise player", "Shown once a sound folder is set", Above),
-    DailySteps("daily-steps", "Daily steps", "The step ring; a steps goal is part of Today's goals", Above, sessionDefault = Hidden),
     DayBar("day-bar", "Day bar", "The timeline with its legend and sleep line", Fold),
     WorkUse("work-use", "Need it for work", "Use the phone for work during a session", Fold, setOf(Above, Fold)),
     LunchCard("lunch-card", "Lunch", "The countdown, +5 / −5 and your other devices", Fold),
@@ -46,6 +53,9 @@ enum class TodayItem(
 
     /** True for a part the person can never hide (it carries a guard or an obligation). */
     val alwaysShown: Boolean get() = Hidden !in allowed
+
+    /** True for a part of the page's body that heads Today and so goes before the other parts in a saved order that predates it. */
+    val isBody: Boolean get() = this == SessionCard || this == ThisSession
 
     /** True for a part that can sit in the fold. */
     val canFold: Boolean get() = Fold in allowed

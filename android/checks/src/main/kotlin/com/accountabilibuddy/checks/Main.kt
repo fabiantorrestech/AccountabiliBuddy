@@ -126,6 +126,9 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     // Round 2 R7.3b: what a drag's release does where, the selection, stacks, the picker's tiles, reordering, the session cap's swap,
     // Undo, the toast's and the Add sheet's words, "Rings on" for this phone, the "Update AccountabiliBuddy on" notice (phone only).
     "r73b-self" to TasksDragSelfCheck::run,
+    // PH1 + TD1 (phone): the day panel's one height, every Today part hideable in both layouts, More today bar show / hide, the steps part
+    // gone with old layouts read fine, the one-time "Steps now live in Goals" card (phone only).
+    "ph1td1-self" to Ph1Td1SelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

@@ -9,7 +9,6 @@ import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.DayBarModel
 import com.accountabilibuddy.companion.engine.TodayInfo
 import com.accountabilibuddy.companion.placement.GuardsLock
-import com.accountabilibuddy.companion.steps.StepsState
 import com.accountabilibuddy.companion.sync.BeeminderGoals
 import com.accountabilibuddy.companion.sync.OpenComebacks
 import com.accountabilibuddy.companion.today.TodayItem
@@ -34,7 +33,6 @@ class TodayItemContext(
     val guardOn: Boolean,
     val beeminder: BeeminderGoals?,
     val noiseCard: (@Composable () -> Unit)?,
-    val stepsState: StepsState,
     val actions: TodayActions,
     /** A session with a task list whose every task is ticked. */
     val allTasksTicked: Boolean,
@@ -52,6 +50,8 @@ class TodayItemContext(
  */
 fun TodaySink.todayItem(part: TodayItem, c: TodayItemContext) {
     when (part) {
+        // The body of Today (the session or start card, This session) is drawn by the phone's Today and by the tablet's heads, not here.
+        TodayItem.SessionCard, TodayItem.ThisSession -> Unit
         TodayItem.Guard -> {
             if (c.guardsLock != null) item(key = "guard") { GuardBanner(c.guardsLock, c.guardOn) }
             // ADR 58: what calendar events changed in the guards today, by category and time, never a title.
@@ -81,7 +81,6 @@ fun TodaySink.todayItem(part: TodayItem, c: TodayItemContext) {
         TodayItem.Comebacks -> if (c.comebacks != null && c.comebacks.items.isNotEmpty()) item(key = "comebacks") { ComebackCard(c.comebacks, c.actions.onOpenTasks) }
         TodayItem.SmallCards -> if (!c.inSession) item(key = "small") { SmallCardsRow(c.hasTimer, c.phoneUsage, c.clock, c.actions.onAllowUsage) }
         TodayItem.Noise -> c.noiseCard?.let { card -> item(key = "noise") { card() } }
-        TodayItem.DailySteps -> if (c.stepsState.enabled) item(key = "daily-steps") { DailyStepsCard(c.stepsState, c.clock) }
         TodayItem.DayBar -> item(key = "more-daybar") { DayBarCard(c.model) }
         TodayItem.WorkUse -> if (c.showWorkUse) item(key = "more-workuse") { WorkUseCard() }
         TodayItem.LunchCard -> {

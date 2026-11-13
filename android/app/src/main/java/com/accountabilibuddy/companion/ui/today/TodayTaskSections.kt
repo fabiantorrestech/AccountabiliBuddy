@@ -77,7 +77,7 @@ fun TodayTaskSections(inSession: Boolean, onMessage: (String) -> Unit, modifier:
                 task = task,
                 parts = TaskRowText.detail(task, label?.name, now, zone, showBin = false),
                 labelColor = label?.color, showDot = true, compact = false,
-                expanded = expanded == task.id, menuOpen = menu?.first == task.id, swipe = null,
+                expanded = expanded == task.id, swipe = null,
                 onTick = { if (task.isDone) controller.reopen(task.id) else controller.finish(task.id) },
                 onTap = { expanded = if (expanded == task.id) null else task.id },
                 onMenu = { menu = task.id to TaskMenuPage.Main },

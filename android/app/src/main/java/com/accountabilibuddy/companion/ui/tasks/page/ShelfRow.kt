@@ -98,7 +98,7 @@ class ShelfRowState(
  * one). Elsewhere (Today's sections) a hold is [onHold] (the row's menu). The title of an open task renames it on a tap or a hold
  * ([onTitle]); a closed row's title is part of the row, so a hold on it lifts like anywhere else on the row.
  *
- * While its menu is open ([menuOpen]) the row has an accent outline (brief §3.6). [swipe] gives the row's own swipes; an open row
+ * An open menu draws no outline on the row (owner, 2026-11-13). [swipe] gives the row's own swipes; an open row
  * doesn't swipe. [actions] are the things a drag does, offered by name to a screen reader ("Move to Today · Queued", "Move up").
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
@@ -110,7 +110,6 @@ fun ShelfRow(
     showDot: Boolean,
     compact: Boolean,
     expanded: Boolean,
-    menuOpen: Boolean,
     swipe: RowSwipe?,
     onTick: () -> Unit,
     onTap: () -> Unit,
@@ -156,7 +155,6 @@ fun ShelfRow(
                 .clip(shape)
                 .background(if (offset.value != 0f) colors.surface else Color.Transparent)
                 .background(tint)
-                .then(if (menuOpen) Modifier.border(1.5.dp, colors.accent, shape) else Modifier)
                 // A sideways drag that starts on a row is always the row's: it never reaches the pager, so it never changes pages. A row
                 // without swipes of its own (open, finished, or in select mode) takes the drag and does nothing with it.
                 .pointerInput(task.id, swipes) {

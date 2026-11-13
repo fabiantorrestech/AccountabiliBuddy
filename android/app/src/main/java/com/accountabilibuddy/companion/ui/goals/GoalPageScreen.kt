@@ -187,8 +187,19 @@ fun GoalPageScreen(
         }
     }
     if (trackingOpen && page != null) {
-        AbSheet(title = "Progress tracking", subtitle = goal0(page), onDismiss = { trackingOpen = false }, height = AbSheetHeight.Half) {
-            page.sourceLines.forEach { AbSheetRow(it.text, onClick = null, enabled = !it.comingSoon) }
+        // PH1: back arrow at the top left, the section's icon (the row's) beside the title, the sources as a bulleted list.
+        AbSheet(
+            title = "Progress tracking", subtitle = goal0(page), onDismiss = { trackingOpen = false }, height = AbSheetHeight.Half,
+            onBack = { trackingOpen = false }, icon = Icons.AutoMirrored.Outlined.ShowChart,
+        ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                page.sourceLines.forEach { line ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("•", style = Ab.type.bodyMedium, color = if (line.comingSoon) Ab.colors.faint else Ab.colors.muted)
+                        Text(line.text, style = Ab.type.bodyMedium, color = if (line.comingSoon) Ab.colors.faint else Ab.colors.ink, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
     if (logOpen && page != null) {

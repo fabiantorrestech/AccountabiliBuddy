@@ -19,14 +19,14 @@ import java.text.NumberFormat
 
 /**
  * Settings → Your day → "Daily steps": the "Track daily steps" switch (off by default; turning it on asks Health Connect for the steps
- * permission) and the goal. The count shows on Today and in Stats, and goes to your own devices in this phone's sealed sync file.
+ * permission) and the goal. The count shows in a Steps goal (Goals, and Today's goals with Show on Today) and in Stats, and goes to your own devices in this phone's sealed sync file.
  */
 @Composable
 internal fun StepsSection(steps: StepsState) {
     val store = (LocalContext.current.applicationContext as CompanionApp).steps
     val numbers = NumberFormat.getIntegerInstance()
     Section("Daily steps", summary = if (steps.enabled) "Goal ${numbers.format(steps.goal)}" else "Off") {
-        Note("Reads your steps from Health Connect at most every few minutes: while the app is open, and in the background too when Health Connect lets you allow that. The count shows on Today and in Stats, and goes to your own devices in the sealed sync file; nowhere else, and not to the watch.")
+        Note("Reads your steps from Health Connect at most every few minutes: while the app is open, and in the background too when Health Connect lets you allow that. The count shows in a Steps goal (Goals, and Today's goals with Show on Today) and in Stats, and goes to your own devices in the sealed sync file; nowhere else, and not to the watch.")
         AbToggleRow("Track daily steps", steps.enabled, onCheckedChange = store::setEnabled, subtitle = "Asks Health Connect for the steps permission")
         if (steps.enabled && steps.problem == StepsProblem.NeedsPermission) {
             Note("Health Connect hasn't allowed steps yet. If the button does nothing, allow steps in Health Connect's settings (it opens them).")

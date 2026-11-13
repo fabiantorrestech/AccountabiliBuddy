@@ -48,7 +48,7 @@ private const val TIMELINE = "more-daybar"
 
 // The parts that are a card (one column); everything else (header, hero, banners, notes, the fold's toggle) runs across.
 private val CARDS = setOf(
-    "ring", "comebacks", "small", "noise", "daily-steps", "steps", "pc-missing",
+    "ring", "comebacks", "small", "noise", "steps", "pc-missing",
     "more-workuse", "more-lunch", "more-beeminder", "more-timers", "more-dayoff", "more-import", "more-test",
 )
 

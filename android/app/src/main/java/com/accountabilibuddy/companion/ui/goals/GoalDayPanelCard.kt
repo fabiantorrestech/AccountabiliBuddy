@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,13 +32,15 @@ import com.accountabilibuddy.companion.ui.kit.AbTextButton
 import com.accountabilibuddy.companion.ui.kit.AbTextField
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.goals.GoalDayPanel
+import com.accountabilibuddy.shared.goals.GoalDayPanelSlots
 
 /**
  * The heatmap's day panel (brief §4.3, board Goals-Phone-Habit): always one day, today until a cell is tapped, then "Back to today".
  * One row: the date ("Today · Wed 11/11") and under it one line, "8 of 15 min · in progress · 7 min to go" (the status in its
  * colour: teal counted, amber short or missed, grey in progress or paused), with what can be done at the right: **Tick it** /
  * Untick (a habit; an untick is a hand entry of 0) or Edit (a value by hand, any other goal but Deep work). The source line follows
- * under the row. Back-filling a past day is allowed: it updates that week and can rejoin a streak, and never changes a guard
+ * under the row, and "Back to today" below it. Every slot is always there, so the panel has one height for every day and goal
+ * ([GoalDayPanelSlots], PH1). Back-filling a past day is allowed: it updates that week and can rejoin a streak, and never changes a guard
  * decision (guards never read goal entries).
  *
  * @param onTick Ticks (1) or unticks (0) the shown day.
@@ -52,11 +56,31 @@ fun GoalDayPanelCard(panel: GoalDayPanel, onBackToToday: (() -> Unit)?, onTick: 
         GoalDayPanel.Tone.Amber -> colors.amberInk
         GoalDayPanel.Tone.Grey -> colors.muted
     }
+    // One height for every day and every kind of goal ([GoalDayPanelSlots]): each slot is always there, empty when it has nothing, so
+    // the heatmap and what is below never move. Editing swaps the slots for the form, which fits the same height.
     Column(
-        modifier.fillMaxWidth().clip(Ab.shapes.mediumShape).background(colors.surface2).padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier.fillMaxWidth().heightIn(min = GoalDayPanelSlots.RESERVED_DP.dp).clip(Ab.shapes.mediumShape).background(colors.surface2)
+            .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(GoalDayPanelSlots.GAP_DP.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (editing && panel.canEdit) {
+            AbTextField(text, { text = it }, panel.editCaption, keyboardType = KeyboardType.Decimal)
+            Row(
+                Modifier.heightIn(min = GoalDayPanelSlots.ACTION_SLOT_DP.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AbPrimaryButton("Save", onClick = {
+                    val value = text.trim().replace(',', '.').toDoubleOrNull()
+                    if (value != null && value >= 0 && onSave(value)) editing = false
+                }, enabled = text.trim().replace(',', '.').toDoubleOrNull()?.let { it >= 0 } == true)
+                AbTextButton("Cancel", onClick = { editing = false })
+            }
+            return@Column
+        }
+        Row(
+            Modifier.heightIn(min = GoalDayPanelSlots.ACTION_SLOT_DP.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Column(Modifier.weight(1f)) {
                 Text(panel.title, style = Ab.type.bodyMedium.copy(fontSize = 14.5.sp), fontWeight = FontWeight.Bold, color = colors.ink, maxLines = 1)
                 Text(
@@ -66,27 +90,23 @@ fun GoalDayPanelCard(panel: GoalDayPanel, onBackToToday: (() -> Unit)?, onTick: 
                         // The PC's pill reads "In progress · 7 min to go"; in a line it is lower case, as the board writes it.
                         withStyle(SpanStyle(color = tone, fontWeight = FontWeight.Medium)) { append(panel.status.replaceFirstChar { it.lowercase() }) }
                     },
-                    style = Ab.type.small.copy(fontFeatureSettings = "tnum"), color = colors.muted,
+                    style = Ab.type.small.copy(fontFeatureSettings = "tnum"), color = colors.muted, maxLines = 1,
                 )
             }
-            if (!editing && panel.canTick) {
+            if (panel.canTick) {
                 val untick = panel.tickText == "Untick"
                 PanelButton(if (untick) "Untick" else "Tick it", primary = !untick, onClick = { onTick(if (untick) 0.0 else 1.0) })
-            } else if (!editing && panel.canEdit) {
+            } else if (panel.canEdit) {
                 AbTextButton("Edit", onClick = { editing = true })
             }
         }
-        Text(panel.source, style = Ab.type.micro.copy(fontSize = 12.5.sp, letterSpacing = 0.sp), color = colors.muted, modifier = Modifier.padding(end = 4.dp))
-        if (onBackToToday != null) AbTextButton("Back to today", onClick = onBackToToday)
-        if (editing && panel.canEdit) {
-            AbTextField(text, { text = it }, panel.editCaption, keyboardType = KeyboardType.Decimal)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                AbPrimaryButton("Save", onClick = {
-                    val value = text.trim().replace(',', '.').toDoubleOrNull()
-                    if (value != null && value >= 0 && onSave(value)) editing = false
-                }, enabled = text.trim().replace(',', '.').toDoubleOrNull()?.let { it >= 0 } == true)
-                AbTextButton("Cancel", onClick = { editing = false })
-            }
+        Text(
+            panel.source, style = Ab.type.micro.copy(fontSize = 12.5.sp, letterSpacing = 0.sp), color = colors.muted,
+            minLines = GoalDayPanelSlots.SOURCE_LINES, maxLines = GoalDayPanelSlots.SOURCE_LINES, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(end = 4.dp),
+        )
+        Box(Modifier.heightIn(min = GoalDayPanelSlots.BACK_SLOT_DP.dp)) {
+            if (onBackToToday != null) AbTextButton("Back to today", onClick = onBackToToday)
         }
     }
 }

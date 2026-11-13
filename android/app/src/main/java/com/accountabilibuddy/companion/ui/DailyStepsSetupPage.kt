@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 internal fun DailyStepsSetupPage() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Daily steps", style = MaterialTheme.typography.headlineSmall)
-        Text("A ring on Today fills to your daily step goal, with the count and when it was last read. It is off until you turn it on.")
+        Text("Your steps are counted from Health Connect and seen through a Steps goal in Goals (Show on Today puts it in Today's goals). It is off until you turn it on.")
         Text("Settings → Your day → Daily steps:", style = MaterialTheme.typography.titleSmall)
         Text("• Turn on \"Track daily steps\"; Health Connect then asks to share your steps with this app, and not before.")
         Text("• Set the goal (8,000 by default).")

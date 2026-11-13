@@ -6,6 +6,8 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.accountabilibuddy.companion.today.StepsMovedNote
+import com.accountabilibuddy.companion.today.StepsMovedRules
 import com.accountabilibuddy.companion.today.TodayLayout
 import com.accountabilibuddy.companion.ui.theme.AppearancePlace
 import com.accountabilibuddy.companion.ui.theme.ColourMode
@@ -48,6 +50,8 @@ object UiPrefs {
     private val _syncLight = MutableStateFlow(SyncLightSetting.On)
     private val _todayLayout = MutableStateFlow(TodayLayout())
     private val _todaySessionLayout = MutableStateFlow<TodayLayout?>(null)
+    private val _moreTodayBar = MutableStateFlow(true)
+    private val _stepsMoved = MutableStateFlow(StepsMovedNote.NotChecked)
 
     val barLook: StateFlow<BarLook> = _barLook.asStateFlow()
 
@@ -59,6 +63,15 @@ object UiPrefs {
      * a session uses [todayLayout] as it always did. This phone only, never synced.
      */
     val todaySessionLayout: StateFlow<TodayLayout?> = _todaySessionLayout.asStateFlow()
+
+    /**
+     * Whether Today shows the "More today" bar and its chips (TD1; Today's options and Settings › Today). Hidden: no bar, no chips, and
+     * nothing else moves; a part that can't be hidden and sat in the bar is drawn above instead. This phone only, never synced.
+     */
+    val moreTodayBar: StateFlow<Boolean> = _moreTodayBar.asStateFlow()
+
+    /** The one-time "Steps now live in Goals" card ([StepsMovedRules]); this phone only. */
+    val stepsMoved: StateFlow<StepsMovedNote> = _stepsMoved.asStateFlow()
 
     /** Whether Today shows the sync light (Settings › Devices & sync). It only hides the light: syncing itself is never touched. */
     val syncLight: StateFlow<SyncLightSetting> = _syncLight.asStateFlow()
@@ -84,6 +97,14 @@ object UiPrefs {
         } else {
             null
         }
+        _moreTodayBar.value = prefs.getBoolean("moreTodayBar", true)
+        // Decided once, from the layout this phone saved before Daily steps left Today.
+        val moved = StepsMovedNote.fromCode(prefs.getInt("stepsMoved", StepsMovedNote.NotChecked.code))
+        _stepsMoved.value = if (moved == StepsMovedNote.NotChecked) {
+            StepsMovedRules.initial(prefs.getString("todayPlacements", null)).also { prefs.edit().putInt("stepsMoved", it.code).apply() }
+        } else {
+            moved
+        }
         _syncLight.value = runCatching { SyncLightSetting.valueOf(prefs.getString("syncLight", null) ?: "") }.getOrDefault(SyncLightSetting.On)
         _themeName.value = runCatching { ThemeName.valueOf(prefs.getString("themeName", null) ?: "") }.getOrDefault(ThemeName.Instrument)
         _colour.value = ColourMode.fromCode(prefs.getInt("colour", ColourMode.Quiet.code))
@@ -107,6 +128,17 @@ object UiPrefs {
     fun setSyncLight(context: Context, setting: SyncLightSetting) {
         _syncLight.value = setting
         prefs(context).edit().putString("syncLight", setting.name).apply()
+    }
+
+    fun setMoreTodayBar(context: Context, shown: Boolean) {
+        _moreTodayBar.value = shown
+        prefs(context).edit().putBoolean("moreTodayBar", shown).apply()
+    }
+
+    /** The "Steps now live in Goals" card is finished (a steps goal was added, or it was dismissed). */
+    fun finishStepsMoved(context: Context) {
+        _stepsMoved.value = StepsMovedNote.Done
+        prefs(context).edit().putInt("stepsMoved", StepsMovedNote.Done.code).apply()
     }
 
     fun setTodayLayout(context: Context, chosen: TodayLayout) {

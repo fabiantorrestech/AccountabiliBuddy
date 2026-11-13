@@ -32,10 +32,21 @@ object SetupFeatures {
     const val FINISHED_WORK_TAG = "nudge.finishedWorkTag"
     const val GUIDANCE = "guidance.mode"
     const val GOALS_REVIEW = "goals.review"
+    const val STEPS_IN_GOALS = "steps.inGoals"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            STEPS_IN_GOALS, "0.1.78", "Steps now live in Goals: add a steps goal in place of the Today ring",
+            // Only for a phone whose Today showed steps and that still tracks them with no steps goal; set up once added, closed or seen.
+            relevant = {
+                val app = it.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                com.accountabilibuddy.companion.ui.UiPrefs.stepsMoved.value == com.accountabilibuddy.companion.today.StepsMovedNote.Show &&
+                    app.steps.state.value.enabled && !com.accountabilibuddy.shared.goals.GoalStepsRules.hasStepsGoal(app.goals.lists.value.liveGoals)
+            },
+            setUp = { done(it, STEPS_IN_GOALS) || com.accountabilibuddy.companion.ui.UiPrefs.stepsMoved.value == com.accountabilibuddy.companion.today.StepsMovedNote.Done },
+        ),
         SetupFeature(
             GOALS_REVIEW, "0.1.78", "Goals: the weekly goals review and goal reminders on this phone",
             // Only once the goals can be used; set up once seen in the assistant, or the review's day was chosen in Settings › Goals.

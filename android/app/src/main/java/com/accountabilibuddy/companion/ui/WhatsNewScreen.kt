@@ -61,6 +61,7 @@ fun WhatsNewScreen(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.t
                 SetupFeatures.FINISHED_WORK_TAG -> FinishedWorkTagSetupPage()
                 SetupFeatures.GUIDANCE -> GuidanceSetupPage()
                 SetupFeatures.GOALS_REVIEW -> GoalsReviewSetupPage()
+                SetupFeatures.STEPS_IN_GOALS -> StepsInGoalsSetupPage()
             }
         }
         Button(onClick = {

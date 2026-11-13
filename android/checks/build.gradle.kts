@@ -46,6 +46,16 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
         include(sharedSources)
         exclude(sharedExcluded)
     }
+    // PH1 + TD1: the phone's pure Today rules (the layout parts, hide-all validity, the one-time steps card) live in :app but use no
+    // Android API; they are compiled here by path too.
+    from("../app/src/main/java") {
+        include(
+            "com/accountabilibuddy/companion/today/TodayItem.kt",
+            "com/accountabilibuddy/companion/today/TodayLayout.kt",
+            "com/accountabilibuddy/companion/today/TodayPlacement.kt",
+            "com/accountabilibuddy/companion/today/StepsMovedRules.kt",
+        )
+    }
     into(layout.buildDirectory.dir("sharedSrc"))
 }
 

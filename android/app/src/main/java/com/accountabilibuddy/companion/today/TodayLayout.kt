@@ -40,7 +40,24 @@ data class TodayLayout(
     /** Every part, in the order Today draws them for the state of the day. */
     fun orderFor(inSession: Boolean): List<TodayItem> {
         val base = order ?: if (inSession) SESSION_FIRST else emptyList()
-        return base + TodayItem.entries.filter { it !in base }
+        // The body parts (added in TD1) go first in an order saved before them, as they always did; any other new part goes last.
+        val body = TodayItem.entries.filter { it.isBody && it !in base }
+        val withBody = if (order == null) base else body + base
+        return withBody + TodayItem.entries.filter { it !in withBody }
+    }
+
+    /**
+     * Where [item] is drawn when the "More today" bar is shown ([moreTodayBar] true) or hidden (TD1): with the bar hidden a part in
+     * the fold has no chip, so it is not drawn, except a part that can't be hidden (it carries an obligation), which is then drawn
+     * above instead, so hiding the bar never hides it.
+     */
+    fun placementWith(item: TodayItem, moreTodayBar: Boolean): TodayPlacement {
+        val placed = placementOf(item)
+        return when {
+            moreTodayBar || placed != TodayPlacement.Fold -> placed
+            item.alwaysShown -> TodayPlacement.Above
+            else -> TodayPlacement.Hidden
+        }
     }
 
     /** The parts at [placement], in drawing order. */
@@ -94,7 +111,7 @@ data class TodayLayout(
 
     companion object {
         /** Ring first, then the lunch chip and the guard banner: how Today has always drawn a running session. */
-        private val SESSION_FIRST = listOf(TodayItem.Ring, TodayItem.LunchChip, TodayItem.Guard, TodayItem.Noise, TodayItem.DailySteps, TodayItem.Goals, TodayItem.NextUp)
+        private val SESSION_FIRST = listOf(TodayItem.SessionCard, TodayItem.ThisSession, TodayItem.Ring, TodayItem.LunchChip, TodayItem.Guard, TodayItem.Noise, TodayItem.Goals, TodayItem.NextUp)
 
         /** Reads what [orderText] and [placementsText] wrote; anything unreadable or unknown is ignored. */
         fun parse(order: String?, placements: String?, session: Boolean = false): TodayLayout {

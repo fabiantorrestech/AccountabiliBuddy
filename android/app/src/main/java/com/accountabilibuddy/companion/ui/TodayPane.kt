@@ -79,7 +79,6 @@ fun TodayPane(
     var expanded by rememberSaveable { mutableStateOf(!state.hasImport) }
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
-    val stepsState by app.steps.state.collectAsState()
     val showWorkUse = remember(model, pc) { PlacementSession.current(app, Instant.now())?.takeUnless { it.onBreak } != null }
     val showDayOff = remember(model) { NudgeStore(context).load().dayOff == LocalDate.now() }
     var starting by remember { mutableStateOf(false) }
@@ -88,9 +87,10 @@ fun TodayPane(
     val hasTimer = rememberHasTimerOrAlarm()
     val chip = lunchChipKind(lunch)
     val idleLayout by UiPrefs.todayLayout.collectAsState()
+    val moreTodayBar by UiPrefs.moreTodayBar.collectAsState()
     val ownSessionLayout by UiPrefs.todaySessionLayout.collectAsState()
     // Round 2: a session has its own layout once the person sets one (Settings › Today); until then the one layout serves both.
-    // Parts with a session default of their own (Today's goals, Next up, Deep work, Daily steps) take it there either way.
+    // Parts with a session default of their own (Today's goals, Next up, Deep work) take it there either way.
     val layout = if (session != null) ownSessionLayout ?: idleLayout.copy(session = true) else idleLayout
     // A phone with no plan from the PC yet cannot say what is next (its default plan would read as a day off).
     val info = model.today?.let { if (session == null && !state.hasImport) it.copy(dateSuffix = null, next = "No plan on this phone yet.") else it }
@@ -103,7 +103,7 @@ fun TodayPane(
     val parts = TodayItemContext(
         inSession = session != null, state = state, model = model, info = info, clock = clock, pc = pc, comebacks = comebacks,
         phoneUsage = phoneUsage, hasTimer = hasTimer, lunchChip = chip, lunch = lunch, guardsLock = guardsLock, guardOn = guardOn,
-        beeminder = beeminder, noiseCard = noiseCard, stepsState = stepsState, actions = actions,
+        beeminder = beeminder, noiseCard = noiseCard, actions = actions,
         allTasksTicked = session != null && !session.isPlanning && pc.tasks != null && pc.tasks.tasks.isNotEmpty() && pc.tasks.tasks.all { it.isDone },
         showWorkUse = showWorkUse, showDayOff = showDayOff, goals = todayGoals,
     )
@@ -115,9 +115,10 @@ fun TodayPane(
         }
         // The arrangeable parts (Settings › Appearance › Today layout): the person's order and places. With nothing chosen
         // this is how Today was always drawn. The head above, and the safety parts the layout can't hide, always show.
-        val above = layout.itemsAt(TodayPlacement.Above, parts.inSession).filter { !(dayBarOnTop && it == TodayItem.DayBar) }
+        val ordered = layout.orderFor(parts.inSession)
+        val above = ordered.filter { layout.placementWith(it, moreTodayBar) == TodayPlacement.Above && !(dayBarOnTop && it == TodayItem.DayBar) }
         above.forEach { part -> todayItem(part, parts) }
-        val folded = layout.itemsAt(TodayPlacement.Fold, parts.inSession).filter { !(dayBarOnTop && it == TodayItem.DayBar) }
+        val folded = ordered.filter { layout.placementWith(it, moreTodayBar) == TodayPlacement.Fold && !(dayBarOnTop && it == TodayItem.DayBar) }
         if (folded.isNotEmpty()) item(key = "more-toggle") { MoreTodayToggle(expanded, onToggle = { expanded = !expanded }) }
         if (expanded) folded.forEach { part -> todayItem(part, parts) }
         if (dayBarOnTop) todayItem(TodayItem.DayBar, parts)
