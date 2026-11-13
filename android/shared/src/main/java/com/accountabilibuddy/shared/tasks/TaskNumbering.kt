@@ -23,6 +23,17 @@ object TaskNumbering {
             ?: known.filter { it.second.equals(PHONE_KIND, ignoreCase = true) }.minOfOrNull { it.first }
     }
 
+    /**
+     * The phone's numbering device in its group (R7.2 review item 5, Q599): none while it isn't joined, or while it hasn't received a
+     * file from any other device (a PC may be in the group, so it numbers nothing final); the lowest PC once one of the [received]
+     * files is a PC's; the phone rule ([numberingDevice] with [self] as a phone) only when the group is known to have no PC (at least
+     * one received file, none of them a PC's). [received]: (sync device id, kind) of each device whose file this phone holds.
+     */
+    fun groupNumberingDevice(joined: Boolean, received: List<Pair<String, String>>, self: String): String? {
+        if (!joined || received.isEmpty()) return null
+        return numberingDevice(received + (self to PHONE_KIND))
+    }
+
     /** The next unused number: one above every number and former number among [tasks]. */
     fun nextFree(tasks: List<TaskItem>): Int {
         var highest = 0

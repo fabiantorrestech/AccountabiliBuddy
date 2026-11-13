@@ -42,13 +42,17 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
         model = store
         store.addListener { if (store.isActive) _categories.value = TaskFacadeLists.categories(store.lists.value) }
         if (store.isActive) _categories.value = TaskFacadeLists.categories(store.lists.value)
+        // R7.2 review item 2: a closed task list has no labels to show, and the own list (stale since the migration) isn't used.
+        if (store.isClosed) _categories.value = emptyList()
     }
 
     /** The list for this phone's sync file; an empty list says it has none, which clears a receiver's copy. */
     fun forSync(): List<SyncCategory> = model?.fileParts()?.first?.categories ?: _categories.value
 
     // A label edit in the task list (R7.2); true when it was made there.
+    // A closed task list takes no edit, and the own list is never written again after the migration: the edit is dropped.
     private fun inModel(change: (com.accountabilibuddy.shared.tasks.TaskLists, String, java.time.OffsetDateTime) -> com.accountabilibuddy.shared.tasks.TaskLists): Boolean {
+        if (model?.isClosed == true) return true
         val store = model?.takeIf { it.isActive } ?: return false
         if (store.change(change)) onChanged()
         return true

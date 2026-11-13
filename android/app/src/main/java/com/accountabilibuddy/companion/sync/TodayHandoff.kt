@@ -20,7 +20,8 @@ import java.time.Instant
  * - A PC that is at its limit parks the task as a come-back instead, which carries only its title, category and a step count: a
  *   Later item then stays, with its note, steps, estimate and due date, and the phone says so. (A PC that predates the `parked`
  *   status answers `ok` with a message; that counts as parked too.)
- * - A Later item that was edited here after it was sent stays too, so the edit is not lost.
+ * - A Later item that was edited here after it was sent (its title, note, open steps or estimate differ from what the action
+ *   carried) stays too, so the edit is not lost.
  *
  * The hold is kept in the app's prefs (ids and a time only, never text) and lasts as long as the action is pending, so a restart
  * between send and answer neither loses it nor lets the same item be sent twice ([isWaiting]).
@@ -70,9 +71,14 @@ class TodayHandoff(context: Context, private val lists: SharedListsStore, privat
             is Source.ComeBack -> lists.tickParked(source.id)
             is Source.Later -> {
                 val held = lists.later.value.firstOrNull { it.id == source.id } ?: return
+                // By what it says, not its stamp (R7.2 review): with the task list the source, a merge or a number moves the stamp too.
+                val changedHere = com.accountabilibuddy.shared.tasks.TaskAddSent.changed(
+                    action.text, held.title, TaskFields.cleanNote(held.note), held.subtasks.orEmpty().filter { !it.isDone }.map { it.title },
+                    TaskFields.cleanEstimate(held.estimateMinutes),
+                ) ?: (entry.editedAt != null && held.editedAt != entry.editedAt)
                 when {
                     parked -> tell("$pcName parked it as a come-back instead (its list is full). It stays in Later with its note, steps and dates.")
-                    entry.editedAt != null && held.editedAt != entry.editedAt ->
+                    changedHere ->
                         tell("$pcName took it, but it was changed here after it was sent, so it stays in Later too.")
                     else -> lists.deleteLater(source.id)
                 }

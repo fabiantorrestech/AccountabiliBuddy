@@ -83,7 +83,8 @@ class AutoBackup(private val app: CompanionApp) {
         val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss"))
         var written = 0
         try {
-            for (kind in PhoneKindBackup.Kind.entries.filter(::isOn)) {
+            // A closed task list (R7.2 review item 2) writes no task-lists backup: one without tasks would push good ones out of the 10 kept.
+            for (kind in PhoneKindBackup.Kind.entries.filter(::isOn).filterNot { it == PhoneKindBackup.Kind.Tasks && app.taskModel.isClosed }) {
                 val content = PhoneKindBackup.content(app, kind)
                 val hash = hash(content)
                 if (!force && prefs.getString(KEY_HASH + kind.written, null) == hash) continue

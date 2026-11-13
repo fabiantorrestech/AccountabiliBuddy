@@ -12,8 +12,10 @@ import com.accountabilibuddy.shared.tasks.TaskJson
 import com.accountabilibuddy.shared.tasks.TaskListMerge
 import com.accountabilibuddy.shared.tasks.TaskListRules
 import com.accountabilibuddy.shared.tasks.TaskLists
+import com.accountabilibuddy.shared.tasks.TaskModelStartup
 import com.accountabilibuddy.shared.tasks.TaskNewerEntries
 import com.accountabilibuddy.shared.tasks.TaskParts
+import com.accountabilibuddy.shared.tasks.TaskStoreOpening
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,7 +39,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  *
  * It is the source only once the one-time migration ([PhoneTaskModelMigration]) wrote the lists and the marker in one commit
  * ([activate]); until then [isActive] is false and the phone keeps its old stores. The old stores are never written or deleted by
- * it: they stay one release as the way back.
+ * it: they stay one release as the way back. With the marker set but the lists unreadable the store is [isClosed] (R7.2 review).
  */
 class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime = { DotNetTime.cut(OffsetDateTime.now(ZoneOffset.UTC)) }) {
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -56,6 +58,14 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
     var isActive: Boolean = false
         private set
 
+    /**
+     * The migration ran but the task list can't be read (R7.2 review item 2): the task lists are closed, read-only and empty; nothing
+     * is kept, sent or backed up from them, and the old stores (stale since the migration) are not used either.
+     */
+    @Volatile
+    var isClosed: Boolean = false
+        private set
+
     /** This phone's sync device id (stamps name it). Set by the app. */
     var selfId: () -> String = { FieldStamp.NOBODY }
 
@@ -69,20 +79,47 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
 
     fun hasMarker(): Boolean = prefs.getInt(KEY_MARKER, 0) >= MODEL_VERSION
 
-    /** Reads the stored lists (marker set). An unreadable copy is set aside as it was (never overwritten) and the list starts empty. */
+    /**
+     * The store's start with the marker set ([TaskModelStartup.open]). Readable lists are the source; a copy set aside at an earlier
+     * start that opens now is merged back in and dropped in the same commit. Unreadable lists close the store, like the PC: nothing is
+     * shown, kept, sent or backed up from it and the old stores are not used (they stopped at the migration); the sealed value is set
+     * aside once (an existing copy is never overwritten) and the next start tries again.
+     */
     @Synchronized
     fun load() {
-        val sealed = prefs.getString(KEY_LISTS, null)
-        val parts = sealed?.let { TokenVault.open(it, ALIAS) }?.let { runCatching { TaskJson.readParts(Json.parseToJsonElement(it) as JsonObject) }.getOrNull() }
-        if (parts == null) {
-            if (sealed != null) prefs.edit().putString(KEY_UNREADABLE, sealed).commit()
-            log("task list could not be read; set aside, starting empty (the other devices' lists come back at the next sync)")
+        val stored = prefs.getString(KEY_LISTS, null)
+        val setAside = prefs.getString(KEY_UNREADABLE, null)
+        when (val opening = TaskModelStartup.open(stored, setAside, ::readSealed, selfId().lowercase(), clock())) {
+            is TaskStoreOpening.Closed -> {
+                if (opening.setAside && stored != null) prefs.edit().putString(KEY_UNREADABLE, stored).commit()
+                log(opening.logLine)
+                close()
+            }
+            is TaskStoreOpening.Open -> {
+                val parts = opening.parts
+                newer = TaskParts(null, null, null, null, null, parts.newerTasks, parts.newerLabels, parts.newerViews, parts.newerTaskLog)
+                val lists = TaskModelStartup.listsOf(parts)
+                if (opening.write) {
+                    val edit = prefs.edit().putString(KEY_LISTS, TokenVault.seal(encode(lists).toString(), ALIAS))
+                    if (opening.clearSetAside) edit.remove(KEY_UNREADABLE)
+                    // Not kept: the set-aside copy stays and is merged again at the next start (the merge gives the same lists).
+                    if (!edit.commit()) log("the merged task list could not be written yet; the set-aside copy is kept")
+                }
+                log(opening.logLine)
+                searches = readSearches()
+                _lists.value = lists
+                isClosed = false
+                isActive = true
+            }
         }
+    }
 
-        newer = parts?.let { TaskParts(null, null, null, null, null, it.newerTasks, it.newerLabels, it.newerViews, it.newerTaskLog) } ?: newer
-        searches = readSearches()
-        _lists.value = parts?.let { TaskLists(it.tasks.orEmpty(), it.labels.orEmpty(), it.views.orEmpty(), it.taskLog.orEmpty(), it.accountSettings) } ?: TaskLists.EMPTY
-        isActive = true
+    /** The task list can't be used this run (its start failed): closed, like an unreadable one. */
+    @Synchronized
+    fun close() {
+        isActive = false
+        isClosed = true
+        _lists.value = TaskLists.EMPTY
     }
 
     /** The migration's lists and the marker, written in one commit; true when kept (the store is the source from now on). */
@@ -101,13 +138,21 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
         return true
     }
 
-    /** Whether this version's migration attempt already wrote its backup (one backup per version). */
+    /** An old store's unreadable sealed value ([name] = "prefs/key"), kept once: a copy already kept is never overwritten. */
+    fun keepUnreadableOldStore(name: String, sealed: String) {
+        val key = KEY_UNREADABLE_OLD_PREFIX + name
+        if (!prefs.contains(key)) prefs.edit().putString(key, sealed).commit()
+    }
+
+    /** Whether this version's migration attempt already wrote its backup (the folder backup: once per version). */
     fun attempted(version: String): Boolean = prefs.getString(KEY_ATTEMPT, null) == version
 
-    /** The backup made before the migration ([content]: the old stores' sealed copies), kept with the version that made it. */
-    fun recordBackup(version: String, content: JsonObject) {
+    /**
+     * The backup made before the migration ([content]: the old stores' sealed copies), kept with the version that made it; taken fresh
+     * on every attempt (the old stores may have changed since an earlier one). False when it wasn't written: no migration then.
+     */
+    fun recordBackup(version: String, content: JsonObject): Boolean =
         prefs.edit().putString(KEY_BACKUP_PREFIX + version, content.toString()).putString(KEY_ATTEMPT, version).commit()
-    }
 
     /**
      * A change made here: [change] gets the lists, this device's id and the time; the result is normalized and kept. True when the
@@ -115,11 +160,22 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
      */
     fun change(change: (TaskLists, String, OffsetDateTime) -> TaskLists): Boolean = commit { lists, self, now -> change(lists, self, now) }
 
-    /** Another device's parts read in ([TaskListRules.mergeFile]: a file without `tasks` leaves the tasks alone). True when the lists changed. */
+    /**
+     * Another device's parts read in ([TaskListRules.mergeFile]: a file without `tasks` leaves the tasks alone). True when the lists
+     * changed. A newer app's entries it brings are kept (written with the lists) and go out in this phone's next file.
+     */
     fun mergeFile(parts: TaskParts?): Boolean {
         if (parts == null || !isActive) return false
-        synchronized(this) { newer = TaskNewerEntries.merge(newer, parts) }
-        return commit { lists, self, now -> TaskListRules.mergeFile(lists, parts, self, now) ?: lists }
+        val newerChanged = synchronized(this) {
+            val merged = TaskNewerEntries.merge(newer, parts)
+            (merged != newer).also { changed ->
+                if (changed) {
+                    newer = merged
+                    fileCache = null
+                }
+            }
+        }
+        return commit(keepAnyway = newerChanged) { lists, self, now -> TaskListRules.mergeFile(lists, parts, self, now) ?: lists }
     }
 
     /**
@@ -173,14 +229,16 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
         }
     }
 
-    private fun commit(change: (TaskLists, String, OffsetDateTime) -> TaskLists): Boolean {
+    // [keepAnyway]: written even when the lists didn't change (a newer app's entries did).
+    private fun commit(keepAnyway: Boolean = false, change: (TaskLists, String, OffsetDateTime) -> TaskLists): Boolean {
         val changed = synchronized(this) {
             if (!isActive) return false
             val self = selfId().lowercase()
             val now = clock()
             val held = _lists.value
-            val normalized = TaskListRules.normalize(change(held, self, now), self, numberingDevice(), now, zone())
-            if (normalized == held) {
+            val normalized = TaskModelStartup.committed(held, change(held, self, now), self, numberingDevice(), now, zone())
+            if (normalized == null) {
+                if (keepAnyway) prefs.edit().putString(KEY_LISTS, TokenVault.seal(encode(held).toString(), ALIAS)).apply()
                 false
             } else {
                 prefs.edit().putString(KEY_LISTS, TokenVault.seal(encode(normalized).toString(), ALIAS)).apply()
@@ -204,6 +262,10 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
         }
     }
 
+    // A sealed value opened and read; null when it can't be (the key is gone or the text is damaged).
+    private fun readSealed(sealed: String): TaskParts? =
+        TokenVault.open(sealed, ALIAS)?.let { text -> runCatching { TaskJson.readParts(Json.parseToJsonElement(text) as JsonObject) }.getOrNull() }
+
     private fun readSearches(): Map<String, String> {
         val text = prefs.getString(KEY_SEARCHES, null)?.let { TokenVault.open(it, ALIAS) } ?: return emptyMap()
         val json = runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull() ?: return emptyMap()
@@ -222,5 +284,6 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
         private const val KEY_SEARCHES = "viewSearches"
         private const val KEY_ATTEMPT = "attempt"
         private const val KEY_BACKUP_PREFIX = "before-model-"
+        private const val KEY_UNREADABLE_OLD_PREFIX = "unreadable-old-"
     }
 }

@@ -485,11 +485,12 @@ class CompanionApp : Application() {
         // R7.2 (ADR 76): the one task list takes over from the old lists once (backup first, counts must balance, marker last);
         // the old lists' screens then show its views. Its parts go out beside the old fields, other devices' parts merge in.
         taskModel.selfId = { sync.deviceId.toString() }
+        // R7.2 review item 5 (Q599): final numbers here only when the group is known to have no PC (a file received, none a PC's).
         taskModel.numberingDevice = {
-            if (!sync.isJoined) null
-            else com.accountabilibuddy.shared.tasks.TaskNumbering.numberingDevice(
-                sync.received.value.map { it.file.device.deviceId.toString() to it.file.device.kind } +
-                    (sync.deviceId.toString() to com.accountabilibuddy.shared.tasks.TaskNumbering.PHONE_KIND),
+            com.accountabilibuddy.shared.tasks.TaskNumbering.groupNumberingDevice(
+                sync.isJoined,
+                sync.received.value.map { it.file.device.deviceId.toString() to it.file.device.kind },
+                sync.deviceId.toString(),
             )
         }
         com.accountabilibuddy.companion.tasks.PhoneTaskModelMigration.runOnce(this)
@@ -500,12 +501,13 @@ class CompanionApp : Application() {
             if (taskModel.mergeFile(parts)) appScope.launch { runCatching { Refresher.refresh(this@CompanionApp) } }
         }
         // ADR 48: the next session's tasks and the come-backs are shared lists; this phone's go out in its file, other devices' merge in.
-        sync.nextTasks = { sharedLists.nextTasksForSync() }
-        sync.parked = { sharedLists.parkedForSync() }
-        sync.later = { sharedLists.laterForSync() }
+        // A closed task list (R7.2 review item 2) sends no task lists at all, old fields included: never empty ones.
+        sync.nextTasks = { if (taskModel.isClosed) null else sharedLists.nextTasksForSync() }
+        sync.parked = { if (taskModel.isClosed) null else sharedLists.parkedForSync() }
+        sync.later = { if (taskModel.isClosed) null else sharedLists.laterForSync() }
         // ADR 72: every task list syncs: settle records, Auto-saved, handover receipts out; the PCs' history and the rest in.
         sync.pastSettled = { sharedLists.pastSettledForSync() }
-        sync.autoSaved = { sharedLists.autoSavedForSync() }
+        sync.autoSaved = { if (taskModel.isClosed) null else sharedLists.autoSavedForSync() }
         sync.handoverAcks = { sharedLists.receiptsForSync() }
         sharedLists.selfId = { if (sync.isJoined) sync.deviceId.toString() else null }
         sync.onTaskExtras = { file ->
@@ -514,7 +516,7 @@ class CompanionApp : Application() {
                 sharedLists.onChanged()
             }
         }
-        sync.categories = { taskCategories.forSync() }
+        sync.categories = { if (taskModel.isClosed) null else taskCategories.forSync() }
         // Something moved between lists takes its category's current colour with it, so an old colour isn't stamped anew (ADR 62).
         sharedLists.colorOf = { name, stored ->
             com.accountabilibuddy.companion.sync.TaskCategoryColors(taskCategories.categories.value, if (sync.sharesTaskLists()) sync.received.value else emptyList(), java.time.Instant.now()).of(name, stored)

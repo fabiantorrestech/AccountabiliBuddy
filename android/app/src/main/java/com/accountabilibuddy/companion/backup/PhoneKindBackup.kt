@@ -59,13 +59,13 @@ object PhoneKindBackup {
                     put("guidance", app.guidance.state.value.mode.name.lowercase())
                 })
                 if (app.sync.sharesTaskLists()) {
-                    put("tasks", tasks(app))
+                    tasks(app)?.let { put("tasks", it) }
                     PhoneGoalsBackup.export(app.goals, includesNotes)?.let { put(PhoneGoalsBackup.PART, it) }
                 }
             }
             Kind.Device -> put("device", Json.parseToJsonElement(PhoneBackup.export(app, app.appVersion(), forDeviceKind = true)))
             Kind.Tasks -> {
-                put("tasks", tasks(app))
+                tasks(app)?.let { put("tasks", it) }
                 PhoneGoalsBackup.export(app.goals, includesNotes)?.let { put(PhoneGoalsBackup.PART, it) }
             }
         }
@@ -137,7 +137,8 @@ object PhoneKindBackup {
         return notes.joinToString(" ")
     }
 
-    private fun tasks(app: CompanionApp): JsonObject = buildJsonObject {
+    // None while the task list is closed (R7.2 review item 2): neither it nor the stale old lists go in a backup.
+    private fun tasks(app: CompanionApp): JsonObject? = if (app.taskModel.isClosed) null else buildJsonObject {
         val parts = app.taskModel.backupParts()
         if (parts != null) {
             // R7.2 (ADR 76): the task list itself (the PC's names: tasks, labels, views, taskLog, accountSettings), with the old lists
@@ -161,6 +162,7 @@ object PhoneKindBackup {
     }
 
     private fun importTasks(app: CompanionApp, tasks: JsonObject, restore: Boolean): String {
+        if (app.taskModel.isClosed) return "The task lists weren't restored: this phone's task list can't be opened right now (it's kept as it was)."
         if (app.taskModel.isActive) return importIntoTaskList(app, tasks, restore)
         val now = Instant.now()
         // Restore: the backup's live items are stamped now, so they win over later edits and deletions; its deletions don't come back.

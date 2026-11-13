@@ -60,6 +60,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * @param addPlaceholder The words in the add field, which also say why it can't be used now.
  * @param savedFilters The saved filters' chips; a tap applies one.
  * @param newTaskCategory The add field's category dot.
+ * @param notice A quiet line above the lists (R7.2 review: a PC older than the one task list, "Update AccountabiliBuddy on …"); null normally.
  */
 @Composable
 fun TasksPane(
@@ -91,6 +92,7 @@ fun TasksPane(
     onSavedFilters: () -> Unit = {},
     onCategories: () -> Unit = {},
     newTaskCategory: (@Composable () -> Unit)? = null,
+    notice: String? = null,
 ) {
     val filtering = category != null || search.isNotBlank()
     var picking by remember { mutableStateOf(false) }
@@ -136,6 +138,9 @@ fun TasksPane(
                         }
                     }
                 }
+            }
+            notice?.let { line ->
+                item { AbInfoBanner(line, icon = Icons.Outlined.Info) }
             }
             comebackOldPc?.let { name ->
                 item { AbInfoBanner("$name has an older version, so these lists don't reach it. Update AccountabiliBuddy on it.", icon = Icons.Outlined.Info) }

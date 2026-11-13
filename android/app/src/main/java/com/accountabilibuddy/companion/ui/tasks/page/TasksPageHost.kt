@@ -76,6 +76,7 @@ import com.accountabilibuddy.shared.tasks.ShelfPaging
 import com.accountabilibuddy.shared.tasks.TaskBin
 import com.accountabilibuddy.shared.tasks.TaskBins
 import com.accountabilibuddy.shared.tasks.TaskItem
+import com.accountabilibuddy.shared.tasks.TaskListUpdateNotice
 import com.accountabilibuddy.shared.tasks.TaskRowText
 import com.accountabilibuddy.shared.tasks.TaskViewConfig
 import com.accountabilibuddy.shared.tasks.TodayStripCounts
@@ -195,6 +196,11 @@ fun TasksPageHost(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpe
                 }
             }
             TodayStrip(stripText, onOpen = onOpenToday)
+            // R7.2 review item 3: a PC older than the one task list ("PC first"): its task edits don't reach this phone (Q583).
+            val updateNotice = if (app.sync.sharesTaskLists()) TaskListUpdateNotice.text(TaskListUpdateNotice.pcsWithoutTasks(received.map { it.file })) else null
+            updateNotice?.let { line ->
+                Text(line, style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = AbPageHeaderDefaults.PaneEdge, vertical = 4.dp))
+            }
             // One 48 dp slot: the chips, or the search field in their place, so opening the search moves nothing.
             Box(Modifier.fillMaxWidth().height(ChipRowHeight)) {
                 if (searching) {

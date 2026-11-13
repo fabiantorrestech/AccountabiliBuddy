@@ -33,7 +33,9 @@ import com.accountabilibuddy.companion.tasks.PhoneTaskStore
 import com.accountabilibuddy.shared.tasks.OldTaskFields
 import com.accountabilibuddy.shared.tasks.OldTaskList
 import com.accountabilibuddy.shared.tasks.TaskFacadeLists
+import com.accountabilibuddy.shared.tasks.TaskLists
 import com.accountabilibuddy.shared.tasks.TaskLocalEdits
+import com.accountabilibuddy.shared.tasks.TaskModelStartup
 
 /**
  * The lists the user's devices share (ADR 48, 50): the next session's tasks, the come-backs (the parked thoughts) and the
@@ -63,6 +65,10 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private var frozen: Lists? = null
     private var model: PhoneTaskStore? = null
     private val modelActive: Boolean get() = model?.isActive == true
+
+    // R7.2 review item 2: the task list can't be read: the four lists show empty, take no edits and go nowhere (the stored copies,
+    // stale since the migration, are not used).
+    private val modelClosed: Boolean get() = model?.isClosed == true
     private val _nextTasks = MutableStateFlow(liveNextTasks())
     private val _parked = MutableStateFlow(liveParked())
     private val _later = MutableStateFlow(liveLater())
@@ -171,7 +177,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     @Synchronized
     fun receive(nextTasks: List<SyncNextTask>?, parked: List<SyncParked>?, later: List<SyncLaterItem>? = null, knowsDetails: Boolean = true): Boolean {
         // R7.2 (Q583): with the task list the source, other devices' old fields are not read in (their `tasks` part is).
-        if (modelActive) return false
+        if (modelActive || modelClosed) return false
         val time = now()
         val incoming = if (knowsDetails) nextTasks else nextTasks?.map { task ->
             val own = all.nextTasks.firstOrNull { it.id == task.id && it.deletedAt == null }
@@ -536,11 +542,13 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
         settled?.let { lists = lists.copy(pastSettled = SharedListMerge.merge(lists.pastSettled, it, time)) }
         // R7.2: Auto-saved is part of the task list (its `tasks` part carries it).
-        if (!modelActive) autoSaved?.let { lists = lists.copy(autoSaved = SharedListMerge.merge(lists.autoSaved, it, time, me)) }
+        if (!modelActive && !modelClosed) autoSaved?.let { lists = lists.copy(autoSaved = SharedListMerge.merge(lists.autoSaved, it, time, me)) }
         var adopted = false
         if (me != null) {
             for (handover in handovers.orEmpty().filter { it.to.equals(me, ignoreCase = true) }) {
                 if (lists.receipts.any { it.id.equals(handover.id, ignoreCase = true) && !it.editedAt.isBefore(handover.editedAt) }) continue
+                // A closed task list can't take it: no receipt, so the sender keeps offering it until the list opens again.
+                if (modelClosed && handover.list != SyncHandover.HISTORY) continue
                 lists = if (modelActive && handover.list != SyncHandover.HISTORY) {
                     adopted = adoptInModel(handover, me) || adopted
                     lists
@@ -654,17 +662,16 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         val changed = synchronized(this) {
             val time = now()
             val before = all
-            val updated = change(all, time)
+            val changedLists = change(all, time)
+            // A closed task list takes no edits (R7.2 review item 2): only ADR 72's own parts change.
+            val updated = if (modelClosed) changedLists.copy(nextTasks = before.nextTasks, parked = before.parked, later = before.later, autoSaved = before.autoSaved) else changedLists
             if (updated == all) {
                 false
             } else {
                 val store = model
                 if (store != null && store.isActive) {
                     // R7.2: the changed items go into the task list as this phone's stamped edits; ADR 72's own parts are kept here.
-                    val changedItems = OldTaskFields(
-                        changedOf(before.nextTasks, updated.nextTasks), changedOf(before.later, updated.later), changedOf(before.parked, updated.parked),
-                        emptyList(), emptyList(), changedOf(before.autoSaved, updated.autoSaved),
-                    )
+                    val changedItems = TaskModelStartup.facadeChanges(before.oldFields(), updated.oldFields())
                     store.change { lists, self, at -> TaskLocalEdits.apply(lists, changedItems, self, at, store.zone()) }
                     save(updated, time)
                     refreshFromModelLocked()
@@ -705,7 +712,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         _autoSaved.value = liveAutoSaved()
         _unfinished.value = unfinishedNow()
         // R7.2: the four lists shown are always the task list's views.
-        if (modelActive) refreshFromModelLocked()
+        if (modelActive || modelClosed) refreshFromModelLocked()
     }
 
     private fun liveNextTasks() = all.nextTasks.filter { it.deletedAt == null }
@@ -736,11 +743,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private fun liveModelIds(): Set<String> =
         model?.takeIf { it.isActive }?.lists?.value?.tasks?.filter { it.task.isLive }?.map { it.id.lowercase() }?.toSet() ?: emptySet()
 
-    // The items a change made or changed (by id), tombstones included.
-    private fun <T : com.accountabilibuddy.shared.sync.SharedItem> changedOf(before: List<T>, after: List<T>): List<T> {
-        val held = before.associateBy { it.id.lowercase() }
-        return after.filter { held[it.id.lowercase()] != it }
-    }
+    private fun Lists.oldFields() = OldTaskFields(nextTasks, later, parked, emptyList(), emptyList(), autoSaved)
 
     // A move between the lists that keeps the task (R7.2, Q52); returns its id (the same).
     private fun moveInModel(id: String, to: OldTaskList): String? {
@@ -772,9 +775,9 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     // The four lists as the task list's views (only while it is the source); the stored copies are kept aside, unchanged.
     private fun refreshFromModelLocked() {
         val store = model ?: return
-        if (!store.isActive) return
+        if (!store.isActive && !store.isClosed) return
         if (frozen == null) frozen = all
-        val lists = store.lists.value
+        val lists = if (store.isClosed) TaskLists.EMPTY else store.lists.value
         val at = java.time.OffsetDateTime.ofInstant(now(), java.time.ZoneOffset.UTC)
         all = all.copy(
             nextTasks = TaskFacadeLists.draft(lists, at),

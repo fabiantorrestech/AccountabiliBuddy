@@ -19,10 +19,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.key
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.kit.AbInfoBanner
+import com.accountabilibuddy.shared.tasks.TaskListUpdateNotice
 import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import com.accountabilibuddy.companion.ui.theme.Ab
 import androidx.compose.ui.Modifier
@@ -66,6 +70,16 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
     // tablet keeps this pane until R7.5, and so does a phone whose task list isn't in use (its one-time migration was refused).
     if (!LocalExpanded.current && app.taskModel.isActive) {
         com.accountabilibuddy.companion.ui.tasks.page.TasksPageHost(controlPc, snackbar, onOpenToday, onOpenSettings)
+        return
+    }
+    // R7.2 review item 2: the task list can't be opened this run: nothing to show or edit, and nothing is lost.
+    if (app.taskModel.isClosed) {
+        AbInfoBanner(
+            "Your task list couldn't be opened on this phone, so Tasks is closed for now. Nothing was deleted: it's kept as it was and " +
+                "opened again at the next start. Your other devices still have their lists.",
+            modifier = Modifier.padding(16.dp),
+            icon = Icons.Outlined.Info,
+        )
         return
     }
 
@@ -142,6 +156,8 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
 
     val tasksList: @Composable () -> Unit = {
     TasksPane(
+        // R7.2 review item 3: a PC older than the one task list; its task edits don't reach a phone on the task list (Q583).
+        notice = if (app.taskModel.isActive && app.sync.sharesTaskLists()) TaskListUpdateNotice.text(TaskListUpdateNotice.pcsWithoutTasks(received.map { it.file })) else null,
         model = model, pc = pc, comebackOldPc = comebacks.legacySource,
         // The newest PC's version says whether Later reaches it (the received copy keeps no Later list to look at).
         laterOldPc = com.accountabilibuddy.companion.sync.PcFileControl.pcs(received).firstOrNull()?.file?.device

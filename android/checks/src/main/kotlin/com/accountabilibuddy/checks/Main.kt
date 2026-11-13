@@ -113,6 +113,9 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "r71-self" to TaskModelSelfCheck::run,
     // Round 2 R7.2: the phone's own edits, label edits, the switch's refusal, newer entries, timing (phone only).
     "r72-self" to TaskStoreSelfCheck::run,
+    // R7.2 review fixes: the store's start and migration decisions against fakes of its prefs (unreadable stores, the backup, the
+    // set-aside copy), numbering that waits for a PC, the notice for a PC without `tasks`, Add to Today by content (phone only).
+    "r72-fix" to R72FixSelfCheck::run,
     // Round 2 R7.3a: the Shelf's paging, pages, the Today strip (words, counts, the drop into Queued), drops on label and tag pages,
     // the page's stamped edits, a row's words (phone only).
     "r73a-self" to TasksPageSelfCheck::run,
