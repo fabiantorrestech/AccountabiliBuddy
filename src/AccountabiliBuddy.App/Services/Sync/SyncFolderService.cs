@@ -132,6 +132,7 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
                 });
                 _writeProblem = null;
                 wrote = true;
+                _coordinator.NoteSent(SyncDeviceCard.MethodFolder, file.Device.WrittenAt, 0);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
@@ -236,6 +237,9 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
             }
 
             bool unreadable = false;
+            int read = 0;
+            int unreadableCount = 0;
+            long started = Environment.TickCount64;
             SyncKey? passKey = _identity.Key;
             foreach (FileInfo file in files)
             {
@@ -247,7 +251,16 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
 
                 bool? bad = await ReadFileAsync(file);
                 unreadable |= bad == true;
+                read++;
+                unreadableCount += bad == true ? 1 : 0;
             }
+
+            _coordinator.NoteReadPass(SyncDeviceCard.MethodFolder, read, 0, unreadableCount, (int)(Environment.TickCount64 - started));
+            LastPass = (read, unreadableCount);
+
+            // This PC's own extra copies the folder's sync made (a "conflict" copy of its own file) are listed as stale (SYNC1b).
+            ReportOwnCopies(folder, ownName);
+            _coordinator.Unreadable?.Prune(SyncDeviceCard.MethodFolder, GetFolderNames(folder));
 
             // Forget files that are gone, so a removed bad file no longer counts.
             foreach (string gone in _seen.Keys.Where(path => files.All(file => !file.FullName.Equals(path, StringComparison.OrdinalIgnoreCase))).ToList())
@@ -301,6 +314,7 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         if (file.Length > MaxFileBytes)
         {
             _seen[file.FullName] = new SeenFile(file.Length, file.LastWriteTimeUtc, Unreadable: true);
+            ReportTooBig(file.Name);
             return true;
         }
 
@@ -318,7 +332,7 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         string? reason;
         try
         {
-            reason = await _coordinator.AcceptSealedAsync(bytes, SyncDeviceCard.MethodFolder);
+            reason = await _coordinator.AcceptSealedAsync(bytes, SyncDeviceCard.MethodFolder, file.Name);
         }
         catch (SqliteException)
         {
@@ -346,6 +360,105 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
         }
 
         return unreadable;
+    }
+
+    // A file over the limit is never read; the troubleshooting list says so, and whose it is when the name tells.
+    private void ReportTooBig(string name)
+    {
+        if (_coordinator.Unreadable is not { } list || _identity.Key is not SyncKey key)
+        {
+            return;
+        }
+
+        list.Report(SyncDeviceCard.MethodFolder, name, "tooBig", _coordinator.DeviceOfName(key, name), _coordinator.IsOwnStale(name));
+    }
+
+    // The folder's file names (the listing's names, for dropping entries of files that are gone).
+    private static IReadOnlySet<string> GetFolderNames(string folder)
+    {
+        try
+        {
+            return new DirectoryInfo(folder).GetFiles("*" + Extension).Select(file => file.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+        {
+            return new HashSet<string>();
+        }
+    }
+
+    // "<own name without extension> (conflict ...).absync" and the like: this PC's own extra copies, listed so "Remove my stale file" can clear them.
+    private void ReportOwnCopies(string folder, string ownName)
+    {
+        if (_coordinator.Unreadable is not { } list)
+        {
+            return;
+        }
+
+        string stem = Path.GetFileNameWithoutExtension(ownName);
+        foreach (string name in GetFolderNames(folder).Where(name => IsConflictCopy(name) && name.StartsWith(stem, StringComparison.OrdinalIgnoreCase)))
+        {
+            list.Report(SyncDeviceCard.MethodFolder, name, SyncUnreadableFile.OwnCopy, _identity.DeviceId, ownStale: true);
+        }
+    }
+
+    /// <summary>
+    /// Removes one of this PC's own stale files from the folder (SYNC1b): an old group's file (<see cref="SyncCoordinator.IsOwnStale"/>) or an extra
+    /// copy of its current file. Never another device's file, never this PC's current one. True when it is gone.
+    /// </summary>
+    public async Task<bool> RemoveOwnStaleAsync(string name)
+    {
+        if (!TryGetFolder(out string folder, out string ownName, out _) || string.Equals(name, ownName, StringComparison.OrdinalIgnoreCase)
+            || name != Path.GetFileName(name) || !name.EndsWith(Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string stem = Path.GetFileNameWithoutExtension(ownName);
+        bool own = _coordinator.IsOwnStale(name) || (IsConflictCopy(name) && name.StartsWith(stem, StringComparison.OrdinalIgnoreCase));
+        if (!own)
+        {
+            return false;
+        }
+
+        try
+        {
+            await Task.Run(() => File.Delete(Path.Combine(folder, name)));
+            _coordinator.Unreadable?.Clear(SyncDeviceCard.MethodFolder, name);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The files the last read pass looked at and how many of them could not be read (SYNC1b's result line).</summary>
+    public (int Files, int Problems) LastPass { get; private set; }
+
+    /// <summary>"Re-read everything" (SYNC1b): forgets what was read and reads every file in the folder again. Merging is idempotent.</summary>
+    public async Task<SyncRereadResult> RereadAllAsync()
+    {
+        if (!TryGetFolder(out _, out _, out _))
+        {
+            return SyncRereadResult.None(SyncDeviceCard.MethodFolder);
+        }
+
+        ForgetSeen();
+        LastPass = (0, 0);
+        await ReadNowAsync();
+        return new SyncRereadResult(SyncDeviceCard.MethodFolder, LastPass.Files, LastPass.Problems, 0, false);
+    }
+
+    /// <summary>
+    /// Makes the next read take every file again (SYNC1b "Re-read everything"/"Try again"): the "seen" marks go, so even an unchanged file is
+    /// read and merged once more. Merging is idempotent. <paramref name="name"/> limits it to one file.
+    /// </summary>
+    public void ForgetSeen(string? name = null)
+    {
+        foreach (string path in _seen.Keys.Where(path => name is null || string.Equals(Path.GetFileName(path), name, StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            _seen.Remove(path);
+        }
     }
 
     /// <summary>A copy Autosync or Drive made in a clash ("&lt;id&gt; (conflict &lt;date&gt;).absync"): never a device's file, which is named <c>&lt;12 hex&gt;.absync</c>.</summary>
@@ -376,6 +489,7 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
     {
         StopWatching();
         _seen.Clear();
+        _coordinator.Unreadable?.ClearAll(SyncDeviceCard.MethodFolder);
         _otherGroupFiles.Clear();
         _groupFiles.Clear();
         _received.SetNewerLink(SyncDeviceCard.MethodFolder, false);

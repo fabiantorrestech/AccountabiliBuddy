@@ -181,6 +181,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                 _lastPutEtag = await _network.PutRelayFileAsync(access, ownName, sealedBytes, token);
                 _lastWriteTick = Environment.TickCount64;
                 SetWriteProblem(null);
+                _coordinator.NoteSent(SyncDeviceCard.MethodRelay, file.Device.WrittenAt, 0);
                 return true;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -302,6 +303,9 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
             bool unreadable = false;
             string? downloadProblem = null;
             long passBytes = 0;
+            int read = 0;
+            int unreadableCount = 0;
+            long started = Environment.TickCount64;
             SyncKey? passKey = _identity.Key;
             foreach (RelayFileInfo info in files.Where(info => IsSyncFileName(info.Name)))
             {
@@ -332,6 +336,13 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                 {
                     _seen[info.Name] = info.ETag;
                     unreadable = true;
+                    read++;
+                    unreadableCount++;
+                    if (passKey is not null)
+                    {
+                        _coordinator.Unreadable?.Report(SyncDeviceCard.MethodRelay, info.Name, "tooBig", _coordinator.DeviceOfName(passKey, info.Name), ownStale: false);
+                    }
+
                     continue;
                 }
 
@@ -351,7 +362,9 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                         continue;
                     }
 
-                    string? reason = await _coordinator.AcceptSealedAsync(download.Bytes, SyncDeviceCard.MethodRelay);
+                    string? reason = await _coordinator.AcceptSealedAsync(download.Bytes, SyncDeviceCard.MethodRelay, info.Name);
+                    read++;
+                    unreadableCount += reason == SyncCoordinator.CannotReadReason ? 1 : 0;
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
                     if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason
                         || reason == SyncCoordinator.RemovedDeviceReason || reason == SyncCoordinator.OtherGroupReason)
@@ -371,9 +384,124 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
             }
 
             SetReadProblem(downloadProblem ?? (unreadable ? "Can't read a file on the relay: it's from another device group, or it's damaged." : null));
+            _coordinator.NoteReadPass(SyncDeviceCard.MethodRelay, read, 0, unreadableCount, (int)(Environment.TickCount64 - started));
+            LastPass = (read, unreadableCount);
+            _coordinator.Unreadable?.Prune(SyncDeviceCard.MethodRelay, files.Select(info => info.Name).ToHashSet());
 
             // A lower goal that waited for work hours to end (also when no file changed).
             await _coordinator.RetryGoalAsync();
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
+
+    /// <summary>The files the last read pass looked at and how many of them could not be read (SYNC1b's result line).</summary>
+    public (int Files, int Problems) LastPass { get; private set; }
+
+    /// <summary>Forgets what was read (the etags), so the next read downloads every file again; <paramref name="name"/> limits it to one file (SYNC1b "Try again").</summary>
+    public void ForgetSeen(string? name = null)
+    {
+        if (name is null)
+        {
+            _seen.Clear();
+        }
+        else
+        {
+            _seen.Remove(name);
+        }
+    }
+
+    /// <summary>
+    /// "Re-read everything" on the relay (SYNC1b): one listing and one download per sync file, spread to at most
+    /// <see cref="RelayRequestPacer.PerMinute"/> requests a minute (a PC and a phone on one home network share the relay's 120 a minute, and a goal
+    /// history pass may take up to 40), never alongside a goal history pass or another read (they hold the same gate), ended at once by a 429
+    /// answer, and at most <see cref="MaxPassBytes"/> of downloads. Goal history files are skipped (their own pass reads them). Merging is
+    /// idempotent: nothing changes that was already merged.
+    /// </summary>
+    /// <param name="pacer">Spaces the requests; a fake in checks.</param>
+    public async Task<SyncRereadResult> RereadAllAsync(RelayRequestPacer pacer, CancellationToken cancellationToken)
+    {
+        RelayAccess? access = _access;
+        if (_disposed || access is null || _key is null)
+        {
+            return SyncRereadResult.None(SyncDeviceCard.MethodRelay);
+        }
+
+        CancellationToken token = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken).Token;
+        await _busy.WaitAsync(cancellationToken);
+        int files = 0;
+        int problems = 0;
+        bool stopped = false;
+        long started = Environment.TickCount64;
+        try
+        {
+            IReadOnlyList<RelayFileInfo> listed;
+            try
+            {
+                await pacer.WaitAsync(token);
+                listed = await _network.ListRelayFilesAsync(access, token);
+            }
+            catch (Exception ex) when (IsRelayFailure(ex))
+            {
+                return new SyncRereadResult(SyncDeviceCard.MethodRelay, 0, 1, pacer.Started, ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests });
+            }
+
+            long passBytes = 0;
+            SyncKey? passKey = _identity.Key;
+            foreach (RelayFileInfo info in listed.Where(info => IsSyncFileName(info.Name) && info.Name != _ownName && GoalHistory?.IsHistoryName(info.Name, SyncFolderService.Extension) != true))
+            {
+                if (_identity.Key?.SameGroupAs(passKey) != true || passBytes >= MaxPassBytes)
+                {
+                    break;
+                }
+
+                if (info.Size > MaxFileBytes)
+                {
+                    problems++;
+                    continue;
+                }
+
+                try
+                {
+                    await pacer.WaitAsync(token);
+                    RelayDownload? download = await _network.GetRelayFileAsync(access, info.Name, token);
+                    if (download is null)
+                    {
+                        continue;
+                    }
+
+                    passBytes += download.Bytes.Length;
+                    if (GoalHistoryNames.IsHistoryFile(download.Bytes))
+                    {
+                        continue;
+                    }
+
+                    string? reason = await _coordinator.AcceptSealedAsync(download.Bytes, SyncDeviceCard.MethodRelay, info.Name);
+                    files++;
+                    problems += reason == SyncCoordinator.CannotReadReason ? 1 : 0;
+                    _seen[info.Name] = download.ETag ?? info.ETag;
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    stopped = true;
+                    break;
+                }
+                catch (Exception ex) when (IsRelayFailure(ex))
+                {
+                    problems++;
+                    if (ex is HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests })
+                    {
+                        // The relay's answer to too many requests: this run ends here (no retry); the next one is five minutes away.
+                        stopped = true;
+                        break;
+                    }
+                }
+            }
+
+            _coordinator.NoteReadPass(SyncDeviceCard.MethodRelay, files, 0, problems, (int)(Environment.TickCount64 - started));
+            return new SyncRereadResult(SyncDeviceCard.MethodRelay, files, problems, pacer.Started, stopped);
         }
         finally
         {
@@ -475,6 +603,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
         _pendingWrite?.Cancel();
         _pendingRead?.Cancel();
         _seen.Clear();
+        _coordinator.Unreadable?.ClearAll(SyncDeviceCard.MethodRelay);
         _lastPutEtag = null;
         _ownDirty = true;
         IsConnected = false;

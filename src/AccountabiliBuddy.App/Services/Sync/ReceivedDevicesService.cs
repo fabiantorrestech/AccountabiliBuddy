@@ -90,6 +90,12 @@ public sealed class ReceivedDevicesService
         try
         {
             ReceivedDevice? stored = _devices.FirstOrDefault(device => device.File.Device.DeviceId == file.Device.DeviceId);
+            if (stored is not null && stored.Sealed.AsSpan().SequenceEqual(sealedBytes))
+            {
+                // The very same file again (a re-read, SYNC1b): nothing changes, nothing is saved and nothing is raised.
+                return;
+            }
+
             DateTimeOffset now = _time.GetUtcNow();
             SyncFile merged = SyncMerge.Merge(stored?.File, file, now);
             if (stored is not null && ReferenceEquals(merged, stored.File))

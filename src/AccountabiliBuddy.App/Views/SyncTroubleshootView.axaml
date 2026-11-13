@@ -1,0 +1,243 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.SyncTroubleshootView"
+             x:DataType="vm:SyncTroubleshootViewModel">
+    <!-- Troubleshoot sync (SYNC1b, ADR 86): always at the bottom of Devices & sync, in both modes. Display and maintenance only: nothing here is
+         locked in a focus session except answering the day plan question, which is view-only then. A dot is never alone: an icon and a sentence
+         go with it (green = check, yellow = clock, red = alert, grey = dash; the phone uses the same icons). Everything wraps; no sideways scroll. -->
+    <UserControl.Styles>
+        <Style Selector="mi|MaterialIcon.dot">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.dot.green">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Met}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.dot.yellow">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Waiting}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.dot.red">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.dot.grey">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="ToggleSwitch.rowSwitch">
+            <Setter Property="OnContent" Value="" />
+            <Setter Property="OffContent" Value="" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="12">
+        <TextBlock Classes="sGroup" Text="Troubleshoot sync" />
+
+        <!-- Works alone: no method on, no red, nothing to confirm. -->
+        <Border Classes="sPanel" IsVisible="{Binding IsNotSyncing}">
+            <Border Classes="sRow" BorderThickness="0">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <mi:MaterialIcon Kind="MinusCircleOutline" Width="20" Height="20" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock Classes="sTitle" Text="Not syncing" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap" Text="Set up a sync method above to share with your other devices. This PC works fine on its own." />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- The confirmation board: one block per method in use, one row per other device, its items folded under it. -->
+        <Border Classes="sPanel" IsVisible="{Binding HasBoard}">
+            <StackPanel>
+                <Border Classes="sRow">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="sTitle" Text="Who got your files" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap" Text="{Binding NewestText}" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                   Text="A device confirms in its next file, so yellow just means it hasn't written since. Red means it wrote and didn't confirm." />
+                    </StackPanel>
+                </Border>
+                <ItemsControl ItemsSource="{Binding Methods}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SyncBoardMethodViewModel">
+                            <Border Classes="sRow" Padding="18,12">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Classes="sTitle" Text="{Binding Title}" />
+                                    <TextBlock Classes="sHint" Margin="22,0,0,0" Text="No other devices yet" IsVisible="{Binding IsAlone}" />
+                                    <ItemsControl ItemsSource="{Binding Devices}" Margin="22,0,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SyncBoardDeviceViewModel">
+                                                <StackPanel Spacing="4" Margin="0,2">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                                        <mi:MaterialIcon Classes="dot" Classes.green="{Binding Dot.IsGreen}" Classes.yellow="{Binding Dot.IsYellow}"
+                                                                         Classes.red="{Binding Dot.IsRed}" Classes.grey="{Binding Dot.IsGrey}" Kind="{Binding Dot.Icon}"
+                                                                         AutomationProperties.Name="{Binding Dot.Accessible}" />
+                                                        <StackPanel Grid.Column="1" Spacing="1">
+                                                            <TextBlock Text="{Binding Name}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Classes="sHint" TextWrapping="Wrap" Text="{Binding Dot.Words}" />
+                                                            <TextBlock Classes="faint" FontSize="12" TextWrapping="Wrap" Text="{Binding Detail}" />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="2" Classes="quiet" Padding="6,4" MinHeight="0" VerticalAlignment="Top"
+                                                                Command="{Binding ToggleCommand}" ToolTip.Tip="Which items it confirmed"
+                                                                AutomationProperties.Name="Which items it confirmed">
+                                                            <Panel>
+                                                                <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" IsVisible="{Binding !IsExpanded}" />
+                                                                <mi:MaterialIcon Kind="ChevronUp" Width="18" Height="18" IsVisible="{Binding IsExpanded}" />
+                                                            </Panel>
+                                                        </Button>
+                                                    </Grid>
+                                                    <ItemsControl ItemsSource="{Binding Parts}" Margin="28,0,0,4" IsVisible="{Binding IsExpanded}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:SyncBoardPartViewModel">
+                                                                <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8" Margin="0,2">
+                                                                    <mi:MaterialIcon Classes="dot" Classes.green="{Binding Dot.IsGreen}" Classes.yellow="{Binding Dot.IsYellow}"
+                                                                                     Classes.red="{Binding Dot.IsRed}" Classes.grey="{Binding Dot.IsGrey}" Kind="{Binding Dot.Icon}"
+                                                                                     Width="16" Height="16" AutomationProperties.Name="{Binding Dot.Accessible}" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" TextWrapping="NoWrap" />
+                                                                    <TextBlock Grid.Column="2" Classes="sHint" TextWrapping="Wrap" Text="{Binding Dot.Words}" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Files that aren't taken in: why, and what can be done. -->
+        <Border Classes="sPanel">
+            <StackPanel>
+                <Border Classes="sRow">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="sTitle" Text="Files that aren't taken in" />
+                        <TextBlock Classes="sHint" Text="None. Everything the sync methods hold reads fine." IsVisible="{Binding HasNoUnreadable}" />
+                    </StackPanel>
+                </Border>
+                <ItemsControl ItemsSource="{Binding Unreadable}" IsVisible="{Binding HasUnreadable}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SyncUnreadableRowViewModel">
+                            <Border Classes="sRow" Padding="18,10">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                                        <mi:MaterialIcon Classes="dot" Classes.red="{Binding IsProblem}" Classes.grey="{Binding !IsProblem}"
+                                                         Kind="AlertCircle" AutomationProperties.Name="Can't be read" />
+                                        <StackPanel Grid.Column="1" Spacing="1">
+                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                            <TextBlock Classes="sHint" TextWrapping="Wrap" Text="{Binding Detail}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <WrapPanel Margin="28,0,0,0" ItemSpacing="8" LineSpacing="6">
+                                        <Button Content="Try again" Command="{Binding $parent[ItemsControl].((vm:SyncTroubleshootViewModel)DataContext).TryAgainCommand}"
+                                                CommandParameter="{Binding}" IsVisible="{Binding CanTryAgain}" />
+                                        <Button Content="Ignore" Command="{Binding $parent[ItemsControl].((vm:SyncTroubleshootViewModel)DataContext).IgnoreCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Remove my stale file" Command="{Binding $parent[ItemsControl].((vm:SyncTroubleshootViewModel)DataContext).RemoveStaleCommand}"
+                                                CommandParameter="{Binding}" IsVisible="{Binding CanRemoveStale}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Re-read and re-send. They change no rules: every file still goes through the merge rules and their waits. -->
+        <Border Classes="sPanel">
+            <Border Classes="sRow" BorderThickness="0">
+                <StackPanel Spacing="10">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="sTitle" Text="Read and send again" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                   Text="Safe to repeat: merging the same file twice changes nothing, and nothing here applies a looser setting sooner. The relay is read at a gentle pace." />
+                    </StackPanel>
+                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                        <Button Content="Re-read everything" Command="{Binding RereadAllCommand}" IsEnabled="{Binding IsIdle}" />
+                        <Button Content="Send my files again" Command="{Binding SendAgainCommand}" IsEnabled="{Binding IsIdle}" />
+                        <Button Content="Re-read goal history" Command="{Binding RereadHistoryCommand}" IsEnabled="{Binding IsIdle}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" IsVisible="{Binding ResultText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Conflicts: tasks changed on two devices, and a day plan question waiting for an answer. -->
+        <Border Classes="sPanel">
+            <StackPanel>
+                <Border Classes="sRow">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="sTitle" Text="Changed on both devices" />
+                        <TextBlock Classes="sHint" Text="Nothing waits for your answer." IsVisible="{Binding !HasAnyConflict}" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap" Text="{x:Static vm:SyncTroubleshootViewModel.GoalsNote}" />
+                    </StackPanel>
+                </Border>
+                <ItemsControl ItemsSource="{Binding TaskConflicts}" IsVisible="{Binding HasTaskConflicts}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SyncConflictRowViewModel">
+                            <Border Classes="sRow" Padding="18,10">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <StackPanel Spacing="1">
+                                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                        <TextBlock Classes="sHint" Text="{Binding Detail}" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="Choose" VerticalAlignment="Center"
+                                            Command="{Binding $parent[ItemsControl].((vm:SyncTroubleshootViewModel)DataContext).OpenConflictCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Classes="sRow" IsVisible="{Binding HasClash}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Day plan" />
+                            <TextBlock Classes="sHint" TextWrapping="Wrap" Text="{Binding ClashText}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Choose" VerticalAlignment="Center" Command="{Binding ShowClashCommand}" IsEnabled="{Binding CanAnswerClash}" />
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- The sync log's report: the board, the unreadable files, the versions and the log as one text file. Never sent anywhere automatically. -->
+        <Border Classes="sPanel">
+            <Border Classes="sRow" BorderThickness="0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Classes="sTitle" Text="Save a diagnostics report" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                   Text="The last 7 days of sync passes (times and counts only), the board and the versions, with no names, text, addresses or file names. It is saved where you choose and never sent." />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Save…" Click="OnExport" VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- For testing: the receipts notice (moved here; the setting's key is unchanged). -->
+        <Border Classes="sPanel" DataContext="{Binding Receipts}" x:DataType="vm:SyncReceiptsViewModel"
+                IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Border Classes="sRow" BorderThickness="0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Classes="sTitle" Text="For testing: tell me when sync reaches each device" />
+                        <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                   Text="A quiet notice when another device's file shows it has this PC's latest file, and which devices don't yet. Works for every way of syncing; a watch can't confirm. It comes once that device's own file arrives back here." />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Classes="rowSwitch" IsChecked="{Binding IsOn}" AutomationProperties.Name="Tell me when sync reaches each device" />
+                </Grid>
+            </Border>
+        </Border>
+    </StackPanel>
+</UserControl>

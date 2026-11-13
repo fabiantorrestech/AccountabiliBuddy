@@ -127,6 +127,27 @@ public sealed class SyncCoordinator
     /// <summary>The group's past keys (ADR 56), written into this PC's sealed file and merged from the others'; set by the app.</summary>
     public PastKeysService? PastKeys { get; set; }
 
+    /// <summary>
+    /// The receiver-local record behind this PC's receipts (ADR 86, SYNC1b): what arrived by which method, why a read failed, what each part came
+    /// to. Recording never raises <see cref="OwnDataChanged"/> (receiving a file never triggers a write). Set by the app.
+    /// </summary>
+    public SyncReceiptsStore? Receipts { get; set; }
+
+    /// <summary>This PC's own puts per method, times only (SYNC1b); set by the app.</summary>
+    public SyncSendLog? SendLog { get; set; }
+
+    /// <summary>The files the methods hold but this PC does not take in (SYNC1b); set by the app.</summary>
+    public SyncUnreadableFiles? Unreadable { get; set; }
+
+    /// <summary>The rolling sync log (counts and times only, SYNC1b); set by the app.</summary>
+    public SyncLog? SyncLogger { get; set; }
+
+    /// <summary>Whether this PC's task store can take parts in (open and readable); null counts as ready. Set by the app.</summary>
+    public Func<bool>? TasksReady { get; set; }
+
+    /// <summary>Whether this PC's goal store can take parts in (migrated and readable); null counts as ready. Set by the app.</summary>
+    public Func<bool>? GoalsReady { get; set; }
+
     /// <summary>The day plan was changed here and on another device before they synced: ask which to keep.</summary>
     public event EventHandler<DayPlanClashRequest>? ClashRaised;
 
@@ -189,25 +210,35 @@ public sealed class SyncCoordinator
     /// <exception cref="SqliteException">The history can't be read right now.</exception>
     public Task<SyncFile> BuildOwnFileAsync()
     {
-        return Dispatcher.UIThread.InvokeAsync(BuildOwnFileOnUiThreadAsync);
+        return RunInline ? BuildOwnFileOnUiThreadAsync() : Dispatcher.UIThread.InvokeAsync(BuildOwnFileOnUiThreadAsync);
     }
 
+    /// <summary>
+    /// Runs the public calls on the caller's thread instead of moving them to the UI thread. For check programs only, which have no UI
+    /// thread; the app never sets it.
+    /// </summary>
+    public bool RunInline { get; set; }
+
     /// <summary>Takes in a file another device sealed, carried by <paramref name="method"/> (see <see cref="SyncDeviceCard"/>).</summary>
+    /// <param name="fileName">
+    /// The file's name on a folder, Drive or the relay (null for a QR code or an imported file): it tells whose file it is when it can't be
+    /// read (the names are <see cref="SyncFolderService.FileNameFor"/> of a device) and keys the troubleshooting list. Never logged or shown.
+    /// </param>
     /// <returns>Null when accepted (or already held); otherwise why not, e.g. <see cref="CannotReadReason"/>.</returns>
-    public Task<string?> AcceptSealedAsync(byte[] sealedBytes, string method)
+    public Task<string?> AcceptSealedAsync(byte[] sealedBytes, string method, string? fileName = null)
     {
-        return Dispatcher.UIThread.InvokeAsync(() => AcceptGuardedAsync(sealedBytes, method));
+        return RunInline ? AcceptGuardedAsync(sealedBytes, method, fileName) : Dispatcher.UIThread.InvokeAsync(() => AcceptGuardedAsync(sealedBytes, method, fileName));
     }
 
     // Every way a file arrives (folder, Drive, relay, file, QR) comes through here. A file that opens but is malformed in a
     // way no check foresaw is skipped as unreadable (the same bytes would fail the same way, so the callers don't retry it);
     // it never throws out of a sync loop. A storage failure (SqliteException) still goes to the caller, who reads it again
     // later. Nothing of the file's content is logged or put in the reason.
-    private async Task<string?> AcceptGuardedAsync(byte[] sealedBytes, string method)
+    private async Task<string?> AcceptGuardedAsync(byte[] sealedBytes, string method, string? fileName)
     {
         try
         {
-            return await AcceptOnUiThreadAsync(sealedBytes, method);
+            return await AcceptOnUiThreadAsync(sealedBytes, method, fileName);
         }
         catch (Exception exception) when (exception is not SqliteException and not OperationCanceledException)
         {
@@ -282,7 +313,9 @@ public sealed class SyncCoordinator
                 // ADR 66: the waits running in the background here, times only (never the reason), for the phone's countdown and Cancel.
                 ArmedEnds = ArmedEnds?.Invoke() is { Count: > 0 } armed ? armed : null,
                 // ADR 68: the guidance mode this PC chose, mode and time only; null for a default nobody chose.
-                Guidance = Guidance?.Invoke() };
+                Guidance = Guidance?.Invoke(),
+                // ADR 86: what this PC holds and applied of the other devices' files; none while it is alone in its group (works alone).
+                Receipts = Receipts?.ForFile(_identity.DeviceId, _received.Active.Select(device => device.File.Device.DeviceId).ToHashSet()) };
         // ADR 72: the task history, settle records, Auto-saved list and handovers, while task lists are shared (ADR 71).
         SyncFile decorated = ShareTaskLists() && DecorateTaskLists is { } decorate ? decorate(built) : built;
         // ADR 76: the one task list's parts, and the old fields rebuilt from it for older apps (they replace the lists' own).
@@ -455,7 +488,7 @@ public sealed class SyncCoordinator
     /// <summary>The armed ends running here (ADR 66), times only; set by the app.</summary>
     public Func<IReadOnlyList<SyncArmedEnd>>? ArmedEnds { get; set; }
 
-    private async Task<string?> AcceptOnUiThreadAsync(byte[] sealedBytes, string method)
+    private async Task<string?> AcceptOnUiThreadAsync(byte[] sealedBytes, string method, string? fileName = null)
     {
         if (_identity.Key is not SyncKey key)
         {
@@ -470,11 +503,14 @@ public sealed class SyncCoordinator
 
         if (SyncFileCodec.IsOtherGroups(sealedBytes, key))
         {
+            NoteUnreadable(key, method, fileName, SyncUnreadableFile.OtherGroup);
             return OtherGroupReason;
         }
 
-        if (SyncFileCodec.Open(sealedBytes, key) is not SyncFile file)
+        SyncFileOpenResult opened = SyncFileCodec.TryOpen(sealedBytes, key);
+        if (opened.File is not SyncFile file)
         {
+            NoteUnreadable(key, method, fileName, opened.Code ?? SyncFileOpenFailure.Damaged.ToString().ToLowerInvariant());
             return CannotReadReason;
         }
 
@@ -496,6 +532,15 @@ public sealed class SyncCoordinator
             await Removal.ClearRemovedAsync(sender.DeviceId);
         }
 
+        // ADR 86: the method this file arrived by is recorded before any "already has newer data" decision, so a copy that came late (the
+        // relay delivered first, Drive after) still proves the method works. It reads fine now: it leaves the troubleshooting list.
+        if (fileName is not null)
+        {
+            Unreadable?.Clear(method, fileName);
+        }
+
+        Receipts?.RecordArrival(sender.DeviceId, method, sender.WrittenAt);
+
         ReceivedDevice? stored = _received.Devices.FirstOrDefault(device => device.File.Device.DeviceId == sender.DeviceId);
         if (stored is not null && sender.WrittenAt < stored.File.Device.WrittenAt)
         {
@@ -515,14 +560,125 @@ public sealed class SyncCoordinator
             await PastKeys.MergeAsync(file.PastKeys);
         }
 
-        if (file.DayPlan is SyncDayPlan plan)
+        // ADR 86: what each part of this file came to here (taken, held back, off, not in the file, refused): kept in the receiver-local record
+        // and sent back in this PC's next file. A part that threw is refused, never lost to the caller.
+        var outcome = new Dictionary<string, string>
         {
-            await ConsiderPlanAsync(plan, sender.DeviceId, sender.Name);
+            ["sessions"] = sender.HistoryOff ? SyncReceiptParts.Absent : SyncReceiptParts.Taken,
+            ["steps"] = file.Steps is null ? SyncReceiptParts.Absent : SyncReceiptParts.Taken,
+            ["lunch"] = file.Lunch is null ? SyncReceiptParts.Absent : SyncReceiptParts.Taken,
+            ["actions"] = file.Actions is null ? SyncReceiptParts.Absent : SyncReceiptParts.Taken,
+        };
+        outcome["dayPlan"] = file.DayPlan is SyncDayPlan plan ? await Guarded(() => ConsiderPlanAsync(plan, sender.DeviceId, sender.Name, sender.WrittenAt)) : SyncReceiptParts.Absent;
+        outcome["settings"] = file.Documents.Count == 0
+            ? SyncReceiptParts.Absent
+            : await Guarded(async () => await ReceiveDocumentsAsync(file.Documents) ? SyncReceiptParts.Held : SyncReceiptParts.Taken);
+        foreach ((string code, string state) in await ReceiveSharedListsAsync(file))
+        {
+            outcome[code] = state;
         }
 
-        await ReceiveDocumentsAsync(file.Documents);
-        await ReceiveSharedListsAsync(file);
+        Receipts?.RecordParts(sender.DeviceId, sender.WrittenAt, outcome);
+        CountParts(method, outcome);
         return null;
+    }
+
+    // What the parts of the accepted files came to, per method, until the method's pass is logged (TakePartCounts).
+    private readonly Dictionary<string, (int Taken, int Held)> _partCounts = [];
+
+    private void CountParts(string method, IReadOnlyDictionary<string, string> outcome)
+    {
+        (int taken, int held) = _partCounts.GetValueOrDefault(method);
+        _partCounts[method] = (taken + outcome.Values.Count(state => state == SyncReceiptParts.Taken), held + outcome.Values.Count(state => state == SyncReceiptParts.Held));
+    }
+
+    /// <summary>The parts taken and held back by the files accepted by <paramref name="method"/> since the last call; the count starts again.</summary>
+    public (int Taken, int Held) TakePartCounts(string method)
+    {
+        (int, int) counts = _partCounts.GetValueOrDefault(method);
+        _partCounts.Remove(method);
+        return counts;
+    }
+
+    /// <summary>This PC's file reached <paramref name="method"/> (SYNC1b): the send log and the sync log, times and counts only.</summary>
+    public void NoteSent(string method, DateTimeOffset writtenAt, int milliseconds)
+    {
+        SendLog?.Record(method, writtenAt, _sessions.Now);
+        SyncLogger?.Pass(method, SyncLogDirection.Send, files: 1, merged: 0, held: 0, skipped: 0, unreadable: 0, milliseconds);
+    }
+
+    /// <summary>A read pass over <paramref name="method"/> ended (SYNC1b): one line of counts in the sync log.</summary>
+    public void NoteReadPass(string method, int files, int skipped, int unreadable, int milliseconds)
+    {
+        (int taken, int held) = TakePartCounts(method);
+        SyncLogger?.Pass(method, SyncLogDirection.Read, files, taken, held, skipped, unreadable, milliseconds);
+    }
+
+    private static async Task<string> Guarded(Func<Task<string>> part)
+    {
+        try
+        {
+            return await part();
+        }
+        catch (Exception ex) when (ex is not SqliteException and not OperationCanceledException)
+        {
+            return SyncReceiptParts.Refused;
+        }
+    }
+
+    /// <summary>
+    /// A file the method holds did not open (or is an old group's leftover): the troubleshooting list gets a line, and when the file's name says
+    /// whose it is, that device's row of the receiver-local record gets the reason (ADR 86 "failed"). Nothing is logged here; the name is only
+    /// matched against <see cref="SyncFolderService.FileNameFor"/> of the devices this PC knows.
+    /// </summary>
+    private void NoteUnreadable(SyncKey key, string method, string? fileName, string reason)
+    {
+        if (fileName is null)
+        {
+            return;
+        }
+
+        Guid? device = DeviceOfName(key, fileName);
+        Unreadable?.Report(method, fileName, reason, device, IsOwnStale(fileName));
+        if (device is Guid owner && reason != SyncUnreadableFile.OtherGroup)
+        {
+            Receipts?.RecordFailure(owner, method, reason, _sessions.Now);
+        }
+    }
+
+    /// <summary>The device a file name is <see cref="SyncFolderService.FileNameFor"/> of (in the current group), among those this PC knows; null when none.</summary>
+    public Guid? DeviceOfName(SyncKey key, string fileName)
+    {
+        foreach (Guid id in KnownDeviceIds())
+        {
+            if (string.Equals(SyncFolderService.FileNameFor(key.GroupId, id), fileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return id;
+            }
+        }
+
+        return null;
+    }
+
+    private IEnumerable<Guid> KnownDeviceIds()
+    {
+        return _received.Devices.Select(device => device.File.Device.DeviceId)
+            .Concat(Removal?.Removed.Select(removed => removed.DeviceId) ?? [])
+            .Distinct();
+    }
+
+    /// <summary>
+    /// A name that is this PC's own file of an old group (<see cref="PastKeys"/> knows the group ids it left behind): stale, and this PC's to
+    /// remove. A current-group name is never stale here.
+    /// </summary>
+    public bool IsOwnStale(string fileName)
+    {
+        if (PastKeys?.ForFile() is not { } past)
+        {
+            return false;
+        }
+
+        return past.Any(old => string.Equals(SyncFolderService.FileNameFor(old.GroupId, _identity.DeviceId), fileName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static readonly TimeSpan FutureWrittenAtLimit = TimeSpan.FromSeconds(60);
@@ -531,14 +687,69 @@ public sealed class SyncCoordinator
     // A file without them (a QR file, an older app) leaves this PC's lists alone.
     // A file written more than a minute ahead of this PC's clock (the sender's clock runs fast) is not taken for its lists; a
     // later file from it, once the clocks agree, is. Item times past 2 minutes ahead are clamped by the merge itself.
-    private async Task ReceiveSharedListsAsync(SyncFile file)
+    // Returns what each shared part came to for the receipt (ADR 86): off (the switch), refused (a clock too far ahead, a store that is closed,
+    // a part that threw), absent (not in the file), taken.
+    private async Task<IReadOnlyDictionary<string, string>> ReceiveSharedListsAsync(SyncFile file)
     {
+        bool hasTasks = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null;
+        bool hasOld = file.NextTasks is not null || file.Parked is not null || file.Later is not null;
+        bool hasGoals = file.Goals is not null || file.GoalAreas is not null || file.GoalEntries is not null || file.GoalReminders is not null || file.GoalReviews is not null;
+        var states = new Dictionary<string, string>();
+
         // ADR 71: a PC that doesn't share its task lists doesn't take the others' either.
-        if (!ShareTaskLists() || file.Device.WrittenAt > _sessions.Now + FutureWrittenAtLimit)
+        if (!ShareTaskLists())
         {
-            return;
+            states["tasks"] = hasTasks ? SyncReceiptParts.Off : SyncReceiptParts.Absent;
+            states["oldLists"] = hasOld ? SyncReceiptParts.Off : SyncReceiptParts.Absent;
+            states["goals"] = hasGoals ? SyncReceiptParts.Off : SyncReceiptParts.Absent;
+            states["goalHistory"] = hasGoals ? SyncReceiptParts.Off : SyncReceiptParts.Absent;
+            return states;
         }
 
+        if (file.Device.WrittenAt > _sessions.Now + FutureWrittenAtLimit)
+        {
+            states["tasks"] = hasTasks ? SyncReceiptParts.Refused : SyncReceiptParts.Absent;
+            states["oldLists"] = hasOld ? SyncReceiptParts.Refused : SyncReceiptParts.Absent;
+            states["goals"] = hasGoals ? SyncReceiptParts.Refused : SyncReceiptParts.Absent;
+            states["goalHistory"] = hasGoals ? SyncReceiptParts.Refused : SyncReceiptParts.Absent;
+            return states;
+        }
+
+        bool tasksOpen = TasksReady?.Invoke() ?? true;
+        bool goalsOpen = GoalsReady?.Invoke() ?? true;
+        string tasksState = SyncReceiptParts.Taken;
+        try
+        {
+            await MergeSharedTaskPartsAsync(file);
+        }
+        catch (Exception ex) when (ex is not SqliteException and not OperationCanceledException)
+        {
+            tasksState = SyncReceiptParts.Refused;
+        }
+
+        string goalsState = SyncReceiptParts.Taken;
+        try
+        {
+            // ADR 79: the goal lists, under the same switch; a file without them (an older app, a QR file) leaves the goals alone.
+            if (MergeGoals is { } mergeGoals)
+            {
+                await mergeGoals(file);
+            }
+        }
+        catch (Exception ex) when (ex is not SqliteException and not OperationCanceledException)
+        {
+            goalsState = SyncReceiptParts.Refused;
+        }
+
+        states["tasks"] = !hasTasks ? SyncReceiptParts.Absent : tasksOpen && MergeTaskModel is not null ? tasksState : SyncReceiptParts.Refused;
+        states["oldLists"] = !hasOld ? SyncReceiptParts.Absent : tasksOpen ? tasksState : SyncReceiptParts.Refused;
+        states["goals"] = !hasGoals ? SyncReceiptParts.Absent : goalsOpen && MergeGoals is not null ? goalsState : SyncReceiptParts.Refused;
+        states["goalHistory"] = states["goals"];
+        return states;
+    }
+
+    private async Task MergeSharedTaskPartsAsync(SyncFile file)
+    {
         if (MergeTaskModel is { } mergeModel)
         {
             // ADR 76: one file at a time into the task list (an older app's moves pair within one file).
@@ -569,12 +780,6 @@ public sealed class SyncCoordinator
         if (ReceiveTaskLists is { } receive)
         {
             await receive(file);
-        }
-
-        // ADR 79: the goal lists, under the same switch; a file without them (an older app, a QR file) leaves the goals alone.
-        if (MergeGoals is { } mergeGoals)
-        {
-            await mergeGoals(file);
         }
     }
 
@@ -613,18 +818,20 @@ public sealed class SyncCoordinator
             .ToList();
     }
 
-    private async Task ConsiderPlanAsync(SyncDayPlan incoming, Guid fromId, string fromName)
+    // Returns the plan's receipt state (ADR 86): held while it waits for a session to end or for the user's answer, refused when it can't be
+    // read, taken otherwise (taken, kept, or the same).
+    private async Task<string> ConsiderPlanAsync(SyncDayPlan incoming, Guid fromId, string fromName, DateTimeOffset writtenAt)
     {
         // The plan is locked during focus: it waits until the session ends.
         if (_sessions.IsEnforcing)
         {
-            _waitingPlans[fromId] = new WaitingPlan(incoming, fromName);
-            return;
+            _waitingPlans[fromId] = new WaitingPlan(incoming, fromName, writtenAt);
+            return SyncReceiptParts.Held;
         }
 
         if (ReadPlan(incoming) is not DayPlan incomingPlan)
         {
-            return;
+            return SyncReceiptParts.Refused;
         }
 
         SyncDayPlan local = OwnPlan();
@@ -648,14 +855,16 @@ public sealed class SyncCoordinator
                 break;
             case DayPlanSyncDecision.TakeIncoming:
                 await TakePlanAsync(incoming);
-                break;
+                return _takeAfterFocus is not null ? SyncReceiptParts.Held : SyncReceiptParts.Taken;
             case DayPlanSyncDecision.Ask:
                 Ask(local, incoming, incomingPlan, fromId, fromName);
-                break;
+                return SyncReceiptParts.Held;
             case DayPlanSyncDecision.KeepLocal:
             default:
                 break;
         }
+
+        return SyncReceiptParts.Taken;
     }
 
     private void Ask(SyncDayPlan local, SyncDayPlan incoming, DayPlan incomingPlan, Guid fromId, string fromName)
@@ -759,12 +968,13 @@ public sealed class SyncCoordinator
         _waitingPlans.Clear();
         foreach ((Guid fromId, WaitingPlan plan) in waiting)
         {
-            await ConsiderPlanAsync(plan.Plan, fromId, plan.FromName);
+            string state = await ConsiderPlanAsync(plan.Plan, fromId, plan.FromName, plan.WrittenAt);
+            Receipts?.RecordParts(fromId, plan.WrittenAt, new Dictionary<string, string> { ["dayPlan"] = state });
         }
 
         List<SyncDocument> documents = _waitingDocuments.Values.ToList();
         _waitingDocuments.Clear();
-        await ReceiveDocumentsAsync(documents);
+        _ = await ReceiveDocumentsAsync(documents);
     }
 
     private void OnConfigurationChanged()
@@ -815,12 +1025,11 @@ public sealed class SyncCoordinator
     /// Applies received settings, or keeps them until the focus session ends: like the Profiles tab and Settings,
     /// they are locked then (the newest of each is kept).
     /// </summary>
-    private async Task ReceiveDocumentsAsync(IReadOnlyList<SyncDocument> documents)
+    private async Task<bool> ReceiveDocumentsAsync(IReadOnlyList<SyncDocument> documents)
     {
         if (!_sessions.IsEnforcing)
         {
-            await ApplyDocumentsAsync(documents);
-            return;
+            return await ApplyDocumentsAsync(documents);
         }
 
         foreach (SyncDocument document in documents)
@@ -830,6 +1039,8 @@ public sealed class SyncCoordinator
                 _waitingDocuments[document.Key] = document;
             }
         }
+
+        return true;
     }
 
     /// <summary>
@@ -855,9 +1066,11 @@ public sealed class SyncCoordinator
     }
 
     /// <summary>Applies each received setting edited later than this PC's own, by this PC's rules.</summary>
-    private async Task ApplyDocumentsAsync(IReadOnlyList<SyncDocument> documents)
+    // Returns true when a setting edited later than this PC's own was not adopted yet (a lower goal or a looser change waiting): "held" for the receipt.
+    private async Task<bool> ApplyDocumentsAsync(IReadOnlyList<SyncDocument> documents)
     {
         bool adoptedAny = false;
+        bool held = false;
         foreach (SyncDocument document in documents)
         {
             if (_editTimes.EditedAt(document.Key) is DateTimeOffset localEdit && document.EditedAt <= localEdit)
@@ -880,6 +1093,10 @@ public sealed class SyncCoordinator
                     _editTimes.Adopt(document.Key, adopted);
                     adoptedAny = true;
                 }
+                else
+                {
+                    held = true;
+                }
             }
             catch (Exception ex) when (ex is JsonException or UnsupportedSchemaVersionException)
             {
@@ -893,6 +1110,8 @@ public sealed class SyncCoordinator
             // devices still settle: once one adopted the other's edit time, the file back holds nothing newer for it.
             RaiseOwnDataChanged();
         }
+
+        return held;
     }
 
     /// <summary>
@@ -1072,6 +1291,12 @@ public sealed class SyncCoordinator
         return ProfileDocumentSerializer.Serialize(document with { DayPlan = DayPlan.Default, SchemaVersion = OldPhoneProfileSchemaVersion });
     }
 
+    /// <summary>The methods this PC has on, as its card lists them (SYNC1b's board shows one block for each).</summary>
+    public IReadOnlyList<string> OwnMethods() => Methods();
+
+    /// <summary>The day plan clash waiting for an answer (changed here and on another device), or null (SYNC1b's conflicts list).</summary>
+    public DayPlanClashRequest? PendingClash => _pendingClash;
+
     private List<string> Methods()
     {
         SyncSettings settings = _settings.Current;
@@ -1112,6 +1337,14 @@ public sealed class SyncCoordinator
     /// <summary>A new group or none: plans and settings from the old one are no longer this PC's to take.</summary>
     private void ForgetGroupWork()
     {
+        // SYNC1b: the lists of unreadable files are the old group's; the record of what arrived and what was sent goes with a group left for good.
+        Unreadable?.ClearAll();
+        if (_identity.Key is null)
+        {
+            Receipts?.Forget(new HashSet<Guid>(), all: true);
+            SendLog?.Clear();
+        }
+
         _waitingPlans.Clear();
         _waitingDocuments.Clear();
         _takeAfterFocus = null;
@@ -1142,5 +1375,5 @@ public sealed class SyncCoordinator
     /// <summary>The shape DayPlanEditTimeService saves ("dayplan.editedAt").</summary>
     private sealed record PlanEditTime(string Version, DateTimeOffset? EditedAt);
 
-    private sealed record WaitingPlan(SyncDayPlan Plan, string FromName);
+    private sealed record WaitingPlan(SyncDayPlan Plan, string FromName, DateTimeOffset WrittenAt);
 }

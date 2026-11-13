@@ -89,6 +89,64 @@ public sealed class GoalHistorySync
     /// <summary>Raised when this PC's "merged year files" marker changed: its regular sync file is written again.</summary>
     public event EventHandler? MarkerChanged;
 
+    /// <summary>
+    /// A goal history month file of another device was merged (ADR 86 receipts): the device, the month as "yyyy-MM" and the file's listed
+    /// time. Ids, a month and a time only; set by the app to record it in the receiver-local record.
+    /// </summary>
+    public Action<Guid, string, DateTimeOffset>? MonthMerged { get; set; }
+
+    /// <summary>
+    /// "Re-read goal history (full)" (SYNC1b): this PC is new to the group on <paramref name="transport"/> again, so the next pass reads every
+    /// listed file once, its own too (what a first run does; nothing is deleted, nothing bypasses the pass's request cap, the relay's
+    /// quota or the "no download before a goals part merged" gate). The caller then runs a normal pass.
+    /// </summary>
+    public async Task ForceRereadAsync(string transport)
+    {
+        if (_key() is not SyncKey key)
+        {
+            return;
+        }
+
+        GoalHistoryTransportState state = StateFor(key).Transport(transport);
+        state.NewToGroup = true;
+        state.Read.Clear();
+        state.ReadTag.Clear();
+        _unreadableTried.Clear();
+        await _stateStore.SaveAsync();
+    }
+
+    /// <summary>
+    /// "Send my files again" for the goal history (SYNC1b): this PC's KEPT month files on <paramref name="transport"/> are marked to be put again,
+    /// and the caller runs a normal pass. On the relay the "uploaded" time of each own file is forgotten, so a kept month is put again as the same
+    /// bytes through the same rules (the roller keeps finished months, any other device its open months only, never more than the quota, nothing
+    /// while an older app is in the group, at most 40 requests a pass, a 429 ends the pass); a month that rolled up and was removed is never put again.
+    /// On Drive the kept months are written again (a month that rolled up is not).
+    /// </summary>
+    public async Task ResendKeptAsync(string transport)
+    {
+        if (_key() is not SyncKey key)
+        {
+            return;
+        }
+
+        GoalHistoryTransportState state = StateFor(key).Transport(transport);
+        if (transport == "relay")
+        {
+            // The relay's own files are put again as the very same bytes (the 25-day re-upload path): forgetting when they were uploaded is enough.
+            state.Uploaded.Clear();
+        }
+        else
+        {
+            // Drive keeps files until they are removed: the kept months are written again (the content compare sees no "last" version).
+            foreach (string month in state.Written.Keys.Where(month => !state.Removed.Contains(month)).ToList())
+            {
+                state.Written.Remove(month);
+            }
+        }
+
+        await _stateStore.SaveAsync();
+    }
+
     /// <summary>The year files this PC has merged, for its regular sync file (<c>goalYearsMerged</c>); null for none.</summary>
     public IReadOnlyList<SyncGoalYearMerged>? Marker => _stateStore.Value.OwnMarker.Count == 0 ? null : _stateStore.Value.OwnMarker.ToList();
 
@@ -574,6 +632,10 @@ public sealed class GoalHistorySync
                 }
 
                 TrackPrunedGoals();
+                foreach (GoalHistoryListing read in merged.Read.Where(item => item.Key.Kind == GoalHistoryFileKind.Month && item.Key.DeviceId is Guid other && other != pass.Me))
+                {
+                    MonthMerged?.Invoke(read.Key.DeviceId!.Value, GoalHistoryNames.MonthText(read.Key.Year, read.Key.Month!.Value), read.ModifiedAt);
+                }
             }
         }
 

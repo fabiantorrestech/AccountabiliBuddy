@@ -939,6 +939,16 @@ public partial class App : Application
             syncCoordinator.NotifyHistoryChanged();
         };
         syncCoordinator.LoadBlocking();
+        // Sync troubleshooting (SYNC1b, ADR 86): what arrived by which method and what each part came to, this PC's own puts, the files that aren't
+        // taken in, and the rolling sync log (counts and times only). All device-local ("sync." documents, sync.log), in no backup.
+        var syncReceiptsStore = new AccountabiliBuddy.App.Services.Sync.SyncReceiptsStore(documents);
+        syncReceiptsStore.LoadBlocking();
+        var syncSendLog = new AccountabiliBuddy.App.Services.Sync.SyncSendLog(documents);
+        syncSendLog.LoadBlocking();
+        syncCoordinator.Receipts = syncReceiptsStore;
+        syncCoordinator.SendLog = syncSendLog;
+        syncCoordinator.Unreadable = new AccountabiliBuddy.App.Services.Sync.SyncUnreadableFiles(time);
+        syncCoordinator.SyncLogger = new AccountabiliBuddy.App.Services.Sync.SyncLog(Path.Combine(dataDirectory, "sync.log"), time);
         // The running log (ADR 22): the other devices' sessions on both day bars (History gets them below).
         _dayBar.UseReceived(receivedDevices);
         _dayBar.UseTasks(sessionTasks);
@@ -1158,7 +1168,6 @@ public partial class App : Application
         var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
         {
             SyncLightSetting = syncLightSetting,
-            Receipts = new SyncReceiptsViewModel(syncReceipts),
             Batteries = batteryVisibility,
             Removal = _syncRemoval,
             PastKeys = pastKeys,
@@ -1312,6 +1321,7 @@ public partial class App : Application
             database, taskStore, sessionTasks, _later!, _comebacks!, autoSaved,
             _filterPresets, new TaskViewStore(documents), time, dataDirectory, earlierTasksNotice);
         earlierTasksNotice.LoadBlocking();
+        syncCoordinator.TasksReady = () => taskModel != AccountabiliBuddy.App.Services.Tasks.TaskModelState.Unreadable;
         if (taskModel == AccountabiliBuddy.App.Services.Tasks.TaskModelState.Unreadable)
         {
             // The migration ran but its task list can't be read: the old documents stopped at the migration, so they are never the
@@ -1495,6 +1505,8 @@ public partial class App : Application
         goalListSync.YearsMerged = () => goalHistory.Marker;
         goalListSync.Merged = goalHistory.NoteRegularFile;
         goalHistory.MarkerChanged += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        goalHistory.MonthMerged = syncReceiptsStore.RecordHistory;
+        syncCoordinator.GoalsReady = () => _goals?.Store.IsReady == true;
         _syncDrive!.GoalHistory = goalHistory;
         _syncRelay!.GoalHistory = goalHistory;
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
@@ -2537,6 +2549,20 @@ public partial class App : Application
         devices.Relay = _syncRelay;
         devices.RelayHost = new RelayHostViewModel(_relayHost!, syncSettings, new WindowsNetworkTrust());
         devices.OpenBrowser = OpenInBrowser;
+        // Troubleshoot sync (SYNC1b): the board, the unreadable files, re-read and re-send, the conflicts list, the report. Display and maintenance
+        // only (nothing locked in a session except answering the day plan question).
+        var troubleshootService = new AccountabiliBuddy.App.Services.Sync.SyncTroubleshootService(
+            syncCoordinator, syncIdentity, syncSettings, receivedDevices, _syncFolder!, _syncDrive!, _syncRelay!, time);
+        devices.Troubleshoot = new SyncTroubleshootViewModel(
+            troubleshootService, syncCoordinator, receivedDevices, _sessions, time,
+            new AccountabiliBuddy.App.Services.Sync.TaskConflictSource(
+                taskStore, () => _taskActions, deviceId => receivedDevices.Active.FirstOrDefault(device => device.File.Device.DeviceId == deviceId) is { } known
+                    ? (receivedDevices.LabelOf(known.File.Device), known.File.Device.Kind)
+                    : null, selfId, time))
+        {
+            Receipts = new SyncReceiptsViewModel(syncReceipts),
+            AnswerClash = request => ShowDayPlanClashDialog(syncCoordinator, request, time),
+        };
         devices.SyncNow = async () =>
         {
             // Writes, then reads the other devices' files through the same accept path as a normal read; says which writes failed.

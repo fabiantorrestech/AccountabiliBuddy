@@ -25,6 +25,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -44,6 +45,7 @@ class Sync1aCheck(override val name: String) : FixtureCheck {
                     "receipts-file" -> receiptsFile(case)
                     "board" -> board(case)
                     "local" -> local(case)
+                    "backup" -> backup(case)
                     else -> keepBoth(case)
                 }
             }
@@ -126,6 +128,19 @@ class Sync1aCheck(override val name: String) : FixtureCheck {
         val wantColor = expected.getValue("color").jsonPrimitive.content
         val wantReason = expected.getValue("reason").jsonPrimitive.content
         return if (color == wantColor && reason == wantReason) null else "kotlin $color/$reason vs C# $wantColor/$wantReason"
+    }
+
+    // ---- backup (SYNC1a review): the phone's removed-device backup never carries receipts. DeviceBackups is app code (Android), so the check reads its
+    // source: `forBackup` must set `receipts = null`, as the PC's `DeviceBackupService.ForBackup` sets `Receipts = null`.
+    private fun backup(case: FixtureCase): String? {
+        val path = case.input.getValue("source").jsonPrimitive.content
+        val file = listOf(File(path), File("../$path"), File("../../$path")).firstOrNull { it.isFile } ?: return "source not found: $path"
+        val text = file.readText()
+        val start = text.indexOf("fun forBackup(")
+        if (start < 0) return "forBackup not found"
+        val end = text.indexOf("\n    )", start)
+        val body = text.substring(start, if (end < 0) text.length else end)
+        return if (Regex("""receipts\s*=\s*null""").containsMatchIn(body)) null else "forBackup keeps receipts"
     }
 
     // ---- local

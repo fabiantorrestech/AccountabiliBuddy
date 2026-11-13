@@ -141,6 +141,7 @@ private val checks: List<FixtureCheck> = listOf(
     Sync1aCheck("board"),
     Sync1aCheck("local"),
     Sync1aCheck("keep-both"),
+    Sync1aCheck("backup"),
 )
 
 /**

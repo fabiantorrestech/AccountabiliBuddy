@@ -108,7 +108,14 @@ public sealed class QrSyncService : IDisposable
         }
 
         SyncFile own = await _coordinator.BuildOwnFileAsync();
-        return LinksFor(own, key, _time.LocalTimeZone);
+        IReadOnlyList<string> links = LinksFor(own, key, _time.LocalTimeZone);
+        // SYNC1b: today's codes are on screen now; the board counts them as this PC's file reaching "QR codes".
+        if (links.Count > 0)
+        {
+            _coordinator.NoteSent(SyncDeviceCard.MethodQr, own.Device.WrittenAt, 0);
+        }
+
+        return links;
     }
 
     /// <summary>The links as QR code pictures, in order.</summary>

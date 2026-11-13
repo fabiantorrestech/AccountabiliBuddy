@@ -126,6 +126,7 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
                 _ownId ??= (await _drive.ListAsync(CancellationToken.None)).FirstOrDefault(info => info.Name == ownName)?.Id;
                 _ownId = await _drive.UploadAsync(ownName, sealedBytes, _ownId, CancellationToken.None);
                 SetProblem(null);
+                _coordinator.NoteSent(SyncDeviceCard.MethodDrive, file.Device.WrittenAt, 0);
                 return true;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException)
@@ -217,7 +218,11 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
             }
 
             bool unreadable = false;
+            int read = 0;
+            int unreadableCount = 0;
+            long started = Environment.TickCount64;
             SyncKey? passKey = _identity.Key;
+            string? ownSeenId = null;
             foreach (DriveFileInfo info in files.Where(info => info.Name.EndsWith(SyncFolderService.Extension, StringComparison.OrdinalIgnoreCase)
                 && !SyncFolderService.IsConflictCopy(info.Name)))
             {
@@ -229,7 +234,17 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
 
                 if (info.Name == ownName)
                 {
-                    _ownId = info.Id;
+                    // The first of this PC's own name is its file; any more are stale copies (listed for "Remove my stale file").
+                    if (ownSeenId is null)
+                    {
+                        ownSeenId = info.Id;
+                        _ownId = info.Id;
+                    }
+                    else
+                    {
+                        _coordinator.Unreadable?.Report(SyncDeviceCard.MethodDrive, info.Id, SyncUnreadableFile.OwnCopy, _identity.DeviceId, ownStale: true);
+                    }
+
                     continue;
                 }
 
@@ -242,13 +257,22 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
                 {
                     _seen[info.Id] = info.ModifiedAt;
                     unreadable = true;
+                    read++;
+                    unreadableCount++;
+                    if (_identity.Key is SyncKey tooBigKey)
+                    {
+                        _coordinator.Unreadable?.Report(SyncDeviceCard.MethodDrive, info.Name, "tooBig", _coordinator.DeviceOfName(tooBigKey, info.Name), _coordinator.IsOwnStale(info.Name));
+                    }
+
                     continue;
                 }
 
                 try
                 {
                     byte[] bytes = await _drive.DownloadAsync(info.Id, CancellationToken.None);
-                    string? reason = await _coordinator.AcceptSealedAsync(bytes, SyncDeviceCard.MethodDrive);
+                    read++;
+                    string? reason = await _coordinator.AcceptSealedAsync(bytes, SyncDeviceCard.MethodDrive, info.Name);
+                    unreadableCount += reason == SyncCoordinator.CannotReadReason ? 1 : 0;
                     _otherGroupFiles.Remove(info.Id);
                     _groupFiles.Remove(info.Id);
                     if (reason == SyncCoordinator.OtherGroupReason)
@@ -275,6 +299,15 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
             }
 
             SetProblem(unreadable ? "Can't read a file in Google Drive" : null);
+            _coordinator.NoteReadPass(SyncDeviceCard.MethodDrive, read, 0, unreadableCount, (int)(Environment.TickCount64 - started));
+            LastPass = (read, unreadableCount);
+            _namesById.Clear();
+            foreach (DriveFileInfo listed in files)
+            {
+                _namesById[listed.Id] = listed.Name;
+            }
+
+            _coordinator.Unreadable?.Prune(SyncDeviceCard.MethodDrive, files.Select(info => info.Name).Concat(files.Select(info => info.Id)).ToHashSet());
 
             // Files that are gone no longer count.
             _otherGroupFiles.IntersectWith(files.Select(info => info.Id));
@@ -287,6 +320,79 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
         finally
         {
             _busy.Release();
+        }
+    }
+
+    /// <summary>
+    /// Removes one of this PC's own stale files from Drive (SYNC1b), by its Drive id as listed (the entry's name): an extra copy of its current
+    /// name, or its file of an old group (<see cref="SyncCoordinator.IsOwnStale"/>). Never another device's, never the current file.
+    /// </summary>
+    public async Task<bool> RemoveOwnStaleAsync(string driveId)
+    {
+        if (!TryGetName(out string ownName, out _))
+        {
+            return false;
+        }
+
+        await _busy.WaitAsync();
+        try
+        {
+            IReadOnlyList<DriveFileInfo> listing = await _drive.ListAsync(CancellationToken.None);
+            DriveFileInfo? info = listing.FirstOrDefault(item => item.Id == driveId) ?? listing.FirstOrDefault(item => item.Name == driveId && item.Id != _ownId && _coordinator.IsOwnStale(item.Name));
+            if (info is null)
+            {
+                _coordinator.Unreadable?.Clear(SyncDeviceCard.MethodDrive, driveId);
+                return true;
+            }
+
+            driveId = info.Id;
+            bool duplicate = info.Name == ownName && info.Id != _ownId;
+            if (!duplicate && !_coordinator.IsOwnStale(info.Name))
+            {
+                return false;
+            }
+
+            await _drive.DeleteAsync(info.Id, CancellationToken.None);
+            _coordinator.Unreadable?.Clear(SyncDeviceCard.MethodDrive, driveId);
+            _seen.Remove(driveId);
+            return true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException)
+        {
+            return false;
+        }
+        finally
+        {
+            _busy.Release();
+        }
+    }
+
+    /// <summary>The files the last read pass looked at and how many of them could not be read (SYNC1b's result line).</summary>
+    public (int Files, int Problems) LastPass { get; private set; }
+
+    /// <summary>"Re-read everything" (SYNC1b): forgets what was read and downloads and merges every file again (one download each). Merging is idempotent.</summary>
+    public async Task<SyncRereadResult> RereadAllAsync()
+    {
+        if (!TryGetName(out _, out _))
+        {
+            return SyncRereadResult.None(SyncDeviceCard.MethodDrive);
+        }
+
+        ForgetSeen();
+        LastPass = (0, 0);
+        await ReadNowAsync();
+        return new SyncRereadResult(SyncDeviceCard.MethodDrive, LastPass.Files, LastPass.Problems, 0, false);
+    }
+
+    // The names of the files in the last listing, by Drive id (to forget one file's "seen" mark by its name).
+    private readonly Dictionary<string, string> _namesById = [];
+
+    /// <summary>Makes the next read download every file again (SYNC1b "Re-read everything"/"Try again"); <paramref name="name"/> limits it to one file.</summary>
+    public void ForgetSeen(string? name = null)
+    {
+        foreach (string id in _seen.Keys.Where(id => name is null || (_namesById.TryGetValue(id, out string? known) && known == name)).ToList())
+        {
+            _seen.Remove(id);
         }
     }
 
@@ -317,6 +423,7 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
         _timer?.Stop();
         _timer = null;
         _seen.Clear();
+        _coordinator.Unreadable?.ClearAll(SyncDeviceCard.MethodDrive);
         _otherGroupFiles.Clear();
         _groupFiles.Clear();
         _received.SetNewerLink(SyncDeviceCard.MethodDrive, false);

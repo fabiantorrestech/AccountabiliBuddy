@@ -24,7 +24,7 @@ namespace AccountabiliBuddy.App.Services;
 /// Requests carry nothing beyond what the protocol needs: no activity data in the clear (sync files are sealed), no
 /// identifying headers, no cookies.
 /// </summary>
-public sealed class CalendarNetwork : IDisposable
+public class CalendarNetwork : IDisposable
 {
     // A calendar file larger than this is not a calendar anyone plans with; refuse rather than fill memory.
     private const long MaxResponseBytes = 20 * 1024 * 1024;
@@ -238,7 +238,7 @@ public sealed class CalendarNetwork : IDisposable
     /// <summary>Stores this device's sealed file on the relay (PUT). The first PUT for a new group makes the group.</summary>
     /// <returns>The etag the relay gives the stored bytes (unquoted base64url SHA-256).</returns>
     /// <exception cref="HttpRequestException">Network or TLS error (a pin mismatch has an AuthenticationException inside), or a status code that isn't a success (in the exception).</exception>
-    public async Task<string> PutRelayFileAsync(RelayAccess access, string name, byte[] sealedBytes, CancellationToken cancellationToken)
+    public virtual async Task<string> PutRelayFileAsync(RelayAccess access, string name, byte[] sealedBytes, CancellationToken cancellationToken)
     {
         // The admission key is sent only when the relay asks for it (428: the group doesn't exist there yet), so it isn't in
         // a proxy's request log on every heartbeat.
@@ -266,7 +266,7 @@ public sealed class CalendarNetwork : IDisposable
 
     /// <summary>The group's files on the relay. A group nobody has written to yet (404) has none.</summary>
     /// <exception cref="HttpRequestException">As for <see cref="PutRelayFileAsync"/>.</exception>
-    public async Task<IReadOnlyList<RelayFileInfo>> ListRelayFilesAsync(RelayAccess access, CancellationToken cancellationToken)
+    public virtual async Task<IReadOnlyList<RelayFileInfo>> ListRelayFilesAsync(RelayAccess access, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await SendRelayAsync(
             access, HttpMethod.Get, $"v1/groups/{access.GroupId}/files", null, HttpCompletionOption.ResponseContentRead, false, cancellationToken);
@@ -297,7 +297,7 @@ public sealed class CalendarNetwork : IDisposable
 
     /// <summary>One sealed file from the relay; null when it isn't there (404).</summary>
     /// <exception cref="HttpRequestException">As for <see cref="PutRelayFileAsync"/>.</exception>
-    public async Task<RelayDownload?> GetRelayFileAsync(RelayAccess access, string name, CancellationToken cancellationToken)
+    public virtual async Task<RelayDownload?> GetRelayFileAsync(RelayAccess access, string name, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await SendRelayAsync(
             access, HttpMethod.Get, RelayFilePath(access, name), null, HttpCompletionOption.ResponseContentRead, false, cancellationToken);
@@ -325,7 +325,7 @@ public sealed class CalendarNetwork : IDisposable
 
     /// <summary>Removes this device's file from the relay (when it leaves the group). A file that is already gone is fine.</summary>
     /// <exception cref="HttpRequestException">As for <see cref="PutRelayFileAsync"/>.</exception>
-    public async Task DeleteRelayFileAsync(RelayAccess access, string name, CancellationToken cancellationToken)
+    public virtual async Task DeleteRelayFileAsync(RelayAccess access, string name, CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await SendRelayAsync(
             access, HttpMethod.Delete, RelayFilePath(access, name), null, HttpCompletionOption.ResponseContentRead, false, cancellationToken);
