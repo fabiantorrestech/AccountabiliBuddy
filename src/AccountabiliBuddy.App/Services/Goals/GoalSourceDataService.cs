@@ -56,6 +56,12 @@ public sealed class GoalSourceDataService
     /// <summary>The data the goals are counted from now (empty until the first <see cref="ReloadAsync"/>).</summary>
     public GoalSourceData Current { get; private set; }
 
+    /// <summary>
+    /// This PC's own counted sessions alone (<see cref="Current"/>'s <see cref="GoalSourceData.Focus"/> also holds the other devices'): what
+    /// its #tag extra is measured from (<see cref="GoalDerivedMinutes.FocusLocalExtra"/>, ADR 79).
+    /// </summary>
+    public IReadOnlyList<GoalFocusSession> OwnFocus { get; private set; } = [];
+
     /// <summary>True once this PC's records were read once.</summary>
     public bool IsLoaded { get; private set; }
 
@@ -115,7 +121,9 @@ public sealed class GoalSourceDataService
     {
         DateTimeOffset now = Now;
         TimeZoneInfo zone = Zone;
-        var focus = new List<GoalFocusSession>(GoalFocusAttribution.FromRecords(_records, _tasksOf, _isOmitted, _sessionRunning(), now, zone));
+        IReadOnlyList<GoalFocusSession> own = GoalFocusAttribution.FromRecords(_records, _tasksOf, _isOmitted, _sessionRunning(), now, zone);
+        OwnFocus = own;
+        var focus = new List<GoalFocusSession>(own);
         foreach (IEnumerable<SyncSession> device in _otherDevices())
         {
             focus.AddRange(GoalFocusAttribution.FromSynced(device, now, zone));

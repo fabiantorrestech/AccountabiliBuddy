@@ -110,6 +110,9 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
     /// <summary>True during the day plan's work parts (polled as often as in a session); set by the app.</summary>
     public Func<bool>? InWorkHours { get; set; }
 
+    /// <summary>ADR 79 shared history (GS3b): a pass over the goal history files on this relay, run after a read when due; set by the app.</summary>
+    public GoalHistorySync? GoalHistory { get; set; }
+
     /// <summary>True while the noise player plays and for 10 minutes after a phone's noise command (ADR 42); set by the app.</summary>
     public Func<bool>? NoiseBusy { get; set; }
 
@@ -318,6 +321,13 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                     continue;
                 }
 
+                if (GoalHistory?.IsHistoryName(info.Name, SyncFolderService.Extension) == true)
+                {
+                    // A goal history file (ADR 79, GoalHistorySync) read by its own pass; the relay's names allow no other shape than a sync file's.
+                    _seen[info.Name] = info.ETag;
+                    continue;
+                }
+
                 if (info.Size > MaxFileBytes)
                 {
                     _seen[info.Name] = info.ETag;
@@ -334,6 +344,13 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
                     }
 
                     passBytes += download.Bytes.Length;
+                    if (GoalHistoryNames.IsHistoryFile(download.Bytes))
+                    {
+                        // A goal history file (ADR 79, GoalHistorySync): the relay's names allow no other shape than a sync file's, so the header tells.
+                        _seen[info.Name] = download.ETag ?? info.ETag;
+                        continue;
+                    }
+
                     string? reason = await _coordinator.AcceptSealedAsync(download.Bytes, SyncDeviceCard.MethodRelay);
                     unreadable |= reason == SyncCoordinator.CannotReadReason;
                     if (reason is null || reason == SyncCoordinator.CannotReadReason || reason == SyncCoordinator.OwnFileReason
@@ -468,7 +485,9 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
         // Left the group, or joined or made another: the old group's file leaves the relay.
         if (previous is not null && !(previousKey?.SameGroupAs(_identity.Key) ?? _identity.Key is null))
         {
-            _ = ForgetFileAsync(previous, previousName);
+            // The goal history files this PC put there (ADR 79) leave with it: the relay deletes only when a device leaves.
+            IReadOnlyList<string> historyNames = GoalHistory?.OwnNames("relay") ?? [];
+            _ = ForgetFileAsync(previous, previousName, historyNames);
         }
 
         _key = _identity.Key;
@@ -505,6 +524,37 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
     {
         await WriteNowAsync();
         await ReadNowAsync();
+        await HistoryAsync();
+    }
+
+    /// <summary>
+    /// A pass over the goal history files on the relay when one is due (<see cref="GoalHistorySync.RunEvery"/>); at once with
+    /// <paramref name="force"/>. Waits for any write or read in flight; a relay failure is not shown (the files are tried again later).
+    /// </summary>
+    public async Task HistoryAsync(bool force = false)
+    {
+        RelayAccess? access = _access;
+        GoalHistorySync? history = GoalHistory;
+        if (_disposed || access is null || history is null || _key is null)
+        {
+            return;
+        }
+
+        CancellationToken token = _lifetime.Token;
+        await _busy.WaitAsync();
+        try
+        {
+            var store = new RelayGoalHistoryStore(_network, access);
+            await (force ? history.RunAsync(store, token) : history.RunIfDueAsync(store, token));
+        }
+        catch (Exception ex) when (IsRelayFailure(ex) || ex is SqliteException)
+        {
+            // Tried again at the next pass.
+        }
+        finally
+        {
+            _busy.Release();
+        }
     }
 
     // The fallback tick always reads (in case the push stream missed something). It writes only when this PC's data
@@ -518,6 +568,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
         }
 
         await ReadNowAsync();
+        await HistoryAsync();
     }
 
     // Keeps the push stream open, waiting longer after each failure (1 s up to 60 s) and starting over once connected.
@@ -633,12 +684,16 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
     // Best effort: a relay that can't be reached keeps the file until its 30-day cleanup.
     // It waits for the write that may be in flight (it was cancelled by the restart, and any write waiting behind it sees
     // the cancelled token and does nothing), so the old file can't land on the relay after the delete.
-    private async Task ForgetFileAsync(RelayAccess access, string ownName)
+    private async Task ForgetFileAsync(RelayAccess access, string ownName, IReadOnlyList<string> historyNames)
     {
         await _busy.WaitAsync();
         try
         {
             await _network.DeleteRelayFileAsync(access, ownName, CancellationToken.None);
+            foreach (string name in historyNames)
+            {
+                await _network.DeleteRelayFileAsync(access, name, CancellationToken.None);
+            }
         }
         catch (Exception ex) when (IsRelayFailure(ex))
         {
@@ -707,6 +762,7 @@ public sealed class SyncRelayService : IDisposable, IRekeyPublisher
             .Concat(_received.Devices.Select(device => device.File.Device.DeviceId))
             .Distinct()
             .Select(id => SyncFolderService.FileNameFor(e.OldKey.GroupId, id))
+            .Concat(GoalHistory?.OwnNames("relay") ?? [])
             .ToList();
         _ = DeleteOldFilesAsync(access, names);
     }

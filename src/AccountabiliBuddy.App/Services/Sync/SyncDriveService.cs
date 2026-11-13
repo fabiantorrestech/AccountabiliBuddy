@@ -67,6 +67,9 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
     /// <summary>True during the day plan's work parts (polled as often as in a session); set by the app.</summary>
     public Func<bool>? InWorkHours { get; set; }
 
+    /// <summary>ADR 79 shared history (GS3b): a pass over the goal history files in the Drive folder, run after a read when due; set by the app.</summary>
+    public GoalHistorySync? GoalHistory { get; set; }
+
     /// <summary>True while the noise player plays and for 10 minutes after a phone's noise command (ADR 42); set by the app.</summary>
     public Func<bool>? NoiseBusy { get; set; }
 
@@ -339,6 +342,35 @@ public sealed class SyncDriveService : IDisposable, IRekeyPublisher
     {
         await WriteNowAsync();
         await ReadNowAsync();
+        await HistoryAsync();
+    }
+
+    /// <summary>
+    /// A pass over the goal history files in the Drive folder when one is due (<see cref="GoalHistorySync.RunEvery"/>); at once with
+    /// <paramref name="force"/>. Waits for any write or read in flight; a Drive failure is not shown (tried again at the next pass).
+    /// </summary>
+    public async Task HistoryAsync(bool force = false)
+    {
+        GoalHistorySync? history = GoalHistory;
+        if (history is null || !TryGetName(out _, out _))
+        {
+            return;
+        }
+
+        await _busy.WaitAsync();
+        try
+        {
+            var store = new DriveGoalHistoryStore(_drive);
+            await (force ? history.RunAsync(store, CancellationToken.None) : history.RunIfDueAsync(store, CancellationToken.None));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or SqliteException)
+        {
+            // Tried again at the next pass.
+        }
+        finally
+        {
+            _busy.Release();
+        }
     }
 
     private bool TryGetName(out string ownName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SyncKey? key)

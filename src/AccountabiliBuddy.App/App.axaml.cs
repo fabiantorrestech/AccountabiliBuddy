@@ -1459,6 +1459,42 @@ public partial class App : Application
         goalData.DeviceId = selfId;
         goalData.Steps = () => dailySteps.Current;
         dailySteps.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
+        // ADR 79 (GS3b): the derived day values this PC measures (#tag extras, calendar) go into its own goal entries, marked with its id,
+        // for the other devices; at most every five minutes, and only when a value changed.
+        var goalDerived = new AccountabiliBuddy.App.Services.Goals.GoalDerivedValuesService(goalStore, goalData, time);
+        goalData.Changed += (_, _) => goalDerived.Request();
+        var goalDerivedTimer = new DispatcherTimer { Interval = AccountabiliBuddy.App.Services.Goals.GoalDerivedValuesService.MinGap };
+        goalDerivedTimer.Tick += (_, _) => _ = goalDerived.RunAsync();
+        goalDerivedTimer.Start();
+        // ADR 79 (GS3b): the shared goal history, month and year files on Drive and the relay (sealed like the sync files, never in a QR
+        // file); this PC's "merged year files" marker travels in its regular file. Counts only in goals-history.log.
+        var goalHistoryState = new AccountabiliBuddy.App.Services.Sync.GoalHistoryStateStore(documents, new DpapiDataProtector());
+        goalHistoryState.LoadBlocking();
+        string goalHistoryLog = Path.Combine(dataDirectory, "goals-history.log");
+        var goalHistory = new AccountabiliBuddy.App.Services.Sync.GoalHistorySync(
+            _goals, goalListSync.Held, goalHistoryState, time, selfId, () => syncIdentity.Key,
+            () => receivedDevices.Devices
+                .Select(device => new AccountabiliBuddy.App.Services.Sync.GoalHistoryDeviceInfo(
+                    device.File.Device.DeviceId, device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPc,
+                    receivedDevices.IsRemoved(device.File.Device.DeviceId), device.ReceivedAt))
+                .ToList(),
+            () => syncSettings.Current.ShareTaskLists,
+            line =>
+            {
+                try
+                {
+                    File.AppendAllText(goalHistoryLog, $"{time.GetUtcNow():yyyy-MM-ddTHH:mm:ssZ} {line}{Environment.NewLine}");
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // The log is a help, never a reason to stop.
+                }
+            });
+        goalListSync.YearsMerged = () => goalHistory.Marker;
+        goalListSync.Merged = goalHistory.NoteRegularFile;
+        goalHistory.MarkerChanged += (_, _) => syncCoordinator.NotifyHistoryChanged();
+        _syncDrive!.GoalHistory = goalHistory;
+        _syncRelay!.GoalHistory = goalHistory;
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         goal.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         _ = goalData.ReloadAsync();

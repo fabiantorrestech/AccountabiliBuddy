@@ -22,6 +22,12 @@ public sealed class GoalListSync
     private readonly Func<Guid?> _self;
     private readonly TimeProvider _time;
 
+    /// <summary>ADR 79 shared history (GS3b): the year files this PC has merged, sent as <c>goalYearsMerged</c>; set by the app.</summary>
+    public Func<IReadOnlyList<SyncGoalYearMerged>?>? YearsMerged { get; set; }
+
+    /// <summary>ADR 79 shared history (GS3b): a regular file's goal parts merged here (the device is syncing; its year-file marker); set by the app.</summary>
+    public Action<SyncFile>? Merged { get; set; }
+
     /// <param name="self">This PC's device id in its group; null while it isn't in one.</param>
     /// <param name="time">The trusted clock (ADR 70): the merge's "now" and the receipt time of a received lower target.</param>
     public GoalListSync(GoalsService goals, Func<Guid?> self, TimeProvider time)
@@ -39,7 +45,7 @@ public sealed class GoalListSync
             return file with { Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null };
         }
 
-        return SyncGoalParts.Into(file, GoalSyncWindow.Apply(lists, _time.GetUtcNow()));
+        return SyncGoalParts.Into(file, GoalSyncWindow.Apply(lists, _time.GetUtcNow())) with { GoalYearsMerged = YearsMerged?.Invoke() };
     }
 
     /// <summary>Takes another device's goal parts in; true when this PC's goals changed.</summary>
@@ -56,9 +62,17 @@ public sealed class GoalListSync
         }
 
         // The held lists are read and merged inside the service's gate, not before it (a change saved while this waits is not lost).
-        return await _goals.ApplySyncedAsync(
+        bool changed = await _goals.ApplySyncedAsync(
             () => HeldLists() is GoalSyncLists held ? GoalSyncMerge.MergeReported(held, incoming, _time.GetUtcNow()).Lists : null, this);
+        Merged?.Invoke(file);
+        return changed;
     }
+
+    /// <summary>
+    /// This PC's lists as the sync file carries them (Deep work composed; none of the 90-day window applied): what a history file's rows
+    /// merge into. Null while the goals aren't ready.
+    /// </summary>
+    public GoalSyncLists? Held() => HeldLists();
 
     // Everything held here (null while the goals aren't ready), Deep work's record composed: the merge sees this PC's effective weekly
     // target with its own stamp.
