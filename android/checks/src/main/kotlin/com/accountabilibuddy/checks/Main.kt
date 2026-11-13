@@ -123,6 +123,9 @@ private val checks: List<FixtureCheck> = listOf(
     Gs2Check("gs1b", "active", Gs2Cases::active),
     Gs2Check("gs1b", "converge", Gs2Cases::converge),
     Gs2Check("gs1b", "history-before-goal", Gs2Cases::historyBeforeGoal),
+    // GS4 review: the history file names and the PC-sealed ABM1 / ABY1 files opened by the phone codec (the C# checks write gs4/*.json).
+    Gs4Check("names"),
+    Gs4Check("sealed"),
 )
 
 /**
@@ -159,12 +162,14 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "ph1td1-self" to Ph1Td1SelfCheck::run,
     // Round 2 GS4: the phone's goals sync wiring: the weekly receive rule, stamping, derived ownership, what goes out, the history transport (phone only).
     "gs4-self" to Gs4SelfCheck::run,
+    // GS4 review fixes: the fail-safe default environment, apply results, the one history lock under threads, names, wiring (phone only).
+    "gs4fix-self" to Gs4FixSelfCheck::run,
     // Round 2 GS2 review fixes: "+" in a time, non-finite numbers, Health Connect's highest, the small reading rules, a 65 000-entry timing check (phone only).
     "gs2fix-self" to Gs2FixSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

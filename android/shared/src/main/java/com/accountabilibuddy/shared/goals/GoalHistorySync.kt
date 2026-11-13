@@ -6,6 +6,9 @@ import java.time.Duration
 import java.time.OffsetDateTime
 import java.util.TreeSet
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * The shared goal history on this device (ADR 79 "shared history", owner 2026-11-14; GS4; the twin of the PC's `GoalHistorySync`): each
@@ -22,13 +25,20 @@ import java.util.UUID
  * 6. **Put again** own files the relay would expire (25 days, the owner's rule) or that went missing.
  * A file bigger than the store's limit (the relay's 4 MiB) is not written, and the relay keeps room for the devices' sync files. Sealed exactly
  * like the sync files (the group's key, AES-256-GCM, [codec]); never in a QR file. Logs counts only. Pure: no clock, no network, no storage
- * of its own, so the JVM checks drive it with a fake store and codec. Passes must not overlap (the caller holds its sync mutex).
+ * of its own, so the JVM checks drive it with a fake store and codec.
+ *
+ * Threads (GS4 review): the Drive and relay sources run their passes on their own threads, and the receive path and the store's change hook
+ * call [noteRegularFile] and [trackPrunedGoals]. One lock covers every pass and every change of the state, so they never overlap.
+ * It is **never held while [applySynced] runs** (that takes the goal store's lock; a thread holding the store's lock and wanting this one
+ * would deadlock): a pass lets go for that call and checks afterwards that the state is still the one it started with. [trackPrunedGoals] is
+ * called off the store's lock by the app (posted). The cheap readers ([marker], [prunedGoals], [ownNames], [isHistoryName]) read a snapshot
+ * published at the end of each locked step and never wait for a pass over the network.
  */
 class GoalHistorySync(
     /** This device's lists as the sync file carries them (Deep work composed), or null while the goals aren't ready. */
     private val held: () -> GoalLists?,
     /** Takes a merge in INSIDE the store's lock: gets the held lists, returns the merged ones (null = nothing to take in); true when anything changed. */
-    private val applySynced: ((GoalLists) -> GoalLists?) -> Boolean,
+    private val applySynced: ((GoalLists) -> GoalLists?) -> GoalApplyResult,
     private val states: GoalHistoryStateHolder,
     private val now: () -> OffsetDateTime,
     private val self: () -> UUID?,
@@ -44,7 +54,8 @@ class GoalHistorySync(
     /** The group's key as the history files need it. */
     data class GoalHistoryKey(val groupId: String, val fingerprint: String)
 
-    private val lastRun = HashMap<String, OffsetDateTime>()
+    private val lock = ReentrantLock()
+    private val lastRun = ConcurrentHashMap<String, OffsetDateTime>()
     private val unreadableTried = HashMap<String, OffsetDateTime>()
     private val staleNames = HashMap<String, List<String>>()
     private var previousGoals: GoalLists? = null
@@ -52,25 +63,107 @@ class GoalHistorySync(
     /** Raised when this device's "merged year files" marker changed: its regular sync file is written again. */
     var onMarkerChanged: () -> Unit = {}
 
+    /** What the cheap readers see: replaced whole after each locked step, so a reader never waits for a pass or sees a half-changed state. */
+    private class Snapshot(val marker: List<SyncGoalYearMerged>?, val pruned: Set<UUID>, val ownNames: Map<String, List<String>>, val knownIds: Set<UUID>)
+
+    @Volatile
+    private var snapshot = Snapshot(null, emptySet(), emptyMap(), emptySet())
+
+    private val namesLock = Any()
+
+    // The history names found by header (see [noteHistoryName]); persisted in the state at the next locked step.
+    @Volatile
+    private var notedNames: List<String> = emptyList()
+    private var namesDirty = false
+
+    @Volatile
+    private var nameCache: Pair<String, Set<String>>? = null
+
     init {
         previousGoals = if (ready()) held() else null
+        notedNames = states.value.historyNames.toList()
+        publish()
     }
 
     /** The year files this device has merged, for its regular sync file (`goalYearsMerged`); null for none. */
-    val marker: List<SyncGoalYearMerged>? get() = states.value.ownMarker.ifEmpty { null }
+    val marker: List<SyncGoalYearMerged>? get() = snapshot.marker
 
     /** The ids of the goals whose tombstone this device pruned (Q649), kept for good. */
-    val prunedGoals: Set<UUID> get() = states.value.prunedGoals
+    val prunedGoals: Set<UUID> get() = snapshot.pruned
 
     /** Every name this device put on the transport: they go when it leaves the group (the relay) or when the key changes. */
-    fun ownNames(transport: String): List<String> = states.value.transports[transport]?.ownNames?.toList() ?: emptyList()
+    fun ownNames(transport: String): List<String> = snapshot.ownNames[transport] ?: emptyList()
+
+    /** Whether this thread holds the history lock (for the checks: [applySynced] must never run while it does). */
+    fun holdsLock(): Boolean = lock.isHeldByCurrentThread
+
+    private fun publish() {
+        val state = states.value
+        val ids = HashSet<UUID>()
+        ids.addAll(state.deviceMarkers.keys)
+        ids.addAll(state.lastRegularMerge.keys)
+        ids.addAll(state.lastMergeFrom.keys)
+        snapshot = Snapshot(state.ownMarker.ifEmpty { null }, state.prunedGoals.toSet(), state.transports.mapValues { it.value.ownNames.toList() }, ids)
+    }
+
+    /**
+     * Whether [name] is the name of a goal history file this device knows (the twin of the PC's `IsHistoryName`): the names its devices,
+     * years and months can have, plus the names found by header ([noteHistoryName]). The relay's regular reader leaves such a file alone
+     * WITHOUT downloading it. Never waits for a pass.
+     */
+    fun isHistoryName(name: String, extension: String): Boolean {
+        val k = key() ?: return false
+        if (name in notedNames) return true
+        val ids = HashSet<UUID>(snapshot.knownIds)
+        self()?.let { ids.add(it) }
+        devices().forEach { ids.add(it.id) }
+        val lastYear = now().withOffsetSameInstant(java.time.ZoneOffset.UTC).year + 1
+        val cacheKey = k.groupId + "|" + extension + "|" + lastYear + "|" + ids.map { it.toString() }.sorted().joinToString(",")
+        val cached = nameCache
+        val names = if (cached != null && cached.first == cacheKey) cached.second else GoalHistoryNames.candidates(k.groupId, extension, ids, lastYear).keys.toHashSet().also { nameCache = cacheKey to it }
+        return name in names
+    }
+
+    /**
+     * A file the header showed to be a history file whose name wasn't known yet: remembered (and kept in the state across restarts) so
+     * it is not downloaded again. Never waits for a pass; the state is written at the pass's end if one is running.
+     */
+    fun noteHistoryName(name: String) {
+        synchronized(namesLock) {
+            if (name in notedNames) return
+            notedNames = (notedNames + name).takeLast(MAX_HISTORY_NAMES)
+            namesDirty = true
+        }
+
+        if (lock.tryLock()) {
+            try {
+                flushNames()
+            } finally {
+                lock.unlock()
+            }
+        }
+    }
+
+    // Inside the lock: the noted names go into the state and the state is saved.
+    private fun flushNames() {
+        val names = synchronized(namesLock) {
+            if (!namesDirty) return
+            namesDirty = false
+            notedNames
+        }
+
+        val state = states.value
+        state.historyNames.clear()
+        state.historyNames.addAll(names)
+        states.save()
+    }
 
     /**
      * A regular sync file with goal parts merged here: the device is syncing (its last complete merge and its last regular merge are now),
      * this device is no longer new to the group, and the device's "merged year files" marker is kept (the copy of its file kept for display has none).
      */
-    fun noteRegularFile(deviceId: UUID, yearsMerged: List<SyncGoalYearMerged>?) {
-        val k = key() ?: return
+    fun noteRegularFile(deviceId: UUID, yearsMerged: List<SyncGoalYearMerged>?) = lock.withLock {
+        val k = key() ?: return@withLock
         val state = stateFor(k)
         val at = now()
         state.goalsPartMerged = true
@@ -78,6 +171,7 @@ class GoalHistorySync(
         state.lastMergeFrom[deviceId] = at
         if (yearsMerged != null) state.deviceMarkers[deviceId] = yearsMerged else state.deviceMarkers.remove(deviceId)
         states.save()
+        publish()
     }
 
     /** Whether a pass over [transport] is due ([RUN_EVERY]). */
@@ -92,14 +186,23 @@ class GoalHistorySync(
     /** One pass over the transport (see the class summary). Transport errors are the caller's to catch; what was done before one stays recorded. */
     fun run(store: GoalHistoryStore): GoalHistoryRun {
         val run = GoalHistoryRun()
+        val markerChanged = lock.withLock { runLocked(store, run) }
+        // Outside the lock: it sends this phone's file again.
+        if (markerChanged) onMarkerChanged()
+        return run
+    }
+
+    // Holds the lock except while [applySynced] runs. True when this device's merged-years marker changed.
+    private fun runLocked(store: GoalHistoryStore, run: GoalHistoryRun): Boolean {
         val me = self()
         val k = key()
-        if (!enabled() || me == null || me == ZERO || k == null || !ready()) return run
+        if (!enabled() || me == null || me == ZERO || k == null || !ready()) return false
 
         run.ran = true
         lastRun[store.transport] = now()
         val state = stateFor(k)
         val markerText = markerText(state)
+        var markerChanged = false
         try {
             deleteStaleNames(store)
             val pass = Pass(store, state, state.transport(store.transport), me, k)
@@ -113,19 +216,37 @@ class GoalHistorySync(
             write(pass, run)
             remove(pass, run)
             reuploadYears(pass, run)
+        } catch (e: StalePass) {
+            // The group's key changed while the merge was taken in: this pass belongs to the old state; the next one starts over.
         } finally {
+            flushNames()
             states.save()
-            if (markerText(state) != markerText) onMarkerChanged()
+            publish()
+            markerChanged = markerText(state) != markerText
             log("goal history ${store.transport}: $run")
         }
 
-        return run
+        return markerChanged
+    }
+
+    private class StalePass : RuntimeException(null, null, false, false)
+
+    // Lets go of the lock (however many times this thread holds it) for [block] and takes it back; the pass then checks its state is current.
+    private inline fun <T> outsideLock(pass: Pass, block: () -> T): T {
+        val holds = lock.holdCount
+        repeat(holds) { lock.unlock() }
+        try {
+            return block()
+        } finally {
+            repeat(holds) { lock.lock() }
+            if (states.value !== pass.state) throw StalePass()
+        }
     }
 
     /** Goals whose tombstone went since the last look (Q649): kept, with the id only. Call after every change of the lists. */
-    fun trackPrunedGoals() {
-        if (!ready()) return
-        val after = held() ?: return
+    fun trackPrunedGoals() = lock.withLock {
+        if (!ready()) return@withLock
+        val after = held() ?: return@withLock
         val state = states.value
         val heldIds = HashSet<UUID>(after.goals.map { it.id })
         after.newer.goals.mapNotNull { GoalRawItem.tryRead(it.json) }.forEach { heldIds.add(it.id) }
@@ -140,6 +261,7 @@ class GoalHistorySync(
             state.prunedGoals.addAll(pruned)
             state.tombstonedGoals = tombstoned
             states.save()
+            publish()
         }
     }
 
@@ -159,6 +281,10 @@ class GoalHistorySync(
         val tombstoned = state.tombstonedGoals
         states.reset()
         state = states.value
+        synchronized(namesLock) {
+            notedNames = emptyList()
+            namesDirty = false
+        }
         state.group = k.fingerprint
         state.prunedGoals.addAll(pruned)
         state.tombstonedGoals = tombstoned
@@ -254,12 +380,18 @@ class GoalHistorySync(
 
         if (rows.isNotEmpty()) {
             var merged: GoalHistoryMerged? = null
-            applySynced { heldLists ->
-                val result = GoalHistoryRules.merge(heldLists, null, rows, at, state.prunedGoals)
-                merged = result
-                result.lists
+            // The pruned ids as they are now (a copy: another thread may add to the set while the merge runs without the lock).
+            val prunedNow = state.prunedGoals.toSet()
+            val outcome = outsideLock(pass) {
+                applySynced { heldLists ->
+                    val result = GoalHistoryRules.merge(heldLists, null, rows, at, prunedNow)
+                    merged = result
+                    result.lists
+                }
             }
-            merged?.let { result ->
+
+            // Recorded as read only when the rows were taken in (or were already there): a failed write leaves the files to be read again.
+            merged?.takeIf { outcome.recordsReads }?.let { result ->
                 for (readFile in result.read) {
                     val text = GoalHistoryNames.keyText(readFile.key)
                     transport.read[text] = readFile.modifiedAt

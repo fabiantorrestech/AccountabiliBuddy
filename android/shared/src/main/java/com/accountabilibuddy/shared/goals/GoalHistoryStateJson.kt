@@ -25,6 +25,7 @@ object GoalHistoryStateJson {
         put("ownMarker", marker(state.ownMarker))
         put("tombstonedGoals", ids(state.tombstonedGoals))
         put("prunedGoals", ids(state.prunedGoals))
+        put("historyNames", strings(state.historyNames))
         put(
             "transports",
             buildJsonObject {
@@ -60,6 +61,7 @@ object GoalHistoryStateJson {
             state.ownMarker = readMarker(obj["ownMarker"])
             state.tombstonedGoals = readIds(obj["tombstonedGoals"]).toSet()
             state.prunedGoals.addAll(readIds(obj["prunedGoals"]))
+            state.historyNames.addAll(readStrings(obj["historyNames"]))
             (obj["transports"] as? JsonObject)?.forEach { (name, value) ->
                 val t = state.transport(name)
                 val o = value as JsonObject

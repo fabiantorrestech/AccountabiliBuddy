@@ -345,9 +345,11 @@ class RelaySyncSource(
                     val unreadable = read(endpoint, listed, ownName)
                     if (write) {
                         write(endpoint)
-                        // A history failure is not shown: tried again at the next pass.
-                        runCatching { goalHistory?.runIfDue(RelayGoalHistoryStore(endpoint)) }
                     }
+
+                    // On read ticks too, like the PC (its history files are read and put again at most every 15 minutes). A history failure
+                    // is not shown: tried again at the next pass.
+                    runCatching { goalHistory?.runIfDue(RelayGoalHistoryStore(endpoint)) }
 
                     FolderStatus(Instant.now(), if (unreadable) "Can't read a file on the relay." else null)
                 } catch (e: RelayException) {
@@ -373,11 +375,19 @@ class RelaySyncSource(
                 continue
             }
 
+            // A goal history file by its name (ADR 79, the twin of the PC's IsHistoryName): left alone without a download; its own pass reads it.
+            if (goalHistory?.isHistoryName(file.name, com.accountabilibuddy.shared.goals.GoalHistoryNames.RELAY_EXTENSION) == true) {
+                seen[file.name] = file.etag
+                continue
+            }
+
             val downloaded = RelayNetwork.get(endpoint, file.name) ?: continue
             passBytes += downloaded.bytes.size
             val etag = downloaded.etag ?: file.etag
-            // A goal history file (ADR 79, GoalHistorySync): the relay's names allow no other shape than a sync file's, so the header tells.
+            // A name this phone doesn't know yet (a device it hasn't heard from): the relay's names allow no other shape than a sync file's,
+            // so the header tells. The name is remembered (kept across restarts), so the file is not downloaded again.
             if (com.accountabilibuddy.shared.goals.GoalHistoryNames.isHistoryFile(downloaded.bytes)) {
+                goalHistory?.noteHistoryName(file.name)
                 seen[file.name] = etag
                 continue
             }

@@ -661,17 +661,43 @@ class CompanionApp : Application() {
         // Round 2 R6: the Goals screen's choices, and the goals' first run (Work and Deep work, once; nothing else).
         com.accountabilibuddy.companion.goals.GoalDisplayPrefs.load(this)
         com.accountabilibuddy.companion.goals.GoalSettingsPrefs.load(this)
+        // Deep work's weekly target waits like any looser change: the mode, a running session (the check the removal lock uses) and the
+        // looser-change delay are read when a change is asked or settled (round 2 R6b2). GS4 review (BLOCKER 1): set FIRST, before anything
+        // can read the goals through the history (its start reads the goals, which settles a waiting change): until it is set the weekly state
+        // is "unknown" and nothing waiting is applied or re-timed.
+        goals.deepWork.environment = {
+            // One reading of the trusted clock (ADR 70) decides the session check and the wait; the phone's own clock is never read.
+            val trusted = com.accountabilibuddy.companion.guidance.TrustedTime.now()
+            com.accountabilibuddy.companion.goals.PhoneWeeklyEnvironment(
+                productaBuddy = guidance.state.value.mode == com.accountabilibuddy.companion.guidance.GuidanceMode.Companion,
+                sessionRunning = com.accountabilibuddy.companion.placement.GuardsLock.at(this, trusted) != null,
+                now = java.time.OffsetDateTime.ofInstant(trusted, java.time.ZoneId.systemDefault()),
+                looserDelay = com.accountabilibuddy.companion.guidance.GuidanceStore.DELAY,
+            )
+        }
         // A goal, reminder or review change sets the goal reminders' alarm again at once (round 2 R6b3).
         goals.onChanged = {
-            autoBackup.soon()
-            // ADR 79: the change goes out in this phone's file (written only when its content changed) and the pruned-goal ids are kept.
-            runCatching { goalHistory.trackPrunedGoals() }
-            sendSyncFilesSoon()
-            appScope.launch { runCatching { com.accountabilibuddy.companion.notify.GoalReminders.refresh(this@CompanionApp, pause.isQuiet) } }
+            val actions = com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.afterListChange()
+            for (action in actions) when (action) {
+                com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.Action.AutoBackup -> autoBackup.soon()
+                // ADR 79: the pruned-goal ids are kept. This hook runs inside the goal store's lock and the history takes its own lock for this
+                // (a history pass holds that one while it waits for the store's), so it is posted, never run here (GS4 review, SHOULD 4).
+                com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.Action.TrackPrunedGoals ->
+                    appScope.launch(kotlinx.coroutines.Dispatchers.Default) { runCatching { goalHistory.trackPrunedGoals() } }
+                // The change goes out in this phone's file (written only when its content changed).
+                com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.Action.SendSyncFiles -> sendSyncFilesSoon()
+                com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.Action.RefreshReminders ->
+                    appScope.launch { runCatching { com.accountabilibuddy.companion.notify.GoalReminders.refresh(this@CompanionApp, pause.isQuiet) } }
+            }
         }
-        // Deep work's weekly target waits like any looser change: the mode, a running session (the check the removal lock uses) and the
-        // looser-change delay are read when a change is asked or settled (round 2 R6b2).
-        goals.deepWork.onChanged = { autoBackup.soon() }
+        // The weekly target or its waiting change was written (an edit, Cancel's re-stamp, a change taken in): backed up and sent soon.
+        goals.deepWork.onChanged = {
+            for (action in com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.afterWeeklyChange()) when (action) {
+                com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.Action.AutoBackup -> autoBackup.soon()
+                com.accountabilibuddy.companion.goals.PhoneGoalSyncWiring.Action.SendSyncFiles -> sendSyncFilesSoon()
+                else -> Unit
+            }
+        }
         // ADR 79 (GS4): goals sync. Every stamp is by this device (lower-case id, the empty id before the phone is in a group); a goal change
         // here goes out in this phone's file soon; the five goal parts and the year-file marker go in the file, other devices' parts merge in.
         goals.selfId = { if (sync.isJoined) sync.deviceId.toString().lowercase() else com.accountabilibuddy.shared.sync.FieldStamp.NOBODY }
@@ -693,16 +719,6 @@ class CompanionApp : Application() {
             }
         }
         goalHistory.onMarkerChanged = { sendSyncFilesSoon() }
-        goals.deepWork.environment = {
-            // One reading of the trusted clock (ADR 70) decides the session check and the wait; the phone's own clock is never read.
-            val trusted = com.accountabilibuddy.companion.guidance.TrustedTime.now()
-            com.accountabilibuddy.companion.goals.PhoneDeepWorkWeekly.Environment(
-                productaBuddy = guidance.state.value.mode == com.accountabilibuddy.companion.guidance.GuidanceMode.Companion,
-                sessionRunning = com.accountabilibuddy.companion.placement.GuardsLock.at(this, trusted) != null,
-                now = java.time.OffsetDateTime.ofInstant(trusted, java.time.ZoneId.systemDefault()),
-                looserDelay = com.accountabilibuddy.companion.guidance.GuidanceStore.DELAY,
-            )
-        }
         com.accountabilibuddy.companion.goals.PhoneGoalsMigration.run(goals)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
         driveSource.goalHistory = goalHistory

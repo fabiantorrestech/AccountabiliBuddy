@@ -4,6 +4,7 @@ import com.accountabilibuddy.shared.goals.GoalOrderRules
 import android.content.Context
 import com.accountabilibuddy.shared.TokenVault
 import com.accountabilibuddy.shared.goals.Goal
+import com.accountabilibuddy.shared.goals.GoalApplyResult
 import com.accountabilibuddy.shared.goals.GoalArea
 import com.accountabilibuddy.shared.goals.GoalDefaults
 import com.accountabilibuddy.shared.goals.GoalEntry
@@ -338,36 +339,46 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
      * target goes through this phone's looser-change rule. Refused (false) unless the goals are Ready. True when anything changed.
      */
     fun applySynced(incoming: SyncGoalParts?, pcDailyMinutes: Double?): Boolean =
-        applyMerged { now -> GoalPhoneSync.applied(_lists.value, deepWork.current(), incoming, true, now, weeklyEnv(), pcDailyMinutes) }
+        applyMerged { now -> GoalPhoneSync.applied(_lists.value, deepWork.current(), incoming, true, now, weeklyEnv(), pcDailyMinutes) } == GoalApplyResult.Changed
 
-    /** As [applySynced] for a merge the caller makes from the held (composed) lists, e.g. history rows; null from [merge] = nothing to take in. */
-    fun applyHistory(pcDailyMinutes: Double?, merge: (GoalLists) -> GoalLists?): Boolean =
+    /**
+     * As [applySynced] for a merge the caller makes from the held (composed) lists, e.g. history rows; null from [merge] = nothing to take in.
+     * [GoalApplyResult.Failed] when the goals aren't ready or the write failed (the caller then does not record its files as read).
+     */
+    fun applyHistory(pcDailyMinutes: Double?, merge: (GoalLists) -> GoalLists?): GoalApplyResult =
         applyMerged { _ ->
             val held = composed()
             held?.let(merge)?.let { GoalPhoneSync.afterMerge(_lists.value, deepWork.current(), it, weeklyEnv(), pcDailyMinutes) }
         }
 
+    // Lock order: this store, then Deep work's weekly state (never the other way round). The weekly state is worked out from what is
+    // held and adopted under Deep work's lock together, so a raise made here meanwhile (600 -> 900) is not overwritten by an older 600.
     @Synchronized
-    private fun applyMerged(decide: (OffsetDateTime) -> GoalPhoneSync.Applied?): Boolean {
-        if (_status.value != PhoneGoalStatus.Ready) return false
+    private fun applyMerged(decide: (OffsetDateTime) -> GoalPhoneSync.Applied?): GoalApplyResult {
+        if (_status.value != PhoneGoalStatus.Ready) return GoalApplyResult.Failed
         val now = clock()
-        val applied = decide(now) ?: return false
-        val before = _lists.value
-        val after = GoalStoreRules.normalize(before, applied.lists, now, GoalStoreRules.Kind.Synced, selfId())
-        val listsChanged = after != before
-        if (listsChanged) {
-            if (!write(after)) return false
-            _lists.value = after
+        var listsChanged = false
+        var weeklyChanged = false
+        val result = synchronized(deepWork) {
+            val applied = decide(now) ?: return@synchronized GoalApplyResult.Unchanged
+            val before = _lists.value
+            val after = GoalStoreRules.normalize(before, applied.lists, now, GoalStoreRules.Kind.Synced, selfId())
+            listsChanged = after != before
+            if (listsChanged) {
+                if (!write(after)) return@synchronized GoalApplyResult.of(writeFailed = true, listsChanged = false, weeklyChanged = false)
+                _lists.value = after
+            }
+
+            weeklyChanged = deepWork.adopt(applied.weekly)
+            GoalApplyResult.of(writeFailed = false, listsChanged = listsChanged, weeklyChanged = weeklyChanged)
         }
 
-        deepWork.adopt(applied.weekly)
-        if (listsChanged) onChanged()
-        return listsChanged
+        // Outside Deep work's lock (the hook starts other work), still inside this store's.
+        if (listsChanged && result != GoalApplyResult.Failed) onChanged()
+        return result
     }
 
-    private fun weeklyEnv(): GoalDeepWorkWeeklySync.Env = deepWork.environment().let {
-        GoalDeepWorkWeeklySync.Env(it.productaBuddy, it.sessionRunning, it.now, it.looserDelay, it.lowerWaitsNow)
-    }
+    private fun weeklyEnv(): GoalDeepWorkWeeklySync.Env = deepWork.environment().toSync()
 
     /**
      * This phone's own derived entries made to match [readings] ([GoalDerivedWriter.changes]): written only when a value changed, never

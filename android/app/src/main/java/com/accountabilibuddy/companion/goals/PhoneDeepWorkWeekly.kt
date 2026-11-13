@@ -10,7 +10,6 @@ import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.goals.GoalPendingChange
 import com.accountabilibuddy.shared.sync.DotNetTime
 import com.accountabilibuddy.shared.sync.FieldStamp
-import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,29 +30,18 @@ import kotlinx.coroutines.flow.asStateFlow
  * stamps this phone's value again.
  */
 class PhoneDeepWorkWeekly(context: Context) {
-    /**
-     * The facts the rule needs, read when a change is asked or settled (set by the app).
-     *
-     * @property sessionRunning A focus session the user started runs (the check the removal lock uses).
-     * @property lowerWaitsNow The work-hours rule holds a lowering: the phone has no such rule, so false (Q504).
-     */
-    data class Environment(
-        val productaBuddy: Boolean,
-        val sessionRunning: Boolean,
-        val now: OffsetDateTime,
-        val looserDelay: Duration,
-        val lowerWaitsNow: Boolean = false,
-    )
-
     private val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
     private val _state = MutableStateFlow(load())
 
     /** The stored state as last read or written (the screens read [current], which settles first). */
     val state: StateFlow<GoalDeepWorkWeekly> = _state.asStateFlow()
 
-    /** Set by the app; the default is a quiet AccountabiliBuddy phone with no session (never used once the app is up), on the trusted clock. */
-    var environment: () -> Environment = {
-        Environment(false, false, OffsetDateTime.ofInstant(TrustedTime.now(), ZoneId.systemDefault()), Duration.ofMinutes(10))
+    /**
+     * Set by the app. The default is [PhoneWeeklyEnvironment.unknown]: until the app says what the mode and the session are, nothing waiting
+     * is applied or re-timed (GS4 review, BLOCKER 1: on a cold start in a session the default used to say "no session").
+     */
+    var environment: () -> PhoneWeeklyEnvironment = {
+        PhoneWeeklyEnvironment.unknown(OffsetDateTime.ofInstant(TrustedTime.now(), ZoneId.systemDefault()))
     }
 
     /** Set by the app: the weekly target or its waiting change was written (an auto-backup soon). */
@@ -71,7 +59,7 @@ class PhoneDeepWorkWeekly(context: Context) {
     /** The weekly target now: a waiting change whose time has come, with no session running, applies first. */
     @Synchronized
     fun current(): GoalDeepWorkWeekly {
-        val settled = GoalDeepWorkWeeklySync.settle(_state.value, recordStamp(), env(), selfId())
+        val settled = PhoneWeeklySettle.settle(_state.value, recordStamp(), environment(), selfId())
         if (settled != _state.value) save(settled)
         return _state.value
     }
@@ -125,11 +113,13 @@ class PhoneDeepWorkWeekly(context: Context) {
 
     /** Another device's values taken in ([com.accountabilibuddy.shared.goals.GoalPhoneSync.afterMerge] decided them): kept as they are. */
     @Synchronized
-    fun adopt(next: GoalDeepWorkWeekly) {
-        if (next != _state.value) save(next)
+    fun adopt(next: GoalDeepWorkWeekly): Boolean {
+        if (next == _state.value) return false
+        save(next)
+        return true
     }
 
-    private fun env() = environment().let { GoalDeepWorkWeeklySync.Env(it.productaBuddy, it.sessionRunning, it.now, it.looserDelay, it.lowerWaitsNow) }
+    private fun env() = environment().toSync()
 
     private fun save(state: GoalDeepWorkWeekly) {
         _state.value = state

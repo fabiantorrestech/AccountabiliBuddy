@@ -48,6 +48,31 @@ interface GoalHistoryCodec {
     fun openYear(bytes: ByteArray): GoalHistoryYear?
 }
 
+/** What taking a merge in did (GS4 review, SHOULD 6): the reads of a history pass are recorded unless it [Failed]. */
+enum class GoalApplyResult {
+    /** The lists or Deep work's weekly target changed. */
+    Changed,
+
+    /** Nothing needed to change (the merge held nothing new). */
+    Unchanged,
+
+    /** The goals weren't ready or the write failed: nothing was taken in, so nothing may be recorded as read. */
+    Failed,
+    ;
+
+    /** A history file counts as read only when its rows were taken in or were already there. */
+    val recordsReads: Boolean get() = this != Failed
+
+    companion object {
+        /** The store's outcome from what it found: a failed write wins, then any change (lists or the weekly target), else no change. */
+        fun of(writeFailed: Boolean, listsChanged: Boolean, weeklyChanged: Boolean): GoalApplyResult = when {
+            writeFailed -> Failed
+            listsChanged || weeklyChanged -> Changed
+            else -> Unchanged
+        }
+    }
+}
+
 /** A device of the sync group as this device knows it from the files it received. [receivedAt]: when a file from it was last accepted (the trusted clock); null for never. */
 data class GoalHistoryDeviceInfo(val id: java.util.UUID, val isPc: Boolean, val removed: Boolean, val receivedAt: OffsetDateTime?)
 

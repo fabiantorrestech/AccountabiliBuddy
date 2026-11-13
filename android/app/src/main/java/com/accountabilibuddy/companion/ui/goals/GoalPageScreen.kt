@@ -148,7 +148,11 @@ fun GoalPageScreen(
         } else {
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 GoalTilesRow(page.tiles, tint, onWhatItTakes = if (page.takes != null) ({ takesOpen = true }) else null)
-                if (goal.isDeepWork) weekly.pending?.let { DeepWorkPending(it, onCancel = { app.goals.deepWork.cancel() }) }
+                if (goal.isDeepWork) {
+                    weekly.pending?.let { DeepWorkPending(it, trackTimeOnly = false, onCancel = { app.goals.deepWork.cancel() }) }
+                    // "Track time only" turning on waits too (a change from the PC): shown with Cancel like the lowering.
+                    weekly.pendingTrackTimeOnly?.let { DeepWorkPending(it, trackTimeOnly = true, onCancel = { app.goals.deepWork.cancel() }) }
+                }
                 val shownDay = selectedDay?.let { LocalDate.ofEpochDay(it) }?.takeIf { it < today }
                 AbCard(verticalSpacing = 12.dp) {
                     GoalHeatmapCard(page, display.weekStart, display.heatmapLabels, tint, shownDay, onSelect = { day -> selectedDay = day.toEpochDay().takeIf { day < today } })
@@ -286,15 +290,15 @@ private fun BottomRows(page: PhoneGoalPage, onTracking: () -> Unit, onReminders:
     }
 }
 
-// A waiting lowering of Deep work's weekly target (brief §5.7): what it lowers to and when, "never during a session", with Cancel.
+// A waiting lowering of Deep work's weekly target, or Track time only turning on (brief §5.7): what changes and when, "never during a session", with Cancel.
 // There is no "apply now": it applies by itself once its time has come and no session runs.
 @Composable
-private fun DeepWorkPending(pending: com.accountabilibuddy.shared.goals.GoalPendingChange, onCancel: () -> Unit) {
+private fun DeepWorkPending(pending: com.accountabilibuddy.shared.goals.GoalPendingChange, trackTimeOnly: Boolean, onCancel: () -> Unit) {
     val at = pending.appliesAt.atZoneSameInstant(ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US))
     val to = pending.amount?.let { GoalTexts.minutes(it) } ?: "no target"
     AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp), verticalSpacing = 0.dp) {
         AbListRow(
-            "Weekly target lowers to $to at $at", icon = Icons.Outlined.Schedule, subtitle = "Never during a session",
+            if (trackTimeOnly) "Track time only turns on at $at" else "Weekly target lowers to $to at $at", icon = Icons.Outlined.Schedule, subtitle = "Never during a session",
             showChevron = false, trailing = { AbTextButton("Cancel", onClick = onCancel) },
         )
     }

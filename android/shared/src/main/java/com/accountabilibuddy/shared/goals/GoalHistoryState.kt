@@ -67,8 +67,16 @@ class GoalHistoryState {
 
     val transports = LinkedHashMap<String, GoalHistoryTransportState>()
 
+    /**
+     * Names the relay's regular reader found to be history files by their header (a device whose name wasn't known yet): kept so a restart
+     * doesn't download them again. Opaque 12-hex-character names; at most [MAX_HISTORY_NAMES], oldest dropped.
+     */
+    val historyNames = LinkedHashSet<String>()
+
     fun transport(name: String): GoalHistoryTransportState = transports.getOrPut(name) { GoalHistoryTransportState() }
 }
+
+const val MAX_HISTORY_NAMES = 256
 
 /** Where the state is kept between runs (the phone: a sealed file); [value] is the live state. */
 interface GoalHistoryStateHolder {

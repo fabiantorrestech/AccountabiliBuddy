@@ -23,12 +23,12 @@ val sharedSources = listOf(
     "com/accountabilibuddy/shared/*.kt",
 )
 
-// Files of the packages above that use Android APIs (the Keystore, android.util.Base64), and the ones built on them.
+// Files of the packages above that use Android APIs (the Keystore, android.util.Base64), and the ones built on them. SyncKey and
+// SyncFileCodec are NOT excluded any more (GS4 review): SyncKey's only Android call is android.util.Base64 for a relay token, which the
+// checks' own stand-in (src/main/kotlin/android/util/Base64.kt) answers, so the phone's history codec opens the PC's sealed files here.
 val sharedExcluded = listOf(
     "com/accountabilibuddy/shared/TokenVault.kt",
     "com/accountabilibuddy/shared/sync/PinnedTrustManager.kt",
-    "com/accountabilibuddy/shared/sync/SyncKey.kt",
-    "com/accountabilibuddy/shared/sync/SyncFileCodec.kt",
     "com/accountabilibuddy/shared/sync/RekeyBuilder.kt",
     "com/accountabilibuddy/shared/sync/RekeyCodec.kt",
     "com/accountabilibuddy/shared/sync/RekeyWrap.kt",
@@ -54,6 +54,11 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/today/TodayLayout.kt",
             "com/accountabilibuddy/companion/today/TodayPlacement.kt",
             "com/accountabilibuddy/companion/today/StepsMovedRules.kt",
+            // GS4 review: the phone's history codec (no Android API) opens the PC's sealed ABM1 / ABY1 files; the weekly environment's
+            // fail-safe default and the wiring decisions are pure too.
+            "com/accountabilibuddy/companion/goals/PhoneGoalHistoryCodec.kt",
+            "com/accountabilibuddy/companion/goals/PhoneWeeklyEnvironment.kt",
+            "com/accountabilibuddy/companion/goals/PhoneGoalSyncWiring.kt",
         )
     }
     into(layout.buildDirectory.dir("sharedSrc"))

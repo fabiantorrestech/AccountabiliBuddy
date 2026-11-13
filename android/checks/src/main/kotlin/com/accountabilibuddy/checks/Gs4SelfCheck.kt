@@ -12,6 +12,7 @@ import com.accountabilibuddy.shared.goals.GoalEntry
 import com.accountabilibuddy.shared.goals.GoalEntrySource
 import com.accountabilibuddy.shared.goals.GoalField
 import com.accountabilibuddy.shared.goals.GoalFieldStamps
+import com.accountabilibuddy.shared.goals.GoalApplyResult
 import com.accountabilibuddy.shared.goals.GoalHistoryCodec
 import com.accountabilibuddy.shared.goals.GoalHistoryDeviceInfo
 import com.accountabilibuddy.shared.goals.GoalHistoryFileKey
@@ -54,7 +55,7 @@ import kotlinx.serialization.json.Json
 object Gs4SelfCheck {
     private val PHONE = "aaaaaaaa-0000-0000-0000-000000000001"
     private val PC = "bbbbbbbb-0000-0000-0000-000000000002"
-    private val T0 = OffsetDateTime.of(2026, 11, 14, 9, 0, 0, 0, ZoneOffset.UTC)
+    internal val T0 = OffsetDateTime.of(2026, 11, 14, 9, 0, 0, 0, ZoneOffset.UTC)
     private val DELAY = Duration.ofMinutes(10)
 
     fun run(report: CheckReport) {
@@ -135,7 +136,7 @@ object Gs4SelfCheck {
         report.check("gs4/weekly: a waiting change is never what goes out", withWaiting.secondTarget?.amount == 600.0)
     }
 
-    private fun goal(id: Int, name: String = "Read", at: OffsetDateTime = T0, area: UUID = GoalSeeds.WORK_AREA_ID) = Goal(
+    internal fun goal(id: Int, name: String = "Read", at: OffsetDateTime = T0, area: UUID = GoalSeeds.WORK_AREA_ID) = Goal(
         UUID.fromString("99999999-0000-0000-0000-00000000000$id"), area, name, "book", "#112233", GoalKind.Habit,
         GoalTarget(GoalPeriod.Day, 1.0, GoalUnit.Count), listOf(GoalSourceRule(UUID.fromString("88888888-0000-0000-0000-00000000000$id"), GoalSourceType.Hand)), at, 1.0, at,
     )
@@ -263,7 +264,7 @@ object Gs4SelfCheck {
 
     // ------------------------------------------------------------------------------------------------ history transport
 
-    private class Fake(
+    internal class Fake(
         override val transport: String, override val extension: String, override val expires: Boolean, override val canDelete: Boolean,
         override val maxFileBytes: Long = 4L * 1024 * 1024, override val maxFiles: Int? = null,
     ) : GoalHistoryStore {
@@ -288,7 +289,7 @@ object Gs4SelfCheck {
         }
     }
 
-    private object FakeCodec : GoalHistoryCodec {
+    internal object FakeCodec : GoalHistoryCodec {
         private fun bytes(magic: String, json: String) = (magic + json).toByteArray()
         override fun seal(month: GoalHistoryMonth) = bytes("ABM1", GoalHistoryJson.writeMonth(month).toString())
         override fun seal(year: GoalHistoryYear) = bytes("ABY1", GoalHistoryJson.writeYear(year).toString())
@@ -296,7 +297,7 @@ object Gs4SelfCheck {
         override fun openYear(bytes: ByteArray) = runCatching { GoalHistoryJson.readYear(Json.parseToJsonElement(String(bytes).removePrefix("ABY1"))) }.getOrNull()
     }
 
-    private class Holder : GoalHistoryStateHolder {
+    internal class Holder : GoalHistoryStateHolder {
         override var value = GoalHistoryState()
         override fun reset() {
             value = GoalHistoryState()
@@ -314,7 +315,7 @@ object Gs4SelfCheck {
         )
         val holder = Holder()
         val sync = GoalHistorySync(
-            held = { lists }, applySynced = { merge -> merge(lists)?.let { lists = it; true } ?: false }, states = holder, now = { now }, self = { me },
+            held = { lists }, applySynced = { merge -> apply({ lists }, { lists = it }, merge) }, states = holder, now = { now }, self = { me },
             key = { GoalHistorySync.GoalHistoryKey("0a1b2c3d", "fp") }, codec = FakeCodec, devices = { emptyList<GoalHistoryDeviceInfo>() },
             enabled = { true }, ready = { true },
         )
@@ -360,7 +361,7 @@ object Gs4SelfCheck {
         val key = GoalHistoryFileKey.forMonth(otherId, 2026, 10)
         shared.files[GoalHistoryNames.nameFor("0a1b2c3d", key, ".absync")] = FakeCodec.seal(theirs)
         val reader = GoalHistorySync(
-            held = { lists }, applySynced = { merge -> merge(lists)?.let { lists = it; true } ?: false }, states = Holder(), now = { now }, self = { me },
+            held = { lists }, applySynced = { merge -> apply({ lists }, { lists = it }, merge) }, states = Holder(), now = { now }, self = { me },
             key = { GoalHistorySync.GoalHistoryKey("0a1b2c3d", "fp") }, codec = FakeCodec,
             devices = { listOf(GoalHistoryDeviceInfo(otherId, true, false, now)) }, enabled = { true }, ready = { true },
         )
@@ -372,7 +373,7 @@ object Gs4SelfCheck {
         raced.files[GoalHistoryNames.nameFor("0a1b2c3d", GoalHistoryFileKey.forMonth(UUID.fromString("33333333-3333-3333-3333-333333333333"), 2026, 9), ".absync")] =
             FakeCodec.seal(theirs.copy(deviceId = UUID.fromString("33333333-3333-3333-3333-333333333333"), month = 9))
         val racing = GoalHistorySync(
-            held = { lists }, applySynced = { merge -> lists = lists.copy(entries = lists.entries + late); merge(lists)?.let { lists = it; true } ?: false },
+            held = { lists }, applySynced = { merge -> lists = lists.copy(entries = lists.entries + late); apply({ lists }, { lists = it }, merge) },
             states = Holder(), now = { now }, self = { me }, key = { GoalHistorySync.GoalHistoryKey("0a1b2c3d", "fp") }, codec = FakeCodec,
             devices = { listOf(GoalHistoryDeviceInfo(UUID.fromString("33333333-3333-3333-3333-333333333333"), true, false, now)) }, enabled = { true }, ready = { true },
         )
@@ -380,7 +381,7 @@ object Gs4SelfCheck {
         report.check("gs4/history: a change landing before the gate is in the merge (merged inside the lock, not before it)", lists.entries.any { it.id == late.id })
         // Disabled or not in a group: nothing.
         val off = GoalHistorySync(
-            held = { lists }, applySynced = { false }, states = Holder(), now = { now }, self = { me }, key = { null }, codec = FakeCodec,
+            held = { lists }, applySynced = { GoalApplyResult.Unchanged }, states = Holder(), now = { now }, self = { me }, key = { null }, codec = FakeCodec,
             devices = { emptyList() }, enabled = { true }, ready = { true },
         )
         report.check("gs4/history: not in a group, nothing is done", !off.run(Fake("relay", ".absync", true, false)).ran)
@@ -395,13 +396,27 @@ object Gs4SelfCheck {
         report.check("gs4/history: the own file names are kept for leaving the group", sync.ownNames("relay").isNotEmpty())
     }
 
+    /** A merge taken in against a held list the way the store does: the result is the lists changed (or not). */
+    internal fun apply(get: () -> GoalLists, set: (GoalLists) -> Unit, merge: (GoalLists) -> GoalLists?): GoalApplyResult {
+        val merged = merge(get()) ?: return GoalApplyResult.Unchanged
+        if (merged == get()) return GoalApplyResult.Unchanged
+        set(merged)
+        return GoalApplyResult.Changed
+    }
+
+    /** A history sync in a group (id [groupId]) of [devices], on this phone, for the checks of names. */
+    internal fun syncFor(groupId: String, devices: List<UUID>): GoalHistorySync {
+        val me = UUID.fromString(PHONE)
+        return GoalHistorySync(
+            held = { GoalLists.EMPTY }, applySynced = { GoalApplyResult.Unchanged }, states = Holder(), now = { OffsetDateTime.of(2026, 11, 14, 9, 0, 0, 0, ZoneOffset.UTC) }, self = { me },
+            key = { GoalHistorySync.GoalHistoryKey(groupId, "fp") }, codec = FakeCodec, devices = { devices.map { GoalHistoryDeviceInfo(it, true, false, null) } },
+            enabled = { true }, ready = { true },
+        )
+    }
+
     private fun names(report: CheckReport) {
         val device = UUID.fromString("11111111-1111-1111-1111-111111111111")
-        val month = GoalHistoryNames.nameFor("0a1b2c3d", GoalHistoryFileKey.forMonth(device, 2026, 11), ".absync")
-        val year = GoalHistoryNames.nameFor("0a1b2c3d", GoalHistoryFileKey.forYear(2026, UUID.fromString("22222222-2222-2222-2222-222222222222")), ".abgh")
-        // Computed with SHA-256 over "goalhist|<group>|<key>" as the PC's GoalHistoryNames does.
-        report.check("gs4/names: a month file's name is the PC's", month == "f97d94029cfc.absync", month)
-        report.check("gs4/names: a year file's name is the PC's", year == "b19909402f58.abgh", year)
+        // The PC's expected names are in the C# fixture (gs4/names.json, checked by Gs4Check): not typed in here.
         report.check("gs4/names: a name's key reads back", GoalHistoryNames.parseKey(GoalHistoryNames.keyText(GoalHistoryFileKey.forMonth(device, 2026, 11))) == GoalHistoryFileKey.forMonth(device, 2026, 11))
         report.check("gs4/names: only the header tells a history file", GoalHistoryNames.isHistoryFile("ABM1xxxx".toByteArray()) && GoalHistoryNames.isHistoryFile("ABY1xxxx".toByteArray()) && !GoalHistoryNames.isHistoryFile("ABS1xxxx".toByteArray()))
     }
