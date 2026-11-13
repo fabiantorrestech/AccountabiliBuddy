@@ -255,7 +255,7 @@ public partial class OverlayPreview : UserControl
             // Only as tall as the tile needs above the taskbar.
             SetCrop(extent, target.AlignRight, atTop: false, height: ScreenHeight - y + 14, rightInset: rightInset);
             tile.Opacity = 1;
-            tile.SetSolidity(settings.TileOpacity(model.ShowsSession, held: false), settings.SolidClockTime, settings.SolidClockDate);
+            tile.SetSolidity(settings.TileOpacity(model.ShowsSession, held: false), settings.SolidClockTime, settings.SolidClockDate, settings.SolidClockCard, settings.SolidClockOutline);
         };
     }
 

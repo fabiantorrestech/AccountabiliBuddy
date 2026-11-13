@@ -11,11 +11,32 @@
         <Style Selector="Border.clockBack">
             <Setter Property="CornerRadius" Value="6" />
         </Style>
+        <Style Selector="TextBlock.clockTime">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
         <Style Selector="TextBlock.clockDate">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
         <Style Selector="TextBlock.clockDate.solid">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- Optional, only while the time or date is kept solid: a black card (white text on it, whatever the theme) and/or a black
+             outline, so the clock reads over any background. -->
+        <Style Selector="Border.clockBack.card">
+            <Setter Property="Background" Value="#000000" />
+        </Style>
+        <Style Selector="Border.clockBack.outline">
+            <Setter Property="BorderBrush" Value="#000000" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="Border.clockBack.card TextBlock.clockTime">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+        </Style>
+        <Style Selector="Border.clockBack.card TextBlock.clockDate">
+            <Setter Property="Foreground" Value="#B8B8B8" />
+        </Style>
+        <Style Selector="Border.clockBack.card TextBlock.clockDate.solid">
+            <Setter Property="Foreground" Value="#FFFFFF" />
         </Style>
         <!-- Icon buttons: flat, 28 px, Muted until hovered (Surface2). -->
         <Style Selector="Button.tilebtn">
@@ -128,10 +149,10 @@
             </StackPanel>
         </DataTemplate>
         <DataTemplate x:Key="clock" x:DataType="vm:TaskbarOverlayViewModel">
-            <Border Classes="clockBack" Classes.solid="{Binding ClockBacked}" VerticalAlignment="Center">
+            <Border Classes="clockBack" Classes.solid="{Binding ClockBacked}" Classes.card="{Binding ClockCard}" Classes.outline="{Binding ClockOutline}" VerticalAlignment="Center">
                 <Button Classes="quiet" Command="{Binding OpenCalendarCommand}" Padding="6,2" MinHeight="0" VerticalAlignment="Center" AutomationProperties.Name="Open the calendar">
                     <StackPanel Spacing="0" HorizontalAlignment="Right">
-                        <TextBlock Text="{Binding ClockText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextAlignment="Right" Opacity="{Binding ClockTimeOpacity}" />
+                        <TextBlock Classes="clockTime" Text="{Binding ClockText}" FontSize="13" TextAlignment="Right" Opacity="{Binding ClockTimeOpacity}" />
                         <TextBlock Classes="clockDate" Classes.solid="{Binding ClockDateSolid}" Text="{Binding DateText}" FontSize="11" TextAlignment="Right" Opacity="{Binding ClockDateOpacity}" />
                     </StackPanel>
                 </Button>

@@ -932,7 +932,7 @@ public sealed class SessionOverlayService : IDisposable
     private void ApplyTileOpacity()
     {
         OverlaySettings settings = _settings.Current;
-        _tile?.SetTileOpacity(settings.TileOpacity(_sessions.State.IsActive, _ctrlAlt.IsHeld), settings.SolidClockTime, settings.SolidClockDate);
+        _tile?.SetTileOpacity(settings.TileOpacity(_sessions.State.IsActive, _ctrlAlt.IsHeld), settings.SolidClockTime, settings.SolidClockDate, settings.SolidClockCard, settings.SolidClockOutline);
     }
 
     private void ShowCornerClock(OverlaySettings settings, ForegroundScreenState foreground, OverlayAppRule? rule)

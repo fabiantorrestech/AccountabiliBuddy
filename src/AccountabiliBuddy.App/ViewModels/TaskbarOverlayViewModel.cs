@@ -241,6 +241,14 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ClockBacked { get; set; }
 
+    /// <summary>A black card behind the kept-solid clock, white text on it (Settings › Overlay).</summary>
+    [ObservableProperty]
+    public partial bool ClockCard { get; set; }
+
+    /// <summary>A black outline around the kept-solid clock (Settings › Overlay).</summary>
+    [ObservableProperty]
+    public partial bool ClockOutline { get; set; }
+
     /// <summary>The time line's own opacity; the clock block isn't dimmed while it is backed, so a line that isn't kept solid is dimmed here.</summary>
     [ObservableProperty]
     public partial double ClockTimeOpacity { get; set; } = 1;
@@ -254,9 +262,11 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     public partial bool ClockDateSolid { get; set; }
 
     /// <summary>How the clock block looks now, from <see cref="Controls.OverlayTileView"/>.</summary>
-    public void SetClockLook(bool backed, double timeOpacity, double dateOpacity, bool dateSolid)
+    public void SetClockLook(bool backed, double timeOpacity, double dateOpacity, bool dateSolid, bool card, bool outline)
     {
         ClockBacked = backed;
+        ClockCard = card;
+        ClockOutline = outline;
         ClockTimeOpacity = timeOpacity;
         ClockDateOpacity = dateOpacity;
         ClockDateSolid = dateSolid;

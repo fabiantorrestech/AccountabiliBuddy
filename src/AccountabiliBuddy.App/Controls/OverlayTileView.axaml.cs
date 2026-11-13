@@ -18,6 +18,8 @@ public partial class OverlayTileView : UserControl
     private double _opacity = 1;
     private bool _solidTime;
     private bool _solidDate;
+    private bool _card;
+    private bool _outline;
     private ContentControl? _clock;
 
     public OverlayTileView()
@@ -37,11 +39,13 @@ public partial class OverlayTileView : UserControl
     /// How solid the tile looks (Settings › Overlay). The fill and each part are dimmed on their own instead of the whole tile, because a
     /// child can't be more solid than its parent, and the time and date may stay solid. Clicks are not affected.
     /// </summary>
-    public void SetSolidity(double opacity, bool solidTime, bool solidDate)
+    public void SetSolidity(double opacity, bool solidTime, bool solidDate, bool card, bool outline)
     {
         _opacity = opacity;
         _solidTime = solidTime;
         _solidDate = solidDate;
+        _card = card;
+        _outline = outline;
         ApplySolidity();
     }
 
@@ -57,7 +61,8 @@ public partial class OverlayTileView : UserControl
 
         if (DataContext is TaskbarOverlayViewModel model)
         {
-            model.SetClockLook(solidClock, solidClock && !_solidTime ? _opacity : 1, solidClock && !_solidDate ? _opacity : 1, _solidDate);
+            model.SetClockLook(solidClock, solidClock && !_solidTime ? _opacity : 1, solidClock && !_solidDate ? _opacity : 1, _solidDate,
+                card: solidClock && _card, outline: solidClock && _outline);
         }
     }
 

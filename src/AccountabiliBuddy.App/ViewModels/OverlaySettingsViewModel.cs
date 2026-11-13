@@ -116,6 +116,8 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
             SolidClockTime = SolidClockTime,
             SolidClockDate = SolidClockDate,
             ClickThrough = ClickThrough,
+            SolidClockCard = SolidClockCard,
+            SolidClockOutline = SolidClockOutline,
             ContentOrder = _usesDefaultOrder ? null : Items.Select(row => row.ToItem()).ToList(),
         });
     }
@@ -171,6 +173,17 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     /// <summary>The same for its date (<see cref="OverlaySettings.SolidClockDate"/>).</summary>
     [ObservableProperty]
     public partial bool SolidClockDate { get; set; }
+
+    /// <summary>A black card behind the kept-solid clock (<see cref="OverlaySettings.SolidClockCard"/>).</summary>
+    [ObservableProperty]
+    public partial bool SolidClockCard { get; set; }
+
+    /// <summary>A black outline around the kept-solid clock (<see cref="OverlaySettings.SolidClockOutline"/>).</summary>
+    [ObservableProperty]
+    public partial bool SolidClockOutline { get; set; }
+
+    /// <summary>The card and outline only apply while the time or date is kept solid.</summary>
+    public bool CanBackClock => SolidClockTime || SolidClockDate;
 
     /// <summary>Clicks pass through the tile (<see cref="OverlaySettings.ClickThrough"/>).</summary>
     [ObservableProperty]
@@ -285,6 +298,8 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         SolidClockTime = settings.SolidClockTime;
         SolidClockDate = settings.SolidClockDate;
         ClickThrough = settings.ClickThrough;
+        SolidClockCard = settings.SolidClockCard;
+        SolidClockOutline = settings.SolidClockOutline;
         PanelSizeIndex = (int)settings.PanelSize;
         HoldToPeek = settings.HoldToPeek;
         PeekDelayIndex = Array.IndexOf(PeekDelayValues, settings.PeekDelayMs);
@@ -506,12 +521,24 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
 
     partial void OnSolidClockTimeChanged(bool value)
     {
+        OnPropertyChanged(nameof(CanBackClock));
         Save(s => s with { SolidClockTime = value });
     }
 
     partial void OnSolidClockDateChanged(bool value)
     {
+        OnPropertyChanged(nameof(CanBackClock));
         Save(s => s with { SolidClockDate = value });
+    }
+
+    partial void OnSolidClockCardChanged(bool value)
+    {
+        Save(s => s with { SolidClockCard = value });
+    }
+
+    partial void OnSolidClockOutlineChanged(bool value)
+    {
+        Save(s => s with { SolidClockOutline = value });
     }
 
     partial void OnClickThroughChanged(bool value)

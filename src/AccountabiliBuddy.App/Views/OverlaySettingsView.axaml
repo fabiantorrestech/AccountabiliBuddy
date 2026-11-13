@@ -190,6 +190,10 @@
                         <CheckBox Content="Time" IsChecked="{Binding SolidClockTime}" AutomationProperties.Name="Keep the time solid" />
                         <CheckBox Content="Date" IsChecked="{Binding SolidClockDate}" AutomationProperties.Name="Keep the date solid" />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16" IsEnabled="{Binding CanBackClock}">
+                        <CheckBox Content="Black card behind" IsChecked="{Binding SolidClockCard}" AutomationProperties.Name="Black card behind the solid time and date" />
+                        <CheckBox Content="Black outline" IsChecked="{Binding SolidClockOutline}" AutomationProperties.Name="Black outline around the solid time and date" />
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
         </Border>
