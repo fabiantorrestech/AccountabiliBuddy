@@ -533,6 +533,8 @@ object SyncFileJson {
             item.doneAt?.let { put("doneAt", writeTime(it)) }
             item.labels?.let { put("labels", writeLabels(it)) }
             item.localTo?.let { put("localTo", it) }
+            // ADR 76's marker for a newer PC's Next bin (Q10): passed on as it came.
+            item.bin?.let { put("bin", it) }
         }
     })
 
@@ -607,6 +609,7 @@ object SyncFileJson {
                     item.optionalTime("doneAt"),
                     readLabels(item["labels"]),
                     item.optionalString("localTo"),
+                    item.optionalString("bin"),
                 )
             }.getOrNull()
         }

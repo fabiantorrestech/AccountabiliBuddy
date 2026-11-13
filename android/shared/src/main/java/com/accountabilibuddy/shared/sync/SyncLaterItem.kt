@@ -17,6 +17,8 @@ import java.time.Instant
  * @property plannedFor The day part it was put in the plan for; null for none.
  * @property doneAt When it was ticked off; null while it is open. An app that predates the field ignores it and passes the item on
  * without it; a newer edit there brings the item back as open. A ticked item ages out after 90 days.
+ * @property bin [NEXT_BIN] when a PC with the one task list (ADR 76) keeps the item in its Next bin, which older apps show as Later;
+ * null otherwise. Kept as it came through an edit here, so the item stays in Next on that PC (Q10); a tombstone has none.
  */
 data class SyncLaterItem(
     override val id: String,
@@ -34,10 +36,12 @@ data class SyncLaterItem(
     val doneAt: Instant? = null,
     val labels: List<String>? = null,
     override val localTo: String? = null,
+    val bin: String? = null,
 ) : SharedItem {
     val isDone: Boolean get() = doneAt != null
 
-    // The done time joins the tie-break only when there is one (as on the PC), so an item without it breaks ties exactly as before.
+    // The done time joins the tie-break only when there is one (as on the PC), so an item without it breaks ties exactly as before;
+    // the bin marker goes last, only when set, as on the PC.
     override val tieBreak: String
         get() {
             val parts = listOf(
@@ -50,7 +54,8 @@ data class SyncLaterItem(
                 dueOn ?: "",
                 plannedFor?.tieText ?: "",
             )
-            return ((if (doneAt == null) parts else parts + doneAt.ticks().toString()) + TaskLabels.tieExtras(labels, localTo)).joinToString("\u0001")
+            return ((if (doneAt == null) parts else parts + doneAt.ticks().toString()) + TaskLabels.tieExtras(labels, localTo) + listOfNotNull(bin))
+                .joinToString("\u0001")
         }
 
     override fun withStamps(editedAt: Instant, deletedAt: Instant?): SyncLaterItem = copy(editedAt = editedAt, deletedAt = deletedAt)
@@ -60,6 +65,11 @@ data class SyncLaterItem(
     /** The item as a tombstone: its text is gone, and it is deleted at [at]. */
     fun deleted(at: Instant): SyncLaterItem = copy(
         title = "", subtasks = null, category = null, categoryColor = null, estimateMinutes = null, note = null,
-        dueOn = null, plannedFor = null, doneAt = null, labels = null, localTo = null, editedAt = at, deletedAt = at,
+        dueOn = null, plannedFor = null, doneAt = null, labels = null, localTo = null, bin = null, editedAt = at, deletedAt = at,
     )
+
+    companion object {
+        /** The [bin] marker of an item a newer PC keeps in Next (the PC's SyncLaterItem.NextBin). */
+        const val NEXT_BIN = "next"
+    }
 }

@@ -23,8 +23,9 @@ object SharedListMerge {
 
     /**
      * The merged list, tombstones included, ordered by position and then id; the same whichever list is [first].
+     * [keepTombstones]: tombstones are kept for good, not [TOMBSTONES_KEPT] (labels: ids and stamps only, ADR 76).
      */
-    fun <T : SharedItem> merge(first: List<T>, second: List<T>, now: Instant, self: String? = null): List<T> {
+    fun <T : SharedItem> merge(first: List<T>, second: List<T>, now: Instant, self: String? = null, keepTombstones: Boolean = false): List<T> {
         val limit = now.plus(FUTURE_LIMIT)
         val winners = LinkedHashMap<String, T>()
         for (item in (first + second).map { clamped(it, limit) }) {
@@ -38,7 +39,7 @@ object SharedListMerge {
         val keptFrom = now.minus(TOMBSTONES_KEPT)
         return winners.values
             // A local item's stub (ADR 72) is kept past the tombstones' 30 days: while it lives, an old copy can't come back.
-            .filter { item -> item.deletedAt?.let { it.ticks() > keptFrom.ticks() || item.localTo != null } ?: true }
+            .filter { item -> keepTombstones || item.deletedAt?.let { it.ticks() > keptFrom.ticks() || item.localTo != null } ?: true }
             .sortedWith(compareBy<T> { it.position }.thenBy { it.id.lowercase() })
     }
 

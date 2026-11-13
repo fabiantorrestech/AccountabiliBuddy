@@ -65,6 +65,20 @@ private val checks: List<FixtureCheck> = listOf(
     Gs0RoundTripCheck(),
     Gs0KeepCheck(),
     Gs0TidyCheck(),
+    // Round 2 R7.1: the Kotlin task model and its merges against the PC's (ADR 76): JSON byte for byte (the PC -> phone -> PC round
+    // trip of a task with every field set), field merge, local edits, labels, account settings, old fields, the migration rule.
+    R71Check("task-json", R71ModelCases::taskJson),
+    R71Check("values", R71ModelCases::values),
+    R71Check("field-merge", R71MergeCases::fieldMerge),
+    R71Check("task-edits", R71MergeCases::taskEdits),
+    R71Check("label-merge", R71MergeCases::labelMerge),
+    R71Check("account-settings", R71MergeCases::accountSettings),
+    R71Check("lists-merge", R71MergeCases::listsMerge),
+    R71Check("ring-devices", R71MergeCases::ringDevices),
+    R71Check("numbering", R71MergeCases::numbering),
+    R71Check("old-fields-write", R71OldFieldCases::write),
+    R71Check("old-fields-json", R71OldFieldCases::json),
+    R71Check("migration", R71OldFieldCases::migration),
 )
 
 /**
@@ -83,10 +97,12 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "goals-ui-review-reminders" to GoalsUiReviewRemindersCheck::run,
     // Round 2 R6b4: Stats per goal's chart (a bar per day, the target line, paused days hatched and left out of the numbers; phone only).
     "goals-ui-stats-series" to GoalsUiStatsSeriesCheck::run,
+    // Round 2 R7.1: unknown fields and newer entries kept, the shared stamp helper, phone-only numbering, the label book, the migration's promises.
+    "r71-self" to TaskModelSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "r71")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

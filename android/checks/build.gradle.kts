@@ -16,6 +16,22 @@ val sharedSources = listOf(
     "com/accountabilibuddy/shared/sync/TaskLabels.kt",
     // Round 2 R4.7: the goals model and maths (every file of the package is pure Kotlin + kotlinx.serialization.json).
     "com/accountabilibuddy/shared/goals/*.kt",
+    // Round 2 R7.1: the task model, its field merge and the old task fields, with the sync file's JSON for the old fields: every
+    // pure file of :shared's root and sync packages (sharedExcluded lists the ones that need Android).
+    "com/accountabilibuddy/shared/tasks/*.kt",
+    "com/accountabilibuddy/shared/sync/*.kt",
+    "com/accountabilibuddy/shared/*.kt",
+)
+
+// Files of the packages above that use Android APIs (the Keystore, android.util.Base64), and the ones built on them.
+val sharedExcluded = listOf(
+    "com/accountabilibuddy/shared/TokenVault.kt",
+    "com/accountabilibuddy/shared/sync/PinnedTrustManager.kt",
+    "com/accountabilibuddy/shared/sync/SyncKey.kt",
+    "com/accountabilibuddy/shared/sync/SyncFileCodec.kt",
+    "com/accountabilibuddy/shared/sync/RekeyBuilder.kt",
+    "com/accountabilibuddy/shared/sync/RekeyCodec.kt",
+    "com/accountabilibuddy/shared/sync/RekeyWrap.kt",
 )
 
 java {
@@ -28,6 +44,7 @@ java {
 val sharedCopy = tasks.register<Sync>("copySharedSources") {
     from("../shared/src/main/java") {
         include(sharedSources)
+        exclude(sharedExcluded)
     }
     into(layout.buildDirectory.dir("sharedSrc"))
 }
