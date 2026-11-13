@@ -178,7 +178,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool SolidClockCard { get; set; }
 
-    /// <summary>A black outline around the kept-solid clock (<see cref="OverlaySettings.SolidClockOutline"/>).</summary>
+    /// <summary>A black outline around the letters of the kept-solid clock (<see cref="OverlaySettings.SolidClockOutline"/>).</summary>
     [ObservableProperty]
     public partial bool SolidClockOutline { get; set; }
 

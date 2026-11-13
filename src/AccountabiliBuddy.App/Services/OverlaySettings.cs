@@ -61,7 +61,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="HideShortcutSeen">Ctrl+Alt+H was used at least once (the migration assistant's "set up?" check).</param>
 /// <param name="OverlayOn">The master switch: false = no tile, no timeline, no corner clock, no peek, and neither Ctrl+Alt+H nor Ctrl+Alt+Space is registered. On by default and for saved settings without the field.</param>
 /// <param name="SolidClockCard">While the time or date is kept solid, a black card sits behind the clock (white text on it) so it reads over any background. On by default and for saved settings without the field.</param>
-/// <param name="SolidClockOutline">While the time or date is kept solid, a black outline goes around the clock. Off by default.</param>
+/// <param name="SolidClockOutline">While the time or date is kept solid, a black outline goes around each letter of the time and date. Off by default.</param>
 /// <param name="ClickThrough">The tile lets clicks through to whatever is under it (its buttons and the click that opens the Ctrl+Alt panel don't work; hold Ctrl+Alt for the panel). On by default and for saved settings without the field.</param>
 /// <param name="OffFromPanel">The overlay was turned off with the Ctrl+Alt panel's Disable button (only meaningful while <paramref name="OverlayOn"/> is false); Today then shows a "Turn on" card. Turned off in Settings, it does not.</param>
 public sealed record OverlaySettings(

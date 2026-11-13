@@ -11,19 +11,19 @@
         <Style Selector="Border.clockBack">
             <Setter Property="CornerRadius" Value="6" />
         </Style>
-        <Style Selector="TextBlock.clockTime">
+        <Style Selector="controls|OutlinedText.clockTime">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
-        <Style Selector="TextBlock.clockDate">
+        <Style Selector="controls|OutlinedText.clockDate">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
-        <Style Selector="TextBlock.clockDate.solid">
+        <Style Selector="controls|OutlinedText.clockDate.solid">
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
         <!-- Optional, only while the time or date is kept solid: a black card (white text on it, whatever the theme) and/or a black
              outline, so the clock reads over any background. -->
         <!-- The plate is a layer behind the clock, never part of its size: turning it on moves nothing and clips nothing. It hugs
-             the two text lines (inset from the button's padding), 1 px outline. -->
+             the two text lines (inset from the button's padding). -->
         <Style Selector="Border.clockPlate">
             <Setter Property="CornerRadius" Value="5" />
             <Setter Property="Margin" Value="2,1" />
@@ -32,17 +32,18 @@
         <Style Selector="Panel.clockBox.card > Border.clockPlate">
             <Setter Property="Background" Value="#000000" />
         </Style>
-        <Style Selector="Panel.clockBox.outline > Border.clockPlate">
-            <Setter Property="BorderBrush" Value="#000000" />
-            <Setter Property="BorderThickness" Value="1" />
+        <!-- The outline goes around each letter of the time and date, not around their area. -->
+        <Style Selector="Panel.clockBox.outline controls|OutlinedText">
+            <Setter Property="OutlineBrush" Value="#000000" />
+            <Setter Property="OutlineThickness" Value="1.2" />
         </Style>
-        <Style Selector="Panel.clockBox.card TextBlock.clockTime">
+        <Style Selector="Panel.clockBox.card controls|OutlinedText.clockTime">
             <Setter Property="Foreground" Value="#FFFFFF" />
         </Style>
-        <Style Selector="Panel.clockBox.card TextBlock.clockDate">
+        <Style Selector="Panel.clockBox.card controls|OutlinedText.clockDate">
             <Setter Property="Foreground" Value="#B8B8B8" />
         </Style>
-        <Style Selector="Panel.clockBox.card TextBlock.clockDate.solid">
+        <Style Selector="Panel.clockBox.card controls|OutlinedText.clockDate.solid">
             <Setter Property="Foreground" Value="#FFFFFF" />
         </Style>
         <!-- Icon buttons: flat, 28 px, Muted until hovered (Surface2). -->
@@ -160,8 +161,8 @@
                 <Border Classes="clockPlate" />
                 <Button Classes="quiet" Command="{Binding OpenCalendarCommand}" Padding="6,2" MinHeight="0" VerticalAlignment="Center" AutomationProperties.Name="Open the calendar">
                     <StackPanel Spacing="0" HorizontalAlignment="Right">
-                        <TextBlock Classes="clockTime" Text="{Binding ClockText}" FontSize="13" TextAlignment="Right" Opacity="{Binding ClockTimeOpacity}" />
-                        <TextBlock Classes="clockDate" Classes.solid="{Binding ClockDateSolid}" Text="{Binding DateText}" FontSize="11" TextAlignment="Right" Opacity="{Binding ClockDateOpacity}" />
+                        <controls:OutlinedText Classes="clockTime" Text="{Binding ClockText}" FontSize="13" HorizontalAlignment="Right" Opacity="{Binding ClockTimeOpacity}" />
+                        <controls:OutlinedText Classes="clockDate" Classes.solid="{Binding ClockDateSolid}" Text="{Binding DateText}" FontSize="11" HorizontalAlignment="Right" Opacity="{Binding ClockDateOpacity}" />
                     </StackPanel>
                 </Button>
             </Panel>

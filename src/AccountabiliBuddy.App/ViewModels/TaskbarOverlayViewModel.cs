@@ -245,7 +245,7 @@ public sealed partial class TaskbarOverlayViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ClockCard { get; set; }
 
-    /// <summary>A black outline around the kept-solid clock (Settings › Overlay).</summary>
+    /// <summary>A black outline around the letters of the kept-solid clock (Settings › Overlay).</summary>
     [ObservableProperty]
     public partial bool ClockOutline { get; set; }
 
