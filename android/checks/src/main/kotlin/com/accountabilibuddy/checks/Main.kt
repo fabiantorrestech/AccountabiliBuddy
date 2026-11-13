@@ -95,6 +95,32 @@ private val checks: List<FixtureCheck> = listOf(
     R73Check("typed-title", R73bCases::typedTitle),
     R73Check("reorder", R73bCases::reorder),
     R73Check("toast-timing", R73bCases::toastTiming),
+    // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
+    // entry rows, derived values, counting across devices, the shared history (gs1b).
+    Gs2Check("gs1a", "merge", Gs2Cases::merge),
+    Gs2Check("gs1a", "review-id", Gs2Cases::reviewId),
+    Gs2Check("gs1a", "review-three", Gs2Cases::reviewThree),
+    Gs2Check("gs1a", "deep-work", Gs2Cases::deepWork),
+    Gs2Check("gs1a", "deep-work-split", Gs2Cases::deepWorkSplit),
+    Gs2Check("gs1a", "edits", Gs2Cases::edits),
+    Gs2Check("gs1a", "tombstones", Gs2Cases::tombstones),
+    Gs2Check("gs1a", "parts", Gs2Cases::parts),
+    Gs2Check("gs1b", "derived-id", Gs2Cases::derivedId),
+    Gs2Check("gs1b", "rows", Gs2Cases::rows),
+    Gs2Check("gs1b", "rows-read", Gs2Cases::rowsRead),
+    Gs2Check("gs1b", "window", Gs2Cases::window),
+    Gs2Check("gs1b", "writer", Gs2Cases::writer),
+    Gs2Check("gs1b", "counting", Gs2Cases::counting),
+    Gs2Check("gs1b", "merge", Gs2Cases::merge),
+    Gs2Check("gs1b", "newer-derived-row", Gs2Cases::newerDerivedRow),
+    Gs2Check("gs1b", "month-write", Gs2Cases::monthWrite),
+    Gs2Check("gs1b", "to-read", Gs2Cases::toRead),
+    Gs2Check("gs1b", "roll-up", Gs2Cases::rollUp),
+    Gs2Check("gs1b", "may-remove", Gs2Cases::mayRemove),
+    Gs2Check("gs1b", "roller", Gs2Cases::roller),
+    Gs2Check("gs1b", "active", Gs2Cases::active),
+    Gs2Check("gs1b", "converge", Gs2Cases::converge),
+    Gs2Check("gs1b", "history-before-goal", Gs2Cases::historyBeforeGoal),
 )
 
 /**
@@ -132,7 +158,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "r71", "r72", "r73")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

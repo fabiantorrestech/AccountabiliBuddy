@@ -18,16 +18,20 @@ import kotlinx.serialization.json.JsonObject
  * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class GoalReviewRecord(
-    val id: UUID,
+    override val id: UUID,
     val week: LocalDate,
     val decisions: List<GoalReviewDecision>,
-    val position: Double,
-    val editedAt: OffsetDateTime,
+    override val position: Double,
+    override val editedAt: OffsetDateTime,
     val snoozedUntil: OffsetDateTime? = null,
     val notes: String? = null,
-    val deletedAt: OffsetDateTime? = null,
+    override val deletedAt: OffsetDateTime? = null,
     val newerDecisions: List<GoalNewerItem> = emptyList(),
     val extra: JsonObject = JsonObject(emptyMap()),
-) {
+) : GoalMergeItem {
+    override val tieBreak: String get() = GoalJson.text(GoalJson.writeReview(this))
+
+    override fun withStamps(editedAt: OffsetDateTime, deletedAt: OffsetDateTime?): GoalReviewRecord = copy(editedAt = editedAt, deletedAt = deletedAt)
+
     val isLive: Boolean get() = deletedAt == null
 }

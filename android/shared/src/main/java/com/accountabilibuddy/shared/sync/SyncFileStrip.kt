@@ -18,6 +18,7 @@ object SyncFileStrip {
     fun keptCopy(file: SyncFile, parkedMark: List<SyncParked>?, steps: SyncSteps?, tasksMark: Boolean = false): SyncFile = file.copy(
         nextTasks = null, parked = parkedMark, later = null, pastKeys = null, steps = steps, taskHistory = null, pastSettled = null,
         autoSaved = null, handovers = null, handoverAcks = null, taskParts = if (tasksMark) TASKS_MARK else null,
+        goalParts = null, goalYearsMerged = null,
     )
 
     /**
@@ -32,5 +33,5 @@ object SyncFileStrip {
     }
 
     /** This phone's own file as QR codes carry it: no shared lists, past keys, categories, steps or task parts. */
-    fun forQr(file: SyncFile): SyncFile = file.copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null, taskParts = null)
+    fun forQr(file: SyncFile): SyncFile = file.copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null, taskParts = null, goalParts = null, goalYearsMerged = null)
 }

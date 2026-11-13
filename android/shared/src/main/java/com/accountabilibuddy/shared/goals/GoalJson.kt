@@ -96,6 +96,8 @@ object GoalJson {
         goal.extraTiles?.let { put("extraTiles", writeExtraTiles(it)) }
         goal.notes?.let { put("notes", it) }
         goal.deletedAt?.let { put("deletedAt", time(it)) }
+        goal.stamps?.let { put("stamps", GoalStampJson.write(it)) }
+        if (goal.trackTimeOnly) put("trackTimeOnly", true)
         putExtra(goal.extra)
     }
 
@@ -174,6 +176,7 @@ object GoalJson {
         put("editedAt", time(entry.editedAt))
         put("position", number(entry.position))
         entry.deletedAt?.let { put("deletedAt", time(it)) }
+        entry.deviceId?.let { put("deviceId", it.toString()) }
         putExtra(entry.extra)
     }
 
@@ -209,6 +212,7 @@ object GoalJson {
     fun writeReviewDecision(decision: GoalReviewDecision): JsonObject = buildJsonObject {
         put("goalId", decision.goalId.toString())
         put("choice", decision.choice.name)
+        decision.decidedAt?.let { put("decidedAt", time(it)) }
         putExtra(decision.extra)
     }
 
@@ -219,8 +223,13 @@ object GoalJson {
     fun timeOfDay(time: LocalTime): String = (if (time.nano == 0) dotNetTimeOfDay else dotNetTimeOfDayFraction).format(time)
 
     /** A number as .NET writes a double: whole numbers below 1E+17 without a fraction ("120", not "120.0"); see [doubleText] for the rest. */
-    fun number(value: Double): JsonPrimitive =
-        if (!value.isNaN() && !value.isInfinite() && value == floor(value) && abs(value) < 1e17) JsonPrimitive(value.toLong()) else JsonPrimitive(value)
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    fun number(value: Double): JsonPrimitive = when {
+        // A negative zero is a value of its own: .NET writes it "-0".
+        value == 0.0 && 1.0 / value < 0 -> kotlinx.serialization.json.JsonUnquotedLiteral("-0")
+        !value.isNaN() && !value.isInfinite() && value == floor(value) && abs(value) < 1e17 -> JsonPrimitive(value.toLong())
+        else -> JsonPrimitive(value)
+    }
 
     // ---------------------------------------------------------------- the stored lists (goals.items, areas, entries, reminders, reviews)
 
@@ -443,6 +452,8 @@ object GoalJson {
             obj.optionalTime("deletedAt"),
             newerSources,
             obj.unknown(GOAL_FIELDS, GOAL_IGNORED),
+            obj.value("stamps")?.let(GoalStampJson::read),
+            obj.optionalBool("trackTimeOnly") ?: false,
         )
     }
 
@@ -522,6 +533,7 @@ object GoalJson {
             obj.optionalNumber("position") ?: 0.0,
             obj.optionalTime("deletedAt"),
             obj.unknown(ENTRY_FIELDS, LIVE_ONLY),
+            obj.optionalGuid("deviceId"),
         )
     }
 
@@ -565,7 +577,7 @@ object GoalJson {
 
     fun readReviewDecision(json: JsonElement): GoalReviewDecision {
         val obj = obj(json, "decision")
-        return GoalReviewDecision(obj.requiredGuid("goalId"), obj.requiredEnum<GoalReviewChoice>("choice"), obj.unknown(DECISION_FIELDS))
+        return GoalReviewDecision(obj.requiredGuid("goalId"), obj.requiredEnum<GoalReviewChoice>("choice"), obj.unknown(DECISION_FIELDS), obj.optionalTime("decidedAt"))
     }
 
     /**
@@ -609,7 +621,7 @@ object GoalJson {
     private val AREA_FIELDS = setOf("id", "name", "icon", "color", "position", "editedAt", "deletedAt")
     private val GOAL_FIELDS = setOf(
         "id", "areaId", "name", "icon", "color", "kind", "target", "sources", "createdAt", "position", "editedAt", "builtIn", "secondTarget",
-        "pauses", "showOnToday", "extraTiles", "notes", "deletedAt",
+        "pauses", "showOnToday", "extraTiles", "notes", "deletedAt", "stamps", "trackTimeOnly",
     )
     private val TARGET_FIELDS = setOf("period", "amount", "unit", "direction", "targetAmount", "targetDate", "weeklyDays", "missesAllowed", "pendingChange")
     private val PENDING_FIELDS = setOf("amount", "appliesAt", "madeInProductaBuddy")
@@ -620,12 +632,12 @@ object GoalJson {
     private val APP_FIELDS = setOf("kind", "text")
     private val PAUSE_FIELDS = setOf("from", "resumedOn")
     private val TILES_FIELDS = setOf("streak", "total")
-    private val ENTRY_FIELDS = setOf("id", "goalId", "day", "time", "value", "source", "editedAt", "position", "deletedAt")
+    private val ENTRY_FIELDS = setOf("id", "goalId", "day", "time", "value", "source", "editedAt", "position", "deletedAt", "deviceId")
     private val REMINDER_FIELDS = setOf(
         "id", "goalId", "days", "time", "position", "editedAt", "weekdays", "date", "repeat", "reason", "skipWhenDone", "nudgeWhenBehind", "deletedAt",
     )
     private val REVIEW_FIELDS = setOf("id", "week", "decisions", "position", "editedAt", "snoozedUntil", "notes", "deletedAt")
-    private val DECISION_FIELDS = setOf("goalId", "choice")
+    private val DECISION_FIELDS = setOf("goalId", "choice", "decidedAt")
     private val LIVE_ONLY = setOf("isLive")
     private val GOAL_IGNORED = setOf("isLive", "isDeepWork")
     private val TARGET_IGNORED = setOf("countsDays")

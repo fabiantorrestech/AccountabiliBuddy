@@ -12,6 +12,9 @@ import java.util.UUID
  * (after every area, tombstones included) stamped as the latest goal moved into it.
  */
 object GoalAreaTidy {
+    /** The device id a tidy move is stamped with (never the empty id, which reads as the untouched Deep work seed); the PC's `GoalAreaTidy.StampId`. */
+    val STAMP_ID: String = "d33b0a11-6f0c-4e2a-9d51-0000000000b1"
+
     /** The areas and goals with every live goal in a live area. */
     fun rehome(areas: List<GoalArea>, goals: List<Goal>, work: GoalArea): Pair<List<GoalArea>, List<Goal>> {
         val liveAreas = areas.filter { it.isLive }.map { it.id }.toSet()

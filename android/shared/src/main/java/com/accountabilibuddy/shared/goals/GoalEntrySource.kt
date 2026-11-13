@@ -9,4 +9,7 @@ enum class GoalEntrySource {
     ScreenTime,
     Beeminder,
     Calendar,
+
+    /** A PC's #tag extra minutes beyond what the phone's own sessions show (ADR 79); older apps keep it as a newer item. */
+    FocusLocal,
 }

@@ -33,7 +33,7 @@ import kotlinx.serialization.json.JsonObject
  * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class Goal(
-    val id: UUID,
+    override val id: UUID,
     val areaId: UUID,
     val name: String,
     val icon: String,
@@ -42,19 +42,27 @@ data class Goal(
     val target: GoalTarget,
     val sources: List<GoalSourceRule>,
     val createdAt: OffsetDateTime,
-    val position: Double,
-    val editedAt: OffsetDateTime,
+    override val position: Double,
+    override val editedAt: OffsetDateTime,
     val builtIn: Boolean = false,
     val secondTarget: GoalTarget? = null,
     val pauses: List<GoalPauseStretch>? = null,
     val showOnToday: Boolean = false,
     val extraTiles: GoalExtraTiles? = null,
     val notes: String? = null,
-    val deletedAt: OffsetDateTime? = null,
+    override val deletedAt: OffsetDateTime? = null,
     val newerSources: List<GoalNewerItem> = emptyList(),
     val extra: JsonObject = JsonObject(emptyMap()),
-) {
+    /** When each part was last changed and by which device (ADR 79); null = every part changed at [editedAt] by nobody. */
+    val stamps: GoalFieldStamps? = null,
+    /** Deep work's "Track time only" as its record carries it in a sync file; written only when on, never stored. */
+    val trackTimeOnly: Boolean = false,
+) : GoalMergeItem {
     val isLive: Boolean get() = deletedAt == null
+
+    override val tieBreak: String get() = GoalJson.text(GoalJson.writeGoal(this))
+
+    override fun withStamps(editedAt: OffsetDateTime, deletedAt: OffsetDateTime?): Goal = copy(editedAt = editedAt, deletedAt = deletedAt)
 
     /**
      * Whether this is the built-in Deep work goal: flagged built in, or carrying its fixed id (a record that lost the flag is

@@ -127,6 +127,14 @@ data class SyncFile(
      * file, task lists not shared). Never in a QR file or in the copy a receiver keeps of this file.
      */
     val taskParts: com.accountabilibuddy.shared.tasks.TaskParts? = null,
+    /**
+     * ADR 79: the goal lists (`goals`, `goalAreas`, `goalEntries`, `goalReminders`, `goalReviews`), read leniently like the PC (an item this
+     * app cannot read is left out, one with a value it does not know is kept as written); null when the file carries none of them. Never in a
+     * QR file or in the copy a receiver keeps of this file.
+     */
+    val goalParts: SyncGoalParts? = null,
+    /** ADR 79: the year files (year, rolling PC, version) this device has merged, so month files can be removed. Ids and times only. */
+    val goalYearsMerged: List<SyncGoalYearMerged>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

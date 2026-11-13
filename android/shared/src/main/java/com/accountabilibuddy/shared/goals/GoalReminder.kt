@@ -20,20 +20,24 @@ import kotlinx.serialization.json.JsonObject
  * empty when there are none. May hold private text: sealed at rest, never logged.
  */
 data class GoalReminder(
-    val id: UUID,
+    override val id: UUID,
     val goalId: UUID,
     val days: GoalReminderDays,
     val time: LocalTime,
-    val position: Double,
-    val editedAt: OffsetDateTime,
+    override val position: Double,
+    override val editedAt: OffsetDateTime,
     val weekdays: List<GoalWeekday>? = null,
     val date: LocalDate? = null,
     val repeat: Boolean = true,
     val reason: String? = null,
     val skipWhenDone: Boolean = true,
     val nudgeWhenBehind: Boolean = false,
-    val deletedAt: OffsetDateTime? = null,
+    override val deletedAt: OffsetDateTime? = null,
     val extra: JsonObject = JsonObject(emptyMap()),
-) {
+) : GoalMergeItem {
+    override val tieBreak: String get() = GoalJson.text(GoalJson.writeReminder(this))
+
+    override fun withStamps(editedAt: OffsetDateTime, deletedAt: OffsetDateTime?): GoalReminder = copy(editedAt = editedAt, deletedAt = deletedAt)
+
     val isLive: Boolean get() = deletedAt == null
 }

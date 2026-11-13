@@ -205,6 +205,9 @@ object SyncFileJson {
         file.handoverAcks?.let { acks -> put("handoverAcks", JsonArray(acks.map { ack -> buildJsonObject { put("id", ack.id); put("editedAt", writeTime(ack.editedAt)) } })) }
         // Optional (ADR 76): the task list's parts; a part the file doesn't carry is left out, as the PC leaves it out.
         file.taskParts?.let { parts -> com.accountabilibuddy.shared.tasks.TaskJson.writeParts(parts).forEach { (name, value) -> put(name, value) } }
+        // Optional (ADR 79): the goal lists and the year files this device merged; a part the file does not carry is left out.
+        file.goalParts?.let { parts -> SyncGoalParts.write(parts).forEach { (name, value) -> put(name, value) } }
+        file.goalYearsMerged?.let { put("goalYearsMerged", writeGoalYearsMerged(it)) }
         // Optional (ADR 68): the guidance mode this device chose; older apps ignore it.
         file.guidance?.let { guidance ->
             put("guidance", buildJsonObject {
@@ -395,8 +398,32 @@ object SyncFileJson {
             readHandovers(json["handovers"]),
             readHandoverAcks(json["handoverAcks"]),
             readTaskParts(json),
+            SyncGoalParts.read(json),
+            readGoalYearsMerged(json["goalYearsMerged"]),
         )
     }
+
+    /** The year files merged (ADR 79), leniently: an item that does not read is dropped; a value that is not a list reads as none. */
+    fun readGoalYearsMerged(value: JsonElement?): List<SyncGoalYearMerged>? {
+        val list = value as? JsonArray ?: return null
+        return list.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                val year = (item["year"] as? JsonPrimitive)?.takeIf { !it.isString && it !is JsonNull }?.content?.toIntOrNull() ?: if (item.containsKey("year")) error("year") else 0
+                val rolledBy = (item["rolledBy"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { java.util.UUID.fromString(it) } ?: if (item.containsKey("rolledBy")) error("rolledBy") else java.util.UUID(0L, 0L)
+                val rolledAt = (item["rolledAt"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { com.accountabilibuddy.shared.goals.GoalJson.parseTime(it) } ?: if (item.containsKey("rolledAt")) error("rolledAt") else DotNetTime.MIN
+                SyncGoalYearMerged(year, rolledBy, rolledAt)
+            }.getOrNull()
+        }
+    }
+
+    private fun writeGoalYearsMerged(items: List<SyncGoalYearMerged>): JsonArray = JsonArray(items.map { item ->
+        buildJsonObject {
+            put("year", item.year)
+            put("rolledBy", item.rolledBy.toString())
+            put("rolledAt", com.accountabilibuddy.shared.goals.GoalJson.time(item.rolledAt))
+        }
+    })
 
     /** ADR 76's parts of a file, leniently (TaskJson.readParts); null when it carries none of the five names. */
     fun readTaskParts(json: JsonObject): com.accountabilibuddy.shared.tasks.TaskParts? =

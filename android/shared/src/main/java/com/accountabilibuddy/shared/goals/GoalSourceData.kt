@@ -1,6 +1,7 @@
 package com.accountabilibuddy.shared.goals
 
 import java.time.ZoneId
+import com.accountabilibuddy.shared.sync.SyncSteps
 import java.util.UUID
 
 /**
@@ -11,6 +12,8 @@ import java.util.UUID
  * @property zone The local time zone (dates, back-fills).
  * @property calendarWindows Calendar time per ADR 58 category (PC only, plan §3b 7); null = none. The phone never passes any.
  * @property tagsAvailable False where #tag rules aren't counted: the phone until ADR 79 (plan §3b 5; [forPhone]).
+ * @property steps The phones' synced daily step counts: one more Health Connect "device" (the empty id) for a steps goal (ADR 79).
+ * @property deviceId This device's id: its own #tag and calendar extras are not counted twice.
  */
 data class GoalSourceData(
     val focus: List<GoalFocusSession>,
@@ -18,6 +21,8 @@ data class GoalSourceData(
     val zone: ZoneId,
     val calendarWindows: Map<UUID, List<GoalWindow>>? = null,
     val tagsAvailable: Boolean = true,
+    val steps: SyncSteps? = null,
+    val deviceId: UUID? = null,
 ) {
     companion object {
         /**

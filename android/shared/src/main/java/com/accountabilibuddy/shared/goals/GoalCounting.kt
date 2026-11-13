@@ -2,6 +2,9 @@ package com.accountabilibuddy.shared.goals
 
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
@@ -65,7 +68,7 @@ object GoalCounting {
             .groupBy { it.day }
             .minByOrNull { it.key }
             ?: return null
-        return amountValue(first.value, readable).first
+        return amountValue(goal, first.value, readable).first
     }
 
     /** Which entry source a reading rule reads; null for a rule that counts time or ticks. */
@@ -76,9 +79,24 @@ object GoalCounting {
         else -> null
     }
 
-    // The goal's live entries; none for Deep work, which counts focus only.
-    private fun entriesOf(goal: Goal, data: GoalSourceData): List<GoalEntry> =
-        if (goal.isDeepWork) emptyList() else data.entries.filter { it.goalId == goal.id && it.isLive }
+    // The goal's live entries, and for a steps goal the phones' synced count of each day as one more Health Connect device (the empty
+    // id; the highest device value counts); none for Deep work, which counts focus only.
+    private fun entriesOf(goal: Goal, data: GoalSourceData): List<GoalEntry> {
+        if (goal.isDeepWork) return emptyList()
+        val entries = data.entries.filter { it.goalId == goal.id && it.isLive }.toMutableList()
+        val steps = data.steps ?: return entries
+        if (GoalSources.countedFor(goal).none { it.automatic && it.type == GoalSourceType.HealthSteps }) return entries
+        val noDevice = UUID(0L, 0L)
+        val readAt = OffsetDateTime.ofInstant(steps.readAt, ZoneOffset.UTC)
+        for (stepDay in steps.days.groupBy { it.date }.values.map { it.last() }) {
+            entries += GoalEntry(
+                GoalDerivedIds.forEntry(goal.id, GoalEntrySource.HealthConnect, noDevice, stepDay.date), goal.id, stepDay.date, null,
+                stepDay.count.toDouble(), GoalEntrySource.HealthConnect, readAt, 0.0, null, deviceId = noDevice,
+            )
+        }
+
+        return entries
+    }
 
     private fun readableSources(goal: Goal): Set<GoalEntrySource> =
         GoalSources.countedFor(goal).filter { it.automatic }.mapNotNull { entrySourceOf(it.type) }.toSet()
@@ -90,9 +108,17 @@ object GoalCounting {
     private fun latestHand(entries: List<GoalEntry>): GoalEntry? =
         entries.filter { it.source == GoalEntrySource.Hand }.sortedWith(latestFirst).firstOrNull()
 
+    // A device's reading for an Amount day: the first (by its time, then edit time, then id).
+    private val firstReadingOrder: Comparator<GoalEntry> =
+        compareBy<GoalEntry> { it.time ?: LocalTime.MIN }.thenBy { it.editedAt.toInstant() }.thenBy { it.id.toString() }
+
+    // A device's reading for a Time day: the newest (by edit time, then id, both descending).
+    private val newestOrder: Comparator<GoalEntry> = latestFirst
+
     /**
      * The entry that decides an Amount goal's value on a day: the latest hand edit, else the first reading of a switched-on source (by
-     * its time, then edit time, then id); null when none counts (and always for Deep work). The goal page marks it "charted".
+     * its time, then edit time, then id); null when none counts (and always for Deep work). The goal page marks it "charted". With
+     * several devices' readings of one source the counting combines them ([combined]); this picks one entry for display.
      */
     fun decidingEntry(goal: Goal, dayEntries: List<GoalEntry>): GoalEntry? =
         if (goal.isDeepWork) null else decidingEntry(dayEntries, readableSources(goal))
@@ -105,17 +131,57 @@ object GoalCounting {
 
         return dayEntries
             .filter { it.source != GoalEntrySource.Hand && it.source in readable }
-            .sortedWith(compareBy<GoalEntry> { it.time ?: LocalTime.MIN }.thenBy { it.editedAt.toInstant() }.thenBy { it.id.toString() })
+            .sortedWith(firstReadingOrder)
             .firstOrNull()
     }
 
-    // An Amount day: the latest hand edit, else the first reading (by its time, then edit time, then id). Second: by hand.
-    private fun amountValue(dayEntries: List<GoalEntry>, readable: Set<GoalEntrySource>): Pair<Double?, Boolean> {
-        val deciding = decidingEntry(dayEntries, readable)
-        return deciding?.value to (deciding?.source == GoalEntrySource.Hand)
+    // An Amount day: the latest hand edit, else the first reading (by its time, then edit time, then id), each source's devices
+    // combined. Second: by hand.
+    private fun amountValue(goal: Goal, dayEntries: List<GoalEntry>, readable: Set<GoalEntrySource>): Pair<Double?, Boolean> {
+        val hand = latestHand(dayEntries)
+        if (hand != null) return hand.value to true
+        val candidates = dayEntries
+            .filter { it.source != GoalEntrySource.Hand && it.source in readable }
+            .groupBy { it.source }
+            .mapNotNull { (source, group) -> combined(goal, source, group, firstReading = true, self = null) }
+        if (candidates.isEmpty()) return null to false
+        return candidates.sortedWith { a, b -> firstReadingOrder.compare(a.second, b.second) }.first().first to false
     }
 
-    private fun wholeMinutes(windows: List<GoalWindow>): Double = floor(GoalTimeline.union(windows).sumOf { it.minutes } + 1e-9)
+    // One value for a source on a day across devices (the PC's `Combined`): Beeminder is one writer's; per device the first reading
+    // (Amount) or the newest (Time); then Health Connect and calendar take the highest device, screen time (the devices the rule counts
+    // on) and other PCs' #tag extras add up. A #tag or calendar value of this device itself is never counted twice. Second: the entry
+    // standing for the value (ties and order).
+    private fun combined(goal: Goal, source: GoalEntrySource, entries: List<GoalEntry>, firstReading: Boolean, self: UUID?): Pair<Double, GoalEntry>? {
+        val order = if (firstReading) firstReadingOrder else newestOrder
+        if (source == GoalEntrySource.Beeminder) {
+            val one = entries.sortedWith(order).firstOrNull()
+            return one?.let { it.value to it }
+        }
+
+        var perDevice = entries
+            .filter { source != GoalEntrySource.FocusLocal && source != GoalEntrySource.Calendar || self == null || it.deviceId != self }
+            .groupBy { it.deviceId }
+            .values
+            .map { group -> group.sortedWith(order).first() }
+        if (source == GoalEntrySource.ScreenTime) {
+            val screen = GoalSources.countedFor(goal).filter { it.automatic && it.type == GoalSourceType.ScreenTime }
+            perDevice = perDevice.filter { entry -> entry.deviceId == null || screen.any { GoalAppMatching.countsOn(it, entry.deviceId) } }
+            // A counted device's derived value and an older app's no-device value for the same day: only the derived count.
+            if (perDevice.any { it.deviceId != null }) perDevice = perDevice.filter { it.deviceId != null }
+        }
+
+        if (perDevice.isEmpty()) return null
+        if (source == GoalEntrySource.ScreenTime || source == GoalEntrySource.FocusLocal) {
+            return perDevice.sumOf { it.value } to perDevice.sortedWith(order).first()
+        }
+
+        // Health Connect and calendar: the highest device value (ties: the kind's order).
+        val highest = perDevice.sortedWith(compareByDescending<GoalEntry> { it.value }.then(order)).first()
+        return highest.value to highest
+    }
+
+    internal fun wholeMinutes(windows: List<GoalWindow>): Double = floor(GoalTimeline.union(windows).sumOf { it.minutes } + 1e-9)
 
     // .NET's DateTime.AddMinutes: whole 100 ns ticks, the fraction cut toward zero.
     private fun minutesAsNanos(minutes: Double): Long {
@@ -137,6 +203,31 @@ object GoalCounting {
             .mapNotNull { it.thresholdMinutes }
             .minOrNull()
         private val reachesDown: Boolean = goal.target.direction == GoalDirection.Reach && reachesDown(goal, data)
+        private val countsTagExtras = !goal.isDeepWork && rules.any { it.automatic && it.type == GoalSourceType.FocusTag }
+        private val countsCalendarValues = !goal.isDeepWork && rules.any { it.automatic && it.type == GoalSourceType.CalendarCategory }
+        private val focusWindows = timeRules.filter { it.first.type != GoalSourceType.CalendarCategory }.flatMap { it.second }
+        private val calendarWindows = timeRules.filter { it.first.type == GoalSourceType.CalendarCategory }.flatMap { it.second }
+
+        // The other PCs' derived #tag and calendar minutes for the day (Time goals and habits): the #tag extras added up, the calendar
+        // values' highest beyond what this device's own calendar windows already added.
+        private fun timeValues(dayEntries: List<GoalEntry>, dayWindow: GoalWindow): Pair<Double, Double> {
+            if (goal.kind != GoalKind.Time && goal.kind != GoalKind.Habit) return 0.0 to 0.0
+            var tags = 0.0
+            val tagEntries = dayEntries.filter { it.source == GoalEntrySource.FocusLocal }
+            if (countsTagExtras) combined(goal, GoalEntrySource.FocusLocal, tagEntries, false, data.deviceId)?.let { tags = it.first }
+            var calendar = 0.0
+            val calendarEntries = dayEntries.filter { it.source == GoalEntrySource.Calendar }
+            if (countsCalendarValues) {
+                combined(goal, GoalEntrySource.Calendar, calendarEntries, false, data.deviceId)?.let { highest ->
+                    val own = GoalDerivedMinutes.extra(clip(focusWindows, dayWindow), clip(calendarWindows, dayWindow))
+                    calendar = max(0.0, highest.first - own)
+                }
+            }
+
+            return tags to calendar
+        }
+
+        private fun clip(windows: List<GoalWindow>, dayWindow: GoalWindow): List<GoalWindow> = windows.mapNotNull { GoalTimeline.clip(it, dayWindow) }
 
         fun day(day: LocalDate, today: LocalDate): GoalDayState {
             val dayEntries = entriesByDay[day] ?: emptyList()
@@ -155,7 +246,11 @@ object GoalCounting {
                 autoWindows += clipped
             }
 
-            val autoMinutes = wholeMinutes(autoWindows)
+            val (tagMinutes, calendarMinutes) = timeValues(dayEntries, dayWindow)
+            if (tagMinutes > 0 && GoalSourceType.FocusTag !in sources) sources += GoalSourceType.FocusTag
+            if (calendarMinutes > 0 && GoalSourceType.CalendarCategory !in sources) sources += GoalSourceType.CalendarCategory
+            val timeValues = tagMinutes + calendarMinutes
+            val autoMinutes = wholeMinutes(autoWindows) + timeValues
 
             // Readings from the goal's switched-on reading sources.
             val readings = dayEntries.filter { it.source != GoalEntrySource.Hand && it.source in readable }
@@ -184,8 +279,8 @@ object GoalCounting {
                         GoalTimeline.clip(GoalWindow(start, start.plusNanos(minutesAsNanos(entry.value))), dayWindow)
                     }
                     val untimed = handTime.filter { it.time == null }.sumOf { it.value }
-                    val readingTotal = readings.groupBy { it.source }.values.sumOf { group -> group.sortedWith(latestFirst).first().value }
-                    minutes = wholeMinutes(autoWindows + timed) + untimed
+                    val readingTotal = readings.groupBy { it.source }.entries.sumOf { (source, group) -> combined(goal, source, group, false, data.deviceId)?.first ?: 0.0 }
+                    minutes = wholeMinutes(autoWindows + timed) + timeValues + untimed
                     value = minutes + readingTotal
                     valueWithoutHand = autoMinutes + readingTotal
                     byHand = handTime.isNotEmpty()
@@ -204,7 +299,7 @@ object GoalCounting {
                 }
 
                 GoalKind.Amount -> {
-                    val (amount, fromHand) = amountValue(dayEntries, readable)
+                    val (amount, fromHand) = amountValue(goal, dayEntries, readable)
                     value = amount ?: 0.0
                     valueWithoutHand = value
                     byHand = fromHand

@@ -83,7 +83,8 @@ object SyncFileCodec {
             return null
         }
 
-        return (json as? JsonObject)?.let(SyncFileJson::read)
+        // ADR 79: every goal item the merge cannot use is left out as the file opens (the PC's WithCleanGoalParts).
+        return (json as? JsonObject)?.let(SyncFileJson::read)?.let { file -> file.copy(goalParts = SyncGoalParts.cleanOpen(file.goalParts)) }
     }
 
     private fun ByteArray.startsWith(prefix: ByteArray, offset: Int): Boolean =

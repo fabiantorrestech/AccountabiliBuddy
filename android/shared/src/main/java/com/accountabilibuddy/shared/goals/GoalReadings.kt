@@ -54,5 +54,6 @@ object GoalReadings {
         GoalEntrySource.ScreenTime -> "Screen time"
         GoalEntrySource.Beeminder -> "Beeminder"
         GoalEntrySource.Calendar -> "Calendar"
+        GoalEntrySource.FocusLocal -> "Focus tags"
     }
 }

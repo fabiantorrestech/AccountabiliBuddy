@@ -19,11 +19,15 @@ class FixtureFile(val area: String, val name: String, val source: String, val ca
                 .sortedBy { it.name }
                 .map { read(it) }
 
+        // An input that is not an object (a text, a list) is handed over as {"value": input}.
+        private fun objectOf(input: kotlinx.serialization.json.JsonElement): kotlinx.serialization.json.JsonObject =
+            input as? kotlinx.serialization.json.JsonObject ?: kotlinx.serialization.json.JsonObject(mapOf("value" to input))
+
         private fun read(file: File): FixtureFile {
             val json = Json.parseToJsonElement(file.readText()).jsonObject
             val cases = json.getValue("cases").jsonArray.map { item ->
                 val case = item.jsonObject
-                FixtureCase(case.getValue("name").jsonPrimitive.content, case.getValue("input").jsonObject, case.getValue("expected"))
+                FixtureCase(case.getValue("name").jsonPrimitive.content, objectOf(case.getValue("input")), case.getValue("expected"))
             }
             return FixtureFile(
                 json.getValue("area").jsonPrimitive.content,
