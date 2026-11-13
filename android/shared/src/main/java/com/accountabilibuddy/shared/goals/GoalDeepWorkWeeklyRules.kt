@@ -33,7 +33,7 @@ object GoalDeepWorkWeeklyRules {
         val decision = GoalLowering.decide(deepWork(now), current, wanted?.toDouble(), productaBuddy, lowerWaitsNow, now, looserDelay)
         return when (decision.outcome) {
             GoalChangeOutcome.Unchanged -> GoalDeepWorkWeeklyChange(state.copy(pending = null), GoalDeepWorkWeeklyResult.Unchanged)
-            GoalChangeOutcome.ApplyNow -> GoalDeepWorkWeeklyChange(GoalDeepWorkWeekly(wanted, null), GoalDeepWorkWeeklyResult.Applied)
+            GoalChangeOutcome.ApplyNow -> GoalDeepWorkWeeklyChange(state.copy(minutes = wanted, pending = null), GoalDeepWorkWeeklyResult.Applied)
             GoalChangeOutcome.Wait -> {
                 if (!productaBuddy && sessionRunning) {
                     return GoalDeepWorkWeeklyChange(state, GoalDeepWorkWeeklyResult.RefusedDuringSession)
@@ -67,7 +67,7 @@ object GoalDeepWorkWeeklyRules {
             return state.copy(pending = pending)
         }
 
-        return GoalDeepWorkWeekly(pending.amount?.toInt(), null)
+        return state.copy(minutes = pending.amount?.toInt(), pending = null)
     }
 
     /** Cancel on a waiting change. */

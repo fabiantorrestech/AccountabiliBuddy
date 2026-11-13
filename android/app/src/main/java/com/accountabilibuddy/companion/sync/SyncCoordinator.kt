@@ -312,6 +312,15 @@ class SyncCoordinator(
     /** R7.2 (ADR 76): the task list's parts for this phone's file (with "Sync task lists" on); null before the task list is the source. */
     var taskParts: () -> com.accountabilibuddy.shared.tasks.TaskParts? = { null }
 
+    /** ADR 79 (GS4): the five goal parts for this phone's file (with "Sync task lists" on); null while the goals are not ready. Set by the app. */
+    var goalParts: () -> com.accountabilibuddy.shared.sync.SyncGoalParts? = { null }
+
+    /** ADR 79 shared history: the year files this phone has merged, for its file (`goalYearsMerged`); null for none. Set by the app. */
+    var goalYearsMerged: () -> List<com.accountabilibuddy.shared.sync.SyncGoalYearMerged>? = { null }
+
+    /** ADR 79 (GS4): another device's file arrived (the original, with its goal parts): merged into this phone's goals by the app. */
+    var onGoalParts: (SyncFile) -> Unit = {}
+
     /** R7.2: another device's task parts arrived (only a file that carries some, under the same rules as the shared lists); set by the app. */
     var onTaskParts: (com.accountabilibuddy.shared.tasks.TaskParts) -> Unit = {}
 
@@ -811,6 +820,9 @@ class SyncCoordinator(
             onTaskExtras(file)
             // R7.2 (ADR 76): the task list's parts; a file without them (an older app, a QR file) leaves the task list alone (Q583).
             file.taskParts?.let { onTaskParts(it) }
+            // ADR 79 (GS4): the goal parts, behind the same rules (not while this phone keeps its lists to itself, nor from a fast clock); a file
+            // without them (an older app, a QR file) leaves the goals alone.
+            if (file.goalParts != null) onGoalParts(file)
         }
 
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
@@ -885,6 +897,9 @@ class SyncCoordinator(
         categories = if (sharesTaskLists()) runCatching { categories() }.getOrNull() else null,
         // R7.2 (ADR 76): the task list's parts beside the old fields above (rebuilt from it, for one release).
         taskParts = if (sharesTaskLists()) runCatching { taskParts() }.getOrNull() else null,
+        // ADR 79 (GS4): the goals travel with the task lists, under the same switch; none at all while the goals are not ready.
+        goalParts = if (sharesTaskLists()) runCatching { goalParts() }.getOrNull() else null,
+        goalYearsMerged = if (sharesTaskLists()) runCatching { goalYearsMerged() }.getOrNull() else null,
         steps = runCatching { steps() }.getOrNull(),
         workEnded = runCatching { workEnded() }.getOrNull(),
         guidance = runCatching { guidance() }.getOrNull(),

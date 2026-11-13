@@ -48,7 +48,11 @@ object PhoneGoalData {
             GoalFocusAttribution.fromSynced(pieces(file), now, zone)
         }
         val sleep = GoalSleepReadings.entries(goals, slept, if (slept.isEmpty()) null else now, zone)
-        return GoalSourceData.forPhone(focus, entries + stepReadings(goals, steps, zone) + sleep, zone)
+        // ADR 79 (GS4): the phone writes its steps and sleep as stored entries ([PhoneGoalDerived]); a reading for a goal and day that already
+        // has a stored Health Connect entry is left out, so nothing counts twice. The in-memory readings stay for a goal not saved yet (a draft).
+        val stored = entries.filter { it.source == GoalEntrySource.HealthConnect }.map { it.goalId to it.day }.toSet()
+        val fresh = (stepReadings(goals, steps, zone) + sleep).filter { (it.goalId to it.day) !in stored }
+        return GoalSourceData.forPhone(focus, entries + fresh, zone)
     }
 
     /**

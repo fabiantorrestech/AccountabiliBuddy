@@ -11,12 +11,12 @@ import java.time.OffsetDateTime
  */
 object GoalEdits {
     /** A new goal: every part stamped at its edit time by [by]. */
-    fun new(goal: Goal, by: String): Goal = goal.copy(stamps = GoalFieldStamps.allAt(FieldStamp(goal.editedAt, by)))
+    fun new(goal: Goal, by: String): Goal = goal.copy(stamps = GoalFieldStamps.allAt(FieldStamp(goal.editedAt, device(by))))
 
     /** [goal] with only [field] taken from [changed], stamped; [goal] itself when that part didn't change. */
     fun edit(goal: Goal, field: GoalField, changed: Goal, now: OffsetDateTime, by: String): Goal {
         if (GoalFieldValues.canonical(goal, field) == GoalFieldValues.canonical(changed, field)) return goal
-        return stamped(goal, listOf(field), GoalFieldValues.with(goal, changed, field), now, by)
+        return stamped(goal, listOf(field), GoalFieldValues.with(goal, changed, field), now, device(by))
     }
 
     /** [after] with every part that differs from [before] stamped (a store's change); nothing changed: [before]'s stamps and edit time. */
@@ -27,7 +27,7 @@ object GoalEdits {
         if (changed.isEmpty()) {
             return after.copy(stamps = before.stamps ?: GoalFieldStamps.forGoal(before), editedAt = before.editedAt)
         }
-        return stamped(before, changed, after, now, by)
+        return stamped(before, changed, after, now, device(by))
     }
 
     private fun stamped(before: Goal, fields: List<GoalField>, changed: Goal, now: OffsetDateTime, by: String): Goal {
@@ -39,4 +39,7 @@ object GoalEdits {
         for (field in fields) stamps = stamps.with(field, stamp)
         return changed.copy(editedAt = if (DotNetTime.compare(at, changed.editedAt) > 0) at else changed.editedAt, stamps = stamps)
     }
+
+    /** The device id as lower-case text (the stamp's form); the empty id for a value that isn't a device id. */
+    private fun device(by: String): String = runCatching { java.util.UUID.fromString(by).toString() }.getOrDefault(by.lowercase())
 }

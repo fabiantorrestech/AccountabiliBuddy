@@ -92,6 +92,8 @@ object Refresher {
                 // ADR 38: tonight's reminders follow bedtime; the countdown redraws every minute.
                 runCatching { BedtimeReminders.refresh(context, clock, now) }
             }
+            // ADR 79 (GS4): the steps and sleep this phone measured become goal entries (only when a value changed).
+            runCatching { com.accountabilibuddy.companion.goals.PhoneGoalDerived.refresh(app) }
             // Round 2 R6b3: goal reminders and the weekly review's notification (held while paused or during a session; quiet in PB).
             runCatching { GoalReminders.refresh(context, app.pause.isQuiet) }
             // ADR 37: the day plan's block rules for Curbox (re-enable times, lift windows, heads-ups).

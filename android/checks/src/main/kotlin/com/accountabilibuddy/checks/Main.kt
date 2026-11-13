@@ -155,6 +155,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     // PH1 + TD1 (phone): the day panel's one height, every Today part hideable in both layouts, More today bar show / hide, the steps part
     // gone with old layouts read fine, the one-time "Steps now live in Goals" card (phone only).
     "ph1td1-self" to Ph1Td1SelfCheck::run,
+    // Round 2 GS4: the phone's goals sync wiring: the weekly receive rule, stamping, derived ownership, what goes out, the history transport (phone only).
+    "gs4-self" to Gs4SelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

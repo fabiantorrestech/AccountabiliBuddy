@@ -47,6 +47,9 @@ class DriveSyncSource(
     // Writes this phone's own file only when it changed (or on the slow heartbeat).
     private val ownGate = OwnFileWriteGate()
 
+    /** ADR 79 shared history (GS4): a pass over the goal history files in the Drive folder, run after the write when due; set by the app. */
+    var goalHistory: com.accountabilibuddy.shared.goals.GoalHistorySync? = null
+
     // The key generation (ADR 54) the maps above belong to: a new key reads the new group's files from scratch.
     private var generation = -1
 
@@ -98,6 +101,8 @@ class DriveSyncSource(
                     // A rekey the coordinator applied in the background may have changed the key meanwhile: write for the key as it is now.
                     followKey()
                     write(token, listed)
+                    // A history failure is not shown: tried again at the next pass.
+                    runCatching { goalHistory?.runIfDue(DriveGoalHistoryStore(files, token)) }
                     FolderStatus(Instant.now(), if (unreadable) "Can't read a file in Google Drive." else null, newerLink = otherGroupIds.isNotEmpty() && groupIds.isEmpty())
                 } catch (e: Exception) {
                     FolderStatus(_status.value.lastSyncAt, "Can't reach Google Drive right now.")

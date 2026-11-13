@@ -15,7 +15,7 @@ import java.net.URLEncoder
 import java.time.Instant
 
 /** A file in the app's Drive folder: its Drive id, name and last change. */
-data class DriveFileInfo(val id: String, val name: String, val modifiedAt: Instant)
+data class DriveFileInfo(val id: String, val name: String, val modifiedAt: Instant, val size: Long = 0L)
 
 /**
  * A backup of a removed device in the app's Drive folder (ADR 55): `Backups/<device folder>/<date>.absync`.
@@ -43,7 +43,7 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
         do {
             val query = mutableMapOf(
                 "q" to "'$folder' in parents and trashed=false",
-                "fields" to "nextPageToken,files(id,name,modifiedTime)",
+                "fields" to "nextPageToken,files(id,name,modifiedTime,size)",
                 "pageSize" to "100",
                 "spaces" to "drive",
             )
@@ -55,6 +55,7 @@ class DriveFiles(private val transport: DriveTransport, private val api: String 
                     item.getValue("id").jsonPrimitive.content,
                     item.getValue("name").jsonPrimitive.content,
                     Instant.parse(item.getValue("modifiedTime").jsonPrimitive.content),
+                    item["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
                 )
             }
             page = json["nextPageToken"]?.jsonPrimitive?.content

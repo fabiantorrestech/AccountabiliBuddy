@@ -295,6 +295,40 @@ class CompanionApp : Application() {
     /** Round 2 R6: this phone's goals (device-local until ADR 79; Keystore-sealed lists). Set up at start ([onCreate]). */
     val goals by lazy { com.accountabilibuddy.companion.goals.PhoneGoalStore(this) }
 
+    /** ADR 79 (GS4): the shared goal history (month and year files on Drive and the relay), its state sealed on this phone. */
+    val goalHistory by lazy {
+        com.accountabilibuddy.shared.goals.GoalHistorySync(
+            held = { goals.composed() },
+            applySynced = { merge -> goals.applyHistory(goalPcDailyMinutes(), merge) },
+            states = com.accountabilibuddy.companion.goals.PhoneGoalHistoryState(this),
+            now = { java.time.OffsetDateTime.ofInstant(com.accountabilibuddy.companion.guidance.TrustedTime.now(), java.time.ZoneOffset.UTC) },
+            self = { if (sync.isJoined) sync.deviceId else null },
+            key = { sync.key.value?.let { com.accountabilibuddy.shared.goals.GoalHistorySync.GoalHistoryKey(it.groupId, keyFingerprint(it)) } },
+            codec = com.accountabilibuddy.companion.goals.PhoneGoalHistoryCodec { sync.key.value },
+            devices = {
+                val removed = sync.removedDevices.value.map { it.deviceId }.toSet()
+                (sync.allReceived.value.filter { it.file.device.kind != com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_WATCH }.map {
+                    com.accountabilibuddy.shared.goals.GoalHistoryDeviceInfo(
+                        it.file.device.deviceId, it.file.device.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC,
+                        it.file.device.deviceId in removed, java.time.OffsetDateTime.ofInstant(it.receivedAt, java.time.ZoneOffset.UTC),
+                    )
+                })
+            },
+            enabled = { sync.sharesTaskLists() && sync.isJoined },
+            ready = { goals.status.value == com.accountabilibuddy.companion.goals.PhoneGoalStatus.Ready },
+            // Counts only: never a name, a value or a goal.
+            log = { line -> android.util.Log.i("GoalHistory", line) },
+        )
+    }
+
+    // The PC's daily target (what Track time only would take away); null before any PC file arrived.
+    private fun goalPcDailyMinutes(): Double? =
+        com.accountabilibuddy.companion.goals.PhoneDeepWork.pcDailyMinutes(sync.allReceived.value.map { it.file })?.toDouble()
+
+    // Not the key: a short hash that tells one group's key from another's, kept in the history's state.
+    private fun keyFingerprint(key: com.accountabilibuddy.shared.sync.SyncKey): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest("goalhist-state".toByteArray() + key.key).take(8).joinToString("") { "%02x".format(it) }
+
     /** Round 2 R6b3: goal reminders' and the weekly review's ringing marks (ids and times only; state, never synced or backed up). */
     val goalReminderMarks by lazy { com.accountabilibuddy.companion.goals.GoalReminderMarksStore(this) }
 
@@ -467,6 +501,7 @@ class CompanionApp : Application() {
         // Daily steps (only while the switch is on): this phone's read goes out in its file, and a new count reaches the PCs at once.
         sync.steps = { steps.forSync() }
         steps.onChanged = {
+            runCatching { com.accountabilibuddy.companion.goals.PhoneGoalDerived.refresh(this) }
             relaySoon()
             appScope.launch {
                 runCatching { folderSource.syncNow() }
@@ -629,11 +664,35 @@ class CompanionApp : Application() {
         // A goal, reminder or review change sets the goal reminders' alarm again at once (round 2 R6b3).
         goals.onChanged = {
             autoBackup.soon()
+            // ADR 79: the change goes out in this phone's file (written only when its content changed) and the pruned-goal ids are kept.
+            runCatching { goalHistory.trackPrunedGoals() }
+            sendSyncFilesSoon()
             appScope.launch { runCatching { com.accountabilibuddy.companion.notify.GoalReminders.refresh(this@CompanionApp, pause.isQuiet) } }
         }
         // Deep work's weekly target waits like any looser change: the mode, a running session (the check the removal lock uses) and the
         // looser-change delay are read when a change is asked or settled (round 2 R6b2).
         goals.deepWork.onChanged = { autoBackup.soon() }
+        // ADR 79 (GS4): goals sync. Every stamp is by this device (lower-case id, the empty id before the phone is in a group); a goal change
+        // here goes out in this phone's file soon; the five goal parts and the year-file marker go in the file, other devices' parts merge in.
+        goals.selfId = { if (sync.isJoined) sync.deviceId.toString().lowercase() else com.accountabilibuddy.shared.sync.FieldStamp.NOBODY }
+        goals.deepWork.pcDailyMinutes = ::goalPcDailyMinutes
+        goals.restoreRefusedReason = {
+            val env = goals.deepWork.environment()
+            if (!env.productaBuddy && env.sessionRunning) "not during a focus session." else null
+        }
+        sync.goalParts = { goals.partsForSync(java.time.OffsetDateTime.ofInstant(com.accountabilibuddy.companion.guidance.TrustedTime.now(), java.time.ZoneOffset.UTC)) }
+        sync.goalYearsMerged = { goalHistory.marker }
+        sync.onGoalParts = { file ->
+            if (file.device.deviceId != sync.deviceId) {
+                val changed = goals.applySynced(file.goalParts, goalPcDailyMinutes())
+                if (goals.status.value == com.accountabilibuddy.companion.goals.PhoneGoalStatus.Ready) {
+                    goalHistory.noteRegularFile(file.device.deviceId, file.goalYearsMerged)
+                }
+
+                if (changed) appScope.launch { runCatching { Refresher.refresh(this@CompanionApp) } }
+            }
+        }
+        goalHistory.onMarkerChanged = { sendSyncFilesSoon() }
         goals.deepWork.environment = {
             // One reading of the trusted clock (ADR 70) decides the session check and the wait; the phone's own clock is never read.
             val trusted = com.accountabilibuddy.companion.guidance.TrustedTime.now()
@@ -646,8 +705,10 @@ class CompanionApp : Application() {
         }
         com.accountabilibuddy.companion.goals.PhoneGoalsMigration.run(goals)
         driveSource = com.accountabilibuddy.companion.sync.DriveSyncSource(sync, driveSignIn, beforeSync = { watchBridge.refreshKnownWatches() })
+        driveSource.goalHistory = goalHistory
         // The relay source comes first: a file the Drive loop accepts at start-up calls relaySource.syncSoon().
         relaySource = com.accountabilibuddy.companion.sync.RelaySyncSource(sync, appScope, beforeSync = { watchBridge.refreshKnownWatches() })
+        relaySource.goalHistory = goalHistory
         // ADR 60: when a sync method last read successfully, for telling a PC that went quiet from a phone that can't read. The shared folder
         // is left out: it is local, so a pass "succeeds" with Wi-Fi off or Autosync paused and would make a quiet PC look off. A folder-only
         // phone therefore never calls a PC quiet: a signalled shutdown still frees the guards after 10 minutes, an unsignalled one holds.

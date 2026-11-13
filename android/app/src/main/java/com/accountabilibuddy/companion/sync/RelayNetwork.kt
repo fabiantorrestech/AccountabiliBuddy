@@ -29,7 +29,7 @@ class RelayEndpoint(
 )
 
 /** A file in the relay's list: its name and the etag (SHA-256, base64url) of its bytes. */
-class RelayFileInfo(val name: String, val etag: String)
+class RelayFileInfo(val name: String, val etag: String, val size: Long = 0L, val at: java.time.OffsetDateTime? = null)
 
 /** A file the relay handed over, with the etag it had when it did. */
 class RelayFile(val bytes: ByteArray, val etag: String?)
@@ -92,7 +92,11 @@ object RelayNetwork {
             } ?: throw RelayException(RelayProblem.Server, "The relay's file list isn't readable.")
             return array.take(MAX_LISTED_FILES).map {
                 val item = it.jsonObject
-                RelayFileInfo(item.getValue("name").jsonPrimitive.content, item.getValue("etag").jsonPrimitive.content)
+                RelayFileInfo(
+                    item.getValue("name").jsonPrimitive.content, item.getValue("etag").jsonPrimitive.content,
+                    item["size"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+                    item["at"]?.jsonPrimitive?.content?.let { runCatching { java.time.OffsetDateTime.parse(it) }.getOrNull() },
+                )
             }
         } finally {
             connection.disconnect()

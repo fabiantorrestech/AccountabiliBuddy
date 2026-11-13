@@ -33,7 +33,7 @@ object GoalFieldValues {
         GoalField.Area -> target.copy(areaId = source.areaId, position = source.position)
         GoalField.Target -> target.copy(kind = source.kind, target = source.target)
         GoalField.SecondTarget -> target.copy(secondTarget = source.secondTarget, trackTimeOnly = source.trackTimeOnly)
-        GoalField.Sources -> target.copy(sources = source.sources)
+        GoalField.Sources -> target.copy(sources = source.sources, newerSources = source.newerSources)
         GoalField.Pauses -> target.copy(pauses = source.pauses)
         GoalField.ShowOnToday -> target.copy(showOnToday = source.showOnToday)
         GoalField.ExtraTiles -> target.copy(extraTiles = source.extraTiles)

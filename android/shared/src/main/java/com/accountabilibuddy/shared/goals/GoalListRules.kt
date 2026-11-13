@@ -1,5 +1,6 @@
 package com.accountabilibuddy.shared.goals
 
+import com.accountabilibuddy.shared.sync.FieldStamp
 import java.time.Duration
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -65,7 +66,7 @@ object GoalListRules {
      * keeps this device's). Tombstones in the backup are ignored (an old backup never deletes). Without [includesNotes] the device's own
      * notes, reasons and review notes stay. Run [tidy] after (a goal with no live area goes to "Work").
      */
-    fun imported(lists: GoalLists, backup: GoalLists, replace: Boolean, includesNotes: Boolean, now: OffsetDateTime): GoalLists {
+    fun imported(lists: GoalLists, backup: GoalLists, replace: Boolean, includesNotes: Boolean, now: OffsetDateTime, by: String? = null): GoalLists {
         fun stamp(edited: OffsetDateTime) = if (replace) now else edited
 
         val areas = merge(lists.areas, backup.areas, { it.id }, { it.isLive }, { it.editedAt }, replace) { incoming, _ -> incoming.copy(editedAt = stamp(incoming.editedAt)) }
@@ -78,8 +79,17 @@ object GoalListRules {
                 target = goal.target.copy(pendingChange = null),
             )
         }
+        // ADR 79 (GS4, [by] given): a restore is an edit made here and syncs out. Replace stamps every part of the backup's live goals now
+        // (they win over later edits on every device); a merge stamps the parts it changed (a goal new here: every part at its edit time).
+        fun stamped(incoming: Goal, held: Goal?): Goal = when {
+            by == null -> incoming
+            replace -> incoming.copy(stamps = GoalFieldStamps.allAt(FieldStamp(now, by)))
+            held != null && held.isLive -> GoalEdits.restamp(held, incoming.copy(stamps = held.stamps), now, by)
+            else -> GoalEdits.new(incoming.copy(stamps = null), by)
+        }
+
         val goals = merge(lists.goals, incomingGoals, { it.id }, { it.isLive }, { it.editedAt }, replace) { incoming, held ->
-            incoming.copy(editedAt = stamp(incoming.editedAt), notes = if (includesNotes) incoming.notes else held?.notes)
+            stamped(incoming.copy(editedAt = stamp(incoming.editedAt), notes = if (includesNotes) incoming.notes else held?.notes), held)
         }.toMutableList()
         val backupDeepWork = backup.goals.firstOrNull { it.id == Goal.DEEP_WORK_ID && it.isLive }
         if (ownDeepWork != null && backupDeepWork != null && (replace || backupDeepWork.editedAt.toInstant().isAfter(ownDeepWork.editedAt.toInstant()))) {
@@ -92,7 +102,7 @@ object GoalListRules {
                 extraTiles = backupDeepWork.extraTiles,
                 notes = if (includesNotes) backupDeepWork.notes else ownDeepWork.notes,
                 editedAt = now,
-            )
+            ).let { restored -> if (by == null) restored else GoalEdits.restamp(ownDeepWork, restored, now, by) }
         }
 
         val liveGoals = goals.filter { it.isLive }.map { it.id }.toSet()

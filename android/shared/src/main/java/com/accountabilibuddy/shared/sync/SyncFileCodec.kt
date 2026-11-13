@@ -36,31 +36,30 @@ object SyncFileCodec {
     private val magic = "ABS1".toByteArray(Charsets.US_ASCII)
     private val random = SecureRandom()
 
-    fun seal(file: SyncFile, key: SyncKey): ByteArray {
-        val compressed = deflate(SyncFileJson.write(file).toString().toByteArray(Charsets.UTF_8))
+    fun seal(file: SyncFile, key: SyncKey): ByteArray = sealJson(SyncFileJson.write(file).toString().toByteArray(Charsets.UTF_8), key, magic)
+
+    /**
+     * Seals [json] the way [seal] does under another 4-byte [header] (the goal history files, ADR 79: "ABM1" for a month, "ABY1" for a
+     * year; the PC's `SyncFileCodec.SealJson`): header, the key's group id, a random nonce, AES-256-GCM over the raw-Deflated JSON, the tag.
+     */
+    fun sealJson(json: ByteArray, key: SyncKey, header: ByteArray): ByteArray {
+        val compressed = deflate(json)
         val nonce = ByteArray(NONCE_BYTES)
         random.nextBytes(nonce)
 
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key.key, "AES"), GCMParameterSpec(TAG_BYTES * 8, nonce))
         // Java's GCM output is the ciphertext followed by the tag, as the layout has it.
-        return magic + key.groupIdBytes + nonce + cipher.doFinal(compressed)
+        return header + key.groupIdBytes + nonce + cipher.doFinal(compressed)
     }
 
-    /** A sync file ("ABS1") whose header names another group than [key]'s: a leftover (from before a device removal), not a problem. */
-    fun isOtherGroups(sealedBytes: ByteArray, key: SyncKey): Boolean =
-        sealedBytes.size >= MAGIC_BYTES + GROUP_ID_BYTES
-            && sealedBytes.startsWith(magic, 0)
-            && !sealedBytes.startsWith(key.groupIdBytes, MAGIC_BYTES)
-
     /**
-     * The file, or null when it isn't one this group's devices wrote or can't be read: another group or key, a changed
-     * or cut-off file, a header other than "ABS1", JSON that isn't UTF-8 or isn't a complete sync file, or a format
-     * version newer than this app's.
+     * The inflated JSON of bytes sealed by [sealJson] under [header] with this group's key; null for another header, group or key, changed
+     * or cut-off bytes, or JSON over the 16 MB limit (the PC's `SyncFileCodec.OpenJson`).
      */
-    fun open(sealedBytes: ByteArray, key: SyncKey): SyncFile? {
+    fun openJson(sealedBytes: ByteArray, key: SyncKey, header: ByteArray): ByteArray? {
         if (sealedBytes.size < HEADER_BYTES + TAG_BYTES
-            || !sealedBytes.startsWith(magic, 0)
+            || !sealedBytes.startsWith(header, 0)
             || !sealedBytes.startsWith(key.groupIdBytes, MAGIC_BYTES)
         ) {
             return null
@@ -76,7 +75,22 @@ object SyncFileCodec {
             return null
         }
 
-        val text = inflate(compressed)?.let(::decodeUtf8) ?: return null
+        return inflate(compressed)
+    }
+
+    /** A sync file ("ABS1") whose header names another group than [key]'s: a leftover (from before a device removal), not a problem. */
+    fun isOtherGroups(sealedBytes: ByteArray, key: SyncKey): Boolean =
+        sealedBytes.size >= MAGIC_BYTES + GROUP_ID_BYTES
+            && sealedBytes.startsWith(magic, 0)
+            && !sealedBytes.startsWith(key.groupIdBytes, MAGIC_BYTES)
+
+    /**
+     * The file, or null when it isn't one this group's devices wrote or can't be read: another group or key, a changed
+     * or cut-off file, a header other than "ABS1", JSON that isn't UTF-8 or isn't a complete sync file, or a format
+     * version newer than this app's.
+     */
+    fun open(sealedBytes: ByteArray, key: SyncKey): SyncFile? {
+        val text = openJson(sealedBytes, key, magic)?.let(::decodeUtf8) ?: return null
         val json = try {
             Json.parseToJsonElement(text)
         } catch (e: SerializationException) {

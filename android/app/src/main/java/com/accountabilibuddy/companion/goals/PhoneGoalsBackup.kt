@@ -33,8 +33,12 @@ object PhoneGoalsBackup {
             put("reminders", GoalJson.writeReminders(lists.reminders.filter { it.isLive }.map { if (includesNotes) it else it.copy(reason = null) }))
             put("reviews", GoalJson.writeReviews(lists.reviews.filter { it.isLive }.map { if (includesNotes) it else it.copy(notes = null) }))
             put("includesNotes", includesNotes)
-            // Deep work's weekly target (the PC's `goals.deepWork`): minutes only, never a waiting change (plan §3b 6).
-            put("deepWork", buildJsonObject { store.deepWork.current().minutes?.let { put("weeklyMinutes", it) } })
+            // Deep work's weekly target in effect (the PC's `goals.deepWork`) and Track time only: never a waiting change (plan §3b 6).
+            put("deepWork", buildJsonObject {
+                val weekly = store.deepWork.current()
+                weekly.effectiveMinutes?.let { put("weeklyMinutes", it) }
+                put("trackTimeOnly", weekly.trackTimeOnly)
+            })
         }
     }
 
@@ -62,7 +66,9 @@ object PhoneGoalsBackup {
     private fun restoreDeepWork(store: PhoneGoalStore, part: kotlinx.serialization.json.JsonElement?): String? {
         val deepWork = part as? JsonObject ?: return null
         val minutes = deepWork["weeklyMinutes"]?.jsonPrimitive?.intOrNull
-        return when (store.deepWork.restore(minutes)) {
+        // A part without "trackTimeOnly" (an older backup) leaves this phone's alone; one with it carries it (looser: waits).
+        val trackTimeOnly = deepWork["trackTimeOnly"]?.jsonPrimitive?.booleanOrNull
+        return when (store.deepWork.restore(minutes, trackTimeOnly)) {
             GoalDeepWorkWeeklyResult.Waiting -> "Deep work's lower weekly target in the backup waits the looser-change delay and never starts during a session."
             GoalDeepWorkWeeklyResult.RefusedDuringSession -> "Deep work's weekly target wasn't restored during a session (it would loosen it)."
             GoalDeepWorkWeeklyResult.Applied, GoalDeepWorkWeeklyResult.Unchanged -> null

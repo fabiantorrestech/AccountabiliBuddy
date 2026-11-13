@@ -64,6 +64,9 @@ class RelaySyncSource(
     // Writes this phone's own file only when it changed (or on the slow heartbeat).
     private val ownGate = OwnFileWriteGate()
 
+    /** ADR 79 shared history (GS4): a pass over the goal history files on this relay, run after the write when due; set by the app. */
+    var goalHistory: com.accountabilibuddy.shared.goals.GoalHistorySync? = null
+
     val status: StateFlow<FolderStatus> = _status.asStateFlow()
 
     override val method: String = SyncDeviceCard.METHOD_RELAY
@@ -107,7 +110,11 @@ class RelaySyncSource(
         val endpoint = endpoint()
         val ownName = sync.ownFolderFileName()
         if (isEnabled() && endpoint != null && ownName != null) {
-            scope.launch(Dispatchers.IO) { runCatching { RelayNetwork.delete(endpoint, ownName) } }
+            val historyNames = goalHistory?.ownNames("relay").orEmpty()
+            scope.launch(Dispatchers.IO) {
+                runCatching { RelayNetwork.delete(endpoint, ownName) }
+                historyNames.forEach { runCatching { RelayNetwork.delete(endpoint, it) } }
+            }
         }
 
         forget()
@@ -159,6 +166,7 @@ class RelaySyncSource(
                 for (id in deviceIds) {
                     runCatching { RelayNetwork.delete(endpoint, SyncFolder.fileNameFor(oldKey.groupId, id)) }
                 }
+                goalHistory?.ownNames("relay").orEmpty().forEach { runCatching { RelayNetwork.delete(endpoint, it) } }
             }
         }
     }
@@ -337,6 +345,8 @@ class RelaySyncSource(
                     val unreadable = read(endpoint, listed, ownName)
                     if (write) {
                         write(endpoint)
+                        // A history failure is not shown: tried again at the next pass.
+                        runCatching { goalHistory?.runIfDue(RelayGoalHistoryStore(endpoint)) }
                     }
 
                     FolderStatus(Instant.now(), if (unreadable) "Can't read a file on the relay." else null)
@@ -366,6 +376,12 @@ class RelaySyncSource(
             val downloaded = RelayNetwork.get(endpoint, file.name) ?: continue
             passBytes += downloaded.bytes.size
             val etag = downloaded.etag ?: file.etag
+            // A goal history file (ADR 79, GoalHistorySync): the relay's names allow no other shape than a sync file's, so the header tells.
+            if (com.accountabilibuddy.shared.goals.GoalHistoryNames.isHistoryFile(downloaded.bytes)) {
+                seen[file.name] = etag
+                continue
+            }
+
             // The rekey file (ADR 54): handed to the coordinator, which applies it a few seconds later (the relay's cache follows
             // the group's id, so the next pass after the switch reads the new group's files).
             if (RekeyCodec.isRekey(downloaded.bytes)) {

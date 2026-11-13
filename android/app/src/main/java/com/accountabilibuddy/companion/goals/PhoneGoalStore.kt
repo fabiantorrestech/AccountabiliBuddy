@@ -10,6 +10,16 @@ import com.accountabilibuddy.shared.goals.GoalEntry
 import com.accountabilibuddy.shared.goals.GoalEntrySource
 import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.goals.GoalListRules
+import com.accountabilibuddy.shared.goals.GoalDeepWorkWeekly
+import com.accountabilibuddy.shared.goals.GoalDeepWorkWeeklySync
+import com.accountabilibuddy.shared.goals.GoalDerivedCover
+import com.accountabilibuddy.shared.goals.GoalDerivedReading
+import com.accountabilibuddy.shared.goals.GoalDerivedWriter
+import com.accountabilibuddy.shared.goals.GoalPhoneSync
+import com.accountabilibuddy.shared.goals.GoalStoreRules
+import com.accountabilibuddy.shared.goals.GoalTombstones
+import com.accountabilibuddy.shared.sync.FieldStamps
+import com.accountabilibuddy.shared.sync.SyncGoalParts
 import com.accountabilibuddy.shared.goals.GoalLists
 import com.accountabilibuddy.shared.goals.GoalPauseStretch
 import com.accountabilibuddy.shared.goals.GoalReminder
@@ -59,7 +69,22 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
     }
 
     /** Deep work's weekly target with its looser-change wait (plain, device-local; its daily target is the PC's). */
-    val deepWork: PhoneDeepWorkWeekly = PhoneDeepWorkWeekly(context)
+    val deepWork: PhoneDeepWorkWeekly = PhoneDeepWorkWeekly(context).also { weekly ->
+        weekly.recordStamp = {
+            GoalPhoneSync.deepWorkOf(_lists.value)?.let(GoalPhoneSync::recordStamp)
+                ?: com.accountabilibuddy.shared.sync.FieldStamp(com.accountabilibuddy.shared.sync.DotNetTime.MIN, com.accountabilibuddy.shared.sync.FieldStamp.NOBODY)
+        }
+    }
+
+    /** This device's id as lower-case text (the empty id before the phone is in a group): the device a goal part changed here is stamped with. Set by the app. */
+    var selfId: () -> String = { com.accountabilibuddy.shared.sync.FieldStamp.NOBODY }
+        set(value) {
+            field = value
+            deepWork.selfId = value
+        }
+
+    /** Why a goals restore is refused right now (a focus session the user started, outside ProductaBuddy mode); null when allowed. Set by the app. */
+    var restoreRefusedReason: () -> String? = { null }
 
     /** Whether the goals can be used. */
     val status: StateFlow<PhoneGoalStatus> = _status.asStateFlow()
@@ -173,18 +198,15 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
         Changed(lists.copy(goals = lists.goals.map { if (it.id == old.id) updated.copy(editedAt = GoalListRules.after(now, old.editedAt), deletedAt = null) else it }))
     }
 
-    /** Deletes a goal with its entries and reminders (tombstones with no text). Deep work can't be deleted. */
+    /**
+     * Deletes a goal (a tombstone with no text, [GoalTombstones.delete]). Its entries and reminders are left as they are (ADR 79: the
+     * deletion travels, the counting and the reminders skip a goal that is not live). Deep work can't be deleted.
+     */
     fun deleteGoal(id: UUID): String? = change { lists, now ->
         val old = lists.goals.firstOrNull { it.id == id && it.isLive } ?: return@change Refused(GONE)
         if (old.isDeepWork) return@change Refused("Deep work is built in: it can't be deleted.")
         val stamp = GoalListRules.after(now, old.editedAt)
-        Changed(
-            lists.copy(
-                goals = lists.goals.map { if (it.id == id) it.copy(name = "", notes = null, sources = emptyList(), editedAt = stamp, deletedAt = stamp) else it },
-                entries = lists.entries.map { if (it.goalId == id && it.isLive) it.copy(editedAt = GoalListRules.after(now, it.editedAt), deletedAt = GoalListRules.after(now, it.editedAt)) else it },
-                reminders = lists.reminders.map { if (it.goalId == id && it.isLive) it.copy(reason = null, editedAt = GoalListRules.after(now, it.editedAt), deletedAt = GoalListRules.after(now, it.editedAt)) else it },
-            ),
-        )
+        Changed(lists.copy(goals = lists.goals.map { if (it.id == id) GoalTombstones.delete(it, stamp) else it }))
     }
 
     /** Pauses a goal from [day] (at once; neither hit nor missed while paused). Deep work can't be paused. */
@@ -257,11 +279,19 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
         if (!changed && added.isEmpty()) Unchanged else Changed(lists.copy(reminders = kept + added))
     }
 
-    /** Keeps a weekly review record (an answer or a snooze), stamped now; review notes stay private text. */
+    /**
+     * Keeps a weekly review record (an answer or a snooze), stamped now; review notes stay private text. Each new or changed answer carries
+     * its own time (decidedAt, ADR 79), one tick after the held answer for that goal, so two devices' answers for a week merge goal by goal.
+     */
     fun saveReview(record: GoalReviewRecord): String? = change { lists, now ->
         val old = lists.reviews.firstOrNull { it.id == record.id }
         val stamp = old?.let { GoalListRules.after(now, it.editedAt) } ?: now
-        val saved = record.copy(editedAt = stamp, deletedAt = null)
+        val decisions = record.decisions.map { decision ->
+            val held = old?.decisions?.firstOrNull { it.goalId == decision.goalId }
+            if (held != null && held.choice == decision.choice && held.decidedAt != null) held
+            else decision.copy(decidedAt = FieldStamps.next(now, held?.decidedAt))
+        }
+        val saved = record.copy(decisions = decisions, editedAt = stamp, deletedAt = null)
         Changed(lists.copy(reviews = if (old == null) lists.reviews + saved else lists.reviews.map { if (it.id == record.id) saved else it }))
     }
 
@@ -276,13 +306,84 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
      * Returns a line for the restore summary.
      */
     fun import(incoming: GoalLists, includesNotes: Boolean, restore: Boolean): String {
-        val refused = change { lists, now -> Changed(GoalListRules.imported(lists, incoming, restore, includesNotes, now)) }
+        restoreRefusedReason()?.let { return "Goals weren't restored: $it" }
+        val by = selfId()
+        // ADR 79: a restore is an edit made here and syncs out: Replace stamps every part of the backup's live goals now, a merge the parts
+        // it changed; the result is taken as stamped (Kind.Stored).
+        val refused = change(GoalStoreRules.Kind.Stored) { lists, now -> Changed(GoalListRules.imported(lists, incoming, restore, includesNotes, now, by)) }
         val count = GoalListRules.importedCount(incoming)
         return when {
             refused != null -> "Goals weren't restored: $refused"
             restore -> "Goals restored ($count from the backup)."
             else -> "Goals merged ($count in the backup; the newest edit of each kept)."
         }
+    }
+
+    // ---------------------------------------------------------------- sync (ADR 79, GS4)
+
+    /**
+     * The five goal parts of this phone's own file ([GoalPhoneSync.outgoing]); null while the goals are not ready (no part, never an empty
+     * list). Never a waiting change; Deep work's record carries the weekly target in effect with its own stamp.
+     */
+    fun partsForSync(now: OffsetDateTime): SyncGoalParts? =
+        GoalPhoneSync.outgoing(_lists.value, deepWork.current(), _status.value == PhoneGoalStatus.Ready, now)
+
+    /** This phone's lists as a sync file carries them (Deep work composed, no 90-day window): what history rows merge into. Null while not ready. */
+    fun composed(): GoalLists? =
+        if (_status.value == PhoneGoalStatus.Ready) GoalPhoneSync.composed(_lists.value, deepWork.current()) else null
+
+    /**
+     * Another device's goal parts taken in, merged item by item and goal part by goal part and taken as merged (no stamp again, nothing
+     * brought back). The held lists are read and merged INSIDE this lock, right before the result is stored. Deep work's received weekly
+     * target goes through this phone's looser-change rule. Refused (false) unless the goals are Ready. True when anything changed.
+     */
+    fun applySynced(incoming: SyncGoalParts?, pcDailyMinutes: Double?): Boolean =
+        applyMerged { now -> GoalPhoneSync.applied(_lists.value, deepWork.current(), incoming, true, now, weeklyEnv(), pcDailyMinutes) }
+
+    /** As [applySynced] for a merge the caller makes from the held (composed) lists, e.g. history rows; null from [merge] = nothing to take in. */
+    fun applyHistory(pcDailyMinutes: Double?, merge: (GoalLists) -> GoalLists?): Boolean =
+        applyMerged { _ ->
+            val held = composed()
+            held?.let(merge)?.let { GoalPhoneSync.afterMerge(_lists.value, deepWork.current(), it, weeklyEnv(), pcDailyMinutes) }
+        }
+
+    @Synchronized
+    private fun applyMerged(decide: (OffsetDateTime) -> GoalPhoneSync.Applied?): Boolean {
+        if (_status.value != PhoneGoalStatus.Ready) return false
+        val now = clock()
+        val applied = decide(now) ?: return false
+        val before = _lists.value
+        val after = GoalStoreRules.normalize(before, applied.lists, now, GoalStoreRules.Kind.Synced, selfId())
+        val listsChanged = after != before
+        if (listsChanged) {
+            if (!write(after)) return false
+            _lists.value = after
+        }
+
+        deepWork.adopt(applied.weekly)
+        if (listsChanged) onChanged()
+        return listsChanged
+    }
+
+    private fun weeklyEnv(): GoalDeepWorkWeeklySync.Env = deepWork.environment().let {
+        GoalDeepWorkWeeklySync.Env(it.productaBuddy, it.sessionRunning, it.now, it.looserDelay, it.lowerWaitsNow)
+    }
+
+    /**
+     * This phone's own derived entries made to match [readings] ([GoalDerivedWriter.changes]): written only when a value changed, never
+     * another device's entry, never a hand entry. [covered]: the days the read covered. True when anything was written.
+     */
+    @Synchronized
+    fun writeDerived(deviceId: UUID, readings: List<GoalDerivedReading>, covered: List<GoalDerivedCover>): Boolean {
+        if (_status.value != PhoneGoalStatus.Ready) return false
+        val now = clock()
+        val changes = GoalDerivedWriter.changes(_lists.value.entries, deviceId, readings, covered, now)
+        if (changes.isEmpty()) return false
+        val next = GoalStoreRules.normalize(_lists.value, GoalDerivedWriter.applied(_lists.value, changes), now, GoalStoreRules.Kind.Local, selfId())
+        if (next == _lists.value || !write(next)) return false
+        _lists.value = next
+        onChanged()
+        return true
     }
 
     // ---------------------------------------------------------------- inside
@@ -294,7 +395,7 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
 
     // Runs one change on the current lists: refused unless Ready; the result is tidied ([GoalListRules.tidy]) and written in one commit.
     @Synchronized
-    private fun change(edit: (GoalLists, OffsetDateTime) -> Outcome): String? {
+    private fun change(kind: GoalStoreRules.Kind = GoalStoreRules.Kind.Local, edit: (GoalLists, OffsetDateTime) -> Outcome): String? {
         when (_status.value) {
             PhoneGoalStatus.NotSetUp -> return "Goals are still being set up. Open the app again in a moment."
             PhoneGoalStatus.Unreadable -> return UNREADABLE
@@ -305,7 +406,9 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
             is Refused -> outcome.reason
             Unchanged -> null
             is Changed -> {
-                val tidied = GoalListRules.tidy(outcome.lists, now, before = _lists.value)
+                // ADR 79: every goal part the change altered is stamped by this device (GoalEdits), entry tombstones are kept for good.
+                val tidied = GoalStoreRules.normalize(_lists.value, outcome.lists, now, kind, selfId())
+                if (tidied == _lists.value) return null
                 if (!write(tidied)) return "Goals couldn't be saved on this phone."
                 _lists.value = tidied
                 onChanged()
@@ -370,7 +473,8 @@ class PhoneGoalStore(context: Context, private val clock: () -> OffsetDateTime =
 
         /** Now in the phone's offset, cut to .NET's 100 ns ticks (what a stamp keeps on the PC). */
         fun stampNow(): OffsetDateTime {
-            val now = OffsetDateTime.now()
+            // ADR 70: all time comes from the trusted clock, never the phone's own.
+            val now = OffsetDateTime.ofInstant(com.accountabilibuddy.companion.guidance.TrustedTime.now(), java.time.ZoneId.systemDefault())
             return now.withNano(now.nano / 100 * 100)
         }
     }

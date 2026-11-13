@@ -97,7 +97,7 @@ object PhoneGoalReview {
 
     private fun newRecord(app: CompanionApp, week: LocalDate): GoalReviewRecord {
         val position = (app.goals.lists.value.reviews.maxOfOrNull { it.position } ?: 0.0) + 1.0
-        return GoalReviewRecord(UUID.randomUUID(), week, emptyList(), position, OffsetDateTime.ofInstant(TrustedTime.now(), ZoneId.systemDefault()))
+        return GoalReviewRecord(com.accountabilibuddy.shared.goals.GoalReviewIds.forWeek(week), week, emptyList(), position, OffsetDateTime.ofInstant(TrustedTime.now(), ZoneId.systemDefault()))
     }
 
     const val NOT_IN_SESSION = "Not during a focus session: the review waits until it ends."
