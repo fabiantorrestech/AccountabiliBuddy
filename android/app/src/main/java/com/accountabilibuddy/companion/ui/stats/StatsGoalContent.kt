@@ -172,7 +172,7 @@ private fun GoalRangeCard(facts: GoalFacts, data: GoalSourceData, goals: StatsGo
         }
 
         if (map != null) {
-            StatsGoalYear(map, goals.weekStart, goals.labels, tint, onCellClick = { tapped = it.tip })
+            StatsGoalYear(map, goals.weekStart, goals.labels, goals.monthLines, tint, onCellClick = { tapped = it.tip })
         } else {
             StatsGoalChart(series, period, tint, today, onDayClick = { tapped = it.text })
         }

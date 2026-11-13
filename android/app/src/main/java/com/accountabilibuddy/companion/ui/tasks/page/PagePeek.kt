@@ -28,9 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.tasks.ShelfPage
-
-/** The width of a peek, and of the space kept for one on a side that has none (so the card never changes width between pages). */
-val PeekWidth = 24.dp
+import com.accountabilibuddy.shared.tasks.TasksTabletLayout
 
 /**
  * A slim peek of the neighbouring page at the card's side (board Tasks-Phone, change note §2): 24 dp wide, three grip lines, the
@@ -40,10 +38,11 @@ val PeekWidth = 24.dp
 @Composable
 fun PagePeek(page: ShelfPage, left: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = Ab.colors
+    val tablet = LocalTasksTablet.current
     val shape = if (left) RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp) else RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
     Column(
         modifier
-            .width(PeekWidth)
+            .width(peekWidth())
             .fillMaxHeight()
             .clip(shape)
             .background(colors.surface)
@@ -53,10 +52,10 @@ fun PagePeek(page: ShelfPage, left: Boolean, onClick: () -> Unit, modifier: Modi
         verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
     ) {
         GripLines()
-        PageMarker(page, iconSize = 15.dp, dotSize = 8.dp)
+        PageMarker(page, iconSize = TasksTabletLayout.peekIconDp(tablet).dp, dotSize = if (tablet) 10.dp else 8.dp)
         VerticalText(
             page.title, bottomToTop = left,
-            style = Ab.type.micro.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, color = colors.muted),
+            style = Ab.type.micro.copy(fontSize = TasksTabletLayout.peekNameSp(tablet).sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, color = colors.muted),
         )
         GripLines()
     }

@@ -774,3 +774,6 @@ UI round 2 (plan `doc/plans/2026-11-12-ui-round2-plan.md`, branch `ui-round2`). 
 - **Q814.** R7.3b kept rows not built: list scrollbar, view menu Rename / Duplicate / Set as default row, Sync card, "Changed on both devices". Do they stay in round 2?
 - **Q815.** The account's default view is stored, synced and editable but the Tasks page doesn't open with it yet when this phone never picked a view. Apply it once on first open, or every start until a view is chosen?
 - **Q816.** Phone version for the new SetupFeatures entries: I used 0.1.79 (the phone is 0.1.78 on this branch). Change at release.
+- **Q830.** Tablet sheets as 380 dp pop-ups near the tap (audit R7.5 item 2): the phone kit's `AbSheet` is a Material bottom sheet (capped to 640 dp, centred). Build an anchored pop-up kit piece, or keep centred bottom sheets on tablets?
+- **Q831.** Tablet mouse/trackpad rules, right-click menus, Esc, hover, and the centred full-screen reminder / tidy-up (audit R7.5 items 3-4) are not built. In round 2, or later?
+- **Q832.** Tablet Today: only the TD1 hide options were applied to the dashboard grid. Should it take the phone layout centred (as Tasks now does) instead of the grid?

@@ -107,11 +107,14 @@ fun TodayPane(
         allTasksTicked = session != null && !session.isPlanning && pc.tasks != null && pc.tasks.tasks.isNotEmpty() && pc.tasks.tasks.all { it.isDone },
         showWorkUse = showWorkUse, showDayOff = showDayOff, goals = todayGoals,
     )
+    // TD1 on the tablet (Q700): the session card ("Time left and Start") and This session are parts the person can hide, here as on the phone.
+    val showCard = layout.placementOf(TodayItem.SessionCard) != TodayPlacement.Hidden
+    val showTasks = layout.placementOf(TodayItem.ThisSession) != TodayPlacement.Hidden
     val body: TodaySink.() -> Unit = {
         if (session == null) {
-            idleHead(info, model, pc, clock, guardsLock, syncLight, banner, actions, onStart = { starting = true })
+            idleHead(info, model, pc, clock, guardsLock, syncLight, banner, actions, onStart = { starting = true }, showCard = showCard)
         } else {
-            sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, banner)
+            sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, banner, showCard = showCard, showTasks = showTasks)
         }
         // The arrangeable parts (Settings › Appearance › Today layout): the person's order and places. With nothing chosen
         // this is how Today was always drawn. The head above, and the safety parts the layout can't hide, always show.
@@ -133,6 +136,15 @@ fun TodayPane(
     } else {
         Column(Modifier.fillMaxSize()) {
             WideToday(TodayBlocks().apply(body).blocks, Modifier.weight(1f))
+            if (session == null && !showCard && canStartHere(pc, guardsLock != null && !guardsLock.test)) {
+                // The card carried Start; hidden, Start is the bar at the foot, as wide as a phone's.
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    com.accountabilibuddy.companion.ui.today.StartActionBar(
+                        pc.startName, onStart = { starting = true },
+                        modifier = Modifier.widthIn(max = 560.dp).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                    )
+                }
+            }
             if (session != null) {
                 // Not full width: a centred row of the buttons, as wide as a phone.
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -171,6 +183,7 @@ private fun TodaySink.idleHead(
     banner: @Composable () -> Unit,
     actions: TodayActions,
     onStart: () -> Unit,
+    showCard: Boolean = true,
 ) {
     item(key = "header") {
         Column {
@@ -178,10 +191,16 @@ private fun TodaySink.idleHead(
             banner()
         }
     }
-    item(key = "hero") {
-        Column(Modifier.fillMaxWidth()) {
-            IdleHero(info, model.statusText, pc, clock, locked = guardsLock != null && !guardsLock.test, onStart, actions.onCancelWaiting)
+    if (showCard) {
+        item(key = "hero") {
+            Column(Modifier.fillMaxWidth()) {
+                IdleHero(info, model.statusText, pc, clock, locked = guardsLock != null && !guardsLock.test, onStart, actions.onCancelWaiting)
+            }
         }
+    } else {
+        // Hidden: what the card carried that must stay readable (the phone's rule); Start is the bar at the foot.
+        if (pc.updateNeeded != null) item(key = "update-needed") { MutedLine(pc.updateNeeded) }
+        else if (pc.waiting != null) item(key = "waiting") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { WaitingLine(pc, clock, actions.onCancelWaiting) } }
     }
 }
 
@@ -195,6 +214,8 @@ private fun TodaySink.sessionHead(
     actions: TodayActions,
     syncLight: @Composable () -> Unit,
     banner: @Composable () -> Unit,
+    showCard: Boolean = true,
+    showTasks: Boolean = true,
 ) {
     val tasks = pc.tasks
     val shown = tasks?.let { SessionTaskItem.shown(it.tasks, it.currentId)?.first }
@@ -214,7 +235,7 @@ private fun TodaySink.sessionHead(
             banner()
         }
     }
-    item(key = "hero") {
+    if (showCard) item(key = "hero") {
         val planEnd = session.planningEndsAt?.toInstant()
         if (planning && planEnd != null) {
             PlanningHero(session.planningStartedAt?.toInstant(), planEnd, session.profileName)
@@ -233,5 +254,5 @@ private fun TodaySink.sessionHead(
         item(key = "pc-off-today") { MutedLine("PC off ${com.accountabilibuddy.shared.WatchText.duration(pc.offMinutesToday)} during sessions today (not counted)") }
     }
     if (pc.waiting != null) item(key = "waiting") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { WaitingLine(pc, clock, actions.onCancelWaiting) } }
-    if (!planning && !session.isBreak && tasks != null && tasks.tasks.isNotEmpty()) item(key = "steps") { StepsCard(tasks) }
+    if (showTasks && !planning && !session.isBreak && tasks != null && tasks.tasks.isNotEmpty()) item(key = "steps") { StepsCard(tasks) }
 }

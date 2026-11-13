@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.goals
 
 import android.content.Context
+import com.accountabilibuddy.shared.goals.GoalMonthLines
 import com.accountabilibuddy.shared.goals.GoalWeekStart
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +19,7 @@ object GoalDisplayPrefs {
     private const val WEEK_START = "weekStart"
     private const val HEATMAP_LABELS = "heatmapLabels"
     private const val EXTRA_TILES = "extraTiles"
+    private const val MONTH_LINES = "monthLines"
 
     private val _display = MutableStateFlow(GoalDisplay())
     val display: StateFlow<GoalDisplay> = _display.asStateFlow()
@@ -31,6 +33,7 @@ object GoalDisplayPrefs {
             weekStart = enumOr(prefs.getString(WEEK_START, null), GoalWeekStart.Sunday),
             heatmapLabels = enumOr(prefs.getString(HEATMAP_LABELS, null), GoalHeatmapLabels.Some),
             extraTiles = prefs.getBoolean(EXTRA_TILES, false),
+            monthLines = GoalMonthLines.fromName(prefs.getString(MONTH_LINES, null)),
         )
     }
 
@@ -46,6 +49,8 @@ object GoalDisplayPrefs {
 
     fun setHeatmapLabels(context: Context, labels: GoalHeatmapLabels) = save(context, _display.value.copy(heatmapLabels = labels))
 
+    fun setMonthLines(context: Context, lines: GoalMonthLines) = save(context, _display.value.copy(monthLines = lines))
+
     fun setExtraTiles(context: Context, on: Boolean) = save(context, _display.value.copy(extraTiles = on))
 
     private fun save(context: Context, display: GoalDisplay) {
@@ -56,6 +61,7 @@ object GoalDisplayPrefs {
             .putString(WEEK_START, display.weekStart.name)
             .putString(HEATMAP_LABELS, display.heatmapLabels.name)
             .putBoolean(EXTRA_TILES, display.extraTiles)
+            .putString(MONTH_LINES, display.monthLines.name)
             .apply()
     }
 

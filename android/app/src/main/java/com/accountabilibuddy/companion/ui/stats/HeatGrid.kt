@@ -31,6 +31,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.stats.HeatCell
+import com.accountabilibuddy.companion.ui.goals.drawMonthStaircase
+import com.accountabilibuddy.shared.goals.MonthStart
+import androidx.compose.ui.graphics.Color
 import com.accountabilibuddy.companion.ui.theme.Ab
 import java.time.LocalDate
 
@@ -53,6 +56,9 @@ internal fun HeatGrid(
     description: String,
     modifier: Modifier = Modifier,
     onCellClick: ((LocalDate) -> Unit)? = null,
+    /** HM1: where a month starts in this grid (the staircase between months) and the line's colour; none or null draws no line. */
+    monthStarts: List<MonthStart> = emptyList(),
+    monthLineColor: Color? = null,
 ) {
     val ramp = Ab.colors.heatmap
     val density = LocalDensity.current
@@ -99,6 +105,7 @@ internal fun HeatGrid(
                     val step = side + gap.toPx()
                     val rowStep = tall + gap.toPx()
                     val radius = minOf(4.dp.toPx(), side * 0.28f)
+                    monthStarts.forEach { drawMonthStaircase(monthLineColor, it.column, it.row, Offset.Zero, step, rowStep, gap.toPx(), 1.5.dp.toPx()) }
                     for (heat in cells) {
                         if (heat.level < 0) continue
                         drawRoundRect(

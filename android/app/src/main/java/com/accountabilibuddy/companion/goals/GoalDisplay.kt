@@ -14,4 +14,6 @@ data class GoalDisplay(
     val weekStart: GoalWeekStart = GoalWeekStart.Sunday,
     val heatmapLabels: GoalHeatmapLabels = GoalHeatmapLabels.Some,
     val extraTiles: Boolean = false,
+    /** HM1: the month lines of every heatmap with months (Normal). */
+    val monthLines: com.accountabilibuddy.shared.goals.GoalMonthLines = com.accountabilibuddy.shared.goals.GoalMonthLines.DEFAULT,
 )

@@ -45,6 +45,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.goals.GoalHeatmapLabels
+import com.accountabilibuddy.shared.goals.GoalMonthLines
 import com.accountabilibuddy.companion.goals.PhoneGoalPage
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.goals.GoalHeatCellMark
@@ -71,6 +72,7 @@ fun GoalHeatmapCard(
     page: PhoneGoalPage,
     weekStart: GoalWeekStart,
     labels: GoalHeatmapLabels,
+    monthLines: GoalMonthLines,
     tint: Color,
     selected: LocalDate?,
     onSelect: (LocalDate) -> Unit,
@@ -88,6 +90,7 @@ fun GoalHeatmapCard(
     val labelWidth = if (labels == GoalHeatmapLabels.None) 0.dp else 26.dp
     val topBand = 18.dp
     val range = GoalHeatmapRange.ThreeMonths
+    val lineColor = monthLines.lineColor()
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val fit = floor(((maxWidth - labelWidth + gap) / (cell + gap)).toDouble()).toInt().coerceAtLeast(1)
@@ -140,6 +143,10 @@ fun GoalHeatmapCard(
                         val measured = measurer.measure(name, label)
                         drawText(measured, topLeft = Offset(0f, topPx + row * (cellPx + gapPx) + (cellPx - measured.size.height) / 2f))
                     }
+                }
+                // HM1: the staircase between months, in the gaps (Off: none, labels and spacing unchanged).
+                g.grid.months.filter { it.hasDivider }.forEach { month ->
+                    drawMonthStaircase(lineColor, month.firstColumn, month.firstRow, Offset(labelPx, topPx), cellPx + gapPx, cellPx + gapPx, gapPx, 1.5.dp.toPx())
                 }
                 g.cells.forEach { c ->
                     val topLeft = Offset(labelPx + c.column * (cellPx + gapPx), topPx + c.row * (cellPx + gapPx))

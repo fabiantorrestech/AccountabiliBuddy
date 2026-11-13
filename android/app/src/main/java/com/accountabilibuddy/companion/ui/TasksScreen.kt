@@ -65,9 +65,10 @@ import java.time.Instant
 @Composable
 fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenToday: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
     val app = LocalContext.current.applicationContext as CompanionApp
-    // Round 2 R7.3: a phone shows the redesigned page (one page per bin, label or tag) once the one task list is the source. A
-    // tablet keeps this pane until R7.5, and so does a phone whose task list isn't in use (its one-time migration was refused).
-    if (!LocalExpanded.current && app.taskModel.isActive) {
+    // Round 2 R7.3 + R7.5: phones and tablets show the redesigned page (one page per bin, label or tag; a tablet at its own sizes)
+    // once the one task list is the source. This older pane stays only for a device whose task list isn't in use (its one-time
+    // migration was refused, Q610).
+    if (app.taskModel.isActive) {
         com.accountabilibuddy.companion.ui.tasks.page.TasksPageHost(controlPc, snackbar, onOpenToday, onOpenSettings)
         return
     }

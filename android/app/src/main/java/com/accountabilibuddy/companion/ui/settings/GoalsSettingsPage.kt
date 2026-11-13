@@ -156,6 +156,7 @@ private fun ChartsCard() {
     val locked = LocalGuardsLocked.current
     val starts = listOf(GoalWeekStart.Monday, GoalWeekStart.Sunday, GoalWeekStart.Saturday)
     val labels = GoalHeatmapLabels.entries
+    val lines = com.accountabilibuddy.shared.goals.GoalMonthLines.entries
     AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), verticalSpacing = 0.dp) {
         AbSectionLabel("Charts", Modifier.padding(start = 4.dp, bottom = 4.dp))
         Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
@@ -165,6 +166,10 @@ private fun ChartsCard() {
         Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
             Text("Heatmap day labels", style = Ab.type.body, color = Ab.colors.ink, modifier = Modifier.padding(bottom = 6.dp))
             AbSegmented(labels.map { it.label }, labels.indexOf(display.heatmapLabels), { if (!locked) GoalDisplayPrefs.setHeatmapLabels(context, labels[it]) })
+        }
+        Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
+            Text("Month lines", style = Ab.type.body, color = Ab.colors.ink, modifier = Modifier.padding(bottom = 6.dp))
+            AbSegmented(lines.map { it.label }, lines.indexOf(display.monthLines), { if (!locked) GoalDisplayPrefs.setMonthLines(context, lines[it]) })
         }
         AbToggleRow(
             "Extra tiles on goal pages", display.extraTiles, { GoalDisplayPrefs.setExtraTiles(context, it) },

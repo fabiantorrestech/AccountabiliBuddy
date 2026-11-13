@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.shared.tasks.ShelfPage
 import com.accountabilibuddy.shared.tasks.ShelfPaging
+import com.accountabilibuddy.shared.tasks.TasksTabletLayout
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -109,11 +110,11 @@ fun ShelfPager(
     Column(modifier.fillMaxSize()) {
         Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { onBounds(it.boundsInRoot()) }) {
             Row(
-                Modifier.fillMaxSize().padding(horizontal = if (count > 1) 6.dp else 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.fillMaxSize().padding(horizontal = if (count > 1) TasksTabletLayout.PEEK_SIDE_DP.dp else TasksTabletLayout.LONE_SIDE_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(TasksTabletLayout.PEEK_GAP_DP.dp),
             ) {
                 if (count > 1) {
-                    if (left != null) PagePeek(pages[left], left = true, onClick = { go(left, -1) }) else Spacer(Modifier.width(PeekWidth))
+                    if (left != null) PagePeek(pages[left], left = true, onClick = { go(left, -1) }) else Spacer(Modifier.width(peekWidth()))
                 }
                 Box(
                     Modifier
@@ -159,7 +160,7 @@ fun ShelfPager(
                     }
                 }
                 if (count > 1) {
-                    if (right != null) PagePeek(pages[right], left = false, onClick = { go(right, 1) }) else Spacer(Modifier.width(PeekWidth))
+                    if (right != null) PagePeek(pages[right], left = false, onClick = { go(right, 1) }) else Spacer(Modifier.width(peekWidth()))
                 }
             }
             // The drop zones lie over the row's ends: the card and the peeks under them keep their size and place.

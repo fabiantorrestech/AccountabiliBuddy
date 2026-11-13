@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -106,6 +108,7 @@ import com.accountabilibuddy.shared.tasks.TaskReminderRings
 import com.accountabilibuddy.shared.tasks.TaskRowText
 import com.accountabilibuddy.shared.tasks.TaskViewConfig
 import com.accountabilibuddy.shared.tasks.TaskViewRules
+import com.accountabilibuddy.shared.tasks.TasksTabletLayout
 import com.accountabilibuddy.shared.tasks.TodayStripCounts
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -477,9 +480,15 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
 
     val notice = rememberTaskUpdateNotice(received.map { it.file }, app.sync.sharesTaskLists())
 
+    // R7.5: on a tablet this is the phone's page at its own width (a readable maximum, centred; larger peeks), not columns.
+    val tablet = isTasksTablet()
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalTasksTablet provides tablet) {
     Box(
         Modifier
-            .fillMaxSize()
+            .fillMaxHeight()
+            .widthIn(max = TasksTabletLayout.CONTENT_MAX_DP.dp)
+            .fillMaxWidth()
             .onGloballyPositioned { drag.host = it.positionInRoot() }
             .shelfDrag(drag, handlers),
     ) {
@@ -682,6 +691,8 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
             }
             DraggedCard(drag, lists.tasks.map { it.task }, labels, over, grouping, now, zone)
         }
+    }
+    }
     }
 
     menu?.let { (id, start) ->

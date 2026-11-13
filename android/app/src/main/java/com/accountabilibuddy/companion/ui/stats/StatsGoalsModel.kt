@@ -37,6 +37,7 @@ class StatsGoalsModel(
     val goalId: UUID?,
     val weekStart: GoalWeekStart,
     val labels: GoalHeatmapLabels,
+    val monthLines: com.accountabilibuddy.shared.goals.GoalMonthLines,
     val zone: ZoneId,
 ) {
     /** The goal on show. */
@@ -88,7 +89,7 @@ fun rememberStatsGoals(allReceived: List<ReceivedDevice>, received: List<Receive
             }.getOrNull()
         }
     }
-    return remember(status, overview, goalId, display.weekStart, display.heatmapLabels) {
-        StatsGoalsModel(status, overview, goalId, display.weekStart, display.heatmapLabels, ZoneId.systemDefault())
+    return remember(status, overview, goalId, display.weekStart, display.heatmapLabels, display.monthLines) {
+        StatsGoalsModel(status, overview, goalId, display.weekStart, display.heatmapLabels, display.monthLines, ZoneId.systemDefault())
     }
 }

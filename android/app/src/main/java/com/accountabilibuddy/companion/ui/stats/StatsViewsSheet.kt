@@ -43,6 +43,11 @@ import androidx.compose.ui.zIndex
 import com.accountabilibuddy.companion.stats.StatsView
 import com.accountabilibuddy.companion.stats.StatsViewsState
 import com.accountabilibuddy.companion.ui.kit.AbSheet
+import com.accountabilibuddy.companion.ui.kit.AbSegmented
+import com.accountabilibuddy.companion.goals.GoalDisplayPrefs
+import com.accountabilibuddy.shared.goals.GoalMonthLines
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.ui.theme.Ab
 import kotlin.math.roundToInt
 
@@ -71,6 +76,15 @@ fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit,
     AbSheet(onDismiss = onDismiss) {
         Text("Stats views", style = type.head, color = colors.ink)
         Text("Drag to reorder. Hidden views stay one tap away here.", style = type.bodyMedium, color = colors.muted)
+        // HM1: the month lines of the heatmaps (this phone only; the same setting as Goals › Options and Settings › Goals).
+        val context = LocalContext.current
+        val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
+        val lines = GoalMonthLines.entries
+        Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Charts", style = type.section, color = colors.ink)
+            Text("Month lines", style = type.body, color = colors.ink)
+            AbSegmented(lines.map { it.label }, lines.indexOf(display.monthLines), { GoalDisplayPrefs.setMonthLines(context, lines[it]) })
+        }
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             working.forEachIndexed { index, view ->
                 // Keyed by the view, so a row that moves while it is dragged keeps its gesture.

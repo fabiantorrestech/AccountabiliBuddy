@@ -282,6 +282,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
             onView = { GoalDisplayPrefs.setView(context, it) },
             onWeekStart = { GoalDisplayPrefs.setWeekStart(context, it) },
             onHeatmapLabels = { GoalDisplayPrefs.setHeatmapLabels(context, it) },
+            onMonthLines = { GoalDisplayPrefs.setMonthLines(context, it) },
             onExtraTiles = { GoalDisplayPrefs.setExtraTiles(context, it) },
             onOpenAreas = { optionsOpen = false; areasOpen = true },
             onOpenGoalsSettings = { optionsOpen = false; actions.onOpenGoalsSettings() },

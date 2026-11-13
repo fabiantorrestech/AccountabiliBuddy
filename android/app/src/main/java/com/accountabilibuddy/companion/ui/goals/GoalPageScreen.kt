@@ -155,7 +155,7 @@ fun GoalPageScreen(
                 }
                 val shownDay = selectedDay?.let { LocalDate.ofEpochDay(it) }?.takeIf { it < today }
                 AbCard(verticalSpacing = 12.dp) {
-                    GoalHeatmapCard(page, display.weekStart, display.heatmapLabels, tint, shownDay, onSelect = { day -> selectedDay = day.toEpochDay().takeIf { day < today } })
+                    GoalHeatmapCard(page, display.weekStart, display.heatmapLabels, display.monthLines, tint, shownDay, onSelect = { day -> selectedDay = day.toEpochDay().takeIf { day < today } })
                     val day = shownDay ?: today
                     val panel = remember(page, day) { GoalDayPanels.of(goal, GoalCounting.day(goal, page.data, day, today), today, page.labelName) }
                     GoalDayPanelCard(

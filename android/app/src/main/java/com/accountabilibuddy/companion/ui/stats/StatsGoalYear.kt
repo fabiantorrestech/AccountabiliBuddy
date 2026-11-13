@@ -23,6 +23,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.goals.GoalHeatmapLabels
+import com.accountabilibuddy.companion.ui.goals.drawMonthStaircase
+import com.accountabilibuddy.companion.ui.goals.lineColor
+import com.accountabilibuddy.shared.goals.GoalMonthLines
 import com.accountabilibuddy.companion.ui.goals.GoalHeatRamp
 import com.accountabilibuddy.companion.ui.goals.drawGoalHeatCell
 import com.accountabilibuddy.companion.ui.goals.goalHeatRowNames
@@ -44,6 +47,7 @@ fun StatsGoalYear(
     map: GoalHeatmap,
     weekStart: GoalWeekStart,
     labels: GoalHeatmapLabels,
+    monthLines: GoalMonthLines,
     tint: Color,
     modifier: Modifier = Modifier,
     onCellClick: (GoalHeatCell) -> Unit = {},
@@ -56,6 +60,7 @@ fun StatsGoalYear(
     val topBand = 18.dp
     val labelWidth = if (labels == GoalHeatmapLabels.None) 0.dp else 26.dp
     val rowNames = goalHeatRowNames(weekStart, labels)
+    val lineColor = monthLines.lineColor()
     val gridHeight = topBand + cell * GoalHeatmapGrid.ROWS + gap * (GoalHeatmapGrid.ROWS - 1)
     val gridWidth = cell * map.grid.columns + gap * (map.grid.columns - 1)
     val label = TextStyle(fontSize = 11.sp, color = colors.muted)
@@ -90,6 +95,10 @@ fun StatsGoalYear(
                     val x = month.centreColumn.toFloat() * (cellPx + gapPx) - gapPx / 2
                     val measured = measurer.measure(month.label, label)
                     drawText(measured, topLeft = Offset((x - measured.size.width / 2f).coerceIn(0f, maxOf(0f, size.width - measured.size.width)), 0f))
+                }
+                // HM1: the staircase between months, in the gaps (Off: none).
+                map.grid.months.filter { it.hasDivider }.forEach { month ->
+                    drawMonthStaircase(lineColor, month.firstColumn, month.firstRow, Offset(0f, topPx), cellPx + gapPx, cellPx + gapPx, gapPx, 1.5.dp.toPx())
                 }
                 map.cells.forEach { c ->
                     val topLeft = Offset(c.column * (cellPx + gapPx), topPx + c.row * (cellPx + gapPx))

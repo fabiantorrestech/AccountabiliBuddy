@@ -6,6 +6,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CalendarViewMonth
+import com.accountabilibuddy.shared.goals.GoalMonthLines
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
@@ -37,7 +39,7 @@ import com.accountabilibuddy.shared.goals.GoalWeekStart
  * Goals › Options (brief §4.3, board Goals-Phone-Options; 80% sheet), the same rows as the PC's Options menu:
  * - LIST: Show goals (By area / Current / All, inline), Sort ("Your order" ›, its own page), Areas (rename, pick icons, reorder,
  *   add › R6b).
- * - CHARTS: Week starts on (Mon / Sun / Sat; Sun by default), Heatmap day labels (All / Some / None), Extra tiles on goal pages
+ * - CHARTS: Week starts on (Mon / Sun / Sat; Sun by default), Heatmap day labels (All / Some / None), Month lines (Darker / Normal / Lighter / Off), Extra tiles on goal pages
  *   (Streak, Total; off: they live in Stats; a goal's own switch in Edit goal wins).
  * - MORE: Goals settings › (last, as every page's Options ends with its settings row, brief §3.3).
  * Every choice is this phone's own and applies at once.
@@ -49,6 +51,7 @@ fun GoalsOptionsSheet(
     onView: (GoalListView) -> Unit,
     onWeekStart: (GoalWeekStart) -> Unit,
     onHeatmapLabels: (GoalHeatmapLabels) -> Unit,
+    onMonthLines: (GoalMonthLines) -> Unit,
     onExtraTiles: (Boolean) -> Unit,
     onOpenAreas: () -> Unit,
     onOpenGoalsSettings: () -> Unit,
@@ -80,6 +83,10 @@ fun GoalsOptionsSheet(
         AbSheetRow("Heatmap day labels", onClick = null, icon = Icons.Outlined.Insights, trailing = {
             val labels = GoalHeatmapLabels.entries
             AbSegmentedCompact(labels.map { it.label }, labels.indexOf(display.heatmapLabels), { onHeatmapLabels(labels[it]) })
+        })
+        AbSheetRow("Month lines", onClick = null, icon = Icons.Outlined.CalendarViewMonth, trailing = {
+            val lines = GoalMonthLines.entries
+            AbSegmentedCompact(lines.map { it.label }, lines.indexOf(display.monthLines), { onMonthLines(lines[it]) })
         })
         AbSheetRow(
             "Extra tiles on goal pages", onClick = { onExtraTiles(!display.extraTiles) }, icon = Icons.Outlined.Visibility,
