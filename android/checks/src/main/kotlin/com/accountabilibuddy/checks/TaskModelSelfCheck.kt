@@ -5,6 +5,7 @@ import com.accountabilibuddy.shared.sync.FieldStamp
 import com.accountabilibuddy.shared.sync.FieldStamps
 import com.accountabilibuddy.shared.sync.SyncCategory
 import com.accountabilibuddy.shared.sync.SyncNextTask
+import com.accountabilibuddy.shared.tasks.OldTaskFieldsWriter
 import com.accountabilibuddy.shared.tasks.SyncTaskItem
 import com.accountabilibuddy.shared.tasks.TaskBin
 import com.accountabilibuddy.shared.tasks.TaskEdits
@@ -140,6 +141,17 @@ object TaskModelSelfCheck {
         report.check("r71-self: the migration gives the same result every time", first == again)
         report.check("r71-self: the migration's counts balance", first.counts.isBalanced && first.counts.sources.values.sum() == 2 && first.counts.bins[TaskBin.SORT] == 2)
         report.check("r71-self: MIG1: open next-session tasks land in To sort in order, with the earlier-version note, none in This session or Queued", first.tasks.filter { it.task.isLive }.sortedBy { it.position }.map { it.task.bin to it.task.origin } == List(2) { TaskBin.SORT to com.accountabilibuddy.shared.tasks.TaskOrigins.EARLIER_VERSION } && first.counts.bins[TaskBin.SESSION] == 0 && first.counts.bins[TaskBin.QUEUED] == 0)
+        // MIG1 fix: a task last edited 45 days ago still leaves deletion markers in the old lists (its bin is stamped at the migration), so an older device sees it once.
+        val stale = Instant.parse("2026-09-20T13:00:00Z")
+        val staleRun = TaskMigration.run(input.copy(nextTasks = listOf(SyncNextTask("11111111-0000-0000-0000-000000000009", "Old next", null, null, null, null, stale, null, 1.0))))
+        val staleTask = staleRun.tasks.single { it.task.isLive }
+        val migratedAt = input.now
+        report.check("r71-self: MIG1 fix: the migration stamps a task's bin at the migration time (the rest keeps its old edit time) and counts the move as an edit",
+            staleTask.stamps.of(TaskField.BIN)?.at?.toInstant() == migratedAt.toInstant() && staleTask.stamps.of(TaskField.TITLE)?.at?.toInstant() == stale && staleTask.task.editedAt.toInstant() == migratedAt.toInstant())
+        val staleWritten = OldTaskFieldsWriter.write(staleRun.tasks, staleRun.labels, staleRun.history, migratedAt.plusDays(1), ZoneId.of("America/New_York"))
+        report.check("r71-self: MIG1 fix: the old lists carry deletion markers for the 45-day-old task in the next-session and Later lists, and the come-back live",
+            staleWritten.nextTasks.any { it.id == staleTask.id && it.deletedAt != null } && staleWritten.later.any { it.id == staleTask.id && it.deletedAt != null }
+                && staleWritten.parked.any { it.id == staleTask.id && it.deletedAt == null })
         report.check("r71-self: an old id in upper case becomes the PC's lower case", first.tasks.any { it.id == TASK })
         val view = first.views.first { it.view.name == "Errands only" }.view
         report.check("r71-self: a saved filter on a category only an item carried shows that label; its search words stay local", view.config.labels == listOf(TaskLabel.idFor("Errands")) && first.viewSearches[view.id] == "milk" && !TaskJson.text(TaskJson.writeViews(first.views)).contains("milk"))

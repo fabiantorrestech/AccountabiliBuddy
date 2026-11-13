@@ -48,7 +48,7 @@ public static class DeviceSettingsRegistry
         "quit.guard.pending", "review.ignored", "review.promoted", "session", "session.overLimit", "session.pcOff.pending",
         "session.taskHistory", "session.tasks", "setup.assistant", "setup.features", "shutdown.autoSaved", "shutdown.reviews", "tasks.receivedHistory", "tasks.handovers",
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
-        "tasks.model", "tasks.modelAttempt", "tasks.running", "tasks.tidyUp",
+        "tasks.model", "tasks.modelAttempt", "tasks.running", "tasks.tidyUp", "tasks.earlierNotice",
         "tasks.reminderMissed", "tasks.volumeRestore", "tasks.calendarExport",
         "goals.model", "goals.modelAttempt", "goals.deepWork.pending", "goals.reminderState",
     ];

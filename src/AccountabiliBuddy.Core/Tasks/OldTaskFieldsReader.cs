@@ -272,7 +272,7 @@ public static class OldTaskFieldsReader
                 // Only the legacy open come-backs list has it: it can only add a task nobody has.
                 if (taskIndex < 0 && historyIndex < 0)
                 {
-                    _tasks.Add(FromOld(copies[0], null, isNew: IsOtherDevice));
+                    _tasks.Add(FromOld(copies[0], null));
                     _added++;
                 }
 
@@ -328,7 +328,7 @@ public static class OldTaskFieldsReader
                 return;
             }
 
-            _tasks.Add(FromOld(newestLive, null, isNew: IsOtherDevice));
+            _tasks.Add(FromOld(newestLive, null));
             _added++;
         }
 
@@ -536,17 +536,13 @@ public static class OldTaskFieldsReader
             return null;
         }
 
-        // isNew: nobody here knew the task and another device sent it (an older app): an open one lands in To sort (MIG1). A task already known
-        // keeps the bin it had, and this device's own edits (ApplyLocal reads them with the same rules) keep the list's own bin.
-        private SyncTaskItem FromOld(OldTaskShape old, TaskItem? kept, bool isNew = false)
+        private SyncTaskItem FromOld(OldTaskShape old, TaskItem? kept)
         {
             DateTimeOffset at = old.EditedAt;
             TaskItem task = kept ?? new TaskItem(old.Id, string.Empty, TaskBin.Sort, 0, old.CreatedAt ?? at, at, at);
-            TaskBin open = isNew && IsOtherDevice
-                ? TaskBin.Sort
-                : kept?.PrevBin is TaskBin previous && OldTaskFieldsWriter.ListOf(previous) == old.List
-                    ? previous
-                    : DefaultBin(old.List, old.BinMarker, countsInSession: true);
+            TaskBin open = kept?.PrevBin is TaskBin previous && OldTaskFieldsWriter.ListOf(previous) == old.List
+                ? previous
+                : DefaultBin(old.List, old.BinMarker, countsInSession: true);
             TaskBin bin = old.DoneAt is null ? open : TaskBin.Done;
 
             task = task with
@@ -560,7 +556,7 @@ public static class OldTaskFieldsReader
                 Tags = TaskLabels.Clean(old.Labels),
                 Devices = old.LocalTo is Guid keeper ? [keeper] : kept?.Devices,
                 AutoSavedFor = old.List == OldTaskList.AutoSaved ? old.AutoSavedFor : kept?.AutoSavedFor,
-                Origin = kept?.Origin ?? OriginOf(old, isNew),
+                Origin = kept?.Origin ?? OriginOf(old),
                 EditedAt = at,
                 TouchedAt = at,
                 DeletedAt = null,
@@ -586,22 +582,15 @@ public static class OldTaskFieldsReader
             return new SyncTaskItem(task, TaskFieldStamps.AllAt(new TaskFieldStamp(at, _input.SenderId)));
         }
 
-        private string? OriginOf(OldTaskShape old, bool isNew)
+        private string? OriginOf(OldTaskShape old)
         {
             if (old.List == OldTaskList.Parked && old.CreatedAt is DateTimeOffset createdAt)
             {
                 return TaskOrigins.Parked(createdAt, _input.Zone);
             }
 
-            if (string.Equals(_input.SenderKind, "phone", StringComparison.OrdinalIgnoreCase))
-            {
-                return TaskOrigins.FromPhone;
-            }
-
-            return isNew && IsOtherDevice && old.List is OldTaskList.NextTasks or OldTaskList.Later ? TaskOrigins.EarlierVersion : null;
+            return string.Equals(_input.SenderKind, "phone", StringComparison.OrdinalIgnoreCase) ? TaskOrigins.FromPhone : null;
         }
-
-        private bool IsOtherDevice => _input.SenderId != _input.Self;
 
         private TaskBin DefaultBin(OldTaskList list, string? marker, bool countsInSession)
         {

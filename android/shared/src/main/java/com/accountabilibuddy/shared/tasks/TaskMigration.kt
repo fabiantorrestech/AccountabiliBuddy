@@ -28,9 +28,9 @@ import java.time.format.DateTimeParseException
  * - The saved filters become views (their search words stay local).
  * - Numbers go in creation order; ADR 72 labels become tags; a local item's keeper becomes its one device.
  *
- * Tombstones and local stubs stay tombstones. Ids are kept (labels and built-in views have fixed ids), nothing is random and no
- * stamp comes from [TaskMigrationInput.now], so the same input always gives the same result, and merging a result with another
- * run's adds nothing. The old stores keep moments, not offsets, so every time it writes is in UTC.
+ * Tombstones and local stubs stay tombstones. Ids are kept (labels and built-in views have fixed ids), nothing is random and the
+ * only times taken from [TaskMigrationInput.now] are every live task's bin stamp and edited time (the move into To sort is an edit; it keeps the
+ * old-lists writer's deletion markers for 30 days, so an older device sees each task once), so the same input always gives the same result. The old stores keep moments, not offsets, so every time it writes is in UTC.
  */
 object TaskMigration {
     const val NEXT_TASKS_SOURCE = "nextTasks"
@@ -147,8 +147,16 @@ object TaskMigration {
         }
 
         val syncTasks = tasks
-            .map { if (it.isLive) it.copy(number = numbered.getValue(it.id)) else it }
-            .map { SyncTaskItem(it, if (it.isLive) stampsAt(it.editedAt) else TaskFieldStamps.NONE) }
+            // A live task changed bins here, so the move is an edit: its edited time (not its other parts' stamps) is at least the migration time,
+            // never before the bin stamp, which keeps the old-lists writer's deletion markers no newer than the task's own copy.
+            .map {
+                if (it.isLive) {
+                    val edited = if (DotNetTime.compare(it.editedAt, input.now) > 0) it.editedAt else input.now
+                    SyncTaskItem(it.copy(number = numbered.getValue(it.id), editedAt = edited), stampsAt(it.editedAt, input.now))
+                } else {
+                    SyncTaskItem(it, TaskFieldStamps.NONE)
+                }
+            }
             .sortedWith(compareBy<SyncTaskItem> { it.task.bin.ordinal }.thenBy { it.position }.thenBy { it.id })
         val syncHistory = history
             .map { it.copy(task = it.task.copy(number = numbered.getValue(it.id))) }
@@ -233,7 +241,10 @@ object TaskMigration {
         return if (conflicts.size == (winner.conflicts?.size ?: 0)) winner else winner.copy(conflicts = conflicts)
     }
 
-    private fun stampsAt(at: OffsetDateTime): TaskFieldStamps = TaskFieldStamps.allAt(FieldStamp(at, FieldStamp.NOBODY))
+    // Every part carries the task's own edit time, except the bin: every live task changed bins at the migration, so its bin is stamped
+    // at migration time and the old-lists writer leaves deletion markers for 30 days (an older device sees each task once).
+    private fun stampsAt(at: OffsetDateTime, migratedAt: OffsetDateTime): TaskFieldStamps =
+        TaskFieldStamps.allAt(FieldStamp(at, FieldStamp.NOBODY)).with(TaskField.BIN, FieldStamp(migratedAt, FieldStamp.NOBODY))
 
     private fun fromNextTask(item: SyncNextTask, book: TaskLabelBook): TaskItem {
         val editedAt = time(item.editedAt)

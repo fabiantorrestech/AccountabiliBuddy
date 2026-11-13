@@ -60,29 +60,64 @@ public partial class TodaySidebarView : UserControl
         SidebarPanel.IsVisible = open;
     }
 
-    // The whole rail, and the open sidebar's header row, toggle the sidebar; a button inside them (the arrow, Lunch, the settings list)
-    // keeps its own job.
-    private void OnRailPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e) => ToggleFromClick(Rail, e);
+    // The whole rail, and the open sidebar's header row, toggle the sidebar when the click is released on the same spot it started (a
+    // drag or a touch-scroll that moves more than a few pixels doesn't toggle); a button inside them (the arrow, Lunch, the settings
+    // list) keeps its own job.
+    private const double ClickSlop = 6;
 
-    private void OnHeaderPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e) => ToggleFromClick(SidebarHeader, e);
+    private Control? _pressedTarget;
+    private Point _pressedAt;
 
-    private void ToggleFromClick(Control target, Avalonia.Input.PointerPressedEventArgs e)
+    private void OnRailPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e) => BeginClick(Rail, e);
+
+    private void OnRailReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e) => FinishClick(Rail, e);
+
+    private void OnHeaderPressed(object? sender, Avalonia.Input.PointerPressedEventArgs e) => BeginClick(SidebarHeader, e);
+
+    private void OnHeaderReleased(object? sender, Avalonia.Input.PointerReleasedEventArgs e) => FinishClick(SidebarHeader, e);
+
+    private void BeginClick(Control target, Avalonia.Input.PointerPressedEventArgs e)
     {
-        if (e.Handled || !e.GetCurrentPoint(target).Properties.IsLeftButtonPressed || _viewModel is null)
+        _pressedTarget = null;
+        if (e.Handled || !e.GetCurrentPoint(target).Properties.IsLeftButtonPressed || _viewModel is null || IsInsideButton(e.Source, target))
         {
             return;
         }
 
-        for (Avalonia.Visual? visual = e.Source as Avalonia.Visual; visual is not null && !ReferenceEquals(visual, target); visual = visual.GetVisualParent())
+        _pressedTarget = target;
+        _pressedAt = e.GetPosition(target);
+    }
+
+    private void FinishClick(Control target, Avalonia.Input.PointerReleasedEventArgs e)
+    {
+        bool began = ReferenceEquals(_pressedTarget, target);
+        _pressedTarget = null;
+        if (!began || e.Handled || e.InitialPressMouseButton != Avalonia.Input.MouseButton.Left || _viewModel is null || IsInsideButton(e.Source, target))
         {
-            if (visual is Button)
-            {
-                return;
-            }
+            return;
+        }
+
+        Point at = e.GetPosition(target);
+        if (Math.Abs(at.X - _pressedAt.X) > ClickSlop || Math.Abs(at.Y - _pressedAt.Y) > ClickSlop)
+        {
+            return;
         }
 
         e.Handled = true;
         _viewModel.ToggleCommand.Execute(null);
+    }
+
+    private static bool IsInsideButton(object? source, Control target)
+    {
+        for (Avalonia.Visual? visual = source as Avalonia.Visual; visual is not null && !ReferenceEquals(visual, target); visual = visual.GetVisualParent())
+        {
+            if (visual is Button)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

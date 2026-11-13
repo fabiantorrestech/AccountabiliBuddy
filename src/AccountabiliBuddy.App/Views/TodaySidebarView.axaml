@@ -415,8 +415,7 @@
     <Panel>
         <!-- The rail: always there at the right edge (reserved space), so opening or hiding the sidebar never moves the list. -->
         <Border x:Name="Rail" Width="30" HorizontalAlignment="Right" VerticalAlignment="Stretch" BorderBrush="{DynamicResource Ab.Line}"
-                BorderThickness="1,0,0,0" Margin="0,0,0,8" PointerPressed="OnRailPressed"
-                ToolTip.Tip="Show or hide the Today sidebar (Ctrl+\)">
+                BorderThickness="1,0,0,0" Margin="0,0,0,8" PointerPressed="OnRailPressed" PointerReleased="OnRailReleased">
             <StackPanel Spacing="12" Margin="0,8,0,0">
                 <Button Classes="sideIcon" HorizontalAlignment="Center" Command="{Binding ToggleCommand}" ToolTip.Tip="Show or hide the Today sidebar (Ctrl+\)"
                         AutomationProperties.Name="Show or hide the Today sidebar">
@@ -456,7 +455,7 @@
                 </Transitions>
             </Border.Transitions>
             <DockPanel>
-                <Border x:Name="SidebarHeader" DockPanel.Dock="Top" PointerPressed="OnHeaderPressed" ToolTip.Tip="Hide the sidebar (Ctrl+\)">
+                <Border x:Name="SidebarHeader" DockPanel.Dock="Top" PointerPressed="OnHeaderPressed" PointerReleased="OnHeaderReleased">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" Margin="14,10,8,6">
                     <TextBlock Text="Today sidebar" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1" Classes="faint" Text="{Binding HeaderNote, StringFormat='· {0}'}" FontSize="11.5" VerticalAlignment="Center"

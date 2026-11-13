@@ -17,9 +17,10 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <item>The old filter becomes the Default view's settings, the saved filters become views (their search words stay local).</item>
 /// <item>Numbers go in creation order; ADR 72 labels become tags; a local item's keeper becomes its one device.</item>
 /// </list>
-/// Tombstones and local stubs stay tombstones. Ids are kept (labels and built-in views have fixed ids), nothing is random and no
-/// stamp comes from <see cref="TaskMigrationInput.Now"/>, so the same input always gives the same result, and merging a result
-/// with another run's adds nothing.
+/// Tombstones and local stubs stay tombstones. Ids are kept (labels and built-in views have fixed ids), nothing is random and the
+/// only times taken from <see cref="TaskMigrationInput.Now"/> are every live task's bin stamp and edited time (the move into To sort is an edit; it
+/// keeps OldTaskFieldsWriter's deletion markers for 30 days, so an older device sees each task once), so the same input always gives the
+/// same result.
 /// </summary>
 public static class TaskMigration
 {
@@ -151,9 +152,12 @@ public static class TaskMigration
             numbered[task.Id] = new TaskNumber(nextNumber++, Temporary: !input.IsNumberingDevice);
         }
 
+        // A live task changed bins here, so the move is an edit: its edited time (not its other parts' stamps) is at least the migration time,
+        // never before the bin stamp, which is how OldTaskFieldsWriter's deletion markers stay older than the task's own copy.
         List<SyncTaskItem> syncTasks = tasks
-            .Select(task => task.IsLive ? task with { Number = numbered[task.Id] } : task)
-            .Select(task => new SyncTaskItem(task, task.IsLive ? StampsAt(task.EditedAt) : TaskFieldStamps.None))
+            .Select(task => task.IsLive
+                ? new SyncTaskItem(task with { Number = numbered[task.Id], EditedAt = task.EditedAt > input.Now ? task.EditedAt : input.Now }, StampsAt(task.EditedAt, input.Now))
+                : new SyncTaskItem(task, TaskFieldStamps.None))
             .OrderBy(item => item.Task.Bin).ThenBy(item => item.Position).ThenBy(item => item.Id.ToString("D"), StringComparer.Ordinal)
             .ToList();
         List<SyncTaskLogItem> syncHistory = history
@@ -266,9 +270,12 @@ public static class TaskMigration
         return conflicts.Count == (winner.Conflicts?.Count ?? 0) ? winner : winner with { Conflicts = conflicts };
     }
 
-    private static TaskFieldStamps StampsAt(DateTimeOffset at)
+    // Every part carries the task's own edit time, except the bin: every live task changed bins at the migration (into To sort, or Done), so
+    // its bin is stamped at migration time. OldTaskFieldsWriter then leaves deletion markers in the old lists for 30 days, and an older
+    // device sees each task once (in its list for this bin) instead of twice.
+    private static TaskFieldStamps StampsAt(DateTimeOffset at, DateTimeOffset migratedAt)
     {
-        return TaskFieldStamps.AllAt(new TaskFieldStamp(at, Guid.Empty));
+        return TaskFieldStamps.AllAt(new TaskFieldStamp(at, Guid.Empty)).With(TaskField.Bin, new TaskFieldStamp(migratedAt, Guid.Empty));
     }
 
     private static TaskItem FromNextTask(SyncNextTask item, TaskLabelBook book)

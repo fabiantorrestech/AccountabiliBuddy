@@ -40,7 +40,7 @@ public sealed class EarlierTasksNoticeStore
         }
     }
 
-    /// <summary>The migration moved <paramref name="count"/> open tasks into To sort: the card shows (nothing for 0). A failure to save is not worth stopping for.</summary>
+    /// <summary>The migration moved <paramref name="count"/> open tasks into To sort: the card shows (nothing for 0). Any failure to save is swallowed: it must never fail a migration whose marker is set.</summary>
     public void RecordBlocking(int count)
     {
         if (count <= 0)
@@ -53,8 +53,9 @@ public sealed class EarlierTasksNoticeStore
             Task.Run(() => _documents.SaveAsync(DocumentKey, new Notice(count, Dismissed: false))).GetAwaiter().GetResult();
             Count = count;
         }
-        catch (SqliteException)
+        catch (Exception)
         {
+            // Whatever went wrong, the migration whose marker is set must not fail over a notice.
             Count = 0;
         }
     }
@@ -74,7 +75,7 @@ public sealed class EarlierTasksNoticeStore
         {
             await _documents.SaveAsync(DocumentKey, new Notice(count, Dismissed: true));
         }
-        catch (SqliteException)
+        catch (Exception)
         {
             // Closed for this run; it may show once more at the next start.
         }
