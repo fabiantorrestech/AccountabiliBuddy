@@ -87,6 +87,10 @@ private val checks: List<FixtureCheck> = listOf(
     R72Check("receive-without-tasks", R72Cases::receiveWithoutTasks),
     R72Check("strip", R72Cases::strip),
     R72Check("with-parts", R72Cases::withParts),
+    // Round 2 R7.3a: what a view shows (filters, groups, sorts) against the PC's Core TaskViewRules, and the phone's page order
+    // against the PC's column order (App TaskColumnOrder).
+    R73Check("view-rules", R73Cases::viewRules),
+    R73Check("column-order", R73Cases::columnOrder),
 )
 
 /**
@@ -109,10 +113,13 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "r71-self" to TaskModelSelfCheck::run,
     // Round 2 R7.2: the phone's own edits, label edits, the switch's refusal, newer entries, timing (phone only).
     "r72-self" to TaskStoreSelfCheck::run,
+    // Round 2 R7.3a: the Shelf's paging, pages, the Today strip (words, counts, the drop into Queued), drops on label and tag pages,
+    // the page's stamped edits, a row's words (phone only).
+    "r73a-self" to TasksPageSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "r71", "r72")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "r71", "r72", "r73")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

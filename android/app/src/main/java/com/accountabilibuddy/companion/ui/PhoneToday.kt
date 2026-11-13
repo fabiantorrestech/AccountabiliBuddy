@@ -80,6 +80,7 @@ internal fun PhoneToday(
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val noiseState by app.noise.state.collectAsState()
+    val taskLists by app.taskModel.lists.collectAsState()
     val noiseSettings by app.noise.settings.collectAsState()
     val companion = isCompanionMode()
     val session = pc.state?.takeIf { it.isActive }
@@ -143,6 +144,10 @@ internal fun PhoneToday(
                 }
             } else {
                 sessionItems(session, pc, clock, stepAway, actions)
+            }
+            // Round 2 R7.3: today's task sections from the one task list (This session before a session, Queued, Finished today).
+            if (app.taskModel.isActive && com.accountabilibuddy.companion.ui.today.hasTodayTasks(taskLists, session != null)) {
+                item(key = "today-tasks") { com.accountabilibuddy.companion.ui.today.TodayTaskSections(inSession = session != null, onMessage = actions.onMessage) }
             }
             val sink = asTodaySink()
             above.forEach { part -> sink.todayItem(part, parts) }

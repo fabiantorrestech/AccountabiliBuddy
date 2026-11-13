@@ -51,7 +51,8 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 
 /**
- * Tasks (ADR 24, 30, 48, 50): the running session's checklist or the next session's tasks, Come back to, Later and Done today.
+ * Tasks on a tablet, and on a phone whose task list isn't in use yet (a phone otherwise shows
+ * [com.accountabilibuddy.companion.ui.tasks.page.TasksPageHost], round 2 R7.3). ADR 24, 30, 48, 50: the running session's checklist or the next session's tasks, Come back to, Later and Done today.
  * This is the host of the redesigned pane: it reads the lists, keeps what the screen remembers (the chip, the search, which
  * groups are open, which task's details are showing) and gives the list to [TasksPane] and a task's details to [TaskDetailSheet];
  * every change goes through [TasksController], which decides whether it is made here or asked of the PC.
@@ -59,8 +60,15 @@ import java.time.Instant
  * The search text, the typed task and the details live in memory only (never in the saved state, never logged).
  */
 @Composable
-fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState) {
+fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenToday: () -> Unit = {}, onOpenSettings: () -> Unit = {}) {
     val app = LocalContext.current.applicationContext as CompanionApp
+    // Round 2 R7.3: a phone shows the redesigned page (one page per bin, label or tag) once the one task list is the source. A
+    // tablet keeps this pane until R7.5, and so does a phone whose task list isn't in use (its one-time migration was refused).
+    if (!LocalExpanded.current && app.taskModel.isActive) {
+        com.accountabilibuddy.companion.ui.tasks.page.TasksPageHost(controlPc, snackbar, onOpenToday, onOpenSettings)
+        return
+    }
+
     val scope = rememberCoroutineScope()
     val nextTasks by app.sharedLists.nextTasks.collectAsState()
     val parked by app.sharedLists.parked.collectAsState()

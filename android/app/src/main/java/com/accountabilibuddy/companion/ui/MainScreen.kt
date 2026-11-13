@@ -391,7 +391,12 @@ fun MainScreen(
                         },
                     )
                 }
-                AppDestination.Tasks -> TasksScreen(controlPc = controlPc, snackbar = snackbar)
+                AppDestination.Tasks -> TasksScreen(
+                    controlPc = controlPc, snackbar = snackbar,
+                    onOpenToday = { nav.select(AppDestination.Today) },
+                    // Options always ends with the page's settings row (brief §3.3); Settings › Tasks itself comes with R7.4.
+                    onOpenSettings = { nav.open(AppDestination.Settings) },
+                )
                 AppDestination.Plan -> PlanScreen(
                     state, model, viewModel.clock,
                     pcName = pcName,
