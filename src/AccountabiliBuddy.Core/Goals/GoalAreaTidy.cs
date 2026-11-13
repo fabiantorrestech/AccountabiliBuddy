@@ -10,6 +10,15 @@ namespace AccountabiliBuddy.Core.Goals;
 /// </summary>
 public static class GoalAreaTidy
 {
+    /// <summary>
+    /// The device id a tidy move is stamped with: the moved goal's Area part (<see cref="GoalField.Area"/>) gets
+    /// (its new edit time, this id) wherever the tidy runs (the merge, <c>GoalStore.Normalize</c> in GS3, the phone's twin in GS2). Never
+    /// the empty id: a Deep work moved back to "Work" holds the seed's value, and an empty-id stamp on it would count as untouched
+    /// (<see cref="GoalSeeds.IsPristine(Goal, GoalField, GoalFieldStamp)"/>), lose to the edit that put it in the deleted area, and be
+    /// moved again a tick later on every merge. Same text on every platform: d33b0a11-6f0c-4e2a-9d51-0000000000b1.
+    /// </summary>
+    public static Guid StampId { get; } = Guid.Parse("d33b0a11-6f0c-4e2a-9d51-0000000000b1");
+
     public static (IReadOnlyList<GoalArea> Areas, IReadOnlyList<Goal> Goals) Rehome(IReadOnlyList<GoalArea> areas, IReadOnlyList<Goal> goals, GoalArea work)
     {
         var liveAreas = areas.Where(area => area.IsLive).Select(area => area.Id).ToHashSet();

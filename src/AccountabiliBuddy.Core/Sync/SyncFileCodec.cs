@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Goals;
 using AccountabiliBuddy.Core.Tasks;
 
 namespace AccountabiliBuddy.Core.Sync;
@@ -100,7 +101,7 @@ public static class SyncFileCodec
             return null;
         }
 
-        return file is not null && IsComplete(file) ? WithCleanTaskParts(WithCleanCategories(file)) : null;
+        return file is not null && IsComplete(file) ? WithCleanGoalParts(WithCleanTaskParts(WithCleanCategories(file))) : null;
     }
 
     /// <summary>
@@ -162,6 +163,19 @@ public static class SyncFileCodec
                 .Where(item => item is { Entry: { Task: not null } } && item.Entry.Id != Guid.Empty && IsUsableTask(item.Entry.Task))
                 .ToList(),
             TaskAccountSettings = TaskAccountSettingsMerge.Clean(file.TaskAccountSettings),
+        };
+    }
+
+    /// <summary>ADR 79's optional goal parts, with every item the merge can't use left out (<see cref="GoalSyncClean"/>); a missing part stays missing.</summary>
+    private static SyncFile WithCleanGoalParts(SyncFile file)
+    {
+        return file with
+        {
+            GoalAreas = GoalSyncClean.Areas(file.GoalAreas),
+            Goals = GoalSyncClean.Goals(file.Goals),
+            GoalEntries = GoalSyncClean.Entries(file.GoalEntries),
+            GoalReminders = GoalSyncClean.Reminders(file.GoalReminders),
+            GoalReviews = GoalSyncClean.Reviews(file.GoalReviews),
         };
     }
 

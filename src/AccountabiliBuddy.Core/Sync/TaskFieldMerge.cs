@@ -103,6 +103,13 @@ public static class TaskFieldMerge
         bool firstWins = FirstIsNewer(stampA, stampB, valueA, valueB);
         if (string.Equals(valueA, valueB, StringComparison.Ordinal))
         {
+            // Q584 (Q598, the phone's twin the same): on a full tie (time, device, value) the newer is the copy whose bases, joined with
+            // ",", sort later (ordinal; no bases = ""; equal: the first), so the union's order no longer depends on which copy came first.
+            if (stampA.At.UtcTicks == stampB.At.UtcTicks && stampA.By == stampB.By)
+            {
+                firstWins = string.CompareOrdinal(JoinedBases(stampA), JoinedBases(stampB)) >= 0;
+            }
+
             // The same value: either history leads to it, so the stamp keeps both.
             TaskFieldStamp newer = firstWins ? stampA : stampB;
             TaskFieldStamp older = firstWins ? stampB : stampA;
@@ -275,6 +282,11 @@ public static class TaskFieldMerge
         return all.Count > MaxBases ? all[^MaxBases..] : all;
     }
 
+    private static string JoinedBases(TaskFieldStamp stamp)
+    {
+        return string.Join(",", stamp.Bases ?? []);
+    }
+
     private static string? OriginOf(TaskItem a, TaskItem b)
     {
         if (a.Origin is null || b.Origin is null)
@@ -305,7 +317,9 @@ public static class TaskFieldMerge
             }
             else
             {
-                byId[item.Id] = SharedListMerge.Merge([held], [item], now, self).Single();
+                // Q586: tombstones kept here (an old one may win over a duplicate of its id in one damaged list); the outer merge
+                // drops it past its 30 days, as the phone's twin does.
+                byId[item.Id] = SharedListMerge.Merge([held], [item], now, self, keepTombstones: true).Single();
             }
         }
 

@@ -29,8 +29,10 @@ public static class GoalEdits
 
     /// <summary>
     /// <paramref name="after"/> (a goal a screen or a rule rebuilt from <paramref name="before"/>) with every part whose value changed
-    /// stamped by <paramref name="by"/>, the others keeping <paramref name="before"/>'s stamps; <paramref name="after"/> with the old
-    /// stamps when no part changed. One place for the stores to call on every change.
+    /// stamped by <paramref name="by"/>, the others keeping <paramref name="before"/>'s stamps. When no part changed: <paramref name="after"/>
+    /// with <paramref name="before"/>'s stamps (an unstamped goal's taken as they read, <see cref="GoalFieldStamps.For"/>, so they stay at
+    /// the old edit time) and its edit time, never a newer one (a save that changed nothing must not beat another device's earlier edit).
+    /// A waiting change alone changes no part (<see cref="GoalFieldValues"/>). One place for the stores to call on every change.
     /// </summary>
     public static Goal Restamp(Goal before, Goal after, DateTimeOffset now, Guid by)
     {
@@ -39,7 +41,7 @@ public static class GoalEdits
         List<GoalField> changed = GoalFieldStamps.Fields.Where(field => !string.Equals(old[field], afterValues[field], StringComparison.Ordinal)).ToList();
         if (changed.Count == 0)
         {
-            return after with { Stamps = before.Stamps };
+            return after with { Stamps = before.Stamps ?? GoalFieldStamps.For(before), EditedAt = before.EditedAt };
         }
 
         return Stamped(before, changed, after, now, by);

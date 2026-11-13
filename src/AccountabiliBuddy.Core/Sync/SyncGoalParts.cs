@@ -37,9 +37,10 @@ public static class SyncGoalParts
         return Cleaned(new GoalSyncLists(file.GoalAreas ?? [], file.Goals ?? [], file.GoalEntries ?? [], file.GoalReminders ?? [], file.GoalReviews ?? []));
     }
 
-    // No waiting change anywhere; tombstones without text or unknown fields; the lists' newer items kept.
-    private static GoalSyncLists Cleaned(GoalSyncLists lists)
+    // Only usable items (GoalSyncClean); no waiting change anywhere; tombstones without text or unknown fields; the lists' newer items kept.
+    private static GoalSyncLists Cleaned(GoalSyncLists given)
     {
+        GoalSyncLists lists = GoalSyncClean.Lists(given);
         return new GoalSyncLists(
             Each(lists.Areas, GoalTombstones.Clean),
             Each(lists.Goals, goal => GoalTombstones.Clean(GoalSyncMerge.WithoutPending(goal))),

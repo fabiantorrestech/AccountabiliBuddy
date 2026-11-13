@@ -8,7 +8,9 @@ namespace AccountabiliBuddy.Core.Goals;
 /// Reads and copies one <see cref="GoalField"/> of a goal for the field-by-field merge (ADR 79): its value as one comparable text and
 /// the goal with one part taken from another copy. The text is built from the goal's own JSON (<see cref="SyncJson.Options"/>, which the
 /// phone writes byte for byte the same): for each of the part's JSON names, the name, "=" and the value as written ("-" when left out),
-/// joined by a line feed. Equal texts are equal values. Never logged or shown.
+/// joined by a line feed. Equal texts are equal values. A waiting change (<see cref="GoalTarget.PendingChange"/>) is never part of a
+/// value: it is this device's state, so asking for a looser target stamps nothing; the Target part is stamped when the change lands
+/// (the store applies it through <see cref="GoalEdits.Restamp"/>). Never logged or shown.
 /// </summary>
 public static class GoalFieldValues
 {
@@ -34,14 +36,14 @@ public static class GoalFieldValues
     /// <summary>The part's value as one text.</summary>
     public static string Canonical(Goal goal, GoalField field)
     {
-        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(goal, SyncJson.Options));
+        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(GoalSyncMerge.WithoutPending(goal), SyncJson.Options));
         return Canonical(document.RootElement, field);
     }
 
     /// <summary>Every part's value as one text, from one serialization of the goal.</summary>
     public static Dictionary<GoalField, string> All(Goal goal)
     {
-        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(goal, SyncJson.Options));
+        using JsonDocument document = JsonDocument.Parse(JsonSerializer.Serialize(GoalSyncMerge.WithoutPending(goal), SyncJson.Options));
         return GoalFieldStamps.Fields.ToDictionary(field => field, field => Canonical(document.RootElement, field));
     }
 

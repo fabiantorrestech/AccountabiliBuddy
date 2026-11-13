@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.Core.Goals;
@@ -11,7 +12,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// stamp's value (time, then device id, then value), silently. Tombstones, a revive by a later edit, the order, 30-day tombstones and the
 /// 2-minute future clamp are <see cref="SharedListMerge"/>'s.</item>
 /// <item>Areas, entries and reminders: whole item, newest wins. Reviews: one record per week (<see cref="GoalReviewIds"/>), old records
-/// of the same week fold into it, each goal's decision from the newest record.</item>
+/// of the same week fold into it, each goal's decision the newest by its own time (<see cref="GoalReviewDecision.DecidedAt"/>, else
+/// its record's edit time, written in by the fold), decisions ordered by goal id.</item>
 /// <item>The first run's "Work" and Deep work, untouched (<see cref="GoalSeeds"/>), never win over an edited copy, whatever their
 /// stamps: a live "Work" equal to the seed is dropped when another copy of it is edited; a Deep work part that still holds the seed's
 /// value and was never changed on a device counts as older than any other. Deep work's created time is the earlier one (every goal's
@@ -25,20 +27,29 @@ namespace AccountabiliBuddy.Core.Goals;
 /// (<see cref="GoalTarget.PendingChange"/>) never takes part: it is left out of both inputs.</item>
 /// <item>ADR 79 forward compatibility: unknown fields survive. Where the winning copy has none (an object without an unknown-field
 /// list: its writer didn't know them), the other copy's are kept; where it has some, its own list wins whole (a newer writer that
-/// dropped a field wins). Items of a newer app (<see cref="GoalRawItem"/>) take part by id and stamps.</item>
+/// dropped a field wins). Items of a newer app (<see cref="GoalRawItem"/>) take part by id and stamps, whole: a newer app's live copy
+/// of a goal (Deep work included) that is newer than the known copy wins whole, part stamps unread; a newer app's Deep work tombstone
+/// is left out like any Deep work tombstone.</item>
+/// <item>Both inputs are cleaned first (<see cref="GoalSyncClean"/>): an item the merge can't use never throws, it is left out.</item>
+/// <item>Times: the same instant written with two offsets is decided by the smaller offset (stamps, created and edit times), so the
+/// result's text never depends on the order (the phone's twin compares the same way).</item>
 /// <item>A live goal whose area isn't live goes to "Work" (<see cref="GoalAreaTidy"/>), stamped from the lists, never the clock; its
-/// area part is stamped the same, so the move holds on the next merge.</item>
+/// area part is stamped the same time by <see cref="GoalAreaTidy.StampId"/>, so the move holds on the next merge. The first run's
+/// untouched "Work" holding no live goal loses to a "Work" tombstone (Q592).</item>
 /// </list>
 /// </summary>
 public static class GoalSyncMerge
 {
     /// <returns>The merged lists, tombstones included, each ordered by position and then id, newer items carried at their places.</returns>
-    public static GoalSyncLists Merge(GoalSyncLists first, GoalSyncLists second, DateTimeOffset now)
+    public static GoalSyncLists Merge(GoalSyncLists firstGiven, GoalSyncLists secondGiven, DateTimeOffset now)
     {
         DateTimeOffset limit = now + SharedListMerge.FutureLimit;
+        GoalSyncLists first = GoalSyncClean.Lists(firstGiven);
+        GoalSyncLists second = GoalSyncClean.Lists(secondGiven);
 
         (List<ISharedItem> areas, List<JsonElement> areasKept) = MergeAreas(first.Areas, second.Areas, now, limit);
         (List<ISharedItem> goals, List<JsonElement> goalsKept) = MergeGoals(first.Goals, second.Goals, now, limit);
+        areas = EmptySeedWorkDeleted(areas, goals, first.Areas.Concat(second.Areas), now, limit);
         (areas, goals) = Rehomed(areas, goals);
 
         var goalIds = goals.Select(item => item.Id).ToHashSet();
@@ -72,8 +83,8 @@ public static class GoalSyncMerge
         Dictionary<GoalField, string> valuesB = GoalFieldValues.All(other);
         Goal result = one with
         {
-            CreatedAt = one.CreatedAt <= other.CreatedAt ? one.CreatedAt : other.CreatedAt,
-            EditedAt = one.EditedAt >= other.EditedAt ? one.EditedAt : other.EditedAt,
+            CreatedAt = Earlier(one.CreatedAt, other.CreatedAt),
+            EditedAt = Later(one.EditedAt, other.EditedAt),
             BuiltIn = one.BuiltIn || other.BuiltIn,
             Extra = ExtraOf(one, other),
         };
@@ -115,9 +126,9 @@ public static class GoalSyncMerge
     public static Goal WithoutPending(Goal goal)
     {
         Goal result = goal;
-        if (goal.Target.PendingChange is not null)
+        if (goal.Target is { PendingChange: not null } target)
         {
-            result = result with { Target = goal.Target with { PendingChange = null } };
+            result = result with { Target = target with { PendingChange = null } };
         }
 
         if (goal.SecondTarget is { PendingChange: not null } second)
@@ -223,7 +234,8 @@ public static class GoalSyncMerge
         return byId;
     }
 
-    // The newer part: an untouched seed value loses to any other, then the later time, then the device id, then the value.
+    // The newer part: an untouched seed value loses to any other, then the later time, then the device id, then the value, then (the
+    // same instant written with another offset) the smaller offset, so the result's text is the same whichever copy came first.
     private static bool FirstIsNewer(bool pristineA, GoalFieldStamp stampA, string valueA, bool pristineB, GoalFieldStamp stampB, string valueB)
     {
         if (pristineA != pristineB)
@@ -243,7 +255,27 @@ public static class GoalSyncMerge
             return byDevice > 0;
         }
 
-        return string.CompareOrdinal(valueA, valueB) >= 0;
+        int byValue = string.CompareOrdinal(valueA, valueB);
+        if (byValue != 0)
+        {
+            return byValue > 0;
+        }
+
+        return stampA.At.Offset <= stampB.At.Offset;
+    }
+
+    // The earlier instant; the same instant with two offsets: the smaller offset (ADR 79: the text never depends on the order).
+    private static DateTimeOffset Earlier(DateTimeOffset a, DateTimeOffset b)
+    {
+        int byTime = a.UtcTicks.CompareTo(b.UtcTicks);
+        return byTime < 0 || (byTime == 0 && a.Offset <= b.Offset) ? a : b;
+    }
+
+    // The later instant; the same instant with two offsets: the smaller offset.
+    private static DateTimeOffset Later(DateTimeOffset a, DateTimeOffset b)
+    {
+        int byTime = a.UtcTicks.CompareTo(b.UtcTicks);
+        return byTime > 0 || (byTime == 0 && a.Offset <= b.Offset) ? a : b;
     }
 
     // A goal's own unknown fields: the newer copy's list when it has one (a newer writer that dropped a field wins), else the other's.
@@ -286,7 +318,50 @@ public static class GoalSyncMerge
         return MergeWhole<GoalArea>(Kept(first), Kept(second), now, limit, GoalTombstones.Clean, GoalUnknowns.Keep);
     }
 
-    // A live goal in an area that isn't live goes to "Work" (GoalAreaTidy, the phone's rule too), its area part stamped as the move.
+    // Q592: the first run's untouched "Work" that holds no live goal after the goal merge loses to a "Work" tombstone of either input
+    // (within the tombstones' 30 days), whatever the stamps: a device installed after the deletion never brings an empty "Work" back. A
+    // goal moved into it later (the tidy) makes it again from the tombstone as before, so the result merges back to itself.
+    private static List<ISharedItem> EmptySeedWorkDeleted(List<ISharedItem> areas, List<ISharedItem> goals, IEnumerable<GoalArea> inputs, DateTimeOffset now, DateTimeOffset limit)
+    {
+        int index = areas.FindIndex(item => item is GoalArea area && area.Id == GoalSeeds.WorkAreaId);
+        if (index < 0 || areas[index] is not GoalArea work || !GoalSeeds.IsPristine(work)
+            || goals.Any(item => item.DeletedAt is null && AreaOf(item) == GoalSeeds.WorkAreaId))
+        {
+            return areas;
+        }
+
+        DateTimeOffset keptFrom = now - SharedListMerge.TombstonesKept;
+        GoalArea? tombstone = inputs
+            .Where(area => area.Id == GoalSeeds.WorkAreaId && !area.IsLive)
+            .Select(area => Clamped(GoalTombstones.Clean(area), limit))
+            .Where(area => area.DeletedAt > keptFrom)
+            .OrderByDescending(area => StampOf(area).UtcTicks)
+            .ThenByDescending(area => area.TieBreak, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (tombstone is null)
+        {
+            return areas;
+        }
+
+        var replaced = new List<ISharedItem>(areas);
+        replaced[index] = tombstone;
+        return Ordered(replaced);
+    }
+
+    // The area a goal (or a newer app's goal) is in; null when it can't be read.
+    private static Guid? AreaOf(ISharedItem item)
+    {
+        return item switch
+        {
+            Goal goal => goal.AreaId,
+            GoalRawItem raw when raw.Json.TryGetProperty("areaId", out JsonElement value) && value.ValueKind == JsonValueKind.String
+                && value.TryGetGuid(out Guid areaId) => areaId,
+            _ => null,
+        };
+    }
+
+    // A live goal in an area that isn't live goes to "Work" (GoalAreaTidy, the phone's rule too), its area part stamped as the move
+    // by GoalAreaTidy.StampId (never the empty id: a Deep work moved back would read as the untouched seed and creep on every merge).
     private static (List<ISharedItem> Areas, List<ISharedItem> Goals) Rehomed(List<ISharedItem> areas, List<ISharedItem> goals)
     {
         List<GoalArea> knownAreas = areas.OfType<GoalArea>().ToList();
@@ -313,7 +388,7 @@ public static class GoalSyncMerge
                 index++;
                 movedGoals.Add(after.AreaId == before.AreaId
                     ? after
-                    : after with { Stamps = GoalFieldStamps.For(after).With(GoalField.Area, new GoalFieldStamp(after.EditedAt, Guid.Empty)) });
+                    : after with { Stamps = GoalFieldStamps.For(after).With(GoalField.Area, new GoalFieldStamp(after.EditedAt, GoalAreaTidy.StampId)) });
             }
             else
             {
@@ -389,7 +464,7 @@ public static class GoalSyncMerge
             List<GoalReviewRecord> live = week.Where(review => review.IsLive).ToList();
             if (live.Count > 0)
             {
-                candidates.Add(Folded(live));
+                candidates.Add(Folded(live, limit));
             }
 
             if (week.Where(review => !review.IsLive).OrderByDescending(review => StampOf(review).UtcTicks)
@@ -407,9 +482,11 @@ public static class GoalSyncMerge
         return (merged, Passthrough(keptFirst, keptSecond));
     }
 
-    // Live records of one week as one: the base fields (place, snooze, notes, unknown fields) of the newest; each goal's decision from
-    // the newest record that has one (its own JSON breaking a tie); the newest's decisions first, in its order, then the others'.
-    private static GoalReviewRecord Folded(List<GoalReviewRecord> live)
+    // Live records of one week as one: the base fields (place, snooze, notes, unknown fields) of the newest; each goal's decision the
+    // newest by its own time (decidedAt, else its record's edit time; clamped like any stamp; its JSON breaking a tie), written with
+    // that time so it keeps it in every later fold (then the order records meet never matters, 3 devices included); decisions by goal
+    // id, then ones without a readable goal id by their text.
+    private static GoalReviewRecord Folded(List<GoalReviewRecord> live, DateTimeOffset limit)
     {
         List<GoalReviewRecord> newestFirst = live
             .OrderByDescending(review => review.EditedAt.UtcTicks)
@@ -419,34 +496,25 @@ public static class GoalSyncMerge
         GoalReviewRecord newest = newestFirst[0];
 
         // Every decision, known or kept as written, with its goal id (a kept one without a readable goal id stays as it is).
-        var best = new Dictionary<string, (long Ticks, string Json, object Decision)>(StringComparer.Ordinal);
-        var order = new List<string>();
-        var unkeyed = new List<JsonElement>();
-        var unkeyedTexts = new HashSet<string>(StringComparer.Ordinal);
+        var best = new Dictionary<string, (DateTimeOffset At, string Json, object Decision)>(StringComparer.Ordinal);
+        var unkeyed = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach (GoalReviewRecord review in newestFirst)
         {
-            foreach (object decision in DecisionsInOrder(review.Decisions))
+            foreach (object written in DecisionsInOrder(review.Decisions ?? []))
             {
-                string? key = DecisionKey(decision);
-                string json = DecisionJson(decision);
+                string? key = DecisionKey(written);
                 if (key is null)
                 {
-                    if (unkeyedTexts.Add(json))
-                    {
-                        unkeyed.Add((JsonElement)decision);
-                    }
-
+                    unkeyed.TryAdd(DecisionJson(written), (JsonElement)written);
                     continue;
                 }
 
-                if (!best.TryGetValue(key, out var held))
+                (DateTimeOffset at, object decision) = Timed(written, review.EditedAt, limit);
+                string json = DecisionJson(decision);
+                if (!best.TryGetValue(key, out var held) || at.UtcTicks > held.At.UtcTicks
+                    || (at.UtcTicks == held.At.UtcTicks && string.CompareOrdinal(json, held.Json) > 0))
                 {
-                    order.Add(key);
-                    best[key] = (review.EditedAt.UtcTicks, json, decision);
-                }
-                else if (review.EditedAt.UtcTicks > held.Ticks || (review.EditedAt.UtcTicks == held.Ticks && string.CompareOrdinal(json, held.Json) > 0))
-                {
-                    best[key] = (review.EditedAt.UtcTicks, json, decision);
+                    best[key] = (at, json, decision);
                 }
             }
         }
@@ -454,7 +522,9 @@ public static class GoalSyncMerge
         var known = new List<GoalReviewDecision>();
         var newer = new List<GoalNewerItem>();
         int index = 0;
-        foreach (object decision in order.Select(key => best[key].Decision).Concat(unkeyed.Cast<object>()))
+        IEnumerable<object> ordered = best.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => pair.Value.Decision)
+            .Concat(unkeyed.Values.Cast<object>());
+        foreach (object decision in ordered)
         {
             if (decision is GoalReviewDecision knownDecision)
             {
@@ -475,6 +545,31 @@ public static class GoalSyncMerge
             Decisions = GoalNewerJson.WithNewer(known, newer),
             Extra = newest.Extra ?? extra,
         };
+    }
+
+    // A decision with its own time: its decidedAt (a newer app's kept decision: its "decidedAt" when readable), else its record's edit
+    // time; past the future limit, the limit. Returned with that time written in.
+    private static (DateTimeOffset At, object Decision) Timed(object decision, DateTimeOffset recordAt, DateTimeOffset limit)
+    {
+        if (decision is GoalReviewDecision known)
+        {
+            DateTimeOffset at = Min(known.DecidedAt ?? recordAt, limit);
+            return (at, known.DecidedAt is DateTimeOffset own && own.EqualsExact(at) ? known : known with { DecidedAt = at });
+        }
+
+        var json = (JsonElement)decision;
+        DateTimeOffset? written = json.TryGetProperty("decidedAt", out JsonElement value) && value.ValueKind == JsonValueKind.String
+            && value.TryGetDateTimeOffset(out DateTimeOffset readable) ? readable : null;
+        DateTimeOffset time = Min(written ?? recordAt, limit);
+        if (written is DateTimeOffset same && same.EqualsExact(time))
+        {
+            return (time, json);
+        }
+
+        JsonObject node = JsonNode.Parse(json.GetRawText())!.AsObject();
+        node["decidedAt"] = JsonSerializer.SerializeToNode(time, SyncJson.Options);
+        using JsonDocument document = JsonDocument.Parse(node.ToJsonString(SyncJson.Options));
+        return (time, document.RootElement.Clone());
     }
 
     // The fields a folded record takes from its newest record, as one text: equal texts, the same fields.

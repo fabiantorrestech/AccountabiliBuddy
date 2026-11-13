@@ -18,7 +18,16 @@ public static class GoalTombstones
         return Clean(goal with { DeletedAt = at, EditedAt = at });
     }
 
-    /// <summary>A goal tombstone as it is kept and sent: no name, notes, sources, second target, pauses, tiles, stamps or unknown fields.</summary>
+    /// <summary>
+    /// What a tombstone written without a target holds as its target (an odd or minimal writer): a daily count without an amount, so
+    /// every tombstone written back is a complete goal on both platforms (JSON <c>{"period":"Day","unit":"Count","direction":"AtLeast"}</c>).
+    /// </summary>
+    public static GoalTarget PlaceholderTarget { get; } = new(GoalPeriod.Day, null, GoalUnit.Count);
+
+    /// <summary>
+    /// A goal tombstone as it is kept and sent: no name, notes, sources, second target, pauses, tiles, stamps or unknown fields; one
+    /// written without a target, icon or colour gets <see cref="PlaceholderTarget"/> and empty texts.
+    /// </summary>
     public static Goal Clean(Goal goal)
     {
         if (goal.IsLive)
@@ -31,7 +40,9 @@ public static class GoalTombstones
             Name = string.Empty,
             Notes = null,
             Sources = [],
-            Target = goal.Target with { PendingChange = null, Extra = null },
+            Icon = goal.Icon ?? string.Empty,
+            Color = goal.Color ?? string.Empty,
+            Target = goal.Target is null ? PlaceholderTarget : goal.Target with { PendingChange = null, Extra = null },
             SecondTarget = null,
             TrackTimeOnly = false,
             Pauses = null,
@@ -43,7 +54,7 @@ public static class GoalTombstones
 
     public static GoalArea Clean(GoalArea area)
     {
-        return area.IsLive ? area : area with { Name = string.Empty, Extra = null };
+        return area.IsLive ? area : area with { Name = string.Empty, Icon = area.Icon ?? string.Empty, Color = area.Color ?? string.Empty, Extra = null };
     }
 
     public static GoalEntry Clean(GoalEntry entry)
