@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalonia.Media;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
@@ -716,14 +717,10 @@ public sealed class ShutdownService : IDisposable
                 continue;
             }
 
-            List<string> lines = entries.Take(MaxEventsPerDay).Select(entry => EventLine(entry, day)).ToList();
-            if (entries.Count > MaxEventsPerDay)
-            {
-                lines.Add($"+{entries.Count - MaxEventsPerDay} more");
-            }
-
-            string heading = day.ToString("ddd, MMM d", CultureInfo.CurrentCulture);
-            days.Add(new ShutdownAheadDay(offset == 1 ? $"Tomorrow · {heading}" : heading, lines));
+            List<ShutdownAheadEvent> events = entries.Take(MaxEventsPerDay).Select(entry => EventCard(entry, day)).ToList();
+            string more = entries.Count > MaxEventsPerDay ? $"+{entries.Count - MaxEventsPerDay} more" : string.Empty;
+            days.Add(new ShutdownAheadDay(
+                day.ToString("ddd", CultureInfo.CurrentCulture), day.Day.ToString(CultureInfo.CurrentCulture), offset == 1, events, more));
         }
 
         return (later, days);
@@ -735,12 +732,26 @@ public sealed class ShutdownService : IDisposable
         return due < date ? $"overdue · {day}" : due == date ? "today" : due == date.AddDays(1) ? $"tomorrow · {day}" : day;
     }
 
-    private static string EventLine(CalendarEntry entry, DateOnly day)
+    private static ShutdownAheadEvent EventCard(CalendarEntry entry, DateOnly day)
     {
         CalendarEvent calendarEvent = entry.Event;
         bool allDay = calendarEvent.IsAllDay || calendarEvent.LocalStart.Date < day.ToDateTime(TimeOnly.MinValue);
-        string time = allDay ? "All day" : calendarEvent.LocalStart.ToString("h:mm tt", CultureInfo.InvariantCulture);
-        return $"{time} · {calendarEvent.Title}";
+        (IBrush background, IBrush foreground) = AgendaCardBrushes.For(entry.Calendar.Color);
+        return new ShutdownAheadEvent(calendarEvent.Title, allDay ? "All day" : TimeRange(calendarEvent.LocalStart, calendarEvent.LocalEnd), background, foreground, allDay);
+    }
+
+    // "9:00 – 9:30 AM" when both ends share AM/PM, "9:30 AM – 1:00 PM" otherwise; a bare start when there is no later end.
+    private static string TimeRange(DateTime start, DateTime end)
+    {
+        string from = start.ToString("h:mm tt", CultureInfo.InvariantCulture);
+        if (end <= start)
+        {
+            return from;
+        }
+
+        string to = end.ToString("h:mm tt", CultureInfo.InvariantCulture);
+        bool sameHalf = start.Date == end.Date && start.Hour / 12 == end.Hour / 12;
+        return sameHalf ? $"{start.ToString("h:mm", CultureInfo.InvariantCulture)} – {to}" : $"{from} – {to}";
     }
 
     // Up to three rows, each with tomorrow's day parts to put its task in (sleep left out); the first work part is the default.

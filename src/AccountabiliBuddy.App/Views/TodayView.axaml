@@ -486,16 +486,35 @@
                                                 <ItemsControl ItemsSource="{Binding CalendarAhead}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:ShutdownAheadDay">
-                                                            <StackPanel Spacing="1" Margin="0,6,0,0">
-                                                                <TextBlock Classes="muted" Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" />
-                                                                <ItemsControl ItemsSource="{Binding Lines}">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate x:DataType="x:String">
-                                                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" />
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </StackPanel>
+                                                            <Grid ColumnDefinitions="56,*" Margin="0,10,0,0">
+                                                                <!-- The day's label, as in Google Calendar's agenda widget. -->
+                                                                <StackPanel Spacing="0" VerticalAlignment="Top" Margin="0,2,0,0">
+                                                                    <TextBlock Classes="muted" Text="{Binding Weekday}" FontSize="12" />
+                                                                    <TextBlock Text="{Binding DayNumber}" FontSize="22" FontWeight="SemiBold" />
+                                                                    <TextBlock Classes="muted" Text="Tomorrow" FontSize="10" IsVisible="{Binding IsTomorrow}" TextWrapping="NoWrap" />
+                                                                </StackPanel>
+                                                                <StackPanel Grid.Column="1" Spacing="6">
+                                                                    <ItemsControl ItemsSource="{Binding Events}">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <StackPanel Spacing="6" />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:ShutdownAheadEvent">
+                                                                                <Border Background="{Binding Background}" CornerRadius="12" Padding="12,8">
+                                                                                    <StackPanel Spacing="1">
+                                                                                        <TextBlock Text="{Binding Title}" Foreground="{Binding Foreground}" FontSize="14" FontWeight="SemiBold"
+                                                                                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                                                                        <TextBlock Text="{Binding TimeText}" Foreground="{Binding Foreground}" FontSize="12" IsVisible="{Binding IsTimed}" />
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <TextBlock Classes="muted" Text="{Binding MoreText}" FontSize="12" IsVisible="{Binding HasMore}" Margin="4,0,0,0" />
+                                                                </StackPanel>
+                                                            </Grid>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
