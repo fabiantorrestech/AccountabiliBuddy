@@ -320,7 +320,7 @@ public sealed partial class NotebookViewModel : ObservableObject
             Guid id = row.Id;
             bool isDone = row.IsDone;
             // Its category as it is now (as it was when the session ended, if it has since been deleted), e.g. "Work · Session of …".
-            (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_tasks.Categories, row.CategoryId, row.Category, row.CategoryColor);
+            (string? categoryName, string? categoryColor) = _tasks.ShownCategory(row.CategoryId, row.Category, row.CategoryColor);
             string categoryText = categoryName is not null ? $"{categoryName} · " : string.Empty;
             string where = row.Source == ArchiveSource.TaskList ? "From your task list"
                 : row.Outside ? "Done outside a session"

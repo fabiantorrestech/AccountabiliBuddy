@@ -54,7 +54,7 @@ public static class TaskActions
     /// </summary>
     public static TaskActionResult Add(
         TaskLists lists, Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, string? origin,
-        DateTimeOffset now, Guid self, int? estimateMinutes = null)
+        DateTimeOffset now, Guid self, int? estimateMinutes = null, IReadOnlyCollection<Guid>? removed = null)
     {
         string trimmed = title.Trim();
         if (trimmed.Length == 0 || bin is TaskBin.Session or TaskBin.Done || id == Guid.Empty || lists.Tasks.Any(item => item.Id == id))
@@ -71,7 +71,9 @@ public static class TaskActions
             Note: SessionChecklist.CleanNote(note),
             Origin: string.IsNullOrWhiteSpace(origin) ? null : origin.Trim());
         List<SyncTaskItem> tasks = [.. lists.Tasks, new SyncTaskItem(task, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self)))];
-        return new TaskActionResult(lists with { Tasks = tasks }, TaskToasts.Added(task), [id]);
+        // ADR 89: a label or tag typed here that is hidden on this device was chosen by the user, who joins it (never a silent copy).
+        TaskLists after = TaskScopes.KeepHidden(lists, lists with { Tasks = tasks }, self, removed, now, joinNew: true);
+        return new TaskActionResult(after, TaskToasts.Added(task), [id]);
     }
 
     /// <summary>

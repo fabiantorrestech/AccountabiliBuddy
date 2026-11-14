@@ -41,11 +41,19 @@ public sealed class TaskLabelService
     public string? TagDevicesLine(string tag) => _store.DevicesLine(TaskScopes.ScopeOf(tag, _store.Lists.TagScopes)?.OnlyOn);
 
     /// <summary>The live labels this device shows (ADR 89: other devices' device-only ones stay hidden), in the list's order.</summary>
-    public IReadOnlyList<TaskLabel> Labels => _store.Lists.Labels
-        .Select(item => item.Label)
-        .Where(label => label.IsLive && label.Name.Trim().Length > 0 && _store.LabelShown(label))
-        .OrderBy(label => label.Position).ThenBy(label => label.Id.ToString("D"), StringComparer.Ordinal)
-        .ToList();
+    public IReadOnlyList<TaskLabel> Labels
+    {
+        get
+        {
+            // The test is built once for the whole list (it reads the removed devices), not once per label.
+            Func<TaskLabel, bool> shown = _store.LabelShown;
+            return _store.Lists.Labels
+                .Select(item => item.Label)
+                .Where(label => label.IsLive && label.Name.Trim().Length > 0 && shown(label))
+                .OrderBy(label => label.Position).ThenBy(label => label.Id.ToString("D"), StringComparer.Ordinal)
+                .ToList();
+        }
+    }
 
     /// <summary>How many tasks have the label: the task list's live tasks, plus a running session's checklist tasks (held out of the list).</summary>
     public int UseCount(Guid labelId)

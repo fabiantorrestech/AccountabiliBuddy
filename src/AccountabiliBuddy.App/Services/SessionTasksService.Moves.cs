@@ -38,6 +38,13 @@ public sealed partial class SessionTasksService
             }
         }
 
+        // ADR 89: a task that moves under its own id keeps the hidden label and tags it holds in the task list (the list's item shows only the shown ones).
+        if (source.Id is Guid movingId && _taskStore is { IsActive: true } listed)
+        {
+            (string? keptCategory, string? keptColor, IReadOnlyList<string>? keptTags) = listed.WithHiddenOf(movingId, source.Category, source.CategoryColor, source.Labels);
+            source = source with { Category = keptCategory, CategoryColor = keptColor, Labels = keptTags };
+        }
+
         Guid? categoryId = source.Category is { } name && name.Trim().Length > 0
             ? await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: source.CategoryColor))
             : null;
@@ -521,7 +528,8 @@ public sealed partial class SessionTasksService
     public Task SetHistoryCategoryAsync(Guid taskId, Guid? categoryId)
     {
         TaskCategory? category = _categories.FirstOrDefault(candidate => candidate.Id == categoryId);
-        return ChangeHistoryAsync(task => task.Id == taskId
+        // ADR 89: a record that shows No label because its label is hidden here keeps it when None is picked.
+        return ChangeHistoryAsync(task => task.Id == taskId && !(categoryId is null && IsHiddenCategory(task.CategoryId, task.Category))
             ? task with { CategoryId = category?.Id, Category = category?.Name, CategoryColor = category?.Color }
             : task);
     }
@@ -616,6 +624,7 @@ public sealed partial class SessionTasksService
 
     private TodaySource SourceOfTask(SessionTask task)
     {
+        // The record's own category, hidden or not: a copy keeps it (ADR 89).
         (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_categories, task.CategoryId, task.Category, task.CategoryColor);
         // A done task comes back open: all its steps reopen; an open one brings its open steps.
         IReadOnlyList<SessionSubtask> steps = task.IsDone ? task.Subtasks : OpenStepsOf(task.Subtasks);

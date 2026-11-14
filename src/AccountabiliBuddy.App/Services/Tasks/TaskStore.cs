@@ -112,6 +112,17 @@ public sealed class TaskStore
     /// <summary>Every category, hidden ones too: for what goes to other devices and into backups, never for a screen.</summary>
     public IReadOnlyList<TaskCategory> AllCategories => TaskFacadeLists.Categories(_lists.Labels, _categoryIds);
 
+    /// <summary>
+    /// <paramref name="categories"/> without the ones this device doesn't show (ADR 89), for <see cref="ApplyCategories"/>: a category list
+    /// that holds a hidden label makes the list join it. A category with an id the labels don't know (just typed) stays.
+    /// </summary>
+    public IReadOnlyList<TaskCategory> WithoutHidden(IReadOnlyList<TaskCategory> categories)
+    {
+        HashSet<Guid> shown = Categories.Select(category => category.Id).ToHashSet();
+        HashSet<Guid> hidden = AllCategories.Select(category => category.Id).Where(id => !shown.Contains(id)).ToHashSet();
+        return categories.Where(category => !hidden.Contains(category.Id)).ToList();
+    }
+
     /// <summary>This device's id; empty while it isn't in a sync group (then every label and tag shows and nothing can be device-only).</summary>
     public Guid SelfDevice => Self;
 
@@ -135,6 +146,53 @@ public sealed class TaskStore
     public IReadOnlyList<string> ShownTags(IReadOnlyList<string>? tags)
     {
         return TaskScopes.ShownTags(tags, _lists.TagScopes, Self, Removed) ?? [];
+    }
+
+    /// <summary>"Uses a label from Laptop": the view filters by something other devices keep to themselves (never its name); null for none.</summary>
+    public string? HiddenLabelNote(TaskViewConfig config)
+    {
+        var devices = new List<string>();
+        foreach (Guid id in config.Labels ?? [])
+        {
+            if (_lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.Id == id && label.IsLive && !LabelShown(label)) is { } label)
+            {
+                devices.Add(OtherDevicesText(label.OnlyOn) ?? "another device");
+            }
+        }
+
+        foreach (string tag in config.Tags ?? [])
+        {
+            if (!TagShown(tag))
+            {
+                devices.Add(OtherDevicesText(TaskScopes.ScopeOf(tag, _lists.TagScopes)?.OnlyOn) ?? "another device");
+            }
+        }
+
+        return devices.Count == 0 ? null : "Uses a label from " + string.Join(", ", devices.Distinct());
+    }
+
+    /// <summary>
+    /// ADR 89: what a list's item shows of a task (its label name and colour, its tags: only what this device shows) with the hidden label and
+    /// tags the task holds in the list added back, for something that moves a task into the session's checklist under its own id (a
+    /// come-back, a Later item, an Auto-saved one): the checklist keeps the task's full labelling. Unchanged for an unknown id.
+    /// </summary>
+    public (string? Category, string? Color, IReadOnlyList<string>? Tags) WithHiddenOf(Guid id, string? category, string? color, IReadOnlyList<string>? tags)
+    {
+        if (!IsActive || _lists.Tasks.FirstOrDefault(item => item.Id == id && item.Task.IsLive) is not { } stored)
+        {
+            return (category, color, tags);
+        }
+
+        TaskLabel? hidden = string.IsNullOrWhiteSpace(category) && stored.Task.LabelId is Guid labelId
+            ? _lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.Id == labelId && label.IsLive && !LabelShown(label))
+            : null;
+        return (hidden?.Name ?? category, hidden?.Color ?? color, TaskScopes.WithHiddenTags(tags, stored.Task.Tags, _lists.TagScopes, Self, Removed));
+    }
+
+    /// <summary>Whether any task, in any state (open, done, deleted), carries the tag: a tag that has never been used is new.</summary>
+    public bool TagExists(string tag)
+    {
+        return TaskScopes.ScopeOf(tag, _lists.TagScopes) is not null || _lists.Tasks.Any(item => TaskLabels.Has(item.Task.Tags, tag));
     }
 
     /// <summary>Whether the label counts as shared for this device (no list, or every device in it removed).</summary>
@@ -499,10 +557,14 @@ public sealed class TaskStore
             DueOn = original.DueOn,
             DueAt = original.DueAt,
             Calendar = original.Calendar,
+            // ADR 89: the copy keeps the labels and tags the original had that this device doesn't show (belt and braces: the record holds them too).
+            LabelId = TaskScopes.WithHiddenLabel(copy.Task.LabelId, original.LabelId, _lists.Labels.Select(item => item.Label), Self, Removed),
+            Tags = TaskScopes.WithHiddenTags(copy.Task.Tags, original.Tags, _lists.TagScopes, Self, Removed),
         };
         _running.Remove(fromId);
         _heldEndedAt.Remove(fromId);
-        TaskLists placed = TaskListRules.Place(_lists, [wanted], null, Self, Now, removed: Removed);
+        // A carried copy never joins the hidden label or tag it takes back from the original: nobody chose it here.
+        TaskLists placed = TaskListRules.Place(_lists, [wanted], null, Self, Now, removed: Removed) with { Labels = _lists.Labels, TagScopes = _lists.TagScopes };
         return Task.WhenAll(Commit(placed, null, fromOtherDevice: false).Save, SaveRunningAsync());
     }
 

@@ -401,8 +401,9 @@
                                                     </ComboBox.ItemTemplate>
                                                 </ComboBox>
                                                 <TextBlock Classes="muted" FontSize="12" IsVisible="{Binding HasNoLabels}" Text="No labels on this PC yet: make one on Tasks." />
-                                                <TextBox Text="{Binding Tag}" IsVisible="{Binding ShowsTag}" PlaceholderText="#study" MaxWidth="260" HorizontalAlignment="Left"
+                                                <TextBox Text="{Binding Tag}" IsVisible="{Binding ShowsTagBox}" PlaceholderText="#study" MaxWidth="260" HorizontalAlignment="Left"
                                                          AutomationProperties.Name="Tag" />
+                                                <TextBlock Classes="muted" FontSize="12" IsVisible="{Binding ShowsHiddenTagNote}" Text="{Binding HiddenTagNote}" />
                                                 <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" IsVisible="{Binding ShowsCategory}" MinWidth="220"
                                                           PlaceholderText="Pick a day plan category" AutomationProperties.Name="Calendar category">
                                                     <ComboBox.ItemTemplate>

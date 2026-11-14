@@ -41,6 +41,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         Automatic = rule.Automatic;
         SelectedLabel = Labels.FirstOrDefault(choice => rule.LabelId is Guid id && choice.Key == id.ToString());
         Tag = rule.Tag ?? string.Empty;
+        // A tag another device keeps to itself (ADR 89) still counts: the row keeps it (the saved rule), says where it is from and never shows its name.
+        HiddenTagNote = rule.Type == GoalSourceType.FocusTag && rule.Tag is { } hiddenTag ? lookups.HiddenTagNote?.Invoke(hiddenTag) : null;
         SelectedCategory = Categories.FirstOrDefault(choice => rule.CalendarCategoryId is Guid id && choice.Key == id.ToString());
         App = rule.App ?? string.Empty;
         ScreenAtMost = rule.ScreenDirection != GoalDirection.AtLeast;
@@ -120,6 +122,14 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     public bool ShowsLabel => _rule.Type == GoalSourceType.FocusLabel;
 
     public bool ShowsTag => _rule.Type == GoalSourceType.FocusTag;
+
+    /// <summary>"Uses a label from Laptop" when the source's tag is another device's device-only one (ADR 89); null otherwise.</summary>
+    public string? HiddenTagNote { get; }
+
+    /// <summary>The tag box shows unless the tag is hidden here (then only the note shows, and the rule keeps the tag).</summary>
+    public bool ShowsTagBox => ShowsTag && HiddenTagNote is null;
+
+    public bool ShowsHiddenTagNote => ShowsTag && HiddenTagNote is not null;
 
     public bool ShowsCategory => _rule.Type == GoalSourceType.CalendarCategory;
 

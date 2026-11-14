@@ -236,7 +236,7 @@ public sealed partial class ListPickerViewModel : ObservableObject
     // A record's category name: this PC's category of that id as it is now, else the name it kept.
     private string? CategoryNameOf(SessionTask task)
     {
-        return TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Name;
+        return _tasks.ShownCategory(task.CategoryId, task.Category, task.CategoryColor).Name;
     }
 
     private bool MatchesTask(string search, SessionTask task)

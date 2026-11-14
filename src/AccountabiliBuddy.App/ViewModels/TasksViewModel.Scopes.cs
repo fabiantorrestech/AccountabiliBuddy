@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -20,23 +21,32 @@ public sealed partial class TasksViewModel
     /// <summary>Whether the name box offers "Only on this device".</summary>
     public bool CanChooseScope => GroupsByScope;
 
-    // A label just made from the name box: device-only when asked.
-    private async Task ScopeNewLabelAsync(Guid? categoryId, bool onlyHere)
-    {
-        if (!onlyHere || _store is not { IsActive: true } store || LabelIdOf(categoryId) is not Guid labelId)
-        {
-            return;
-        }
+    internal TypedNameScopes.NameState LabelNameState(string name) => _store is null ? TypedNameScopes.NameState.New : TypedNameScopes.LabelNameState(_store, name);
 
-        await store.ChangeAsync(this, (lists, self, now) => self == Guid.Empty ? lists : TaskLabelEdits.SetOnlyOn(lists, labelId, TaskLabelEdits.Joined(null, self), now, self));
+    // A typed name that is a label only other devices show: this device joins it and says so (the rules are in TypedNameScopes).
+    private async Task JoinHiddenLabelAsync(string name)
+    {
+        if (_store is { IsActive: true } store && await TypedNameScopes.JoinHiddenLabelAsync(store, this, name) is string note)
+        {
+            Notice = note;
+        }
     }
 
-    // A tag just made from the name box: device-only when asked.
+    // A label just typed in the name box or the add box: "Only on this device" applies to a NEW name only.
+    private async Task ScopeNewLabelAsync(Guid? categoryId, bool onlyHere, TypedNameScopes.NameState before)
+    {
+        if (_store is { IsActive: true } store && LabelIdOf(categoryId) is Guid labelId && await TypedNameScopes.ScopeTypedLabelAsync(store, this, labelId, onlyHere, before) is string note)
+        {
+            Notice = note;
+        }
+    }
+
+    // A tag typed in the name box or the add box: "Only on this device" applies to a NEW tag only; a hidden one is joined.
     private async Task ScopeNewTagAsync(string tag, bool onlyHere)
     {
-        if (onlyHere && _store is { IsActive: true } store)
+        if (_store is { IsActive: true } store && await TypedNameScopes.ScopeTypedTagAsync(store, this, tag, onlyHere) is string note)
         {
-            await store.ChangeAsync(this, (lists, self, now) => lists with { TagScopes = TagScopeEdits.SetScope(lists.TagScopes, tag, true, now, self) });
+            Notice = note;
         }
     }
 

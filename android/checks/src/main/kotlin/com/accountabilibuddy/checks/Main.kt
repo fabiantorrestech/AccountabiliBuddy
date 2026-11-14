@@ -135,6 +135,7 @@ private val checks: List<FixtureCheck> = listOf(
     Lb1aCheck("converge", Lb1aCases::converge),
     Lb1aCheck("keep-hidden", Lb1aCases::keepHidden),
     Lb1aCheck("restore-incoming", Lb1aCases::restoreIncoming),
+    Lb1aCheck("view-fallback", Lb1aCases::viewFallback),
     // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
     // entry rows, derived values, counting across devices, the shared history (gs1b).
     Gs2Check("gs1a", "merge", Gs2Cases::merge),

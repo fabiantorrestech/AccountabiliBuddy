@@ -224,8 +224,11 @@ public static class TaskScopes
     /// A tag or label the writer set that is hidden here and the task didn't hold was typed or chosen by the user, who joins it: this device
     /// is added to its list (<see cref="TagScopeEdits.SetScope"/>, <see cref="TaskLabelEdits.SetOnlyOn"/>), never made shared for everyone.
     /// Nothing changes on a device with no id. Every writer of a task's tags or label ends with this (the checks hold a mutation per writer).
+    /// <paramref name="joinNew"/> false: a task that is not in <paramref name="before"/> (a copy, a handover, a restore, another device's add
+    /// request) never makes this device join a hidden label or tag it carries over from elsewhere, because nobody typed or picked it here;
+    /// a typing path (the add box) keeps the default true. The phone's keepHidden(joinNew) is the twin.
     /// </summary>
-    public static TaskLists KeepHidden(TaskLists before, TaskLists after, Guid self, IReadOnlyCollection<Guid>? removed, DateTimeOffset now)
+    public static TaskLists KeepHidden(TaskLists before, TaskLists after, Guid self, IReadOnlyCollection<Guid>? removed, DateTimeOffset now, bool joinNew = true)
     {
         if (self == Guid.Empty)
         {
@@ -247,8 +250,13 @@ public static class TaskScopes
 
             held.TryGetValue(tasks[index].Id, out TaskItem? was);
             IReadOnlyList<string>? tags = WithHiddenTags(task.Tags, was?.Tags, after.TagScopes, self, removed);
-            joinTags.AddRange((TaskLabels.Clean(task.Tags) ?? []).Where(tag => !TaskLabels.Has(was?.Tags, tag) && !TagVisible(tag, after.TagScopes, self, removed)));
-            if (task.LabelId is Guid chosen && chosen != was?.LabelId && labels.FirstOrDefault(label => label.Id == chosen && label.IsLive) is { } picked && !LabelVisible(picked, self, removed))
+            bool mayJoin = was is not null || joinNew;
+            if (mayJoin)
+            {
+                joinTags.AddRange((TaskLabels.Clean(task.Tags) ?? []).Where(tag => !TaskLabels.Has(was?.Tags, tag) && !TagVisible(tag, after.TagScopes, self, removed)));
+            }
+
+            if (mayJoin && task.LabelId is Guid chosen && chosen != was?.LabelId && labels.FirstOrDefault(label => label.Id == chosen && label.IsLive) is { } picked && !LabelVisible(picked, self, removed))
             {
                 joinLabels.Add(chosen);
             }

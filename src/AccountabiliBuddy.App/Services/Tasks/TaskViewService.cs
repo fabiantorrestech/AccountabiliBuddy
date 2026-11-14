@@ -216,13 +216,28 @@ public sealed class TaskViewService
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// ADR 89: "Uses a label from Laptop. Showing Default." while the view in use filters only by labels or tags this device doesn't show,
+    /// so the page opens as Default instead of empty (the saved view is unchanged); null otherwise. Set by <see cref="Query"/>.
+    /// </summary>
+    public string? FallbackNote { get; private set; }
+
     /// <summary>What the view shows now: the live tasks of <paramref name="scope"/> (the Shelf's bins; null for all), filtered, grouped and sorted.</summary>
     public TaskViewResult Query(IReadOnlyList<TaskBin>? scope = null, bool showEmptyBins = false)
     {
         TaskLists lists = _store.Lists;
+        List<TaskLabel> labels = lists.Labels.Select(item => item.Label).ToList();
+        TaskViewConfig config = Working;
+        FallbackNote = null;
+        if (TaskViewFallback.ShouldFallBack(config, labels, _store.LabelShown, _store.TagShown))
+        {
+            FallbackNote = (_store.HiddenLabelNote(config) ?? "Uses a label from another device") + ". Showing Default.";
+            config = lists.Views.FirstOrDefault(item => item.Id == TaskView.DefaultId && item.View.IsLive)?.View.Config ?? TaskViewConfig.Everything;
+        }
+
         var context = new TaskViewContext(
-            _time.GetUtcNow(), TimeZoneInfo.Local, lists.Labels.Select(item => item.Label).ToList(), Search, scope, showEmptyBins, _store.LabelShown, _store.TagShown);
-        return TaskViewRules.Apply(lists.Tasks.Select(item => item.Task), Working, context);
+            _time.GetUtcNow(), TimeZoneInfo.Local, labels, Search, scope, showEmptyBins, _store.LabelShown, _store.TagShown);
+        return TaskViewRules.Apply(lists.Tasks.Select(item => item.Task), config, context);
     }
 
     /// <summary>The tasks and steps a search finds (a number like "142b", or words), whatever the view; for the search box's own list.</summary>

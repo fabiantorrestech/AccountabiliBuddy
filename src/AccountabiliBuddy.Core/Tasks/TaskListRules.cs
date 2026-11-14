@@ -26,7 +26,7 @@ public static class TaskListRules
     /// this device's edits. A local item kept here comes back over its own stub (a handover taken in); a task keeps the place its
     /// list gave it; a new Auto-saved task gets its origin line; a ticked Later item or come-back deleted here leaves History. ADR 89: the old
     /// lists show only what this device shows, so a task keeps the labels and tags it holds that are hidden here, and a hidden label or tag
-    /// the user wrote is joined (<see cref="TaskScopes.KeepHidden"/>; <paramref name="removed"/>: the devices removed from the group, null for none).
+    /// the user wrote on a task that was already here is joined; a new or copied task never joins (<see cref="TaskScopes.KeepHidden"/>, joinNew false; <paramref name="removed"/>: the devices removed from the group, null for none).
     /// </summary>
     public static TaskLists ApplyLocal(
         TaskLists lists, OldTaskFields changed, Guid self, DateTimeOffset now, TimeZoneInfo zone, int sessionActions, IReadOnlyCollection<Guid>? removed)
@@ -64,7 +64,7 @@ public static class TaskListRules
         }
 
         var result = new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared), lists.Account, lists.TagScopes);
-        return TaskScopes.KeepHidden(lists, result, self, removed, now);
+        return TaskScopes.KeepHidden(lists, result, self, removed, now, joinNew: false);
     }
 
     /// <summary>
@@ -124,7 +124,7 @@ public static class TaskListRules
         }
 
         TaskLists before = held is null ? lists : lists with { Tasks = lists.Tasks.Concat(held.Values).ToList() };
-        return TaskScopes.KeepHidden(before, lists with { Tasks = tasks }, self, removed, now);
+        return TaskScopes.KeepHidden(before, lists with { Tasks = tasks }, self, removed, now, joinNew: false);
     }
 
     /// <summary>A place after every live task in <paramref name="bin"/> (1 in an empty bin).</summary>

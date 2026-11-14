@@ -21,11 +21,15 @@ public sealed record TaskViewContext(
     Func<TaskLabel, bool>? LabelShown = null,
     Func<string, bool>? TagShown = null)
 {
+    // Worked out once per query, not once per task (a view of hundreds of tasks asks for them for each).
+    private IReadOnlyList<TaskLabel>? _shownLabels;
+    private HashSet<Guid>? _shownLabelIds;
+
     /// <summary>The labels this device shows.</summary>
-    public IReadOnlyList<TaskLabel> ShownLabels => LabelShown is null ? Labels : Labels.Where(LabelShown).ToList();
+    public IReadOnlyList<TaskLabel> ShownLabels => _shownLabels ??= LabelShown is null ? Labels : Labels.Where(LabelShown).ToList();
 
     /// <summary>The ids of the live labels this device shows.</summary>
-    public HashSet<Guid> ShownLabelIds => ShownLabels.Where(label => label.IsLive).Select(label => label.Id).ToHashSet();
+    public HashSet<Guid> ShownLabelIds => _shownLabelIds ??= ShownLabels.Where(label => label.IsLive).Select(label => label.Id).ToHashSet();
 
     /// <summary>The task's tags this device shows (null: none).</summary>
     public IReadOnlyList<string>? ShownTags(TaskItem task)

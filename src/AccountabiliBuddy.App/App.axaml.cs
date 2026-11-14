@@ -1960,6 +1960,14 @@ public partial class App : Application
             // Opens Beeminder's site in the user's browser: the app itself makes no connection for it.
             OpenInBrowser = address => OpenInBrowser(new Uri(address)),
         };
+        // ADR 89: a goal source on a label or tag another device keeps to itself still counts; its page says where the label is from, never its name.
+        goalsPage.Detail.HiddenLabelNote = labelId => sessionTasks.ScopeSource is { IsActive: true } scoped
+            && scoped.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.Id == labelId && label.IsLive && !scoped.LabelShown(label)) is { } hiddenLabel
+            ? "Uses a label from " + (scoped.OtherDevicesText(hiddenLabel.OnlyOn) ?? "another device")
+            : null;
+        goalsPage.Detail.HiddenTagNote = tag => sessionTasks.ScopeSource is { IsActive: true } scoped && !scoped.TagShown(tag)
+            ? "Uses a label from " + (scoped.OtherDevicesText(AccountabiliBuddy.Core.Tasks.TaskScopes.ScopeOf(tag, scoped.Lists.TagScopes)?.OnlyOn) ?? "another device")
+            : null;
         // Stats for the goal shown: its year with paused stretches hatched over Stats' own views (R5.4); Stats alone without a goal.
         // Month lines (HM1): Stats shows the goals store's one choice and saves through it; every open heatmap follows at once.
         statsViewModel.MonthLines = _goals.Store.PageSettings.MonthLines;
@@ -4022,7 +4030,10 @@ public partial class App : Application
             .FirstOrDefault(label => label.Id == labelId && label.IsLive && !scopedStore.LabelShown(label)) is { } hidden
             ? "Uses a label from " + (scopedStore.OtherDevicesText(hidden.OnlyOn) ?? "another device")
             : null;
-        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote);
+        Func<string, string?> hiddenTagNote = tag => scopedStore is { } tagStore && !tagStore.TagShown(tag)
+            ? "Uses a label from " + (tagStore.OtherDevicesText(AccountabiliBuddy.Core.Tasks.TaskScopes.ScopeOf(tag, tagStore.Lists.TagScopes)?.OnlyOn) ?? "another device")
+            : null;
+        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote, hiddenTagNote);
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
         if (suggested is not null)
         {

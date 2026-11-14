@@ -80,8 +80,43 @@ public sealed partial class SessionTasksService : IDisposable
     /// <summary>The clock the tasks are stamped by.</summary>
     public TimeProvider Clock => _time;
 
-    /// <summary>The task categories in the order the checklist groups them.</summary>
-    public IReadOnlyList<TaskCategory> Categories => _categories;
+    /// <summary>
+    /// The task categories this device shows, in the order the checklist groups them (ADR 89: without other devices' device-only labels).
+    /// The service itself keeps every category (<see cref="AllCategories"/>): a session's task holds its full label and tags, and a copy
+    /// of it (Move to Later, Today, Park) keeps them; screens read this list, so a hidden label reads No label.
+    /// </summary>
+    public IReadOnlyList<TaskCategory> Categories => _taskStore is { IsActive: true } store ? store.Categories : _categories;
+
+    /// <summary>
+    /// The name and colour a screen shows for something in a category: the category as it is now when this device shows it, else the stored
+    /// values, but never the name of a label this device doesn't show (ADR 89: that reads No label, both null).
+    /// </summary>
+    public (string? Name, string? Color) ShownCategory(Guid? id, string? name, string? storedColor)
+    {
+        IReadOnlyList<TaskCategory> shown = Categories;
+        bool known = shown.Any(category => category.Id == id)
+            || (name is not null && shown.Any(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase)));
+        if (!known && _taskStore is { IsActive: true } && IsHiddenCategory(id, name))
+        {
+            return (null, null);
+        }
+
+        return TaskCategoryDisplay.Resolve(shown, id, name, storedColor);
+    }
+
+    /// <summary>Whether the category (by id, else by name) exists but this device doesn't show it (ADR 89).</summary>
+    public bool IsHiddenCategory(Guid? id, string? name)
+    {
+        if (_taskStore is not { IsActive: true } store)
+        {
+            return false;
+        }
+
+        IReadOnlyList<TaskCategory> shown = store.Categories;
+        bool Hidden(TaskCategory category) => !shown.Any(item => item.Id == category.Id);
+        return store.AllCategories.Any(category => Hidden(category)
+            && (category.Id == id || (name is not null && string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase))));
+    }
 
     /// <summary>The task list underneath, for what screens need to know about labels and tags kept to one device (ADR 89); null before it is attached.</summary>
     public TaskStore? ScopeSource => _taskStore;

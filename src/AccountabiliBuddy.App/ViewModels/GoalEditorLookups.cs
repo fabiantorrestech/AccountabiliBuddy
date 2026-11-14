@@ -11,6 +11,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="BeeminderReadText">"Read 2:05 PM": when the datapoints of the linked goals were last read (ADR 84); null before the first read.</param>
 /// <param name="BeeminderProblemText">"Couldn't reach Beeminder · keeps the last values" when the last read failed; null otherwise.</param>
 /// <param name="HiddenLabelNote">ADR 89: "Uses a label from Laptop" for a label id this device doesn't show (it still counts; the name never shows here); null for any other id.</param>
+/// <param name="HiddenTagNote">ADR 89: "Uses a label from Laptop" for a tag this device doesn't show (it still counts; the name never shows here); null for any other tag.</param>
 /// <param name="IsProductaBuddy">ProductaBuddy mode (ADR 68): the PB badge, per-mode defaults, lowering Deep work at once.</param>
 public sealed record GoalEditorLookups(
     IReadOnlyList<GoalChoice> Labels,
@@ -20,7 +21,8 @@ public sealed record GoalEditorLookups(
     bool IsProductaBuddy,
     string? BeeminderReadText = null,
     string? BeeminderProblemText = null,
-    Func<Guid, string?>? HiddenLabelNote = null)
+    Func<Guid, string?>? HiddenLabelNote = null,
+    Func<string, string?>? HiddenTagNote = null)
 {
     public static GoalEditorLookups Empty { get; } = new([], [], false, [], false);
 }

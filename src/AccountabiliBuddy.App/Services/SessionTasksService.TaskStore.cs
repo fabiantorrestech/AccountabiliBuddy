@@ -77,9 +77,11 @@ public sealed partial class SessionTasksService
     private void ReadFromTaskStore()
     {
         TaskStore tasks = _taskStore!;
-        _nextTasks = TaskFacadeLists.Draft(tasks.Lists, _time.GetUtcNow(), tasks.LabelShown, tasks.TagShown);
+        // ADR 89: the session's tasks keep their full label and tags (null, null: nothing filtered); screens filter at display, so a copy of a
+        // task made from a session's record keeps what this device can't see.
+        _nextTasks = TaskFacadeLists.Draft(tasks.Lists, _time.GetUtcNow(), labelShown: null, tagShown: null);
         _draftShown = _nextTasks.ToDictionary(task => task.Id, task => task.TieBreak);
-        _categories = tasks.Categories;
+        _categories = tasks.AllCategories;
     }
 
     private string DraftSignature()
@@ -102,11 +104,12 @@ public sealed partial class SessionTasksService
     {
         bool draftUnsent = _nextTasks.Any(task => !_draftShown.TryGetValue(task.Id, out string? shown) || shown != task.TieBreak)
             || _draftShown.Count != _nextTasks.Count;
-        Task saved = _taskStore!.ApplyCategories(this, _categories);
+        // A category this device doesn't show is not sent back: the list would join it (ADR 89). One the user just typed (a new id) is.
+        Task saved = _taskStore!.ApplyCategories(this, _taskStore.WithoutHidden(_categories));
         if (draftUnsent)
         {
             // The draft's own changes go with its next save; only the categories are read back now.
-            _categories = _taskStore.Categories;
+            _categories = _taskStore.AllCategories;
         }
         else
         {

@@ -138,6 +138,9 @@ public sealed partial class ShelfViewModel : ObservableObject
     /// <summary>What the active view shows of the Shelf's bins, grouped; null before the task list exists.</summary>
     public TaskViewResult? Query() => _views?.Query(Bins, showEmptyBins: true);
 
+    /// <summary>"Uses a label from Laptop. Showing Default.": set by the last <see cref="Query"/> when the view only filters by labels or tags hidden here (ADR 89).</summary>
+    public string? FallbackNote => _views?.FallbackNote;
+
     /// <summary>The active view's Group by ("bins", "label", "tag", "none"); bins before the task list exists.</summary>
     public string Grouping => _views?.Working.Group ?? TaskViewConfig.GroupBins;
 
@@ -244,28 +247,28 @@ public sealed partial class ShelfViewModel : ObservableObject
         }
 
         TaskViewConfig working = _views.Working;
-        bool noRestriction = working.Labels is not { Count: > 0 } && !working.NoLabel;
+        bool noRestriction = ShownLabelIds(working.Labels).Count == 0 && !working.NoLabel;
         var chips = new List<TaskChipViewModel> { new("All", noRestriction, () => PickLabel(null, false)) };
         foreach (TaskLabel label in LiveLabels())
         {
             Guid id = label.Id;
-            bool only = working.Labels is { Count: 1 } labels && labels[0] == id && !working.NoLabel;
+            bool only = ShownLabelIds(working.Labels) is [Guid single] && single == id && !working.NoLabel;
             chips.Add(new TaskChipViewModel(label.Name, only, () => PickLabel(id, false), TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color))));
         }
 
-        bool onlyNone = working.NoLabel && working.Labels is not { Count: > 0 };
+        bool onlyNone = working.NoLabel && ShownLabelIds(working.Labels).Count == 0;
         chips.Add(new TaskChipViewModel("No label", onlyNone, () => PickLabel(null, true)));
         return chips;
     }
 
     private Task PickLabel(Guid? id, bool noLabel)
     {
-        _views?.Modify(config => config with { Labels = id is Guid one ? [one] : null, NoLabel = noLabel });
+        _views?.Modify(config => config with { Labels = WithHiddenLabelIds(config.Labels, id is Guid one ? [one] : []), NoLabel = noLabel });
         return Task.CompletedTask;
     }
 
     /// <summary>History (the View menu's "History…"): a fresh list of the last 30 days; null before the task list exists.</summary>
-    public TaskHistoryViewModel? History() => _actions is null ? null : new TaskHistoryViewModel(_actions, _time, HistoryLabel);
+    public TaskHistoryViewModel? History() => _actions is null ? null : new TaskHistoryViewModel(_actions, _time, HistoryLabel, tags => _store?.ShownTags(tags) ?? tags ?? []);
 
     // A History row's label: the task list's live label with that id.
     private AccountabiliBuddy.Core.Domain.TaskLabel? HistoryLabel(Guid? labelId)
@@ -442,10 +445,10 @@ public sealed partial class ShelfViewModel : ObservableObject
     // Labels: All, each label (ticks widen: any of them matches), No label.
     private List<TaskMenuEntry> LabelFilterMenu(TaskViewConfig working)
     {
-        bool all = working.Labels is not { Count: > 0 } && !working.NoLabel;
+        bool all = ShownLabelIds(working.Labels).Count == 0 && !working.NoLabel;
         var entries = new List<TaskMenuEntry>
         {
-            new("All labels", new RelayCommand(() => _views?.Modify(config => config with { Labels = null, NoLabel = false })), IsChecked: all),
+            new("All labels", new RelayCommand(() => _views?.Modify(config => config with { Labels = WithHiddenLabelIds(config.Labels, []), NoLabel = false })), IsChecked: all),
         };
         var items = new List<(bool Shared, TaskMenuEntry Entry)>();
         foreach (TaskLabel label in LiveLabels())
@@ -543,6 +546,22 @@ public sealed partial class ShelfViewModel : ObservableObject
         }
 
         return "Your order";
+    }
+
+    // ADR 89: the label ids of a view this device shows, and the view's labels with the hidden ones kept (a choice made here never drops a
+    // label another device keeps to itself: the view still names it).
+    private List<Guid> ShownLabelIds(IReadOnlyList<Guid>? ids)
+    {
+        HashSet<Guid> live = LiveLabels().Select(label => label.Id).ToHashSet();
+        return (ids ?? []).Where(live.Contains).ToList();
+    }
+
+    private IReadOnlyList<Guid>? WithHiddenLabelIds(IReadOnlyList<Guid>? current, IEnumerable<Guid> chosen)
+    {
+        TaskStore? store = _store;
+        List<Guid> hidden = (current ?? []).Where(id => store is not null && store.Lists.Labels.Any(item => item.Label.Id == id && item.Label.IsLive && !store.LabelShown(item.Label))).ToList();
+        List<Guid> next = hidden.Concat(chosen).Distinct().ToList();
+        return next.Count == 0 ? null : next;
     }
 
     private static IReadOnlyList<T>? Toggled<T>(IReadOnlyList<T>? list, T value)

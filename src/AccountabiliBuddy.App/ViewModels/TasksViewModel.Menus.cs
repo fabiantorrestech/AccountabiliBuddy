@@ -63,7 +63,7 @@ public sealed partial class TasksViewModel
             new("Time limit", Children: TimeLimitChoicesFor(ids, item.EstimateMinutes), Icon: MaterialIconKind.TimerOutline,
                 Value: item.EstimateMinutes is int minutes ? EstimateText.Of(minutes) : null),
             new("Label", Children: LabelChoicesFor(ids, item.LabelId, markCurrent: true), Icon: MaterialIconKind.CircleSlice8, Value: LabelOf(item.LabelId)?.Name),
-            new("Tags", Children: TagChoicesFor(ids), Icon: MaterialIconKind.Pound, Value: TagsValue(item.Tags)),
+            new("Tags", Children: TagChoicesFor(ids), Icon: MaterialIconKind.Pound, Value: TagsValue(ShownTagsOf(item.Tags))),
             new("Reminders & due date", ViewAction: "reminders", Icon: MaterialIconKind.BellOutline,
                 Value: $"{(item.Reminders ?? []).Count} of {TaskReminder.MaxPerTask}", OpensMore: true),
             HighlightEntry(ids, [item]),

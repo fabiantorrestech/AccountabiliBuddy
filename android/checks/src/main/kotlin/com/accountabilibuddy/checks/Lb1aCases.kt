@@ -11,7 +11,10 @@ import com.accountabilibuddy.shared.tasks.TaskListMerge
 import com.accountabilibuddy.shared.tasks.TaskListRules
 import com.accountabilibuddy.shared.tasks.TaskLists
 import com.accountabilibuddy.shared.tasks.TaskScopes
+import com.accountabilibuddy.shared.tasks.TaskScopeView
 import com.accountabilibuddy.shared.tasks.TaskSearch
+import com.accountabilibuddy.shared.tasks.TaskViewConfig
+import com.accountabilibuddy.shared.tasks.ViewFallback
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -177,8 +180,25 @@ object Lb1aCases {
 
     /** Every writer of a task's tags or label ends with [TaskScopes.keepHidden]. */
     fun keepHidden(case: FixtureCase): String? {
-        val result = TaskScopes.keepHidden(listsOf(case.input.getValue("before")), listsOf(case.input.getValue("after")), case.text("self"), ids(case.input["removed"]).orEmpty(), R71Json.time(case))
+        val result = TaskScopes.keepHidden(listsOf(case.input.getValue("before")), listsOf(case.input.getValue("after")), case.text("self"), ids(case.input["removed"]).orEmpty(), R71Json.time(case),
+            joinNew = case.input["joinNew"]?.takeIf { it !is JsonNull }?.jsonPrimitive?.boolean ?: true,
+        )
         return sameLists(case.expected, result)
+    }
+
+    /** The default-view fallback ([ViewFallback.resolve]; the PC's twin is TaskViewFallback.ShouldFallBack). */
+    fun viewFallback(case: FixtureCase): String? {
+        val lists = TaskLists(emptyList(), R71Json.labels(case.input.getValue("labels")), emptyList(), emptyList(), null, scopes(case.input["scopes"]).ifEmpty { null })
+        val view = TaskScopeView(lists, case.text("self"), emptySet())
+        val time = case.input["time"]?.takeIf { it !is JsonNull }?.jsonArray?.map { it.jsonPrimitive.content }
+        val base = TaskViewConfig.EVERYTHING
+        val config = base.copy(
+            labels = ids(case.input["viewLabels"]).orEmpty().ifEmpty { null }, tags = ids(case.input["viewTags"]).orEmpty().ifEmpty { null },
+            noLabel = case.input.getValue("noLabel").jsonPrimitive.boolean, only = if (time == null) base.only else base.only.copy(time = time),
+        )
+        val fellBack = ViewFallback.resolve(config, view, base) { it }.fellBack
+        val wanted = case.expected.jsonPrimitive.boolean
+        return if (fellBack == wanted) null else "fellBack $fellBack, expected $wanted"
     }
 
     /** A backup taken in as a restore ([TaskListRules.restoredIncoming]). */

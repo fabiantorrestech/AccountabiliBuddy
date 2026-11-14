@@ -541,6 +541,12 @@
                     </Grid>
                 </Border>
 
+                <!-- ADR 89: the view filters only by labels another device keeps to itself, so the page shows Default. -->
+                <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="16,10,16,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                        IsVisible="{Binding HasViewFallbackNote}">
+                    <TextBlock Classes="muted" Text="{Binding ViewFallbackNote}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </Border>
+
                 <!-- "Add to Today" at three tasks: nothing is added until this is answered. -->
                 <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding HasPending}">

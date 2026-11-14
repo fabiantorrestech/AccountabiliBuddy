@@ -227,6 +227,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public bool HasNotice => Notice.Length > 0;
 
+    /// <summary>ADR 89: "Uses a label from Laptop. Showing Default." while the view in use only filters by labels or tags this device doesn't show.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasViewFallbackNote))]
+    public partial string ViewFallbackNote { get; set; } = string.Empty;
+
+    public bool HasViewFallbackNote => ViewFallbackNote.Length > 0;
+
     /// <summary>"Add to Today" at three tasks: asking before anything is added.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPending))]
@@ -350,9 +357,15 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             return;
         }
 
+        TypedNameScopes.NameState state = LabelNameState(name);
+        if (state == TypedNameScopes.NameState.Hidden)
+        {
+            await JoinHiddenLabelAsync(name);
+        }
+
         if (await _tasks.AdoptCategoryAsync(name, null) is Guid id)
         {
-            await ScopeNewLabelAsync(id, onlyHere);
+            await ScopeNewLabelAsync(id, onlyHere, state);
             await apply(id);
         }
     }
@@ -1004,7 +1017,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
                 return LabelOf(StoredTask(key.Id)?.LabelId)?.Name;
             default:
                 SessionTask? task = FindTask(key.Id);
-                return task is null ? null : TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor).Name;
+                return task is null ? null : _tasks.ShownCategory(task.CategoryId, task.Category, task.CategoryColor).Name;
         }
     }
 
@@ -1199,7 +1212,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         foreach (SessionTask task in DoneToday(today))
         {
             Guid id = task.Id;
-            (string? categoryName, string? categoryColor) = TaskCategoryDisplay.Resolve(_tasks.Categories, task.CategoryId, task.Category, task.CategoryColor);
+            (string? categoryName, string? categoryColor) = _tasks.ShownCategory(task.CategoryId, task.Category, task.CategoryColor);
             doneRows.Add(MakeRow(
                 new TaskRowKey(TaskRowKind.Done, id), task.Title, $"Finished {Clock(Local(task.DoneAt!.Value))}", categoryName,
                 categoryColor, categoryId: task.CategoryId, isTicked: true, toggle: () => _tasks.SetTickedAsync(id, false),
@@ -1353,7 +1366,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         var groups = new List<(string Key, string Title, TaskBin? Bin, Guid? LabelId, List<TaskListRowViewModel> Rows)>();
-        if (Shelf.Query() is TaskViewResult result)
+        TaskViewResult? queried = Shelf.Query();
+        ViewFallbackNote = Shelf.FallbackNote ?? string.Empty;
+        if (queried is TaskViewResult result)
         {
             foreach (TaskViewGroup group in result.Groups)
             {
@@ -1550,7 +1565,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     // wins when it has one, else the item's own shows.
     private string? LocalColor(string? categoryName, string? storedColor)
     {
-        return TaskCategoryDisplay.Resolve(_tasks.Categories, null, categoryName, storedColor).Color;
+        return _tasks.ShownCategory(null, categoryName, storedColor).Color;
     }
 
     private TaskListRowViewModel MakeRow(
@@ -1566,7 +1581,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         // ADR 72: the row's labels and, for an item kept on this PC only, a quiet mark, after its own line (rows the task list
         // doesn't hold; the others show the detail line's pieces, tags included).
         TaskItem? item = _rebuildStored is not null && _rebuildStored.TryGetValue(key.Id, out TaskItem? held) ? held : null;
-        string labels = LabelsText(LabelsOf(key));
+        string labels = LabelsText(ShownTagsOf(LabelsOf(key)));
         string kept = LocalToOf(key) is Guid keeper && keeper == SelfId?.Invoke() ? "only on this PC" : string.Empty;
         subText = string.Join(" · ", new[] { subText, labels, kept }.Where(part => part.Length > 0));
         RowExtras extras = ExtrasOf(key, item, isQueued, isTicked, selectable, checklistMinutes);

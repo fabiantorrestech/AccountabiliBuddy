@@ -252,13 +252,13 @@ public sealed partial class TidyUpViewModel : ObservableObject
     private List<TidyUpFact> FactsOf(TaskItem task)
     {
         var facts = new List<TidyUpFact>();
-        TaskLabel? label = task.LabelId is Guid id ? _store.Lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == id) : null;
+        TaskLabel? label = task.LabelId is Guid id ? _store.Lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == id && _store.LabelShown(item)) : null;
         facts.Add(label is null
             ? new TidyUpFact("No label", IsFaint: true)
             : new TidyUpFact(label.Name, TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color))));
         facts.Add(new TidyUpFact(TaskBins.Name(task.Bin), Icon: MaterialIconKind.TrayFull));
         facts.Add(new TidyUpFact($"Untouched {TaskUntouched.Weeks(task, _time.GetUtcNow())} wk", Icon: MaterialIconKind.Sleep));
-        facts.AddRange((task.Tags ?? []).Select(tag => new TidyUpFact("#" + tag)));
+        facts.AddRange(_store.ShownTags(task.Tags).Select(tag => new TidyUpFact("#" + tag)));
         if (task.EstimateMinutes is int minutes)
         {
             facts.Add(new TidyUpFact(EstimateText.Of(minutes), Icon: MaterialIconKind.TimerOutline));

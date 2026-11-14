@@ -151,7 +151,7 @@ public sealed class TaskReminderService : IDisposable
     public TaskLabel? LabelOf(Guid? labelId)
     {
         return labelId is Guid id
-            ? _store.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id)
+            ? _store.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id && _store.LabelShown(label))
             : null;
     }
 

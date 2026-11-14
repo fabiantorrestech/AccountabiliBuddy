@@ -248,7 +248,7 @@ public sealed class TaskActionsService
     public Task<bool> AddAsync(
         Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, string? origin = null, int? estimateMinutes = null)
     {
-        return RunAsync(TaskActionKind.Add, 1, (lists, self, now) => TaskActions.Add(lists, id, title, bin, labelId, tags, note, origin, now, self, estimateMinutes));
+        return RunAsync(TaskActionKind.Add, 1, (lists, self, now) => TaskActions.Add(lists, id, title, bin, labelId, tags, note, origin, now, self, estimateMinutes, _store.Removed));
     }
 
     // ---- removing ----
@@ -547,12 +547,13 @@ public sealed class TaskActionsService
     }
 
     // What the session's add takes from a task: its id and its steps' ids and ticks stay (a bin change of the same task).
-    // A label or tag this device doesn't show (ADR 89) doesn't go into the checklist: it stays on the task in the list.
+    // ADR 89: the checklist keeps the task's full label and tags, also the ones this device doesn't show; screens filter at display.
+    // A copy made from the session's record (Move to Later, Today, Park) then keeps them, and goals count them (counting is data).
     private TodaySource SourceOf(TaskItem task, TaskLists lists)
     {
-        TaskLabel? label = task.LabelId is Guid id ? lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == id && _store.LabelShown(item)) : null;
+        TaskLabel? label = task.LabelId is Guid id ? lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == id) : null;
         return new TodaySource(
             task.Title, (task.Steps ?? []).Select(step => step.ToSubtask()).ToList(), label?.Name, label?.Color, task.EstimateMinutes, task.Note,
-            TaskScopes.ShownTags(task.Tags, lists.TagScopes, _store.SelfDevice, _store.Removed), task.Id);
+            TaskLabels.Clean(task.Tags), task.Id);
     }
 }

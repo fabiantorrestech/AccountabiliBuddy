@@ -104,8 +104,9 @@ public sealed partial class TasksViewModel : IAddBoxHost
 
     async Task<Guid?> IAddBoxHost.CreateDeviceLabelAsync(string name)
     {
+        TypedNameScopes.NameState state = LabelNameState(name);
         Guid? id = await ((IAddBoxHost)this).CreateLabelAsync(name);
-        await ScopeNewLabelAsync(id, onlyHere: true);
+        await ScopeNewLabelAsync(id, onlyHere: true, state);
         return id;
     }
 
@@ -117,6 +118,12 @@ public sealed partial class TasksViewModel : IAddBoxHost
         if (trimmed.Length == 0)
         {
             return null;
+        }
+
+        // A name that is a label only other devices show: the user typed it, so this device joins it (ADR 89).
+        if (LabelNameState(trimmed) == TypedNameScopes.NameState.Hidden)
+        {
+            await JoinHiddenLabelAsync(trimmed);
         }
 
         // A label is a category of the session list underneath (ADR 76): adopting the name makes it, in the next free colour.

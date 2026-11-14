@@ -19,6 +19,13 @@ public sealed partial class GoalDetailViewModel : ObservableObject
 {
     private readonly Func<DeepWorkTargetKind, Task> _cancelPending;
     private readonly Func<Guid, string?> _labelName;
+
+    /// <summary>ADR 89: "Uses a label from Laptop" for a label id this device doesn't show (it still counts); null for any other id. Set by the app.</summary>
+    public Func<Guid, string?>? HiddenLabelNote { get; set; }
+
+    /// <summary>ADR 89: the same for a tag. Set by the app.</summary>
+    public Func<string, string?>? HiddenTagNote { get; set; }
+
     private Guid? _goalId;
     private GoalFacts? _facts;
     private GoalSourceData? _data;
@@ -446,8 +453,12 @@ public sealed partial class GoalDetailViewModel : ObservableObject
             string text = rule.Type switch
             {
                 GoalSourceType.FocusAll => "All your counted focus",
-                GoalSourceType.FocusLabel => label is null ? "Focus time on tasks with its label" : $"Focus time on tasks labelled {label}",
-                GoalSourceType.FocusTag => $"Focus time on tasks tagged #{rule.Tag?.TrimStart('#')}",
+                GoalSourceType.FocusLabel => label is not null ? $"Focus time on tasks labelled {label}"
+                    : rule.LabelId is Guid hiddenId && HiddenLabelNote?.Invoke(hiddenId) is string labelNote ? $"Focus time on tasks with its label · {labelNote}"
+                    : "Focus time on tasks with its label",
+                GoalSourceType.FocusTag => rule.Tag is { } tagName && HiddenTagNote?.Invoke(tagName) is string tagNote
+                    ? $"Focus time on tasks with its tag · {tagNote}"
+                    : $"Focus time on tasks tagged #{rule.Tag?.TrimStart('#')}",
                 GoalSourceType.CalendarCategory => "Time in a calendar category (this PC)",
                 GoalSourceType.HealthSteps => "Daily steps from your phone",
                 GoalSourceType.HealthWeight => "Weight from Health Connect",

@@ -19,13 +19,16 @@ public sealed partial class TaskHistoryViewModel : ObservableObject
     private readonly TimeProvider _time;
 
     private readonly Func<Guid?, TaskLabel?> _labelOf;
+    private readonly Func<IReadOnlyList<string>?, IReadOnlyList<string>> _shownTags;
 
     /// <param name="labelOf">Finds a task's label (its name and colour) by id; none: the rows show no label.</param>
-    public TaskHistoryViewModel(TaskActionsService actions, TimeProvider time, Func<Guid?, TaskLabel?>? labelOf = null)
+    /// <param name="shownTags">ADR 89: the tags of a task this device shows (a tag another device keeps to itself never shows). Required.</param>
+    public TaskHistoryViewModel(TaskActionsService actions, TimeProvider time, Func<Guid?, TaskLabel?> labelOf, Func<IReadOnlyList<string>?, IReadOnlyList<string>> shownTags)
     {
         _actions = actions;
         _time = time;
-        _labelOf = labelOf ?? (_ => null);
+        _labelOf = labelOf;
+        _shownTags = shownTags;
         Refresh();
     }
 
@@ -64,7 +67,7 @@ public sealed partial class TaskHistoryViewModel : ObservableObject
             bits.Add(new TaskRowBit(EstimateText.Of(minutes), MaterialIconKind.TimerOutline, "Time limit"));
         }
 
-        foreach (string tag in entry.Task.Tags ?? [])
+        foreach (string tag in _shownTags(entry.Task.Tags))
         {
             bits.Add(new TaskRowBit("#" + tag, IsChip: true, Tone: TaskRowBitTone.Ink));
         }
