@@ -90,7 +90,7 @@ public sealed class LunchService
 
     /// <summary>Today's lunch once started (it may be over); null before it starts.</summary>
     public SyncLunch? Taken => _state.Start is DateTimeOffset start && _state.End is DateTimeOffset end && IsToday(start)
-        ? new SyncLunch(start, end, _state.EditedAt)
+        ? new SyncLunch(start, end, _state.EditedAt, _state.AllowanceMinutes, _state.Counted, _state.Discarded)
         : null;
 
     /// <summary>True while lunch runs.</summary>
@@ -140,7 +140,12 @@ public sealed class LunchService
     private async Task StartForAsync(TimeSpan length)
     {
         DateTimeOffset now = _sessions.Now;
-        await SaveAsync(_state with { Start = now, End = now + length, OverTold = false, EditedAt = now });
+        // The day's first piece: its length is the day's allowance, the same on every device (ADR 88).
+        SyncLunch first = LunchDay.Begin(now, length);
+        await SaveAsync(_state with
+        {
+            Start = first.Start, End = first.End, OverTold = false, EditedAt = now, AllowanceMinutes = first.Allowance, Counted = first.Counted, Discarded = false,
+        });
         // Lunch takes the place of a break; during focus it pauses the session as a step away (always the paused kind, ADR 77), and a
         // step away with the timer running becomes lunch's.
         if (!_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
@@ -171,28 +176,15 @@ public sealed class LunchService
     /// <summary>+5 min (positive) or −5 min (negative) on the running lunch; it never ends sooner than a minute from now.</summary>
     public async Task AdjustAsync(TimeSpan change)
     {
-        if (!IsOnLunch || _state.End is not DateTimeOffset end || _state.Start is not DateTimeOffset start)
+        if (!IsOnLunch || Taken is not SyncLunch lunch)
         {
             return;
         }
 
-        DateTimeOffset now = _sessions.Now;
-        DateTimeOffset newEnd = end + change;
-        if (newEnd > start + MaxLength)
+        // The day's total never runs past its longest, never sooner than a minute from now, a −5 never makes it longer; the allowance moves with it (ADR 88).
+        if (LunchDay.Adjust(lunch, _sessions.Now, change, (int)Length.TotalMinutes) is SyncLunch adjusted)
         {
-            // The whole lunch never runs past its longest.
-            newEnd = start + MaxLength > end ? start + MaxLength : end;
-        }
-
-        if (newEnd < now + ShortestLeft)
-        {
-            // Never sooner than a minute from now, and a −5 never makes it longer.
-            newEnd = now + ShortestLeft < end ? now + ShortestLeft : end;
-        }
-
-        if (newEnd != end)
-        {
-            await SaveAsync(_state with { End = newEnd, OverTold = false, EditedAt = now });
+            await SaveAsync(_state with { End = adjusted.End, OverTold = false, EditedAt = adjusted.EditedAt, AllowanceMinutes = adjusted.Allowance });
         }
     }
 
@@ -240,22 +232,21 @@ public sealed class LunchService
             return false;
         }
 
-        // A device whose clock runs ahead stamps its edits in the future; held to now, a later real edit here or elsewhere still wins (LU1-fix).
-        lunch = LunchListening.ClampFuture(lunch, _sessions.Now);
+        SyncLunch received = lunch;
 
-        if (lunch.End > lunch.Start + MaxLength)
-        {
-            // Another device's lunch is never longer than this one's longest either.
-            lunch = lunch with { End = lunch.Start + MaxLength };
-        }
-
-        if (Taken is SyncLunch ours && (ours.LastEdit >= lunch.LastEdit || (ours.Start == lunch.Start && ours.End == lunch.End)))
+        // The stamp held to now, the day's total to the longest lunch, an older app's edit keeping our pieces, the newer edit winning (ADR 88).
+        if (LunchDay.Receive(Taken, received, _sessions.Now) is not SyncLunch taken)
         {
             return false;
         }
 
+        lunch = taken;
         bool wasOnLunch = IsOnLunch;
-        _ = SaveAsync(_state with { Start = lunch.Start, End = lunch.End, EditedAt = lunch.EditedAt, OverTold = _sessions.Now >= lunch.End });
+        _ = SaveAsync(_state with
+        {
+            Start = lunch.Start, End = lunch.End, EditedAt = lunch.EditedAt, OverTold = _sessions.Now >= lunch.End,
+            AllowanceMinutes = lunch.Allowance, Counted = lunch.Counted, Discarded = lunch.Discarded,
+        });
 
         // Started on another device (not a +5 or −5 on a lunch already running here): the same as pressing Start lunch here, so a break
         // ends and a running focus session steps away as a Break, as StartForAsync does. A received end changes nothing in the session.
@@ -334,7 +325,8 @@ public sealed class LunchService
 /// <summary>
 /// Today's lunch on this computer (document "lunch"): when it started and ends, when it was last edited (on any
 /// device), whether "Lunch over!" came, the last hint's day, the lunch length setting in minutes, and the day "Flexible this time"
-/// was chosen for (that day's fixed lunch doesn't start by itself; this computer only).
+/// was chosen for (that day's fixed lunch doesn't start by itself; this computer only), and (ADR 88) the day's allowance in minutes, the
+/// pieces counted before the current one and whether the only piece was discarded (what the sync file's lunch carries).
 /// </summary>
 public sealed record LunchState(
     DateTimeOffset? Start = null,
@@ -343,4 +335,7 @@ public sealed record LunchState(
     DateOnly? HintedOn = null,
     DateTimeOffset? EditedAt = null,
     int LengthMinutes = 60,
-    DateOnly? NoAutoStartOn = null);
+    DateOnly? NoAutoStartOn = null,
+    int? AllowanceMinutes = null,
+    IReadOnlyList<LunchPiece>? Counted = null,
+    bool Discarded = false);

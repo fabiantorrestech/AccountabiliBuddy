@@ -418,7 +418,17 @@ data class SyncSmartLevel(
  * A flexible lunch: when it started and ends. Every device takes the newest edit for the day. [editedAt] is when it
  * was last started, made longer or shorter, or ended early; null from a device that doesn't send it ([start] stands for it).
  */
-data class SyncLunch(val start: java.time.Instant, val end: java.time.Instant, val editedAt: java.time.Instant? = null) {
+data class SyncLunch(
+    val start: java.time.Instant,
+    val end: java.time.Instant,
+    val editedAt: java.time.Instant? = null,
+    /** The day's lunch in minutes, fixed when the first piece starts (ADR 88); null from an older app. */
+    val allowance: Int? = null,
+    /** The earlier pieces that were counted (ADR 88); null when unknown (an older app), empty when none. */
+    val counted: List<LunchPiece>? = null,
+    /** The only piece was discarded (ADR 88): a zero-length record that still marks the day as taken. */
+    val discarded: Boolean = false,
+) {
     /** What two devices' lunches are compared by: the newer one wins. */
     val lastEdit: java.time.Instant get() = editedAt ?: start
 }

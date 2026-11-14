@@ -21,10 +21,7 @@ class LunchReceiving {
         if (lastReceived[sender] == received) return null
         lastReceived[sender] = received
         if (!isToday(received.start)) return null
-        var lunch = LunchListening.clampFuture(received, now)
-        val latestEnd = lunch.start.plus(LunchListening.MAX_LENGTH)
-        if (lunch.end.isAfter(latestEnd)) lunch = lunch.copy(end = latestEnd)
-        if (ours != null && (ours.lastEdit >= lunch.lastEdit || (ours.start == lunch.start && ours.end == lunch.end))) return null
-        return lunch
+        // The stamp held to now, the day's total to the longest lunch, an older app's edit keeping our pieces, the newer edit winning (ADR 88).
+        return LunchDay.receive(ours, received, now)
     }
 }

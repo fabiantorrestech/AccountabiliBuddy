@@ -226,11 +226,7 @@ object SyncFileJson {
             }))
         }
         file.lunch?.let { lunch ->
-            put("lunch", buildJsonObject {
-                put("start", writeTime(lunch.start))
-                put("end", writeTime(lunch.end))
-                lunch.editedAt?.let { put("editedAt", writeTime(it)) }
-            })
+            put("lunch", writeLunch(lunch))
         }
         file.pickups?.let { list ->
             put("pickups", JsonArray(list.map { pickup ->
@@ -317,6 +313,28 @@ object SyncFileJson {
         put("editedAt", writeTime(document.editedAt))
     }
 
+    /** The lunch's JSON (ADR 88): start, end and edit stamp as before; allowance, counted pieces and the discarded mark only when set. */
+    fun writeLunch(lunch: SyncLunch): JsonObject = buildJsonObject {
+        put("start", writeTime(lunch.start))
+        put("end", writeTime(lunch.end))
+        lunch.editedAt?.let { put("editedAt", writeTime(it)) }
+        lunch.allowance?.let { put("allowance", it) }
+        lunch.counted?.let { pieces ->
+            put("counted", JsonArray(pieces.map { piece -> buildJsonObject { put("start", writeTime(piece.start)); put("end", writeTime(piece.end)) } }))
+        }
+        if (lunch.discarded) put("discarded", true)
+    }
+
+    /** Reads a lunch: a missing `counted` stays null (an older app: keep ours), an empty list stays empty. */
+    fun readLunch(lunch: JsonObject): SyncLunch = SyncLunch(
+        lunch.requiredTime("start"),
+        lunch.requiredTime("end"),
+        lunch.optionalTime("editedAt"),
+        (lunch["allowance"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { !it.isString }?.content?.toIntOrNull(),
+        (lunch["counted"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.let { piece -> runCatching { LunchPiece(piece.requiredTime("start"), piece.requiredTime("end")) }.getOrNull() } },
+        (lunch["discarded"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true",
+    )
+
     private fun writeTime(time: Instant): String = dotNetTime.format(time.atOffset(ZoneOffset.UTC))
 
     private fun readFile(json: JsonObject): SyncFile {
@@ -335,7 +353,7 @@ object SyncFileJson {
             json.optionalTime("coversFrom"),
             readComebacks(json["comebacks"]),
             readPickups(json["pickups"]),
-            json.optionalObject("lunch")?.let { lunch -> runCatching { SyncLunch(lunch.requiredTime("start"), lunch.requiredTime("end"), lunch.optionalTime("editedAt")) }.getOrNull() },
+            json.optionalObject("lunch")?.let { lunch -> runCatching { readLunch(lunch) }.getOrNull() },
             readActions(json["actions"]),
             (json["acks"] as? JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { p -> p.isString }?.content },
             json.optionalObject("running")?.let { running ->

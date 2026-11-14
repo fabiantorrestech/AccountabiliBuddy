@@ -1,5 +1,6 @@
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
+using AccountabiliBuddy.Core.Sync;
 using AccountabiliBuddy.Core.Tasks;
 
 namespace AccountabiliBuddy.App.Services.Tasks;
@@ -42,6 +43,9 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="DefaultTimeLimitMinutes">The time limit a task typed in the add box starts with; 0 for none (25 by default, spec 02).</param>
 /// <param name="SuggestShorterTitles">The add box's title help: the counter from 50 characters and "Move … to notes" (on by default).</param>
 /// <param name="ShowAgeOnRows">Rows say "untouched N wk" once a task counts as untouched (on by default).</param>
+/// <param name="AllowLunchDiscard">"Allow discarding a lunch" (ADR 88): the lunch card offers Discard it (on by default; per mode, this PC only).</param>
+/// <param name="PendingAllowLunchDiscard">Discarding turned on (looser), waiting for the looser-change wait to end; null when nothing waits.</param>
+/// <param name="PendingAllowLunchDiscardFrom">When <paramref name="PendingAllowLunchDiscard"/> takes effect, unless a session runs then.</param>
 public sealed record TaskSettings(
     int SessionActions,
     bool NextStepTakesSlot,
@@ -72,12 +76,19 @@ public sealed record TaskSettings(
     TaskLabelStyle LabelStyle = TaskLabelStyle.Dot,
     int DefaultTimeLimitMinutes = TaskSettings.StandardTimeLimitMinutes,
     bool SuggestShorterTitles = true,
-    bool ShowAgeOnRows = true)
+    bool ShowAgeOnRows = true,
+    bool AllowLunchDiscard = true,
+    bool? PendingAllowLunchDiscard = null,
+    DateTimeOffset? PendingAllowLunchDiscardFrom = null)
 {
     /// <summary>Default time limit's default (spec 02: "default from Settings (25)"; Pomodoro's focus length is 25 too).</summary>
     public const int StandardTimeLimitMinutes = 25;
 
     public static TaskSettings Default { get; } = new(Core.Tasks.SessionActions.DefaultCap, true, StepAway: StepAwayTimerPolicy.Default, SideTask: StepAwayTimerPolicy.Default);
+
+    /// <summary>The lunch discard setting as the Core rule sees it.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public LunchDiscardSetting LunchDiscard => new(AllowLunchDiscard, PendingAllowLunchDiscard, PendingAllowLunchDiscardFrom);
 
     /// <summary>The time limit a new task from the add box gets; null for none.</summary>
     public int? NewTaskTimeLimit => DefaultTimeLimitMinutes > 0 ? DefaultTimeLimitMinutes : null;

@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0088](0088-split-lunch-and-discard.md) | Split the lunch into counted pieces, and let Discard be switched off per mode | Accepted (owner, 2026-11-13: "Count 20 of these and keep counting...", "Any time, both modes - give users the option to disable this for PB or AB", "I'm back = Count it") | — |
 | [0087](0087-sync-session-notes-between-your-own-devices.md) | Sync session notes between your own devices | Accepted (owner, 2026-11-13: "Yes, they should sync between devices. Phone should get full archive.") | — |
 | [0086](0086-sync-receipts-per-method-and-part.md) | Sync receipts per method and part | Accepted (owner, 2026-11-13: approved the SYNC1 sync troubleshooting plan, which needs this field) | — |
 | [0085](0085-run-focus-sessions-on-the-phone.md) | Run focus sessions on the phone | Accepted (owner decisions, 2026-11-14) | — |

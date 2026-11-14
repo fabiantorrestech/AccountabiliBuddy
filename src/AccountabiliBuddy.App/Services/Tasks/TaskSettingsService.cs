@@ -1,5 +1,6 @@
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
+using AccountabiliBuddy.Core.Sync;
 using AccountabiliBuddy.Core.Storage;
 using AccountabiliBuddy.Core.Tasks;
 using Microsoft.Data.Sqlite;
@@ -290,6 +291,33 @@ public sealed class TaskSettingsService
         return true;
     }
 
+    /// <summary>
+    /// "Allow discarding a lunch" (ADR 88), in <paramref name="mode"/>'s copy, by <see cref="LunchDiscardSetting.Change"/>: off is stricter and
+    /// applies at once; on is looser: it waits the looser-change wait and is refused while a session runs.
+    /// </summary>
+    /// <returns>False when it was refused (on while a session runs).</returns>
+    public async Task<bool> SetAllowLunchDiscardAsync(bool wanted, GuidanceMode? mode = null)
+    {
+        GuidanceMode target = mode ?? ActiveMode;
+        TaskSettings settings = await LoadForAsync(target);
+        (LunchDiscardSetting changed, LunchDiscardOutcome outcome) =
+            settings.LunchDiscard.Change(wanted, _time.GetUtcNow(), _looserWait(), _sessions.State.IsActive);
+        if (outcome == LunchDiscardOutcome.Refused)
+        {
+            return false;
+        }
+
+        if (changed != settings.LunchDiscard)
+        {
+            await SaveForAsync(target, WithLunchDiscard(settings, changed));
+        }
+
+        return true;
+    }
+
+    private static TaskSettings WithLunchDiscard(TaskSettings settings, LunchDiscardSetting discard) =>
+        settings with { AllowLunchDiscard = discard.Allowed, PendingAllowLunchDiscard = discard.Pending, PendingAllowLunchDiscardFrom = discard.PendingFrom };
+
     /// <summary>Grouped is looser than Quiet (it puts more of each task on screen during a session).</summary>
     public static bool IsLooserView(SessionTaskView from, SessionTaskView to)
     {
@@ -454,7 +482,8 @@ public sealed class TaskSettingsService
         bool compactTaken = await SetCompactInSessionAsync(wanted.CompactInSession, mode);
         bool shelfTaken = await SetHideShelfInSessionAsync(wanted.HideShelfInSession, mode);
         bool viewTaken = await SetSessionViewAsync(wanted.SessionView, mode);
-        if (!actionsTaken || !stepAwayTaken || !sideTaskTaken || !compactTaken || !shelfTaken || !viewTaken)
+        bool discardTaken = await SetAllowLunchDiscardAsync(wanted.AllowLunchDiscard, mode);
+        if (!actionsTaken || !stepAwayTaken || !sideTaskTaken || !compactTaken || !shelfTaken || !viewTaken || !discardTaken)
         {
             return "Some Tasks settings weren't restored during a session (they would loosen it).";
         }
@@ -463,7 +492,8 @@ public sealed class TaskSettingsService
         // now is one of these values (also one that was already waiting with the same value and keeps its time).
         TaskSettings after = await LoadForAsync(mode);
         bool waiting = after.PendingSessionActions is not null || after.PendingStepAway is not null || after.PendingSideTask is not null
-            || after.PendingCompactInSession is not null || after.PendingHideShelfInSession is not null || after.PendingSessionView is not null;
+            || after.PendingCompactInSession is not null || after.PendingHideShelfInSession is not null || after.PendingSessionView is not null
+            || after.PendingAllowLunchDiscard is not null;
         return waiting
             ? "Some of these Tasks settings loosen a session (more actions, pausing the timer when stepping away or on a side task, a session layout that shows more): they wait the looser-change countdown, shown under each row, and never start during a session."
             : null;
@@ -509,6 +539,8 @@ public sealed class TaskSettingsService
         {
             applied = applied with { SessionView = view, PendingSessionView = null, PendingSessionViewFrom = null };
         }
+
+        applied = WithLunchDiscard(applied, applied.LunchDiscard.ApplyIfReady(now, sessionRunning: false));
 
         if (applied != settings)
         {

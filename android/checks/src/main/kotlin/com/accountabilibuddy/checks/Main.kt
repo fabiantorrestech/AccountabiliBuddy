@@ -101,6 +101,13 @@ private val checks: List<FixtureCheck> = listOf(
     // LU1-fix: the "listen fast" rule for lunch and the future-stamp clamp against the tables the PC asserts on its Core LunchListening.
     Lu1Check("listening", Lu1Cases::listening),
     Lu1Check("clamp", Lu1Cases::clamp),
+    // LU1a (ADR 88): split lunch and discard: the day's rule, what a device takes from a file, equality, the delivery comparison, the per-mode setting and the lunch's JSON against the PC's Core.
+    Lu1aCheck("ops", Lu1aCases::ops),
+    Lu1aCheck("receive", Lu1aCases::receive),
+    Lu1aCheck("equality", Lu1aCases::equality),
+    Lu1aCheck("delivery", Lu1aCases::delivery),
+    Lu1aCheck("setting", Lu1aCases::setting),
+    Lu1aCheck("wire", Lu1aCases::wire),
     // AR1-fix: the Archive's rows (every source, the settle records, Recently deleted) against the PC's Core ArchiveBuilder.
     Ar1Check("archive-rows", Ar1Cases::rows),
     // AR1a: session notes (ADR 87): the merge (newest edit, tombstones, window, clamp), which notes a device's own session shows, the lenient read and clean-up against Core's SessionNoteRules.
@@ -189,6 +196,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "pt1-self" to Pt1SelfCheck::run,
     // LU1-fix: the shared "listen fast" rule for lunch (running here or in a received file, or due) and the future-stamp clamp.
     "lu1-self" to Lu1SelfCheck::run,
+    // LU1a: an older file reads as unknown pieces, a lunch from an older app keeps the counted pieces, the delivery line.
+    "lu1a-self" to Lu1aSelfCheck::run,
     // PH1 + TD1 (phone): the day panel's one height, every Today part hideable in both layouts, More today bar show / hide, the steps part
     // gone with old layouts read fine, the one-time "Steps now live in Goals" card (phone only).
     "ph1td1-self" to Ph1Td1SelfCheck::run,
@@ -213,7 +222,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1", "ar1a")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1", "lu1a", "ar1a")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

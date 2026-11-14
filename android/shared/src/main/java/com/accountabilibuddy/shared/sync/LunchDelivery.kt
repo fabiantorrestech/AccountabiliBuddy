@@ -8,7 +8,7 @@ data class LunchPeer(val name: String, val writtenAt: Instant, val lunch: SyncLu
 
 /**
  * Whether the other devices have this device's lunch, from the latest file received from each (the PC's LunchDelivery is the same rule).
- * A device has it when its file holds the same start and end, or a newer edit. A device whose file is older than [ABSENT_AFTER] is off
+ * A device has it when its file holds the same pieces (current piece, counted pieces, allowance), or a newer edit. A device whose file is older than [ABSENT_AFTER] is off
  * or not syncing, and is left out rather than reported on all day; the caller leaves out watches (they write no file) and removed devices.
  */
 object LunchDelivery {
@@ -37,5 +37,5 @@ object LunchDelivery {
     private fun present(peer: LunchPeer, now: Instant): Boolean = Duration.between(peer.writtenAt, now) <= ABSENT_AFTER
 
     private fun has(theirs: SyncLunch?, ours: SyncLunch): Boolean =
-        theirs != null && ((theirs.start == ours.start && theirs.end == ours.end) || theirs.lastEdit > ours.lastEdit)
+        theirs != null && (LunchDay.hasPieces(theirs, ours) || theirs.lastEdit > ours.lastEdit)
 }

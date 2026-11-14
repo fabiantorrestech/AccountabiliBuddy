@@ -5,7 +5,7 @@ public sealed record LunchPeer(string Name, DateTimeOffset WrittenAt, SyncLunch?
 
 /// <summary>
 /// Whether the other devices have this device's lunch, from the latest file received from each (the phone's LunchDelivery is the same rule).
-/// A device has it when its file holds the same start and end, or a newer edit. A device whose file is older than <see cref="AbsentAfter"/>
+/// A device has it when its file holds the same pieces (current piece, counted pieces, allowance), or a newer edit. A device whose file is older than <see cref="AbsentAfter"/>
 /// is off or not syncing, and is left out rather than reported on all day; the caller leaves out watches (they write no file) and removed devices.
 /// </summary>
 public static class LunchDelivery
@@ -40,5 +40,5 @@ public static class LunchDelivery
     private static bool Present(LunchPeer peer, DateTimeOffset now) => now - peer.WrittenAt <= AbsentAfter;
 
     private static bool Has(SyncLunch? theirs, SyncLunch ours) =>
-        theirs is not null && ((theirs.Start == ours.Start && theirs.End == ours.End) || theirs.LastEdit > ours.LastEdit);
+        theirs is not null && (LunchDay.HasPieces(theirs, ours) || theirs.LastEdit > ours.LastEdit);
 }

@@ -6,7 +6,14 @@ import android.content.Context
 import android.content.Intent
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.shared.WatchLunch
+import com.accountabilibuddy.shared.sync.LunchDay
+import com.accountabilibuddy.shared.sync.LunchDiscardOutcome
+import com.accountabilibuddy.shared.sync.LunchDiscardSetting
+import com.accountabilibuddy.shared.sync.SyncFileJson
 import com.accountabilibuddy.shared.sync.SyncLunch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,7 +62,8 @@ class LunchStore(private val context: Context) {
     /** Starts lunch now for the lunch length. */
     @Synchronized
     fun start(now: Instant = Instant.now()) {
-        save(clamped(SyncLunch(now, now.plus(Duration.ofMinutes(_lengthMinutes.value.toLong())), editedAt = now)), overTold = false)
+        // The day's first piece: its length is the day's allowance, the same on every device (ADR 88).
+        save(LunchDay.begin(now, Duration.ofMinutes(_lengthMinutes.value.toLong())), overTold = false)
         onChanged?.invoke()
     }
 
@@ -66,21 +74,11 @@ class LunchStore(private val context: Context) {
     @Synchronized
     fun adjust(longer: Boolean, now: Instant = Instant.now()) {
         val current = today(now)?.takeIf { now < it.end } ?: return
-        var end = if (longer) current.end.plus(ADJUST_STEP) else current.end.minus(ADJUST_STEP)
-        val soonest = now.plus(WatchLunch.SHORTEST_LEFT)
-        if (end < soonest) {
-            end = if (soonest < current.end) soonest else current.end
-        }
-
-        val latestEnd = current.start.plus(MAX_LENGTH)
-        if (end > latestEnd) {
-            end = if (latestEnd > current.end) latestEnd else current.end
-        }
-
-        if (end != current.end) {
-            save(current.copy(end = end, editedAt = now), overTold = false)
-            onChanged?.invoke()
-        }
+        val change = if (longer) ADJUST_STEP else ADJUST_STEP.negated()
+        // The day's total never goes past MAX_LENGTH, never sooner than a minute from now, -5 never makes it longer; the allowance moves with it.
+        val adjusted = LunchDay.adjust(current, now, change, _lengthMinutes.value) ?: return
+        save(adjusted, overTold = false)
+        onChanged?.invoke()
     }
 
     /** Back early: lunch ends now. */
@@ -90,6 +88,51 @@ class LunchStore(private val context: Context) {
         save(current.copy(end = now, editedAt = now), overTold = true)
         onChanged?.invoke()
     }
+
+    /**
+     * "Allow discarding a lunch" (ADR 88) as this phone keeps it for a mode ([companion]: ProductaBuddy's copy, else AccountabiliBuddy's): on
+     * unless turned off. Device-local and per mode (ADR 69); in the settings backup with the rest of "lunchSettings".
+     */
+    fun discardSetting(companion: Boolean): LunchDiscardSetting = LunchDiscardSetting(
+        settingsPrefs.getBoolean(discardKey(companion, "allowed"), true),
+        if (settingsPrefs.contains(discardKey(companion, "pending"))) settingsPrefs.getBoolean(discardKey(companion, "pending"), true) else null,
+        settingsPrefs.getString(discardKey(companion, "pendingFrom"), null)?.let { runCatching { Instant.parse(it) }.getOrNull() },
+    )
+
+    /** Whether Discard it is offered in a mode right now (a waiting "on" does not count until it takes effect). */
+    fun discardAllowed(companion: Boolean): Boolean = discardSetting(companion).allowed
+
+    /**
+     * Asks for the setting in [companion]'s copy: off applies at once, on waits [wait] and is refused while [sessionRunning]
+     * ([LunchDiscardSetting.change]).
+     */
+    @Synchronized
+    fun setDiscardAllowed(companion: Boolean, wanted: Boolean, now: Instant, wait: Duration, sessionRunning: Boolean): LunchDiscardOutcome {
+        val (changed, outcome) = discardSetting(companion).change(wanted, now, wait, sessionRunning)
+        saveDiscard(companion, changed)
+        return outcome
+    }
+
+    /** A waiting "on" that waited long enough takes effect in both modes' copies, only while no session runs. */
+    @Synchronized
+    fun settleDiscard(now: Instant, sessionRunning: Boolean) {
+        for (companion in listOf(false, true)) {
+            val current = discardSetting(companion)
+            val settled = current.applyIfReady(now, sessionRunning)
+            if (settled != current) saveDiscard(companion, settled)
+        }
+    }
+
+    private fun saveDiscard(companion: Boolean, setting: LunchDiscardSetting) {
+        val editor = settingsPrefs.edit().putBoolean(discardKey(companion, "allowed"), setting.allowed)
+        val pending = setting.pending
+        val pendingFrom = setting.pendingFrom
+        if (pending != null) editor.putBoolean(discardKey(companion, "pending"), pending) else editor.remove(discardKey(companion, "pending"))
+        if (pendingFrom != null) editor.putString(discardKey(companion, "pendingFrom"), pendingFrom.toString()) else editor.remove(discardKey(companion, "pendingFrom"))
+        editor.apply()
+    }
+
+    private fun discardKey(companion: Boolean, part: String): String = "discard.${if (companion) "companion" else "guarding"}.$part"
 
     /** Settings → Your day → "Lunch length": 15-120 minutes in steps of 5; the next lunch takes it. */
     fun setLength(minutes: Int) {
@@ -125,12 +168,6 @@ class LunchStore(private val context: Context) {
         )
     }
 
-    // A whole lunch (start to end) is never longer than MAX_LENGTH, as on the PC: lunch holds a session's step away there.
-    private fun clamped(lunch: SyncLunch): SyncLunch {
-        val latestEnd = lunch.start.plus(MAX_LENGTH)
-        return if (lunch.end.isAfter(latestEnd)) lunch.copy(end = latestEnd) else lunch
-    }
-
     /** "Lunch over!" is due and not told yet. */
     fun overDue(now: Instant = Instant.now()): Boolean = today(now)?.let { now >= it.end } == true && !prefs.getBoolean("overTold", false)
 
@@ -156,6 +193,11 @@ class LunchStore(private val context: Context) {
         } else {
             editor.remove("editedAt")
         }
+        // Split lunch (ADR 88): the day's allowance, the counted pieces and the discarded mark (the sync file's own JSON for the pieces).
+        val allowance = lunch.allowance
+        if (allowance != null) editor.putInt("allowance", allowance) else editor.remove("allowance")
+        if (lunch.counted != null) editor.putString("counted", SyncFileJson.writeLunch(lunch).getValue("counted").toString()) else editor.remove("counted")
+        editor.putBoolean("discarded", lunch.discarded)
         editor.apply()
         scheduleOver(lunch, overTold)
     }
@@ -176,7 +218,18 @@ class LunchStore(private val context: Context) {
         val start = prefs.getString("start", null)?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
         val end = prefs.getString("end", null)?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
         val editedAt = prefs.getString("editedAt", null)?.let { runCatching { Instant.parse(it) }.getOrNull() }
-        return SyncLunch(start, end, editedAt)
+        val allowance = if (prefs.contains("allowance")) prefs.getInt("allowance", 0) else null
+        val counted = prefs.getString("counted", null)?.let { text ->
+            runCatching {
+                val lunch = SyncFileJson.readLunch(buildJsonObject {
+                    put("start", JsonPrimitive(start.toString()))
+                    put("end", JsonPrimitive(end.toString()))
+                    put("counted", Json.parseToJsonElement(text))
+                })
+                lunch.counted
+            }.getOrNull()
+        }
+        return SyncLunch(start, end, editedAt, allowance, counted, prefs.getBoolean("discarded", false))
     }
 
     private fun isToday(time: Instant, now: Instant): Boolean {
