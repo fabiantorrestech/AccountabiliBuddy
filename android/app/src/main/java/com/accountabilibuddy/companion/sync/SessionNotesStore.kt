@@ -25,7 +25,14 @@ import java.time.temporal.ChronoUnit
  */
 class SessionNotesStore(context: Context, private val now: () -> Instant = { Instant.now().truncatedTo(ChronoUnit.MILLIS) }) {
     private val prefs = context.getSharedPreferences("session_notes", Context.MODE_PRIVATE)
+    private var unreadableChars = 0
     private val _notes = MutableStateFlow(read())
+
+    /**
+     * How many characters of stored notes this run could not open (the Keystore key was lost or the value is damaged), 0 when all is well. While it is above 0 the
+     * store is read-only for the run: nothing is written, so the sealed value stays as it is (a tombstone not yet sent is not lost to an overwrite). A count only, never text.
+     */
+    val unreadableCount: Int get() = unreadableChars
 
     /** Every note held, tombstones included (the Archive builder shows the live ones). */
     val notes: StateFlow<List<SyncSessionNote>> = _notes.asStateFlow()
@@ -42,15 +49,14 @@ class SessionNotesStore(context: Context, private val now: () -> Instant = { Ins
     fun receive(incoming: List<SyncSessionNote>): Boolean {
         val merged = SessionNoteEdits.receive(_notes.value, incoming, now())
         if (merged == _notes.value) return false
-        save(merged)
-        return true
+        return save(merged)
     }
 
     /** Changes a note's text on every device; a blank text, an unknown note and an unchanged text change nothing. */
     fun edit(id: String, text: String) {
         val changed = synchronized(this) {
             val changedNotes = SessionNoteEdits.edit(_notes.value, id, text, now())
-            if (changedNotes == _notes.value) false else { save(changedNotes); true }
+            if (changedNotes == _notes.value) false else save(changedNotes)
         }
         if (changed) onChanged()
     }
@@ -59,22 +65,33 @@ class SessionNotesStore(context: Context, private val now: () -> Instant = { Ins
     fun delete(id: String) {
         val changed = synchronized(this) {
             val changedNotes = SessionNoteEdits.delete(_notes.value, id, now())
-            if (changedNotes == _notes.value) false else { save(changedNotes); true }
+            if (changedNotes == _notes.value) false else save(changedNotes)
         }
         if (changed) onChanged()
     }
 
     // The window and the tombstones' 90 days are applied on every save, as on the PC.
-    private fun save(notes: List<SyncSessionNote>) {
+    // Sealed first, held after: a Keystore failure leaves both the flow and the stored value as they were, and says so (false). Nothing is written while the stored
+    // notes could not be opened (they would be overwritten by a list that lacks them).
+    private fun save(notes: List<SyncSessionNote>): Boolean {
+        if (unreadableChars > 0) return false
         val kept = SessionNoteRules.forFile(notes, now())
+        val sealed = runCatching { TokenVault.seal(SyncFileJson.writeSessionNotes(kept).toString(), ALIAS) }.getOrNull() ?: return false
         _notes.value = kept
-        prefs.edit().putString(KEY, TokenVault.seal(SyncFileJson.writeSessionNotes(kept).toString(), ALIAS)).apply()
+        prefs.edit().putString(KEY, sealed).apply()
+        return true
     }
 
-    // Empty when nothing is stored or it can't be opened (the key goes with the app's data).
+    // Empty when nothing is stored. When something is stored but can't be opened (the key is gone, the value is damaged), the list is empty for this run, the
+    // sealed value is kept untouched and the store is read-only (see [unreadableCount]).
     private fun read(): List<SyncSessionNote> {
-        val json = prefs.getString(KEY, null)?.let { TokenVault.open(it, ALIAS) }
-            ?.let { runCatching { Json.parseToJsonElement(it) as JsonArray }.getOrNull() } ?: return emptyList()
+        val stored = prefs.getString(KEY, null) ?: return emptyList()
+        val json = TokenVault.open(stored, ALIAS)?.let { runCatching { Json.parseToJsonElement(it) as JsonArray }.getOrNull() }
+        if (json == null) {
+            unreadableChars = stored.length.coerceAtLeast(1)
+            return emptyList()
+        }
+
         return SessionNoteRules.clean(SyncFileJson.readSessionNotes(json).orEmpty())
     }
 

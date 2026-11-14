@@ -313,7 +313,12 @@ class CompanionApp : Application() {
     /** The shared next-session tasks and come-backs (ADR 48): items with edit times, merged with the other devices' lists. */
     val sharedLists by lazy { com.accountabilibuddy.companion.sync.SharedListsStore(this) }
     /** AR1c (ADR 87): every device's session notes, for the Archive; sealed, never logged. */
-    val sessionNotes by lazy { com.accountabilibuddy.companion.sync.SessionNotesStore(this) }
+    val sessionNotes by lazy {
+        com.accountabilibuddy.companion.sync.SessionNotesStore(this).also { store ->
+            // A count only, never text: the stored notes could not be opened, so they are kept untouched and the store is read-only for this run.
+            if (store.unreadableCount > 0) android.util.Log.w("SessionNotes", "${store.unreadableCount} stored characters could not be opened; kept unchanged, read-only for this run")
+        }
+    }
 
     /** R7.2 (ADR 76): the one task list, the source once its one-time migration ran ([com.accountabilibuddy.companion.tasks.PhoneTaskModelMigration]). */
     val taskModel by lazy { com.accountabilibuddy.companion.tasks.PhoneTaskStore(this) }
@@ -595,9 +600,11 @@ class CompanionApp : Application() {
         }
         sync.onTaskExtras = { file ->
             val card = file.device
-            // A file without the part leaves the notes alone (an older app, a QR file); an empty list is a real "none".
-            file.sessionNotes?.let { sessionNotes.receive(it) }
-            if (sharedLists.receiveExtras(card.deviceId.toString(), card.name, card.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC, file.taskHistory, file.pastSettled, file.autoSaved, file.handovers)) {
+            val extrasChanged = sharedLists.receiveExtras(card.deviceId.toString(), card.name, card.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC, file.taskHistory, file.pastSettled, file.autoSaved, file.handovers)
+            // After the histories and settle records, and on their own: a Keystore failure in the notes never refuses those. A file without the part leaves
+            // the notes alone (an older app, a QR file); an empty list is a real "none".
+            runCatching { file.sessionNotes?.let { sessionNotes.receive(it) } }
+            if (extrasChanged) {
                 sharedLists.onChanged()
             }
         }

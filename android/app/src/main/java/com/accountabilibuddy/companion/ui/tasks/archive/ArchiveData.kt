@@ -39,7 +39,8 @@ fun rememberArchiveData(app: CompanionApp, pc: TasksPc?, now: Instant, zone: Zon
     val running = pc?.checklist?.tasks?.mapNotNull { it.id?.lowercase() }?.toSet().orEmpty()
     val self = remember { app.sync.deviceId.toString() }
 
-    val rows = remember(taskLists, sources, notes, everyDevice, removed, minute, running) {
+    val taskListActive = app.taskModel.isActive
+    val rows = remember(taskLists, sources, notes, everyDevice, removed, minute, running, taskListActive) {
         val names = ArchiveDeviceNames.of(
             everyDevice.map { it.file.device.deviceId.toString() to it.file.device.name },
             sources.received.map { it.deviceId to it.name },
@@ -48,7 +49,7 @@ fun rememberArchiveData(app: CompanionApp, pc: TasksPc?, now: Instant, zone: Zon
         ArchiveBuilder.build(
             ArchiveInput(
                 emptyList(), sources.received, sources.kept, sources.settled,
-                if (app.taskModel.isActive) taskLists else TaskLists.EMPTY, minute, running, notes, self, names,
+                if (taskListActive) taskLists else TaskLists.EMPTY, minute, running, notes, self, names,
             ),
         )
     }

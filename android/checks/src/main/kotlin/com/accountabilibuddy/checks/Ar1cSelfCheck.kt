@@ -18,6 +18,7 @@ import com.accountabilibuddy.shared.tasks.ArchiveKind
 import com.accountabilibuddy.shared.tasks.ArchiveList
 import com.accountabilibuddy.shared.tasks.ArchiveReceivedDevice
 import com.accountabilibuddy.shared.tasks.ArchiveRows
+import com.accountabilibuddy.shared.tasks.ArchiveUiRules
 import com.accountabilibuddy.shared.tasks.TaskLists
 import java.io.File
 import java.time.Duration
@@ -76,7 +77,70 @@ object Ar1cSelfCheck {
         texts(report)
         settleRecords(report)
         noteRules(report)
+        uiRules(report)
         sourceChecks(report)
+    }
+
+    // The page's decisions, run for real (AR1c review fix): what a tick or a delete calls, which deletes ask, the row keys, the Tasks page's lift.
+    private fun uiRules(report: CheckReport) {
+        val all = items()
+        fun calls(kind: ArchiveKind, ticked: Boolean): List<String> {
+            val calls = ArrayList<String>()
+            ArchiveUiRules.tick(kind, ticked, "x", { calls.add("tickParked") }, { calls.add("untickParked") }, { calls.add("tickPast") }, { calls.add("untickPast") })
+            return calls
+        }
+        report.check("ar1c: a come-back's box ticks it open and unticks it when ticked", calls(ArchiveKind.COMEBACK, false) == listOf("tickParked") && calls(ArchiveKind.COMEBACK, true) == listOf("untickParked"))
+        report.check("ar1c: an unfinished past task's box ticks it (tickPast); a done one's unticks it (untickPast); never swapped", calls(ArchiveKind.UNFINISHED, false) == listOf("tickPast") && calls(ArchiveKind.DONE, true) == listOf("untickPast"))
+        report.check("ar1c: a note and a step have no tick box action", listOf(ArchiveKind.NOTE, ArchiveKind.UNFINISHED_STEP, ArchiveKind.DONE_STEP).all { calls(it, false).isEmpty() && calls(it, true).isEmpty() })
+
+        fun deletes(item: com.accountabilibuddy.shared.tasks.ArchiveItem): List<String> {
+            val calls = ArrayList<String>()
+            ArchiveUiRules.delete(item, { calls.add("note:$it") }, { calls.add("comeback:$it") }, { calls.add("past:$it") })
+            return calls
+        }
+        val byId = all.associateBy { it.id }
+        report.check("ar1c: a delete goes through the note, come-back or past-task call of its kind", deletes(byId.getValue(id(22))) == listOf("note:${id(22)}") && deletes(byId.getValue(id(31))) == listOf("comeback:${id(31)}") && deletes(byId.getValue(id(1))) == listOf("past:${id(1)}") && deletes(byId.getValue(id(11))).isEmpty())
+        report.check("ar1c: a note's and a come-back's delete asks first; so does a past task only this phone keeps; another PC's past task (it can be restored) does not",
+            ArchiveUiRules.deleteNeedsConfirm(byId.getValue(id(22))) && ArchiveUiRules.deleteNeedsConfirm(byId.getValue(id(31))) &&
+                ArchiveUiRules.deleteNeedsConfirm(keptItem()) && !ArchiveUiRules.deleteNeedsConfirm(byId.getValue(id(1))))
+        report.check("ar1c: the kept-here question says it can't be brought back, and the titles name the kind",
+            keptItem().deleteWarning?.contains("can't be brought back") == true && ArchiveUiRules.deleteTitle(keptItem()) == "Delete this task?" && ArchiveUiRules.deleteTitle(byId.getValue(id(22))) == "Delete this note?")
+
+        // Two steps with no id (older histories) become the same placeholder id. Every row still gets its own key.
+        val idless = SyncHistoryTask(id(60), "Old task", null, listOf(SessionTaskItem(null, "First", null, emptyList()), SessionTaskItem(null, "Second", null, emptyList())))
+        val world = ArchiveBuilder.build(
+            ArchiveInput(
+                emptyList(), listOf(ArchiveReceivedDevice(WORK, "Work PC", listOf(SyncTaskHistoryEntry(at("2026-11-12T09:00:00Z"), listOf(idless))))),
+                emptyList(), emptyList(), TaskLists.EMPTY, now,
+            ),
+        )
+        val tricky = ArchiveList.items(world, emptyList(), true, { _, stored -> stored }, ::whenText)
+        val raw = tricky.map { "${it.kind}:${it.parentId.orEmpty()}:${it.id}" }
+        val keys = ArchiveUiRules.rowKeys(tricky)
+        report.check("ar1c: the fixture really repeats a key (two id-less steps under one task)", raw.toSet().size < raw.size, "$raw")
+        report.check("ar1c: every row of the list gets its own key, so a LazyColumn never meets a repeat", keys.toSet().size == keys.size && keys.size == tricky.size, "$keys")
+        report.check("ar1c: the keys are stable (the same list gives the same keys) and plain where nothing repeats", keys == ArchiveUiRules.rowKeys(tricky) && ArchiveUiRules.rowKeys(all).toSet().size == all.size && ArchiveUiRules.rowKeys(all)[0] == "${all[0].kind}::${all[0].id}")
+        report.check("ar1c: a made-up key never repeats a name another row already has", ArchiveUiRules.uniqueKeys(listOf("a", "a", "a#1", "a")).let { it.toSet().size == 4 })
+
+        // The Tasks page below the open Archive must not lift a row (the Archive sits over it and the finger is on the Archive).
+        val flags = listOf(true, false)
+        var rightOnes = true
+        for (active in flags) for (sheet in flags) for (hidden in flags) for (drag in flags) for (archive in flags) {
+            rightOnes = rightOnes && ArchiveUiRules.canLift(active, sheet, hidden, drag, archive) == (active && !sheet && !hidden && !drag && !archive)
+        }
+        report.check("ar1c: a long press lifts a Tasks row only with the list open, no sheet, no hidden Shelf, no drag and the Archive closed", rightOnes)
+        report.check("ar1c: with the Archive open nothing lifts, whatever else is true", !ArchiveUiRules.canLift(true, false, false, false, true) && ArchiveUiRules.canLift(true, false, false, false, false))
+
+        // Two notes at the same time: the PC orders them by the id's lower-case text.
+        val a = note(70, "first by lower-case id", "2026-11-12T09:00:00Z", WORK).copy(id = "aaaa0000-0000-0000-0000-000000000070")
+        val b = note(71, "second by lower-case id", "2026-11-12T09:00:00Z", WORK).copy(id = "BBBB0000-0000-0000-0000-000000000071")
+        report.check("ar1c: two notes at the same time are ordered by the lower-case id, as the PC's text form orders them", rows(noteList = listOf(b, a)).notes.map { it.text } == listOf("first by lower-case id", "second by lower-case id"))
+    }
+
+    private fun keptItem(): com.accountabilibuddy.shared.tasks.ArchiveItem {
+        val kept = com.accountabilibuddy.shared.sync.SyncKeptPast(WORK, "Work PC", at("2026-11-12T16:05:00Z"), t2, at("2026-11-13T09:00:00Z"))
+        val archive = ArchiveBuilder.build(ArchiveInput(emptyList(), emptyList(), listOf(kept), emptyList(), TaskLists.EMPTY, now))
+        return ArchiveList.items(archive, emptyList(), true, { _, stored -> stored }, ::whenText).first { it.id == t2.id }
     }
 
     private fun listAndFilters(report: CheckReport) {
@@ -229,13 +293,35 @@ object Ar1cSelfCheck {
             body("fun tickPast(").contains("settle(") && body("fun untickPast(").contains("settle(") && body("fun deletePast(").contains("settle(") && body("fun restorePast(").contains("PastSettleEdits.restore("))
         report.check("ar1c: nothing on the phone edits a received history in place", !Regex("""history\s*=\s*lists\.history\.map""").containsMatchIn(lists) && !body("fun restorePast(").contains("history"))
         report.check("ar1c: the received history is cut to 90 days on receipt, by the shared rule", lists.substringAfter("fun receiveExtras(").substringBefore("settled?.let").contains("SyncTaskHistoryEntry.cut(history, time)"))
-        report.check("ar1c: the page calls those and the History entry's Bring back for a task-list delete",
-            screen.contains("app.sharedLists.tickPast(") && screen.contains("app.sharedLists.untickPast(") && screen.contains("app.sharedLists.deletePast(") && screen.contains("app.sharedLists.restorePast(row.id, it)") && screen.contains("controller.bringBack(entry)"))
+        // The page hands the rules the right calls, each under its own name (the rules themselves are run above; a swap here would pass them).
+        report.check("ar1c: the page's tick box is wired to the matching calls (tickPast to tickPast, untickPast to untickPast, the come-back pair likewise)",
+            Regex("""(?<!un)tickParked\s*=\s*app\.sharedLists::tickParked""").containsMatchIn(screen) && Regex("""\buntickParked\s*=\s*app\.sharedLists::untickParked""").containsMatchIn(screen) &&
+                Regex("""(?<!un)tickPast\s*=\s*app\.sharedLists::tickPast""").containsMatchIn(screen) && Regex("""\buntickPast\s*=\s*app\.sharedLists::untickPast""").containsMatchIn(screen))
+        report.check("ar1c: the page's delete is wired to the matching calls, and Restore to the settle record or the History entry's Bring back",
+            Regex("""deleteNote\s*=\s*app\.sessionNotes::delete""").containsMatchIn(screen) && Regex("""deleteComeback\s*=\s*app\.sharedLists::deleteParked""").containsMatchIn(screen) && Regex("""deletePast\s*=\s*app\.sharedLists::deletePast""").containsMatchIn(screen) &&
+                screen.contains("app.sharedLists.restorePast(row.id, it)") && screen.contains("controller.bringBack(entry)"))
+        report.check("ar1c: the Archive takes every touch (its root consumes pointer input), so nothing falls through to the Tasks page under it",
+            screen.contains("Column(Modifier.fillMaxSize().background(colors.bg).pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false) } })"))
+        report.check("ar1c: the Tasks page asks the shared rule for a lift and tells it the Archive is open",
+            host.contains("canLift = { ArchiveUiRules.canLift(") && host.contains("archiveOpen = archiveOpen)"))
+        report.check("ar1c: the page's rows are keyed by the shared unique keys (itemsIndexed), not by kind and id alone",
+            screen.contains("ArchiveUiRules.rowKeys(shown)") && screen.contains("itemsIndexed(shown, key = { index, _ -> rowKeys[index] })") && !screen.contains("key = { \"\${it.kind}:\${it.id}\" }"))
+        report.check("ar1c: a delete asks through the shared rule (notes, come-backs and a past task kept only here)", screen.contains("ArchiveUiRules.deleteNeedsConfirm(item)") && screen.contains("ArchiveUiRules.deleteTitle(item)"))
+        report.check("ar1c: the toast sits above the Archive row, as the round + does", host.contains("bottom = 12.dp + ArchiveRowHeight).blocksDrag(drag, \"toast\")"))
+        report.check("ar1c: the Archive's data is rebuilt when the task list opens or closes", data.contains("remember(taskLists, sources, notes, everyDevice, removed, minute, running, taskListActive)"))
 
         // Notes: sealed store, in the file, nowhere else.
         report.check("ar1c: the notes are stored sealed with a Keystore key, in private prefs", store.contains("TokenVault.seal(") && store.contains("TokenVault.open(") && store.contains("Context.MODE_PRIVATE") && !Regex("""\bFile\(""").containsMatchIn(store))
         val coordinator = source("$app/sync/SyncCoordinator.kt")
         val companion = source("$app/CompanionApp.kt")
+        val saveBody = store.substringAfter("private fun save(").substringBefore("// Empty when")
+        report.check("ar1c: stored notes that can't be opened are never overwritten: the store is read-only for the run and says so with a count only",
+            store.contains("unreadableChars = stored.length") && saveBody.indexOf("if (unreadableChars > 0) return false") in 0 until saveBody.indexOf("prefs.edit()") && companion.contains("store.unreadableCount > 0"))
+        report.check("ar1c: a Keystore failure while sealing changes neither the held notes nor the stored value",
+            saveBody.indexOf("runCatching { TokenVault.seal(") in 0 until saveBody.indexOf("_notes.value = kept") && saveBody.indexOf("_notes.value = kept") < saveBody.indexOf("prefs.edit()"))
+        val receive = companion.substringAfter("sync.onTaskExtras = { file ->").substringBefore("sync.categories")
+        report.check("ar1c: other devices' notes are received after the histories and settle records, inside their own runCatching, so a Keystore failure never refuses those",
+            receive.indexOf("sharedLists.receiveExtras(") in 0 until receive.indexOf("runCatching { file.sessionNotes?.let { sessionNotes.receive(it) } }"))
         report.check("ar1c: the phone's file carries the notes, under the Sync task lists switch", coordinator.contains("sessionNotes = if (sharesTaskLists()) runCatching { sessionNotes() }.getOrNull() else null"))
         report.check("ar1c: other devices' notes merge in from a received file; a file without the part leaves them alone", companion.contains("file.sessionNotes?.let { sessionNotes.receive(it) }") && companion.contains("sync.sessionNotes = { sessionNotes.forSync() }"))
         report.check("ar1c: an edit or delete here goes out soon (the relay, folder and Drive)", companion.contains("sessionNotes.onChanged = {") && store.contains("onChanged()"))
@@ -267,7 +353,7 @@ object Ar1cSelfCheck {
             clickableLines.filter { it.contains("size(48.dp)") }.all { it.contains("contentDescription") })
         report.check("ar1c: the page takes its colours and type from the theme (no literal colours)", !Regex("""Color\(0x|Color\.(Red|Blue|Green|Black|White)""").containsMatchIn(screen + entry))
         report.check("ar1c: back closes the Archive, and the header has a Back button named", screen.contains("BackHandler(onBack = onBack)") && screen.contains("\"Back to Tasks\""))
-        report.check("ar1c: a delete of a note or a come-back asks first (a note says it reaches every device)", screen.contains("confirming = item") && screen.contains("item.deleteWarning"))
+        report.check("ar1c: a confirmed delete shows its warning (a note says it reaches every device)", screen.contains("confirming = item") && screen.contains("item.deleteWarning"))
         val list = source("$shared/tasks/ArchiveList.kt")
         report.check("ar1c: the page's times are formatted 12-hour with AM/PM in one place", list.contains("\"M/d h:mm a\"") && !Regex("""HH:mm|\bH:mm|\"kk""").containsMatchIn(list))
         report.check("ar1c: the page reaches the builder through the shared list assembly", data.contains("ArchiveBuilder.build(") && data.contains("ArchiveList.items(") && screen.contains("ArchiveList.shown(") && screen.contains("ArchiveList.deleted("))

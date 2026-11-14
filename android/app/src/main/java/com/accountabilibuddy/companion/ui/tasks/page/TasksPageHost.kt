@@ -105,6 +105,7 @@ import com.accountabilibuddy.shared.tasks.ShelfPages
 import com.accountabilibuddy.shared.tasks.ShelfPaging
 import com.accountabilibuddy.shared.tasks.ShelfPicker
 import com.accountabilibuddy.shared.tasks.ShelfReorder
+import com.accountabilibuddy.shared.tasks.ArchiveUiRules
 import com.accountabilibuddy.shared.tasks.ShelfToasts
 import com.accountabilibuddy.shared.tasks.TaskBin
 import com.accountabilibuddy.shared.tasks.TaskBins
@@ -399,7 +400,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
 
     val handlers = rememberUpdatedState(
         ShelfDragHandlers(
-            canLift = { app.taskModel.isActive && !sheetOpen && !hidden && !drag.active },
+            canLift = { ArchiveUiRules.canLift(modelActive = app.taskModel.isActive, sheetOpen = sheetOpen, hidden = hidden, dragActive = drag.active, archiveOpen = archiveOpen) },
             onLift = { id, at ->
                 val order = pages.flatMap { page -> page.tasks.map { it.id } }
                 val lifted = ShelfDrag.lifted(id, selecting, selection).filter { it in liveIds || liveIds.any { live -> live.equals(it, ignoreCase = true) } }
@@ -693,7 +694,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                     }),
                     onUndo = current.undo?.let { undo -> { undo(); dropToast(current) } },
                     onGone = { dropToast(current) },
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp).blocksDrag(drag, "toast"),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp + ArchiveRowHeight).blocksDrag(drag, "toast"),
                 )
             }
         }

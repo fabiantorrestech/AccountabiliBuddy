@@ -3,6 +3,9 @@ package com.accountabilibuddy.checks
 import com.accountabilibuddy.shared.sync.SyncFileJson
 import com.accountabilibuddy.shared.sync.SyncKeptPast
 import com.accountabilibuddy.shared.tasks.ArchiveBuilder
+import com.accountabilibuddy.shared.tasks.ArchiveComeback
+import com.accountabilibuddy.shared.tasks.ArchiveFilter
+import com.accountabilibuddy.shared.tasks.ArchiveList
 import com.accountabilibuddy.shared.tasks.ArchiveInput
 import com.accountabilibuddy.shared.tasks.ArchiveReceivedDevice
 import com.accountabilibuddy.shared.tasks.ArchiveRows
@@ -58,7 +61,12 @@ object Ar1Cases {
             lists(json.getValue("lists")),
             instant(case.text("now")),
             case.input["running"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty(),
-        )
+            notes = json["notes"]?.let { SyncFileJson.readSessionNotes(it) }.orEmpty(),
+        ).let { base ->
+            val self = json["self"]?.jsonPrimitive?.content
+            val names = json["deviceNames"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content }.orEmpty()
+            if (self == null) base else base.copy(self = self, deviceNames = names)
+        }
     }
 
     private fun time(value: Instant?): String = value?.toString() ?: ""
@@ -124,5 +132,41 @@ object Ar1Cases {
         }
         if (expected == actual) return null
         return "C# $expected vs kotlin $actual"
+    }
+
+    // AR1c fix: the phone's whole list (ArchiveList.items / shown / summary / deleted over the builder) against the PC's real NotebookViewModel, written by the
+    // C# AppChecks (Ar1cListFixtures): for each filter and two searches, every line's kind, text, time text and sort in the PC's order, the summary and Recently deleted.
+    fun list(case: FixtureCase): String? {
+        val rows = ArchiveBuilder.build(input(case))
+        val comebacks = case.input.getValue("comebacks").jsonArray.map { element ->
+            val c = element.jsonObject
+            ArchiveComeback(text(c, "id"), text(c, "text"), instant(text(c, "createdAt")), text(c, "doneAt").takeIf { it.isNotEmpty() }?.let(::instant))
+        }
+        val whenText = { time: Instant -> ArchiveList.whenText(time, java.time.ZoneOffset.UTC, java.util.Locale.US) }
+        val items = ArchiveList.items(rows, comebacks, true, { _, stored -> stored }, whenText)
+        fun line(kind: String, text: String, whenText: String, sort: Instant) = "$kind|$text|$whenText|$sort"
+        val problems = ArrayList<String>()
+        for (viewElement in case.expected.jsonObject.getValue("views").jsonArray) {
+            val view = viewElement.jsonObject
+            val filter = ArchiveFilter.entries.first { it.label == text(view, "filter") }
+            val search = text(view, "search")
+            val expected = view.getValue("items").jsonArray.map { element ->
+                val raw = element.jsonPrimitive.content
+                val cut = raw.lastIndexOf('|')
+                raw.substring(0, cut) + "|" + instant(raw.substring(cut + 1))
+            }
+            val shown = ArchiveList.shown(items, filter, search)
+            val actual = shown.map { line(it.kind.label, it.text, it.whenText, it.sort) }
+            val where = "${filter.label} / '$search'"
+            if (expected != actual) problems.add("$where: PC $expected vs phone $actual")
+            if (text(view, "summary") != ArchiveList.summary(items)) problems.add("$where summary: PC ${text(view, "summary")} vs phone ${ArchiveList.summary(items)}")
+            val deleted = ArchiveList.deleted(rows, search, whenText)
+            val expectedDeleted = view.getValue("deleted").jsonArray.map { it.jsonPrimitive.content }
+            val actualDeleted = deleted.map { "${it.text}|${it.row.title}" }
+            if (expectedDeleted != actualDeleted) problems.add("$where deleted: PC $expectedDeleted vs phone $actualDeleted")
+            if (text(view, "deletedHeader") != ArchiveList.deletedHeader(deleted.size)) problems.add("$where deleted header: PC ${text(view, "deletedHeader")} vs phone ${ArchiveList.deletedHeader(deleted.size)}")
+        }
+
+        return problems.firstOrNull()
     }
 }

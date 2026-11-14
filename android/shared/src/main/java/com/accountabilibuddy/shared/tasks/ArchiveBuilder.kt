@@ -214,8 +214,8 @@ object ArchiveBuilder {
         val listed = deleted.map { it.id }.toMutableSet()
         deleted.addAll(settledDeleted.filter { listed.add(it.id) })
         return ArchiveRows(
-            rows.sortedWith(compareByDescending<ArchiveTaskRow> { it.sort }.thenBy { it.id }),
-            deleted.sortedWith(compareByDescending<ArchiveDeletedRow> { it.deletedAt }.thenBy { it.id }),
+            rows.sortedWith(compareByDescending<ArchiveTaskRow> { it.sort }.thenBy { it.id.lowercase() }),
+            deleted.sortedWith(compareByDescending<ArchiveDeletedRow> { it.deletedAt }.thenBy { it.id.lowercase() }),
             notes(input),
         )
     }
@@ -231,7 +231,7 @@ object ArchiveBuilder {
                 val name = if (other) names[note.by.lowercase()]?.takeIf { it.isNotBlank() } else null
                 ArchiveNoteRow(note.id, note.text!!, note.at, note.by, name, other)
             }
-            .sortedWith(compareByDescending<ArchiveNoteRow> { it.at }.thenBy { it.id })
+            .sortedWith(compareByDescending<ArchiveNoteRow> { it.at }.thenBy { it.id.lowercase() })
     }
 
     /** The state Restore stamps for a deleted past task: DONE when it was done, else OPEN. */

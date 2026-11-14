@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
@@ -49,6 +50,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
@@ -75,6 +79,7 @@ import com.accountabilibuddy.shared.tasks.ArchiveFilter
 import com.accountabilibuddy.shared.tasks.ArchiveItem
 import com.accountabilibuddy.shared.tasks.ArchiveKind
 import com.accountabilibuddy.shared.tasks.ArchiveList
+import com.accountabilibuddy.shared.tasks.ArchiveUiRules
 import java.time.Instant
 import java.time.ZoneId
 
@@ -105,7 +110,10 @@ fun ArchiveScreen(pc: TasksPc?, now: Instant, controller: ShelfController, onBac
     val deleted = remember(data.rows, search, zone) { ArchiveList.deleted(data.rows, search) { ArchiveList.whenText(it, zone) } }
     val showsDeleted = ArchiveList.showsDeleted(deletedOpen, search)
 
-    Column(Modifier.fillMaxSize().background(colors.bg)) {
+    // The page takes every touch that reaches it: a tap in a blank spot must not fall through to the Tasks page under it (its header buttons, its rows).
+    val rowKeys = remember(shown) { ArchiveUiRules.rowKeys(shown) }
+    val deletedKeys = remember(deleted) { ArchiveUiRules.uniqueKeys(deleted.map { "deleted:${it.row.id}" }) }
+    Column(Modifier.fillMaxSize().background(colors.bg).pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false) } }) {
         Box(Modifier.padding(horizontal = AbPageHeaderDefaults.PaneEdge)) {
             AbPageHeader(
                 "Archive",
@@ -131,16 +139,17 @@ fun ArchiveScreen(pc: TasksPc?, now: Instant, controller: ShelfController, onBac
             if (shown.isEmpty()) {
                 item { EmptyNote(if (search.isBlank()) "Nothing here yet." else "Nothing in the Archive matches that.") }
             }
-            items(shown, key = { "${it.kind}:${it.id}" }) { item ->
+            itemsIndexed(shown, key = { index, _ -> rowKeys[index] }) { _, item ->
                 ArchiveRow(
                     item,
                     onTick = {
-                        when (item.kind) {
-                            ArchiveKind.COMEBACK -> if (item.isTicked) app.sharedLists.untickParked(item.id) else app.sharedLists.tickParked(item.id)
-                            ArchiveKind.UNFINISHED -> app.sharedLists.tickPast(item.id)
-                            ArchiveKind.DONE -> app.sharedLists.untickPast(item.id)
-                            else -> Unit
-                        }
+                        ArchiveUiRules.tick(
+                            item.kind, item.isTicked, item.id,
+                            tickParked = app.sharedLists::tickParked,
+                            untickParked = app.sharedLists::untickParked,
+                            tickPast = app.sharedLists::tickPast,
+                            untickPast = app.sharedLists::untickPast,
+                        )
                     },
                     onMenu = { menuFor = item },
                 )
@@ -150,7 +159,7 @@ fun ArchiveScreen(pc: TasksPc?, now: Instant, controller: ShelfController, onBac
             }
             if (showsDeleted) {
                 if (deleted.isEmpty()) item(key = "deleted-none") { EmptyNote("Nothing deleted in the last 30 days.") }
-                items(deleted, key = { "deleted:${it.row.id}" }) { line ->
+                itemsIndexed(deleted, key = { index, _ -> deletedKeys[index] }) { _, line ->
                     val row = line.row
                     DeletedRow(line.text, row.title, canRestore = row.canRestore || row.canRestoreByStamp) {
                         // A task of the one task list comes back through its History entry; a past task through a settle record stamped over the delete.
@@ -169,7 +178,7 @@ fun ArchiveScreen(pc: TasksPc?, now: Instant, controller: ShelfController, onBac
                 AbSheetRow("Edit", onClick = { editing = item; menuFor = null }, icon = Icons.Outlined.EditNote)
             }
             if (item.canDelete && !item.isStep) {
-                AbSheetRow("Delete", onClick = { menuFor = null; if (item.kind == ArchiveKind.NOTE || item.kind == ArchiveKind.COMEBACK) confirming = item else deleteTask(app, item) }, icon = Icons.Outlined.DeleteOutline, danger = true)
+                AbSheetRow("Delete", onClick = { menuFor = null; if (ArchiveUiRules.deleteNeedsConfirm(item)) confirming = item else deleteItem(app, item) }, icon = Icons.Outlined.DeleteOutline, danger = true)
             }
             if (!item.canEdit && item.editHint != null) {
                 Text(item.editHint!!, style = Ab.type.small, color = colors.muted, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp))
@@ -193,11 +202,11 @@ fun ArchiveScreen(pc: TasksPc?, now: Instant, controller: ShelfController, onBac
 
     confirming?.let { item ->
         AbDialog(
-            title = if (item.kind == ArchiveKind.NOTE) "Delete this note?" else "Delete this come-back?",
+            title = ArchiveUiRules.deleteTitle(item),
             onDismiss = { confirming = null },
             confirmText = "Delete",
             onConfirm = {
-                if (item.kind == ArchiveKind.NOTE) app.sessionNotes.delete(item.id) else app.sharedLists.deleteParked(item.id)
+                deleteItem(app, item)
                 confirming = null
             },
             dismissText = "Keep it",
@@ -207,8 +216,14 @@ fun ArchiveScreen(pc: TasksPc?, now: Instant, controller: ShelfController, onBac
     }
 }
 
-// A past task's delete: a settle record (another PC's task, on every device) or the keeper's removal (one kept here); the owner's history is never edited.
-private fun deleteTask(app: CompanionApp, item: ArchiveItem) = app.sharedLists.deletePast(item.id)
+// A note's delete (every device), a come-back's, or a past task's: a settle record (another PC's task, on every device) or the keeper's removal (one kept
+// here); the owner's history is never edited.
+private fun deleteItem(app: CompanionApp, item: ArchiveItem) = ArchiveUiRules.delete(
+    item,
+    deleteNote = app.sessionNotes::delete,
+    deleteComeback = app.sharedLists::deleteParked,
+    deletePast = app.sharedLists::deletePast,
+)
 
 @Composable
 private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {

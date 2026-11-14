@@ -60,6 +60,8 @@ data class ArchiveItem(
     val editHint: String? = null,
     val editWarning: String? = null,
     val deleteWarning: String? = null,
+    /** A past task of another PC that only this phone keeps: its delete has no Undo and no Recently deleted line. */
+    val keptHere: Boolean = false,
 ) {
     val isStep: Boolean get() = kind == ArchiveKind.UNFINISHED_STEP || kind == ArchiveKind.DONE_STEP
 }
@@ -75,6 +77,7 @@ data class ArchiveDeletedLine(val row: ArchiveDeletedRow, val text: String)
 object ArchiveList {
     const val NOTE_EDIT_WARNING = "Saving changes it on all your devices"
     const val NOTE_DELETE_WARNING = "Deletes it on all your devices"
+    const val KEPT_DELETE_WARNING = "Only this phone has a copy. It can't be brought back"
 
     /** "Tue 11/12 4:05 PM" in [zone]: the day name in the phone's language, the time always 12-hour with AM/PM (never the system's 24-hour setting). */
     fun whenText(time: Instant, zone: ZoneId, locale: Locale = Locale.getDefault()): String {
@@ -129,6 +132,7 @@ object ArchiveList {
                 ArchiveItem(
                     if (row.isDone) ArchiveKind.DONE else ArchiveKind.UNFINISHED, row.id, null, row.title, "$category$where · $state$on", row.sort,
                     row.isDone, row.canTick, row.canEdit, row.canDelete, hint,
+                    deleteWarning = if (row.source == ArchiveSource.KEPT) KEPT_DELETE_WARNING else null, keptHere = row.source == ArchiveSource.KEPT,
                 ),
             )
             var order = 0L

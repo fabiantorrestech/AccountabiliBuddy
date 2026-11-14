@@ -112,6 +112,8 @@ private val checks: List<FixtureCheck> = listOf(
     Ar1Check("archive-rows", Ar1Cases::rows),
     // AR1c: the Archive's notes (every device's, "from <device>", a removed device's stay) against the PC's Core ArchiveBuilder.
     Ar1Check("archive-notes", Ar1Cases::notes),
+    // AR1c fix: the phone's list (order, tie order, step order, texts, summary, filters, search, Recently deleted) against the PC's real NotebookViewModel.
+    Ar1Check("archive-list", Ar1Cases::list),
     // AR1a: session notes (ADR 87): the merge (newest edit, tombstones, window, clamp), which notes a device's own session shows, the lenient read and clean-up against Core's SessionNoteRules.
     Ar1aCheck("merge", Ar1aCases::merge),
     Ar1aCheck("between", Ar1aCases::between),
