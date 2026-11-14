@@ -65,7 +65,7 @@ namespace AccountabiliBuddy.Core.Sync;
 /// The guidance mode this device chose (ADR 68), mode and time only. Null for a default nobody chose and from an app that predates
 /// it, which ignore it (an older device keeps guarding: the stricter side).
 /// </param>
-/// <param name="TaskHistory">ADR 72: a PC's own 90-day task history (never a session note or reason); null from a phone, while task lists aren't shared, in a QR file and from an older app.</param>
+/// <param name="TaskHistory">ADR 72: a PC's own 90-day task history (never a reason; notes travel in <see cref="SessionNotes"/>, ADR 87); null from a phone, while task lists aren't shared, in a QR file and from an older app.</param>
 /// <param name="PastSettled">ADR 72: the shared record of what was done with past sessions' open tasks.</param>
 /// <param name="AutoSaved">ADR 72: the shared Auto-saved list.</param>
 /// <param name="Handovers">ADR 72: items on their way to the device the user chose to keep them; never in a QR file.</param>
@@ -112,6 +112,14 @@ namespace AccountabiliBuddy.Core.Sync;
 /// can show whether its newest file arrived and was taken. Ids, times and fixed codes only. Read leniently (a bad entry is dropped) and cleaned
 /// to its bounds (<see cref="SyncReceiptParts.Clean"/>); never in a QR file, kept in the receiver's stored copy (it holds no text), never in a
 /// backup. Null from an app that predates it, in a QR file and when this device is alone in its group. Receiving a file never triggers a write.
+/// </param>
+/// <param name="SessionNotes">
+/// ADR 87: the user's session notes (their text, the session start and focus profile id they were written in, the writing device's id, edit and
+/// deletion times), merged item by item by <see cref="SessionNoteRules"/> (<see cref="SharedListMerge"/>: newest edit wins, tombstones 30 days, the 90-day
+/// window). Private text: only inside sealed files between the user's own devices, under "Sync task lists" (ADR 71); never in a QR file, never in the
+/// copy a receiver keeps of this file, never in a backup, never on the watch, never logged. Reasons never travel. Null from an app that predates it
+/// (which ignores it), in a QR file and while task lists aren't shared; a file without it leaves the receiver's notes alone. Read leniently
+/// (<see cref="SyncLenientListConverter{T}"/>) and cleaned (<see cref="SessionNoteRules.Clean"/>). Appended last.
 /// </param>
 public sealed record SyncFile(
     int FormatVersion,
@@ -166,7 +174,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalReminder>))] IReadOnlyList<GoalReminder>? GoalReminders = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalReviewRecord>))] IReadOnlyList<GoalReviewRecord>? GoalReviews = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncGoalYearMerged>))] IReadOnlyList<SyncGoalYearMerged>? GoalYearsMerged = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncReceipt>))] IReadOnlyList<SyncReceipt>? Receipts = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncReceipt>))] IReadOnlyList<SyncReceipt>? Receipts = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncSessionNote>))] IReadOnlyList<SyncSessionNote>? SessionNotes = null)
 {
     public const int CurrentFormatVersion = 1;
 }

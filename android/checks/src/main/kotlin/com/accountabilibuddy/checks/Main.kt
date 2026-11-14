@@ -103,6 +103,10 @@ private val checks: List<FixtureCheck> = listOf(
     Lu1Check("clamp", Lu1Cases::clamp),
     // AR1-fix: the Archive's rows (every source, the settle records, Recently deleted) against the PC's Core ArchiveBuilder.
     Ar1Check("archive-rows", Ar1Cases::rows),
+    // AR1a: session notes (ADR 87): the merge (newest edit, tombstones, window, clamp), which notes a device's own session shows, the lenient read and clean-up against Core's SessionNoteRules.
+    Ar1aCheck("merge", Ar1aCases::merge),
+    Ar1aCheck("between", Ar1aCases::between),
+    Ar1aCheck("clean", Ar1aCases::clean),
     // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
     // entry rows, derived values, counting across devices, the shared history (gs1b).
     Gs2Check("gs1a", "merge", Gs2Cases::merge),
@@ -209,7 +213,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1", "ar1a")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

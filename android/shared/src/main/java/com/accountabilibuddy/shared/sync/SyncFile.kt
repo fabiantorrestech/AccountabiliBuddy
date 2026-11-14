@@ -141,6 +141,14 @@ data class SyncFile(
      * never in a backup. Null from an app that predates it, in a QR file and while this device is alone in its group.
      */
     val receipts: List<SyncReceipt>? = null,
+    /**
+     * ADR 87: the user's session notes (text, the session start and focus profile id they were written in, the writing device's id, edit and
+     * deletion times), merged item by item ([SessionNoteRules]). Private text: only inside sealed files between the user's own devices, under
+     * "Sync task lists"; never in a QR file, never in the copy a receiver keeps of this file, never in a backup, never on the watch, never
+     * logged. Reasons never travel. Read leniently (an entry that can't be read is left out) and cleaned ([SessionNoteRules.clean]); null when
+     * the file carries none (an older app, a QR file). Appended last.
+     */
+    val sessionNotes: List<SyncSessionNote>? = null,
 ) {
     companion object {
         const val CURRENT_FORMAT_VERSION = 1

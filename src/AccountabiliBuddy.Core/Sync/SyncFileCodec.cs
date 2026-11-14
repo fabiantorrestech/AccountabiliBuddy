@@ -161,7 +161,7 @@ public static class SyncFileCodec
             return new SyncFileOpenResult(null, UnreadableReason(json));
         }
 
-        return new SyncFileOpenResult(WithCleanReceipts(WithCleanGoalParts(WithCleanTaskParts(WithCleanCategories(file)))), null);
+        return new SyncFileOpenResult(WithCleanSessionNotes(WithCleanReceipts(WithCleanGoalParts(WithCleanTaskParts(WithCleanCategories(file))))), null);
     }
 
     private static SyncFileOpenFailure UnreadableReason(byte[] json)
@@ -183,6 +183,12 @@ public static class SyncFileCodec
         {
             return false;
         }
+    }
+
+    /// <summary>ADR 87's session notes, cleaned (<see cref="SessionNoteRules.Clean"/>: an entry the merge can't use is left out, which never deletes); a missing part stays missing.</summary>
+    private static SyncFile WithCleanSessionNotes(SyncFile file)
+    {
+        return file.SessionNotes is null ? file : file with { SessionNotes = SessionNoteRules.Clean(file.SessionNotes) };
     }
 
     /// <summary>ADR 86's receipts, cleaned to the known codes and the bounds (<see cref="SyncReceiptParts.Clean"/>); a missing list stays missing.</summary>

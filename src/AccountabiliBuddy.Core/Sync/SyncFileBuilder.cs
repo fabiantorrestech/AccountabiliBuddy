@@ -125,7 +125,7 @@ public static class SyncFileBuilder
             TaskHistory = null, PastSettled = null, AutoSaved = null, Handovers = null, HandoverAcks = null,
             Tasks = null, Labels = null, Views = null, TaskLog = null, TaskAccountSettings = null,
             Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null, GoalYearsMerged = null,
-            Receipts = null,
+            Receipts = null, SessionNotes = null,
         };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);

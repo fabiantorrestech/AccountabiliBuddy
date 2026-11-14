@@ -22,12 +22,14 @@ public sealed class TaskListSync
     private readonly Func<Guid?> _self;
     private readonly Func<string> _selfName;
     private readonly TimeProvider _time;
+    private readonly SessionNotesStore? _notes;
 
     public TaskListSync(
         SessionTasksService tasks, PastSettledStore settled, AutoSavedTaskStore autoSaved, ReceivedTaskHistoryStore received,
         HandoverOutbox outbox, KeptPastStore kept, LaterStore later, ComebackStore comebacks, Func<Guid?> self, Func<string> selfName,
-        TimeProvider time)
+        TimeProvider time, SessionNotesStore? notes = null)
     {
+        _notes = notes;
         _tasks = tasks;
         _settled = settled;
         _autoSaved = autoSaved;
@@ -57,8 +59,11 @@ public sealed class TaskListSync
     {
         IReadOnlyList<SyncHandover> handovers = _outbox.ForSync();
         IReadOnlyList<SyncHandoverAck> acks = _outbox.AcksForSync();
+        // ADR 87: the session notes (with their session and writing device), under the same switch as the rest; none to send leaves the part out.
+        IReadOnlyList<SyncSessionNote> notes = _notes?.ForSync() ?? [];
         return file with
         {
+            SessionNotes = notes.Count > 0 ? notes : null,
             TaskHistory = _tasks.TaskHistoryForSync(),
             PastSettled = _settled.ForSync(),
             AutoSaved = UsesTaskStore() ? file.AutoSaved : _autoSaved.ForSync(),
@@ -79,6 +84,12 @@ public sealed class TaskListSync
         if (file.TaskHistory is { } history && file.Device.Kind == SyncDeviceCard.KindPc)
         {
             await _received.ReceiveAsync(file.Device.DeviceId, file.Device.Name, history);
+        }
+
+        // ADR 87: another device's session notes, merged item by item; a file without the part (an older app, a QR file) leaves this PC's notes alone.
+        if (file.SessionNotes is { } sessionNotes && _notes is not null)
+        {
+            await _notes.MergeAsync(sessionNotes);
         }
 
         if (file.PastSettled is { } settled)

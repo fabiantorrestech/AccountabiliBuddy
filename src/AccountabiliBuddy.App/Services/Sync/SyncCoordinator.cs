@@ -342,6 +342,7 @@ public sealed class SyncCoordinator
         {
             NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps, Tasks = null, Labels = null, Views = null, TaskLog = null,
             TaskAccountSettings = null, Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null, GoalYearsMerged = null,
+            SessionNotes = null,
         };
     }
 
@@ -706,7 +707,7 @@ public sealed class SyncCoordinator
     // a part that threw), absent (not in the file), taken.
     private async Task<IReadOnlyDictionary<string, string>> ReceiveSharedListsAsync(SyncFile file)
     {
-        bool hasTasks = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null;
+        bool hasTasks = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null || file.SessionNotes is not null;
         bool hasOld = file.NextTasks is not null || file.Parked is not null || file.Later is not null;
         bool hasGoals = file.Goals is not null || file.GoalAreas is not null || file.GoalEntries is not null || file.GoalReminders is not null || file.GoalReviews is not null;
         var states = new Dictionary<string, string>();

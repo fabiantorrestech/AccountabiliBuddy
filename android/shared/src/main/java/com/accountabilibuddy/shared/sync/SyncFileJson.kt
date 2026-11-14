@@ -246,6 +246,8 @@ object SyncFileJson {
         }
         // Optional (ADR 86): the receipts, last as in the PC's file; older apps ignore them.
         file.receipts?.let { put("receipts", SyncReceiptsJson.write(it)) }
+        // Optional (ADR 87): the session notes, after the receipts as on the PC; older apps ignore them.
+        file.sessionNotes?.let { put("sessionNotes", writeSessionNotes(it)) }
     }
 
     /** Null when the JSON isn't a complete sync file this app can read (see the class comment). */
@@ -403,7 +405,45 @@ object SyncFileJson {
             SyncGoalParts.read(json),
             readGoalYearsMerged(json["goalYearsMerged"]),
             SyncReceiptsJson.read(json["receipts"]),
+            readSessionNotes(json["sessionNotes"])?.let { SessionNoteRules.clean(it) },
         )
+    }
+
+    /** The session notes (ADR 87) in the PC's shape (camelCase, nulls left out, a tombstone with no text). */
+    fun writeSessionNotes(list: List<SyncSessionNote>): JsonArray = JsonArray(list.map { note ->
+        buildJsonObject {
+            put("id", note.id)
+            note.text?.let { put("text", it) }
+            put("at", writeTime(note.at))
+            note.sessionStart?.let { put("sessionStart", writeTime(it)) }
+            note.profileId?.let { put("profileId", it) }
+            put("by", note.by)
+            put("editedAt", writeTime(note.editedAt))
+            note.deletedAt?.let { put("deletedAt", writeTime(it)) }
+        }
+    })
+
+    /**
+     * The session notes (ADR 87), leniently like the PC (`SyncLenientListConverter`): a value that isn't a list reads as none; an entry that
+     * can't be read (no id, no time, no writing device, a wrong type) is left out, which only ever leaves a note out of a merge.
+     */
+    fun readSessionNotes(value: JsonElement?): List<SyncSessionNote>? {
+        val array = value as? JsonArray ?: return null
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            runCatching {
+                SyncSessionNote(
+                    item.requiredId("id").lowercase(),
+                    item.optionalString("text"),
+                    item.requiredTime("at"),
+                    item.optionalTime("sessionStart"),
+                    item.optionalString("profileId")?.also { if (!deviceIdForm.matches(it)) throw NotASyncFileException() }?.lowercase(),
+                    item.requiredId("by").lowercase(),
+                    item.requiredTime("editedAt"),
+                    item.optionalTime("deletedAt"),
+                )
+            }.getOrNull()
+        }
     }
 
     /** The year files merged (ADR 79), leniently: an item that does not read is dropped; a value that is not a list reads as none. */

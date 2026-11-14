@@ -616,6 +616,15 @@ public partial class App : Application
         // Notes kept in Focus mode (redesign phase 5): this computer only, sealed.
         _sessionNotes = new SessionNotesStore(documents, new DpapiDataProtector(), time);
         _sessionNotes.LoadBlocking();
+        // ADR 87: a new note keeps the running session's start and profile id; the notes stored before it get their session once, from this PC's own history.
+        _sessionNotes.CurrentSession = () => _sessions.State is { IsActive: true, PhaseStartedAt: DateTimeOffset phaseStart } state ? (phaseStart, state.ProfileId) : null;
+        IReadOnlyList<SessionRecord>? ownSessionHistory = null;
+        _sessionNotes.SessionOf = at =>
+        {
+            ownSessionHistory ??= Task.Run(async () => SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(time.GetUtcNow().AddDays(-95), time.GetUtcNow().AddDays(1)))).GetAwaiter().GetResult();
+            SessionRecord? found = ownSessionHistory.FirstOrDefault(record => record.StartedAt <= at && at <= (record.EndedAt ?? DateTimeOffset.MaxValue));
+            return found is null ? null : (found.StartedAt, found.ProfileId);
+        };
         _capture = new CaptureService(_comebacks, new Win32GlobalHotkey(), monitorLocator);
         // ADR 27: work hours on this computer (off unless turned on in Settings).
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
@@ -1307,7 +1316,8 @@ public partial class App : Application
         var keptPast = new KeptPastStore(documents, new DpapiDataProtector(), time);
         keptPast.LoadBlocking();
         _taskListSync = new AccountabiliBuddy.App.Services.Sync.TaskListSync(
-            sessionTasks, pastSettled, autoSaved, receivedHistory, handovers, keptPast, _later, _comebacks, selfId, () => syncIdentity.DeviceName, time);
+            sessionTasks, pastSettled, autoSaved, receivedHistory, handovers, keptPast, _later, _comebacks, selfId, () => syncIdentity.DeviceName, time, _sessionNotes);
+        _sessionNotes!.Self = selfId;
         _receivedHistory = receivedHistory;
         _keptPast = keptPast;
         _pastSettled = pastSettled;
