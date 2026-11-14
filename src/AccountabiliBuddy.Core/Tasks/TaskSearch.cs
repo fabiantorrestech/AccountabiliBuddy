@@ -13,6 +13,9 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// task's former temporary numbers too); when no task or step has that number ("10am", "3pm", "1st", "2fa", "4k") it is a word.
 /// Label and tag words are letters, marks, digits, connector punctuation and hyphens in any script. Case folding is one simple
 /// lower-case mapping per character (<see cref="Fold"/>), the same on the phone (TaskSearch.kt). Pure; the text is the user's, so nothing here logs.
+/// ADR 89: a label or tag this device doesn't show (device-only elsewhere) is found by nothing: "@label" skips a label the label test refuses, and
+/// "#tag" words and plain words skip a tag the tag test refuses (<see cref="TaskScopes.LabelTest"/>, <see cref="TaskScopes.TagTest"/>); without a
+/// test everything is shown.
 /// </summary>
 public static partial class TaskSearch
 {
@@ -64,7 +67,10 @@ public static partial class TaskSearch
 
     /// <summary>The hits for <paramref name="query"/> in list order (a task, then its matching steps); none when it has no criteria.</summary>
     /// <param name="labels">The labels "@label" words are looked up in; without them an "@label" word finds nothing.</param>
-    public static IReadOnlyList<TaskSearchHit> Find(IEnumerable<TaskItem> tasks, string query, IReadOnlyList<TaskLabel>? labels = null)
+    /// <param name="labelShown">ADR 89: whether this device shows a label; a label it doesn't is not looked up. Null: every label.</param>
+    /// <param name="tagShown">ADR 89: whether this device shows a tag; a tag it doesn't is not searched. Null: every tag.</param>
+    public static IReadOnlyList<TaskSearchHit> Find(
+        IEnumerable<TaskItem> tasks, string query, IReadOnlyList<TaskLabel>? labels = null, Func<TaskLabel, bool>? labelShown = null, Func<string, bool>? tagShown = null)
     {
         string text = Fold(query.Trim());
         List<TaskItem> live = tasks.Where(task => task.IsLive).ToList();
@@ -79,16 +85,16 @@ public static partial class TaskSearch
             return [];
         }
 
-        List<HashSet<Guid>> labelIds = LabelIds(words, labels);
+        List<HashSet<Guid>> labelIds = LabelIds(words, labels, labelShown);
         var hits = new List<TaskSearchHit>();
         foreach (TaskItem task in live)
         {
-            if (!PassesTokens(task, words, labelIds))
+            if (!PassesTokens(task, words, labelIds, tagShown))
             {
                 continue;
             }
 
-            TaskSearchMatch? match = words.Text.Count == 0 ? (words.Labels.Count > 0 ? TaskSearchMatch.Label : TaskSearchMatch.Tag) : TextMatch(task, words.Text);
+            TaskSearchMatch? match = words.Text.Count == 0 ? (words.Labels.Count > 0 ? TaskSearchMatch.Label : TaskSearchMatch.Tag) : TextMatch(task, words.Text, tagShown);
             if (match is { } found)
             {
                 hits.Add(new TaskSearchHit(task, null, null, found));
@@ -111,21 +117,22 @@ public static partial class TaskSearch
     /// The ids of the tasks <paramref name="query"/> finds: what a view filters by. A task counts when its text holds every word
     /// (title, steps, note, tags) and it passes the "@label" and "#tag" words. Null when the query narrows nothing (show all).
     /// </summary>
-    public static HashSet<Guid>? MatchingTaskIds(IEnumerable<TaskItem> tasks, string query, IReadOnlyList<TaskLabel>? labels = null)
+    public static HashSet<Guid>? MatchingTaskIds(
+        IEnumerable<TaskItem> tasks, string query, IReadOnlyList<TaskLabel>? labels = null, Func<TaskLabel, bool>? labelShown = null, Func<string, bool>? tagShown = null)
     {
         if (!HasCriteria(query))
         {
             return null;
         }
 
-        if (IsId(query) && Find(tasks, query) is { Count: > 0 } byNumber)
+        if (IsId(query) && Find(tasks, query, null, labelShown, tagShown) is { Count: > 0 } byNumber)
         {
             return byNumber.Select(hit => hit.Task.Id).ToHashSet();
         }
 
         Words words = Read(query);
-        List<HashSet<Guid>> labelIds = LabelIds(words, labels);
-        return tasks.Where(task => task.IsLive && PassesTokens(task, words, labelIds) && (words.Text.Count == 0 || CombinedText(task, words.Text)))
+        List<HashSet<Guid>> labelIds = LabelIds(words, labels, labelShown);
+        return tasks.Where(task => task.IsLive && PassesTokens(task, words, labelIds, tagShown) && (words.Text.Count == 0 || CombinedText(task, words.Text, tagShown)))
             .Select(task => task.Id).ToHashSet();
     }
 
@@ -172,30 +179,36 @@ public static partial class TaskSearch
     private static partial Regex Spaces();
 
     // Per "@" word, the ids of the live labels whose spelled name starts with it (an empty set: the word finds nothing).
-    private static List<HashSet<Guid>> LabelIds(Words words, IReadOnlyList<TaskLabel>? labels)
+    private static List<HashSet<Guid>> LabelIds(Words words, IReadOnlyList<TaskLabel>? labels, Func<TaskLabel, bool>? labelShown)
     {
         return words.Labels
-            .Select(word => (labels ?? []).Where(label => label.IsLive && Spelled(label.Name).StartsWith(word, StringComparison.Ordinal)).Select(label => label.Id).ToHashSet())
+            .Select(word => (labels ?? []).Where(label => label.IsLive && (labelShown is null || labelShown(label)) && Spelled(label.Name).StartsWith(word, StringComparison.Ordinal)).Select(label => label.Id).ToHashSet())
             .ToList();
     }
 
     // The "@label" words (each: the task's label is one it starts) and "#tag" words (each: a tag of the task starts with it).
-    private static bool PassesTokens(TaskItem task, Words words, List<HashSet<Guid>> labelIds)
+    private static bool PassesTokens(TaskItem task, Words words, List<HashSet<Guid>> labelIds, Func<string, bool>? tagShown)
     {
         return labelIds.All(ids => task.LabelId is { } label && ids.Contains(label))
-            && words.Tags.All(word => (task.Tags ?? []).Any(tag => Fold(tag).StartsWith(word, StringComparison.Ordinal)));
+            && words.Tags.All(word => Shown(task, tagShown).Any(tag => Fold(tag).StartsWith(word, StringComparison.Ordinal)));
+    }
+
+    // The task's tags this device shows (ADR 89); all of them without a test.
+    private static IEnumerable<string> Shown(TaskItem task, Func<string, bool>? tagShown)
+    {
+        return (task.Tags ?? []).Where(tag => tagShown is null || tagShown(tag));
     }
 
     // Every word is somewhere in the title, a step, the note or a tag ("#home").
-    private static bool CombinedText(TaskItem task, List<string> words)
+    private static bool CombinedText(TaskItem task, List<string> words, Func<string, bool>? tagShown)
     {
         string all = Fold(string.Join("\n", new[] { task.Title, task.Note ?? string.Empty }
-            .Concat((task.Steps ?? []).Select(step => step.Title)).Concat((task.Tags ?? []).Select(tag => "#" + tag))));
+            .Concat((task.Steps ?? []).Select(step => step.Title)).Concat(Shown(task, tagShown).Select(tag => "#" + tag))));
         return words.All(word => all.Contains(word, StringComparison.Ordinal));
     }
 
     // What the task-level hit matched: the one field that holds every word, else the words are spread over several fields.
-    private static TaskSearchMatch? TextMatch(TaskItem task, List<string> words)
+    private static TaskSearchMatch? TextMatch(TaskItem task, List<string> words, Func<string, bool>? tagShown)
     {
         bool In(string? field) => field is not null && words.All(word => Fold(field).Contains(word, StringComparison.Ordinal));
         if (In(task.Title))
@@ -208,13 +221,13 @@ public static partial class TaskSearch
             return TaskSearchMatch.Note;
         }
 
-        if (In(string.Join(" ", (task.Tags ?? []).Select(tag => "#" + tag))))
+        if (In(string.Join(" ", Shown(task, tagShown).Select(tag => "#" + tag))))
         {
             return TaskSearchMatch.Tag;
         }
 
         // Words held by the steps alone give only the step hits, as before.
-        return CombinedText(task, words) && !(task.Steps ?? []).Any(step => In(step.Title)) ? TaskSearchMatch.Text : null;
+        return CombinedText(task, words, tagShown) && !(task.Steps ?? []).Any(step => In(step.Title)) ? TaskSearchMatch.Text : null;
     }
 
     private static IReadOnlyList<TaskSearchHit> FindById(List<TaskItem> live, string reference)

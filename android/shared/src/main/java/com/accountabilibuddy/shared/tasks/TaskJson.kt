@@ -166,8 +166,21 @@ object TaskJson {
         label.ringOn?.let { put("ringOn", texts(it)) }
         label.deletedAt?.let { put("deletedAt", GoalJson.timeValue(it)) }
         label.ringOnStamp?.let { put("ringOnStamp", writeStamp(it, unknown)) }
+        label.onlyOn?.let { put("onlyOn", texts(it)) }
+        label.onlyOnStamp?.let { put("onlyOnStamp", writeStamp(it, unknown)) }
         putExtra(label.extra, unknown)
     }
+
+    /** One tag scope (ADR 89) in the PC's shape: id, name, onlyOn, editedAt, deletedAt; a tombstone has no name or devices. */
+    fun writeTagScope(scope: SyncTagScope): JsonObject = buildJsonObject {
+        put("id", scope.id)
+        scope.name?.let { put("name", it) }
+        scope.onlyOn?.let { put("onlyOn", texts(it)) }
+        put("editedAt", GoalJson.timeValue(scope.edited))
+        scope.deleted?.let { put("deletedAt", GoalJson.timeValue(it)) }
+    }
+
+    fun writeTagScopes(items: List<SyncTagScope>): JsonArray = JsonArray(items.map(::writeTagScope))
 
     fun writeSyncLabel(item: SyncTaskLabel, unknown: Boolean = true): JsonObject = buildJsonObject {
         put("label", writeLabel(item.label, unknown))
@@ -256,8 +269,12 @@ object TaskJson {
     /** The `labels` part: a colour that can't be read becomes the set's first, and "Rings on" is cleaned. */
     fun readLabels(json: JsonElement?): TaskRead<SyncTaskLabel>? = readList(json) { item ->
         val read = readSyncLabel(item)
-        if (read.label.id == EMPTY_ID) null else cleanRingOn(read)
+        if (read.label.id == EMPTY_ID) null else cleanOnlyOn(cleanRingOn(read))
     }
+
+    /** The `tagScopes` part (ADR 89), leniently and cleaned ([TaskScopes.clean]); null when it isn't an array. */
+    fun readTagScopes(json: JsonElement?): List<SyncTagScope>? =
+        readList(json) { item -> readSyncTagScope(item) }?.let { TaskScopes.clean(it.items) }
 
     fun readViews(json: JsonElement?): TaskRead<SyncTaskView>? = readList(json) { item -> readSyncView(item).takeIf { it.view.id != EMPTY_ID } }
 
@@ -285,16 +302,21 @@ object TaskJson {
         return TaskParts(
             tasks?.items, labels?.items, views?.items, log?.items, readAccountSettings(file["taskAccountSettings"]),
             tasks?.newer.orEmpty(), labels?.newer.orEmpty(), views?.newer.orEmpty(), log?.newer.orEmpty(),
+            readTagScopes(file["tagScopes"]),
         )
     }
 
-    /** The parts as the file's fields: a null part is left out, as the PC leaves it out. */
-    fun writeParts(parts: TaskParts): JsonObject = buildJsonObject {
+    /**
+     * The parts as the file's fields: a null part is left out, as the PC leaves it out. [withScopes]: ADR 89's tag scopes too (a store's
+     * document holds them; a sync file writes them last, after the other parts, as the PC's file does).
+     */
+    fun writeParts(parts: TaskParts, withScopes: Boolean = true): JsonObject = buildJsonObject {
         parts.tasks?.let { put("tasks", writeTasks(it, parts.newerTasks)) }
         parts.labels?.let { put("labels", writeLabels(it, parts.newerLabels)) }
         parts.views?.let { put("views", writeViews(it, parts.newerViews)) }
         parts.taskLog?.let { put("taskLog", writeTaskLog(it, parts.newerTaskLog)) }
         parts.accountSettings?.let { put("taskAccountSettings", writeAccountSettings(it)) }
+        if (withScopes) parts.tagScopes?.let { put("tagScopes", writeTagScopes(it)) }
     }
 
     private fun <T> readList(json: JsonElement?, read: (JsonObject) -> T?): TaskRead<T>? {
@@ -324,6 +346,17 @@ object TaskJson {
             item.copy(label = item.label.copy(ringOn = null, ringOnStamp = null))
         } else {
             item.copy(label = item.label.copy(ringOn = ringOn))
+        }
+    }
+
+    // A label's "only on" (ADR 89) as its rings on: no empty or repeated ids, in id order (none left is shared); too many drops the list and its stamp.
+    private fun cleanOnlyOn(item: SyncTaskLabel): SyncTaskLabel {
+        val onlyOn = item.label.onlyOn ?: return item
+        val devices = TaskScopes.normalized(onlyOn)
+        return if (devices != null && devices.size > TaskRingDevices.MAX_DEVICES) {
+            item.copy(label = item.label.copy(onlyOn = null, onlyOnStamp = null))
+        } else {
+            item.copy(label = item.label.copy(onlyOn = devices))
         }
     }
 
@@ -453,7 +486,16 @@ object TaskJson {
         return TaskLabel(
             id, name, if (TaskLabelColors.isValid(color)) color!! else TaskLabelColors.SET[0], fields.double("position") ?: 0.0,
             fields.time("editedAt") ?: DotNetTime.MIN, fields.guids("ringOn"), fields.time("deletedAt"), fields.element("ringOnStamp")?.let(::readStamp),
+            fields.guids("onlyOn"), fields.element("onlyOnStamp")?.let(::readStamp),
             fields.extra(LIVE_COMPUTED),
+        )
+    }
+
+    /** A `tagScopes` entry (ADR 89). Throws [IllegalArgumentException] for one that can't be used. */
+    fun readSyncTagScope(json: JsonElement): SyncTagScope {
+        val fields = Fields(obj(json, "tag scope"))
+        return SyncTagScope(
+            fields.guid("id") ?: EMPTY_ID, fields.text("name"), fields.guids("onlyOn"), fields.time("editedAt") ?: DotNetTime.MIN, fields.time("deletedAt"),
         )
     }
 

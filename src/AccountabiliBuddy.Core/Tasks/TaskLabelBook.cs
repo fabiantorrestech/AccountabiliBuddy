@@ -60,7 +60,7 @@ internal sealed class TaskLabelBook
             // A tombstone (FreeIdFor never gives a live label's id): a newer use brings the label back, ringing on every device, stamped
             // at the revive, so a device still holding the old label's ring list can't hand it back (TaskLabelMerge).
             DateTimeOffset revived = stamp > _labels[existing].EditedAt ? stamp : _labels[existing].EditedAt.AddTicks(1);
-            _labels[existing] = label with { EditedAt = revived, RingOn = null, RingOnStamp = new Sync.TaskFieldStamp(revived, _reviver) };
+            _labels[existing] = label with { EditedAt = revived, RingOn = null, RingOnStamp = new Sync.TaskFieldStamp(revived, _reviver), OnlyOn = null, OnlyOnStamp = new Sync.TaskFieldStamp(revived, _reviver) };
         }
         else
         {

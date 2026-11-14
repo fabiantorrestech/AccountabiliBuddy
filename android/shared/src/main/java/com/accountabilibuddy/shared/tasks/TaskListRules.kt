@@ -79,6 +79,7 @@ object TaskListRules {
             SharedListMerge.merge(lists.views, emptyList(), instant),
             SharedListMerge.merge(log, emptyList(), instant),
             lists.account,
+            if (lists.tagScopes == null) null else TagScopeMerge.merge(lists.tagScopes, emptyList(), now),
         )
     }
 
@@ -94,7 +95,7 @@ object TaskListRules {
      * Another device's (or a backup's) parts merged in: with `tasks`, tasks field by field and labels, views and History item by item
      * ([TaskListMerge]); **without `tasks` nothing of the task list changes** (Q583: a missing part is never read as an empty one, and an
      * older app's old fields are not read in). The account's Tasks settings merge whenever the file carries them. Null when nothing
-     * was merged.
+     * was merged. ADR 89's tag scopes merge whenever the file carries them.
      */
     fun mergeFile(lists: TaskLists, parts: TaskParts?, self: String, now: OffsetDateTime): TaskLists? {
         val incomingTasks = parts?.tasks
@@ -104,9 +105,19 @@ object TaskListRules {
             TaskListMerge.mergeLists(lists, TaskLists(incomingTasks, parts.labels.orEmpty(), parts.views.orEmpty(), parts.taskLog.orEmpty()), self, now)
         }
 
-        val account = parts?.accountSettings ?: return merged
-        val basis = merged ?: lists
-        return basis.copy(account = TaskAccountSettingsMerge.merge(basis.account, account, now))
+        var result = merged
+        parts?.accountSettings?.let { account ->
+            val basis = result ?: lists
+            result = basis.copy(account = TaskAccountSettingsMerge.merge(basis.account, account, now))
+        }
+
+        // ADR 89: the tag scopes merge item by item whenever the file carries them; a file without (an older app, a QR file) leaves them alone.
+        parts?.tagScopes?.let { scopes ->
+            val basis = result ?: lists
+            result = basis.copy(tagScopes = TagScopeMerge.merge(basis.tagScopes, TaskScopes.clean(scopes), now))
+        }
+
+        return result
     }
 
     /**
@@ -126,6 +137,7 @@ object TaskListRules {
             newer?.newerLabels.orEmpty(),
             newer?.newerViews.orEmpty(),
             newer?.newerTaskLog.orEmpty(),
+            lists.tagScopes?.takeIf { it.isNotEmpty() },
         )
         return old to parts
     }

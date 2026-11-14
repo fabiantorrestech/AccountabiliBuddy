@@ -118,6 +118,19 @@ private val checks: List<FixtureCheck> = listOf(
     Ar1aCheck("merge", Ar1aCases::merge),
     Ar1aCheck("between", Ar1aCases::between),
     Ar1aCheck("clean", Ar1aCases::clean),
+    // LB1a: device-only labels and tags (ADR 89): the label merge with "Only on" by its own stamp, the tag scope merge, who sees what, the hidden
+    // ones kept by every writer, the edits (add / join, set, name check, tag scope), the file part's clean-up and search against Core.
+    Lb1aCheck("label-merge", Lb1aCases::labelMerge),
+    Lb1aCheck("tag-scope-merge", Lb1aCases::tagScopeMerge),
+    Lb1aCheck("visibility", Lb1aCases::visibility),
+    Lb1aCheck("with-hidden", Lb1aCases::withHidden),
+    Lb1aCheck("label-add", Lb1aCases::labelAdd),
+    Lb1aCheck("label-set-only-on", Lb1aCases::labelSetOnlyOn),
+    Lb1aCheck("check-name", Lb1aCases::checkName),
+    Lb1aCheck("tag-scope-edits", Lb1aCases::tagScopeEdits),
+    Lb1aCheck("clean-labels", R71ModelCases::taskJson),
+    Lb1aCheck("clean-tag-scopes", Lb1aCases::cleanTagScopes),
+    Lb1aCheck("search", Lb1aCases::search),
     // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
     // entry rows, derived values, counting across devices, the shared history (gs1b).
     Gs2Check("gs1a", "merge", Gs2Cases::merge),
@@ -202,6 +215,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "lu1-self" to Lu1SelfCheck::run,
     // LU1a: an older file reads as unknown pieces, a lunch from an older app keeps the counted pieces, the delivery line.
     "lu1a-self" to Lu1aSelfCheck::run,
+    // LB1a (phone): an older file leaves the scopes alone, the part merges, is written last and never in a QR file or the kept copy, the store document.
+    "lb1a-self" to Lb1aSelfCheck::run,
     // LU1c: the lunch X on the phone and the watch (Count it / Discard it / Keep going, Start the rest, the lock per piece, the watch snapshot).
     "lu1c-self" to Lu1cSelfCheck::run,
     // AR1c (phone): the Archive page's list (order, filters, search, 12-hour times, Recently deleted), notes edit/delete/merge, settle-record restore,
@@ -231,7 +246,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1", "lu1a", "ar1a")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1", "lu1a", "ar1a", "lb1")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

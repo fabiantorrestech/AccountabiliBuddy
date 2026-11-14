@@ -198,7 +198,7 @@ object PhoneKindBackup {
         val count: Int
         if (parts.tasks != null) {
             count = store.import(
-                com.accountabilibuddy.shared.tasks.TaskLists(parts.tasks!!, parts.labels.orEmpty(), parts.views.orEmpty(), parts.taskLog.orEmpty(), parts.accountSettings),
+                com.accountabilibuddy.shared.tasks.TaskLists(parts.tasks!!, parts.labels.orEmpty(), parts.views.orEmpty(), parts.taskLog.orEmpty(), parts.accountSettings, parts.tagScopes),
                 restore,
             )
         } else {

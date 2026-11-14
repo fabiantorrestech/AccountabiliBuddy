@@ -18,8 +18,11 @@ object GoalLabelId {
     /** The name as the id is made from: trimmed and lower-cased as .NET's ToLowerInvariant does. */
     fun normalized(name: String): String = lowerInvariant(name.trim())
 
-    fun idFor(name: String): UUID {
-        val space = ByteBuffer.allocate(16).putLong(NAMESPACE.mostSignificantBits).putLong(NAMESPACE.leastSignificantBits).array()
+    fun idFor(name: String): UUID = idFor(NAMESPACE, name)
+
+    /** The same id rule in another fixed namespace (ADR 89: the tag scopes' ids). */
+    fun idFor(namespace: UUID, name: String): UUID {
+        val space = ByteBuffer.allocate(16).putLong(namespace.mostSignificantBits).putLong(namespace.leastSignificantBits).array()
         val text = normalized(name).toByteArray(Charsets.UTF_8)
         val hash = MessageDigest.getInstance("SHA-1").digest(space + text)
         val id = hash.copyOf(16)

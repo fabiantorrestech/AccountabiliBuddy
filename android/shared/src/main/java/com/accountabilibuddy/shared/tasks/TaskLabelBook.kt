@@ -43,7 +43,7 @@ class TaskLabelBook(labels: List<TaskLabel>, private val reviver: String = Field
             // stamped at the revive, so a device still holding the old label's ring list can't hand it back (TaskLabelMerge).
             val old = held[existing].editedAt
             val revived = if (DotNetTime.compare(stamp, old) > 0) stamp else DotNetTime.plusTick(old)
-            held[existing] = label.copy(editedAt = revived, ringOn = null, ringOnStamp = FieldStamp(revived, reviver))
+            held[existing] = label.copy(editedAt = revived, ringOn = null, ringOnStamp = FieldStamp(revived, reviver), onlyOn = null, onlyOnStamp = FieldStamp(revived, reviver))
         } else {
             held += label
         }

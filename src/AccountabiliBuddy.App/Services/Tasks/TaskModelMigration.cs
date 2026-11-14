@@ -118,7 +118,7 @@ public static class TaskModelMigration
     {
         string logPath = Path.Combine(dataDirectory, LogFileName);
         string backup = await database.BackupAsync("tasks-unreadable");
-        foreach (string key in new[] { TaskStore.MarkerKey, TaskStore.ItemsKey, TaskStore.LabelsKey, TaskStore.ViewsKey, TaskStore.LogKey, TaskStore.ViewSearchesKey, TaskStore.CategoryIdsKey })
+        foreach (string key in new[] { TaskStore.MarkerKey, TaskStore.ItemsKey, TaskStore.LabelsKey, TaskStore.ViewsKey, TaskStore.LogKey, TaskStore.TagScopesKey, TaskStore.ViewSearchesKey, TaskStore.CategoryIdsKey })
         {
             await documents.DeleteAsync(key);
         }

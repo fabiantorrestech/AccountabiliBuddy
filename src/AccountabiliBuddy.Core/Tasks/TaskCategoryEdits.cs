@@ -11,9 +11,11 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// </summary>
 public static class TaskCategoryEdits
 {
+    /// <param name="hiddenLabels">ADR 89: the labels this device doesn't show; never deleted for missing from <paramref name="categories"/>.</param>
     /// <returns>The lists with the labels as the categories say, and the id map with any new category's id.</returns>
     public static (TaskLists Lists, Dictionary<Guid, Guid> CategoryIds) Apply(
-        TaskLists lists, IReadOnlyList<TaskCategory> categories, IReadOnlyDictionary<Guid, Guid> categoryIds, Guid self, DateTimeOffset now)
+        TaskLists lists, IReadOnlyList<TaskCategory> categories, IReadOnlyDictionary<Guid, Guid> categoryIds, Guid self, DateTimeOffset now,
+        IReadOnlySet<Guid>? hiddenLabels = null)
     {
         var labels = lists.Labels.Select(item => item.Label).ToList();
         var ids = new Dictionary<Guid, Guid>(categoryIds);
@@ -82,7 +84,8 @@ public static class TaskCategoryEdits
         var gone = new HashSet<Guid>();
         for (int index = 0; index < labels.Count; index++)
         {
-            if (labels[index].IsLive && !kept.Contains(labels[index].Id))
+            // ADR 89: a label this device doesn't show (device-only elsewhere) isn't in its category list, so it is never "taken off" here.
+            if (labels[index].IsLive && !kept.Contains(labels[index].Id) && hiddenLabels?.Contains(labels[index].Id) != true)
             {
                 gone.Add(labels[index].Id);
                 labels[index] = labels[index].Deleted(Next(now, labels[index].EditedAt));
@@ -118,7 +121,7 @@ public static class TaskCategoryEdits
         var label = new TaskLabel(id, name, TaskLabelColors.IsValid(color) ? color.Trim() : TaskLabelColors.FirstUnused(labels), position, stamp);
         if (existing >= 0)
         {
-            labels[existing] = label with { RingOnStamp = new TaskFieldStamp(stamp, self) };
+            labels[existing] = label with { RingOnStamp = new TaskFieldStamp(stamp, self), OnlyOnStamp = new TaskFieldStamp(stamp, self) };
             return existing;
         }
 

@@ -236,6 +236,24 @@ public static class SyncFileCodec
             : item with { Label = item.Label with { RingOn = ringOn } };
     }
 
+    // A label's "only on" (ADR 89) as its rings on: no empty or repeated ids, in id order (none left is shared); over TaskRingDevices.MaxDevices ids
+    // drops the list and its stamp (the merge keeps what the receiver has).
+    private static SyncTaskLabel CleanOnlyOn(SyncTaskLabel item)
+    {
+        if (item.Label.OnlyOn is null)
+        {
+            return item;
+        }
+
+        IReadOnlyList<Guid>? devices = TaskScopes.Normalized(item.Label.OnlyOn);
+        if (devices is { Count: > TaskRingDevices.MaxDevices })
+        {
+            return item with { Label = item.Label with { OnlyOn = null, OnlyOnStamp = null } };
+        }
+
+        return item with { Label = item.Label with { OnlyOn = devices } };
+    }
+
     private static SyncFile WithCleanTaskParts(SyncFile file)
     {
         return file with
@@ -248,6 +266,7 @@ public static class SyncFileCodec
                 .Where(item => item is { Label: { Name: not null } } && item.Label.Id != Guid.Empty)
                 .Select(item => TaskLabelColors.IsValid(item.Label.Color) ? item : item with { Label = item.Label with { Color = TaskLabelColors.Set[0] } })
                 .Select(CleanRingOn)
+                .Select(CleanOnlyOn)
                 .ToList(),
             Views = file.Views?
                 .Where(item => item is { View: { Name: not null, Config: { Only: not null } } } && item.View.Id != Guid.Empty)
@@ -256,6 +275,7 @@ public static class SyncFileCodec
                 .Where(item => item is { Entry: { Task: not null } } && item.Entry.Id != Guid.Empty && IsUsableTask(item.Entry.Task))
                 .ToList(),
             TaskAccountSettings = TaskAccountSettingsMerge.Clean(file.TaskAccountSettings),
+            TagScopes = TaskScopes.Clean(file.TagScopes),
         };
     }
 

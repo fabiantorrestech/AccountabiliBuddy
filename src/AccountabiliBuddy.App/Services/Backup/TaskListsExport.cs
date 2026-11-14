@@ -11,7 +11,9 @@ namespace AccountabiliBuddy.App.Services.Backup;
 /// <see cref="Tasks.TaskAccountSettingsService"/>. Since ADR 87 the session notes shared between the user's own devices are in it too
 /// (<paramref name="SessionNotes"/>, with their deletion marks), but only in a password-protected backup (owner decision 2026-11-14): a
 /// restore merges them like another device's, so a note deleted since stays deleted (a deleted note's mark is kept as long as the note's
-/// 90-day window). They are the user's private text, so never a plain file, never a log.
+/// 90-day window). They are the user's private text, so never a plain file, never a log. Since ADR 89 it holds the device-only tags too
+/// (<paramref name="TagScopes"/>, with their tombstones; the labels' own device lists are in <paramref name="Labels"/>): a restore merges them like
+/// another device's, so a tag made shared since stays shared.
 /// </summary>
 public sealed record TaskListsExport(
     IReadOnlyList<SyncNextTask>? NextTasks,
@@ -23,4 +25,5 @@ public sealed record TaskListsExport(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskView>? Views = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskLogItem>? TaskLog = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncTaskAccountSettings? AccountSettings = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncSessionNote>? SessionNotes = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncSessionNote>? SessionNotes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTagScope>? TagScopes = null);

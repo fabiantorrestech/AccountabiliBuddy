@@ -10,6 +10,8 @@ data class TaskLists(
     val views: List<SyncTaskView>,
     val log: List<SyncTaskLogItem>,
     val account: SyncTaskAccountSettings? = null,
+    /** ADR 89: the device-only tags (tombstones included); null when none was ever made. A tag with no live scope is shared. */
+    val tagScopes: List<SyncTagScope>? = null,
 ) {
     companion object {
         val EMPTY = TaskLists(emptyList(), emptyList(), emptyList(), emptyList())

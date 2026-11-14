@@ -17,6 +17,7 @@ object TaskListMerge {
         views(lists.views, incoming.views, now),
         taskLog(lists.log, incoming.log, now),
         if (incoming.account == null) lists.account else TaskAccountSettingsMerge.merge(lists.account, incoming.account, now),
+        if (incoming.tagScopes == null) lists.tagScopes else TagScopeMerge.merge(lists.tagScopes, TaskScopes.clean(incoming.tagScopes), now),
     )
 
     fun views(held: List<SyncTaskView>, incoming: List<SyncTaskView>, now: OffsetDateTime): List<SyncTaskView> {

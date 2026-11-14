@@ -119,7 +119,15 @@ namespace AccountabiliBuddy.Core.Sync;
 /// window). Private text: only inside sealed files between the user's own devices, under "Sync task lists" (ADR 71); never in a QR file, never in the
 /// copy a receiver keeps of this file, never in a backup, never on the watch, never logged. Reasons never travel. Null from an app that predates it
 /// (which ignores it), in a QR file and while task lists aren't shared; a file without it leaves the receiver's notes alone. Read leniently
-/// (<see cref="SyncLenientListConverter{T}"/>) and cleaned (<see cref="SessionNoteRules.Clean"/>). Appended last.
+/// (<see cref="SyncLenientListConverter{T}"/>) and cleaned (<see cref="SessionNoteRules.Clean"/>). Appended after the receipts.
+/// </param>
+/// <param name="TagScopes">
+/// ADR 89: the tags that are device-only, each as its name-derived id, the name, the devices that show it (device ids), the edit time and a 30-day
+/// tombstone (<see cref="SyncTagScope"/>), merged item by item (<see cref="TagScopeMerge"/>). A tag with no live scope is shared. The label's own
+/// "only on" list rides in <see cref="Labels"/>. Ids and the tag names the tasks already carry; sealed files between the user's own devices under
+/// "Sync task lists" only, never in a QR file, never in the copy a receiver keeps of the file, never logged. Null from an app that predates it
+/// (which shows every tag), in a QR file and while task lists aren't shared; a file without it leaves the receiver's scopes alone. Read leniently
+/// and cleaned (<see cref="Tasks.TaskScopes.Clean"/>). Appended last. Receipts count it with the "tasks" part.
 /// </param>
 public sealed record SyncFile(
     int FormatVersion,
@@ -175,7 +183,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncGoalListConverter<GoalReviewRecord>))] IReadOnlyList<GoalReviewRecord>? GoalReviews = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncGoalYearMerged>))] IReadOnlyList<SyncGoalYearMerged>? GoalYearsMerged = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncReceipt>))] IReadOnlyList<SyncReceipt>? Receipts = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncSessionNote>))] IReadOnlyList<SyncSessionNote>? SessionNotes = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncSessionNote>))] IReadOnlyList<SyncSessionNote>? SessionNotes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTagScope>))] IReadOnlyList<SyncTagScope>? TagScopes = null)
 {
     public const int CurrentFormatVersion = 1;
 }

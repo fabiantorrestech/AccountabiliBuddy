@@ -8,19 +8,42 @@ import java.time.OffsetDateTime
  * The phone's label edits (ADR 76; the PC's TaskLabelEdits and TaskCategoryEdits, the same rules), behind its old category screens
  * until R7.3/R7.4: add, recolour, rename and delete. A name another live label has (any case) is refused. Deleting a label leaves its
  * tasks with No label (a stamped edit of each) and keeps its tombstone for good ([TaskLabelMerge]); a label added again under a
- * deleted one's id comes back ringing on every device, stamped at the revive.
+ * deleted one's id comes back ringing on every device, stamped at the revive. ADR 89: a label can be device-only ([setOnlyOn], [add]): a name
+ * only on other devices doesn't make the name taken, and adding it device-only joins that label's list.
  */
 object TaskLabelEdits {
     /** The live label named [name] (any case, trimmed). */
     fun named(lists: TaskLists, name: String): TaskLabel? = lists.labels.map { it.label }.firstOrNull { it.isLive && TaskLabel.sameName(it.name, name) }
 
-    /** Whether [name] can be the name of the label [labelId] (null: a new one): blank or another live label's name can't. */
-    fun checkName(lists: TaskLists, labelId: String?, name: String): TaskLabelNameCheck {
+    /**
+     * Whether [name] can be the name of the label [labelId] (null: a new one): blank or another live label's name can't. A label this device
+     * can't see (device-only on other devices, ADR 89) doesn't make the name taken; with no [self] every label is seen.
+     */
+    fun checkName(lists: TaskLists, labelId: String?, name: String, self: String = FieldStamp.NOBODY, removed: Collection<String>? = null): TaskLabelNameCheck {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return TaskLabelNameCheck.Blank
-        val taken = lists.labels.map { it.label }.any { it.isLive && !it.id.equals(labelId, ignoreCase = true) && TaskLabel.sameName(it.name, trimmed) }
+        val taken = lists.labels.map { it.label }.any {
+            it.isLive && !it.id.equals(labelId, ignoreCase = true) && TaskLabel.sameName(it.name, trimmed) && TaskScopes.labelVisible(it, self, removed)
+        }
         return if (taken) TaskLabelNameCheck.Taken else TaskLabelNameCheck.Fine
     }
+
+    /**
+     * The devices that show the label (null: every device), stamped on its own ([TaskLabel.onlyOnStamp]: now, or just after a stamp ahead)
+     * by [self]; unchanged when it already is shown on those (the PC's SetOnlyOn). "Make shared" is null; "only on this device" is a list of
+     * [self], or [joined] when other devices hold it too. A choice is display only, so it applies at once, in a session too.
+     */
+    fun setOnlyOn(lists: TaskLists, labelId: String, onlyOn: List<String>?, now: OffsetDateTime, self: String): TaskLists {
+        val wanted = TaskScopes.normalized(onlyOn)
+        val label = lists.labels.map { it.label }.firstOrNull { it.isLive && it.id.equals(labelId, ignoreCase = true) } ?: return lists
+        if (TaskRingDevices.same(TaskScopes.normalized(label.onlyOn), wanted)) return lists
+        val at = label.onlyOnStamp?.let { after(now, it.at) } ?: now
+        val changed = label.copy(onlyOn = wanted, onlyOnStamp = FieldStamp(at, self.lowercase()), editedAt = after(now, label.editedAt))
+        return lists.copy(labels = lists.labels.map { if (it.label.id == label.id) it.copy(label = changed) else it })
+    }
+
+    /** A device list with [self] added (a list of just [self] for a shared label). */
+    fun joined(onlyOn: List<String>?, self: String): List<String> = TaskScopes.normalized(onlyOn.orEmpty() + self.lowercase())!!
 
     /** How many live, unfinished tasks wear the label [labelId]. */
     fun useCount(lists: TaskLists, labelId: String): Int = lists.tasks.count { it.task.isLive && !it.task.isDone && it.task.labelId.equals(labelId, ignoreCase = true) }
@@ -39,10 +62,27 @@ object TaskLabelEdits {
     }
 
     /** A new label (or the live one of that name, unchanged); [color] when valid, else the first unused colour. */
-    fun add(lists: TaskLists, name: String, color: String?, now: OffsetDateTime, self: String): TaskLists {
+    fun add(
+        lists: TaskLists, name: String, color: String?, now: OffsetDateTime, self: String, onlyOnThisDevice: Boolean = false, removed: Collection<String>? = null,
+    ): TaskLists = addWithId(lists, name, color, now, self, onlyOnThisDevice, removed).first
+
+    /**
+     * [add] with the id of the label the name came to (null when nothing was added). ADR 89: [onlyOnThisDevice] makes the label device-only
+     * on [self]. A label of that name that this device can't see is joined instead (this device is added to its list, a stamped edit), so
+     * the same name made on two devices is one label shared by them; asked shared, that label becomes shared. A device with no id makes a
+     * shared label. [removed] devices' device-only labels count as shared.
+     */
+    fun addWithId(
+        lists: TaskLists, name: String, color: String?, now: OffsetDateTime, self: String, onlyOnThisDevice: Boolean = false, removed: Collection<String>? = null,
+    ): Pair<TaskLists, String?> {
         val trimmed = name.trim()
-        if (trimmed.isEmpty() || named(lists, trimmed) != null) {
-            return lists
+        if (checkName(lists, null, trimmed, self, removed) != TaskLabelNameCheck.Fine) {
+            return lists to null
+        }
+
+        val deviceOnly = onlyOnThisDevice && !self.equals(FieldStamp.NOBODY, ignoreCase = true) && self.isNotBlank()
+        named(lists, trimmed)?.let { hidden ->
+            return setOnlyOn(lists, hidden.id, if (deviceOnly) joined(hidden.onlyOn, self) else null, now, self) to hidden.id
         }
 
         val labels = lists.labels.map { it.label }.toMutableList()
@@ -52,13 +92,15 @@ object TaskLabelEdits {
         val existing = labels.indexOfFirst { it.id == id }
         val stamp = if (existing >= 0) after(now, labels[existing].deletedAt ?: labels[existing].editedAt) else now
         val label = TaskLabel(id, trimmed, chosen, position, stamp)
+        val me = self.lowercase()
         if (existing >= 0) {
-            labels[existing] = label.copy(ringOnStamp = FieldStamp(stamp, self.lowercase()))
+            // Revived: rings on every device and shown on every device again unless asked otherwise, both stamped at the revive.
+            labels[existing] = label.copy(ringOnStamp = FieldStamp(stamp, me), onlyOn = if (deviceOnly) listOf(me) else null, onlyOnStamp = FieldStamp(stamp, me))
         } else {
-            labels += label
+            labels += if (deviceOnly) label.copy(onlyOn = listOf(me), onlyOnStamp = FieldStamp(stamp, me)) else label
         }
 
-        return with(lists, labels)
+        return with(lists, labels) to id
     }
 
     /** A label's new colour (an invalid one changes nothing). */

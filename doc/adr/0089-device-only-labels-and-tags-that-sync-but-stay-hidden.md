@@ -1,0 +1,47 @@
+# 89. Device-only labels and tags that sync but stay hidden
+
+Date: 2026-11-14
+
+## Status
+
+Accepted (owner, 2026-11-13: "when applying labels and tags, by default, they should be synchronized - so when we click to add a label, the ones that are synced and shared between devices should just popup as "Shared", then the device-specific ones should only pop up on their respective device."; chose: add device-only; a device-only label "syncs but hidden", so it travels but the other devices don't show it; the same name made device-only on two devices is "Shared by those devices"; a removed device's device-only labels become shared)
+
+Amends [76. One task list with bins, labels and tags](0076-one-task-list-with-bins-labels-and-tags.md) (a label gains a device list with a stamp of its own, and tags gain a scope list in a new sync part). Uses the field stamps of ADR 76, the shared-list merge of [48. Share tasks and come-backs across devices](0048-share-tasks-and-come-backs-across-devices.md) and the device removal of [54. Per-device keys and re-keying on device removal](0054-per-device-keys-and-re-keying-on-device-removal.md).
+
+## Context
+
+Labels and tags are shared by default. The owner wants a label or tag that belongs to one device, for instance a work label that only the work PC shows, and chose that it still syncs (its name travels, sealed, like every label name) but the other devices do not show it. Review of the brief found what the design has to settle:
+
+- **A label's id is made from its name.** A device-only "Work" on one PC and "Work" on another (shared, or device-only there too) are one label. With a single device named on it, the newest choice would win and the other device's label would disappear from it, and the second device could not even create "Work" because the name looked taken by a label it cannot see.
+- **A label merges as a whole record**, newest edit wins, and only "Rings on" has a stamp of its own. A device list kept in the whole record would be reset to shared by an older phone's category colour read into a newer label edit.
+- **Tags have no record.** They are plain names on tasks, and the account settings are stamped settings, not a list. A tag's scope needs its own list.
+- **Every writer of a task's tags or label rewrites the whole value** (the Add sheet, the detail, bulk edits, `#tag` parsing, tag rename and delete, Keep both, Do again, the phone's edits, the old screens). A device that writes back only what it shows would delete what it cannot see, on every device.
+- **A removed device** can never change its labels again, so its device-only labels would stay invisible for good. Writing "make shared" edits for it needs a writer and can race.
+- Search `@label` and `#tag`, Group by, filters and saved views, goals counted by label or tag, the watch snapshot and the Labels screen all read labels and tags.
+
+## Decision
+
+**A label has a device list and a stamp of its own.** `TaskLabel` gains `OnlyOn` (the device ids that show it; none = shared) and `OnlyOnStamp` (`at`, `by`; null when never chosen), appended after `RingOnStamp`. The list merges on its own, exactly as "Rings on" does (`TaskLabelMerge`): the live copy with the newest stamp gives it (a stamped choice beats an unstamped one; between two stamps the later time, then the device id, then the list text; a stamp over 2 minutes ahead counts as 2 minutes ahead), so a newer whole-label edit made without the stamp never takes the choice back. A stamp with no list is a choice of "shared" and wins like any other. A tombstone keeps the stamp, not the list. A deleted label that comes back is shared, its stamp set at the revive, so a device still holding the old list cannot hand it back. Lists are tidied (no empty or repeated ids, id order, at most 64 devices; none left is shared).
+
+**The same name on two devices is one label shared by them.** `OnlyOn` is a list. Making a label device-only adds this device to the list when the label already exists and is hidden here (a stamped edit; the label keeps its id, name and colour), instead of reporting the name as taken. `CheckName` counts only labels this device can see. Asked shared over a label that is hidden here, the label becomes shared (the user chose that name for everyone). This only joins devices that have seen each other's file: two devices that make the name at the same moment while offline each write their own list, and the newest list wins whole until the loser next edits it. That is accepted, and the consequence is that the loser's label is hidden on it until it joins again.
+
+**Tags get a new optional sync part, `tagScopes`, appended last.** `SyncTagScope` (id = a version-5 style id of the trimmed, lower-cased name in a namespace of its own, `name`, `onlyOn`, `editedAt`, `deletedAt`) is merged item by item with `SharedListMerge` (newest wins, tombstones 30 days, the 2-minute clamp). A tag has a scope only while it is device-only; "make shared" deletes the scope, so a tag with no live scope is shared. The part is read leniently and cleaned (an entry with no id, or a live one with no name or devices or over 64 devices, is left out; a tombstone holds no name or devices). It is carried like the labels: under "Sync task lists", never in a QR file, never in the copy a receiver keeps of a file, never logged; the receipt counts it with the "tasks" part. A file without the part (an older app, a QR file) leaves the receiver's scopes alone. On the PC it is stored with the task list in `tasks.tagScopes` (sealed) and is in task-list backups, merged back like another device's (a restore stamps the live ones now); on the phone it is in the task model's document.
+
+**Every writer keeps what the device cannot see.** One pure helper pair, `TaskScopes.WithHiddenTags` and `WithHiddenLabel` (twins in Kotlin), takes what the user left of the shown tags (or the label they chose) and the task's held value, and gives back the value to store: the hidden tags stay, and when the list is full the shown ones give way; a label chosen here replaces a hidden one (the user's act); a task whose only label is hidden here reads as No label and keeps it. Every screen and rule that writes a task's tags or label goes through them.
+
+**A removed device's labels become shared at display.** `TaskScopes` takes the removed devices (ADR 54) as input: a list whose devices are all removed counts as shared, one of several removed drops that device out of the list, and a device that is not in the group yet stays in its list and stays hidden. Nothing is written, so there is no writer to choose and no race, and a device that comes back is hidden again as before. A device with no id (not in a group) shows everything.
+
+**Search and the other readers take a visibility test.** `TaskSearch` accepts a label test and a tag test: `@label` skips a label the test refuses, and `#tag` words and plain words skip a tag it refuses. `TaskCategoryEdits.Apply` takes the hidden labels so the PC's category list is never read as "taken off" for a label it does not show. Where the pickers, rows, Group by, filters, goals sources and the watch apply the same test is the screens' work (LB1b on the PC, LB1c on the phone): a goal source on a hidden label still counts, since counting is data, not display, and the watch snapshot never carries a hidden name.
+
+**Older apps** ignore the new fields and the new part, and show every device-only label and tag as a normal one; they keep the label or tag on the task when they edit it. An older phone that rebuilds a label from its category keeps the device list through the separate stamp. This is accepted and goes in What's new.
+
+The profile JSON is unchanged (schema v13): labels and tags live in the task model documents, not in profiles.
+
+## Consequences
+
+- The owner's rule holds: shared by default, "Shared" first in the picker, a device's own below, and a hidden one never shows elsewhere or finds anything in search.
+- Hidden means not shown, not secret: the name travels in the sealed files like any label, and an older app on another device shows it. Anything private from the user's own other devices needs a different feature.
+- A device that cannot see a tag or label cannot delete it from a task, so a hidden tag stays on the task everywhere until its owner removes it or makes it shared.
+- Two offline devices that make the same device-only name at once can lose one side's visibility until it joins again (above).
+- Every writer of a task's tags or label must go through `WithHidden*`; a new writer that does not would delete hidden tags on every device. The checks hold a mutation for it.
+- The sync file gains one optional part and a label gains two optional fields, all left out when not set. Reversing this means removing them and the display rule, which is cheap while no screen depends on them; LB1b and LB1c add the screens.

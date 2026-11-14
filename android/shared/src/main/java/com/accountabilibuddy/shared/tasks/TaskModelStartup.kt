@@ -105,7 +105,7 @@ object TaskModelStartup {
 
     /** The lists of stored parts (a missing part is an empty one: the store writes every part). */
     fun listsOf(parts: TaskParts): TaskLists =
-        TaskLists(parts.tasks.orEmpty(), parts.labels.orEmpty(), parts.views.orEmpty(), parts.taskLog.orEmpty(), parts.accountSettings)
+        TaskLists(parts.tasks.orEmpty(), parts.labels.orEmpty(), parts.views.orEmpty(), parts.taskLog.orEmpty(), parts.accountSettings, parts.tagScopes?.takeIf { it.isNotEmpty() })
 
     private fun <T : SharedItem> changedOf(before: List<T>, after: List<T>): List<T> {
         val held = before.associateBy { it.id.lowercase() }

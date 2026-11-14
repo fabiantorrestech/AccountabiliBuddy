@@ -28,7 +28,7 @@ public static class DeviceSettingsRegistry
     public static IReadOnlyList<string> TaskKeys { get; } =
         ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted",
          "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast", "tasks.items", "tasks.labels", "tasks.views", "tasks.log",
-         "tasks.account", "capture.notes"];
+         "tasks.account", "tasks.tagScopes", "capture.notes"];
 
     /// <summary>
     /// Round 2 R4: the goal lists (sealed at rest with this PC's key); they go in backups with the task lists, readable inside the

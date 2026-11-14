@@ -5,6 +5,7 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0089](0089-device-only-labels-and-tags-that-sync-but-stay-hidden.md) | Device-only labels and tags that sync but stay hidden | Accepted (owner, 2026-11-13: "when applying labels and tags, by default, they should be synchronized - so when we click to add a label, the ones that are synced and shared between devices should just popup as "Shared", then the device-specific ones should only pop up on their respective device."; chose: add device-only; a device-only label "syncs but hidden", so it travels but the other devices don't show it; the same name made device-only on two devices is "Shared by those devices"; a removed device's device-only labels become shared) | — |
 | [0088](0088-split-lunch-and-discard.md) | Split the lunch into counted pieces, and let Discard be switched off per mode | Accepted (owner, 2026-11-13: "Count 20 of these and keep counting...", "Any time, both modes - give users the option to disable this for PB or AB", "I'm back = Count it") | — |
 | [0087](0087-sync-session-notes-between-your-own-devices.md) | Sync session notes between your own devices | Accepted (owner, 2026-11-13: "Yes, they should sync between devices. Phone should get full archive.") | — |
 | [0086](0086-sync-receipts-per-method-and-part.md) | Sync receipts per method and part | Accepted (owner, 2026-11-13: approved the SYNC1 sync troubleshooting plan, which needs this field) | — |

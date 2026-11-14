@@ -46,7 +46,9 @@ object TaskSearch {
      * The ids of the tasks [query] finds, null when it narrows nothing (show all). A task counts when its text holds every word
      * (title, steps, note, tags) and it passes the "@label" and "#tag" words; an ID finds the task by its number.
      */
-    fun matchingIds(tasks: List<TaskItem>, query: String, labels: List<TaskLabel>): Set<String>? {
+    fun matchingIds(
+        tasks: List<TaskItem>, query: String, labels: List<TaskLabel>, labelShown: ((TaskLabel) -> Boolean)? = null, tagShown: ((String) -> Boolean)? = null,
+    ): Set<String>? {
         if (!hasCriteria(query)) return null
         val live = tasks.filter { it.isLive }
         if (isId(query)) {
@@ -56,8 +58,8 @@ object TaskSearch {
         }
 
         val words = read(query)
-        val labelIds = labelIds(words, labels)
-        return live.filter { passesTokens(it, words, labelIds) && (words.text.isEmpty() || combinedText(it, words.text)) }
+        val labelIds = labelIds(words, labels, labelShown)
+        return live.filter { passesTokens(it, words, labelIds, tagShown) && (words.text.isEmpty() || combinedText(it, words.text, tagShown)) }
             .map { it.id.lowercase() }.toSet()
     }
 
@@ -84,18 +86,21 @@ object TaskSearch {
     private fun spelled(name: String): String = spaces.matcher(fold(name.trim())).replaceAll("_")
 
     // Per "@" word, the ids of the live labels whose spelled name starts with it (an empty set: the word finds nothing).
-    private fun labelIds(words: Words, labels: List<TaskLabel>): List<Set<String>> =
-        words.labels.map { word -> labels.filter { it.isLive && spelled(it.name).startsWith(word) }.map { it.id.lowercase() }.toSet() }
+    private fun labelIds(words: Words, labels: List<TaskLabel>, labelShown: ((TaskLabel) -> Boolean)?): List<Set<String>> =
+        words.labels.map { word -> labels.filter { it.isLive && (labelShown == null || labelShown(it)) && spelled(it.name).startsWith(word) }.map { it.id.lowercase() }.toSet() }
 
-    private fun passesTokens(task: TaskItem, words: Words, labelIds: List<Set<String>>): Boolean {
+    private fun passesTokens(task: TaskItem, words: Words, labelIds: List<Set<String>>, tagShown: ((String) -> Boolean)?): Boolean {
         val label = task.labelId?.lowercase()
         return labelIds.all { ids -> label != null && label in ids } &&
-            words.tags.all { word -> task.tags.orEmpty().any { fold(it).startsWith(word) } }
+            words.tags.all { word -> shown(task, tagShown).any { fold(it).startsWith(word) } }
     }
 
+    // The task's tags this device shows (ADR 89); all of them without a test.
+    private fun shown(task: TaskItem, tagShown: ((String) -> Boolean)?): List<String> = task.tags.orEmpty().filter { tagShown == null || tagShown(it) }
+
     // Every word is somewhere in the title, a step, the note or a tag ("#home").
-    private fun combinedText(task: TaskItem, words: List<String>): Boolean {
-        val all = (listOf(task.title, task.note.orEmpty()) + task.steps.orEmpty().map { it.title } + task.tags.orEmpty().map { "#$it" })
+    private fun combinedText(task: TaskItem, words: List<String>, tagShown: ((String) -> Boolean)?): Boolean {
+        val all = (listOf(task.title, task.note.orEmpty()) + task.steps.orEmpty().map { it.title } + shown(task, tagShown).map { "#$it" })
             .joinToString("\n").let { fold(it) }
         return words.all { all.contains(it) }
     }

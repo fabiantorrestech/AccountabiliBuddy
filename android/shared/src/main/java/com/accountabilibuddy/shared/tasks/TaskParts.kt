@@ -3,7 +3,7 @@ package com.accountabilibuddy.shared.tasks
 import kotlinx.serialization.json.JsonObject
 
 /**
- * ADR 76's parts of a sync file (the PC's SyncFile.Tasks, Labels, Views, TaskLog, TaskAccountSettings), read and cleaned by
+ * ADR 76's parts of a sync file (the PC's SyncFile.Tasks, Labels, Views, TaskLog, TaskAccountSettings, and ADR 89's TagScopes), read and cleaned by
  * [TaskJson.readParts]. A null part is one the file doesn't carry (an app that predates it, a QR file, task lists not shared).
  * The `newer...` lists hold entries only a newer app can read, as written ([TaskRead.newer]).
  */
@@ -17,4 +17,6 @@ data class TaskParts(
     val newerLabels: List<JsonObject> = emptyList(),
     val newerViews: List<JsonObject> = emptyList(),
     val newerTaskLog: List<JsonObject> = emptyList(),
+    /** ADR 89: the device-only tags; null when the file doesn't carry the part (an older app, a QR file). */
+    val tagScopes: List<SyncTagScope>? = null,
 )

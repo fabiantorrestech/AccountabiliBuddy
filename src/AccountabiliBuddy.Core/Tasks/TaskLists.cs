@@ -12,12 +12,17 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// The account's Tasks settings (default view, picked calendar, the devices task reminders ring on), synced with the lists; null when nothing was ever chosen. Carried
 /// over by every rule that rebuilds the lists.
 /// </param>
+/// <param name="TagScopes">
+/// ADR 89: the tags that are device-only (each with the devices that show it, tombstones included), merged item by item; null when none was
+/// ever made. A tag with no live scope is shared. Carried over by every rule that rebuilds the lists; a file without the part leaves them alone.
+/// </param>
 public sealed record TaskLists(
     IReadOnlyList<SyncTaskItem> Tasks,
     IReadOnlyList<SyncTaskLabel> Labels,
     IReadOnlyList<SyncTaskView> Views,
     IReadOnlyList<SyncTaskLogItem> Log,
-    SyncTaskAccountSettings? Account = null)
+    SyncTaskAccountSettings? Account = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTagScope>? TagScopes = null)
 {
     public static TaskLists Empty { get; } = new([], [], [], []);
 

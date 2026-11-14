@@ -116,7 +116,7 @@ public static class SyncFileBuilder
         // The category list (name and colour per category) stays out too: the QR code's room goes to sessions, and a file without it leaves the receiver's copy alone.
         // ADR 72's history, settled records, Auto-saved list and handovers stay out for the same reasons.
         // ADR 76's task list (tasks, labels, views, History) never goes in a QR file: it is private text, and it would not fit. Nor do the
-        // account's Tasks settings, which go with it. ADR 79's goal parts never go either (private text; a file without them leaves the
+        // account's Tasks settings, which go with it, nor ADR 89's tag scopes (they go with the labels). ADR 79's goal parts never go either (private text; a file without them leaves the
         // receiver's goals alone), nor the goal history marker (GS1b: QR files carry nothing of the history). ADR 86's receipts stay out too: the
         // QR codes' room goes to sessions, so a QR-only pair is judged from the card's seen map ("older app: no per-part receipt").
         file = file with
@@ -125,7 +125,7 @@ public static class SyncFileBuilder
             TaskHistory = null, PastSettled = null, AutoSaved = null, Handovers = null, HandoverAcks = null,
             Tasks = null, Labels = null, Views = null, TaskLog = null, TaskAccountSettings = null,
             Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null, GoalYearsMerged = null,
-            Receipts = null, SessionNotes = null,
+            Receipts = null, SessionNotes = null, TagScopes = null,
         };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);

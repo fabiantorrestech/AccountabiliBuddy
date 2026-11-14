@@ -60,7 +60,7 @@ public static class TaskListRules
             tasks[index] = tasks[index] with { Task = task };
         }
 
-        return new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared), lists.Account);
+        return new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared), lists.Account, lists.TagScopes);
     }
 
     /// <summary>
@@ -156,13 +156,20 @@ public static class TaskListRules
     public static TaskLists? MergeFile(TaskLists lists, SyncFile file, Guid self, DateTimeOffset now, TimeZoneInfo zone, int sessionActions)
     {
         TaskLists? merged = MergeTaskParts(lists, file, self, now, zone, sessionActions);
-        if (file.TaskAccountSettings is not { } account)
+        if (file.TaskAccountSettings is { } account)
         {
-            return merged;
+            TaskLists accountBasis = merged ?? lists;
+            merged = accountBasis with { Account = TaskAccountSettingsMerge.Merge(accountBasis.Account, account, now) };
         }
 
-        TaskLists basis = merged ?? lists;
-        return basis with { Account = TaskAccountSettingsMerge.Merge(basis.Account, account, now) };
+        // ADR 89: the tag scopes merge item by item whenever the file carries them; a file without (an older app, a QR file) leaves them alone.
+        if (file.TagScopes is { } scopes)
+        {
+            TaskLists scopeBasis = merged ?? lists;
+            merged = scopeBasis with { TagScopes = TagScopeMerge.Merge(scopeBasis.TagScopes, TaskScopes.Clean(scopes), now) };
+        }
+
+        return merged;
     }
 
     private static TaskLists? MergeTaskParts(TaskLists lists, SyncFile file, Guid self, DateTimeOffset now, TimeZoneInfo zone, int sessionActions)
@@ -185,13 +192,13 @@ public static class TaskListRules
 
         OldTaskReadResult read = OldTaskFieldsReader.Read(new OldTaskReadInput(
             fields, file.Device.DeviceId, file.Device.Kind ?? string.Empty, lists.Tasks, lists.Labels, lists.Log, self, now, zone, sessionActions));
-        return new TaskLists(read.Tasks, read.Labels, lists.Views, CloseFinished(read.History, fields), lists.Account);
+        return new TaskLists(read.Tasks, read.Labels, lists.Views, CloseFinished(read.History, fields), lists.Account, lists.TagScopes);
     }
 
     /// <summary>
     /// Another device's (or a backup's) task list merged in: tasks field by field (<see cref="TaskFieldMerge"/>), labels, views and
-    /// History item by item (a label's rings on by its own stamp, <see cref="TaskLabelMerge"/>), the account's Tasks settings field by field
-    /// (none incoming keeps this device's). Items a damaged file left
+    /// History item by item (a label's rings on and device list by their own stamps, <see cref="TaskLabelMerge"/>), the account's Tasks settings field by field
+    /// (none incoming keeps this device's), the tag scopes item by item (none incoming keeps this device's, ADR 89). Items a damaged file left
     /// empty are dropped.
     /// </summary>
     public static TaskLists MergeLists(TaskLists lists, TaskLists incoming, Guid self, DateTimeOffset now)
@@ -201,7 +208,8 @@ public static class TaskListRules
             TaskLabelMerge.Merge(lists.Labels, incoming.Labels.OfType<SyncTaskLabel>().Where(item => item.Label is not null), now),
             SharedListMerge.Merge(lists.Views, incoming.Views.OfType<SyncTaskView>().Where(item => item.View is not null), now),
             SharedListMerge.Merge(lists.Log, incoming.Log.OfType<SyncTaskLogItem>().Where(item => item.Entry?.Task is not null), now),
-            incoming.Account is null ? lists.Account : TaskAccountSettingsMerge.Merge(lists.Account, incoming.Account, now));
+            incoming.Account is null ? lists.Account : TaskAccountSettingsMerge.Merge(lists.Account, incoming.Account, now),
+            incoming.TagScopes is null ? lists.TagScopes : TagScopeMerge.Merge(lists.TagScopes, TaskScopes.Clean(incoming.TagScopes), now));
     }
 
     /// <summary>Settles, numbers and prunes the lists (see the class summary); stamped by <paramref name="self"/>.</summary>
@@ -283,7 +291,8 @@ public static class TaskListRules
             TaskLabelMerge.Merge(lists.Labels, [], now),
             SharedListMerge.Merge(lists.Views, [], now),
             SharedListMerge.Merge(log, [], now),
-            lists.Account);
+            lists.Account,
+            lists.TagScopes is null ? null : TagScopeMerge.Merge(lists.TagScopes, [], now));
     }
 
     /// <summary>
@@ -307,6 +316,7 @@ public static class TaskListRules
             Views = lists.Views.ToList(),
             TaskLog = lists.Log.ToList(),
             TaskAccountSettings = lists.Account is { IsEmpty: false } account ? account : null,
+            TagScopes = lists.TagScopes is { Count: > 0 } scopes ? scopes.ToList() : null,
         };
     }
 

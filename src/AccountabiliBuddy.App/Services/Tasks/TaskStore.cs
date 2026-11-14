@@ -25,6 +25,9 @@ public sealed class TaskStore
     public const string ViewsKey = "tasks.views";
     public const string LogKey = "tasks.log";
 
+    /// <summary>ADR 89: the device-only tags (each with the devices that show it), sealed; synced and backed up with the lists.</summary>
+    public const string TagScopesKey = "tasks.tagScopes";
+
     /// <summary>The account's Tasks settings (default view, picked calendar), sealed; synced and backed up with the lists.</summary>
     public const string AccountKey = "tasks.account";
     public const string ViewSearchesKey = "tasks.viewSearches";
@@ -170,7 +173,8 @@ public sealed class TaskStore
                 LoadList<SyncTaskLabel>(LabelsKey).Where(item => item.Label is not null).ToList(),
                 LoadList<SyncTaskView>(ViewsKey).Where(item => item.View is not null).ToList(),
                 LoadList<SyncTaskLogItem>(LogKey).Where(item => item.Entry?.Task is not null).ToList(),
-                LoadAccount());
+                LoadAccount(),
+                LoadTagScopes());
             _categoryIds = LoadSealed<Dictionary<Guid, Guid>>(CategoryIdsKey) ?? [];
             _viewSearches = LoadSealed<Dictionary<Guid, string>>(ViewSearchesKey) ?? [];
             (_running, _heldEndedAt) = LoadRunning();
@@ -509,7 +513,8 @@ public sealed class TaskStore
                 .ToList(),
             backup.Labels.Where(item => item.Label?.IsLive == true).Select(item => new SyncTaskLabel(item.Label with { EditedAt = now })).ToList(),
             backup.Views.Where(item => item.View?.IsLive == true).Select(item => new SyncTaskView(item.View with { EditedAt = now })).ToList(),
-            backup.Log.Where(item => item.Entry?.Task is not null).ToList());
+            backup.Log.Where(item => item.Entry?.Task is not null).ToList(),
+            TagScopes: backup.TagScopes?.Where(scope => scope.DeletedAt is null).Select(scope => scope with { EditedAt = now }).ToList());
         await Commit(TaskListRules.MergeLists(_lists, incoming, self, now), null, fromOtherDevice: true).Save;
         return incoming.Tasks.Count(item => item.Task.IsLive);
     }
@@ -578,6 +583,7 @@ public sealed class TaskStore
             new(ViewsKey, Sealed(lists.Views)),
             new(LogKey, Sealed(lists.Log)),
             new(AccountKey, Sealed(lists.Account ?? SyncTaskAccountSettings.Empty)),
+            new(TagScopesKey, Sealed(lists.TagScopes ?? [])),
             new(CategoryIdsKey, Sealed(ids)),
             new(ViewSearchesKey, Sealed(searches)),
         };
@@ -673,6 +679,20 @@ public sealed class TaskStore
         try
         {
             return TaskAccountSettingsMerge.Clean(LoadSealed<SyncTaskAccountSettings>(AccountKey));
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    // ADR 89's tag scopes: a document that can't be read here starts empty (every tag shown) rather than closing the task list; the other devices'
+    // files bring the scopes back.
+    private List<SyncTagScope>? LoadTagScopes()
+    {
+        try
+        {
+            return TagScopeMerge.Merge(TaskScopes.Clean(LoadList<SyncTagScope>(TagScopesKey)), [], Now);
         }
         catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
         {

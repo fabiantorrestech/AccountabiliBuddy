@@ -204,7 +204,7 @@ object SyncFileJson {
         file.handovers?.let { put("handovers", writeHandovers(it)) }
         file.handoverAcks?.let { acks -> put("handoverAcks", JsonArray(acks.map { ack -> buildJsonObject { put("id", ack.id); put("editedAt", writeTime(ack.editedAt)) } })) }
         // Optional (ADR 76): the task list's parts; a part the file doesn't carry is left out, as the PC leaves it out.
-        file.taskParts?.let { parts -> com.accountabilibuddy.shared.tasks.TaskJson.writeParts(parts).forEach { (name, value) -> put(name, value) } }
+        file.taskParts?.let { parts -> com.accountabilibuddy.shared.tasks.TaskJson.writeParts(parts, withScopes = false).forEach { (name, value) -> put(name, value) } }
         // Optional (ADR 79): the goal lists and the year files this device merged; a part the file does not carry is left out.
         file.goalParts?.let { parts -> SyncGoalParts.write(parts).forEach { (name, value) -> put(name, value) } }
         file.goalYearsMerged?.let { put("goalYearsMerged", writeGoalYearsMerged(it)) }
@@ -244,6 +244,8 @@ object SyncFileJson {
         file.receipts?.let { put("receipts", SyncReceiptsJson.write(it)) }
         // Optional (ADR 87): the session notes, after the receipts as on the PC; older apps ignore them.
         file.sessionNotes?.let { put("sessionNotes", writeSessionNotes(it)) }
+        // Optional (ADR 89): the device-only tags, last as on the PC; older apps ignore them.
+        file.taskParts?.tagScopes?.let { put("tagScopes", com.accountabilibuddy.shared.tasks.TaskJson.writeTagScopes(it)) }
     }
 
     /** Null when the JSON isn't a complete sync file this app can read (see the class comment). */
@@ -490,8 +492,8 @@ object SyncFileJson {
     fun readTaskParts(json: JsonObject): com.accountabilibuddy.shared.tasks.TaskParts? =
         if (TASK_PART_NAMES.none { json[it] != null && json[it] !is JsonNull }) null else com.accountabilibuddy.shared.tasks.TaskJson.readParts(json)
 
-    /** The five names ADR 76's parts have in a sync file. */
-    val TASK_PART_NAMES: List<String> = listOf("tasks", "labels", "views", "taskLog", "taskAccountSettings")
+    /** The names ADR 76's parts have in a sync file, and ADR 89's tag scopes (written last in a file). */
+    val TASK_PART_NAMES: List<String> = listOf("tasks", "labels", "views", "taskLog", "taskAccountSettings", "tagScopes")
 
     /** The guidance mode (ADR 68), leniently: a value without a mode or a time reads as none. */
     fun readGuidance(value: JsonElement?): SyncGuidance? {

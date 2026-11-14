@@ -243,6 +243,7 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
                 backup.views.filter { it.view.isLive }.map { it.copy(view = it.view.copy(editedAt = now)) },
                 backup.log,
                 backup.account,
+                backup.tagScopes?.filter { it.deleted == null }?.map { it.copy(edited = now) },
             )
             TaskListMerge.mergeLists(lists, incoming, self, now)
         }
@@ -266,7 +267,7 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
     fun backupParts(): TaskParts? {
         if (!isActive) return null
         val lists = _lists.value
-        return TaskParts(lists.tasks, lists.labels, lists.views, lists.log, lists.account?.takeIf { !it.isEmpty }, newer.newerTasks, newer.newerLabels, newer.newerViews, newer.newerTaskLog)
+        return TaskParts(lists.tasks, lists.labels, lists.views, lists.log, lists.account?.takeIf { !it.isEmpty }, newer.newerTasks, newer.newerLabels, newer.newerViews, newer.newerTaskLog, lists.tagScopes?.takeIf { it.isNotEmpty() })
     }
 
     /** The time zone the store settles days in. */
@@ -305,7 +306,7 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
     private fun tell() = listeners.forEach { runCatching { it() } }
 
     private fun encode(lists: TaskLists): JsonObject = TaskJson.writeParts(
-        TaskParts(lists.tasks, lists.labels, lists.views, lists.log, lists.account, newer.newerTasks, newer.newerLabels, newer.newerViews, newer.newerTaskLog),
+        TaskParts(lists.tasks, lists.labels, lists.views, lists.log, lists.account, newer.newerTasks, newer.newerLabels, newer.newerViews, newer.newerTaskLog, lists.tagScopes),
     ).let { parts ->
         // Every part is written, even empty, so a store read back never takes a missing part for one it doesn't have.
         buildJsonObject {

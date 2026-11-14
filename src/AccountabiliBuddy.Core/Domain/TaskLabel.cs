@@ -20,6 +20,16 @@ namespace AccountabiliBuddy.Core.Domain;
 /// (<see cref="Sync.TaskLabelMerge"/>), so another change of the label (an older phone's category colour read on a PC that hasn't
 /// seen the choice yet) never takes it back.
 /// </param>
+/// <param name="OnlyOn">
+/// ADR 89: the devices that show this label (device ids); null for every device (shared). A device-only label still syncs (its name travels
+/// sealed) but the other devices don't show it (<see cref="Tasks.TaskScopes"/>). Several ids when devices made the same name (shared by
+/// those devices). A list whose devices were all removed from the group counts as shared, at display only.
+/// </param>
+/// <param name="OnlyOnStamp">
+/// When and on which device <paramref name="OnlyOn"/> was chosen (a stamp with a null list is a choice of "shared"); null when never.
+/// Merges on its own like <paramref name="RingOnStamp"/>, so a newer whole-label edit made without it (an older app's category) never
+/// takes the choice back. A tombstone keeps the stamp, not the list; a revived label is shared, stamped at the revive.
+/// </param>
 public sealed record TaskLabel(
     Guid Id,
     string Name,
@@ -28,7 +38,9 @@ public sealed record TaskLabel(
     DateTimeOffset EditedAt,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? RingOn = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? RingOnStamp = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? RingOnStamp = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? OnlyOn = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? OnlyOnStamp = null)
 {
     // A fixed namespace for the name-based ids (an RFC 4122 version 5 style id); the phone's twin uses the same bytes.
     private static readonly Guid NameSpace = new("6f1b9a4e-3c2d-4e8b-9a71-5d0c2b7e4f13");
@@ -61,9 +73,9 @@ public sealed record TaskLabel(
         return string.Equals(first.Trim(), second.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>The label as a tombstone: no name or colour left.</summary>
+    /// <summary>The label as a tombstone: no name or colour left, and no device list (its stamp stays, ADR 89).</summary>
     public TaskLabel Deleted(DateTimeOffset at)
     {
-        return new TaskLabel(Id, string.Empty, TaskLabelColors.Set[0], Position, at, DeletedAt: at);
+        return new TaskLabel(Id, string.Empty, TaskLabelColors.Set[0], Position, at, DeletedAt: at, OnlyOnStamp: OnlyOnStamp);
     }
 }
