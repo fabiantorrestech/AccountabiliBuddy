@@ -174,6 +174,7 @@ public static class LunchDay
     public static SyncLunch? Receive(SyncLunch? ours, SyncLunch received, DateTimeOffset now)
     {
         SyncLunch lunch = LunchListening.ClampFuture(received, now);
+        SyncLunch? fill = null;
         if (lunch.Counted is null && ours is not null)
         {
             if ((ours.Counted ?? []).Any(piece => piece.Start == lunch.Start))
@@ -193,12 +194,14 @@ public static class LunchDay
             filled = Held(filled.Allowance is null ? filled : filled with { Allowance = Covering(filled) });
             if (!SamePieces(ours, filled))
             {
-                return filled;
+                // Our filled record is the one the received record is compared with; it is kept when the received record does not beat it.
+                fill = filled;
+                ours = filled;
             }
         }
 
         lunch = Held(lunch);
-        return ours is not null && (!Newer(lunch, ours) || SamePieces(ours, lunch)) ? null : lunch;
+        return ours is not null && (!Newer(lunch, ours) || SamePieces(ours, lunch)) ? fill : lunch;
     }
 
     /// <summary>The same lunch apart from the edit stamp: current piece, allowance, discarded mark and counted pieces (missing and empty alike).</summary>

@@ -40,7 +40,7 @@ object HeaderSource {
             testEndsAt = app.testSession.running()?.second,
             // Today's lunch while it runs (the clock now, like the test session above); it follows +5 / -5 and a lunch from another device.
             // Not while a session is counting (see [sessionCounting]): then the session's own countdown is the right one.
-            lunchEndsAt = app.lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now())?.end?.takeIf { it.isAfter(java.time.Instant.now()) && !sessionCounting(app, java.time.Instant.now()) },
+            lunchEndsAt = app.lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now())?.end?.takeIf { it.isAfter(com.accountabilibuddy.companion.guidance.TrustedTime.now()) && !sessionCounting(app, java.time.Instant.now()) },
         )
         return DayHeader.build(input, clock)
     }

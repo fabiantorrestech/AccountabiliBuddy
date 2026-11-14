@@ -163,7 +163,7 @@ object Refresher {
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         // Lunch's end: the session's lock is asked for again then.
         val untilLunchEnd = (context.applicationContext as CompanionApp).lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now())?.end
-            ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+            ?.let { java.time.Duration.between(com.accountabilibuddy.companion.guidance.TrustedTime.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         // A pause's end and emergency time's end: a work card closed for now (still owed) comes back then.
         val pauseState = (context.applicationContext as CompanionApp).pause.state.value
         val untilPauseEnd = pauseState.pausedAt

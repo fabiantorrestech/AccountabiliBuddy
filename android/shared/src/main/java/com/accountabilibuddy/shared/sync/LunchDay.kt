@@ -129,7 +129,9 @@ object LunchDay {
      * the order the files arrive in never decides what is counted. Otherwise the newer edit wins, a tie in the stamp going to the same side on
      * every device ([outranks]), and the same pieces change nothing.
      */
-    fun receive(ours: SyncLunch?, received: SyncLunch, now: Instant): SyncLunch? {
+    fun receive(oursIn: SyncLunch?, received: SyncLunch, now: Instant): SyncLunch? {
+        var ours = oursIn
+        var fill: SyncLunch? = null
         var lunch = LunchListening.clampFuture(received, now)
         if (lunch.counted == null && ours != null) {
             if ((ours.counted ?: emptyList()).any { it.start == lunch.start }) return null
@@ -141,11 +143,15 @@ object LunchDay {
             var filled = ours.copy(counted = ours.counted ?: lunch.counted, allowance = ours.allowance ?: lunch.allowance)
             if (filled.allowance != null) filled = filled.copy(allowance = covering(filled))
             filled = held(filled)
-            if (!samePieces(ours, filled)) return filled
+            if (!samePieces(ours, filled)) {
+                // Our filled record is the one the received record is compared with; it is kept when the received record does not beat it.
+                fill = filled
+                ours = filled
+            }
         }
 
         lunch = held(lunch)
-        return if (ours != null && (!newer(lunch, ours) || samePieces(ours, lunch))) null else lunch
+        return if (ours != null && (!newer(lunch, ours) || samePieces(ours, lunch))) fill else lunch
     }
 
     /** The allowance raised to cover the counted pieces and the current piece (an older app may have lengthened it), at most [MAX_MINUTES]. */

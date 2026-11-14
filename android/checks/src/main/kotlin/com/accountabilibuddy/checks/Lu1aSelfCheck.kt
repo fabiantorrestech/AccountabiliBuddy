@@ -10,6 +10,7 @@ import com.accountabilibuddy.shared.sync.SyncFileJson
 import com.accountabilibuddy.shared.sync.SyncLunch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -99,5 +100,21 @@ object Lu1aSelfCheck {
                 && LunchDiscardSetting.restoreClears(LunchDiscardSetting.prefKey(true, "allowed"), true).isEmpty())
 
         report.check("lu1a: the discard setting is on by default, nothing waiting", LunchDiscardSetting() == LunchDiscardSetting(true, null, null))
+
+        // Fix round 2: lunch runs on trusted time everywhere. LunchStore needs a Context, so this module can't run it; its source is scanned instead:
+        // every read that decides "is lunch running" reads TrustedTime itself (whatever time a caller passes is ignored), no lunch read or the
+        // over alarm uses the wall clock, and the alarm counts on the elapsed-realtime clock.
+        val store = File("../app/src/main/java/com/accountabilibuddy/companion/lunch/LunchStore.kt")
+        val source = if (store.exists()) store.readText().replace("\r\n", "\n") else ""
+        val body = { signature: String -> source.substringAfter(signature, "").substringBefore("\n\n") }
+        val wallClock = Regex("""(Instant|System)\.(now|currentTimeMillis)\(|RTC_WAKEUP""")
+        val code = source.lines().filterNot { it.trimStart().startsWith("*") || it.trimStart().startsWith("//") || it.trimStart().startsWith("/*") }.joinToString("\n")
+        report.check("lu1a: LunchStore is found", source.isNotEmpty())
+        report.check("lu1a: isOnLunch, today, canStart, canShorten, overDue and forWatch read TrustedTime.now() themselves",
+            listOf("fun isOnLunch(", "fun today(", "fun canStart(", "fun canShorten(", "fun overDue(", "fun forWatch(").all { body(it).contains("TrustedTime.now()") }, "a lunch read is missing TrustedTime.now()")
+        report.check("lu1a: start, adjust, endNow and receive take their time from TrustedTime too",
+            listOf("fun start(", "fun adjust(", "fun endNow(", "fun receive(").all { body(it).contains("val now = TrustedTime.now()") })
+        report.check("lu1a: LunchStore never reads the phone's own clock (and the over alarm is not an RTC alarm)", !wallClock.containsMatchIn(code), wallClock.find(code)?.value ?: "")
+        report.check("lu1a: the over alarm counts on the elapsed-realtime clock from trusted time", source.contains("ELAPSED_REALTIME_WAKEUP") && source.contains("Duration.between(TrustedTime.now(), lunch.end)"))
     }
 }
