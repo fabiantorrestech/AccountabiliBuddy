@@ -616,13 +616,13 @@ public partial class App : Application
         // Notes kept in Focus mode (redesign phase 5): this computer only, sealed.
         _sessionNotes = new SessionNotesStore(documents, new DpapiDataProtector(), time);
         _sessionNotes.LoadBlocking();
-        // ADR 87: a new note keeps the running session's start and profile id; the notes stored before it get their session once, from this PC's own history.
-        _sessionNotes.CurrentSession = () => _sessions.State is { IsActive: true, PhaseStartedAt: DateTimeOffset phaseStart } state ? (phaseStart, state.ProfileId) : null;
-        IReadOnlyList<SessionRecord>? ownSessionHistory = null;
+        // ADR 87: a new note keeps the running real session's own start (the one the task history keys), never the phase's; the notes stored
+        // before it get their session once, from this PC's own history (only the days around each note are read).
+        _sessionNotes.CurrentSession = SessionNotesStore.RunningSessionOf(_sessions, sessionTasks);
         _sessionNotes.SessionOf = at =>
         {
-            ownSessionHistory ??= Task.Run(async () => SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(time.GetUtcNow().AddDays(-95), time.GetUtcNow().AddDays(1)))).GetAwaiter().GetResult();
-            SessionRecord? found = ownSessionHistory.FirstOrDefault(record => record.StartedAt <= at && at <= (record.EndedAt ?? DateTimeOffset.MaxValue));
+            IReadOnlyList<SessionRecord> around = Task.Run(async () => SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(at.AddDays(-1), at.AddDays(1)))).GetAwaiter().GetResult();
+            SessionRecord? found = around.FirstOrDefault(record => record.StartedAt <= at && at <= (record.EndedAt ?? DateTimeOffset.MaxValue));
             return found is null ? null : (found.StartedAt, found.ProfileId);
         };
         _capture = new CaptureService(_comebacks, new Win32GlobalHotkey(), monitorLocator);
@@ -958,6 +958,8 @@ public partial class App : Application
         {
             syncCoordinator.NotifyHistoryChanged();
         };
+        // ADR 87: a note the user added, edited or deleted here goes out at once; a merge of another device's notes never does.
+        _sessionNotes!.LocalChanged += (_, _) => syncCoordinator.NotifyHistoryChanged();
         syncCoordinator.LoadBlocking();
         // Sync troubleshooting (SYNC1b, ADR 86): what arrived by which method and what each part came to, this PC's own puts, the files that aren't
         // taken in, and the rolling sync log (counts and times only). All device-local ("sync." documents, sync.log), in no backup.

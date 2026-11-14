@@ -29,7 +29,7 @@ public static class SessionNoteRules
     public static List<SyncSessionNote> InWindow(IEnumerable<SyncSessionNote> notes, DateTimeOffset now)
     {
         DateTimeOffset from = now - Window;
-        return notes.Where(note => note.At > from).ToList();
+        return notes.Where(note => note.At > from).Select(note => note.InUtc()).ToList();
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public static class SessionNoteRules
             .OfType<SyncSessionNote>()
             .Where(note => note.Id != Guid.Empty && note.By != Guid.Empty && note.At != default && note.EditedAt != default
                 && (note.DeletedAt is not null || !string.IsNullOrWhiteSpace(note.Text)))
-            .Select(note => note.DeletedAt is null ? note : note with { Text = null, SessionStart = null, ProfileId = null })
+            .Select(note => (note.DeletedAt is null ? note : note with { Text = null, SessionStart = null, ProfileId = null }).InUtc())
             .ToList();
     }
 }

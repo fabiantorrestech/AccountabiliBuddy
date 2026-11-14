@@ -757,7 +757,9 @@ public sealed class SyncCoordinator
             goalsState = SyncReceiptParts.Refused;
         }
 
-        states["tasks"] = !hasTasks ? SyncReceiptParts.Absent : tasksOpen && MergeTaskModel is not null ? tasksState : SyncReceiptParts.Refused;
+        // Session notes (ADR 87) merge in ReceiveTaskLists whether or not the task model is wired, so a file whose only task part is notes is not "refused".
+        bool hasModelParts = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null;
+        states["tasks"] = !hasTasks ? SyncReceiptParts.Absent : tasksOpen && (MergeTaskModel is not null || !hasModelParts) ? tasksState : SyncReceiptParts.Refused;
         states["oldLists"] = !hasOld ? SyncReceiptParts.Absent : tasksOpen ? tasksState : SyncReceiptParts.Refused;
         states["goals"] = !hasGoals ? SyncReceiptParts.Absent : goalsOpen && MergeGoals is not null ? goalsState : SyncReceiptParts.Refused;
         states["goalHistory"] = states["goals"];

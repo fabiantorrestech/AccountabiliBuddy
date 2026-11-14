@@ -58,6 +58,22 @@ public sealed class SessionNotesStore
 
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// Raised only when the user adds, edits or deletes a note on this device (never by <see cref="MergeAsync"/>, so receiving a file never
+    /// causes a write): the app asks the sync to write this device's file at once.
+    /// </summary>
+    public event EventHandler? LocalChanged;
+
+    /// <summary>
+    /// The session a new note belongs to: the running real session's start, the one captured when it began (the checklist's
+    /// <c>SessionStart</c>, as the task history keys it; never the current phase's start, which moves at every Pomodoro phase, when planning
+    /// ends and after an away), and its focus profile id. Null outside a session and in a test session (which are never synced).
+    /// </summary>
+    public static Func<(DateTimeOffset Start, Guid? ProfileId)?> RunningSessionOf(SessionController sessions, SessionTasksService tasks)
+    {
+        return () => sessions.State.IsRealSession && tasks.Current.SessionStart is DateTimeOffset start ? (start.ToUniversalTime(), sessions.State.ProfileId) : null;
+    }
+
     public void LoadBlocking()
     {
         try
@@ -86,7 +102,9 @@ public sealed class SessionNotesStore
         DateTimeOffset now = _time.GetUtcNow();
         (DateTimeOffset Start, Guid? ProfileId)? session = CurrentSession();
         _all.Add(new SyncSessionNote(Guid.NewGuid(), trimmed, now, session?.Start, session?.ProfileId, Self() ?? Guid.Empty, now));
-        return SaveAsync();
+        Task saved = SaveAsync();
+        LocalChanged?.Invoke(this, EventArgs.Empty);
+        return saved;
     }
 
     /// <summary>The notes' texts this device wrote from <paramref name="from"/> to <paramref name="to"/>, oldest first (never another device's, ADR 87).</summary>
@@ -107,7 +125,9 @@ public sealed class SessionNotesStore
 
         SyncSessionNote held = _all[index];
         _all[index] = held with { Text = trimmed, EditedAt = SharedListMerge.NextStamp(_time.GetUtcNow(), held) };
-        return SaveAsync();
+        Task saved = SaveAsync();
+        LocalChanged?.Invoke(this, EventArgs.Empty);
+        return saved;
     }
 
     /// <summary>Deletes one (the Notebook's delete): its text is gone at once and a tombstone tells the other devices; an unknown id changes nothing.</summary>
@@ -121,7 +141,9 @@ public sealed class SessionNotesStore
 
         SyncSessionNote held = _all[index];
         _all[index] = held.Deleted(SharedListMerge.NextStamp(_time.GetUtcNow(), held));
-        return SaveAsync();
+        Task saved = SaveAsync();
+        LocalChanged?.Invoke(this, EventArgs.Empty);
+        return saved;
     }
 
     /// <summary>
@@ -181,7 +203,7 @@ public sealed class SessionNotesStore
                 }
 
                 (DateTimeOffset Start, Guid? ProfileId)? session = note.DeletedAt is null ? SessionOf(note.At) : null;
-                return note with { By = self, EditedAt = note.At, SessionStart = session?.Start, ProfileId = session?.ProfileId };
+                return note with { By = self, EditedAt = note.At, SessionStart = note.SessionStart ?? session?.Start, ProfileId = note.ProfileId ?? session?.ProfileId };
             })
             .ToList();
         _ = SaveAsync(prune: false, raise: false);

@@ -37,6 +37,21 @@ public sealed record SyncSessionNote(
         return this with { EditedAt = editedAt, DeletedAt = deletedAt };
     }
 
+    /// <summary>
+    /// The note with every time at offset zero: the wire carries these times in UTC, as the phone writes them, so both apps write the same
+    /// bytes for the same note whatever offset a time was captured with (the merge compares instants, so nothing else changes).
+    /// </summary>
+    public SyncSessionNote InUtc()
+    {
+        return this with
+        {
+            At = At.ToUniversalTime(),
+            SessionStart = SessionStart?.ToUniversalTime(),
+            EditedAt = EditedAt.ToUniversalTime(),
+            DeletedAt = DeletedAt?.ToUniversalTime(),
+        };
+    }
+
     /// <summary>The note as a tombstone: its text and session are gone, and it is deleted at <paramref name="at"/>.</summary>
     public SyncSessionNote Deleted(DateTimeOffset at)
     {
