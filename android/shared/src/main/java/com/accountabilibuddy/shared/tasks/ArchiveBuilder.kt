@@ -1,5 +1,6 @@
 package com.accountabilibuddy.shared.tasks
 
+import com.accountabilibuddy.shared.sync.SyncDeletedPastTask
 import com.accountabilibuddy.shared.sync.SyncHistoryTask
 import com.accountabilibuddy.shared.sync.SyncKeptPast
 import com.accountabilibuddy.shared.sync.SyncPastSettled
@@ -58,8 +59,13 @@ data class ArchiveDeletedRow(
     val source: ArchiveSource,
     val deviceName: String?,
     val entryId: String?,
+    /** A past task's settle state for Restore: DONE when it was done when deleted, else OPEN; null for a History entry's row. */
+    val restoreAs: String? = null,
 ) {
     val canRestore: Boolean get() = entryId != null
+
+    /** Restore stamps a newer settle record over the delete (never a raw restore). */
+    val canRestoreByStamp: Boolean get() = entryId == null && restoreAs != null
 }
 
 /** What [ArchiveBuilder] makes: the Archive's tasks and its synced Recently deleted lines, newest first. */
@@ -97,7 +103,7 @@ object ArchiveBuilder {
             val record = if (settleApplies) settled[task.id] else null
             if (record?.state == SyncPastSettled.DELETED) {
                 if (Duration.between(record.editedAt, input.now) < DELETED_LISTED) {
-                    settledDeleted.add(ArchiveDeletedRow(task.id, task.title, record.editedAt, source, deviceName, null))
+                    settledDeleted.add(ArchiveDeletedRow(task.id, task.title, record.editedAt, source, deviceName, null, restoreStateOf(task)))
                 }
                 return
             }
@@ -167,6 +173,25 @@ object ArchiveBuilder {
             )
         }
 
+        // A past task its owner deleted and keeps sending as deleted for 30 days (AR1b review, SyncTaskHistoryEntry.deleted): listed on every
+        // device that receives the owner's file, with the settle record's time, so the same line shows everywhere (restore = a newer record).
+        // Once a newer Done or Open record restored it, it is that task again at once, before the owner's next file carries it.
+        for (device in input.received.sortedWith(compareBy<ArchiveReceivedDevice> { it.deviceId })) {
+            for (entry in device.entries) {
+                for (gone in entry.deleted.orEmpty().sortedWith(compareBy<SyncDeletedPastTask> { it.task.id })) {
+                    val record = settled[gone.task.id]
+                    if (gone.task.title.isEmpty() || gone.task.id in seen || record == null) continue
+                    if (record.state == SyncPastSettled.DELETED) {
+                        if (Duration.between(record.editedAt, input.now) < DELETED_LISTED && seen.add(gone.task.id)) {
+                            settledDeleted.add(ArchiveDeletedRow(gone.task.id, gone.task.title, record.editedAt, ArchiveSource.RECEIVED, device.name, null, restoreStateOf(gone.task)))
+                        }
+                    } else if (record.state == SyncPastSettled.OPEN || record.state == SyncPastSettled.DONE) {
+                        past(ArchiveSource.RECEIVED, device.deviceId, device.name, entry.sessionStart, entry.outside, startOf(entry), gone.task, true)
+                    }
+                }
+            }
+        }
+
         val deleted = deletedFromList(input.lists, input.now).toMutableList()
         val listed = deleted.map { it.id }.toMutableSet()
         deleted.addAll(settledDeleted.filter { listed.add(it.id) })
@@ -175,6 +200,9 @@ object ArchiveBuilder {
             deleted.sortedWith(compareByDescending<ArchiveDeletedRow> { it.deletedAt }.thenBy { it.id }),
         )
     }
+
+    /** The state Restore stamps for a deleted past task: DONE when it was done, else OPEN. */
+    fun restoreStateOf(task: SyncHistoryTask): String = if (task.doneAt == null) SyncPastSettled.OPEN else SyncPastSettled.DONE
 
     // A session's start; a "done outside a session" record has none, so its latest tick stands in.
     private fun startOf(entry: SyncTaskHistoryEntry): Instant =

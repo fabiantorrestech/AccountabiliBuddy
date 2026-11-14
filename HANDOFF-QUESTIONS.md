@@ -887,3 +887,4 @@ UI round 2 (plan `doc/plans/2026-11-12-ui-round2-plan.md`, branch `ui-round2`). 
 - **Q1013.** "I'm back" stays as a button next to the ✕ and counts without asking (owner: I'm back = Count it). Provisional: keep both.
 - **Q1014.** "Start the rest (40 min left)" shows after a counted or discarded piece on any day a lunch was started (no workday check, since a lunch was started). Provisional: fine.
 - **Q1015.** No SetupFeatures entry: nothing to set up (the ✕ is where lunch already is, the setting defaults on). Provisional: agree.
+- **Q1020.** S1 as built differs a little from the owner's wording: the owner keeps sending a deleted past task in a separate optional `deleted` list on its history entry (not "marked deleted" inside `tasks`), so an older app, which ignores the field, never shows it as a live task (it just doesn't list it in Recently deleted, as before). Format version stays 1. Provisional: keep; say if you would rather have the mark inside `tasks`.

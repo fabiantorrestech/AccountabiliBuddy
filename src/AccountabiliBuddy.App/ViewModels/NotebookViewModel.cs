@@ -234,7 +234,7 @@ public sealed partial class NotebookViewModel : ObservableObject
 
         // What only this PC knows (steps, Later items, auto-saved items, a task deleted outside a session) stays listed here, marked as this PC's.
         HashSet<Guid> synced = archive.Deleted.Select(row => row.Id).ToHashSet();
-        foreach (DeletedItem item in stored.Where(item => !synced.Contains(item.ItemId) && !RestoredElsewhere(item) && Matches(item.Title)))
+        foreach (DeletedItem item in stored.Where(item => !synced.Contains(item.ItemId) && !RestoredElsewhere(item) && !_tasks.ExistsAgain(item) && Matches(item.Title)))
         {
             lines.Add((item.DeletedAt, new RecentlyDeletedRowViewModel(item, $"Deleted {When(item.DeletedAt)} · this PC only", _tasks)));
         }
@@ -249,6 +249,7 @@ public sealed partial class NotebookViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsRecentlyDeleted));
     }
 
+    // (AR1b review: a line of this PC only is hidden once its item exists again, brought back on another device.)
     // This PC's copy of a past task that another device has since brought back (a newer Done or Open record over the delete) is not a deleted item any more.
     private bool RestoredElsewhere(DeletedItem item)
     {

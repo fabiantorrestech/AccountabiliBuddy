@@ -75,7 +75,7 @@ object Ar1Cases {
         }
         val deleted = expected.getValue("deleted").jsonArray.map { element ->
             val row = element.jsonObject
-            "deleted ${text(row, "id")}|${text(row, "title")}|${time(instant(text(row, "deletedAt")))}|${text(row, "source")}|${text(row, "deviceName")}|${text(row, "entryId")}|${row.getValue("canRestore").jsonPrimitive.content}"
+            "deleted ${text(row, "id")}|${text(row, "title")}|${time(instant(text(row, "deletedAt")))}|${text(row, "source")}|${text(row, "deviceName")}|${text(row, "entryId")}|${row.getValue("canRestore").jsonPrimitive.content}|${text(row, "restoreAs")}|${row.getValue("canRestoreByStamp").jsonPrimitive.content}"
         }
         return tasks + deleted
     }
@@ -93,7 +93,7 @@ object Ar1Cases {
                 "${row.categoryId.orEmpty()}|${row.category.orEmpty()}|${row.categoryColor.orEmpty()}|[$steps]|${time(row.sort)}|${row.canTick}|${row.canDelete}|${row.canEdit}"
         }
         val deleted = rows.deleted.map { row ->
-            "deleted ${row.id}|${row.title}|${time(row.deletedAt)}|${source(row.source)}|${row.deviceName.orEmpty()}|${row.entryId.orEmpty()}|${row.canRestore}"
+            "deleted ${row.id}|${row.title}|${time(row.deletedAt)}|${source(row.source)}|${row.deviceName.orEmpty()}|${row.entryId.orEmpty()}|${row.canRestore}|${row.restoreAs.orEmpty()}|${row.canRestoreByStamp}"
         }
         return tasks + deleted
     }

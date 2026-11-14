@@ -26,15 +26,40 @@ public sealed partial class SessionTasksService
     /// </summary>
     public IReadOnlyList<SyncTaskHistoryEntry> TaskHistoryForSync()
     {
-        DateTimeOffset from = _time.GetUtcNow() - SyncTaskHistoryEntry.Kept;
-        return _history
+        DateTimeOffset now = _time.GetUtcNow();
+        DateTimeOffset from = now - SyncTaskHistoryEntry.Kept;
+        List<SyncTaskHistoryEntry> entries = _history
             .Where(checklist => KeptInHistory(checklist, from))
             .Select(checklist => new SyncTaskHistoryEntry(
                 checklist.OutsideSession ? null : checklist.SessionStart,
                 checklist.Labelled(_categories).Select(task => task.LocalTo is Guid keeper ? task.AsLocalStub(keeper) : task with { CategoryId = null }).ToList(),
                 checklist.OutsideSession))
-            .Where(entry => entry.Tasks.Count > 0)
             .ToList();
+
+        // AR1b review: the owner keeps sending a past task of a session that was deleted here (or by another device's record) for 30 days, marked
+        // deleted with its delete time, so every device can list it in Recently deleted and Restore it (a newer settle record) even after this
+        // file no longer carries it as a task. Only while the shared record still says deleted; a restore ends it. Then it drops.
+        foreach (DeletedItem item in Deleted?.Items ?? [])
+        {
+            if (item.Kind != DeletedKind.HistoryTask || item.Task is null || item.ChecklistStart is not DateTimeOffset start || item.Task.Title.Length == 0
+                || now - item.DeletedAt >= SyncDeletedPastTask.Kept || PastSettled?.Of(item.Task.Id) is not { State: SyncPastSettled.Deleted })
+            {
+                continue;
+            }
+
+            var gone = new SyncDeletedPastTask(item.Task.LocalTo is Guid keeper ? item.Task.AsLocalStub(keeper) : item.Task with { CategoryId = null }, item.DeletedAt);
+            int at = entries.FindIndex(entry => entry.SessionStart is DateTimeOffset held && (held - start).Duration() <= TimeSpan.FromSeconds(5));
+            if (at >= 0)
+            {
+                entries[at] = entries[at] with { Deleted = [.. entries[at].Deleted ?? [], gone] };
+            }
+            else
+            {
+                entries.Add(new SyncTaskHistoryEntry(start, [], false, [gone]));
+            }
+        }
+
+        return entries.Where(entry => entry.Tasks.Count > 0 || entry.Deleted is { Count: > 0 }).ToList();
     }
 
     /// <summary>

@@ -1778,9 +1778,10 @@ public partial class App : Application
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
         // AR1b: the Archive's notes say which device wrote them (its last known name: a removed device whose data was kept still has one).
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time, receivedHistory, keptPast, pastSettled, taskStore, () => _taskActions,
-            deviceNames: () => receivedDevices.Devices.Select(device => (Id: device.File.Device.DeviceId, device.File.Device.Name))
-                .Concat(receivedHistory.Devices.Select(device => (Id: device.DeviceId, device.Name)))
-                .GroupBy(device => device.Id).ToDictionary(group => group.Key, group => group.First().Name),
+            deviceNames: () => NotebookDeviceNames.Of(
+                receivedDevices.Devices.Select(device => (device.File.Device.DeviceId, device.File.Device.Name)),
+                receivedHistory.Devices.Select(device => (device.DeviceId, device.Name)),
+                (_syncRemoval?.Removed ?? []).Select(device => (device.DeviceId, device.Name))),
             notesTravel: () => syncSettings.Current.ShareTaskLists);
         // The Plan page (design 5o): the editors (day plan, month view) are sheets over it; the helper remembers what "Leave it" dismissed.
         var calendarFeeds = new CalendarFeedsViewModel(calendars, _calendarSync, _sessions, _configuration, effectivePlan, OpenInBrowser);

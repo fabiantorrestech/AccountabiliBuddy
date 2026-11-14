@@ -1068,6 +1068,14 @@ object SyncFileJson {
             entry.sessionStart?.let { put("sessionStart", writeTime(it)) }
             put("tasks", JsonArray(entry.tasks.map(::writeHistoryTask)))
             if (entry.outside) put("outside", true)
+            entry.deleted?.let { gone ->
+                put("deleted", JsonArray(gone.map { item ->
+                    buildJsonObject {
+                        put("task", writeHistoryTask(item.task))
+                        put("deletedAt", writeTime(item.deletedAt))
+                    }
+                }))
+            }
         }
     })
 
@@ -1080,6 +1088,13 @@ object SyncFileJson {
                     entry.optionalTime("sessionStart"),
                     (entry["tasks"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.let(::readHistoryTask) },
                     (entry["outside"] as? JsonPrimitive)?.booleanOrNull == true,
+                    (entry["deleted"] as? JsonArray)?.mapNotNull { element ->
+                        val item = element as? JsonObject ?: return@mapNotNull null
+                        runCatching {
+                            val task = (item["task"] as? JsonObject)?.let(::readHistoryTask) ?: return@mapNotNull null
+                            SyncDeletedPastTask(task, item.requiredTime("deletedAt"))
+                        }.getOrNull()
+                    },
                 )
             }.getOrNull()
         }

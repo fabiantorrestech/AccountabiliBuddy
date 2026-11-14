@@ -169,6 +169,44 @@ public sealed class SessionNotesStore
     }
 
     /// <summary>
+    /// The notes for a password-protected Task lists backup (ADR 87, owner decision 2026-11-14: never in a plain backup): every note and
+    /// tombstone in its window, this device's or another's. Works on a PC that isn't linked to a group yet (notes with no writing device
+    /// keep none, and an edit time of when they were written); the caller leaves them out of a backup with no password.
+    /// </summary>
+    public IReadOnlyList<SyncSessionNote> ForBackup()
+    {
+        StampLegacy();
+        return SessionNoteRules.ForFile(_all.Select(note => note.EditedAt == default ? note with { EditedAt = note.At } : note), _time.GetUtcNow());
+    }
+
+    /// <summary>
+    /// Takes in the notes of a backup like another device's notes (item by item, so a note edited or deleted since stays so), also on a PC
+    /// that isn't linked yet: a note with no writing device is kept as it is and stamped as this device's once it has an id.
+    /// </summary>
+    /// <returns>How many live notes the backup held.</returns>
+    public async Task<int> MergeBackupAsync(IEnumerable<SyncSessionNote?> incoming)
+    {
+        List<SyncSessionNote> cleaned = incoming
+            .OfType<SyncSessionNote>()
+            .Where(note => note.Id != Guid.Empty && note.At != default && (note.DeletedAt is not null || !string.IsNullOrWhiteSpace(note.Text)))
+            .Select(note =>
+            {
+                SyncSessionNote held = note.EditedAt == default ? note with { EditedAt = note.At } : note;
+                return (held.DeletedAt is null ? held : held with { Text = null, SessionStart = null, ProfileId = null }).InUtc();
+            })
+            .ToList();
+        StampLegacy();
+        List<SyncSessionNote> merged = SessionNoteRules.Merge(_all, cleaned, _time.GetUtcNow());
+        if (!merged.SequenceEqual(_all))
+        {
+            _all = merged;
+            await SaveAsync(prune: false);
+        }
+
+        return cleaned.Count(note => note.DeletedAt is null);
+    }
+
+    /// <summary>
     /// Takes in the notes of another device's file (ADR 87), merged item by item (<see cref="SessionNoteRules.Merge"/>): an edit or a
     /// deletion made there reaches this device, a note only here stays. Nothing is written and nothing is raised when the merge changes nothing.
     /// </summary>

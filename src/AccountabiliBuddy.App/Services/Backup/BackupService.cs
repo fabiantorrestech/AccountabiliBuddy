@@ -322,7 +322,7 @@ public sealed class BackupService
             }
         }
 
-        JsonElement? tasks = parts.HasFlag(BackupParts.TaskLists) && Tasks is not null ? Tasks.Export() : null;
+        JsonElement? tasks = parts.HasFlag(BackupParts.TaskLists) && Tasks is not null ? Tasks.Export(includeSecrets) : null;
         JsonElement? goals = parts.HasFlag(BackupParts.TaskLists) && Goals is not null ? Goals.Export(includeSecrets) : null;
 
         return new BackupContent(_time.GetUtcNow(), AppVersion, includeSecrets, profiles, settings, googleClientSecret, sources, events, history,

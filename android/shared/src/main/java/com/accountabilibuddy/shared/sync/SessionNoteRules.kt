@@ -5,7 +5,8 @@ import java.time.Instant
 
 /**
  * The rules for session notes that travel between the user's own devices (ADR 87); the PC's twin is Core's `SessionNoteRules`: the merge
- * (newest edit wins, tombstones kept 30 days, a stamp more than 2 minutes ahead is clamped, as every shared list, ADR 48), the 90-day window,
+ * (newest edit wins, a stamp more than 2 minutes ahead is clamped, as every shared list, ADR 48; a note's tombstone is kept as long as the
+ * note itself could come back, the whole 90-day window, owner decision 2026-11-14), the 90-day window,
  * which notes a device's own session shows, and what a file's part is cleaned to.
  */
 object SessionNoteRules {
@@ -16,9 +17,9 @@ object SessionNoteRules {
 
     /** The merge of this device's notes and another's, tombstones included, then cut to the window; the same whichever is [first]. */
     fun merge(first: List<SyncSessionNote>, second: List<SyncSessionNote>, now: Instant): List<SyncSessionNote> =
-        inWindow(SharedListMerge.merge(first, second, now), now)
+        inWindow(SharedListMerge.merge(first, second, now, keepTombstones = true), now)
 
-    /** The notes as this device writes them into its file: every live note and each tombstone of the last 30 days, inside the window. */
+    /** The notes as this device writes them into its file: every live note and each tombstone, inside the window. */
     fun forFile(notes: List<SyncSessionNote>, now: Instant): List<SyncSessionNote> = merge(notes, emptyList(), now)
 
     /** Drops what is older than the window. */

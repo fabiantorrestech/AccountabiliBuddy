@@ -145,13 +145,16 @@ public static class BackupAccess
 
     /// <param name="store">ADR 76: the one task list; while it is the source, a backup holds it too and a restore goes into it.</param>
     /// <param name="account">The account's Tasks settings: in the backup with the task list, restored through their service.</param>
-    /// <param name="notes">The session notes (ADR 87): in the backup with the task lists, merged back like another device's notes.</param>
+    /// <param name="notes">
+    /// The session notes (ADR 87): in the backup with the task lists only when it is password-protected (never in a plain one: owner decision
+    /// 2026-11-14, as the goals' notes), merged back like another device's notes, also on a PC that isn't linked to a group.
+    /// </param>
     public static TaskListsAccess Tasks(
         SessionTasksService tasks, ComebackStore comebacks, LaterStore later, TimeProvider time, TaskStore? store = null, TaskAccountSettingsService? account = null,
         SessionNotesStore? notes = null)
     {
         return new TaskListsAccess(
-            Export: () => JsonSerializer.SerializeToElement(
+            Export: includeSecrets => JsonSerializer.SerializeToElement(
                 new TaskListsExport(
                     tasks.NextTasksForBackup(),
                     comebacks.ForBackup(),
@@ -162,7 +165,7 @@ public static class BackupAccess
                     Views: store is { IsActive: true } ? store.Lists.Views : null,
                     TaskLog: store is { IsActive: true } ? store.Lists.Log : null,
                     AccountSettings: store is { IsActive: true, Lists.Account: { IsEmpty: false } held } ? held : null,
-                    SessionNotes: notes is null ? null : notes.ForSync()),
+                    SessionNotes: includeSecrets && notes is not null ? notes.ForBackup() : null),
                 SyncJson.Options),
             Import: async (value, restore) =>
             {
@@ -172,10 +175,12 @@ public static class BackupAccess
                     return "The task lists couldn't be read.";
                 }
 
+                string notesNote = string.Empty;
                 if (notes is not null && lists.SessionNotes is { Count: > 0 } backupNotes)
                 {
                     // ADR 87: merged item by item like another device's file, so what was edited or deleted since the backup is kept.
-                    await notes.MergeAsync(backupNotes);
+                    int liveNotes = await notes.MergeBackupAsync(backupNotes);
+                    notesNote = $" {liveNotes} session {(liveNotes == 1 ? "note" : "notes")} in the backup merged.";
                 }
 
                 if (store is { IsActive: true } && lists.Tasks is { } backupTasks)
@@ -188,8 +193,8 @@ public static class BackupAccess
                     }
 
                     return restore
-                        ? $"Task lists restored ({live} tasks from the backup)."
-                        : $"Task lists merged ({live} tasks in the backup; the newest edit of each kept).";
+                        ? $"Task lists restored ({live} tasks from the backup).{notesNote}"
+                        : $"Task lists merged ({live} tasks in the backup; the newest edit of each kept).{notesNote}";
                 }
 
                 // Restore: the backup's live items are stamped now, so they win over later edits and deletions; its deletions don't.
@@ -218,8 +223,8 @@ public static class BackupAccess
 
                 int count = next.Count(item => item.DeletedAt is null) + parked.Count(item => item.DeletedAt is null) + laterItems.Count(item => item.DeletedAt is null);
                 return restore
-                    ? $"Task lists restored ({count} items from the backup)."
-                    : $"Task lists merged ({count} items in the backup; the newest edit of each kept).";
+                    ? $"Task lists restored ({count} items from the backup).{notesNote}"
+                    : $"Task lists merged ({count} items in the backup; the newest edit of each kept).{notesNote}";
             });
     }
 }

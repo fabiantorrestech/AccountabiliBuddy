@@ -127,6 +127,35 @@ public static class ArchiveBuilder
                 at, CanTick: false, CanDelete: false, CanEdit: false));
         }
 
+        // A past task its owner deleted and keeps sending as deleted for 30 days (AR1b review, SyncTaskHistoryEntry.Deleted): listed on every
+        // device that receives the owner's file, with the settle record's time, so the same line shows everywhere (restore = a newer record).
+        // Once a newer Done or Open record restored it, it is that task again at once, before the owner's next file carries it.
+        foreach (ArchiveReceivedDevice device in input.Received.OrderBy(device => device.DeviceId.ToString("D"), StringComparer.Ordinal))
+        {
+            foreach (SyncTaskHistoryEntry entry in device.Entries)
+            {
+                foreach (SyncDeletedPastTask gone in (entry.Deleted ?? []).OrderBy(item => item.Task.Id.ToString("D"), StringComparer.Ordinal))
+                {
+                    if (gone.Task.Title.Length == 0 || seen.Contains(gone.Task.Id) || !settled.TryGetValue(gone.Task.Id, out SyncPastSettled? record))
+                    {
+                        continue;
+                    }
+
+                    if (record.State == SyncPastSettled.Deleted)
+                    {
+                        if (input.Now - record.EditedAt < DeletedListed && seen.Add(gone.Task.Id))
+                        {
+                            settledDeleted.Add(new ArchiveDeletedRow(gone.Task.Id, gone.Task.Title, record.EditedAt, ArchiveSource.Received, device.Name, null, RestoreStateOf(gone.Task)));
+                        }
+                    }
+                    else if (record.State is SyncPastSettled.Open or SyncPastSettled.Done)
+                    {
+                        Past(ArchiveSource.Received, device.DeviceId, device.Name, entry.SessionStart, entry.Outside, StartOf(entry), gone.Task, settleApplies: true);
+                    }
+                }
+            }
+        }
+
         // A past task deleted on any device whose copy no history here holds any more (its owner's next file no longer carries it): this
         // device's own snapshot, if it has one, keeps it listed (AR1b). Same ids, same lines on every device that holds the same data.
         foreach (SessionTask snapshot in input.Snapshots ?? [])

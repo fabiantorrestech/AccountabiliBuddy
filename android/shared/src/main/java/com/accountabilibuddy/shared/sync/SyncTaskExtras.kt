@@ -79,9 +79,21 @@ data class SyncHistoryTask(
 }
 
 /** One checklist of a PC's 90-day task history: a session's tasks ([sessionStart]), or a day's tasks ticked outside any session. */
-data class SyncTaskHistoryEntry(val sessionStart: Instant?, val tasks: List<SyncHistoryTask>, val outside: Boolean = false) {
+data class SyncTaskHistoryEntry(
+    val sessionStart: Instant?,
+    val tasks: List<SyncHistoryTask>,
+    val outside: Boolean = false,
+    /** AR1b review: past tasks of this session its owner deleted in the last 30 days (optional; an older app ignores it). */
+    val deleted: List<SyncDeletedPastTask>? = null,
+) {
     val at: Instant? get() = sessionStart ?: tasks.mapNotNull { it.doneAt }.minOrNull()
 }
+
+/**
+ * A past task its owning PC deleted in the last 30 days, which the owner keeps sending in [SyncTaskHistoryEntry.deleted] so every device can
+ * list it in Recently deleted and Restore it (a newer settle record). The PC's twin is `SyncDeletedPastTask`.
+ */
+data class SyncDeletedPastTask(val task: SyncHistoryTask, val deletedAt: Instant)
 
 /** A past task kept on one device as a local item, with the PC it came from. */
 data class SyncKeptPast(val sourceDeviceId: String, val sourceName: String, val sessionStart: Instant?, val task: SyncHistoryTask, val editedAt: Instant)

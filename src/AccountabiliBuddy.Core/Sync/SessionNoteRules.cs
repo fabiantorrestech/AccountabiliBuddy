@@ -2,8 +2,9 @@ namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
 /// The rules for session notes that travel between the user's own devices (ADR 87), pure so the phone's twin (<c>SessionNoteRules.kt</c>)
-/// gives the same answers: the merge (newest edit wins, tombstones kept 30 days, a stamp more than 2 minutes ahead is clamped, the same as
-/// every shared list, ADR 48), the 90-day window, which notes a device's own session shows, and what a file's part is cleaned to.
+/// gives the same answers: the merge (newest edit wins, a stamp more than 2 minutes ahead is clamped, the same as every shared list, ADR 48;
+/// a note's tombstone is kept as long as the note itself could come back, the whole 90-day window, owner decision 2026-11-14, so a backup
+/// restored late never revives a deleted note), the 90-day window, which notes a device's own session shows, and what a file's part is cleaned to.
 /// </summary>
 public static class SessionNoteRules
 {
@@ -16,10 +17,10 @@ public static class SessionNoteRules
     /// </returns>
     public static List<SyncSessionNote> Merge(IEnumerable<SyncSessionNote> first, IEnumerable<SyncSessionNote> second, DateTimeOffset now)
     {
-        return InWindow(SharedListMerge.Merge(first, second, now), now);
+        return InWindow(SharedListMerge.Merge(first, second, now, keepTombstones: true), now);
     }
 
-    /// <summary>The notes as this device writes them into its file: every live note and each tombstone of the last 30 days, inside the window, oldest first.</summary>
+    /// <summary>The notes as this device writes them into its file: every live note and each tombstone, inside the window, oldest first.</summary>
     public static List<SyncSessionNote> ForFile(IEnumerable<SyncSessionNote> notes, DateTimeOffset now)
     {
         return Merge(notes, [], now);

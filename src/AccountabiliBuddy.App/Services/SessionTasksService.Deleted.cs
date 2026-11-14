@@ -76,12 +76,37 @@ public sealed partial class SessionTasksService
         await Comebacks.DeleteAsync(id);
     }
 
+    /// <summary>
+    /// Whether the item this PC deleted is back in its list already (brought back on another device: its task, Later item, come-back or
+    /// auto-saved item is there again by id). Its "this PC only" line is hidden then and Restore adds nothing (AR1b review).
+    /// </summary>
+    public bool ExistsAgain(DeletedItem item)
+    {
+        Guid id = item.IsStep ? Guid.Empty : item.ItemId;
+        return id != Guid.Empty && item.Kind switch
+        {
+            DeletedKind.Task => Current.Tasks.Any(task => task.Id == id) || _taskStore?.Lists.Tasks.Any(held => held.Id == id && held.Task.IsLive) == true,
+            DeletedKind.HistoryTask => HistoryTaskOf(id) is not null,
+            DeletedKind.Later => Later?.Items.Any(held => held.Id == id) == true || Later?.DoneItems.Any(held => held.Id == id) == true,
+            DeletedKind.ComeBack => Comebacks?.All.Any(held => held.Id == id) == true,
+            DeletedKind.AutoSaved => AutoSaved?.Items.Any(held => held.Id == id) == true,
+            _ => false,
+        };
+    }
+
     /// <summary>Brings a deleted item back as it was. False with the reason when it can't come back now; the entry then stays.</summary>
     public async Task<(bool Restored, string? Message)> RestoreAsync(Guid entryId)
     {
         if (Deleted?.Find(entryId) is not DeletedItem entry)
         {
             return (false, "That item is no longer in Recently deleted.");
+        }
+
+        if (ExistsAgain(entry))
+        {
+            // Brought back elsewhere in the meantime: nothing to add (no duplicate); the stale entry goes.
+            await Deleted.RemoveAsync(entryId);
+            return (true, null);
         }
 
         (bool Restored, string? Message) outcome = entry.Kind switch

@@ -12,10 +12,15 @@ namespace AccountabiliBuddy.Core.Sync;
 /// </summary>
 /// <param name="SessionStart">When the session started; null for an <see cref="Outside"/> record.</param>
 /// <param name="Outside">The tasks were ticked outside any session (a Later task ticked off).</param>
+/// <param name="Deleted">
+/// Past tasks of this session its owner deleted in the last 30 days (<see cref="SyncDeletedPastTask"/>); optional, so an older app, which
+/// ignores it, simply doesn't list them (AR1b review). Never in <see cref="Tasks"/>, so no app counts or shows one as live.
+/// </param>
 public sealed record SyncTaskHistoryEntry(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? SessionStart,
     IReadOnlyList<SessionTask> Tasks,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Outside = false)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Outside = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncDeletedPastTask>? Deleted = null)
 {
     /// <summary>How long history is kept and sent.</summary>
     public static readonly TimeSpan Kept = TimeSpan.FromDays(90);
