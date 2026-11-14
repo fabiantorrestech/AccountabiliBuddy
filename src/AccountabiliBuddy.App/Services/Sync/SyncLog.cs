@@ -31,7 +31,7 @@ public sealed class SyncLog
     private readonly List<string> _buffer = [];
     private readonly Dictionary<(string Method, SyncLogDirection Direction), QuietRun> _quiet = [];
     private readonly object _lock = new();
-    private readonly Dictionary<(string Method, SyncLogDirection Direction), (DateTimeOffset Start, DateTimeOffset End)> _lastLunch = [];
+    private readonly Dictionary<(string Method, SyncLogDirection Direction, Guid Sender), SyncLunch> _lastLunch = [];
     private bool _flushScheduled;
     private DateTimeOffset _lastTrim = DateTimeOffset.MinValue;
 
@@ -75,11 +75,12 @@ public sealed class SyncLog
     }
 
     /// <summary>
-    /// A lunch in a file written or read (LU1-fix): the method, the direction and the lunch's start and end as UTC times, nothing else. The same lunch
-    /// on the same method and direction is logged once, so the next "late" report shows as write lag (the write's stamp against the start or
+    /// A lunch in a file written or read (LU1-fix): the method, the direction and the lunch's start, end and edit stamp as UTC times, nothing else.
+    /// The same lunch from the same sender on the same method and direction is logged once (the sender only keys that: with two senders in
+    /// turn their lines would otherwise alternate every pass), so the next "late" report shows as write lag (the write's stamp against the start or
     /// edit) or read lag (the read's stamp against the writer's).
     /// </summary>
-    public void Lunch(string method, SyncLogDirection direction, DateTimeOffset start, DateTimeOffset end)
+    public void Lunch(string method, SyncLogDirection direction, Guid sender, SyncLunch lunch)
     {
         if (!SyncReceiptParts.Methods.Contains(method))
         {
@@ -88,13 +89,14 @@ public sealed class SyncLog
 
         lock (_lock)
         {
-            if (_lastLunch.TryGetValue((method, direction), out (DateTimeOffset Start, DateTimeOffset End) last) && last == (start, end))
+            if (_lastLunch.TryGetValue((method, direction, sender), out SyncLunch? last) && last == lunch)
             {
                 return;
             }
 
-            _lastLunch[(method, direction)] = (start, end);
-            Add(_time.GetUtcNow(), $"{method} {NameOf(direction)} lunch start={Stamp(start)} end={Stamp(end)}");
+            _lastLunch[(method, direction, sender)] = lunch;
+            string edited = lunch.EditedAt is DateTimeOffset at ? Stamp(at) : "none";
+            Add(_time.GetUtcNow(), $"{method} {NameOf(direction)} lunch start={Stamp(lunch.Start)} end={Stamp(lunch.End)} edited={edited}");
         }
     }
 

@@ -1,59 +1,76 @@
 package com.accountabilibuddy.checks
 
 import com.accountabilibuddy.shared.sync.LunchListening
-import com.accountabilibuddy.shared.sync.LunchWindow
+import com.accountabilibuddy.shared.sync.LunchReceiving
+import com.accountabilibuddy.shared.sync.SyncLog
+import com.accountabilibuddy.shared.sync.SyncLogDirection
 import com.accountabilibuddy.shared.sync.SyncLunch
+import java.io.File
 import java.time.Duration
 import java.time.Instant
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.UUID
 
 /**
- * LU1-fix: the "listen fast" rule (the PC's LunchListening is the same table): busy while a lunch runs here or in a received file, and in the
- * hour before a planned lunch window until its end when no lunch was taken; idle otherwise. Plus the future-stamp clamp.
+ * LU1-fix (phone only parts; the listening and clamp tables are the shared lu1 fixtures): a lunch received again is taken once, so a clamped
+ * stamp is applied once and a local edit in between stays; and the sync log's lunch lines (times only, one per sender and change).
  */
 object Lu1SelfCheck {
-    private val day: LocalDateTime = LocalDateTime.of(2026, 11, 13, 0, 0)
-    private val window = LunchWindow(day.plusHours(12), day.plusHours(14))
+    private val start: Instant = Instant.parse("2026-11-13T12:00:00Z")
+    private val fastClock = UUID.fromString("cccccccc-0000-0000-0000-00000000000c")
+    private val other = UUID.fromString("dddddddd-0000-0000-0000-00000000000d")
 
-    private fun instant(local: LocalDateTime): Instant = local.toInstant(ZoneOffset.UTC)
-
-    private fun lunch(startHour: Long, minutes: Long, edited: Instant? = null) =
-        SyncLunch(instant(day.plusHours(startHour)), instant(day.plusHours(startHour)).plus(Duration.ofMinutes(minutes)), edited)
-
-    private fun busy(local: LocalDateTime, own: SyncLunch? = null, received: List<SyncLunch?> = emptyList(), planned: List<LunchWindow> = listOf(window)) =
-        LunchListening.isListening(instant(local), local, own, received, planned)
+    private fun sameDay(time: Instant) = time.atZone(ZoneOffset.UTC).toLocalDate() == start.atZone(ZoneOffset.UTC).toLocalDate()
 
     fun run(report: CheckReport) {
-        report.check("lu1: idle long before the lead", !busy(day.plusHours(10)))
-        report.check("lu1: idle just before the lead", !busy(day.plusHours(11).minusMinutes(1)))
-        report.check("lu1: busy at the lead", busy(day.plusHours(11)))
-        report.check("lu1: busy inside the window", busy(day.plusHours(13)))
-        report.check("lu1: idle at the window's end", !busy(day.plusHours(14)))
-        report.check("lu1: idle with no planned lunch", !busy(day.plusHours(13), planned = emptyList()))
-        report.check("lu1: lead 0 would miss the hour before", LunchListening.LEAD == Duration.ofHours(1))
+        report.check("lu1: the lead is one hour", LunchListening.LEAD == Duration.ofHours(1))
+        report.check("lu1: the longest lunch is 120 minutes", LunchListening.MAX_LENGTH == Duration.ofMinutes(120))
 
-        val taken = lunch(12, 30)
-        report.check("lu1: a lunch taken and over is not expected again", !busy(day.plusHours(13), own = taken))
-        report.check("lu1: own lunch running is busy", busy(day.plusHours(12).plusMinutes(10), own = taken))
-        report.check("lu1: own lunch running outside any window is busy", busy(day.plusHours(9).plusMinutes(10), own = lunch(9, 60), planned = emptyList()))
+        // A phone clock 5 hours ahead stamps its lunch in the future; here it is held to now, a real edit after it wins, and the same file read
+        // again later (the clamp would give a newer "now") changes nothing.
+        val receiving = LunchReceiving()
+        val fromFast = SyncLunch(start, start.plus(Duration.ofMinutes(60)), start.plus(Duration.ofHours(5)))
+        val taken = receiving.take(fastClock, fromFast, null, start, ::sameDay)
+        report.check("lu1: a future-stamped lunch is taken with its stamp held to now", taken?.editedAt == start, "$taken")
+        val edited = taken!!.copy(end = taken.end.plus(Duration.ofMinutes(5)), editedAt = start.plusSeconds(60))
+        val later = start.plusSeconds(600)
+        val again = receiving.take(fastClock, fromFast, edited, later, ::sameDay)
+        report.check("lu1: the same fast-clock file received again changes nothing, the +5 stays", again == null, "$again")
+        val changed = receiving.take(fastClock, fromFast.copy(end = fromFast.end.plus(Duration.ofMinutes(10))), edited, later, ::sameDay)
+        report.check("lu1: a changed record from the same sender is looked at again", changed?.editedAt == later, "$changed")
+        val third = receiving.take(other, fromFast, edited, later, ::sameDay)
+        report.check("lu1: another sender's identical record is looked at too (the record is kept per sender)", third?.editedAt == later, "$third")
+        val notToday = receiving.take(fastClock, SyncLunch(start.minus(Duration.ofDays(2)), start.minus(Duration.ofDays(2)).plusSeconds(600)), null, later, ::sameDay)
+        report.check("lu1: a lunch of another day is not taken", notToday == null)
+        val long = LunchReceiving().take(other, SyncLunch(start, start.plus(Duration.ofHours(5)), start), null, start, ::sameDay)
+        report.check("lu1: a received end past the longest lunch is held to it", long?.end == start.plus(Duration.ofMinutes(120)), "$long")
+        val newerReal = SyncLunch(start, start.plus(Duration.ofMinutes(65)), start.plusSeconds(30))
+        report.check("lu1: a clamped stamp loses to a later real edit", LunchListening.clampFuture(fromFast, start).lastEdit < newerReal.lastEdit)
 
-        val remote = lunch(9, 60)
-        report.check("lu1: a lunch running in a received file is busy, no plan", busy(day.plusHours(9).plusMinutes(5), received = listOf(null, remote), planned = emptyList()))
-        report.check("lu1: a received lunch that is over is not busy", !busy(day.plusHours(10).plusMinutes(5), received = listOf(remote), planned = emptyList()))
-        report.check("lu1: a received lunch not started yet is not busy", !busy(day.plusHours(8), received = listOf(remote), planned = emptyList()))
-        report.check("lu1: a lunch a minute ahead (a clock a little ahead) counts as running", busy(day.plusHours(8).plusMinutes(59), received = listOf(remote), planned = emptyList()))
+        // The phone's sync log: a lunch line with times only and the edit stamp; the same lunch of the same sender once, two senders in turn once each.
+        val file = File.createTempFile("lu1-synclog", ".log")
+        try {
+            val log = SyncLog(file) { OffsetDateTime.ofInstant(start, ZoneOffset.UTC) }
+            val mine = SyncLunch(start, start.plus(Duration.ofMinutes(60)), start)
+            val theirs = mine.copy(end = mine.end.plus(Duration.ofMinutes(10)), editedAt = null)
+            repeat(4) {
+                log.lunch("folder", SyncLogDirection.READ, "a", mine)
+                log.lunch("folder", SyncLogDirection.READ, "b", theirs)
+                log.lunch("relay", SyncLogDirection.SEND, "me", mine)
+            }
 
-        val now = instant(day.plusHours(12))
-        val stamped = SyncLunch(now, now.plus(Duration.ofMinutes(60)), now.plus(Duration.ofHours(5)))
-        report.check("lu1: clamp holds a far-future edit stamp to now", LunchListening.clampFuture(stamped, now).editedAt == now)
-        val fine = SyncLunch(now, now.plus(Duration.ofMinutes(60)), now.plus(Duration.ofMinutes(1)))
-        report.check("lu1: clamp leaves a stamp within tolerance", LunchListening.clampFuture(fine, now) == fine)
-        val noStamp = SyncLunch(now.plus(Duration.ofHours(3)), now.plus(Duration.ofHours(4)))
-        report.check("lu1: clamp stamps a far-future start with none", LunchListening.clampFuture(noStamp, now).editedAt == now)
-        val past = SyncLunch(now.minusSeconds(600), now.plusSeconds(600), now.minusSeconds(300))
-        report.check("lu1: clamp leaves a past lunch", LunchListening.clampFuture(past, now) == past)
-        val newerReal = SyncLunch(now, now.plus(Duration.ofMinutes(65)), now.plusSeconds(30))
-        report.check("lu1: a clamped stamp loses to a later real edit", LunchListening.clampFuture(stamped, now).lastEdit < newerReal.lastEdit)
+            val lines = log.lines().filter { " lunch start=" in it }
+            report.check("lu1: the phone logs one lunch line per sender and change, read and written", lines.size == 3, lines.joinToString(" | "))
+            report.check(
+                "lu1: a lunch line is times only, with the edit stamp (none when unstamped)",
+                lines.any { it.endsWith("folder read lunch start=2026-11-13T12:00:00Z end=2026-11-13T13:00:00Z edited=2026-11-13T12:00:00Z") } &&
+                    lines.any { it.endsWith("folder read lunch start=2026-11-13T12:00:00Z end=2026-11-13T13:10:00Z edited=none") } &&
+                    lines.any { it.contains("relay send lunch") },
+                lines.joinToString(" | "),
+            )
+        } finally {
+            file.delete()
+        }
     }
 }

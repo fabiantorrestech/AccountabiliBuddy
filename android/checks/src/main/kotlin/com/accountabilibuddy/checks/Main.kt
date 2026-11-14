@@ -98,6 +98,9 @@ private val checks: List<FixtureCheck> = listOf(
     // PT1: the search grammar (words, @label, #tag, a task number) against the PC's Core TaskSearch, and the view icons' names against the PC editor's.
     Pt1Check("search", Pt1Cases::search),
     Pt1Check("view-icons", Pt1Cases::viewIcons),
+    // LU1-fix: the "listen fast" rule for lunch and the future-stamp clamp against the tables the PC asserts on its Core LunchListening.
+    Lu1Check("listening", Lu1Cases::listening),
+    Lu1Check("clamp", Lu1Cases::clamp),
     // AR1-fix: the Archive's rows (every source, the settle records, Recently deleted) against the PC's Core ArchiveBuilder.
     Ar1Check("archive-rows", Ar1Cases::rows),
     // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
@@ -206,7 +209,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

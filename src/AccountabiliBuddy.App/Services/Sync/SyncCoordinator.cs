@@ -582,7 +582,7 @@ public sealed class SyncCoordinator
         CountParts(method, outcome);
         if (file.Lunch is SyncLunch lunch)
         {
-            SyncLogger?.Lunch(method, SyncLogDirection.Read, lunch.Start, lunch.End);
+            SyncLogger?.Lunch(method, SyncLogDirection.Read, sender.DeviceId, lunch);
         }
 
         return null;
@@ -615,7 +615,7 @@ public sealed class SyncCoordinator
         SyncLogger?.Pass(method, SyncLogDirection.Send, files: 1, merged: 0, held: 0, skipped: 0, unreadable: 0, milliseconds);
         if (Lunch?.Invoke() is SyncLunch lunch)
         {
-            SyncLogger?.Lunch(method, SyncLogDirection.Send, lunch.Start, lunch.End);
+            SyncLogger?.Lunch(method, SyncLogDirection.Send, _identity.DeviceId, lunch);
         }
     }
 

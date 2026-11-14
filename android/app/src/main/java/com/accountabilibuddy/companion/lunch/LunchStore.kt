@@ -26,6 +26,7 @@ class LunchStore(private val context: Context) {
     private val prefs = context.getSharedPreferences("lunch", Context.MODE_PRIVATE)
     private val settingsPrefs = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
     private val _lunch = MutableStateFlow(load())
+    private val receiving = com.accountabilibuddy.shared.sync.LunchReceiving()
     private val _lengthMinutes = MutableStateFlow(clampLength(settingsPrefs.getInt(LENGTH_KEY, DEFAULT_LENGTH_MINUTES)))
 
     /** Today's lunch once started (it may be over); null before. */
@@ -100,16 +101,14 @@ class LunchStore(private val context: Context) {
     }
 
     /**
-     * A lunch from another device's file: taken when it's today's and its edit is newer than ours. True when it was taken: [lunch] and
+     * A lunch from device [sender]'s file: taken when it's today's and its edit is newer than ours. True when it was taken: [lunch] and
      * the watch's flow follow at once, the "Lunch over!" alarm is set again by [save], and the caller redraws the notification and widget.
+     * A record identical to the one last received from that sender is ignored: the files are read again and again, and a clamped stamp would
+     * otherwise be re-clamped to the newer "now" and beat an edit made here in between.
      */
     @Synchronized
-    fun receive(received: SyncLunch, now: Instant = Instant.now()): Boolean {
-        if (!isToday(received.start, now)) return false
-        // A device whose clock runs ahead stamps its edits in the future; held to now, a later real edit still wins (LU1-fix).
-        val lunch = clamped(com.accountabilibuddy.shared.sync.LunchListening.clampFuture(received, now))
-        val ours = today(now)
-        if (ours != null && (ours.lastEdit >= lunch.lastEdit || (ours.start == lunch.start && ours.end == lunch.end))) return false
+    fun receive(sender: java.util.UUID, received: SyncLunch, now: Instant = Instant.now()): Boolean {
+        val lunch = receiving.take(sender, received, today(now), now) { isToday(it, now) } ?: return false
         save(lunch, overTold = now >= lunch.end)
         return true
     }

@@ -51,6 +51,9 @@ public sealed class LunchService
     private readonly Action<string, string> _remind;
     private readonly Action _chime;
     private readonly IUserIdleDetector _idle;
+
+    // The last lunch record received from each device, as it came (before any clamp); in memory only, so a restart reads each file's lunch once more.
+    private readonly Dictionary<Guid, SyncLunch> _lastReceived = [];
     private LunchState _state = new();
 
     /// <summary>True while another of the user's PCs has a live session (its received file says so); set by the app. A fixed lunch doesn't start by itself then.</summary>
@@ -218,9 +221,20 @@ public sealed class LunchService
         }
     }
 
-    /// <summary>A lunch another device started or changed (its sync file): taken here when it's today's and its edit is newer than ours. True when it was taken (the card and the sync file follow at once; the caller redraws the day bar).</summary>
-    public bool Receive(SyncLunch lunch)
+    /// <summary>
+    /// A lunch another device (<paramref name="sender"/>) started or changed (its sync file): taken here when it's today's and its edit is newer than ours.
+    /// True when it was taken (the card and the sync file follow at once; the caller redraws the day bar). A record identical to the one last received
+    /// from that sender is ignored: the files are read again and again, and a clamped stamp (below) would otherwise be re-clamped to the newer "now"
+    /// and beat an edit made here in between.
+    /// </summary>
+    public bool Receive(Guid sender, SyncLunch lunch)
     {
+        if (_lastReceived.TryGetValue(sender, out SyncLunch? last) && last == lunch)
+        {
+            return false;
+        }
+
+        _lastReceived[sender] = lunch;
         if (!IsToday(lunch.Start))
         {
             return false;

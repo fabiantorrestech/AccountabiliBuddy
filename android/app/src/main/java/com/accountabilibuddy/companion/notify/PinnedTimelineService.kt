@@ -67,7 +67,7 @@ class PinnedTimelineService : Service() {
         ContextCompat.registerReceiver(this, screenOn, filter, ContextCompat.RECEIVER_EXPORTED)
         // The sync folder at its chosen 1 or 5 minutes, which Android allows only while this service runs (ADR 22); every minute while lunch runs.
         val app = application as CompanionApp
-        scope.launch { app.folderSource.syncWhilePinned(lunchRunning = { app.lunch.isOnLunch() }, beforeRead = app::nudgeBeforeFolderRead) }
+        scope.launch { app.folderSource.syncWhilePinned(lunchRunning = { app.lunchListening(java.time.Instant.now()) }, beforeRead = app::nudgeBeforeFolderRead) }
         placement = PlacementDetector(this).also {
             detector = it
             it.start()

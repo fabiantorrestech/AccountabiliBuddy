@@ -37,6 +37,7 @@ class SyncLog(private val file: File, private val now: () -> OffsetDateTime) {
 
     private val buffer = ArrayList<String>()
     private val quiet = LinkedHashMap<Pair<String, SyncLogDirection>, QuietRun>()
+    private val lastLunch = HashMap<Triple<String, SyncLogDirection, String>, SyncLunch>()
     private var lastFlush: OffsetDateTime? = null
     private var lastTrim: OffsetDateTime? = null
 
@@ -59,6 +60,22 @@ class SyncLog(private val file: File, private val now: () -> OffsetDateTime) {
         }
 
         add(at, "$method ${direction.text} files=$files merged=$merged held=$held skipped=$skipped unreadable=$unreadable refused=$refused ms=$milliseconds")
+    }
+
+    /**
+     * A lunch in a file written or read (LU1-fix; the PC's `SyncLog.Lunch`): the method, the direction and the lunch's start, end and edit stamp as UTC
+     * times, nothing else. The same lunch from the same [sender] on the same method and direction is logged once (the sender only keys that and is
+     * never written), so the next "late" report shows as write lag or read lag.
+     */
+    @Synchronized
+    fun lunch(method: String, direction: SyncLogDirection, sender: String, lunch: SyncLunch) {
+        if (method !in SyncReceiptParts.METHODS) return
+        val key = Triple(method, direction, sender)
+        if (lastLunch[key] == lunch) return
+        lastLunch[key] = lunch
+        val at = now()
+        val edited = lunch.editedAt?.let { stamp(it.atOffset(ZoneOffset.UTC)) } ?: "none"
+        add(at, "$method ${direction.text} lunch start=${stamp(lunch.start.atOffset(ZoneOffset.UTC))} end=${stamp(lunch.end.atOffset(ZoneOffset.UTC))} edited=$edited")
     }
 
     /** A fixed note (a code from [NOTES]), never text of any kind. */
@@ -101,6 +118,7 @@ class SyncLog(private val file: File, private val now: () -> OffsetDateTime) {
     fun clear() {
         buffer.clear()
         quiet.clear()
+        lastLunch.clear()
         runCatching { file.delete() }
     }
 

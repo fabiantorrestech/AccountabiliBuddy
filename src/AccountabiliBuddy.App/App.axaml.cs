@@ -899,9 +899,12 @@ public partial class App : Application
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             bool taken = false;
-            foreach (AccountabiliBuddy.Core.Sync.SyncLunch lunch in receivedDevices.Active.Select(device => device.File.Lunch).OfType<AccountabiliBuddy.Core.Sync.SyncLunch>())
+            foreach (AccountabiliBuddy.App.Services.Sync.ReceivedDevice device in receivedDevices.Active)
             {
-                taken |= _lunch.Receive(lunch);
+                if (device.File.Lunch is AccountabiliBuddy.Core.Sync.SyncLunch lunch)
+                {
+                    taken |= _lunch.Receive(device.File.Device.DeviceId, lunch);
+                }
             }
 
             // A lunch running in a received file (taken here or not) speeds the polls up now, not at the next tick.

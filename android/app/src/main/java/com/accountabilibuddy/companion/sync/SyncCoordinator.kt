@@ -900,6 +900,7 @@ class SyncCoordinator(
         val parts = receive(file)
         receipts?.recordParts(file.device.deviceId, utc(file.device.writtenAt), parts)
         countParts(method, parts)
+        file.lunch?.let { syncLogger?.lunch(method, SyncLogDirection.READ, file.device.deviceId.toString(), it) }
         lastRefused = parts.values.count { it == SyncReceiptParts.REFUSED }
 
         if (held == null || file.device.writtenAt > held.file.device.writtenAt) {
@@ -950,6 +951,7 @@ class SyncCoordinator(
     fun noteSent(method: String, writtenAt: Instant, milliseconds: Int) {
         sendLog?.record(method, utc(writtenAt), utc(now()))
         syncLogger?.pass(method, SyncLogDirection.SEND, 1, 0, 0, 0, 0, milliseconds)
+        lunch()?.let { syncLogger?.lunch(method, SyncLogDirection.SEND, identity.deviceId.toString(), it) }
     }
 
     /** A read pass over [method] ended (SYNC1c): one line of counts in the sync log. */
