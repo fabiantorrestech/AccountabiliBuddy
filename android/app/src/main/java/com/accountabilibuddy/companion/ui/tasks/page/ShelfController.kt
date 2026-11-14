@@ -272,7 +272,7 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
      * Tags [tag] device-only on this phone (ADR 89) or shared again; "shared" is only ever the user's confirmed act ([confirmed]). Called after
      * the tag was put on a task so that "Only on this phone" applies to the tag the user just typed.
      */
-    fun setTagScope(tag: String, onlyHere: Boolean, confirmed: Boolean = true) {
+    fun setTagScope(tag: String, onlyHere: Boolean, confirmed: Boolean = false) {
         change { lists, self, now ->
             val next = if (onlyHere) TaskScopeRules.makeTagDeviceOnly(lists, tag, now, self) else TaskScopeRules.makeTagShared(lists, tag, confirmed, now, self)
             ShelfChange(next, emptyList(), emptyList())

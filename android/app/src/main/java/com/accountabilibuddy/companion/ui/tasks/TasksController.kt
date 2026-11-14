@@ -33,9 +33,18 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
 
     // ---- Categories (ADR 62) ----
 
+    /**
+     * The categories this phone shows (ADR 89): another device's device-only label never counts as listed or taken here, so its name isn't
+     * revealed and a typed name that exists there is added (which joins it, never makes it shared) instead of refused.
+     */
+    private fun shownCategories() = com.accountabilibuddy.shared.tasks.OldPaneScopes.categories(
+        com.accountabilibuddy.companion.sync.TaskCategoryColors(app.taskCategories.categories.value, if (app.sync.sharesTaskLists()) app.sync.received.value else emptyList(), java.time.Instant.now()).listed,
+        app.taskModel.scopeView(),
+    )
+
     /** A category of [name] on this phone's list, in the next colour no listed category has; the same name in any case is the one that exists. */
     fun createCategory(name: String): Choice {
-        val listed = com.accountabilibuddy.companion.sync.TaskCategoryColors(app.taskCategories.categories.value, if (app.sync.sharesTaskLists()) app.sync.received.value else emptyList(), java.time.Instant.now()).listed
+        val listed = shownCategories()
         listed.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }?.let { return Choice(it.name, it.color) }
         val added = app.taskCategories.add(name, listed.map { it.color })
         return Choice(added.name, added.color)
@@ -48,7 +57,7 @@ class TasksController(private val app: CompanionApp, private val say: (message: 
 
     /** A new name for a category: on this phone's list and on the items in it. A name another category has is refused. */
     fun renameCategory(choice: Choice, newName: String) {
-        val taken = com.accountabilibuddy.companion.sync.TaskCategoryColors(app.taskCategories.categories.value, if (app.sync.sharesTaskLists()) app.sync.received.value else emptyList(), java.time.Instant.now()).listed
+        val taken = shownCategories()
             .any { it.name.equals(newName, ignoreCase = true) && !it.name.equals(choice.name, ignoreCase = true) }
         if (taken) {
             say("There's already a category called $newName.", null)

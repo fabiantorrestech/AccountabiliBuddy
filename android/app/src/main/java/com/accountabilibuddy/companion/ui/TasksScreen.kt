@@ -193,7 +193,7 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
         onPick = { row -> if (controller.needsReason(pc)) addingToday = row else controller.addToToday(row.ref, pc) },
         savedFilters = savedFilters,
         onApplyFilter = { preset ->
-            category = preset.category
+            category = com.accountabilibuddy.shared.tasks.OldPaneScopes.presetCategory(preset.category, scopeView)
             search = preset.search
             if (preset.search.isNotEmpty()) searching = true
         },
@@ -215,17 +215,20 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
             savedFilters, category, search,
             onSave = { name -> app.taskFilterPresets.save(name, category, search) },
             onApply = { preset ->
-                category = preset.category
+                // ADR 89: a preset made on a category another device keeps to itself applies without it.
+                category = com.accountabilibuddy.shared.tasks.OldPaneScopes.presetCategory(preset.category, scopeView)
                 search = preset.search
                 if (preset.search.isNotEmpty()) searching = true
             },
             onDelete = { app.taskFilterPresets.delete(it.id) },
             onDismiss = { managingFilters = false },
+            categoryShown = scopeView::categoryShown,
         )
     }
 
     // The details of the task that was tapped, read fresh from the lists each time, so a sync that changes it shows here.
-    val detail = open?.let { ref -> detailOf(ref, nextTasks, later, pc, pending, model.categories) }
+    val detailSource = com.accountabilibuddy.shared.tasks.OldPaneScopes.detailSource(nextTasks, later, pc?.checklist?.tasks.orEmpty(), scopeView)
+    val detail = open?.let { ref -> detailOf(ref, detailSource, pc, pending, model.categories) }
     LaunchedEffect(open, detail == null) { if (open != null && detail == null) open = null }
     val shown = open
     val details: @Composable (Boolean) -> Unit = { inline ->
@@ -290,21 +293,21 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
 }
 
 // The task [ref] as the sheet shows it, null when it is not on its list any more.
-private fun detailOf(ref: TaskRef, nextTasks: List<com.accountabilibuddy.shared.sync.SyncNextTask>, later: List<com.accountabilibuddy.shared.sync.SyncLaterItem>, pc: TasksPc?, pending: List<SyncAction>, categories: List<Choice>): TaskDetail? =
+private fun detailOf(ref: TaskRef, source: com.accountabilibuddy.shared.tasks.OldPaneScopes.DetailSource, pc: TasksPc?, pending: List<SyncAction>, categories: List<Choice>): TaskDetail? =
     when (ref.kind) {
-        TaskKind.Next -> nextTasks.firstOrNull { it.id == ref.id && !it.isDone }?.let { task ->
+        TaskKind.Next -> source.nextTasks.firstOrNull { it.id == ref.id && !it.isDone }?.let { task ->
             TaskDetail(
                 ref, "This session", TaskFields(task.title, task.subtasks.orEmpty(), task.estimateMinutes, task.note.orEmpty(), task.category, currentColor(categories, task.category, task.categoryColor), null),
                 isDone = false, editsDetails = true, hasDueDate = false,
             )
         }
-        TaskKind.Later -> later.firstOrNull { it.id == ref.id && it.doneAt == null }?.let { item ->
+        TaskKind.Later -> source.later.firstOrNull { it.id == ref.id && it.doneAt == null }?.let { item ->
             TaskDetail(
                 ref, "Later", TaskFields(item.title, item.subtasks.orEmpty(), item.estimateMinutes, item.note.orEmpty(), item.category, currentColor(categories, item.category, item.categoryColor), item.dueOn),
                 isDone = false, editsDetails = true, hasDueDate = true,
             )
         }
-        TaskKind.Running -> pc?.checklist?.tasks?.firstOrNull { it.id == ref.id }?.let { task ->
+        TaskKind.Running -> if (pc == null) null else source.running.firstOrNull { it.id == ref.id }?.let { task ->
             TaskDetail(
                 ref, "${pc.name} session", TaskFields(task.title, task.subtasks, null, "", task.category, currentColor(categories, task.category, task.categoryColor), null),
                 isDone = task.isDone, editsDetails = false, hasDueDate = false,

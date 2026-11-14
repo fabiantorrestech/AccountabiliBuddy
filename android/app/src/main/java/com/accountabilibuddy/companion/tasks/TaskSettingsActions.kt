@@ -55,9 +55,14 @@ class TaskSettingsActions(private val app: CompanionApp) {
     }
 
     /** A new label; false when the name can't be used (blank or taken). [color] is what was typed or picked (stored form). */
-    fun addLabel(name: String, color: String?, onlyHere: Boolean = false): Boolean {
+    fun addLabel(name: String, color: String?, onlyHere: Boolean = false, makeShared: Boolean = false): Boolean {
         if (TaskLabelEdits.checkName(store.lists.value, null, name, selfId(), store.removed()) != TaskLabelNameCheck.Fine) return false
-        edit { lists, self, now -> TaskLabelEdits.add(lists, name, color, now, self, onlyOnThisDevice = onlyHere, removed = store.removed()) }
+        edit { lists, self, now ->
+            val added = TaskLabelEdits.add(lists, name, color, now, self, onlyOnThisDevice = onlyHere, removed = store.removed())
+            // "Make shared" is the explicit act (the screen asked first); the add itself only ever joins a name other devices hold.
+            val named = TaskLabelEdits.named(added, name)
+            if (makeShared && named != null) TaskScopeRules.makeLabelShared(added, named.id, confirmed = true, now = now, self = self) else added
+        }
         return true
     }
 

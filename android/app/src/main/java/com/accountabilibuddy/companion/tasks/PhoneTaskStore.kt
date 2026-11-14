@@ -102,6 +102,13 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
     /** The removed devices' ids now ([removedIds]). */
     fun removed(): Set<String> = removedIds()
 
+    /** Whether this phone is in a group; a phone on its own shows every label and tag (nothing can name it). Set by the app. */
+    var isJoined: () -> Boolean = { true }
+
+    /** The labels and tags as this phone shows them now ([TaskScopeView.forPhone]). */
+    fun scopeView(): com.accountabilibuddy.shared.tasks.TaskScopeView =
+        com.accountabilibuddy.shared.tasks.TaskScopeView.forPhone(lists.value, selfId(), isJoined(), removed())
+
     /** The group's numbering device (ADR 76, Q3); null while there is none (temporary numbers here). Set by the app. */
     var numberingDevice: () -> String? = { null }
 

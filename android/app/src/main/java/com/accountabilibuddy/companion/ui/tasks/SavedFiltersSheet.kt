@@ -37,6 +37,7 @@ fun SavedFiltersSheet(
     onApply: (TaskFilterPreset) -> Unit,
     onDelete: (TaskFilterPreset) -> Unit,
     onDismiss: () -> Unit,
+    categoryShown: (String?) -> Boolean = { true },
 ) {
     var name by remember { mutableStateOf("") }
     val colors = Ab.colors
@@ -67,7 +68,7 @@ fun SavedFiltersSheet(
                         }.padding(horizontal = 16.dp, vertical = 8.dp),
                     ) {
                         Text(preset.name, style = Ab.type.body, color = colors.ink)
-                        val detail = listOfNotNull(preset.category, preset.search.takeIf { it.isNotEmpty() }?.let { "“$it”" }).joinToString(" · ")
+                        val detail = listOfNotNull(preset.category?.takeIf { categoryShown(it) }, preset.search.takeIf { it.isNotEmpty() }?.let { "“$it”" }).joinToString(" · ")
                         if (detail.isNotEmpty()) Text(detail, style = Ab.type.small, color = colors.muted)
                     }
                     AbQuietIconButton(Icons.Outlined.Close, "Delete saved filter ${preset.name}", onClick = { onDelete(preset) })

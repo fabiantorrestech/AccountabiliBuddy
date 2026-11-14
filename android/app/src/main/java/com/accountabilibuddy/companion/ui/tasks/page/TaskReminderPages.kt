@@ -62,7 +62,7 @@ private enum class RemindersDialog { DueDate, DueTime, ReminderDate, ReminderTim
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskRemindersPage(task: TaskItem, lists: TaskLists, self: String, zone: ZoneId, controller: ShelfController) {
+fun TaskRemindersPage(task: TaskItem, scopeView: com.accountabilibuddy.shared.tasks.TaskScopeView, self: String, zone: ZoneId, controller: ShelfController) {
     val today = LocalDate.now(zone)
     val due = task.dueOn
     var dialog by remember { mutableStateOf<RemindersDialog?>(null) }
@@ -117,7 +117,7 @@ fun TaskRemindersPage(task: TaskItem, lists: TaskLists, self: String, zone: Zone
     if (refused) SheetFoot("That reminder wasn't added: the same one is already set.")
 
     // "Rings on": whether this phone is among the devices that ring for this task's reminders (Settings › Tasks sets the lists).
-    TaskReminderRings.line(lists, task, self)?.let { rings ->
+    scopeView.ringsLine(task, self)?.let { rings ->
         AbSheetRow(rings, onClick = null, icon = Icons.Outlined.Devices, subtitle = "Rings on is set in Settings › Tasks, for every task and per label")
     }
     SheetFoot("The phone's reminders go off on the devices Rings on names. Adding a task to Google Calendar is chosen on your PC.")

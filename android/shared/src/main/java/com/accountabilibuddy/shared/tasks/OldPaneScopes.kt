@@ -38,6 +38,19 @@ object OldPaneScopes {
 
     fun categories(list: List<SyncCategory>, view: TaskScopeView): List<SyncCategory> = list.filter { view.categoryShown(it.name) }
 
+    /** What the old pane's task detail sheet reads (a task's category, colour and the PC's running checklist), already through the scope. */
+    class DetailSource internal constructor(val nextTasks: List<SyncNextTask>, val later: List<SyncLaterItem>, val running: List<SessionTaskItem>)
+
+    /**
+     * The only lists the detail sheet is built from: a hidden category never reaches it (clearing it there would otherwise look like
+     * a change). The detail builder takes this type, never the raw lists, and only [detailSource] can make one (the constructor is internal to :shared).
+     */
+    fun detailSource(nextTasks: List<SyncNextTask>, later: List<SyncLaterItem>, running: List<SessionTaskItem>, view: TaskScopeView): DetailSource =
+        DetailSource(nextTasks(nextTasks, view), later(later, view), checklist(running, view))
+
+    /** A saved filter's category as this phone applies and shows it: null when it names a hidden label. */
+    fun presetCategory(category: String?, view: TaskScopeView): String? = category?.takeIf { view.categoryShown(it) }
+
     private fun category(view: TaskScopeView, name: String?): String? = name?.takeIf { view.categoryShown(it) }
 
     private fun color(view: TaskScopeView, name: String?, color: String?): String? = if (view.categoryShown(name)) color else null

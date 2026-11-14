@@ -133,7 +133,10 @@ fun GoalEditorSheets(
         return
     }
 
-    val labels = remember(lists) { app.sharedLists.allLabels() }
+    // ADR 89: another device's device-only labels aren't offered or named; a source already on one reads "Uses a label from <device>".
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val allLabelNames = remember(lists) { app.sharedLists.allLabels() }
+    val labels = remember(allLabelNames, scopeView) { com.accountabilibuddy.shared.tasks.GoalLabelScopes.pickable(allLabelNames, scopeView) }
     val steps by app.steps.state.collectAsStateWithLifecycle()
     if (sourcesOpen) {
         GoalSourcesSheet(
@@ -146,6 +149,7 @@ fun GoalEditorSheets(
 
     GoalTargetStep(
         title = title, draft = draft, onDraft = onDraft, stored = stored, weekly = weekly, labels = labels,
+        labelNote = { id -> com.accountabilibuddy.shared.tasks.GoalLabelScopes.hiddenNote(id, allLabelNames, scopeView) { device -> com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, device) } },
         allReceived = allReceived, received = received, areaName = lists.liveAreas.firstOrNull { it.id == draft.areaId }?.name,
         onSources = { sourcesOpen = true },
         onCancelWeekly = { app.goals.deepWork.cancel() },

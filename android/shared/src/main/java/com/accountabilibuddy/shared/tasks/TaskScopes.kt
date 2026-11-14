@@ -153,8 +153,10 @@ object TaskScopes {
      * the hidden tags and the hidden label it held ([withHiddenTags], [withHiddenLabel]). A tag or label the writer set that is hidden here
      * and the task didn't hold was typed or chosen by the user, who joins it: this device is added to its list, never made shared for
      * everyone. Nothing changes on a device with no id. Every writer of a task's tags or label ends with this.
+     * [joinNew] false: a task that is not in [before] (a copy, a handover, a restore) never makes this device join a hidden label or tag it
+     * carries over from elsewhere, because nobody typed or picked it here; a typing path (the Add sheet) keeps the default true.
      */
-    fun keepHidden(before: TaskLists, after: TaskLists, self: String, removed: Collection<String>?, now: OffsetDateTime): TaskLists {
+    fun keepHidden(before: TaskLists, after: TaskLists, self: String, removed: Collection<String>?, now: OffsetDateTime, joinNew: Boolean = true): TaskLists {
         val me = self.lowercase()
         if (me == FieldStamp.NOBODY || me.isBlank()) return after
         val held = HashMap<String, TaskItem>()
@@ -167,9 +169,10 @@ object TaskScopes {
             if (!task.isLive) return@map item
             val was = held[item.id.lowercase()]
             val tags = withHiddenTags(task.tags, was?.tags, after.tagScopes, me, removed)
-            joinTags += TaskLabels.clean(task.tags).orEmpty().filter { !TaskLabels.has(was?.tags, it) && !tagVisible(it, after.tagScopes, me, removed) }
+            val mayJoin = was != null || joinNew
+            if (mayJoin) joinTags += TaskLabels.clean(task.tags).orEmpty().filter { !TaskLabels.has(was?.tags, it) && !tagVisible(it, after.tagScopes, me, removed) }
             val chosen = task.labelId
-            if (chosen != null && !chosen.equals(was?.labelId, ignoreCase = true)) {
+            if (mayJoin && chosen != null && !chosen.equals(was?.labelId, ignoreCase = true)) {
                 val picked = labels.firstOrNull { it.id.equals(chosen, ignoreCase = true) && it.isLive }
                 if (picked != null && !labelVisible(picked, me, removed)) joinLabels += picked.id
             }

@@ -97,6 +97,7 @@ fun GoalTargetStep(
     onBack: () -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
+    labelNote: (java.util.UUID) -> String? = { null },
     reminders: List<GoalReminder> = emptyList(),
     onOpenReminders: () -> Unit = {},
     onAddReminder: () -> Unit = {},
@@ -150,7 +151,7 @@ fun GoalTargetStep(
             draft.sources.forEach { rule ->
                 // As the board names them ("Spanish label", "Tick by hand"); a tap takes one away (the line below says so).
                 AbChip(
-                    sourceName(rule.type, rule.labelId?.let(byId::get)), selected = true,
+                    sourceName(rule.type, rule.labelId?.let(byId::get), rule.labelId?.let(labelNote)), selected = true,
                     onClick = { onDraft(draft.copy(sources = draft.sources.filter { it.id != rule.id })) },
                 )
             }
@@ -343,9 +344,9 @@ private fun DeepWorkTarget(draft: GoalDraft, onDraft: (GoalDraft) -> Unit, weekl
 }
 
 /** A source's name on a chip: "Spanish label" for a label, "Tick by hand", "Daily steps", "Sleep". */
-internal fun sourceName(type: GoalSourceType, labelName: String?): String = when (type) {
+internal fun sourceName(type: GoalSourceType, labelName: String?, hiddenNote: String? = null): String = when (type) {
     GoalSourceType.FocusAll -> "All focus"
-    GoalSourceType.FocusLabel -> labelName?.let { "$it label" } ?: "A label"
+    GoalSourceType.FocusLabel -> labelName?.let { "$it label" } ?: hiddenNote ?: "A label"
     GoalSourceType.FocusTag -> "#tag"
     GoalSourceType.Hand -> "Tick by hand"
     GoalSourceType.HealthSteps -> "Daily steps"

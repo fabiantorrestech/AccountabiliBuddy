@@ -18,6 +18,15 @@ data class ScopeGroup<T>(val title: String, val deviceOnly: Boolean, val items: 
  * - A device with no id shows everything.
  */
 class TaskScopeView(val lists: TaskLists, val self: String, val removed: Set<String>) {
+    companion object {
+        /**
+         * The view of a phone: a phone that is not in a group works alone, so it shows everything (no list can name it); a joined one shows what
+         * its own id [deviceId] shows. The phone's screens build their view through this.
+         */
+        fun forPhone(lists: TaskLists, deviceId: String, joined: Boolean, removed: Set<String>): TaskScopeView =
+            TaskScopeView(lists, if (joined) deviceId.lowercase() else FieldStamp.NOBODY, removed)
+    }
+
     /** Whether this device shows everything (it has no id, so no list can name it). */
     val showsAll: Boolean = self.isBlank() || self.equals(FieldStamp.NOBODY, ignoreCase = true)
 
@@ -74,6 +83,13 @@ class TaskScopeView(val lists: TaskLists, val self: String, val removed: Set<Str
     /** The shown tags of live tasks, one each, in the order they first appear. */
     fun knownTags(): List<String> = TaskLabels.allOf(lists.tasks.filter { it.task.isLive }.map { it.task.tags }).filter { tagShown(it) }
 
+    /**
+     * Whether [tag] exists anywhere in the list: on any task (done and deleted ones too, which still hold their words and are seen by
+     * other devices) or with a live scope. A typed tag that exists is never "new", so "Only on this phone" can't hide a tag other devices use.
+     */
+    fun tagExists(tag: String): Boolean =
+        TaskScopes.scopeOf(tag, lists.tagScopes) != null || lists.tasks.any { TaskLabels.has(TaskLabels.clean(it.task.tags), tag) }
+
     /** The device-only tags shown here (their scope is live and names this device or, with no id, any), in name order. */
     fun deviceTags(): List<SyncTagScope> =
         lists.tagScopes.orEmpty().filter { it.deleted == null && !it.name.isNullOrBlank() && !TaskScopes.isShared(it.onlyOn, removed) && tagShown(it.name!!) }.sortedBy { it.name!!.lowercase() }
@@ -118,6 +134,13 @@ class TaskScopeView(val lists: TaskLists, val self: String, val removed: Set<Str
         return if (tagDevices.isNotEmpty()) "Uses a tag from " + tagDevices.joinToString(", ") else null
     }
 
+    /**
+     * The "Rings on" line for [task] (a task as this phone shows it): computed from the REAL task and list, because a task whose label is hidden
+     * here reads as having none but still rings by that label's list. The line never names the label.
+     */
+    fun ringsLine(task: TaskItem, device: String): String? =
+        TaskReminderRings.line(lists, lists.tasks.firstOrNull { it.id.equals(task.id, ignoreCase = true) && it.task.isLive }?.task ?: task, device)
+
     /** How many of the view's label ids are shown here (a hidden one doesn't count). */
     fun shownLabelCount(labelIds: List<String>?): Int = labelIds.orEmpty().count { id -> labels.any { it.id.equals(id, ignoreCase = true) } }
 
@@ -141,6 +164,32 @@ object TaskScopeRules {
     const val MAKE_SHARED = "Make shared"
     const val MAKE_SHARED_ASK = "It will show on all your devices"
     const val NO_LABEL = "No label"
+    const val ONLY_HERE_ASK = "It will disappear from your other devices"
+
+    /** What a typed label name means on this phone ([labelNameVerdict]). */
+    enum class NameState { Blank, Fine, Taken, TakenElsewhere, JoinsElsewhere }
+
+    /** The verdict on a typed name and the note under it (null: none); [saveable] is whether Add / Save may go ahead. */
+    class NameVerdict(val state: NameState, val note: String?) {
+        val saveable: Boolean get() = state == NameState.Fine || state == NameState.JoinsElsewhere
+    }
+
+    /**
+     * A label name checked against the FULL list (a rename can't take a name another device's label holds, even one this phone doesn't show), so
+     * nothing is a silent no-op: a name this phone shows is "taken"; a new name that exists on other devices only joins it (the join note, with
+     * Make shared); a rename to such a name is refused with a note that names the device. [labelId] null: a new label. [nameOf]: a device's name.
+     */
+    fun labelNameVerdict(view: TaskScopeView, labelId: String?, name: String, nameOf: (String) -> String): NameVerdict {
+        val check = TaskLabelEdits.checkName(view.lists, labelId, name, view.self, view.removed)
+        if (check == TaskLabelNameCheck.Blank) return NameVerdict(NameState.Blank, null)
+        val elsewhere = view.hiddenNameDevices(name, nameOf)
+        return when {
+            check == TaskLabelNameCheck.Taken && elsewhere != null -> NameVerdict(NameState.TakenElsewhere, "'${name.trim()}' is already a label on ${elsewhere.joinToString(", ")}. Pick another name.")
+            check == TaskLabelNameCheck.Taken -> NameVerdict(NameState.Taken, "You already have a label with that name.")
+            labelId == null && elsewhere != null -> NameVerdict(NameState.JoinsElsewhere, joinNote(name, elsewhere))
+            else -> NameVerdict(NameState.Fine, null)
+        }
+    }
 
     /** The label made shared (every device shows it); only when the user [confirmed] it. A choice of display, so it applies at once. */
     fun makeLabelShared(lists: TaskLists, labelId: String, confirmed: Boolean, now: OffsetDateTime, self: String): TaskLists =

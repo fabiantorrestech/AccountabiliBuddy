@@ -57,6 +57,7 @@ data class PhoneGoalPage(
             zone: ZoneId,
             weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
             slept: List<GoalWindow> = emptyList(),
+            hiddenNote: (UUID) -> String? = { null },
         ): PhoneGoalPage? {
             val stored = lists.liveGoals.firstOrNull { it.id == goalId } ?: return null
             val goal = PhoneDeepWork.view(stored, PhoneDeepWork.dailyMinutes(goalFiles), weekly)
@@ -73,7 +74,7 @@ data class PhoneGoalPage(
                 areaName = lists.liveAreas.firstOrNull { it.id == goal.areaId }?.name,
                 tiles = GoalTiles.build(facts, data, extra),
                 takes = facts.whatItTakes?.let { GoalTakesText.of(it, goal, today) },
-                sourceLines = GoalSourceLines.of(goal, facts.threshold, labelName),
+                sourceLines = GoalSourceLines.of(goal, facts.threshold, labelName, hiddenNote),
                 reminderCount = lists.reminders.count { it.goalId == goalId && it.isLive },
                 reminderNext = GoalReminderEdits.nextText(lists.reminders, goal, now, zone),
                 labelName = labelName,

@@ -4,8 +4,8 @@ import java.util.UUID
 
 /** The Progress tracking lines, the PC's `GoalDetailViewModel.SourceLines` rule for rule. */
 object GoalSourceLines {
-    /** [labelName]: a task label's name by id, or null. */
-    fun of(goal: Goal, threshold: Double?, labelName: (UUID) -> String?): List<GoalSourceLine> {
+    /** [labelName]: a task label's name by id, or null. [hiddenNote]: for a label this phone doesn't show (ADR 89), the note that names the device, or null. */
+    fun of(goal: Goal, threshold: Double?, labelName: (UUID) -> String?, hiddenNote: (UUID) -> String? = { null }): List<GoalSourceLine> {
         if (goal.isDeepWork) {
             return listOf(
                 GoalSourceLine("All your counted focus, on every device (the guards' rule)"),
@@ -20,7 +20,7 @@ object GoalSourceLines {
             val soon = GoalSources.availabilityOf(rule.type) == GoalSourceAvailability.ComingSoon
             var text = when (rule.type) {
                 GoalSourceType.FocusAll -> "All your counted focus"
-                GoalSourceType.FocusLabel -> if (label == null) "Focus time on tasks with its label" else "Focus time on tasks labelled $label"
+                GoalSourceType.FocusLabel -> if (label == null) (rule.labelId?.let(hiddenNote) ?: "Focus time on tasks with its label") else "Focus time on tasks labelled $label"
                 GoalSourceType.FocusTag -> "Focus time on tasks tagged #${rule.tag?.trimStart('#') ?: ""}"
                 GoalSourceType.CalendarCategory -> "Time in a calendar category (this PC)"
                 GoalSourceType.HealthSteps -> "Daily steps from your phone"

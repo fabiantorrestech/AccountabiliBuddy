@@ -168,7 +168,7 @@ fun TaskMenuSheet(
                 }
             }
 
-            TaskMenuPage.Reminders -> TaskRemindersPage(task, lists, self, zone, controller)
+            TaskMenuPage.Reminders -> TaskRemindersPage(task, scopeView, self, zone, controller)
 
             TaskMenuPage.Label -> {
                 SheetMarkRow("No label", onClick = { controller.setLabel(task.id, null); closeOrMain() }, leading = { LabelDot(null, 12.dp) }) { AbSheetCheck(label == null) }
@@ -191,7 +191,7 @@ fun TaskMenuSheet(
                 val add = {
                     val tag = typed.trim().trimStart('#')
                     if (tag.isNotEmpty()) {
-                        val isNew = !TaskLabels.has(known, tag)
+                        val isNew = !scopeView.tagExists(tag)
                         controller.setTags(task.id, tags + tag)
                         // ADR 89: a NEW tag typed with "Only on this phone" on stays on this phone.
                         if (isNew && onlyHere && app.sync.isJoined) controller.setTagScope(tag, onlyHere = true)

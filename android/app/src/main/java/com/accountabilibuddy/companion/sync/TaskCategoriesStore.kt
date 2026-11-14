@@ -52,7 +52,7 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
 
     // ADR 89: the old pane's category list shows the labels this phone shows, never another device's device-only ones (the sync file's list still carries them).
     private fun shownCategories(store: PhoneTaskStore): List<SyncCategory> =
-        TaskFacadeLists.categories(TaskScopeView(store.lists.value, store.selfId().lowercase(), store.removed()).shown())
+        TaskFacadeLists.categories(store.scopeView().shown())
 
     /** The list for this phone's sync file; an empty list says it has none, which clears a receiver's copy. */
     fun forSync(): List<SyncCategory> = model?.fileParts()?.first?.categories ?: _categories.value

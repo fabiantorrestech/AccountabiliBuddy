@@ -120,6 +120,8 @@ fun AddTaskSheet(
     startTag: String?,
     labels: List<TaskLabel>,
     knownTags: List<String>,
+    /** Whether a tag exists anywhere (done and deleted tasks too): only a tag that doesn't is new ([TaskScopeView.tagExists]). */
+    tagExists: (String) -> Boolean = { TaskLabels.has(knownTags, it) },
     /** ADR 89: the label ids shown here that are device-only, to offer them after the shared ones; and whether this phone can have device-only tags (it is in a group). */
     deviceLabelIds: Set<String> = emptySet(),
     canKeepHere: Boolean = false,
@@ -162,7 +164,7 @@ fun AddTaskSheet(
     val label = labels.firstOrNull { it.id.equals(labelId, ignoreCase = true) }
     val tags = TaskLabels.clean(typed.tags + extraTags).orEmpty()
     // ADR 89: tags that no shown task has yet are new; "Only on this phone" keeps them on this phone.
-    val newTags = tags.filter { !TaskLabels.has(knownTags, it) }
+    val newTags = tags.filter { !tagExists(it) }
     val setText = { value: String -> text = TextFieldValue(value, TextRange(value.length)) }
 
     val add = {

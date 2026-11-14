@@ -17,7 +17,8 @@ fun rememberScopeView(app: CompanionApp): TaskScopeView {
     val lists by app.taskModel.lists.collectAsState()
     val removed by app.sync.removedDevices.collectAsState()
     val self = remember(app) { app.sync.deviceId.toString().lowercase() }
-    return remember(lists, removed) { TaskScopeView(lists, self, removed.map { it.deviceId.toString().lowercase() }.toSet()) }
+    val joined = app.sync.isJoined
+    return remember(lists, removed, joined) { TaskScopeView.forPhone(lists, self, joined, removed.map { it.deviceId.toString().lowercase() }.toSet()) }
 }
 
 /** The name of the device [id] for "on <device>": a device of the group, a removed one, or "another device". */

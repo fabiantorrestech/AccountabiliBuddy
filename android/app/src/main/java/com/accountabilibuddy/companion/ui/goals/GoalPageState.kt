@@ -1,5 +1,7 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import com.accountabilibuddy.shared.tasks.GoalLabelScopes
+import com.accountabilibuddy.companion.ui.tasks.scopeDeviceName
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -35,6 +37,7 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
     val weeklyState by app.goals.deepWork.state.collectAsStateWithLifecycle()
     // NG1: the phone-owned daily target (no PC in the group) recounts too.
     val dailyState by app.goals.deepWorkDaily.state.collectAsStateWithLifecycle()
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
     val minute by produceState(Instant.now()) {
         while (true) {
             val now = Instant.now()
@@ -42,16 +45,19 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    return produceState<PhoneGoalPage?>(null, goalId, status, lists, weeklyState, dailyState, display.weekStart, display.extraTiles, allReceived, received, steps, minute) {
+    return produceState<PhoneGoalPage?>(null, goalId, status, lists, weeklyState, dailyState, display.weekStart, display.extraTiles, allReceived, received, steps, minute, scopeView) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState
         }
         value = withContext(Dispatchers.Default) {
             runCatching {
+                // ADR 89: another device's device-only labels aren't named on the page; a source on one reads "Uses a label from <device>".
+                val names = app.sharedLists.allLabels()
                 PhoneGoalPage.build(
-                    goalId, lists, display, allReceived.map { it.file }, received.map { it.file }, steps, app.sharedLists.allLabels(), Instant.now(), ZoneId.systemDefault(),
+                    goalId, lists, display, allReceived.map { it.file }, received.map { it.file }, steps, GoalLabelScopes.pickable(names, scopeView), Instant.now(), ZoneId.systemDefault(),
                     app.goals.deepWork.current(), PhoneGoalData.slept(app),
+                    hiddenNote = { id -> GoalLabelScopes.hiddenNote(id, names, scopeView) { device -> scopeDeviceName(app, device) } },
                 )
             }.getOrNull()
         }

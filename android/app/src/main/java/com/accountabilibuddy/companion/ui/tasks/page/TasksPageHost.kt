@@ -236,7 +236,11 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     }
     val controller = remember(app) { ShelfController(app, sessionFull = { ids -> waiting = ids }) { next -> showToast(next) } }
 
-    val config = state.config
+    // ADR 89: a view that filters only by labels or tags another device keeps to itself opens as Default, with a note on the page.
+    val fallback = com.accountabilibuddy.shared.tasks.ViewFallback.resolve(
+        state.config, scopeView, lists.views.map { it.view }.firstOrNull { it.isLive && it.id.equals(com.accountabilibuddy.shared.tasks.TaskView.DEFAULT_ID, ignoreCase = true) }?.config ?: TaskViewConfig.EVERYTHING,
+    ) { com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, it) }
+    val config = fallback.config
     val grouping = state.grouping
     val byBins = grouping == TaskViewConfig.GROUP_BINS || grouping == null
     val labels = scopeView.labels
@@ -545,6 +549,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                 modifier = Modifier.onGloballyPositioned { drag.strip = it.boundsInRoot() },
             )
             // R7.2 review item 3 and R7.3b (owner): the PCs older than the one task list, a line each; × closes it for 3 days.
+            fallback.note?.takeIf { fallback.fellBack }?.let { Text(it + ". Showing Default.", style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = AbPageHeaderDefaults.PaneEdge, vertical = 4.dp)) }
             notice?.let { TaskUpdateNoticeCard(it, Modifier.padding(horizontal = AbPageHeaderDefaults.PaneEdge, vertical = 4.dp)) }
             // MIG1: the earlier version's open tasks wait in To sort; one card, never during a session.
             val earlierCount by app.taskModel.earlierNotice.collectAsState()
@@ -646,7 +651,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                                 }),
                         ) {
                             OpenTask(
-                                task, self, zone, onTickStep = { step -> controller.tickStep(task.id, step) }, rings = TaskReminderRings.line(lists, task, self),
+                                task, self, zone, onTickStep = { step -> controller.tickStep(task.id, step) }, rings = scopeView.ringsLine(task, self),
                                 edit = StepEdits(
                                     onAdd = { title -> controller.addStep(task.id, title) },
                                     onStep = { stepId, title, action ->
@@ -780,6 +785,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
             startTag = target?.tag,
             labels = labels,
             knownTags = scopeView.knownTags(),
+            tagExists = scopeView::tagExists,
             deviceLabelIds = scopeView.labels.filter { !TaskScopes.isShared(it.onlyOn, scopeView.removed) }.map { it.id }.toSet(),
             canKeepHere = app.sync.isJoined,
             another = addAnother,

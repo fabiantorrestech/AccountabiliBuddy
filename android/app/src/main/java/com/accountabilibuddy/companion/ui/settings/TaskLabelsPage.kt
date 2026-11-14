@@ -77,7 +77,7 @@ fun TaskLabelsPage() {
     val lists = remember(view) { view.shown() }
     val labels = view.labels
     val nameOf = { id: String -> com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, id) }
-    var makingTagShared by rememberSaveable { mutableStateOf<String?>(null) }
+    var tagAsk by remember { mutableStateOf(com.accountabilibuddy.shared.tasks.ScopeAsk<String>()) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
     val phones = actions.phones()
@@ -108,7 +108,7 @@ fun TaskLabelsPage() {
                         AbSectionLabel("${deviceTags.size} tags only on some devices", Modifier.padding(start = 4.dp, bottom = 4.dp))
                         deviceTags.forEachIndexed { index, scope ->
                             AbListRow(
-                                "#" + scope.name.orEmpty(), subtitle = view.devicesLine(scope.onlyOn, nameOf), onClick = { makingTagShared = scope.name },
+                                "#" + scope.name.orEmpty(), subtitle = view.devicesLine(scope.onlyOn, nameOf), onClick = { scope.name?.let { tagAsk = tagAsk.ask(it) } },
                                 divider = index < deviceTags.lastIndex, trailing = { Text(TaskScopeRules.MAKE_SHARED, style = Ab.type.small, color = Ab.colors.muted) },
                             )
                         }
@@ -122,10 +122,10 @@ fun TaskLabelsPage() {
         ) { Icon(Icons.Outlined.Add, contentDescription = "New label") }
     }
 
-    makingTagShared?.let { tag ->
+    if (tagAsk.asking) {
         AbDialog(
-            title = "Make #$tag shared?", onDismiss = { makingTagShared = null }, confirmText = TaskScopeRules.MAKE_SHARED,
-            onConfirm = { makingTagShared = null; actions.makeTagShared(tag, confirmed = true) }, dismissText = "Keep",
+            title = "Make #${tagAsk.confirmed()} shared?", onDismiss = { tagAsk = tagAsk.dismissed() }, confirmText = TaskScopeRules.MAKE_SHARED,
+            onConfirm = { val asked = tagAsk.confirmed(); tagAsk = tagAsk.dismissed(); if (asked != null) actions.makeTagShared(asked, confirmed = true) }, dismissText = "Keep",
         ) { Text(TaskScopeRules.MAKE_SHARED_ASK + ".", style = Ab.type.body, color = Ab.colors.ink) }
     }
 
@@ -147,19 +147,26 @@ private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.ta
     var typed by rememberSaveable(label?.id) { mutableStateOf("") }
     var opacity by remember(label?.id) { mutableFloatStateOf(TaskLabelColors.opacityOf(startColor).toFloat()) }
     var deleting by rememberSaveable { mutableStateOf(false) }
-    var makingShared by rememberSaveable { mutableStateOf(false) }
+    var sharedAsk by remember { mutableStateOf(com.accountabilibuddy.shared.tasks.ScopeAsk<String>()) }
     var newOnlyHere by rememberSaveable { mutableStateOf(false) }
     val app = LocalContext.current.applicationContext as CompanionApp
     val color = TaskLabelColors.withOpacity(base, opacity.toDouble())
-    val check = TaskLabelEdits.checkName(lists, label?.id, name, view.self, view.removed)
+    // ADR 89: the name is checked against the FULL list (a name another device's label holds counts), and the sheet says why it can't be used.
+    val verdict = TaskScopeRules.labelNameVerdict(view, label?.id, name) { com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, it) }
+    var onlyHereAsk by remember { mutableStateOf(com.accountabilibuddy.shared.tasks.ScopeAsk<String>()) }
+    var joinAsk by remember { mutableStateOf(com.accountabilibuddy.shared.tasks.ScopeAsk<String>()) }
     val typedOk = typed.isBlank() || TaskLabelColors.typed(typed) != null
 
     AbSheet(title = if (label == null) "New label" else label.name, subtitle = label?.let { TaskLabelWords.uses(TaskLabelEdits.useCount(lists, it.id)) }, onDismiss = onDismiss, height = AbSheetHeight.Tall) {
         Column24 {
-            AbTextField(name, { name = it.take(40) }, "Label name", Modifier.fillMaxWidth(), isError = check == TaskLabelNameCheck.Taken)
-            if (check == TaskLabelNameCheck.Taken) Text("You already have a label with that name.", style = Ab.type.small, color = colors.drift)
+            AbTextField(name, { name = it.take(40) }, "Label name", Modifier.fillMaxWidth(), isError = !verdict.saveable && verdict.state != TaskScopeRules.NameState.Blank)
+            verdict.note?.let { note ->
+                val problem = verdict.state == TaskScopeRules.NameState.Taken || verdict.state == TaskScopeRules.NameState.TakenElsewhere
+                Text(note, style = Ab.type.small, color = if (problem) colors.drift else colors.muted)
+            }
+            if (verdict.state == TaskScopeRules.NameState.JoinsElsewhere) AbTextButton(TaskScopeRules.MAKE_SHARED, onClick = { joinAsk = joinAsk.ask(name.trim()) })
             // ADR 89: shared by default. "Only on this phone" shows only when this phone is in a group (a lone phone shows everything anyway).
-            if (app.sync.isJoined) {
+            if (app.sync.isJoined && verdict.state != TaskScopeRules.NameState.JoinsElsewhere) {
                 val deviceOnly = label != null && !TaskScopes.isShared(label.onlyOn, view.removed)
                 AbSheetRow(
                     TaskScopeRules.ONLY_ON_THIS_PHONE, role = Role.Switch,
@@ -172,8 +179,8 @@ private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.ta
                     onClick = {
                         when {
                             label == null -> newOnlyHere = !newOnlyHere
-                            deviceOnly -> makingShared = true
-                            else -> actions.setLabelOnlyHere(label.id)
+                            deviceOnly -> sharedAsk = sharedAsk.ask(label.id)
+                            else -> onlyHereAsk = onlyHereAsk.ask(label.id)
                         }
                     },
                     trailing = { com.accountabilibuddy.companion.ui.kit.AbSwitch(if (label == null) newOnlyHere else deviceOnly) },
@@ -206,9 +213,9 @@ private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.ta
                 Text(name.ifBlank { "Label" }, style = Ab.type.body, color = colors.ink)
             }
             AbPrimaryButton(
-                if (label == null) "Add" else "Save", modifier = Modifier.fillMaxWidth(), enabled = check == TaskLabelNameCheck.Fine && typedOk,
+                if (label == null) "Add" else "Save", modifier = Modifier.fillMaxWidth(), enabled = verdict.saveable && typedOk,
                 onClick = {
-                    val ok = if (label == null) actions.addLabel(name, color, newOnlyHere && app.sync.isJoined) else actions.changeLabel(label.id, name, color)
+                    val ok = if (label == null) actions.addLabel(name, color, newOnlyHere && app.sync.isJoined && verdict.state != TaskScopeRules.NameState.JoinsElsewhere) else actions.changeLabel(label.id, name, color)
                     if (ok) onDismiss()
                 },
             )
@@ -233,10 +240,24 @@ private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.ta
         }
     }
 
-    if (makingShared && label != null) {
+    if (onlyHereAsk.asking && label != null) {
         AbDialog(
-            title = "Make ${label.name} shared?", onDismiss = { makingShared = false }, confirmText = TaskScopeRules.MAKE_SHARED,
-            onConfirm = { makingShared = false; actions.makeLabelShared(label.id, confirmed = true) }, dismissText = "Keep",
+            title = "Keep ${label.name} only on this phone?", onDismiss = { onlyHereAsk = onlyHereAsk.dismissed() }, confirmText = TaskScopeRules.ONLY_ON_THIS_PHONE,
+            onConfirm = { val asked = onlyHereAsk.confirmed(); onlyHereAsk = onlyHereAsk.dismissed(); if (asked != null) actions.setLabelOnlyHere(asked) }, dismissText = "Keep shared",
+        ) { Text(TaskScopeRules.ONLY_HERE_ASK + ".", style = Ab.type.body, color = colors.ink) }
+    }
+
+    if (joinAsk.asking && label == null) {
+        AbDialog(
+            title = "Make '${joinAsk.confirmed()}' shared?", onDismiss = { joinAsk = joinAsk.dismissed() }, confirmText = TaskScopeRules.MAKE_SHARED,
+            onConfirm = { val asked = joinAsk.confirmed(); joinAsk = joinAsk.dismissed(); if (asked != null && actions.addLabel(asked, color, false, makeShared = true)) onDismiss() }, dismissText = "Keep",
+        ) { Text(TaskScopeRules.MAKE_SHARED_ASK + ".", style = Ab.type.body, color = colors.ink) }
+    }
+
+    if (sharedAsk.asking && label != null) {
+        AbDialog(
+            title = "Make ${label.name} shared?", onDismiss = { sharedAsk = sharedAsk.dismissed() }, confirmText = TaskScopeRules.MAKE_SHARED,
+            onConfirm = { val asked = sharedAsk.confirmed(); sharedAsk = sharedAsk.dismissed(); if (asked != null) actions.makeLabelShared(asked, confirmed = true) }, dismissText = "Keep",
         ) { Text(TaskScopeRules.MAKE_SHARED_ASK + ".", style = Ab.type.body, color = colors.ink) }
     }
 

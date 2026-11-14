@@ -65,7 +65,8 @@ object TaskLocalEdits {
         }
 
         items.filter { it.deletedAt != null }.forEach(work::applyTombstone)
-        return TaskScopes.keepHidden(lists, work.result(), self, removed, now)
+        // Nobody typed these here (a copy, a handover, a restore): a new task never makes this phone join a hidden label or tag it carries.
+        return TaskScopes.keepHidden(lists, work.result(), self, removed, now, joinNew = false)
     }
 
     /**

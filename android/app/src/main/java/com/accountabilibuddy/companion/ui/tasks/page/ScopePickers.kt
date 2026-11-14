@@ -71,7 +71,7 @@ fun NewLabelForm(view: TaskScopeView, canKeepHere: Boolean, onAdd: (name: String
     val app = LocalContext.current.applicationContext as CompanionApp
     var name by remember { mutableStateOf("") }
     var onlyHere by remember { mutableStateOf(false) }
-    var asking by remember { mutableStateOf(false) }
+    var ask by remember { mutableStateOf(com.accountabilibuddy.shared.tasks.ScopeAsk<String>()) }
     val exists = view.labels.any { it.name.trim().equals(name.trim(), ignoreCase = true) }
     val elsewhere = if (name.isBlank()) null else view.hiddenNameDevices(name) { scopeDeviceName(app, it) }
     Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -91,12 +91,12 @@ fun NewLabelForm(view: TaskScopeView, canKeepHere: Boolean, onAdd: (name: String
             )
         }
         AbPrimaryButton("Add", onClick = { onAdd(name, onlyHere, false) }, enabled = name.isNotBlank() && !exists, modifier = Modifier.fillMaxWidth())
-        if (elsewhere != null && !exists) AbTextButton(TaskScopeRules.MAKE_SHARED, onClick = { asking = true })
+        if (elsewhere != null && !exists) AbTextButton(TaskScopeRules.MAKE_SHARED, onClick = { ask = ask.ask(name.trim()) })
     }
-    if (asking) {
+    if (ask.asking) {
         AbDialog(
-            title = "Make '${name.trim()}' shared?", onDismiss = { asking = false }, confirmText = TaskScopeRules.MAKE_SHARED,
-            onConfirm = { asking = false; onAdd(name, false, true) }, dismissText = "Keep",
+            title = "Make '${ask.confirmed()}' shared?", onDismiss = { ask = ask.dismissed() }, confirmText = TaskScopeRules.MAKE_SHARED,
+            onConfirm = { val asked = ask.confirmed(); ask = ask.dismissed(); if (asked != null) onAdd(asked, false, true) }, dismissText = "Keep",
         ) { Text(TaskScopeRules.MAKE_SHARED_ASK + ".", style = Ab.type.body, color = Ab.colors.ink) }
     }
 }
