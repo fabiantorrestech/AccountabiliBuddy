@@ -11,13 +11,14 @@ import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CenterFocusStrong
 import androidx.compose.material.icons.outlined.Computer
-import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Monitor
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ import com.accountabilibuddy.companion.ui.sheets.AbSheetValue
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.goals.GoalLabelId
 import com.accountabilibuddy.shared.goals.GoalPhoneRules
+import com.accountabilibuddy.shared.goals.GoalScreenTimeEditor
 import com.accountabilibuddy.shared.goals.GoalSourceRule
 import com.accountabilibuddy.shared.goals.GoalSourceType
 import java.util.UUID
@@ -38,7 +40,9 @@ import java.util.UUID
  * - Working: **Focus on a label** (the task labels on this phone), **Tick by hand**, **Daily steps** (counts only while "Track daily
  *   steps" is on; the row says so), **Sleep** (hours asleep from the Health Connect sleep the phone already reads, round 2 R6b3; the row
  *   says where to connect Health Connect when it isn't).
- * - Greyed with a reason: **Screen time** ("Coming in the next update"), **#tag** and **Google Calendar** ("Measured on your PC": tags
+ * - **Screen time** (ST3): its own page ([ScreenTimeSourceSheet]) with the list of apps and sites, a pick list of apps seen on this phone and
+ *   the devices that count; the **Usage access** row under it says whether the permission is on and opens the system's page.
+ * - Greyed with a reason: **#tag** and **Google Calendar** ("Measured on your PC": tags
  *   and calendar time are counted on the PC until ADR 79), **Beeminder** (read on the PC), **A task carries this goal** and
  *   **Milestone tasks** ("Coming soon": tasks have no goal link until ADR 79).
  * Hand, steps and sleep can be added once; a label once each. [onAdd] takes the new rule.
@@ -52,14 +56,29 @@ fun GoalSourcesSheet(
     labels: List<String>,
     stepsOn: Boolean,
     onAdd: (GoalSourceRule) -> Unit,
+    onChange: (GoalSourceRule) -> Unit,
+    selfId: UUID,
     onDismiss: () -> Unit,
     onBack: () -> Unit,
 ) {
     var pickingLabel by rememberSaveable { mutableStateOf(false) }
+    var editingScreen by rememberSaveable { mutableStateOf(false) }
     // Sleep reads what the phone already reads from Health Connect (no new permission): the row says how to connect it when it isn't.
     val context = androidx.compose.ui.platform.LocalContext.current
     val sleepConnected by androidx.compose.runtime.produceState(false) {
         value = runCatching { com.accountabilibuddy.companion.health.SleepReader(context).hasPermission() }.getOrDefault(false)
+    }
+    val usageAccess = rememberUsageAccess(context)
+    if (editingScreen) {
+        // One screen-time source a goal: a second tap on the row changes the one it has.
+        val existing = current.firstOrNull { it.type == GoalSourceType.ScreenTime }
+        val rule = remember(existing?.id) { existing ?: GoalScreenTimeEditor.newRule(UUID.randomUUID(), selfId) }
+        ScreenTimeSourceSheet(
+            rule = rule, creating = existing == null,
+            onSave = { saved -> if (existing == null) onAdd(saved) else onChange(saved); onBack() },
+            onDismiss = onDismiss, onBack = { editingScreen = false },
+        )
+        return
     }
     if (pickingLabel) {
         val taken = current.filter { it.type == GoalSourceType.FocusLabel }.mapNotNull { it.labelId }.toSet()
@@ -102,7 +121,12 @@ fun GoalSourcesSheet(
                 else -> "Counts once Health Connect sleep is connected (Settings › Sleep › Health Connect)"
             },
         )
-        AbSheetRow("Screen time", onClick = null, icon = Icons.Outlined.PhoneAndroid, enabled = false, subtitle = "Coming in the next update")
+        AbSheetRow(
+            "Screen time", onClick = { editingScreen = true }, icon = Icons.Outlined.Monitor,
+            subtitle = if (has(GoalSourceType.ScreenTime)) "Change the apps, sites and devices" else "Time in the apps and sites you choose",
+            trailing = { AbSheetValue(null) },
+        )
+        UsageAccessRow(usageAccess, context)
         // Brief §7: shown as a placeholder until its permission is decided (ADR 81, Proposed); weight is typed in until then.
         AbSheetRow("Weight from Health Connect", onClick = null, icon = Icons.Outlined.MonitorWeight, enabled = false, subtitle = "Coming soon · typed in until then")
 

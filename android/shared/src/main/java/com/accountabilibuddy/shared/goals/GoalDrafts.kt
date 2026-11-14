@@ -168,6 +168,7 @@ object GoalDrafts {
         val shell = shell(draft)
         for (rule in draft.sources) {
             if (rule.type == GoalSourceType.FocusLabel && rule.labelId == null) return "Pick a label for the focus source."
+            if (rule.type == GoalSourceType.ScreenTime) GoalScreenTimeEditor.problem(rule)?.let { return it }
             if (!GoalSources.allowedFor(shell, rule.type)) return "One of its sources can't count on a goal yet."
         }
 

@@ -31,7 +31,10 @@ import kotlinx.serialization.json.JsonArray
  * - **Steps:** the phone's existing daily steps, as readings of goals with a steps source, only while "Track daily steps" is on
  *   (which is what gates READ_STEPS); no new read or permission.
  * - **Sleep:** the sleep the phone already read from Health Connect (READ_SLEEP, granted by the user for the sleep pages), as one reading
- *   a day for goals with a sleep source ([GoalSleepReadings]); in memory only. Screen time isn't counted yet.
+ *   a day for goals with a sleep source ([GoalSleepReadings]); in memory only.
+ * - **Screen time (ST3):** this phone's own derived entries ([PhoneGoalDerived], device id on them) and each chosen device's, added up by
+ *   [com.accountabilibuddy.shared.goals.GoalCounting]; [screen] holds in-memory readings only for a goal and day with no stored entry yet
+ *   (a goal being edited), read by [PhoneScreenTime].
  * - #tag rules and calendar time are the PC's ([GoalSourceData.forPhone]): those sources say "Measured on your PC".
  */
 object PhoneGoalData {
@@ -43,6 +46,7 @@ object PhoneGoalData {
         now: Instant,
         zone: ZoneId,
         slept: List<GoalWindow> = emptyList(),
+        screen: List<GoalEntry> = emptyList(),
     ): GoalSourceData {
         val focus = files.filter { it.device.kind != SyncDeviceCard.KIND_WATCH }.flatMap { file ->
             GoalFocusAttribution.fromSynced(pieces(file), now, zone)
@@ -52,7 +56,7 @@ object PhoneGoalData {
         // has a stored Health Connect entry is left out, so nothing counts twice. The in-memory readings stay for a goal not saved yet (a draft).
         val stored = entries.filter { it.source == GoalEntrySource.HealthConnect }.map { it.goalId to it.day }.toSet()
         val fresh = (stepReadings(goals, steps, zone) + sleep).filter { (it.goalId to it.day) !in stored }
-        return GoalSourceData.forPhone(focus, entries + fresh, zone)
+        return GoalSourceData.forPhone(focus, entries + fresh + screen, zone)
     }
 
     /**

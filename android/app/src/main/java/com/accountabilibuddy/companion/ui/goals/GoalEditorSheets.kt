@@ -142,6 +142,8 @@ fun GoalEditorSheets(
         GoalSourcesSheet(
             current = draft.sources, labels = labels, stepsOn = steps.enabled,
             onAdd = { rule: GoalSourceRule -> draft = draft.copy(sources = draft.sources + rule) },
+            onChange = { rule: GoalSourceRule -> draft = draft.copy(sources = draft.sources.map { if (it.id == rule.id) rule else it }) },
+            selfId = app.sync.deviceId,
             onDismiss = onDismiss, onBack = { sourcesOpen = false },
         )
         return

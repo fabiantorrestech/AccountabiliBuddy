@@ -35,6 +35,7 @@ object SetupFeatures {
     const val STEPS_IN_GOALS = "steps.inGoals"
     const val TASKS_REDESIGN = "tasks.redesign"
     const val TASK_RING_DEVICES = "tasks.ringDevices"
+    const val SCREEN_TIME_GOALS = "goals.screenTime"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
@@ -47,6 +48,12 @@ object SetupFeatures {
                 val app = it.applicationContext as com.accountabilibuddy.companion.CompanionApp
                 done(it, TASKS_REDESIGN) || com.accountabilibuddy.shared.tasks.TaskAccountSettingsEdits.isChosen(app.taskModel.lists.value.account?.defaultViewStamp)
             },
+        ),
+        SetupFeature(
+            SCREEN_TIME_GOALS, "0.1.79", "Goals: screen time in several apps and sites, from the devices you pick (needs Usage access)",
+            // Only once the goals can be used; set up once seen in the assistant, or Usage access is already on (the one thing it needs).
+            relevant = { (it.applicationContext as com.accountabilibuddy.companion.CompanionApp).goals.status.value == com.accountabilibuddy.companion.goals.PhoneGoalStatus.Ready },
+            setUp = { done(it, SCREEN_TIME_GOALS) || com.accountabilibuddy.companion.usage.PhoneUsageReader(it).hasAccess() },
         ),
         SetupFeature(
             TASK_RING_DEVICES, "0.1.79", "Task reminders: which of your devices ring (a PC always rings for its own)",

@@ -234,6 +234,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "ph1td1-self" to Ph1Td1SelfCheck::run,
     // Round 2 GS4: the phone's goals sync wiring: the weekly receive rule, stamping, derived ownership, what goes out, the history transport (phone only).
     "gs4-self" to Gs4SelfCheck::run,
+    // Round 2 ST3 (phone): screen time counted per package, the device picker, no churn, no names in what is sent (phone only).
+    "st3-self" to St3SelfCheck::run,
     // GS4 review fixes: the fail-safe default environment, apply results, the one history lock under threads, names, wiring (phone only).
     "gs4fix-self" to Gs4FixSelfCheck::run,
     // GS3b Kotlin relay mirror (phone): the relay history pass on a fake relay: open months only, quota, 429, free places, version gate, 25 days, late joiner.

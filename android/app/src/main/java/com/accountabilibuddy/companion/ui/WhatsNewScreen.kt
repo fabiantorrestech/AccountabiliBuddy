@@ -64,6 +64,7 @@ fun WhatsNewScreen(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.t
                 SetupFeatures.STEPS_IN_GOALS -> StepsInGoalsSetupPage()
                 SetupFeatures.TASKS_REDESIGN -> TasksRedesignSetupPage()
                 SetupFeatures.TASK_RING_DEVICES -> TaskRingDevicesSetupPage()
+                SetupFeatures.SCREEN_TIME_GOALS -> ScreenTimeSetupPage()
             }
         }
         Button(onClick = {

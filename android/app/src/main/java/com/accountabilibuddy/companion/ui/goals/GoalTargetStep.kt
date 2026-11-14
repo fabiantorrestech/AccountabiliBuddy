@@ -34,6 +34,7 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.goals.GoalDisplayPrefs
 import com.accountabilibuddy.companion.goals.PhoneDeepWork
 import com.accountabilibuddy.companion.goals.PhoneGoalData
+import com.accountabilibuddy.companion.goals.PhoneScreenTime
 import com.accountabilibuddy.companion.guidance.isCompanionMode
 import com.accountabilibuddy.companion.sync.ReceivedDevice
 import com.accountabilibuddy.companion.ui.kit.AbCard
@@ -279,7 +280,9 @@ private fun TakesBox(draft: GoalDraft, stored: Goal?, allReceived: List<Received
             runCatching {
                 val zone = ZoneId.systemDefault()
                 val now = Instant.now()
-                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone, PhoneGoalData.slept(app))
+                // A goal's screen time is read now (off the main thread) so its What it takes counts it before the first save.
+                PhoneScreenTime.rowsByDay(app)
+                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone, PhoneGoalData.slept(app), PhoneScreenTime.unstored(app, listOf(goal), lists.liveEntries))
                 val today = now.atZone(zone).toLocalDate()
                 GoalFactsBuilder.build(goal, data, today, display.weekStart).whatItTakes?.let { GoalTakesText.of(it, goal, today) }
             }.getOrNull()
