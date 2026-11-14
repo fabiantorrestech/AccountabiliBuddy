@@ -2,6 +2,7 @@ using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Tasks;
 using Avalonia.Media;
+using Material.Icons;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -31,7 +32,7 @@ public sealed partial class LabelRowViewModel : ObservableObject
         Name = label.Name;
         Color = label.Color;
         ColorBrush = Brushes.Transparent;
-        CountText = RingText = DeleteText = string.Empty;
+        CountText = RingText = DeleteText = ScopeText = string.Empty;
         RingChoices = [];
         ColorEditor = new LabelColorEditorViewModel(label.Color, color => _ = _labels.RecolourAsync(Id, color));
         Update(label, uses, devices);
@@ -67,6 +68,34 @@ public sealed partial class LabelRowViewModel : ObservableObject
     /// <summary>The Rings on ▾ checklist: one switch per device (PCs stay on).</summary>
     [ObservableProperty]
     public partial IReadOnlyList<RingDeviceChoiceViewModel> RingChoices { get; set; }
+
+    /// <summary>ADR 89: the label shows on every device.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ScopeIcon))]
+    public partial bool IsShared { get; set; }
+
+    /// <summary>"Shared" or "This device" on the scope switch (the tooltip says "only on this device").</summary>
+    [ObservableProperty]
+    public partial string ScopeText { get; set; }
+
+    /// <summary>Shared = Devices, This device = Laptop (the "Keep on…" menu's meanings).</summary>
+    public MaterialIconKind ScopeIcon => IsShared ? MaterialIconKind.Devices : MaterialIconKind.Laptop;
+
+    /// <summary>"on Laptop, Phone": a device-only label that several (not all) devices share; null for others.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDevicesLine))]
+    public partial string? DevicesLine { get; set; }
+
+    public bool HasDevicesLine => DevicesLine is not null;
+
+    /// <summary>The scope switch is offered once this device is in a sync group (before that nothing can be named in a device list).</summary>
+    public bool CanScope => _labels.CanScope;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotConfirmingShare))]
+    public partial bool IsConfirmingShare { get; set; }
+
+    public bool IsNotConfirmingShare => !IsConfirmingShare;
 
     /// <summary>"Delete · 3 tasks become No label".</summary>
     [ObservableProperty]
@@ -104,6 +133,9 @@ public sealed partial class LabelRowViewModel : ObservableObject
             1 => "Delete · 1 task becomes No label",
             _ => $"Delete · {uses} tasks become No label",
         };
+        IsShared = _labels.IsShared(label);
+        ScopeText = IsShared ? "Shared" : "This device";
+        DevicesLine = IsShared ? null : _labels.DevicesLine(label);
         RingText = TaskRingText.For(label.RingOn, devices);
         bool sameDevices = devices.Select(device => device.Id).SequenceEqual(_devices.Select(device => device.Id)) && RingChoices.Count == devices.Count;
         _devices = devices;
@@ -151,6 +183,38 @@ public sealed partial class LabelRowViewModel : ObservableObject
     private void CancelName()
     {
         Name = _savedName;
+    }
+
+    /// <summary>
+    /// The scope switch. Shared to this device only is at once (display only, nothing is lost); device only to shared asks first, since
+    /// the label then shows on every device. A device is never taken out of a list.
+    /// </summary>
+    [RelayCommand]
+    private async Task ToggleScopeAsync()
+    {
+        if (IsShared)
+        {
+            await _labels.SetSharedAsync(Id, shared: false);
+            _say($"“{_savedName}” is only on this device now");
+            return;
+        }
+
+        IsConfirmingShare = true;
+    }
+
+    /// <summary>"Make shared" confirmed: it shows on all the devices.</summary>
+    [RelayCommand]
+    private async Task MakeSharedAsync()
+    {
+        IsConfirmingShare = false;
+        await _labels.SetSharedAsync(Id, shared: true);
+        _say($"“{_savedName}” is shared on all your devices");
+    }
+
+    [RelayCommand]
+    private void KeepScope()
+    {
+        IsConfirmingShare = false;
     }
 
     [RelayCommand]

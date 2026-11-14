@@ -632,36 +632,57 @@ public sealed partial class AddBoxViewModel : ObservableObject
     private void FillSuggestions(char kind, string query)
     {
         Suggestions.Clear();
+        bool groups = _host.CanScope;
         if (kind == '@')
         {
             SuggestionHead = "Labels";
-            IEnumerable<TaskLabel> matching = _host.Labels
+            // ADR 89: "Shared" first, then "This device" (the device-only labels this device shows; other devices' are never listed).
+            List<TaskLabel> matching = _host.Labels
                 .Where(label => label.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(label => label.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase))
-                .Take(6);
+                .OrderBy(label => !_host.IsLabelShared(label))
+                .ThenBy(label => label.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase))
+                .Take(6).ToList();
+            bool? previous = null;
             foreach (TaskLabel label in matching)
             {
-                Suggestions.Add(new AddBoxSuggestionViewModel(label.Name, label.Name, string.Empty, BrushOf(label), isTag: false, creates: false, Pick));
+                bool shared = _host.IsLabelShared(label);
+                string? head = groups && previous != shared ? (shared ? "Shared" : "This device") : null;
+                previous = shared;
+                Suggestions.Add(new AddBoxSuggestionViewModel(label.Name, label.Name, string.Empty, BrushOf(label), isTag: false, creates: false, Pick) { GroupHead = head });
             }
 
             if (query.Length > 0 && !_host.Labels.Any(label => string.Equals(label.Name, query, StringComparison.OrdinalIgnoreCase)))
             {
                 Suggestions.Add(new AddBoxSuggestionViewModel(query, "Create label “" + query + "”", "Enter", Brushes.Transparent, isTag: false, creates: true, Pick));
+                if (groups)
+                {
+                    Suggestions.Add(new AddBoxSuggestionViewModel(query, "Create “" + query + "”", "this device", Brushes.Transparent, isTag: false, creates: true, Pick) { OnlyHere = true });
+                }
             }
         }
         else
         {
             SuggestionHead = "Tags";
             IReadOnlyList<KeyValuePair<string, int>> tags = _host.TagCounts();
-            foreach (KeyValuePair<string, int> tag in tags.Where(pair => pair.Key.Contains(query, StringComparison.OrdinalIgnoreCase)).Take(6))
+            List<KeyValuePair<string, int>> matchingTags = tags.Where(pair => pair.Key.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(pair => !_host.IsTagShared(pair.Key)).Take(6).ToList();
+            bool? previous = null;
+            foreach (KeyValuePair<string, int> tag in matchingTags)
             {
+                bool shared = _host.IsTagShared(tag.Key);
+                string? head = groups && previous != shared ? (shared ? "Shared" : "This device") : null;
+                previous = shared;
                 string count = tag.Value == 1 ? "1 task" : tag.Value + " tasks";
-                Suggestions.Add(new AddBoxSuggestionViewModel(tag.Key, tag.Key, count, null, isTag: true, creates: false, Pick));
+                Suggestions.Add(new AddBoxSuggestionViewModel(tag.Key, tag.Key, count, null, isTag: true, creates: false, Pick) { GroupHead = head });
             }
 
             if (query.Length > 0 && !tags.Any(pair => string.Equals(pair.Key, query, StringComparison.OrdinalIgnoreCase)))
             {
                 Suggestions.Add(new AddBoxSuggestionViewModel(query, query, "new tag", null, isTag: true, creates: false, Pick));
+                if (groups)
+                {
+                    Suggestions.Add(new AddBoxSuggestionViewModel(query, query, "new, this device", null, isTag: true, creates: false, Pick) { OnlyHere = true });
+                }
             }
         }
 
@@ -686,11 +707,16 @@ public sealed partial class AddBoxViewModel : ObservableObject
         DismissSuggestions();
         if (item.IsTag)
         {
+            if (item.OnlyHere)
+            {
+                await _host.MakeTagDeviceOnlyAsync(item.Name);
+            }
+
             AddTag(item.Name);
         }
         else
         {
-            Guid? id = item.Creates ? await _host.CreateLabelAsync(item.Name) : _host.Labels.FirstOrDefault(label => label.Name == item.Name)?.Id;
+            Guid? id = item.Creates ? await (item.OnlyHere ? _host.CreateDeviceLabelAsync(item.Name) : _host.CreateLabelAsync(item.Name)) : _host.Labels.FirstOrDefault(label => label.Name == item.Name)?.Id;
             if (id is null)
             {
                 return;

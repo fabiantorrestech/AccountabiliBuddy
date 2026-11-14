@@ -62,7 +62,7 @@ public sealed partial class TasksViewModel : IAddBoxHost
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (TaskItem task in LiveTasks())
         {
-            foreach (string tag in task.Tags ?? [])
+            foreach (string tag in ShownTagsOf(task.Tags))
             {
                 counts[tag] = counts.GetValueOrDefault(tag) + 1;
             }
@@ -95,6 +95,21 @@ public sealed partial class TasksViewModel : IAddBoxHost
     {
         return TaskSettings?.DeclineMarkerAsync(marker) ?? Task.CompletedTask;
     }
+
+    bool IAddBoxHost.CanScope => GroupsByScope;
+
+    bool IAddBoxHost.IsLabelShared(TaskLabel label) => _store is null || _store.IsShared(label);
+
+    bool IAddBoxHost.IsTagShared(string tag) => IsSharedTag(tag);
+
+    async Task<Guid?> IAddBoxHost.CreateDeviceLabelAsync(string name)
+    {
+        Guid? id = await ((IAddBoxHost)this).CreateLabelAsync(name);
+        await ScopeNewLabelAsync(id, onlyHere: true);
+        return id;
+    }
+
+    Task IAddBoxHost.MakeTagDeviceOnlyAsync(string tag) => ScopeNewTagAsync(tag, onlyHere: true);
 
     async Task<Guid?> IAddBoxHost.CreateLabelAsync(string name)
     {
@@ -180,7 +195,7 @@ public sealed partial class TasksViewModel : IAddBoxHost
     private List<TaskLabel> LiveLabels()
     {
         return _store is { IsActive: true } store
-            ? store.Lists.Labels.Select(item => item.Label).Where(label => label.IsLive).OrderBy(label => label.Position).ToList()
+            ? store.VisibleLabels.ToList()
             : [];
     }
 

@@ -221,14 +221,14 @@ public sealed class TaskViewService
     {
         TaskLists lists = _store.Lists;
         var context = new TaskViewContext(
-            _time.GetUtcNow(), TimeZoneInfo.Local, lists.Labels.Select(item => item.Label).ToList(), Search, scope, showEmptyBins);
+            _time.GetUtcNow(), TimeZoneInfo.Local, lists.Labels.Select(item => item.Label).ToList(), Search, scope, showEmptyBins, _store.LabelShown, _store.TagShown);
         return TaskViewRules.Apply(lists.Tasks.Select(item => item.Task), Working, context);
     }
 
     /// <summary>The tasks and steps a search finds (a number like "142b", or words), whatever the view; for the search box's own list.</summary>
     public IReadOnlyList<TaskSearchHit> Find(string query)
     {
-        return TaskSearch.Find(_store.Lists.Tasks.Select(item => item.Task), query, _store.Lists.Labels.Select(item => item.Label).ToList());
+        return TaskSearch.Find(_store.Lists.Tasks.Select(item => item.Task), query, _store.Lists.Labels.Select(item => item.Label).ToList(), _store.LabelShown, _store.TagShown);
     }
 
     /// <summary>

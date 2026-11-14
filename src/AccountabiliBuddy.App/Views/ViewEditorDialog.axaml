@@ -93,6 +93,11 @@
                 <TextBlock Classes="faint" Text="Ticks in one list widen it; different lists narrow it." FontSize="11.5" TextWrapping="Wrap" />
 
                 <TextBlock Classes="group" Text="Labels" />
+                <TextBlock Classes="faint" Text="{Binding HiddenNote}" FontSize="11.5" TextWrapping="Wrap" IsVisible="{Binding HasHiddenNote}" />
+                <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding CanScope}">
+                    <mi:MaterialIcon Kind="Devices" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    <TextBlock Classes="muted" Text="Shared" FontSize="11.5" FontWeight="SemiBold" />
+                </StackPanel>
                 <ItemsControl ItemsSource="{Binding Labels}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -111,8 +116,36 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                <StackPanel IsVisible="{Binding HasDeviceLabels}" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <mi:MaterialIcon Kind="Laptop" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Text="This device" FontSize="11.5" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding DeviceLabels}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="14" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ViewEditorOption">
+                                <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Text}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" IsVisible="{Binding HasDot}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </CheckBox>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
                 <StackPanel IsVisible="{Binding HasTags}">
                     <TextBlock Classes="group" Text="Tags" />
+                    <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding CanScope}">
+                        <mi:MaterialIcon Kind="Devices" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                        <TextBlock Classes="muted" Text="Shared" FontSize="11.5" FontWeight="SemiBold" />
+                    </StackPanel>
                     <ItemsControl ItemsSource="{Binding Tags}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -125,6 +158,24 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <StackPanel IsVisible="{Binding HasDeviceTags}" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <mi:MaterialIcon Kind="Laptop" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                            <TextBlock Classes="muted" Text="This device" FontSize="11.5" FontWeight="SemiBold" />
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding DeviceTags}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="14" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ViewEditorOption">
+                                    <CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Text}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
                     <CheckBox Content="Has every ticked tag" IsChecked="{Binding MatchAllTags}" />
                 </StackPanel>
 

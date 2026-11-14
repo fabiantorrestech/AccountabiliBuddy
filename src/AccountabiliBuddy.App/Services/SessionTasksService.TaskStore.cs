@@ -77,7 +77,7 @@ public sealed partial class SessionTasksService
     private void ReadFromTaskStore()
     {
         TaskStore tasks = _taskStore!;
-        _nextTasks = TaskFacadeLists.Draft(tasks.Lists, _time.GetUtcNow());
+        _nextTasks = TaskFacadeLists.Draft(tasks.Lists, _time.GetUtcNow(), tasks.LabelShown, tasks.TagShown);
         _draftShown = _nextTasks.ToDictionary(task => task.Id, task => task.TieBreak);
         _categories = tasks.Categories;
     }

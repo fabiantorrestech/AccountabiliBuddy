@@ -517,7 +517,7 @@
                 <!-- A picker's "New category…": its name; Enter makes it and applies it. -->
                 <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
                         IsVisible="{Binding IsNamingCategory}">
-                    <Grid ColumnDefinitions="*,Auto">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
                         <TextBox x:Name="NewCategoryBox" Classes="rowEntry" FontSize="14" Text="{Binding NewCategoryName}" PlaceholderText="{Binding NamePrompt}"
                                  AutomationProperties.Name="New category name">
                             <TextBox.KeyBindings>
@@ -525,7 +525,10 @@
                                 <KeyBinding Gesture="Escape" Command="{Binding CancelNewCategoryCommand}" />
                             </TextBox.KeyBindings>
                         </TextBox>
-                        <Button Grid.Column="1" Classes="quiet" Command="{Binding CancelNewCategoryCommand}" Padding="8,2" AutomationProperties.Name="Cancel new category"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
+                        <CheckBox Grid.Column="1" Content="Only on this device" IsChecked="{Binding NewOnlyHere}" IsVisible="{Binding CanChooseScope}" FontSize="12"
+                                  Margin="0,0,6,0" VerticalAlignment="Center" ToolTip.Tip="Shared on all your devices unless this is ticked"
+                                  AutomationProperties.Name="Only on this device" />
+                        <Button Grid.Column="2" Classes="quiet" Command="{Binding CancelNewCategoryCommand}" Padding="8,2" AutomationProperties.Name="Cancel new category"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                     </Grid>
                 </Border>
 

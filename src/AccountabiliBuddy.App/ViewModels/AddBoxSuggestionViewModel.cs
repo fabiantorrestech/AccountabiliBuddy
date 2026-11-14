@@ -31,6 +31,17 @@ public sealed partial class AddBoxSuggestionViewModel : ObservableObject
     /// <summary>The faint text at its right: "3 tasks", "new tag", "Enter".</summary>
     public string Detail { get; }
 
+    /// <summary>"Shared" or "This device" (ADR 89) on the first entry of each group; null elsewhere.</summary>
+    public string? GroupHead { get; init; }
+
+    public bool HasGroupHead => GroupHead is not null;
+
+    /// <summary>The group heading's icon: Devices for Shared, Laptop for This device (ADR 32; the same meanings as "Keep on…").</summary>
+    public Material.Icons.MaterialIconKind GroupIcon => OnlyHere || GroupHead == "This device" ? Material.Icons.MaterialIconKind.Laptop : Material.Icons.MaterialIconKind.Devices;
+
+    /// <summary>Picking it makes the label or tag device-only (it is created that way).</summary>
+    public bool OnlyHere { get; init; }
+
     public IBrush? Dot { get; }
 
     public bool HasDot => Dot is not null;

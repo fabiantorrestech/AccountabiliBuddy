@@ -312,22 +312,22 @@ public sealed class TaskActionsService
 
     public Task<bool> SetLabelAsync(IReadOnlyList<Guid> ids, Guid? labelId)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self, removed: null));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self, removed: _store.Removed));
     }
 
     public Task<bool> AddTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.AddTags(lists, ids, tags, now, self, removed: null));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.AddTags(lists, ids, tags, now, self, removed: _store.Removed));
     }
 
     public Task<bool> RemoveTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.RemoveTags(lists, ids, tags, now, self, removed: null));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.RemoveTags(lists, ids, tags, now, self, removed: _store.Removed));
     }
 
     public Task<bool> ToggleTagAsync(IReadOnlyList<Guid> ids, string tag)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.ToggleTag(lists, ids, tag, now, self, removed: null));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.ToggleTag(lists, ids, tag, now, self, removed: _store.Removed));
     }
 
     public Task<bool> SetTimeLimitAsync(IReadOnlyList<Guid> ids, int? minutes)
@@ -547,10 +547,12 @@ public sealed class TaskActionsService
     }
 
     // What the session's add takes from a task: its id and its steps' ids and ticks stay (a bin change of the same task).
-    private static TodaySource SourceOf(TaskItem task, TaskLists lists)
+    // A label or tag this device doesn't show (ADR 89) doesn't go into the checklist: it stays on the task in the list.
+    private TodaySource SourceOf(TaskItem task, TaskLists lists)
     {
-        TaskLabel? label = task.LabelId is Guid id ? lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == id) : null;
+        TaskLabel? label = task.LabelId is Guid id ? lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == id && _store.LabelShown(item)) : null;
         return new TodaySource(
-            task.Title, (task.Steps ?? []).Select(step => step.ToSubtask()).ToList(), label?.Name, label?.Color, task.EstimateMinutes, task.Note, task.Tags, task.Id);
+            task.Title, (task.Steps ?? []).Select(step => step.ToSubtask()).ToList(), label?.Name, label?.Color, task.EstimateMinutes, task.Note,
+            TaskScopes.ShownTags(task.Tags, lists.TagScopes, _store.SelfDevice, _store.Removed), task.Id);
     }
 }

@@ -320,15 +320,16 @@ public sealed partial class TasksViewModel
     // Label: each label with its dot, No label, New label…; a single task's own is ticked.
     private List<TaskMenuEntry> LabelChoicesFor(IReadOnlyList<Guid> ids, Guid? current, bool markCurrent)
     {
-        var entries = new List<TaskMenuEntry>();
+        var items = new List<(bool Shared, TaskMenuEntry Entry)>();
         foreach (TaskLabel label in LiveLabels().Where(label => label.Name.Trim().Length > 0))
         {
             Guid id = label.Id;
-            entries.Add(new TaskMenuEntry(
+            items.Add((_store!.IsShared(label), new TaskMenuEntry(
                 label.Name, new AsyncRelayCommand(() => BulkAsync(actions => actions.SetLabelAsync(ids, id))),
-                IsChecked: markCurrent && current == id, Dot: TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color))));
+                IsChecked: markCurrent && current == id, Dot: TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color)))));
         }
 
+        List<TaskMenuEntry> entries = ScopeGrouped(items);
         entries.Add(new TaskMenuEntry(
             "No label", new AsyncRelayCommand(() => BulkAsync(actions => actions.SetLabelAsync(ids, null))), IsChecked: markCurrent && current is null));
         entries.Add(TaskMenuEntry.Do("New label…", () => AskNewCategory(categoryId => ApplyNewLabelAsync(ids, categoryId)), MaterialIconKind.Plus));
@@ -348,18 +349,19 @@ public sealed partial class TasksViewModel
     private List<TaskMenuEntry> TagChoicesFor(IReadOnlyList<Guid> ids)
     {
         List<TaskItem> tasks = ids.Select(StoredTask).OfType<TaskItem>().ToList();
-        var entries = new List<TaskMenuEntry>();
-        foreach (string tag in TaskLabels.AllOf(LiveTasks().Select(task => task.Tags)))
+        var items = new List<(bool Shared, TaskMenuEntry Entry)>();
+        foreach (string tag in _store!.VisibleTags())
         {
             string name = tag;
-            int having = tasks.Count(task => TaskLabels.Has(task.Tags, name));
+            int having = tasks.Count(task => TaskLabels.Has(ShownTagsOf(task.Tags), name));
             MaterialIconKind icon = having == tasks.Count && having > 0
                 ? MaterialIconKind.CheckboxMarked
                 : having > 0 ? MaterialIconKind.MinusBoxOutline : MaterialIconKind.CheckboxBlankOutline;
             string? hint = tasks.Count > 1 && having > 0 && having < tasks.Count ? $"{having} of {tasks.Count}" : null;
-            entries.Add(new TaskMenuEntry("#" + name, new AsyncRelayCommand(() => BulkAsync(actions => actions.ToggleTagAsync(ids, name))), Icon: icon, Value: hint));
+            items.Add((IsSharedTag(name), new TaskMenuEntry("#" + name, new AsyncRelayCommand(() => BulkAsync(actions => actions.ToggleTagAsync(ids, name))), Icon: icon, Value: hint)));
         }
 
+        List<TaskMenuEntry> entries = ScopeGrouped(items);
         entries.Add(TaskMenuEntry.Do("New tag…", () => AskNewLabel(name => BulkAsync(actions => actions.AddTagsAsync(ids, [name]))), MaterialIconKind.Plus));
         return entries;
     }

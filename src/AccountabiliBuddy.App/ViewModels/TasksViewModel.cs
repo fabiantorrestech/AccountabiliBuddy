@@ -336,11 +336,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         string name = NewCategoryName.Trim();
         Func<Guid?, Task>? apply = _applyNewCategory;
         Func<string, Task>? applyLabel = _applyNewLabel;
+        bool onlyHere = NewOnlyHere && CanChooseScope;
         CancelNewCategory();
         if (applyLabel is not null)
         {
             _applyNewLabel = applyLabel;
-            await SaveNewLabelAsync(name);
+            await SaveNewLabelAsync(name, onlyHere);
             return;
         }
 
@@ -351,6 +352,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         if (await _tasks.AdoptCategoryAsync(name, null) is Guid id)
         {
+            await ScopeNewLabelAsync(id, onlyHere);
             await apply(id);
         }
     }
@@ -363,6 +365,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _applyNewLabel = null;
         OnPropertyChanged(nameof(NamePrompt));
         NewCategoryName = string.Empty;
+        NewOnlyHere = false;
         IsNamingCategory = false;
     }
 
@@ -918,18 +921,22 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             return GroupedCategoryChoices(others, current, markCurrent, apply);
         }
 
-        var entries = new List<TaskMenuEntry>();
+        var items = new List<(bool Shared, TaskMenuEntry Entry)>();
         foreach (TaskCategory category in _tasks.Categories)
         {
             Guid id = category.Id;
-            entries.Add(new TaskMenuEntry(
+            items.Add((IsSharedCategory(id), new TaskMenuEntry(
                 category.Name,
                 new AsyncRelayCommand(() => apply(id)),
                 IsChecked: markCurrent && string.Equals(current, category.Name, StringComparison.OrdinalIgnoreCase),
-                Dot: TaskCategoryBrushes.Of(category.Color)));
+                Dot: TaskCategoryBrushes.Of(category.Color))));
         }
 
-        entries.Add(new TaskMenuEntry("No label", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null));
+        var entries = new List<TaskMenuEntry>
+        {
+            new("No label", new AsyncRelayCommand(() => apply(null)), IsChecked: markCurrent && current is null),
+        };
+        entries.AddRange(ScopeGrouped(items));
         entries.Add(NewCategoryEntry(apply));
         return entries;
     }
@@ -1505,7 +1512,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private TaskLabel? LabelOf(Guid? labelId)
     {
-        return labelId is Guid id ? _store?.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id) : null;
+        // A label this device doesn't show (ADR 89) reads as No label.
+        return labelId is Guid id ? _store?.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id && _store.LabelShown(label)) : null;
     }
 
     // A label's id as the PC's categories know it (a label keeps the id its category had here), and back.

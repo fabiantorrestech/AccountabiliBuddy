@@ -28,6 +28,12 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         _beeminderConnected = lookups.BeeminderConnected;
         IsLocked = locked;
         Labels = lookups.Labels;
+        // A label another device keeps to itself (ADR 89) still counts: the row keeps it, says where it is from and never shows its name.
+        if (rule.LabelId is Guid kept && !Labels.Any(choice => choice.Key == kept.ToString()) && lookups.HiddenLabelNote?.Invoke(kept) is string hiddenNote)
+        {
+            Labels = [.. Labels, new GoalChoice(kept.ToString(), hiddenNote, Icon: MaterialIconKind.Laptop)];
+        }
+
         Categories = lookups.CalendarCategories;
         BeeminderGoals = lookups.BeeminderGoals;
         BeeminderReadText = lookups.BeeminderReadText;

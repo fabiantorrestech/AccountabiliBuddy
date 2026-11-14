@@ -30,16 +30,27 @@ public sealed partial class ViewEditorViewModel : ObservableObject
     private readonly IReadOnlyList<TaskLabel> _labels;
     private readonly IReadOnlyList<string> _tags;
     private TaskViewConfig _base;
+    private readonly Func<TaskLabel, bool> _isSharedLabel;
+    private readonly Func<string, bool> _isSharedTag;
+    private readonly IReadOnlyCollection<Guid> _hiddenLabelIds;
+    private readonly Func<string, bool> _tagShown;
 
     /// <param name="editing">The view to edit; null to create one.</param>
-    /// <param name="labels">The live labels, in order.</param>
-    /// <param name="tags">The tags in use.</param>
-    public ViewEditorViewModel(TaskViewService views, TaskView? editing, IReadOnlyList<TaskLabel> labels, IReadOnlyList<string> tags)
+    /// <param name="labels">The live labels this device shows, in order.</param>
+    /// <param name="tags">The tags in use this device shows.</param>
+    /// <param name="scope">ADR 89: which labels and tags are shared (the rest list under "This device"), which labels and tags this device doesn't show (kept in the view when it is saved), and the note about them.</param>
+    public ViewEditorViewModel(TaskViewService views, TaskView? editing, IReadOnlyList<TaskLabel> labels, IReadOnlyList<string> tags, ViewEditorScope? scope = null)
     {
         _views = views;
         _editing = editing;
         _labels = labels;
         _tags = tags;
+        _isSharedLabel = scope?.IsSharedLabel ?? (_ => true);
+        _isSharedTag = scope?.IsSharedTag ?? (_ => true);
+        _hiddenLabelIds = scope?.HiddenLabelIds ?? [];
+        _tagShown = scope?.TagShown ?? (_ => true);
+        CanScope = scope?.CanScope == true;
+        HiddenNote = scope?.HiddenNote;
         _base = editing?.Config ?? views.Working;
         NameProblem = string.Empty;
         Name = editing?.Name ?? string.Empty;
@@ -100,6 +111,25 @@ public sealed partial class ViewEditorViewModel : ObservableObject
     public partial IReadOnlyList<ViewEditorOption> Tags { get; set; } = [];
 
     public bool HasTags => _tags.Count > 0;
+
+    /// <summary>ADR 89: the lists show "Shared" and "This device" headings.</summary>
+    public bool CanScope { get; }
+
+    /// <summary>"Uses a label from Laptop": the view filters by a label or tag another device keeps to itself; null for none.</summary>
+    public string? HiddenNote { get; }
+
+    public bool HasHiddenNote => HiddenNote is not null;
+
+    /// <summary>The device-only labels (and tags) this device shows, under "This device".</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<ViewEditorOption> DeviceLabels { get; set; } = [];
+
+    [ObservableProperty]
+    public partial IReadOnlyList<ViewEditorOption> DeviceTags { get; set; } = [];
+
+    public bool HasDeviceLabels => DeviceLabels.Count > 0;
+
+    public bool HasDeviceTags => DeviceTags.Count > 0;
 
     /// <summary>Tags: a task must have every ticked tag (else any of them).</summary>
     [ObservableProperty]
@@ -214,13 +244,16 @@ public sealed partial class ViewEditorViewModel : ObservableObject
         PinHighlights = config.PinHighlights;
         HighlightedOnly = config.Only.HighlightedOnly;
         MatchAllTags = config.Match == TaskViewConfig.MatchAll;
-        var labels = _labels
-            .Select(label => new ViewEditorOption(
-                label.Id.ToString("D"), label.Name, config.Labels?.Contains(label.Id) == true, TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color))))
-            .ToList();
+        ViewEditorOption LabelOption(TaskLabel label) => new(
+            label.Id.ToString("D"), label.Name, config.Labels?.Contains(label.Id) == true, TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color)));
+        var labels = _labels.Where(_isSharedLabel).Select(LabelOption).ToList();
         labels.Add(new ViewEditorOption(NoLabelValue, "No label", config.NoLabel));
         Labels = labels;
-        Tags = _tags.Select(tag => new ViewEditorOption(tag, "#" + tag, TaskLabels.Has(config.Tags, tag))).ToList();
+        DeviceLabels = _labels.Where(label => !_isSharedLabel(label)).Select(LabelOption).ToList();
+        Tags = _tags.Where(_isSharedTag).Select(tag => new ViewEditorOption(tag, "#" + tag, TaskLabels.Has(config.Tags, tag))).ToList();
+        DeviceTags = _tags.Where(tag => !_isSharedTag(tag)).Select(tag => new ViewEditorOption(tag, "#" + tag, TaskLabels.Has(config.Tags, tag))).ToList();
+        OnPropertyChanged(nameof(HasDeviceLabels));
+        OnPropertyChanged(nameof(HasDeviceTags));
         Due = Options(ShelfViewModel.DueChoices, config.Only.Due);
         Time = Options(ShelfViewModel.TimeChoices, config.Only.Time);
         Old = Options(ShelfViewModel.OldChoices, config.Only.Old);
@@ -230,8 +263,11 @@ public sealed partial class ViewEditorViewModel : ObservableObject
     // What the dialog shows as a view's settings; what it doesn't show (density, the old status choices, the shuffle order) is kept.
     private TaskViewConfig Config()
     {
-        List<Guid> labels = Labels.Where(option => option.IsChecked && option.Value != NoLabelValue).Select(option => Guid.Parse(option.Value)).ToList();
-        List<string> tags = Tags.Where(option => option.IsChecked).Select(option => option.Value).ToList();
+        List<Guid> labels = Labels.Concat(DeviceLabels).Where(option => option.IsChecked && option.Value != NoLabelValue).Select(option => Guid.Parse(option.Value)).ToList();
+        List<string> tags = Tags.Concat(DeviceTags).Where(option => option.IsChecked).Select(option => option.Value).ToList();
+        // A label or tag this device doesn't show stays in the view (ADR 89): the dialog can't offer it, so it can't take it off.
+        labels.AddRange((_base.Labels ?? []).Where(id => _hiddenLabelIds.Contains(id) && !labels.Contains(id)));
+        tags.AddRange((_base.Tags ?? []).Where(tag => !_tagShown(tag) && !TaskLabels.Has(tags, tag)));
         string sort = ShelfViewModel.SortChoices[Math.Clamp(SortIndex, 0, ShelfViewModel.SortChoices.Length - 1)].Value;
         return _base with
         {

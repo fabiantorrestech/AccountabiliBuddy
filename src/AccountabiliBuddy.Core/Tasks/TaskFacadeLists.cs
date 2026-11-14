@@ -26,41 +26,41 @@ public static class TaskFacadeLists
     }
 
     /// <summary>The next session's list: This session, Queued and Finished (ticked ones of any day), in order.</summary>
-    public static List<SyncNextTask> Draft(TaskLists lists, DateTimeOffset now)
+    public static List<SyncNextTask> Draft(TaskLists lists, DateTimeOffset now, Func<TaskLabel, bool>? labelShown = null, Func<string, bool>? tagShown = null)
     {
-        List<TaskLabel> labels = LabelsOf(lists);
+        List<TaskLabel> labels = LabelsOf(lists, labelShown);
         return LiveIn(lists, OldTaskList.NextTasks, now)
-            .Select(task => OldTaskFieldsWriter.ToNextTask(task, labels))
+            .Select(task => OldTaskFieldsWriter.ToNextTask(task with { Tags = ShownTags(task.Tags, tagShown) }, labels))
             .OrderBy(item => item.Position).ThenBy(item => item.Id.ToString("D"), StringComparer.Ordinal)
             .ToList();
     }
 
     /// <summary>Later and Next (marked), with History's finished ones of the last 90 days ticked.</summary>
-    public static List<SyncLaterItem> Later(TaskLists lists, DateTimeOffset now)
+    public static List<SyncLaterItem> Later(TaskLists lists, DateTimeOffset now, Func<TaskLabel, bool>? labelShown = null, Func<string, bool>? tagShown = null)
     {
-        List<TaskLabel> labels = LabelsOf(lists);
-        return LiveIn(lists, OldTaskList.Later, now).Select(task => OldTaskFieldsWriter.ToLaterItem(Shown(task), labels))
-            .Concat(Finished(lists, OldTaskList.Later, now).Select(task => OldTaskFieldsWriter.ToLaterItem(task, labels)))
+        List<TaskLabel> labels = LabelsOf(lists, labelShown);
+        return LiveIn(lists, OldTaskList.Later, now).Select(task => OldTaskFieldsWriter.ToLaterItem(Shown(task) with { Tags = ShownTags(task.Tags, tagShown) }, labels))
+            .Concat(Finished(lists, OldTaskList.Later, now).Select(task => OldTaskFieldsWriter.ToLaterItem(task with { Tags = ShownTags(task.Tags, tagShown) }, labels)))
             .OrderBy(item => item.Position).ThenBy(item => item.Id.ToString("D"), StringComparer.Ordinal)
             .ToList();
     }
 
     /// <summary>The come-backs: To sort (except Auto-saved's, within its 30 days), with History's finished ones of the last 90 days ticked.</summary>
-    public static List<SyncParked> Parked(TaskLists lists, DateTimeOffset now)
+    public static List<SyncParked> Parked(TaskLists lists, DateTimeOffset now, Func<TaskLabel, bool>? labelShown = null, Func<string, bool>? tagShown = null)
     {
-        List<TaskLabel> labels = LabelsOf(lists);
-        return LiveIn(lists, OldTaskList.Parked, now).Select(task => OldTaskFieldsWriter.ToParked(Shown(task), labels))
-            .Concat(Finished(lists, OldTaskList.Parked, now).Select(task => OldTaskFieldsWriter.ToParked(task, labels)))
+        List<TaskLabel> labels = LabelsOf(lists, labelShown);
+        return LiveIn(lists, OldTaskList.Parked, now).Select(task => OldTaskFieldsWriter.ToParked(Shown(task) with { Tags = ShownTags(task.Tags, tagShown) }, labels))
+            .Concat(Finished(lists, OldTaskList.Parked, now).Select(task => OldTaskFieldsWriter.ToParked(task with { Tags = ShownTags(task.Tags, tagShown) }, labels)))
             .OrderBy(item => item.Position).ThenBy(item => item.Id.ToString("D"), StringComparer.Ordinal)
             .ToList();
     }
 
     /// <summary>Auto-saved: the open To sort tasks that came from it, within its 30 days.</summary>
-    public static List<SyncAutoSavedItem> AutoSaved(TaskLists lists, DateTimeOffset now)
+    public static List<SyncAutoSavedItem> AutoSaved(TaskLists lists, DateTimeOffset now, Func<TaskLabel, bool>? labelShown = null, Func<string, bool>? tagShown = null)
     {
-        List<TaskLabel> labels = LabelsOf(lists);
+        List<TaskLabel> labels = LabelsOf(lists, labelShown);
         return LiveIn(lists, OldTaskList.AutoSaved, now)
-            .Select(task => OldTaskFieldsWriter.ToAutoSaved(task, labels))
+            .Select(task => OldTaskFieldsWriter.ToAutoSaved(task with { Tags = ShownTags(task.Tags, tagShown) }, labels))
             .OrderBy(item => item.Position).ThenBy(item => item.Id.ToString("D"), StringComparer.Ordinal)
             .ToList();
     }
@@ -69,11 +69,11 @@ public static class TaskFacadeLists
     /// The labels as the PC's task categories, in order. A label keeps the id its category had on this PC
     /// (<paramref name="categoryIds"/>: label id to old category id), so checklists and filters that name it still find it.
     /// </summary>
-    public static List<TaskCategory> Categories(IReadOnlyList<SyncTaskLabel> labels, IReadOnlyDictionary<Guid, Guid> categoryIds)
+    public static List<TaskCategory> Categories(IReadOnlyList<SyncTaskLabel> labels, IReadOnlyDictionary<Guid, Guid> categoryIds, Func<TaskLabel, bool>? labelShown = null)
     {
         return labels
             .Select(item => item.Label)
-            .Where(label => label.IsLive && label.Name.Trim().Length > 0)
+            .Where(label => label.IsLive && label.Name.Trim().Length > 0 && (labelShown?.Invoke(label) ?? true))
             .OrderBy(label => label.Position).ThenBy(label => label.Id.ToString("D"), StringComparer.Ordinal)
             .Select(label => new TaskCategory(
                 categoryIds.TryGetValue(label.Id, out Guid categoryId) ? categoryId : label.Id,
@@ -83,9 +83,15 @@ public static class TaskFacadeLists
             .ToList();
     }
 
-    private static List<TaskLabel> LabelsOf(TaskLists lists)
+    // The labels a screen shows (ADR 89): a task whose label isn't among them reads as No label; the label stays on the task.
+    private static List<TaskLabel> LabelsOf(TaskLists lists, Func<TaskLabel, bool>? labelShown = null)
     {
-        return lists.Labels.Select(item => item.Label).ToList();
+        return lists.Labels.Select(item => item.Label).Where(label => labelShown?.Invoke(label) ?? true).ToList();
+    }
+
+    private static IReadOnlyList<string>? ShownTags(IReadOnlyList<string>? tags, Func<string, bool>? tagShown)
+    {
+        return tagShown is null || tags is null ? tags : TaskLabels.Clean(tags.Where(tagShown));
     }
 
     private static IEnumerable<TaskItem> LiveIn(TaskLists lists, OldTaskList list, DateTimeOffset now)

@@ -70,6 +70,18 @@ public sealed partial class LabelsViewModel : ObservableObject
 
     public LabelColorEditorViewModel NewColorEditor { get; }
 
+    /// <summary>The new label's "Only on this device" (off: a new label is shared).</summary>
+    [ObservableProperty]
+    public partial bool NewOnlyHere { get; set; }
+
+    /// <summary>"Only on this device" is offered once this device is in a sync group.</summary>
+    public bool CanScope => _labels.CanScope;
+
+    /// <summary>The tags this device shows, each with its scope switch (ADR 89).</summary>
+    public ObservableCollection<TagRowViewModel> TagRows { get; } = new();
+
+    public bool HasTags => TagRows.Count > 0;
+
     /// <summary>The + in the header: the new label row's name box takes the keyboard (the view does it).</summary>
     public event EventHandler? FocusNewRequested;
 
@@ -117,8 +129,42 @@ public sealed partial class LabelsViewModel : ObservableObject
             NewColor = _labels.NextColor();
         }
 
+        RefreshTags();
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(IsNewNameTaken));
+        OnPropertyChanged(nameof(CanScope));
+    }
+
+    // The tags in use, kept by name and updated in place.
+    private void RefreshTags()
+    {
+        IReadOnlyList<string> tags = _labels.Tags;
+        for (int index = TagRows.Count - 1; index >= 0; index--)
+        {
+            if (!tags.Any(tag => TaskLabels.Same(tag, TagRows[index].Name)))
+            {
+                TagRows.RemoveAt(index);
+            }
+        }
+
+        for (int index = 0; index < tags.Count; index++)
+        {
+            TagRowViewModel? row = TagRows.FirstOrDefault(candidate => TaskLabels.Same(candidate.Name, tags[index]));
+            if (row is null)
+            {
+                TagRows.Insert(Math.Min(index, TagRows.Count), new TagRowViewModel(tags[index], _labels, Say));
+                continue;
+            }
+
+            row.Update();
+            int at = TagRows.IndexOf(row);
+            if (at != index)
+            {
+                TagRows.Move(at, Math.Min(index, TagRows.Count - 1));
+            }
+        }
+
+        OnPropertyChanged(nameof(HasTags));
     }
 
     partial void OnNewColorChanged(string value)
@@ -141,9 +187,15 @@ public sealed partial class LabelsViewModel : ObservableObject
         string color = NewColor;
         NewName = string.Empty;
         _newColorChosen = false;
-        if (await _labels.AddAsync(name, color) is not null)
+        bool onlyHere = NewOnlyHere && CanScope;
+        NewOnlyHere = false;
+        (Guid? id, string? joinedWith) = await _labels.AddScopedAsync(name, color, onlyHere);
+        if (id is not null)
         {
-            Say($"Added label “{name}”");
+            // A device-only label other devices made under this name: this device joined it (ADR 89), never made it shared.
+            Say(joinedWith is not null
+                ? $"“{name}” is also on {joinedWith}. It is on this device now too; Make shared puts it on all your devices."
+                : onlyHere ? $"Added label “{name}”, only on this device" : $"Added label “{name}”");
         }
     }
 

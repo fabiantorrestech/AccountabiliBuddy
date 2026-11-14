@@ -77,6 +77,12 @@ public sealed class TaskStore
     /// <summary>This device's id in its sync group; null while it isn't in one. Set by the app.</summary>
     public Func<Guid?> SelfId { get; set; } = () => null;
 
+    /// <summary>The devices removed from the group (ADR 54): their device-only labels and tags count as shared (ADR 89, display only). Set by the app.</summary>
+    public Func<IReadOnlyCollection<Guid>?> RemovedDevices { get; set; } = () => null;
+
+    /// <summary>A device's name for "on Laptop, Phone" lines (ADR 89); null for a device this one doesn't know. Set by the app.</summary>
+    public Func<Guid, string?> DeviceName { get; set; } = _ => null;
+
     /// <summary>The other devices of the group (id and kind), for the numbering device. Set by the app.</summary>
     public Func<IEnumerable<(Guid DeviceId, string Kind)>> OtherDevices { get; set; } = () => [];
 
@@ -100,8 +106,68 @@ public sealed class TaskStore
     /// <summary>Old saved filters' search words by view id: this PC only, never synced.</summary>
     public IReadOnlyDictionary<Guid, string> ViewSearches => _viewSearches;
 
-    /// <summary>The PC's task categories: the labels, with their ids here.</summary>
-    public IReadOnlyList<TaskCategory> Categories => TaskFacadeLists.Categories(_lists.Labels, _categoryIds);
+    /// <summary>The PC's task categories this device shows: the labels, with their ids here, without other devices' device-only ones (ADR 89).</summary>
+    public IReadOnlyList<TaskCategory> Categories => TaskFacadeLists.Categories(_lists.Labels, _categoryIds, LabelShown);
+
+    /// <summary>Every category, hidden ones too: for what goes to other devices and into backups, never for a screen.</summary>
+    public IReadOnlyList<TaskCategory> AllCategories => TaskFacadeLists.Categories(_lists.Labels, _categoryIds);
+
+    /// <summary>This device's id; empty while it isn't in a sync group (then every label and tag shows and nothing can be device-only).</summary>
+    public Guid SelfDevice => Self;
+
+    /// <summary>The removed devices (ADR 54); null when none.</summary>
+    public IReadOnlyCollection<Guid>? Removed => RemovedDevices();
+
+    /// <summary>Whether this device shows the label (ADR 89).</summary>
+    public Func<TaskLabel, bool> LabelShown => TaskScopes.LabelTest(Self, Removed);
+
+    /// <summary>Whether this device shows the tag (ADR 89).</summary>
+    public Func<string, bool> TagShown => TaskScopes.TagTest(_lists.TagScopes, Self, Removed);
+
+    /// <summary>The live labels this device shows, in the list's order.</summary>
+    public IReadOnlyList<TaskLabel> VisibleLabels => TaskScopes.VisibleLabels(
+        _lists.Labels.Select(item => item.Label).OrderBy(label => label.Position).ThenBy(label => label.Id.ToString("D"), StringComparer.Ordinal), Self, Removed);
+
+    /// <summary>This device is in a sync group, so a label or tag can be made "Only on this device" (a device with no id can't be named in a list).</summary>
+    public bool CanScope => Self != Guid.Empty;
+
+    /// <summary>The tags of <paramref name="tags"/> this device shows (ADR 89); an empty list for none.</summary>
+    public IReadOnlyList<string> ShownTags(IReadOnlyList<string>? tags)
+    {
+        return TaskScopes.ShownTags(tags, _lists.TagScopes, Self, Removed) ?? [];
+    }
+
+    /// <summary>Whether the label counts as shared for this device (no list, or every device in it removed).</summary>
+    public bool IsShared(TaskLabel label) => TaskScopes.IsShared(label.OnlyOn, Removed);
+
+    /// <summary>Whether the tag counts as shared (no live scope, or every device in it removed).</summary>
+    public bool IsTagShared(string tag) => TaskScopes.ScopeOf(tag, _lists.TagScopes) is not { } scope || TaskScopes.IsShared(scope.OnlyOn, Removed);
+
+    /// <summary>"on Laptop, Phone" for a device-only item that several (not all) devices share; null for shared ones and ones only this device has.</summary>
+    public string? DevicesLine(IReadOnlyList<Guid>? onlyOn)
+    {
+        IReadOnlyList<Guid>? devices = TaskScopes.Effective(onlyOn, Removed);
+        return devices is { Count: > 1 } ? "on " + string.Join(", ", devices.Select(id => DeviceName(id) ?? "another device")) : null;
+    }
+
+    /// <summary>The device names of a device-only item besides this one ("Laptop, Phone"); null when only this device has it.</summary>
+    public string? OtherDevicesText(IReadOnlyList<Guid>? onlyOn)
+    {
+        List<string> others = (TaskScopes.Effective(onlyOn, Removed) ?? []).Where(id => id != Self).Select(id => DeviceName(id) ?? "another device").ToList();
+        return others.Count == 0 ? null : string.Join(", ", others);
+    }
+
+    /// <summary>Every tag of the live tasks this device shows, once each, in name order.</summary>
+    public IReadOnlyList<string> VisibleTags()
+    {
+        return TaskLabels.AllOf(_lists.Tasks.Where(item => item.Task.IsLive).Select(item => (IReadOnlyList<string>?)ShownTags(item.Task.Tags)));
+    }
+
+    /// <summary>Tells every view the scopes this device shows changed (a device was removed): they read again.</summary>
+    public void NotifyScopesChanged()
+    {
+        Changed?.Invoke(this, new TaskStoreChangedEventArgs(null, FromOtherDevice: true));
+    }
 
     public event EventHandler<TaskStoreChangedEventArgs>? Changed;
 
@@ -228,7 +294,7 @@ public sealed class TaskStore
         }
 
         TaskLists withHeld = WithHeldBack(_lists, LiveIds(changed), out bool heldTaken);
-        TaskLists applied = TaskListRules.ApplyLocal(withHeld, changed, Self, Now, Zone, SessionActions(), removed: null);
+        TaskLists applied = TaskListRules.ApplyLocal(withHeld, changed, Self, Now, Zone, SessionActions(), removed: Removed);
         // A delete from one of the old lists is filed in History too (ADR 76), except a running session's tasks leaving the list.
         applied = TaskHistoryRules.WithDeletions(withHeld, applied, DeletedIds(changed), Now);
         Task save = Commit(applied, source, fromOtherDevice: false).Save;
@@ -287,7 +353,7 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        TaskLists placed = TaskListRules.Place(_lists, wanted, _running, Self, Now, removed: null);
+        TaskLists placed = TaskListRules.Place(_lists, wanted, _running, Self, Now, removed: Removed);
         bool heldTaken = false;
         foreach (TaskItem task in wanted)
         {
@@ -436,7 +502,7 @@ public sealed class TaskStore
         };
         _running.Remove(fromId);
         _heldEndedAt.Remove(fromId);
-        TaskLists placed = TaskListRules.Place(_lists, [wanted], null, Self, Now, removed: null);
+        TaskLists placed = TaskListRules.Place(_lists, [wanted], null, Self, Now, removed: Removed);
         return Task.WhenAll(Commit(placed, null, fromOtherDevice: false).Save, SaveRunningAsync());
     }
 
@@ -465,7 +531,7 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        (TaskLists applied, Dictionary<Guid, Guid> ids) = TaskCategoryEdits.Apply(_lists, categories, _categoryIds, Self, Now, removed: null);
+        (TaskLists applied, Dictionary<Guid, Guid> ids) = TaskCategoryEdits.Apply(_lists, categories, _categoryIds, Self, Now, removed: Removed);
         bool idsChanged = ids.Count != _categoryIds.Count || ids.Any(pair => !_categoryIds.TryGetValue(pair.Key, out Guid held) || held != pair.Value);
         _categoryIds = ids;
         return Commit(applied, source, fromOtherDevice: false, forceSave: idsChanged).Save;
@@ -511,7 +577,7 @@ public sealed class TaskStore
         DateTimeOffset now = Now;
         Guid self = Self;
         // ADR 89: the backup's writing device is swapped for this one in the label lists and tag scopes; hidden labels and tags are kept.
-        TaskLists incoming = !restore ? backup : TaskListRules.RestoredIncoming(_lists, backup, backupDevice, self, now, removed: null);
+        TaskLists incoming = !restore ? backup : TaskListRules.RestoredIncoming(_lists, backup, backupDevice, self, now, removed: Removed);
         await Commit(TaskListRules.MergeLists(_lists, incoming, self, now), null, fromOtherDevice: true).Save;
         return incoming.Tasks.Count(item => item.Task.IsLive);
     }
@@ -524,7 +590,7 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        TaskLists applied = TaskListRules.ApplyLocal(_lists, fields, Self, Now, Zone, SessionActions(), removed: null);
+        TaskLists applied = TaskListRules.ApplyLocal(_lists, fields, Self, Now, Zone, SessionActions(), removed: Removed);
         return Commit(applied, null, fromOtherDevice: true).Save;
     }
 

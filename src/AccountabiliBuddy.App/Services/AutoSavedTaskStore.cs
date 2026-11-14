@@ -142,7 +142,7 @@ public sealed class AutoSavedTaskStore
 
     private void ReadFromTasks()
     {
-        _all = TaskFacadeLists.AutoSaved(_tasks!.Lists, _time.GetUtcNow());
+        _all = TaskFacadeLists.AutoSaved(_tasks!.Lists, _time.GetUtcNow(), _tasks.LabelShown, _tasks.TagShown);
         _shown = _all.ToDictionary(item => item.Id, item => item.TieBreak);
     }
 

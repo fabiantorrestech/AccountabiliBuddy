@@ -1041,11 +1041,16 @@ public partial class App : Application
         _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(FollowPhoneAlarm);
         // Task categories from every device: this PC lists its own in its sync file, and the "Add a task" pickers group the other
         // devices' by name (a removed device's are gone: Active). The pickers look again when a device's list or the group changes.
-        syncCoordinator.Categories = () => sessionTasks.Categories.Select(category => new AccountabiliBuddy.Core.Sync.SyncCategory(category.Name, category.Color, category.ColorEditedAt)).ToList();
+        syncCoordinator.Categories = () => sessionTasks.AllCategories.Select(category => new AccountabiliBuddy.Core.Sync.SyncCategory(category.Name, category.Color, category.ColorEditedAt)).ToList();
         sessionTasks.OtherDeviceCategories = () => receivedDevices.Active
             .Where(device => syncSettings.Current.ShareTaskLists && device.File.Categories is { Count: > 0 })
             .OrderBy(device => device.File.Device.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(device => new DeviceCategories(device.File.Device.DeviceId, device.File.Device.Name, device.File.Categories!))
+            .Select(device => new DeviceCategories(device.File.Device.DeviceId, device.File.Device.Name, device.File.Categories!
+                // ADR 89: another device's old category list also names its device-only labels; a name that is already a label here
+                // (shown or hidden) is the label's, never offered again under the device.
+                .Where(category => taskStore.Lists.Labels.All(item => !item.Label.IsLive || !AccountabiliBuddy.Core.Domain.TaskLabel.SameName(item.Label.Name, category.Name)))
+                .ToList()))
+            .Where(device => device.Categories.Count > 0)
             .ToList();
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
         _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(sessionTasks.NotifyOtherCategoriesChanged);
@@ -1344,6 +1349,15 @@ public partial class App : Application
         // session's list, Later, come-backs, Auto-saved and categories are views of it, and sync reads and writes it (with the old
         // fields rebuilt from it for older apps). A failed or unbalanced migration leaves everything on the old lists.
         taskStore.SelfId = selfId;
+        // ADR 89 / 54: a removed device's device-only labels and tags count as shared (display only); the views read again when one is removed.
+        taskStore.DeviceName = deviceId => deviceId == syncIdentity.DeviceId
+            ? syncIdentity.DeviceName
+            : receivedDevices.Active.FirstOrDefault(device => device.File.Device.DeviceId == deviceId) is { } known ? receivedDevices.LabelOf(known.File.Device) : null;
+        taskStore.RemovedDevices = () => _syncRemoval is { Removed.Count: > 0 } removal ? removal.Removed.Select(device => device.DeviceId).ToHashSet() : null;
+        if (_syncRemoval is not null)
+        {
+            _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(taskStore.NotifyScopesChanged);
+        }
         taskStore.OtherDevices = () => receivedDevices.Active.Select(device => (device.File.Device.DeviceId, device.File.Device.Kind)).ToList();
         _filterPresets = new AccountabiliBuddy.App.Services.TaskFilterPresetStore(documents, new DpapiDataProtector());
         var earlierTasksNotice = new AccountabiliBuddy.App.Services.Tasks.EarlierTasksNoticeStore(documents);
@@ -4003,7 +4017,12 @@ public partial class App : Application
             ? $"Read {TimeZoneInfo.ConvertTime(readAt, data.Zone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
             : null;
         string? beeminderProblem = _beeminderDatapoints is { Failed: true } ? "Couldn't reach Beeminder · keeps the last values" : null;
-        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem);
+        var scopedStore = sessionTasks.ScopeSource;
+        Func<Guid, string?> hiddenLabelNote = labelId => scopedStore?.Lists.Labels.Select(item => item.Label)
+            .FirstOrDefault(label => label.Id == labelId && label.IsLive && !scopedStore.LabelShown(label)) is { } hidden
+            ? "Uses a label from " + (scopedStore.OtherDevicesText(hidden.OnlyOn) ?? "another device")
+            : null;
+        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote);
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
         if (suggested is not null)
         {

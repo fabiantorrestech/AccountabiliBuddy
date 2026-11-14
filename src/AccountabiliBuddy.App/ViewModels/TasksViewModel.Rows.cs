@@ -151,7 +151,7 @@ public sealed partial class TasksViewModel
             bits.Add(new TaskRowBit(text, MaterialIconKind.BellOutline, reminders.Count == 1 ? "1 reminder" : $"{reminders.Count} reminders"));
         }
 
-        foreach (string tag in item.Tags ?? [])
+        foreach (string tag in ShownTagsOf(item.Tags))
         {
             bits.Add(new TaskRowBit("#" + tag, IsChip: true, Tone: TaskRowBitTone.Ink));
         }

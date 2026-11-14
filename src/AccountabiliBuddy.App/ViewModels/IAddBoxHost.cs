@@ -34,6 +34,21 @@ public interface IAddBoxHost
     /// <summary>A label named <paramref name="name"/> (made when there is none): its id; null for a blank name.</summary>
     Task<Guid?> CreateLabelAsync(string name);
 
+    /// <summary>ADR 89: this device is in a sync group, so a label or tag can be made "Only on this device".</summary>
+    bool CanScope => false;
+
+    /// <summary>ADR 89: whether the label is shared (on every device); a device-only one shows under "This device".</summary>
+    bool IsLabelShared(TaskLabel label) => true;
+
+    /// <summary>ADR 89: whether the tag is shared.</summary>
+    bool IsTagShared(string tag) => true;
+
+    /// <summary>ADR 89: a label named <paramref name="name"/> that only this device shows (a device-only one other devices made joins it).</summary>
+    Task<Guid?> CreateDeviceLabelAsync(string name) => CreateLabelAsync(name);
+
+    /// <summary>ADR 89: the tag shows on this device only.</summary>
+    Task MakeTagDeviceOnlyAsync(string tag) => Task.CompletedTask;
+
     /// <summary>Adds the task. False when nothing was added (the box keeps the text).</summary>
     Task<bool> AddFromBoxAsync(AddBoxRequest request);
 

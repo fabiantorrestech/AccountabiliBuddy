@@ -485,7 +485,7 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
         (string? labelName, string? labelColor) = _owner.LabelOf(Key, item);
         LabelName = labelName ?? "No label";
         LabelBrush = labelName is null ? Brushes.Transparent : TaskCategoryBrushes.Of(labelColor);
-        TagChips = (item?.Tags ?? _owner.TagsOf(Key) ?? []).Select(tag => "#" + tag).ToList();
+        TagChips = _owner.ShownTagsOf(item?.Tags ?? _owner.TagsOf(Key)).Select(tag => "#" + tag).ToList();
         CanTag = _owner.CanTag(Key);
         TimeLimitText = snapshot.EstimateMinutes is int minutes ? EstimateText.Of(minutes) : "Time limit";
         ReminderText = _owner.ReminderLineOf(item) ?? NoReminders;

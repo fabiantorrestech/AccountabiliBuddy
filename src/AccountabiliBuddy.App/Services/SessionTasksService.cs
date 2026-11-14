@@ -83,6 +83,12 @@ public sealed partial class SessionTasksService : IDisposable
     /// <summary>The task categories in the order the checklist groups them.</summary>
     public IReadOnlyList<TaskCategory> Categories => _categories;
 
+    /// <summary>The task list underneath, for what screens need to know about labels and tags kept to one device (ADR 89); null before it is attached.</summary>
+    public TaskStore? ScopeSource => _taskStore;
+
+    /// <summary>Every category, other devices' device-only labels too (ADR 89): for what goes to other devices and into backups, never for a screen.</summary>
+    public IReadOnlyList<TaskCategory> AllCategories => _taskStore is { IsActive: true } store ? store.AllCategories : _categories;
+
     /// <summary>Offer to end the session when every task is ticked (on by default).</summary>
     public bool NotifyAllDone { get; private set; } = true;
 

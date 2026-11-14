@@ -35,6 +35,11 @@
             <ItemsControl ItemsSource="{Binding Suggestions}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:AddBoxSuggestionViewModel">
+                        <StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="8,5,8,1" IsVisible="{Binding HasGroupHead}">
+                            <mi:MaterialIcon Kind="{Binding GroupIcon}" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                            <TextBlock Classes="muted" Text="{Binding GroupHead}" FontSize="11" FontWeight="SemiBold" />
+                        </StackPanel>
                         <Button Classes="addSuggestion" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Title}">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                                 <Ellipse Width="9" Height="9" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
@@ -43,6 +48,7 @@
                                 <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Detail}" FontSize="11.5" VerticalAlignment="Center" />
                             </Grid>
                         </Button>
+                        </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

@@ -159,7 +159,7 @@ public static class BackupAccess
                     tasks.NextTasksForBackup(),
                     comebacks.ForBackup(),
                     later.ForBackup(),
-                    tasks.Categories.Select(category => new SyncCategory(category.Name, category.Color, category.ColorEditedAt)).ToList(),
+                    tasks.AllCategories.Select(category => new SyncCategory(category.Name, category.Color, category.ColorEditedAt)).ToList(),
                     Tasks: store is { IsActive: true } ? store.Lists.Tasks : null,
                     Labels: store is { IsActive: true } ? store.Lists.Labels : null,
                     Views: store is { IsActive: true } ? store.Lists.Views : null,

@@ -20,14 +20,14 @@ public static class TaskViewRules
     public static TaskViewResult Apply(IEnumerable<TaskItem> tasks, TaskViewConfig config, TaskViewContext context)
     {
         List<TaskItem> inScope = tasks.Where(task => task.IsLive && (context.Scope is null || context.Scope.Contains(task.Bin))).ToList();
-        HashSet<Guid>? found = string.IsNullOrWhiteSpace(context.Search) ? null : TaskSearch.MatchingTaskIds(inScope, context.Search, context.Labels);
+        HashSet<Guid>? found = string.IsNullOrWhiteSpace(context.Search) ? null : TaskSearch.MatchingTaskIds(inScope, context.Search, context.Labels, context.LabelShown, context.TagShown);
         List<TaskItem> shown = inScope.Where(task => (found is null || found.Contains(task.Id)) && Matches(task, config, context)).ToList();
         Comparison<TaskItem> order = Order(config);
 
         List<TaskViewGroup> groups = config.Group switch
         {
             TaskViewConfig.GroupLabel => ByLabel(shown, context),
-            TaskViewConfig.GroupTag => ByTag(shown),
+            TaskViewConfig.GroupTag => ByTag(shown, context),
             TaskViewConfig.GroupNone => [new TaskViewGroup("all", "All", null, null, null, shown)],
             _ => ByBin(shown, context),
         };
@@ -49,7 +49,7 @@ public static class TaskViewRules
             && (only.Time is not { Count: > 0 } || only.Time.Any(pick => TimeMatches(task, pick)))
             && (only.Old is not { Count: > 0 } || only.Old.Any(pick => OldMatches(task, pick, context.Now)))
             && (!only.HighlightedOnly || task.Highlight)
-            && LabelMatches(task, config)
+            && LabelMatches(task, config, context)
             && TagsMatch(task, config);
     }
 
@@ -114,14 +114,16 @@ public static class TaskViewRules
         return TaskUntouched.IsOlderThan(task, weeks, now);
     }
 
-    private static bool LabelMatches(TaskItem task, TaskViewConfig config)
+    // A task whose label this device doesn't show (ADR 89) reads as No label.
+    private static bool LabelMatches(TaskItem task, TaskViewConfig config, TaskViewContext context)
     {
         if (config.Labels is not { Count: > 0 } && !config.NoLabel)
         {
             return true;
         }
 
-        return task.LabelId is Guid label ? config.Labels?.Contains(label) == true : config.NoLabel;
+        Guid? label = context.LabelShown is null || task.LabelId is not Guid held || context.ShownLabelIds.Contains(held) ? task.LabelId : null;
+        return label is Guid shown ? config.Labels?.Contains(shown) == true : config.NoLabel;
     }
 
     private static bool TagsMatch(TaskItem task, TaskViewConfig config)
@@ -143,7 +145,7 @@ public static class TaskViewRules
     private static List<TaskViewGroup> ByLabel(List<TaskItem> shown, TaskViewContext context)
     {
         var groups = new List<TaskViewGroup>();
-        foreach (TaskLabel label in context.Labels.Where(label => label.IsLive).OrderBy(label => label.Position).ThenBy(label => label.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (TaskLabel label in context.ShownLabels.Where(label => label.IsLive).OrderBy(label => label.Position).ThenBy(label => label.Name, StringComparer.OrdinalIgnoreCase))
         {
             List<TaskItem> of = shown.Where(task => task.LabelId == label.Id).ToList();
             if (of.Count > 0)
@@ -152,7 +154,7 @@ public static class TaskViewRules
             }
         }
 
-        HashSet<Guid> known = context.Labels.Where(label => label.IsLive).Select(label => label.Id).ToHashSet();
+        HashSet<Guid> known = context.ShownLabelIds;
         List<TaskItem> without = shown.Where(task => task.LabelId is not Guid id || !known.Contains(id)).ToList();
         if (without.Count > 0)
         {
@@ -162,10 +164,10 @@ public static class TaskViewRules
         return groups;
     }
 
-    private static List<TaskViewGroup> ByTag(List<TaskItem> shown)
+    private static List<TaskViewGroup> ByTag(List<TaskItem> shown, TaskViewContext context)
     {
         var spellings = new List<string>();
-        foreach (string tag in shown.SelectMany(task => task.Tags ?? []))
+        foreach (string tag in shown.SelectMany(task => context.ShownTags(task) ?? []))
         {
             if (!spellings.Any(other => TaskLabels.Same(other, tag)))
             {
@@ -174,9 +176,9 @@ public static class TaskViewRules
         }
 
         var groups = spellings.Order(StringComparer.OrdinalIgnoreCase)
-            .Select(tag => new TaskViewGroup("tag:" + tag.ToLowerInvariant(), "#" + tag, null, null, tag, shown.Where(task => TaskLabels.Has(task.Tags, tag)).ToList()))
+            .Select(tag => new TaskViewGroup("tag:" + tag.ToLowerInvariant(), "#" + tag, null, null, tag, shown.Where(task => TaskLabels.Has(context.ShownTags(task), tag)).ToList()))
             .ToList();
-        List<TaskItem> without = shown.Where(task => task.Tags is not { Count: > 0 }).ToList();
+        List<TaskItem> without = shown.Where(task => context.ShownTags(task) is not { Count: > 0 }).ToList();
         if (without.Count > 0)
         {
             groups.Add(new TaskViewGroup("tag:none", "No tag", null, null, null, without));

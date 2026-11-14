@@ -104,7 +104,7 @@ public sealed class ComebackStore
 
     private void ReadFromTasks()
     {
-        _all = TaskFacadeLists.Parked(_tasks!.Lists, _time.GetUtcNow()).Select(FromShared).ToList();
+        _all = TaskFacadeLists.Parked(_tasks!.Lists, _time.GetUtcNow(), _tasks.LabelShown, _tasks.TagShown).Select(FromShared).ToList();
         _shown = _all.ToDictionary(comeback => comeback.Id, comeback => ToShared(comeback).TieBreak);
     }
 

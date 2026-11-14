@@ -208,8 +208,7 @@ public sealed partial class ShelfViewModel : ObservableObject
             return null;
         }
 
-        IEnumerable<IReadOnlyList<string>?> tagLists = _store.Lists.Tasks.Where(item => item.Task.IsLive).Select(item => item.Task.Tags);
-        return new ViewEditorViewModel(_views, view, LiveLabels(), TaskLabels.AllOf(tagLists).ToList());
+        return new ViewEditorViewModel(_views, view, LiveLabels(), _store.VisibleTags(), ScopeOf(view?.Config ?? _views.Working));
     }
 
     /// <summary>The header, chips and card from the task list as it is now (the page calls this as it rebuilds).</summary>
@@ -247,8 +246,7 @@ public sealed partial class ShelfViewModel : ObservableObject
         TaskViewConfig working = _views.Working;
         bool noRestriction = working.Labels is not { Count: > 0 } && !working.NoLabel;
         var chips = new List<TaskChipViewModel> { new("All", noRestriction, () => PickLabel(null, false)) };
-        foreach (TaskLabel label in _store.Lists.Labels.Select(item => item.Label).Where(label => label.IsLive && label.Name.Trim().Length > 0)
-                     .OrderBy(label => label.Position))
+        foreach (TaskLabel label in LiveLabels())
         {
             Guid id = label.Id;
             bool only = working.Labels is { Count: 1 } labels && labels[0] == id && !working.NoLabel;
@@ -272,7 +270,7 @@ public sealed partial class ShelfViewModel : ObservableObject
     // A History row's label: the task list's live label with that id.
     private AccountabiliBuddy.Core.Domain.TaskLabel? HistoryLabel(Guid? labelId)
     {
-        return labelId is Guid id ? _store?.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id) : null;
+        return labelId is Guid id ? _store?.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id && _store.LabelShown(label)) : null;
     }
 
     /// <summary>The reshuffle button by the Shelf's title: a new shuffled order, kept with the view until the next one.</summary>
@@ -350,7 +348,7 @@ public sealed partial class ShelfViewModel : ObservableObject
             Guid id = view.Id;
             entries.Add(new TaskMenuEntry(
                 view.Name, new RelayCommand(() => views.Select(id)), IsChecked: id == views.ActiveId, Icon: ViewIcon(view.Icon),
-                Value: views.DefaultViewId == id ? "Default" : null));
+                Value: views.DefaultViewId == id ? "Default" : null, Note: HiddenLabelNote(view.Config)));
         }
 
         if (ViewEditorRequested is not null)
@@ -449,12 +447,19 @@ public sealed partial class ShelfViewModel : ObservableObject
         {
             new("All labels", new RelayCommand(() => _views?.Modify(config => config with { Labels = null, NoLabel = false })), IsChecked: all),
         };
+        var items = new List<(bool Shared, TaskMenuEntry Entry)>();
         foreach (TaskLabel label in LiveLabels())
         {
             Guid id = label.Id;
-            entries.Add(new TaskMenuEntry(
+            items.Add((_store!.IsShared(label), new TaskMenuEntry(
                 label.Name, new RelayCommand(() => _views?.Modify(config => config with { Labels = Toggled(config.Labels, id) })),
-                IsChecked: working.Labels?.Contains(id) == true, Dot: TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color))));
+                IsChecked: working.Labels?.Contains(id) == true, Dot: TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color)))));
+        }
+
+        entries.AddRange(ScopeMenu.Group(_store!.CanScope, items));
+        if (HiddenLabelNote(working) is { } note)
+        {
+            entries.Add(new TaskMenuEntry(note, Icon: MaterialIconKind.Laptop));
         }
 
         entries.Add(new TaskMenuEntry(
@@ -475,14 +480,16 @@ public sealed partial class ShelfViewModel : ObservableObject
         {
             new("Any tag", new RelayCommand(() => _views?.Modify(config => config with { Tags = null })), IsChecked: working.Tags is not { Count: > 0 }),
         };
-        IEnumerable<IReadOnlyList<string>?> tagLists = _store?.Lists.Tasks.Where(item => item.Task.IsLive).Select(item => item.Task.Tags) ?? [];
-        foreach (string tag in TaskLabels.AllOf(tagLists))
+        var items = new List<(bool Shared, TaskMenuEntry Entry)>();
+        foreach (string tag in _store?.VisibleTags() ?? [])
         {
             string name = tag;
-            entries.Add(new TaskMenuEntry(
+            items.Add((_store!.IsTagShared(name), new TaskMenuEntry(
                 "#" + name, new RelayCommand(() => _views?.Modify(config => config with { Tags = ToggledTag(config.Tags, name) })),
-                IsChecked: TaskLabels.Has(working.Tags, name)));
+                IsChecked: TaskLabels.Has(working.Tags, name))));
         }
+
+        entries.AddRange(ScopeMenu.Group(_store?.CanScope == true, items));
 
         entries.Add(TaskMenuEntry.Separator);
         bool matchAll = working.Match == TaskViewConfig.MatchAll;
@@ -509,7 +516,7 @@ public sealed partial class ShelfViewModel : ObservableObject
 
     private string LabelFilterText(TaskViewConfig working)
     {
-        int count = (working.Labels?.Count ?? 0) + (working.NoLabel ? 1 : 0);
+        int count = (working.Labels?.Count(id => LiveLabels().Any(label => label.Id == id)) ?? 0) + (working.NoLabel ? 1 : 0);
         if (count == 0)
         {
             return "All";
@@ -555,9 +562,46 @@ public sealed partial class ShelfViewModel : ObservableObject
         return TaskLabels.Has(tags, tag) ? TaskLabels.Without(tags, tag) : TaskLabels.With(tags, [tag]);
     }
 
+    // What the view editor needs to know about labels and tags kept to one device (ADR 89).
+    private ViewEditorScope ScopeOf(TaskViewConfig config)
+    {
+        TaskStore store = _store!;
+        HashSet<Guid> hidden = (config.Labels ?? []).Where(id => store.Lists.Labels.Any(item => item.Label.Id == id && item.Label.IsLive && !store.LabelShown(item.Label))).ToHashSet();
+        return new ViewEditorScope(store.CanScope, store.IsShared, store.IsTagShared, hidden, store.TagShown, HiddenLabelNote(config));
+    }
+
+    /// <summary>"Uses a label from Laptop": the view filters by something another device keeps to itself (never its name); null for none.</summary>
+    internal string? HiddenLabelNote(TaskViewConfig config)
+    {
+        TaskStore? store = _store;
+        if (store is null)
+        {
+            return null;
+        }
+
+        var devices = new List<string>();
+        foreach (Guid id in config.Labels ?? [])
+        {
+            if (store.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.Id == id && label.IsLive && !store.LabelShown(label)) is { } label)
+            {
+                devices.Add(store.OtherDevicesText(label.OnlyOn) ?? "another device");
+            }
+        }
+
+        foreach (string tag in config.Tags ?? [])
+        {
+            if (!store.TagShown(tag))
+            {
+                devices.Add(store.OtherDevicesText(TaskScopes.ScopeOf(tag, store.Lists.TagScopes)?.OnlyOn) ?? "another device");
+            }
+        }
+
+        return devices.Count == 0 ? null : "Uses a label from " + string.Join(", ", devices.Distinct());
+    }
+
     private List<TaskLabel> LiveLabels()
     {
-        return _store?.Lists.Labels.Select(item => item.Label).Where(label => label.IsLive && label.Name.Trim().Length > 0).OrderBy(label => label.Position).ToList() ?? [];
+        return _store is { IsActive: true } store ? store.VisibleLabels.Where(label => label.Name.Trim().Length > 0).ToList() : [];
     }
 
     // A view's icon name ("lightning-bolt") as a Material icon; a bookmark when it has none or one this app doesn't know.

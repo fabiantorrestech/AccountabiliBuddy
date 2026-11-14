@@ -34,16 +34,18 @@ public sealed partial class TasksViewModel
         }
 
         IReadOnlyList<string>? current = LabelsOf(key);
-        var entries = new List<TaskMenuEntry>();
-        foreach (string label in _tasks.AllLabels())
+        var items = new List<(bool Shared, TaskMenuEntry Entry)>();
+        foreach (string label in _tasks.AllLabels().Where(label => _store is not { IsActive: true } store || store.TagShown(label)))
         {
             string name = label;
             bool has = TaskLabels.Has(current, name);
-            entries.Add(new TaskMenuEntry(
+            items.Add((IsSharedTag(name), new TaskMenuEntry(
                 name,
                 new AsyncRelayCommand(() => SetRowLabelsAsync(key, has ? TaskLabels.Without(LabelsOf(key), name) : TaskLabels.With(LabelsOf(key), [name]))),
-                IsChecked: has));
+                IsChecked: has)));
         }
+
+        List<TaskMenuEntry> entries = ScopeGrouped(items);
 
         entries.Add(TaskMenuEntry.Do("New tag…", () => AskNewLabel(name => SetRowLabelsAsync(key, TaskLabels.With(LabelsOf(key), [name]))), MaterialIconKind.Plus));
         return entries;
@@ -166,7 +168,7 @@ public sealed partial class TasksViewModel
     }
 
     // Enter in the name box while it asks for a label: true when it was a label (and it was applied).
-    private async Task<bool> SaveNewLabelAsync(string name)
+    private async Task<bool> SaveNewLabelAsync(string name, bool onlyHere = false)
     {
         Func<string, Task>? apply = _applyNewLabel;
         if (apply is null)
@@ -178,6 +180,7 @@ public sealed partial class TasksViewModel
         OnPropertyChanged(nameof(NamePrompt));
         if (TaskLabels.Clean([name]) is [string label])
         {
+            await ScopeNewTagAsync(label, onlyHere);
             await apply(label);
         }
 

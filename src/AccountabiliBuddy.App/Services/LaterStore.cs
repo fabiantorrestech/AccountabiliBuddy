@@ -120,7 +120,7 @@ public sealed class LaterStore
 
     private void ReadFromTasks()
     {
-        _all = TaskFacadeLists.Later(_tasks!.Lists, _time.GetUtcNow());
+        _all = TaskFacadeLists.Later(_tasks!.Lists, _time.GetUtcNow(), _tasks.LabelShown, _tasks.TagShown);
         _shown = _all.ToDictionary(item => item.Id, item => item.TieBreak);
     }
 
