@@ -9,6 +9,7 @@ import com.accountabilibuddy.companion.sync.deviceIdOf
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 import com.accountabilibuddy.shared.sync.SyncAction
 import com.accountabilibuddy.shared.sync.SyncCategory
+import com.accountabilibuddy.shared.tasks.OldPaneScopes
 import com.accountabilibuddy.shared.sync.SyncLaterItem
 import com.accountabilibuddy.shared.sync.SyncNextTask
 import com.accountabilibuddy.shared.sync.SyncParked
@@ -73,6 +74,23 @@ class TasksModel(
             unfinished: List<com.accountabilibuddy.companion.sync.PastTaskRow> = emptyList(),
             /** ADR 72: the shared Auto-saved list (live items). */
             autoSaved: List<com.accountabilibuddy.shared.sync.SyncAutoSavedItem> = emptyList(),
+            /** ADR 89 (LB1c): what this phone shows of the labels and tags; another device's device-only ones are left out of every row and chip. Null shows everything. */
+            scope: com.accountabilibuddy.shared.tasks.TaskScopeView? = null,
+        ): TasksModel {
+            if (scope == null) return assemble(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now, zone, ownCategories, shareCategories, unfinished, autoSaved) { true }
+            val shownPc = pc?.let { TasksPc(it.name, it.pcId, it.checklist.copy(tasks = OldPaneScopes.checklist(it.checklist.tasks, scope)), it.canEdit, it.keepsDetails) }
+            return assemble(
+                OldPaneScopes.nextTasks(nextTasks, scope), shownPc, pending, comebacks, OldPaneScopes.parked(parked, scope), OldPaneScopes.later(later, scope), waiting, received,
+                category, search, now, zone, OldPaneScopes.categories(ownCategories, scope), shareCategories, unfinished.map { it.copy(task = OldPaneScopes.history(it.task, scope)) },
+                OldPaneScopes.autoSaved(autoSaved, scope),
+            ) { scope.categoryShown(it) }
+        }
+
+        private fun assemble(
+            nextTasks: List<SyncNextTask>, pc: TasksPc?, pending: List<SyncAction>, comebacks: OpenComebacks, parked: List<SyncParked>, later: List<SyncLaterItem>,
+            waiting: Set<String>, received: List<ReceivedDevice>, category: String?, search: String, now: Instant, zone: ZoneId, ownCategories: List<SyncCategory>,
+            shareCategories: Boolean, unfinished: List<com.accountabilibuddy.companion.sync.PastTaskRow>, autoSaved: List<com.accountabilibuddy.shared.sync.SyncAutoSavedItem>,
+            categoryShown: (String) -> Boolean,
         ): TasksModel {
             val colors = TaskCategoryColors(ownCategories, if (shareCategories) received else emptyList(), now)
             val today = now.atZone(zone).toLocalDate()
@@ -151,7 +169,7 @@ class TasksModel(
                     pc?.checklist?.tasks?.let(TaskCategoryChoices::forChecklist).orEmpty() +
                     // Last, so a choice that knows the PC's id for it is the one kept.
                     colors.listed.map { Choice(it.name, it.color) }
-                ).distinctBy { it.name.lowercase() }.sortedBy { it.name.lowercase() }
+                ).filter { categoryShown(it.name) }.distinctBy { it.name.lowercase() }.sortedBy { it.name.lowercase() }
                 .map { it.copy(color = colors.of(it.name, it.color)) }
 
             return TasksModel(

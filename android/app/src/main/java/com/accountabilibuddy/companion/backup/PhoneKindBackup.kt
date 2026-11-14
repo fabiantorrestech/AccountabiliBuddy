@@ -213,7 +213,7 @@ object PhoneKindBackup {
                 wanted(SyncFileJson.readParked(tasks["comebacks"]).orEmpty()), emptyList(), emptyList(), emptyList(),
             )
             count = changed.nextTasks.size + changed.later.size + changed.parked.size
-            store.change { lists, self, now -> com.accountabilibuddy.shared.tasks.TaskLocalEdits.apply(lists, changed, self, now, store.zone()) }
+            store.change { lists, self, now -> com.accountabilibuddy.shared.tasks.TaskLocalEdits.apply(lists, changed, self, now, store.zone(), removed = store.removed()) }
         }
 
         SyncFileJson.readCategories(tasks["categories"]).orEmpty().forEach { category ->

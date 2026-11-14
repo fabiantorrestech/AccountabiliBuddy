@@ -27,6 +27,7 @@ import com.accountabilibuddy.shared.tasks.TaskHistoryRules
 import com.accountabilibuddy.shared.tasks.TaskItem
 import com.accountabilibuddy.shared.tasks.TaskLabelEdits
 import com.accountabilibuddy.shared.tasks.TaskLists
+import com.accountabilibuddy.shared.tasks.TaskScopeRules
 import com.accountabilibuddy.shared.tasks.TaskReminder
 import com.accountabilibuddy.shared.tasks.TaskReminderEdits
 import com.accountabilibuddy.shared.tasks.TaskLocalEdits
@@ -49,6 +50,9 @@ import java.util.UUID
  */
 class ShelfController(private val app: CompanionApp, private val sessionFull: ((List<String>) -> Unit)? = null, private val toast: (TasksToast) -> Unit) {
     private val store get() = app.taskModel
+
+    // ADR 89 / ADR 54: the devices removed from the group; their device-only labels and tags count as shared, so every writer that keeps what is hidden is told.
+    private fun removed(): Set<String> = store.removed()
 
     /** Moves tasks to [bin] ("Move to" in the ⋮ sheet, a row swipe, select mode's Move). [pc] is the PC with a running session, or null. */
     fun move(ids: List<String>, bin: TaskBin, pc: TasksPc?) {
@@ -84,7 +88,7 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
 
     /** A drop on another page (a zone, the page's list after a page turn, the picker): a bin, a label (replaces it) or a tag (adds it). */
     fun dropOnPage(ids: List<String>, page: ShelfPage) {
-        val result = change { lists, self, now -> ShelfEdits.dropOnPage(lists, ids, page, self, now) } ?: return
+        val result = change { lists, self, now -> ShelfEdits.dropOnPage(lists, ids, page, self, now, removed = removed()) } ?: return
         if (!result.changed) return
         val count = result.ids.size
         toast(
@@ -158,7 +162,7 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
     }
 
     fun rename(id: String, title: String) {
-        change { lists, self, now -> ShelfEdits.rename(lists, id, title, self, now) }
+        change { lists, self, now -> ShelfEdits.rename(lists, id, title, self, now, removed()) }
     }
 
     fun setHighlight(id: String, on: Boolean) = edit(id, TaskField.HIGHLIGHT) { it.copy(highlight = on) }
@@ -245,20 +249,39 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
         )
     }
 
-    /** A new label named [name] (the first unused colour), given to the tasks [forTasks]. Returns false for a blank name. */
-    fun createLabel(name: String, forTasks: List<String>): Boolean {
+    /**
+     * A new label named [name] (the first unused colour), given to the tasks [forTasks]. Returns false for a blank name. ADR 89: [onlyHere]
+     * makes it device-only on this phone (a shared label is the default). A name that exists on other devices only is joined, never made
+     * shared by this ([TaskLabelEdits.addWithId]); [makeShared] is the explicit act, after the user confirmed it ([TaskScopeRules.MAKE_SHARED_ASK]).
+     */
+    fun createLabel(name: String, forTasks: List<String>, onlyHere: Boolean = false, makeShared: Boolean = false): Boolean {
         if (name.isBlank()) return false
         change { lists, self, now ->
-            val added = TaskLabelEdits.add(lists, name, null, now, self)
+            val removed = removed()
+            var added = TaskLabelEdits.add(lists, name, null, now, self, onlyOnThisDevice = onlyHere, removed = removed)
+            val named = TaskLabelEdits.named(added, name)
+            if (makeShared && named != null) added = TaskScopeRules.makeLabelShared(added, named.id, confirmed = true, now = now, self = self)
             val label = TaskLabelEdits.named(added, name)
-            val applied = if (forTasks.isNotEmpty() && label != null) ShelfEdits.editAll(added, forTasks, TaskField.LABEL, self, now) { it.copy(labelId = label.id) }.lists else added
+            val applied = if (forTasks.isNotEmpty() && label != null) ShelfEdits.editAll(added, forTasks, TaskField.LABEL, self, now, removed) { it.copy(labelId = label.id) }.lists else added
             ShelfChange(applied, if (applied == lists) emptyList() else listOf(label?.id.orEmpty()), emptyList())
         }
         return true
     }
 
+    /**
+     * Tags [tag] device-only on this phone (ADR 89) or shared again; "shared" is only ever the user's confirmed act ([confirmed]). Called after
+     * the tag was put on a task so that "Only on this phone" applies to the tag the user just typed.
+     */
+    fun setTagScope(tag: String, onlyHere: Boolean, confirmed: Boolean = true) {
+        change { lists, self, now ->
+            val next = if (onlyHere) TaskScopeRules.makeTagDeviceOnly(lists, tag, now, self) else TaskScopeRules.makeTagShared(lists, tag, confirmed, now, self)
+            ShelfChange(next, emptyList(), emptyList())
+        }
+    }
+
     /** A new label named [name], given to the task [forTask] when there is one. */
-    fun createLabel(name: String, forTask: String?): Boolean = createLabel(name, listOfNotNull(forTask))
+    fun createLabel(name: String, forTask: String?, onlyHere: Boolean = false, makeShared: Boolean = false): Boolean =
+        createLabel(name, listOfNotNull(forTask), onlyHere, makeShared)
 
     /**
      * A new task at the end of [bin] with the label [labelId], [tags] and the Add sheet's extras (a time limit, a note, steps);
@@ -276,7 +299,7 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
         val target = if (viaPc) TaskBin.NEXT else if (full) TaskBin.QUEUED else bin
         val result = change { lists, self, now ->
             ShelfEdits.add(
-                lists, id, title, target, labelId, tags, self, now, estimateMinutes = estimateMinutes, note = note, steps = steps, stepId = { UUID.randomUUID().toString() },
+                lists, id, title, target, labelId, tags, self, now, removed = removed(), estimateMinutes = estimateMinutes, note = note, steps = steps, stepId = { UUID.randomUUID().toString() },
                 dueOn = dueOn, dueAt = dueAt, reminders = reminders, reminderId = { UUID.randomUUID().toString() },
             )
         } ?: return false
@@ -373,11 +396,11 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
     }
 
     private fun edit(id: String, field: TaskField, change: (TaskItem) -> TaskItem) {
-        change { lists, self, now -> ShelfEdits.edit(lists, id, field, self, now, change = change) }
+        change { lists, self, now -> ShelfEdits.edit(lists, id, field, self, now, removed(), change = change) }
     }
 
     private fun bulk(ids: List<String>, field: TaskField, did: String, change: (TaskItem) -> TaskItem) {
-        val result = change { lists, self, now -> ShelfEdits.editAll(lists, ids, field, self, now, change = change) } ?: return
+        val result = change { lists, self, now -> ShelfEdits.editAll(lists, ids, field, self, now, removed(), change = change) } ?: return
         if (result.changed) toast(TasksToast("${ShelfToasts.tasksWord(result.ids.size)} $did", undo = undoOf(result, listOf(field))))
     }
 

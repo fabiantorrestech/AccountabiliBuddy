@@ -704,7 +704,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
                 if (store != null && store.isActive) {
                     // R7.2: the changed items go into the task list as this phone's stamped edits; ADR 72's own parts are kept here.
                     val changedItems = TaskModelStartup.facadeChanges(before.oldFields(), updated.oldFields())
-                    store.change { lists, self, at -> TaskLocalEdits.apply(lists, changedItems, self, at, store.zone()) }
+                    store.change { lists, self, at -> TaskLocalEdits.apply(lists, changedItems, self, at, store.zone(), removed = store.removed()) }
                     save(updated, time)
                     refreshFromModelLocked()
                 } else {
@@ -805,7 +805,7 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             SyncHandover.AUTO_SAVED -> handover.autoSavedItem?.let { none.copy(autoSaved = listOf(it.copy(deletedAt = null, localTo = me))) }
             else -> null
         } ?: return false
-        return store.change { lists, self, at -> TaskLocalEdits.apply(lists, changed, self, at, store.zone()) }
+        return store.change { lists, self, at -> TaskLocalEdits.apply(lists, changed, self, at, store.zone(), removed = store.removed()) }
     }
 
     private fun refreshFromModel() = synchronized(this) { refreshFromModelLocked() }

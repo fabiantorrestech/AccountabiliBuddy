@@ -93,6 +93,15 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
     /** This phone's sync device id (stamps name it). Set by the app. */
     var selfId: () -> String = { FieldStamp.NOBODY }
 
+    /**
+     * ADR 89 / ADR 54: the ids (lower case) of the devices removed from the group. Their device-only labels and tags count as shared at
+     * display, so every writer that keeps hidden labels and tags is told them ([removed]) and a label of a removed device is no longer "hidden".
+     */
+    var removedIds: () -> Set<String> = { emptySet() }
+
+    /** The removed devices' ids now ([removedIds]). */
+    fun removed(): Set<String> = removedIds()
+
     /** The group's numbering device (ADR 76, Q3); null while there is none (temporary numbers here). Set by the app. */
     var numberingDevice: () -> String? = { null }
 
@@ -238,7 +247,7 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
         if (!isActive) return 0
         commit { lists, self, now ->
             // ADR 89: the backup's writing device is swapped for this one in the label lists and tag scopes; hidden labels and tags are kept.
-            val incoming = if (!restore) backup else TaskListRules.restoredIncoming(lists, backup, backupDevice, self, now, removed = null)
+            val incoming = if (!restore) backup else TaskListRules.restoredIncoming(lists, backup, backupDevice, self, now, removed = removed())
             TaskListMerge.mergeLists(lists, incoming, self, now)
         }
         return backup.tasks.count { it.task.isLive }

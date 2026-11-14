@@ -101,8 +101,10 @@ fun TasksOptionsSheet(
     val views = lists.views.map { it.view }.filter { it.isLive }.sortedBy { it.position }.ifEmpty { TaskView.builtIns(now) }
     val active = views.firstOrNull { it.id.equals(state.viewId ?: TaskView.DEFAULT_ID, ignoreCase = true) }
     val changed = active == null || active.config != config
-    val labels = lists.labels.map { it.label }.filter { it.isLive }.sortedBy { it.position }
-    val allTags = TaskLabels.allOf(lists.tasks.filter { it.task.isLive }.map { it.task.tags })
+    // ADR 89: `lists` is already the list as this phone shows it; the pickers group it ("Shared", "This device") and a view naming a hidden label or tag says whose.
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val viewNote = scopeView.viewNote(config.labels, config.tags) { com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, it) }
     val shown = ShelfPages.count(ShelfPages.build(lists, config, now, zone, storedOrder = state.orderOf(state.grouping)))
     val applyView: (TaskView) -> Unit = { view -> explain = false; onState { it.copy(config = view.config, viewId = view.id) } }
     val back: (() -> Unit)? = when {
@@ -175,9 +177,9 @@ fun TasksOptionsSheet(
                 AbSheetRow("Due date", onClick = { page = OptionsPage.Due }, icon = Icons.Outlined.Event, trailing = { AbSheetValue(TaskViewWords.picked(config.only.due, TaskViewWords.DUE)) })
                 AbSheetRow(
                     "Labels", onClick = { page = OptionsPage.Labels }, icon = Icons.AutoMirrored.Outlined.Label,
-                    trailing = { AbSheetValue(TaskViewWords.pickedCount(config.labels.orEmpty().size + if (config.noLabel) 1 else 0)) },
+                    trailing = { AbSheetValue(TaskViewWords.pickedCount(scopeView.shownLabelCount(config.labels) + if (config.noLabel) 1 else 0)) },
                 )
-                AbSheetRow("Tags", onClick = { page = OptionsPage.Tags }, icon = Icons.Outlined.Tag, trailing = { AbSheetValue(TaskViewWords.pickedCount(config.tags.orEmpty().size)) })
+                AbSheetRow("Tags", onClick = { page = OptionsPage.Tags }, icon = Icons.Outlined.Tag, trailing = { AbSheetValue(TaskViewWords.pickedCount(scopeView.shownTagCount(config.tags))) })
                 AbSheetRow("Time limit", onClick = { page = OptionsPage.Time }, icon = Icons.Outlined.Timer, trailing = { AbSheetValue(TaskViewWords.picked(config.only.time, TaskViewWords.TIME)) })
                 AbSheetRow("Untouched for", onClick = { page = OptionsPage.Old }, icon = Icons.Outlined.HourglassEmpty, trailing = { AbSheetValue(TaskViewWords.picked(config.only.old, TaskViewWords.OLD)) })
                 AbSheetRow(
@@ -282,19 +284,25 @@ fun TasksOptionsSheet(
 
             OptionsPage.Labels -> {
                 SheetMarkRow("No label", onClick = { setConfig { it.copy(noLabel = !it.noLabel) } }, leading = { LabelDot(null, 12.dp) }) { AbSheetCheck(config.noLabel) }
-                labels.forEach { label ->
+                LabelGroups(scopeView) { label ->
                     SheetMarkRow(label.name, onClick = { setConfig { it.copy(labels = TaskViewWords.toggled(it.labels, label.id)) } }, leading = { LabelDot(label.color, 12.dp) }) {
                         AbSheetCheck(config.labels.orEmpty().any { it.equals(label.id, ignoreCase = true) })
                     }
                 }
+                viewNote?.let { SheetFoot(it) }
                 AbSheetRow("Clear this filter", onClick = { setConfig { it.copy(labels = null, noLabel = false) } }, enabled = !config.labels.isNullOrEmpty() || config.noLabel)
             }
 
             OptionsPage.Tags -> {
+                val allTags = scopeView.knownTags()
                 if (allTags.isEmpty()) SheetFoot("No task has a tag yet. Add one from a task's ⋮ menu.")
-                allTags.forEach { tag ->
-                    AbSheetRow("#$tag", onClick = { setConfig { it.copy(tags = TaskViewWords.toggled(it.tags, tag)) } }, icon = Icons.Outlined.Tag, role = Role.Checkbox, trailing = { AbSheetCheck(TaskLabels.has(config.tags, tag)) })
+                scopeView.tagGroups(allTags).forEach { group ->
+                    ScopeGroupHead(group)
+                    group.items.forEach { tag ->
+                        AbSheetRow("#$tag", onClick = { setConfig { it.copy(tags = TaskViewWords.toggled(it.tags, tag)) } }, icon = Icons.Outlined.Tag, role = Role.Checkbox, trailing = { AbSheetCheck(TaskLabels.has(config.tags, tag)) })
+                    }
                 }
+                viewNote?.let { SheetFoot(it) }
                 if (config.tags.orEmpty().size > 1) {
                     AbSheetRow("A task must have", onClick = null, trailing = {
                         AbSegmentedCompact(

@@ -87,8 +87,8 @@ private fun RemindersCard(onOpenTaskReminders: () -> Unit, onOpenLabels: () -> U
 @Composable
 private fun LabelsCard(onOpenLabels: () -> Unit) {
     val app = LocalContext.current.applicationContext as CompanionApp
-    val lists by app.taskModel.lists.collectAsStateWithLifecycle()
-    val count = lists.labels.count { it.label.isLive }
+    // ADR 89: the labels this phone shows.
+    val count = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app).labels.size
     AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), verticalSpacing = 0.dp) {
         AbSectionLabel("Labels", Modifier.padding(start = 4.dp, bottom = 4.dp))
         AbListRow(

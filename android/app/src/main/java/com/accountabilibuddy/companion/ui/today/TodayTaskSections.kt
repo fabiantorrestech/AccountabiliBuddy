@@ -57,7 +57,9 @@ import java.time.ZoneOffset
 @Composable
 fun TodayTaskSections(inSession: Boolean, onMessage: (String) -> Unit, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as CompanionApp
-    val lists by app.taskModel.lists.collectAsState()
+    // ADR 89: Today shows the list as this phone shows it (another device's device-only labels and tags stay hidden).
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val lists = remember(scopeView) { scopeView.shown() }
     val controller = remember(app) { ShelfController(app, sessionFull = null) { toast -> onMessage(toast.message) } }
     val zone = app.taskModel.zone()
     val self = remember { app.sync.deviceId.toString() }
@@ -66,7 +68,7 @@ fun TodayTaskSections(inSession: Boolean, onMessage: (String) -> Unit, modifier:
     var doneOpen by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf<Pair<String, TaskMenuPage>?>(null) }
-    val labels = lists.labels.map { it.label }.filter { it.isLive }
+    val labels = scopeView.labels
     val quiet = if (inSession) 0.4f else 0.66f
 
     @Composable

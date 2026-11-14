@@ -69,7 +69,8 @@ fun BulkSheet(
     val colors = Ab.colors
     var page by remember { mutableStateOf(start) }
     val ids = tasks.map { it.id }
-    val labels = lists.labels.map { it.label }.filter { it.isLive }.sortedBy { it.position }
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
     val count = ShelfToasts.tasksWord(tasks.size)
     val toOptions = { if (start == BulkPage.Options) page = BulkPage.Options else onDismiss() }
     val back: (() -> Unit)? = when (page) {
@@ -126,14 +127,14 @@ fun BulkSheet(
 
             BulkPage.Label -> {
                 SheetMarkRow("No label", onClick = { controller.setLabelAll(ids, null); toOptions() }, leading = { LabelDot(null, 12.dp) })
-                labels.forEach { item ->
+                LabelGroups(scopeView) { item ->
                     SheetMarkRow(item.name, onClick = { controller.setLabelAll(ids, item.id); toOptions() }, leading = { LabelDot(item.color, 12.dp) })
                 }
                 AbSheetRow("New label…", onClick = { page = BulkPage.NewLabel }, icon = Icons.Outlined.Add)
                 SheetFoot("A label is the coloured dot, and each task has one: this replaces the label each of them has.")
             }
 
-            BulkPage.NewLabel -> NewLabelForm(labels.map { it.name }, onAdd = { name -> if (controller.createLabel(name, ids)) toOptions() })
+            BulkPage.NewLabel -> NewLabelForm(scopeView, canKeepHere = app.sync.isJoined, onAdd = { name, here, shared -> if (controller.createLabel(name, ids, here, shared)) toOptions() })
 
             BulkPage.Tags -> {
                 var typed by remember { mutableStateOf("") }
@@ -144,11 +145,11 @@ fun BulkSheet(
                 Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("A tag is added to each of them; the tags they have stay.", style = Ab.type.small, color = colors.muted)
                     SheetField(value = typed, onValueChange = { typed = it }, placeholder = "Add a tag", onDone = { add(typed) }, singleLine = true)
-                    val known = TaskLabels.allOf(lists.tasks.filter { it.task.isLive }.map { it.task.tags })
-                    if (known.isNotEmpty()) {
-                        Text("Your tags", style = Ab.type.small, color = colors.muted)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            known.forEach { tag -> ShelfChip("#$tag", selected = tasks.all { TaskLabels.has(it.tags, tag) }, height = 36) { add(tag) } }
+                    // ADR 89: "Shared" first, then "This device"; another device's device-only tags never show.
+                    scopeView.tagGroups(scopeView.knownTags()).forEach { group ->
+                        ScopeGroupHead(group)
+                        FlowRow(Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            group.items.forEach { tag -> ShelfChip("#$tag", selected = tasks.all { TaskLabels.has(it.tags, tag) }, height = 36) { add(tag) } }
                         }
                     }
                 }

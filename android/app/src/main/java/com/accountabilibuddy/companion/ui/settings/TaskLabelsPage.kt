@@ -60,6 +60,8 @@ import com.accountabilibuddy.shared.tasks.TaskLabelEdits
 import com.accountabilibuddy.shared.tasks.TaskLabelNameCheck
 import com.accountabilibuddy.shared.tasks.TaskLabelWords
 import com.accountabilibuddy.shared.tasks.TaskRingDevices
+import com.accountabilibuddy.shared.tasks.TaskScopeRules
+import com.accountabilibuddy.shared.tasks.TaskScopes
 
 /**
  * The Labels screen (R7.4; the PC's Labels screen): a row per label with its colour dot, "3 tasks · rings: all devices", a floating +
@@ -70,8 +72,12 @@ import com.accountabilibuddy.shared.tasks.TaskRingDevices
 fun TaskLabelsPage() {
     val app = LocalContext.current.applicationContext as CompanionApp
     val actions = remember { TaskSettingsActions(app) }
-    val lists by app.taskModel.lists.collectAsStateWithLifecycle()
-    val labels = lists.labels.map { it.label }.filter { it.isLive }.sortedBy { it.position }
+    // ADR 89 (LB1c): this phone's labels: another device's device-only ones never show here.
+    val view = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val lists = remember(view) { view.shown() }
+    val labels = view.labels
+    val nameOf = { id: String -> com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, id) }
+    var makingTagShared by rememberSaveable { mutableStateOf<String?>(null) }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
     val phones = actions.phones()
@@ -86,10 +92,26 @@ fun TaskLabelsPage() {
                     }
                     labels.forEachIndexed { index, label ->
                         AbListRow(
-                            label.name, subtitle = TaskLabelWords.subtitle(TaskLabelEdits.useCount(lists, label.id), label.ringOn, phones.size),
+                            label.name,
+                            subtitle = listOfNotNull(TaskLabelWords.subtitle(TaskLabelEdits.useCount(lists, label.id), label.ringOn, phones.size), view.devicesLine(label.onlyOn, nameOf)).joinToString(" · "),
                             onClick = { editing = label.id }, divider = index < labels.lastIndex,
                             trailing = { LabelDot(label.color, 14.dp) },
                         )
+                    }
+                }
+            }
+            // ADR 89: the tags kept on some devices only, with "Make shared" (asks first). Another device's device-only tags don't show.
+            val deviceTags = view.deviceTags()
+            if (deviceTags.isNotEmpty()) {
+                item {
+                    AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), verticalSpacing = 0.dp) {
+                        AbSectionLabel("${deviceTags.size} tags only on some devices", Modifier.padding(start = 4.dp, bottom = 4.dp))
+                        deviceTags.forEachIndexed { index, scope ->
+                            AbListRow(
+                                "#" + scope.name.orEmpty(), subtitle = view.devicesLine(scope.onlyOn, nameOf), onClick = { makingTagShared = scope.name },
+                                divider = index < deviceTags.lastIndex, trailing = { Text(TaskScopeRules.MAKE_SHARED, style = Ab.type.small, color = Ab.colors.muted) },
+                            )
+                        }
                     }
                 }
             }
@@ -100,17 +122,24 @@ fun TaskLabelsPage() {
         ) { Icon(Icons.Outlined.Add, contentDescription = "New label") }
     }
 
-    if (adding) LabelSheet(null, lists, actions, phones, onDismiss = { adding = false })
+    makingTagShared?.let { tag ->
+        AbDialog(
+            title = "Make #$tag shared?", onDismiss = { makingTagShared = null }, confirmText = TaskScopeRules.MAKE_SHARED,
+            onConfirm = { makingTagShared = null; actions.makeTagShared(tag, confirmed = true) }, dismissText = "Keep",
+        ) { Text(TaskScopeRules.MAKE_SHARED_ASK + ".", style = Ab.type.body, color = Ab.colors.ink) }
+    }
+
+    if (adding) LabelSheet(null, lists, view, actions, phones, onDismiss = { adding = false })
     editing?.let { id ->
         val label = labels.firstOrNull { it.id == id }
-        if (label == null) editing = null else LabelSheet(label, lists, actions, phones, onDismiss = { editing = null })
+        if (label == null) editing = null else LabelSheet(label, lists, view, actions, phones, onDismiss = { editing = null })
     }
 }
 
 // The New label / label sheet. A new label is made on Add; an existing one saves with Save (name and colour) and its rings switches at once.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.tasks.TaskLists, actions: TaskSettingsActions, phones: List<com.accountabilibuddy.companion.tasks.RingPhone>, onDismiss: () -> Unit) {
+private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.tasks.TaskLists, view: com.accountabilibuddy.shared.tasks.TaskScopeView, actions: TaskSettingsActions, phones: List<com.accountabilibuddy.companion.tasks.RingPhone>, onDismiss: () -> Unit) {
     val colors = Ab.colors
     val startColor = label?.color ?: TaskLabelColors.firstUnused(lists.labels.map { it.label })
     var name by rememberSaveable(label?.id) { mutableStateOf(label?.name ?: "") }
@@ -118,14 +147,38 @@ private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.ta
     var typed by rememberSaveable(label?.id) { mutableStateOf("") }
     var opacity by remember(label?.id) { mutableFloatStateOf(TaskLabelColors.opacityOf(startColor).toFloat()) }
     var deleting by rememberSaveable { mutableStateOf(false) }
+    var makingShared by rememberSaveable { mutableStateOf(false) }
+    var newOnlyHere by rememberSaveable { mutableStateOf(false) }
+    val app = LocalContext.current.applicationContext as CompanionApp
     val color = TaskLabelColors.withOpacity(base, opacity.toDouble())
-    val check = TaskLabelEdits.checkName(lists, label?.id, name)
+    val check = TaskLabelEdits.checkName(lists, label?.id, name, view.self, view.removed)
     val typedOk = typed.isBlank() || TaskLabelColors.typed(typed) != null
 
     AbSheet(title = if (label == null) "New label" else label.name, subtitle = label?.let { TaskLabelWords.uses(TaskLabelEdits.useCount(lists, it.id)) }, onDismiss = onDismiss, height = AbSheetHeight.Tall) {
         Column24 {
             AbTextField(name, { name = it.take(40) }, "Label name", Modifier.fillMaxWidth(), isError = check == TaskLabelNameCheck.Taken)
             if (check == TaskLabelNameCheck.Taken) Text("You already have a label with that name.", style = Ab.type.small, color = colors.drift)
+            // ADR 89: shared by default. "Only on this phone" shows only when this phone is in a group (a lone phone shows everything anyway).
+            if (app.sync.isJoined) {
+                val deviceOnly = label != null && !TaskScopes.isShared(label.onlyOn, view.removed)
+                AbSheetRow(
+                    TaskScopeRules.ONLY_ON_THIS_PHONE, role = Role.Switch,
+                    subtitle = when {
+                        label == null -> if (newOnlyHere) "Other devices won't show it" else "Shared: every device shows it"
+                        deviceOnly -> view.devicesLine(label.onlyOn) { com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, it) } ?: "Shared"
+                        else -> "Shared: every device shows it"
+                    },
+                    // Off: "Make shared" asks first. On: this phone joins the devices that hold it (never removes one).
+                    onClick = {
+                        when {
+                            label == null -> newOnlyHere = !newOnlyHere
+                            deviceOnly -> makingShared = true
+                            else -> actions.setLabelOnlyHere(label.id)
+                        }
+                    },
+                    trailing = { com.accountabilibuddy.companion.ui.kit.AbSwitch(if (label == null) newOnlyHere else deviceOnly) },
+                )
+            }
             AbSectionLabel("Colour")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TaskLabelColors.SET.forEach { swatch ->
@@ -155,7 +208,7 @@ private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.ta
             AbPrimaryButton(
                 if (label == null) "Add" else "Save", modifier = Modifier.fillMaxWidth(), enabled = check == TaskLabelNameCheck.Fine && typedOk,
                 onClick = {
-                    val ok = if (label == null) actions.addLabel(name, color) else actions.changeLabel(label.id, name, color)
+                    val ok = if (label == null) actions.addLabel(name, color, newOnlyHere && app.sync.isJoined) else actions.changeLabel(label.id, name, color)
                     if (ok) onDismiss()
                 },
             )
@@ -178,6 +231,13 @@ private fun LabelSheet(label: TaskLabel?, lists: com.accountabilibuddy.shared.ta
             )
             AbSheetRow("Delete label", onClick = { deleting = true }, danger = true)
         }
+    }
+
+    if (makingShared && label != null) {
+        AbDialog(
+            title = "Make ${label.name} shared?", onDismiss = { makingShared = false }, confirmText = TaskScopeRules.MAKE_SHARED,
+            onConfirm = { makingShared = false; actions.makeLabelShared(label.id, confirmed = true) }, dismissText = "Keep",
+        ) { Text(TaskScopeRules.MAKE_SHARED_ASK + ".", style = Ab.type.body, color = colors.ink) }
     }
 
     if (deleting && label != null) {

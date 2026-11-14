@@ -98,6 +98,7 @@ import com.accountabilibuddy.shared.sync.DotNetTime
 import com.accountabilibuddy.shared.sync.TaskLabels
 import com.accountabilibuddy.shared.tasks.ShelfDrag
 import com.accountabilibuddy.shared.tasks.TaskSearch
+import com.accountabilibuddy.shared.tasks.TaskScopes
 import com.accountabilibuddy.shared.tasks.ShelfDrop
 import com.accountabilibuddy.shared.tasks.ShelfDropSpot
 import com.accountabilibuddy.shared.tasks.ShelfPage
@@ -169,7 +170,9 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     val density = LocalDensity.current
     val prefs = remember { TasksUiPrefs.of(context) }
     val state by prefs.state.collectAsState()
-    val lists by app.taskModel.lists.collectAsState()
+    // ADR 89 (LB1c): the list as THIS phone shows it: another device's device-only labels and tags never show; writers keep them.
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val lists = remember(scopeView) { scopeView.shown() }
     val received by app.sync.received.collectAsState()
     val motion by UiPrefs.motion.collectAsState()
     // Looked at again every half minute: "Overdue", "untouched 4 wk" and a session that ended on the PC follow the clock.
@@ -236,7 +239,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     val config = state.config
     val grouping = state.grouping
     val byBins = grouping == TaskViewConfig.GROUP_BINS || grouping == null
-    val labels = lists.labels.map { it.label }.filter { it.isLive }.sortedBy { it.position }
+    val labels = scopeView.labels
     val inSession = pc != null
     val built = remember(lists, config, now, search, state.orders, chipLabel, chipBin, inSession) {
         ShelfPages.build(lists, config, now, zone, search.takeIf { it.isNotBlank() }, state.orderOf(grouping), chipLabel, chipBin, sessionRuns = inSession)
@@ -776,11 +779,15 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
             startLabel = target?.labelId ?: chipLabel?.takeIf { byBins && it != ShelfPages.NO_LABEL },
             startTag = target?.tag,
             labels = labels,
-            knownTags = TaskLabels.allOf(lists.tasks.filter { it.task.isLive }.map { it.task.tags }),
+            knownTags = scopeView.knownTags(),
+            deviceLabelIds = scopeView.labels.filter { !TaskScopes.isShared(it.onlyOn, scopeView.removed) }.map { it.id }.toSet(),
+            canKeepHere = app.sync.isJoined,
             another = addAnother,
             onAnother = { addAnother = it },
             onAdd = { draft ->
-                controller.add(draft.title, draft.bin, draft.labelId, draft.tags, draft.estimateMinutes, draft.note, draft.steps, draft.dueOn, draft.dueAt, draft.reminders, pc)
+                controller.add(draft.title, draft.bin, draft.labelId, draft.tags, draft.estimateMinutes, draft.note, draft.steps, draft.dueOn, draft.dueAt, draft.reminders, pc).also { added ->
+                    if (added) draft.onlyHereTags.forEach { controller.setTagScope(it, onlyHere = true) }
+                }
             },
             onDismiss = {
                 adding = null
@@ -791,7 +798,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
 
     if (newLabel) {
         AbSheet(title = "New label", subtitle = "A label is the coloured dot, and each task has one", onDismiss = { newLabel = false }, height = AbSheetHeight.Half) {
-            NewLabelForm(labels.map { it.name }, onAdd = { name -> if (controller.createLabel(name, null)) newLabel = false })
+            NewLabelForm(scopeView, canKeepHere = app.sync.isJoined, onAdd = { name, here, shared -> if (controller.createLabel(name, null, here, shared)) newLabel = false })
         }
     }
 }

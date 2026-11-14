@@ -7,6 +7,7 @@ import com.accountabilibuddy.shared.tasks.TaskLabelEdits
 import com.accountabilibuddy.shared.tasks.TaskLabelNameCheck
 import com.accountabilibuddy.shared.tasks.TaskLabelColors
 import com.accountabilibuddy.shared.tasks.TaskLists
+import com.accountabilibuddy.shared.tasks.TaskScopeRules
 import com.accountabilibuddy.shared.tasks.TaskRingDevices
 
 /** A phone that can be on a "Rings on" list: this one, or another phone of the group (PCs always ring for their own reminders). */
@@ -54,9 +55,9 @@ class TaskSettingsActions(private val app: CompanionApp) {
     }
 
     /** A new label; false when the name can't be used (blank or taken). [color] is what was typed or picked (stored form). */
-    fun addLabel(name: String, color: String?): Boolean {
-        if (TaskLabelEdits.checkName(store.lists.value, null, name) != TaskLabelNameCheck.Fine) return false
-        edit { lists, self, now -> TaskLabelEdits.add(lists, name, color, now, self) }
+    fun addLabel(name: String, color: String?, onlyHere: Boolean = false): Boolean {
+        if (TaskLabelEdits.checkName(store.lists.value, null, name, selfId(), store.removed()) != TaskLabelNameCheck.Fine) return false
+        edit { lists, self, now -> TaskLabelEdits.add(lists, name, color, now, self, onlyOnThisDevice = onlyHere, removed = store.removed()) }
         return true
     }
 
@@ -64,18 +65,32 @@ class TaskSettingsActions(private val app: CompanionApp) {
     fun changeLabel(labelId: String, name: String, color: String): Boolean {
         val lists = store.lists.value
         val label = lists.labels.map { it.label }.firstOrNull { it.isLive && it.id.equals(labelId, ignoreCase = true) } ?: return false
-        if (TaskLabelEdits.checkName(lists, labelId, name) != TaskLabelNameCheck.Fine) return false
+        if (TaskLabelEdits.checkName(lists, labelId, name, selfId(), store.removed()) != TaskLabelNameCheck.Fine) return false
         edit { held, self, now ->
-            val renamed = TaskLabelEdits.rename(held, label.name, name, now, self)
-            if (TaskLabelColors.isValid(color)) TaskLabelEdits.recolour(renamed, name.trim(), color, now, self) else renamed
+            val renamed = TaskLabelEdits.rename(held, label.name, name, now, self, store.removed())
+            if (TaskLabelColors.isValid(color)) TaskLabelEdits.recolour(renamed, name.trim(), color, now, self, store.removed()) else renamed
         }
         return true
     }
 
+    private fun selfId(): String = app.sync.deviceId.toString().lowercase()
+
+    /** ADR 89: the label shown only on the devices that hold it, this phone among them (a shared label becomes this phone's own). Display only: applies at once. */
+    fun setLabelOnlyHere(labelId: String) = edit { lists, self, now -> TaskScopeRules.makeLabelDeviceOnly(lists, labelId, now, self) }
+
+    /** ADR 89: "Make shared": every device shows the label. Only a [confirmed] call changes anything (the screen asks "It will show on all your devices" first). */
+    fun makeLabelShared(labelId: String, confirmed: Boolean) = edit { lists, self, now -> TaskScopeRules.makeLabelShared(lists, labelId, confirmed, now, self) }
+
+    /** ADR 89: the tag shown only on this phone (and the devices that hold it). */
+    fun setTagOnlyHere(tag: String) = edit { lists, self, now -> TaskScopeRules.makeTagDeviceOnly(lists, tag, now, self) }
+
+    /** ADR 89: "Make shared" for a tag; only a [confirmed] call changes anything. */
+    fun makeTagShared(tag: String, confirmed: Boolean) = edit { lists, self, now -> TaskScopeRules.makeTagShared(lists, tag, confirmed, now, self) }
+
     /** Deletes the label: its tasks are left with No label. */
     fun deleteLabel(labelId: String) {
         val label = store.lists.value.labels.map { it.label }.firstOrNull { it.isLive && it.id.equals(labelId, ignoreCase = true) } ?: return
-        edit { lists, self, now -> TaskLabelEdits.delete(lists, label.name, now, self) }
+        edit { lists, self, now -> TaskLabelEdits.delete(lists, label.name, now, self, store.removed()) }
     }
 
     private fun edit(change: (TaskLists, String, java.time.OffsetDateTime) -> TaskLists) {

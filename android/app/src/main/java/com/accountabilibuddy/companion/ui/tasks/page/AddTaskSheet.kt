@@ -71,6 +71,7 @@ import com.accountabilibuddy.shared.tasks.TaskBin
 import com.accountabilibuddy.shared.tasks.TaskBins
 import com.accountabilibuddy.shared.tasks.TaskLabel
 import com.accountabilibuddy.shared.tasks.TaskRowText
+import com.accountabilibuddy.shared.tasks.TaskScopeRules
 import com.accountabilibuddy.shared.tasks.TaskTitleHelp
 
 /** What the Add sheet hands over for a new task: the title without its "@label" and "#tag" words, where it goes, and the rest. */
@@ -85,6 +86,8 @@ class AddTaskDraft(
     val dueOn: LocalDate? = null,
     val dueAt: LocalTime? = null,
     val reminders: List<String> = emptyList(),
+    /** ADR 89: the new tags the user asked to keep only on this phone ("Only on this phone"). */
+    val onlyHereTags: List<String> = emptyList(),
 )
 
 /** The time limits the sheets offer (minutes). */
@@ -117,6 +120,9 @@ fun AddTaskSheet(
     startTag: String?,
     labels: List<TaskLabel>,
     knownTags: List<String>,
+    /** ADR 89: the label ids shown here that are device-only, to offer them after the shared ones; and whether this phone can have device-only tags (it is in a group). */
+    deviceLabelIds: Set<String> = emptySet(),
+    canKeepHere: Boolean = false,
     another: Boolean,
     onAnother: (Boolean) -> Unit,
     onAdd: (AddTaskDraft) -> Boolean,
@@ -127,6 +133,7 @@ fun AddTaskSheet(
     var bin by remember { mutableStateOf(startBin) }
     var pickedLabel by remember { mutableStateOf(startLabel) }
     var extraTags by remember { mutableStateOf(listOfNotNull(startTag)) }
+    var tagsHere by remember { mutableStateOf(false) }
     var limit by remember { mutableStateOf<Int?>(null) }
     var limitOpen by remember { mutableStateOf(false) }
     var stepsOpen by remember { mutableStateOf(false) }
@@ -154,11 +161,13 @@ fun AddTaskSheet(
     val labelId = typedLabel ?: pickedLabel
     val label = labels.firstOrNull { it.id.equals(labelId, ignoreCase = true) }
     val tags = TaskLabels.clean(typed.tags + extraTags).orEmpty()
+    // ADR 89: tags that no shown task has yet are new; "Only on this phone" keeps them on this phone.
+    val newTags = tags.filter { !TaskLabels.has(knownTags, it) }
     val setText = { value: String -> text = TextFieldValue(value, TextRange(value.length)) }
 
     val add = {
         val allSteps = steps + listOfNotNull(step.trim().takeIf { it.isNotEmpty() })
-        val draft = AddTaskDraft(typed.title, bin, labelId, tags, limit, note.trim().takeIf { it.isNotEmpty() }, allSteps, dueOn, dueAt, if (dueOn != null) rules else emptyList())
+        val draft = AddTaskDraft(typed.title, bin, labelId, tags, limit, note.trim().takeIf { it.isNotEmpty() }, allSteps, dueOn, dueAt, if (dueOn != null) rules else emptyList(), if (tagsHere) newTags else emptyList())
         if (typed.title.isNotBlank() && onAdd(draft)) {
             if (another) {
                 // The field clears for the next one; where it goes, its label and its tags stay as they were picked.
@@ -228,8 +237,9 @@ fun AddTaskSheet(
         val word = text.text.take(text.selection.end.coerceIn(0, text.text.length)).takeLastWhile { !it.isWhitespace() }
         val wordStart = text.selection.end.coerceIn(0, text.text.length) - word.length
         val offered: List<Pair<String, () -> Unit>> = when {
-            word.startsWith("@") -> labels.filter { it.name.startsWith(word.drop(1), ignoreCase = true) && !it.id.equals(typedLabel, ignoreCase = true) }.take(6).map { match ->
-                match.name to {
+            word.startsWith("@") -> labels.filter { it.name.startsWith(word.drop(1), ignoreCase = true) && !it.id.equals(typedLabel, ignoreCase = true) }
+                .sortedBy { it.id in deviceLabelIds }.take(6).map { match ->
+                (if (match.id in deviceLabelIds) match.name + " · this device" else match.name) to {
                     // The typed "@…" goes and the label is picked (so a name with a space works too).
                     setText((text.text.removeRange(wordStart, wordStart + word.length)).trimEnd().let { if (it.isEmpty()) it else "$it " })
                     pickedLabel = match.id
@@ -282,6 +292,7 @@ fun AddTaskSheet(
             } else {
                 PlusChip("+ Reminder", onClick = { reminderOpen = !reminderOpen })
             }
+            if (canKeepHere && newTags.isNotEmpty()) PickChip(TaskScopeRules.ONLY_ON_THIS_PHONE + " (new tags)", tagsHere) { tagsHere = !tagsHere }
             if (!stepsOpen) PlusChip("+ Steps", onClick = { stepsOpen = true })
             if (!noteOpen) PlusChip("+ Note", onClick = { noteOpen = true })
         }

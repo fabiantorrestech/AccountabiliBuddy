@@ -127,8 +127,8 @@ object ShelfEdits {
         each(lists, ids, field, self, now, removed, change)
 
     /** The title, trimmed; a blank one changes nothing. */
-    fun rename(lists: TaskLists, id: String, title: String, self: String, now: OffsetDateTime): ShelfChange =
-        if (title.isBlank()) ShelfChange(lists, emptyList(), emptyList()) else edit(lists, id, TaskField.TITLE, self, now) { it.copy(title = title.trim()) }
+    fun rename(lists: TaskLists, id: String, title: String, self: String, now: OffsetDateTime, removed: Collection<String>? = null): ShelfChange =
+        if (title.isBlank()) ShelfChange(lists, emptyList(), emptyList()) else edit(lists, id, TaskField.TITLE, self, now, removed) { it.copy(title = title.trim()) }
 
     /**
      * A new task at the end of [bin] (Queued when This session is full), made on this phone. [labelId] must be a live label's id or

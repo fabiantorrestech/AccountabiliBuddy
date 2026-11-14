@@ -117,11 +117,13 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
     var addingToday by remember { mutableStateOf<TaskRowModel?>(null) }
     var held by remember { mutableStateOf<Pair<String, Choice?>?>(null) }
 
+    // ADR 89 (LB1c): the old pane shows what this phone shows of the labels and tags.
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
     val pc = TasksPc.of(controlPc, received, now, app.runningTaskEdits.isAvailable)
     val comebacks = OpenComebacks.of(parked, received, now)
     // Items whose "Add to Today" waits for a PC's answer: shown as sent, and not sent again.
     val waiting = app.todayHandoff.waitingIds(pending)
-    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now, ownCategories = ownCategories, shareCategories = app.sync.sharesTaskLists(), unfinished = unfinished, autoSaved = autoSaved)
+    val model = TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, category, search, now, ownCategories = ownCategories, shareCategories = app.sync.sharesTaskLists(), unfinished = unfinished, autoSaved = autoSaved, scope = scopeView)
     val chip = newTaskCategory?.let { name -> model.categories.firstOrNull { it.name.equals(name, ignoreCase = true) } }
 
     val controller = remember(app, snackbar) {
@@ -184,7 +186,7 @@ fun TasksScreen(controlPc: ReceivedDevice?, snackbar: SnackbarHostState, onOpenT
         onAddLater = { text -> controller.addLater(text, chip) },
         // Not narrowed by the chip or the search; what is already on its way to a PC or belongs to an older PC can't be taken.
         pickRows = {
-            TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, null, "", now, ownCategories = ownCategories, shareCategories = app.sync.sharesTaskLists())
+            TasksModel.build(nextTasks, pc, pending, comebacks, parked, later, waiting, received, null, "", now, ownCategories = ownCategories, shareCategories = app.sync.sharesTaskLists(), scope = scopeView)
                 .let { all -> all.comeBacks + all.later }
                 .filter { row -> !row.sending && !row.readOnly }
         },

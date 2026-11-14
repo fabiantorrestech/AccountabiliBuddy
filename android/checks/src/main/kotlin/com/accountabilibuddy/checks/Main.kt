@@ -221,6 +221,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "lu1a-self" to Lu1aSelfCheck::run,
     // LB1a (phone): an older file leaves the scopes alone, the part merges, is written last and never in a QR file or the kept copy, the store document.
     "lb1a-self" to Lb1aSelfCheck::run,
+    // LB1c (phone UI): the picker groups, hidden reads No label, search, the old pane, the watch, every edit path keeps hidden, Make shared asks first, the wiring scans.
+    "lb1c-self" to Lb1cSelfCheck::run,
     // LU1c: the lunch X on the phone and the watch (Count it / Discard it / Keep going, Start the rest, the lock per piece, the watch snapshot).
     "lu1c-self" to Lu1cSelfCheck::run,
     // AR1c (phone): the Archive page's list (order, filters, search, 12-hour times, Recently deleted), notes edit/delete/merge, settle-record restore,

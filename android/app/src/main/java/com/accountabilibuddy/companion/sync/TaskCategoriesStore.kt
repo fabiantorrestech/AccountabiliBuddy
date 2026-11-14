@@ -14,6 +14,7 @@ import kotlinx.serialization.json.Json
 import com.accountabilibuddy.companion.tasks.PhoneTaskStore
 import com.accountabilibuddy.shared.tasks.TaskFacadeLists
 import com.accountabilibuddy.shared.tasks.TaskLabelEdits
+import com.accountabilibuddy.shared.tasks.TaskScopeView
 
 /**
  * This phone's own task categories (ADR 62): the ones made or recoloured here, by name, with when the colour was chosen. They go in this
@@ -35,16 +36,23 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
     var onChanged: () -> Unit = {}
 
     private var model: PhoneTaskStore? = null
+
+    // ADR 89 / ADR 54: the removed devices, whose device-only labels count as shared.
+    private fun removedIds(): Set<String> = model?.removed().orEmpty()
     private val modelActive: Boolean get() = model?.isActive == true
 
     /** R7.2: the labels of the task list become the categories (while it is the source). */
     fun attach(store: PhoneTaskStore) {
         model = store
-        store.addListener { if (store.isActive) _categories.value = TaskFacadeLists.categories(store.lists.value) }
-        if (store.isActive) _categories.value = TaskFacadeLists.categories(store.lists.value)
+        store.addListener { if (store.isActive) _categories.value = shownCategories(store) }
+        if (store.isActive) _categories.value = shownCategories(store)
         // R7.2 review item 2: a closed task list has no labels to show, and the own list (stale since the migration) isn't used.
         if (store.isClosed) _categories.value = emptyList()
     }
+
+    // ADR 89: the old pane's category list shows the labels this phone shows, never another device's device-only ones (the sync file's list still carries them).
+    private fun shownCategories(store: PhoneTaskStore): List<SyncCategory> =
+        TaskFacadeLists.categories(TaskScopeView(store.lists.value, store.selfId().lowercase(), store.removed()).shown())
 
     /** The list for this phone's sync file; an empty list says it has none, which clears a receiver's copy. */
     fun forSync(): List<SyncCategory> = model?.fileParts()?.first?.categories ?: _categories.value
@@ -65,7 +73,7 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
         _categories.value.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }?.let { return it }
         val color = TaskCategoryPresets.PALETTE.firstOrNull { candidate -> taken.none { it.equals(candidate, ignoreCase = true) } }
             ?: TaskCategoryPresets.PALETTE[taken.size % TaskCategoryPresets.PALETTE.size]
-        if (inModel { lists, self, now -> TaskLabelEdits.add(lists, trimmed, color, now, self) }) {
+        if (inModel { lists, self, now -> TaskLabelEdits.add(lists, trimmed, color, now, self, removed = removedIds()) }) {
             return _categories.value.firstOrNull { it.name.equals(trimmed, ignoreCase = true) } ?: SyncCategory(trimmed, color)
         }
 
@@ -78,7 +86,7 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
     @Synchronized
     fun recolor(name: String, color: String) {
         if (inModel { lists, self, now ->
-                if (TaskLabelEdits.named(lists, name) == null) TaskLabelEdits.add(lists, name, color, now, self) else TaskLabelEdits.recolour(lists, name, color, now, self)
+                if (TaskLabelEdits.named(lists, name) == null) TaskLabelEdits.add(lists, name, color, now, self, removed = removedIds()) else TaskLabelEdits.recolour(lists, name, color, now, self, removedIds())
             }) return
         val stamped = SyncCategory(name, color, now())
         val list = _categories.value
@@ -88,7 +96,7 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
     @Synchronized
     fun rename(oldName: String, newName: String, color: String?) {
         if (inModel { lists, self, now ->
-                if (TaskLabelEdits.named(lists, oldName) == null) TaskLabelEdits.add(lists, newName, color, now, self) else TaskLabelEdits.rename(lists, oldName, newName, now, self)
+                if (TaskLabelEdits.named(lists, oldName) == null) TaskLabelEdits.add(lists, newName, color, now, self, removed = removedIds()) else TaskLabelEdits.rename(lists, oldName, newName, now, self, removedIds())
             }) return
         val list = _categories.value
         val renamed = list.firstOrNull { it.name.equals(oldName, ignoreCase = true) }?.copy(name = newName)
@@ -98,7 +106,7 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
 
     @Synchronized
     fun delete(name: String) {
-        if (inModel { lists, self, now -> TaskLabelEdits.delete(lists, name, now, self) }) return
+        if (inModel { lists, self, now -> TaskLabelEdits.delete(lists, name, now, self, removedIds()) }) return
         save(_categories.value.filterNot { it.name.equals(name, ignoreCase = true) })
     }
 

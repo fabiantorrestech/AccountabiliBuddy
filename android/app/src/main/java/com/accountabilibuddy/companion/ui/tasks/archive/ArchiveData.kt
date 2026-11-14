@@ -53,10 +53,18 @@ fun rememberArchiveData(app: CompanionApp, pc: TasksPc?, now: Instant, zone: Zon
             ),
         )
     }
-    val items = remember(rows, parked, settings.shareTaskLists, taskLists, zone) {
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val items = remember(rows, parked, settings.shareTaskLists, taskLists, scopeView, zone) {
         ArchiveList.items(
             rows, parked.map { ArchiveComeback(it.id, it.text, it.createdAt, it.doneAt) }, settings.shareTaskLists,
-            categoryName = { id, stored -> taskLists.labels.firstOrNull { it.deletedAt == null && it.id.equals(id, ignoreCase = true) }?.label?.name ?: stored },
+            // ADR 89: a label hidden on this phone shows no name (neither its own nor the one the task was stored with).
+            categoryName = { id, stored ->
+                val held = taskLists.labels.firstOrNull { it.deletedAt == null && it.id.equals(id, ignoreCase = true) }?.label
+                when {
+                    held != null -> held.name.takeIf { scopeView.labelShown(held) }
+                    else -> stored?.takeIf { scopeView.categoryShown(it) }
+                }
+            },
             whenText = { ArchiveList.whenText(it, zone) },
         )
     }

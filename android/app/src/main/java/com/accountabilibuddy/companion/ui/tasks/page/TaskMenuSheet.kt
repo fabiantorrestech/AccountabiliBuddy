@@ -42,6 +42,7 @@ import com.accountabilibuddy.companion.ui.tasks.SheetField
 import com.accountabilibuddy.companion.ui.tasks.TasksPc
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.TaskLabels
+import com.accountabilibuddy.shared.tasks.TaskScopeRules
 import com.accountabilibuddy.shared.tasks.TaskReminderRings
 import com.accountabilibuddy.shared.tasks.TaskBins
 import com.accountabilibuddy.shared.tasks.TaskItem
@@ -79,8 +80,9 @@ fun TaskMenuSheet(
     val colors = Ab.colors
     val context = LocalContext.current
     var page by remember { mutableStateOf(start) }
-    val labels = lists.labels.map { it.label }.filter { it.isLive }.sortedBy { it.position }
-    val label = labels.firstOrNull { it.id.equals(task.labelId, ignoreCase = true) }
+    val app = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
+    val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val label = scopeView.labels.firstOrNull { it.id.equals(task.labelId, ignoreCase = true) }
     val back: (() -> Unit)? = when {
         page == TaskMenuPage.Main -> null
         page == start -> onDismiss
@@ -170,7 +172,7 @@ fun TaskMenuSheet(
 
             TaskMenuPage.Label -> {
                 SheetMarkRow("No label", onClick = { controller.setLabel(task.id, null); closeOrMain() }, leading = { LabelDot(null, 12.dp) }) { AbSheetCheck(label == null) }
-                labels.forEach { item ->
+                LabelGroups(scopeView) { item ->
                     SheetMarkRow(item.name, onClick = { controller.setLabel(task.id, item.id); closeOrMain() }, leading = { LabelDot(item.color, 12.dp) }) {
                         AbSheetCheck(item.id.equals(task.labelId, ignoreCase = true))
                     }
@@ -179,14 +181,21 @@ fun TaskMenuSheet(
                 SheetFoot("A label is the coloured dot, and each task has one. Edit the list in Settings › Tasks › Labels.")
             }
 
-            TaskMenuPage.NewLabel -> NewLabelForm(labels.map { it.name }, onAdd = { name -> if (controller.createLabel(name, task.id)) closeOrMain() })
+            TaskMenuPage.NewLabel -> NewLabelForm(scopeView, canKeepHere = app.sync.isJoined, onAdd = { name, here, shared -> if (controller.createLabel(name, task.id, here, shared)) closeOrMain() })
 
             TaskMenuPage.Tags -> {
                 val tags = task.tags.orEmpty()
                 var typed by remember { mutableStateOf("") }
+                var onlyHere by remember { mutableStateOf(false) }
+                val known = scopeView.knownTags()
                 val add = {
                     val tag = typed.trim().trimStart('#')
-                    if (tag.isNotEmpty()) controller.setTags(task.id, tags + tag)
+                    if (tag.isNotEmpty()) {
+                        val isNew = !TaskLabels.has(known, tag)
+                        controller.setTags(task.id, tags + tag)
+                        // ADR 89: a NEW tag typed with "Only on this phone" on stays on this phone.
+                        if (isNew && onlyHere && app.sync.isJoined) controller.setTagScope(tag, onlyHere = true)
+                    }
                     typed = ""
                 }
                 Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -195,11 +204,15 @@ fun TaskMenuSheet(
                         tags.forEach { tag -> ShelfChip("#$tag  ×", selected = true, height = 36) { controller.setTags(task.id, tags.filterNot { TaskLabels.same(it, tag) }) } }
                     }
                     SheetField(value = typed, onValueChange = { typed = it }, placeholder = "Add a tag", onDone = add, singleLine = true)
-                    val others = TaskLabels.allOf(lists.tasks.filter { it.task.isLive }.map { it.task.tags }).filterNot { TaskLabels.has(tags, it) }
-                    if (others.isNotEmpty()) {
-                        Text("Your tags", style = Ab.type.small, color = colors.muted)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            others.forEach { tag -> ShelfChip("#$tag", selected = false, height = 36) { controller.setTags(task.id, tags + tag) } }
+                    if (app.sync.isJoined) {
+                        AbSheetRow(TaskScopeRules.ONLY_ON_THIS_PHONE, onClick = { onlyHere = !onlyHere }, role = Role.Switch, subtitle = "For a new tag: other devices won't show it", trailing = { AbSwitch(onlyHere) })
+                    }
+                    val others = known.filterNot { TaskLabels.has(tags, it) }
+                    // ADR 89: "Shared" first, then "This device".
+                    scopeView.tagGroups(others).forEach { group ->
+                        ScopeGroupHead(group)
+                        FlowRow(Modifier.padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            group.items.forEach { tag -> ShelfChip("#$tag", selected = false, height = 36) { controller.setTags(task.id, tags + tag) } }
                         }
                     }
                 }
@@ -207,20 +220,5 @@ fun TaskMenuSheet(
 
             TaskMenuPage.Sync -> TaskSyncPage(task, self, controller)
         }
-    }
-}
-
-/** The New label form: a name, then Add; the colour is the first one no label uses yet (changed in Settings › Tasks › Labels). */
-@Composable
-fun NewLabelForm(taken: List<String>, onAdd: (String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    val exists = taken.any { it.trim().equals(name.trim(), ignoreCase = true) }
-    Column(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SheetField(value = name, onValueChange = { name = it.take(40) }, placeholder = "Label name", onDone = { if (name.isNotBlank() && !exists) onAdd(name) }, singleLine = true)
-        Text(
-            if (exists) "You already have a label with that name." else "It gets the first colour none of your labels uses. Change it in Settings › Tasks › Labels.",
-            style = Ab.type.small, color = Ab.colors.muted,
-        )
-        AbPrimaryButton("Add", onClick = { onAdd(name) }, enabled = name.isNotBlank() && !exists, modifier = Modifier.fillMaxWidth())
     }
 }

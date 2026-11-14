@@ -564,6 +564,8 @@ class CompanionApp : Application() {
         // R7.2 (ADR 76): the one task list takes over from the old lists once (backup first, counts must balance, marker last);
         // the old lists' screens then show its views. Its parts go out beside the old fields, other devices' parts merge in.
         taskModel.selfId = { sync.deviceId.toString() }
+        // ADR 89 / ADR 54: a removed device's device-only labels and tags count as shared, so every writer is told who was removed.
+        taskModel.removedIds = { sync.removedDevices.value.map { it.deviceId.toString().lowercase() }.toSet() }
         // R7.2 review item 5 (Q599): final numbers here only when the group is known to have no PC (a file received, none a PC's).
         taskModel.numberingDevice = {
             com.accountabilibuddy.shared.tasks.TaskNumbering.groupNumberingDevice(
