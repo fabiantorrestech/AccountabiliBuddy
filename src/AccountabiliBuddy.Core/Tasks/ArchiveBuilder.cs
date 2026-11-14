@@ -41,7 +41,7 @@ public static class ArchiveBuilder
             {
                 if (input.Now - record.EditedAt < DeletedListed)
                 {
-                    settledDeleted.Add(new ArchiveDeletedRow(task.Id, task.Title, record.EditedAt, source, deviceName, null));
+                    settledDeleted.Add(new ArchiveDeletedRow(task.Id, task.Title, record.EditedAt, source, deviceName, null, RestoreStateOf(task)));
                 }
 
                 return;
@@ -127,12 +127,49 @@ public static class ArchiveBuilder
                 at, CanTick: false, CanDelete: false, CanEdit: false));
         }
 
+        // A past task deleted on any device whose copy no history here holds any more (its owner's next file no longer carries it): this
+        // device's own snapshot, if it has one, keeps it listed (AR1b). Same ids, same lines on every device that holds the same data.
+        foreach (SessionTask snapshot in input.Snapshots ?? [])
+        {
+            if (snapshot.Title.Length > 0 && !seen.Contains(snapshot.Id) && settled.TryGetValue(snapshot.Id, out SyncPastSettled? gone)
+                && gone.State == SyncPastSettled.Deleted && input.Now - gone.EditedAt < DeletedListed && seen.Add(snapshot.Id))
+            {
+                settledDeleted.Add(new ArchiveDeletedRow(snapshot.Id, snapshot.Title, gone.EditedAt, ArchiveSource.Own, null, null, RestoreStateOf(snapshot)));
+            }
+        }
+
         List<ArchiveDeletedRow> deleted = DeletedFromList(input.Lists, input.Now);
         HashSet<Guid> listed = deleted.Select(row => row.Id).ToHashSet();
         deleted.AddRange(settledDeleted.Where(row => listed.Add(row.Id)));
         return new ArchiveRows(
             rows.OrderByDescending(row => row.Sort).ThenBy(row => row.Id.ToString("D"), StringComparer.Ordinal).ToList(),
-            deleted.OrderByDescending(row => row.DeletedAt).ThenBy(row => row.Id.ToString("D"), StringComparer.Ordinal).ToList());
+            deleted.OrderByDescending(row => row.DeletedAt).ThenBy(row => row.Id.ToString("D"), StringComparer.Ordinal).ToList())
+        {
+            Notes = Notes(input),
+        };
+    }
+
+    /// <summary>The state Restore stamps for a deleted past task: <c>Done</c> when it was done, else <c>Open</c>.</summary>
+    public static string RestoreStateOf(SessionTask task)
+    {
+        return task.DoneAt is null ? SyncPastSettled.Open : SyncPastSettled.Done;
+    }
+
+    // The session notes of every device (ADR 87), newest first: each one from another device says "from <device>" (a removed device's notes
+    // stay, with its last known name, or "another device" when none is known); this device's own are unmarked.
+    private static List<ArchiveNoteRow> Notes(ArchiveInput input)
+    {
+        return (input.Notes ?? [])
+            .Where(note => note.DeletedAt is null && !string.IsNullOrWhiteSpace(note.Text))
+            .Select(note =>
+            {
+                bool other = note.By != Guid.Empty && note.By != input.Self;
+                string? name = other && input.DeviceNames is not null && input.DeviceNames.TryGetValue(note.By, out string? known) && !string.IsNullOrWhiteSpace(known) ? known : null;
+                return new ArchiveNoteRow(note.Id, note.Text!, note.At, note.By, name, other);
+            })
+            .OrderByDescending(note => note.At)
+            .ThenBy(note => note.Id.ToString("D"), StringComparer.Ordinal)
+            .ToList();
     }
 
     // A session's start; a "done outside a session" record has none, so its latest tick stands in (as the Archive always ordered it).

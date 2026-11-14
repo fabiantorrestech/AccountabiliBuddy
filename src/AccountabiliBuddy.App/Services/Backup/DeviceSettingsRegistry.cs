@@ -28,7 +28,7 @@ public static class DeviceSettingsRegistry
     public static IReadOnlyList<string> TaskKeys { get; } =
         ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted",
          "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast", "tasks.items", "tasks.labels", "tasks.views", "tasks.log",
-         "tasks.account"];
+         "tasks.account", "capture.notes"];
 
     /// <summary>
     /// Round 2 R4: the goal lists (sealed at rest with this PC's key); they go in backups with the task lists, readable inside the
@@ -42,7 +42,7 @@ public static class DeviceSettingsRegistry
     public static IReadOnlyList<string> StateKeys { get; } =
     [
         "app.version", "armedEnds", "beeminder", "calendar.cache", "calendar.classifications.pending", "calendar.firstKnown",
-        "capture.notes", "clock.anchor", "coldturkey.expected", "coldturkey.keys", "config.pending", "dayplan.editedAt",
+        "clock.anchor", "coldturkey.expected", "coldturkey.keys", "config.pending", "dayplan.editedAt",
         "dev.syncReceipts", "googleSetup", "guidance.asked", "guidance.reasons", "history.appPaths", "history.deleted", "history.gaps",
         "history.notReal", "integrations.coldTurkey.sightings", "learn.firstSession", "lunch", "pickups.pc", "prework",
         "quit.guard.pending", "review.ignored", "review.promoted", "session", "session.overLimit", "session.pcOff.pending",

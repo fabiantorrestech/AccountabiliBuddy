@@ -26,11 +26,13 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
     /// <param name="addStep">Adds a step to a task (null: no steps).</param>
     /// <param name="menu">The ⋯ menu's entries, given the line (null: the ✎ ✕ buttons).</param>
     /// <param name="editHint">Why the line can't be renamed here (another PC's task), shown as its tooltip.</param>
+    /// <param name="editWarning">Shown while the line is edited, e.g. "Saving changes it on all your devices" (a note that travels, ADR 87); null for none.</param>
+    /// <param name="deleteWarning">When set, the ✕ first asks: this line under the row with Delete and Keep ("Deletes it on all your devices"); null deletes at once.</param>
     public NotebookItemViewModel(
         string kind, string text, string whenText, DateTimeOffset sort, Func<Task>? toggle = null,
         Func<string, Task>? rename = null, Func<Task>? delete = null, bool isSubtask = false, bool isTicked = false,
         Func<string, Task>? addStep = null, Func<NotebookItemViewModel, IReadOnlyList<TaskMenuEntry>>? menu = null,
-        string? categoryColor = null, string? editHint = null)
+        string? categoryColor = null, string? editHint = null, string? editWarning = null, string? deleteWarning = null)
     {
         Kind = kind;
         Text = text;
@@ -48,7 +50,27 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
         CategoryBrush = TaskCategoryBrushes.Of(categoryColor);
         HasCategory = categoryColor is not null;
         EditHint = editHint;
+        EditWarning = editWarning;
+        DeleteWarning = deleteWarning;
     }
+
+    /// <summary>The line under the edit box of a note that travels: saving changes it on every device.</summary>
+    public string? EditWarning { get; }
+
+    /// <summary>Shown to confirm a delete that reaches every device ("Deletes it on all your devices"); null when a delete needs no question.</summary>
+    public string? DeleteWarning { get; }
+
+    public bool HasEditWarning => EditWarning is not null;
+
+    /// <summary>The edit box is open on a note that travels.</summary>
+    public bool ShowsEditWarning => IsEditing && HasEditWarning;
+
+    /// <summary>The delete question is open: the row shows <see cref="DeleteWarning"/> with Delete and Keep.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsNotConfirmingDelete))]
+    public partial bool IsConfirmingDelete { get; set; }
+
+    public bool IsNotConfirmingDelete => !IsConfirmingDelete;
 
     /// <summary>Why it can't be renamed here ("Edit it on Work PC"): a tooltip on the line; null when it can.</summary>
     public string? EditHint { get; }
@@ -90,6 +112,7 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotEditing))]
+    [NotifyPropertyChangedFor(nameof(ShowsEditWarning))]
     public partial bool IsEditing { get; set; }
 
     public bool IsNotEditing => !IsEditing;
@@ -166,9 +189,23 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
     [RelayCommand]
     private async Task DeleteAsync()
     {
+        if (DeleteWarning is not null && !IsConfirmingDelete)
+        {
+            // Deleting a note that travels takes it from every device: ask once, in the row.
+            IsConfirmingDelete = true;
+            return;
+        }
+
+        IsConfirmingDelete = false;
         if (_delete is not null)
         {
             await _delete();
         }
+    }
+
+    [RelayCommand]
+    private void KeepIt()
+    {
+        IsConfirmingDelete = false;
     }
 }

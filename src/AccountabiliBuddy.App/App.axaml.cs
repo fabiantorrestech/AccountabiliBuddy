@@ -1081,7 +1081,7 @@ public partial class App : Application
         {
             // ADR 71: synced settings and task lists back up and restore through their own services.
             Synced = AccountabiliBuddy.App.Services.Backup.BackupAccess.Synced(sleepSettings, dayBarSettings, goal, guidance, minutes => SetDailyGoalAsync(goal, minutes)),
-            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore, taskAccount),
+            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore, taskAccount, _sessionNotes),
             ShareTaskLists = () => syncSettings.Current.ShareTaskLists,
         };
         // ADR 71: auto-backup of the synced settings, this PC's settings and (unshared) task lists, local and sealed on Drive.
@@ -1776,7 +1776,12 @@ public partial class App : Application
         };
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
         sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
-        var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time, receivedHistory, keptPast, pastSettled, taskStore, () => _taskActions);
+        // AR1b: the Archive's notes say which device wrote them (its last known name: a removed device whose data was kept still has one).
+        var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time, receivedHistory, keptPast, pastSettled, taskStore, () => _taskActions,
+            deviceNames: () => receivedDevices.Devices.Select(device => (Id: device.File.Device.DeviceId, device.File.Device.Name))
+                .Concat(receivedHistory.Devices.Select(device => (Id: device.DeviceId, device.Name)))
+                .GroupBy(device => device.Id).ToDictionary(group => group.Key, group => group.First().Name),
+            notesTravel: () => syncSettings.Current.ShareTaskLists);
         // The Plan page (design 5o): the editors (day plan, month view) are sheets over it; the helper remembers what "Leave it" dismissed.
         var calendarFeeds = new CalendarFeedsViewModel(calendars, _calendarSync, _sessions, _configuration, effectivePlan, OpenInBrowser);
         DayPlanViewModel dayPlanViewModel = WithSleepGoal(new DayPlanViewModel(_configuration, _sessions) { Today = () => DateOnly.FromDateTime(time.GetLocalNow().DateTime) }, sleepSettings);

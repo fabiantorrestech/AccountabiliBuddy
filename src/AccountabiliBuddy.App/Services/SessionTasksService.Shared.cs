@@ -49,6 +49,13 @@ public sealed partial class SessionTasksService
             SessionTask? task = _history.Where(checklist => !checklist.OutsideSession).SelectMany(checklist => checklist.Tasks).FirstOrDefault(candidate => candidate.Id == record.Id);
             if (task is null)
             {
+                // AR1b: another device brought back a past task this PC's history lost to an earlier delete: it goes back from this PC's own
+                // Recently deleted copy (never from the record, which carries no text).
+                if (record.State is SyncPastSettled.Open or SyncPastSettled.Done)
+                {
+                    await ReviveDeletedPastTaskAsync(record);
+                }
+
                 continue;
             }
 
@@ -68,6 +75,48 @@ public sealed partial class SessionTasksService
                     break;
             }
         }
+    }
+
+    // The past task of this PC's own history that was deleted here (or by another device's record) and is now settled Open or Done by a newer
+    // record: put back in its session, as that record says. The record already settles it on every device, so nothing is written back.
+    private async Task ReviveDeletedPastTaskAsync(SyncPastSettled record)
+    {
+        DeletedItem? entry = Deleted?.Items.FirstOrDefault(item => item.Kind == DeletedKind.HistoryTask && item.ItemId == record.Id && item.Task is not null);
+        if (entry?.Task is null || Deleted is null)
+        {
+            return;
+        }
+
+        int at = HistoryChecklistIndex(entry);
+        if (at < 0 || _history[at].OutsideSession)
+        {
+            return;
+        }
+
+        SessionTask back = record.State == SyncPastSettled.Done
+            ? entry.Task.DoneAt is null ? entry.Task with { DoneAt = record.EditedAt } : entry.Task
+            : entry.Task with { DoneAt = null };
+        _history = _history.Select((checklist, index) => index == at ? checklist.Insert(back, entry.Index) : checklist).ToList();
+        await SaveHistoryAsync();
+        await Deleted.RemoveAsync(entry.EntryId);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// "Restore" of a past task deleted on any device that this PC doesn't hold itself (AR1b): a newer settle record (Done, or Open) over the
+    /// delete, so the PC whose history held it puts it back and every device lists it again. Never a raw restore.
+    /// </summary>
+    /// <returns>False when there are no settle records here.</returns>
+    public async Task<bool> RestorePastByStampAsync(Guid id, string state)
+    {
+        if (PastSettled is null || state is not (SyncPastSettled.Done or SyncPastSettled.Open))
+        {
+            return false;
+        }
+
+        await PastSettled.SetAsync(id, state);
+        Changed?.Invoke(this, EventArgs.Empty);
+        return true;
     }
 
     /// <summary>

@@ -56,6 +56,12 @@ public sealed class SessionNotesStore
         .Select(note => new SessionNote(note.Id, note.Text!, note.At, note.By))
         .ToList();
 
+    /// <summary>
+    /// Every note as stored, tombstones included (the Archive builds its Notes from these, <c>ArchiveBuilder</c>): this device's and the other
+    /// devices', each with the device that wrote it.
+    /// </summary>
+    public IReadOnlyList<SyncSessionNote> Records => _all;
+
     public event EventHandler? Changed;
 
     /// <summary>

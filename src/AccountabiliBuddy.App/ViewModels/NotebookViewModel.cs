@@ -31,12 +31,17 @@ public sealed partial class NotebookViewModel : ObservableObject
     private readonly PastSettledStore? _settled;
     private readonly TaskStore? _taskStore;
     private readonly Func<TaskActionsService?>? _actions;
+    private readonly Func<IReadOnlyDictionary<Guid, string>>? _deviceNames;
+    private readonly Func<bool>? _notesTravel;
 
     public NotebookViewModel(
         ComebackStore comebacks, SessionNotesStore notes, SessionTasksService tasks, TimeProvider time,
         ReceivedTaskHistoryStore? received = null, KeptPastStore? kept = null, PastSettledStore? settled = null,
-        TaskStore? taskStore = null, Func<TaskActionsService?>? actions = null)
+        TaskStore? taskStore = null, Func<TaskActionsService?>? actions = null,
+        Func<IReadOnlyDictionary<Guid, string>>? deviceNames = null, Func<bool>? notesTravel = null)
     {
+        _deviceNames = deviceNames;
+        _notesTravel = notesTravel;
         _comebacks = comebacks;
         _notes = notes;
         _tasks = tasks;
@@ -167,9 +172,9 @@ public sealed partial class NotebookViewModel : ObservableObject
     {
         using IDisposable timing = Services.TickDiag.Measure("archive rebuild");
         ArchiveRows archive = ArchiveBuilder.Build(ArchiveInputNow());
-        List<NotebookItemViewModel> all = [.. Comebacks(), .. Notes(), .. Tasks(archive)];
+        List<NotebookItemViewModel> all = [.. Comebacks(), .. Notes(archive), .. Tasks(archive)];
         int open = _comebacks.All.Count(comeback => comeback.DoneAt is null);
-        SummaryText = $"{open} open come-backs · {_notes.All.Count} notes · {all.Count(item => item.Kind == UnfinishedKind)} unfinished · {all.Count(item => item.Kind == DoneKind)} done";
+        SummaryText = $"{open} open come-backs · {archive.Notes.Count} notes · {all.Count(item => item.Kind == UnfinishedKind)} unfinished · {all.Count(item => item.Kind == DoneKind)} done";
 
         string search = Search.Trim();
         IEnumerable<NotebookItemViewModel> shown = all
@@ -203,7 +208,11 @@ public sealed partial class NotebookViewModel : ObservableObject
             _settled?.ForSync() ?? [],
             _taskStore is { IsActive: true } ? _taskStore.Lists : TaskLists.Empty,
             _time.GetUtcNow(),
-            _tasks.IsLive ? _tasks.Current.Tasks.Select(task => task.Id).ToHashSet() : null);
+            _tasks.IsLive ? _tasks.Current.Tasks.Select(task => task.Id).ToHashSet() : null,
+            _notes.Records,
+            _notes.Self() ?? Guid.Empty,
+            _deviceNames?.Invoke(),
+            (_tasks.Deleted?.Items ?? []).Where(item => item.Kind is DeletedKind.HistoryTask or DeletedKind.ForeignPastTask).Select(item => item.Task!).ToList());
     }
 
     // The device's own Recently deleted (Undo: steps, Later items, come-backs, tasks) plus what every device can see: tasks deleted from
@@ -213,17 +222,21 @@ public sealed partial class NotebookViewModel : ObservableObject
         RecentlyDeleted.Clear();
         IReadOnlyList<DeletedItem> stored = _tasks.Deleted?.Items ?? [];
         var lines = new List<(DateTimeOffset At, RecentlyDeletedRowViewModel Row)>();
-        foreach (DeletedItem item in stored.Where(item => search.Length == 0 || item.Title.Contains(search, StringComparison.OrdinalIgnoreCase)))
-        {
-            lines.Add((item.DeletedAt, new RecentlyDeletedRowViewModel(item, $"Deleted {When(item.DeletedAt)}", _tasks)));
-        }
+        bool Matches(string title) => search.Length == 0 || title.Contains(search, StringComparison.OrdinalIgnoreCase);
 
-        HashSet<Guid> held = stored.Select(item => item.ItemId).ToHashSet();
-        foreach (ArchiveDeletedRow row in archive.Deleted.Where(row => !held.Contains(row.Id) && (search.Length == 0 || row.Title.Contains(search, StringComparison.OrdinalIgnoreCase))))
+        // The lines every device builds from synced data (AR1b): the same list on each PC. Restore brings a task back through its History
+        // entry, or (a past task) through a settle record stamped over the delete; never a raw restore.
+        foreach (ArchiveDeletedRow row in archive.Deleted.Where(row => Matches(row.Title)))
         {
             string on = row.DeviceName is null ? string.Empty : $" · on {row.DeviceName}";
-            Func<Task<bool>>? restore = row.EntryId is Guid entry && _actions?.Invoke() is { } actions ? () => actions.BringBackAsync(entry) : null;
-            lines.Add((row.DeletedAt, new RecentlyDeletedRowViewModel(row, $"Deleted {When(row.DeletedAt)}{on}", restore)));
+            lines.Add((row.DeletedAt, new RecentlyDeletedRowViewModel(row, $"Deleted {When(row.DeletedAt)}{on}", RestoreOf(row, stored))));
+        }
+
+        // What only this PC knows (steps, Later items, auto-saved items, a task deleted outside a session) stays listed here, marked as this PC's.
+        HashSet<Guid> synced = archive.Deleted.Select(row => row.Id).ToHashSet();
+        foreach (DeletedItem item in stored.Where(item => !synced.Contains(item.ItemId) && !RestoredElsewhere(item) && Matches(item.Title)))
+        {
+            lines.Add((item.DeletedAt, new RecentlyDeletedRowViewModel(item, $"Deleted {When(item.DeletedAt)} · this PC only", _tasks)));
         }
 
         foreach ((DateTimeOffset _, RecentlyDeletedRowViewModel row) in lines.OrderByDescending(line => line.At))
@@ -234,6 +247,30 @@ public sealed partial class NotebookViewModel : ObservableObject
         RecentlyDeletedHeader = $"Recently deleted · {RecentlyDeleted.Count}";
         OnPropertyChanged(nameof(HasRecentlyDeleted));
         OnPropertyChanged(nameof(ShowsRecentlyDeleted));
+    }
+
+    // This PC's copy of a past task that another device has since brought back (a newer Done or Open record over the delete) is not a deleted item any more.
+    private bool RestoredElsewhere(DeletedItem item)
+    {
+        return item.Kind is DeletedKind.HistoryTask or DeletedKind.ForeignPastTask
+            && _settled?.Of(item.ItemId) is { } record && record.State != SyncPastSettled.Deleted && record.EditedAt >= item.DeletedAt;
+    }
+
+    // How Restore works for a synced line: its History entry (the task list), this PC's own copy of a past task, or a settle record stamped over the delete.
+    private Func<Task<bool>>? RestoreOf(ArchiveDeletedRow row, IReadOnlyList<DeletedItem> stored)
+    {
+        if (row.EntryId is Guid entry)
+        {
+            return _actions?.Invoke() is { } actions ? () => actions.BringBackAsync(entry) : null;
+        }
+
+        DeletedItem? mine = stored.FirstOrDefault(item => item.ItemId == row.Id && item.Kind is DeletedKind.HistoryTask or DeletedKind.ForeignPastTask);
+        if (mine is not null)
+        {
+            return async () => (await _tasks.RestoreAsync(mine.EntryId)).Restored;
+        }
+
+        return row.CanRestoreByStamp ? () => _tasks.RestorePastByStampAsync(row.Id, row.RestoreAs!) : null;
     }
 
     private const string ComebackKind = "Come-back";
@@ -257,15 +294,20 @@ public sealed partial class NotebookViewModel : ObservableObject
             menu: item => Host?.MenuFor(new TaskRowKey(TaskRowKind.ComeBack, comeback.Id), rename: item.BeginRename) ?? []));
     }
 
-    private IEnumerable<NotebookItemViewModel> Notes()
+    // Every device's notes (AR1b, ADR 87): one from another device says "from <device>" (or "from another device" when it was removed and
+    // not remembered); this PC's own are unmarked. Editing or deleting any of them is a stamped change that reaches every device.
+    private IEnumerable<NotebookItemViewModel> Notes(ArchiveRows archive)
     {
-        return _notes.All.Select(note => new NotebookItemViewModel(
+        bool travels = _notesTravel?.Invoke() ?? true;
+        return archive.Notes.Select(note => new NotebookItemViewModel(
             NoteKind,
             note.Text,
-            $"Noted {When(note.At)}",
+            note.FromText is null ? $"Noted {When(note.At)}" : $"Noted {When(note.At)} · {note.FromText}",
             note.At,
             rename: text => _notes.EditAsync(note.Id, text),
-            delete: () => _notes.DeleteAsync(note.Id)));
+            delete: () => _notes.DeleteAsync(note.Id),
+            editWarning: travels ? "Saving changes it on all your devices" : null,
+            deleteWarning: travels ? "Deletes it on all your devices" : null));
     }
 
     // The Archive's tasks (ArchiveBuilder): what was done, and what was left open when its session ended, on this PC and the others.

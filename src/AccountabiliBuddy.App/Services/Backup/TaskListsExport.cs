@@ -8,7 +8,9 @@ namespace AccountabiliBuddy.App.Services.Backup;
 /// holds the one task list itself (<paramref name="Tasks"/>, <paramref name="Labels"/>, <paramref name="Views"/>,
 /// <paramref name="TaskLog"/>): a restore takes those in, and the old lists only when a backup has none (an older one). Since the
 /// account's Tasks settings are shared it holds them too (<paramref name="AccountSettings"/>), taken in through
-/// <see cref="Tasks.TaskAccountSettingsService"/>.
+/// <see cref="Tasks.TaskAccountSettingsService"/>. Since ADR 87 the session notes shared between the user's own devices are in it too
+/// (<paramref name="SessionNotes"/>, with their deletion marks): a restore merges them like another device's, so a note deleted
+/// elsewhere since stays deleted. They are the user's private text, so only a backup the user holds carries them, never a log.
 /// </summary>
 public sealed record TaskListsExport(
     IReadOnlyList<SyncNextTask>? NextTasks,
@@ -19,4 +21,5 @@ public sealed record TaskListsExport(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskLabel>? Labels = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskView>? Views = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskLogItem>? TaskLog = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncTaskAccountSettings? AccountSettings = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncTaskAccountSettings? AccountSettings = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncSessionNote>? SessionNotes = null);

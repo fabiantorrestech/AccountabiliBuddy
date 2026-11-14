@@ -93,6 +93,18 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
+                            <!-- A note that travels (ADR 87): saving or deleting it changes it on every device. -->
+                            <TextBlock Classes="muted" Text="{Binding EditWarning}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding ShowsEditWarning}" Margin="38,0,0,0" />
+                            <WrapPanel IsVisible="{Binding IsConfirmingDelete}" Margin="38,0,0,0">
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,10,0" VerticalAlignment="Center">
+                                    <mi:MaterialIcon Kind="AlertCircleOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
+                                    <TextBlock Text="{Binding DeleteWarning}" FontSize="13" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Classes="quiet" Command="{Binding DeleteCommand}" Padding="12,4" FontWeight="SemiBold" Content="Delete" AutomationProperties.Name="Delete it on all my devices" />
+                                    <Button Classes="quiet" Command="{Binding KeepItCommand}" Padding="12,4" Content="Keep it" AutomationProperties.Name="Keep it" />
+                                </StackPanel>
+                            </WrapPanel>
                             <!-- Add subtask: a box under the line. -->
                             <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsAddingStep}" Margin="34,0,0,0">
                                 <mi:MaterialIcon Kind="Plus" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
