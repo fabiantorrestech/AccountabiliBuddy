@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.watch
 
+import com.accountabilibuddy.companion.guidance.TrustedTime
 import com.accountabilibuddy.companion.lunch.LunchStore
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.shared.LunchRemote
@@ -11,11 +12,12 @@ import com.accountabilibuddy.shared.LunchRemote
  */
 object LunchFromWatch {
     fun apply(lunch: LunchStore, plan: DayPlan, action: String) {
+        val now = TrustedTime.now()
         when (action) {
-            LunchRemote.START -> if (lunch.canStart(plan)) lunch.start()
-            LunchRemote.BACK -> lunch.endNow()
-            LunchRemote.PLUS -> lunch.adjust(longer = true)
-            LunchRemote.MINUS -> lunch.adjust(longer = false)
+            LunchRemote.START -> if (lunch.canStart(plan, now)) lunch.start(now)
+            LunchRemote.BACK -> lunch.endNow(now)
+            LunchRemote.PLUS -> lunch.adjust(longer = true, now = now)
+            LunchRemote.MINUS -> lunch.adjust(longer = false, now = now)
         }
     }
 }

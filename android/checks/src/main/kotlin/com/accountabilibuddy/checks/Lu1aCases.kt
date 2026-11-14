@@ -17,6 +17,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -36,13 +37,16 @@ object Lu1aCases {
 
     private fun intOrNull(node: JsonElement?): Int? = if (node == null || node is JsonNull) null else node.jsonPrimitive.int
 
+    /** A fixture's tick count (100 ns, as C# counts); 0 when absent. */
+    private fun ticks(node: JsonElement?): Long = if (node == null || node is JsonNull) 0L else node.jsonPrimitive.long
+
     /** A lunch from its fixture form (minutes); a `counted` that is null stays null (unknown). */
     private fun lunch(node: JsonElement?): SyncLunch? {
         if (node == null || node is JsonNull) return null
         val o = node.jsonObject
         val counted = o["counted"]?.takeIf { it !is JsonNull }?.jsonArray?.map { LunchPiece(at(it.jsonArray[0].jsonPrimitive.int), at(it.jsonArray[1].jsonPrimitive.int)) }
         return SyncLunch(
-            at(o.getValue("start").jsonPrimitive.int), at(o.getValue("end").jsonPrimitive.int), intOrNull(o["edited"])?.let { at(it) },
+            at(o.getValue("start").jsonPrimitive.int), at(o.getValue("end").jsonPrimitive.int).plusNanos(ticks(o["endTicks"]) * 100), intOrNull(o["edited"])?.let { at(it) },
             intOrNull(o["allowance"]), counted, o.getValue("discarded").jsonPrimitive.boolean,
         )
     }
@@ -50,7 +54,7 @@ object Lu1aCases {
     /** What the Kotlin result looks like in the fixture's form, to compare with what the C# side wrote. */
     private fun show(lunch: SyncLunch?): String =
         if (lunch == null) "none"
-        else "[${minutes(lunch.start)}-${minutes(lunch.end)} e=${lunch.editedAt?.let { minutes(it) }} a=${lunch.allowance} c=${lunch.counted?.map { minutes(it.start) to minutes(it.end) }} d=${lunch.discarded}]"
+        else "[${minutes(lunch.start)}-${minutes(lunch.end)}+${lunch.end.epochSecond % 60}s${lunch.end.nano}n e=${lunch.editedAt?.let { minutes(it) }} a=${lunch.allowance} c=${lunch.counted?.map { minutes(it.start) to minutes(it.end) }} d=${lunch.discarded}]"
 
     private fun same(got: SyncLunch?, expected: SyncLunch?): String? = if (got == expected) null else "expected ${show(expected)}, got ${show(got)}"
 
@@ -60,13 +64,14 @@ object Lu1aCases {
         val number = case.input.getValue("number").jsonPrimitive.int
         val allowed = case.input.getValue("allowed").jsonPrimitive.boolean
         val fallback = case.input.getValue("fallback").jsonPrimitive.int
+        val numberNanos = ticks(case.input["numberTicks"]) * 100
         val expected = case.expected.jsonObject
         return when (val verb = case.input.getValue("verb").jsonPrimitive.content) {
-            "begin" -> same(LunchDay.begin(now, Duration.ofMinutes(number.toLong())), lunch(expected["lunch"]))
+            "begin" -> same(LunchDay.begin(now, Duration.ofMinutes(number.toLong()).plusNanos(numberNanos)), lunch(expected["lunch"]))
             "count" -> same(LunchDay.count(lunch!!, now), lunch(expected["lunch"]))
             "startAgain" -> same(LunchDay.startAgain(lunch!!, now, fallback), lunch(expected["lunch"]))
             "discard" -> same(LunchDay.discard(lunch!!, now, allowed), lunch(expected["lunch"]))
-            "adjust" -> same(LunchDay.adjust(lunch!!, now, Duration.ofMinutes(number.toLong()), fallback), lunch(expected["lunch"]))
+            "adjust" -> same(LunchDay.adjust(lunch!!, now, Duration.ofMinutes(number.toLong()).plusNanos(numberNanos), fallback), lunch(expected["lunch"]))
             "held" -> same(LunchDay.held(lunch!!), lunch(expected["lunch"]))
             "remaining" -> {
                 val got = LunchDay.remaining(lunch!!, now, fallback).toMinutes().toInt()

@@ -65,7 +65,7 @@ object Refresher {
                 val builder = DayBarBuilder(clock)
                 val focus = HeaderSource.focus(app, now)
                 val header = HeaderSource.header(app, now, clock, HeaderSource.phoneMinutes(context, state, now, builder), focus)
-                val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }), plan = app.effectivePlan(state))
+                val model = builder.build(now, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now())?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }), plan = app.effectivePlan(state))
                 // ADR 66: a wait running in the background takes the header's countdown (with Cancel on the card); the redraw comes at its end.
                 val wait = RunningWaits.current(app).firstOrNull()
                 val shown = if (wait != null) model.copy(countdownTo = wait.readyAt, countdownFormat = "${wait.label} in %s") else model
@@ -106,7 +106,7 @@ object Refresher {
             com.accountabilibuddy.companion.lunch.LunchReceiver.tellOver(context)
             app.store.state.value.document.dayPlan.flexibleBreakOn(now.toLocalDate())?.let { flex ->
                 val hint = flex.hintAt
-                if (!quiet && hint != null && app.lunch.today() == null && !now.isBefore(hint) && now.isBefore(flex.window.end) && !app.lunch.hintedOn(now.toLocalDate())) {
+                if (!quiet && hint != null && app.lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now()) == null && !now.isBefore(hint) && now.isBefore(flex.window.end) && !app.lunch.hintedOn(now.toLocalDate())) {
                     app.lunch.markHinted(now.toLocalDate())
                     com.accountabilibuddy.companion.lunch.LunchReceiver.hint(context, clock.time(flex.window.end))
                 }
@@ -162,7 +162,7 @@ object Refresher {
         val untilWorkUse = (context.applicationContext as CompanionApp).workUse.activeUntil()
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         // Lunch's end: the session's lock is asked for again then.
-        val untilLunchEnd = (context.applicationContext as CompanionApp).lunch.today()?.end
+        val untilLunchEnd = (context.applicationContext as CompanionApp).lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now())?.end
             ?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         // A pause's end and emergency time's end: a work card closed for now (still owed) comes back then.
         val pauseState = (context.applicationContext as CompanionApp).pause.state.value

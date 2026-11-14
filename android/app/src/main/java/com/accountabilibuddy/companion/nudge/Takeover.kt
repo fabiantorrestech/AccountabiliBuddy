@@ -48,7 +48,7 @@ object Takeover {
 
     /** The devices' combined focus as the card reads it; null while nothing may nudge (paused, ProductaBuddy, a day off, lunch, emergency time). */
     fun nudgeFocus(app: CompanionApp, now: LocalDateTime = LocalDateTime.now()): WatchSnapshot? {
-        if (app.pause.isQuiet || app.guidance.isCompanion || isDayOff(app) || app.lunch.isOnLunch() || app.emergency.isActive()) return null
+        if (app.pause.isQuiet || app.guidance.isCompanion || isDayOff(app) || app.lunch.isOnLunch(com.accountabilibuddy.companion.guidance.TrustedTime.now()) || app.emergency.isActive()) return null
         return HeaderSource.focus(app, now)
     }
 

@@ -79,7 +79,7 @@ public sealed class TaskSettingsService
     {
         try
         {
-            string key = _modes?.ReadKeyBlocking(DocumentKey, TaskSettings.Default) ?? DocumentKey;
+            string key = _modes?.ReadKeyBlocking(DocumentKey, TaskSettings.Default, CompanionStart) ?? DocumentKey;
             TaskSettings? loaded = Task.Run(() => _store.LoadAsync<TaskSettings>(key)).GetAwaiter().GetResult();
             Current = loaded is null ? TaskSettings.Default : Clamped(loaded);
         }
@@ -558,8 +558,15 @@ public sealed class TaskSettingsService
         // The other mode's copy; ProductaBuddy's not made yet starts as AccountabiliBuddy's (ModeSettings.ReadKeyBlocking does the same).
         TaskSettings? own = await _store.LoadAsync<TaskSettings>(ModeSettings.KeyFor(DocumentKey, mode));
         TaskSettings? start = own ?? (mode == GuidanceMode.Companion ? await _store.LoadAsync<TaskSettings>(DocumentKey) : null);
-        return start is null ? TaskSettings.Default : Clamped(start);
+        return start is null ? TaskSettings.Default : Clamped(own is null && mode == GuidanceMode.Companion ? CompanionStart(start) : start);
     }
+
+    /// <summary>
+    /// ProductaBuddy's copy made from AccountabiliBuddy's: everything as it is, except "Allow discarding a lunch", which starts on (ADR 88: on by default
+    /// in each mode) whatever AccountabiliBuddy's value is, with no change waiting.
+    /// </summary>
+    private static TaskSettings CompanionStart(TaskSettings guarding) =>
+        guarding with { AllowLunchDiscard = true, PendingAllowLunchDiscard = null, PendingAllowLunchDiscardFrom = null };
 
     private async Task SaveForAsync(GuidanceMode mode, TaskSettings settings)
     {

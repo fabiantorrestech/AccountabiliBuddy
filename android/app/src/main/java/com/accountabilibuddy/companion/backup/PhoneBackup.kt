@@ -155,7 +155,13 @@ object PhoneBackup {
                 val turnsPenaltyOff = name == "phoneDown" && (value as? JsonObject)?.get("bool")?.jsonPrimitive?.booleanOrNull == false
                 // Whether first setup was finished belongs to this phone, not to the file.
                 val isSetupState = name == "ui" && key == "setupShown"
-                if (backedUp(name, key) && !turnsPenaltyOff && !isSetupState) decode(editor, key, value)
+                // The lunch discard setting only ever comes back off, and a waiting change in the file is dropped (ADR 88): no way round the wait.
+                val flag = (value as? JsonObject)?.get("bool")?.jsonPrimitive?.booleanOrNull
+                val lunchKeyLeftOut = name == "lunchSettings" && !com.accountabilibuddy.shared.sync.LunchDiscardSetting.restoreTakesKey(key, flag)
+                if (backedUp(name, key) && !turnsPenaltyOff && !isSetupState && !lunchKeyLeftOut) {
+                    decode(editor, key, value)
+                    if (name == "lunchSettings") com.accountabilibuddy.shared.sync.LunchDiscardSetting.restoreClears(key, flag).forEach { editor.remove(it) }
+                }
             }
             editor.commit()
         }

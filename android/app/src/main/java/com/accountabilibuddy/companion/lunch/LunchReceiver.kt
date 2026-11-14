@@ -24,7 +24,7 @@ class LunchReceiver : BroadcastReceiver() {
 
         fun tellOver(context: Context) {
             val lunch = (context.applicationContext as? CompanionApp)?.lunch ?: return
-            if (!lunch.overDue() || !TimelineNotifier.canPost(context)) return
+            if (!lunch.overDue(com.accountabilibuddy.companion.guidance.TrustedTime.now()) || !TimelineNotifier.canPost(context)) return
             lunch.markOverTold()
             post(context, OVER_ID, "Lunch over!", "Welcome back. Plan your next task and start a session on your computer.")
         }

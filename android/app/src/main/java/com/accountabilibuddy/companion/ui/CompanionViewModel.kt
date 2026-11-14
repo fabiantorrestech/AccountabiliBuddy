@@ -973,7 +973,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         val app = getApplication<CompanionApp>()
         val focus = HeaderSource.focus(app, time)
         val header = HeaderSource.header(app, time, clock, phoneUsage.value?.total?.toMinutes()?.toInt(), focus)
-        val bar = builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today()?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }), plan = app.effectivePlan(state))
+        val bar = builder.build(time, state.document, state.events, state.dayBar, state.sleep, state.slept, header, focus, (app.lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now())?.let { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, java.time.ZoneId.systemDefault()), java.time.LocalDateTime.ofInstant(it.end, java.time.ZoneId.systemDefault())) }), plan = app.effectivePlan(state))
         // Today's headline lines and the ring's numbers, from the same focus as the bar.
         val notWorking = com.accountabilibuddy.companion.nudge.NudgeStore(app).load().dayOff == time.toLocalDate()
         val effective = app.effectivePlan(state)

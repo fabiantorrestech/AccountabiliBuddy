@@ -869,3 +869,7 @@ UI round 2 (plan `doc/plans/2026-11-12-ui-round2-plan.md`, branch `ui-round2`). 
 - **Q981.** A session review or History row shows this device's notes by time only, never by the stored session start (the review's own start is "when the card noticed the session", which differs from the History record's start by seconds, so an exact match would drop notes). Provisional: by device + time. Add a one-minute tolerance match on `sessionStart` later?
 - **Q982.** A device with no id yet (sync never set up) keeps its notes as unstamped; they are stamped the first time it has an id and syncs. Until then notes written offline are not sent. Provisional: fine.
 - **Q983.** Notes are not in any backup (kept on the PC only, `capture.notes` stays a state key). After a restore on a new PC the notes come back only through sync from another device. Provisional: accept; the plan check's advice (task-lists backup kind) is a later step.
+
+## LU1a fixes (questions 996-997)
+- **Q996.** The phone restore leaves an "on" for lunch discarding as the phone has it (like the phone-down penalty), while the PC's restore makes it wait the looser delay. Same safety, different feel. Provisional: keep; say if the phone should start the wait instead.
+- **Q997.** The delivery line says "has it" for a device whose file has no counted list (an older app can only hold the current piece). Provisional: unchanged; LU1b/LU1c could say "older app" there.

@@ -39,5 +39,27 @@ data class LunchDiscardSetting(val allowed: Boolean = true, val pending: Boolean
     companion object {
         /** On is looser than off. */
         fun isLooser(from: Boolean, to: Boolean): Boolean = to && !from
+
+        /** The preference key of one part ("allowed", "pending", "pendingFrom") of a mode's copy on the phone ("lunchSettings"). */
+        fun prefKey(companion: Boolean, part: String): String = "discard.${if (companion) "companion" else "guarding"}.$part"
+
+        private val RESTORE_PENDING_PARTS = listOf("pending", "pendingFrom")
+
+        private fun isDiscardKey(key: String): Boolean = key.startsWith("discard.")
+
+        /**
+         * Whether a settings restore takes this "lunchSettings" key ([boolValue] is its value when it is a boolean). A restore is no way round the
+         * looser-change wait (ADR 88, as the PC's RestoreAsync): a waiting change in the file is never taken over, and "allowed" only ever comes
+         * back off (stricter, at once); an "on" in the file is left as this phone has it, the way a Phone down penalty restore only turns on.
+         */
+        fun restoreTakesKey(key: String, boolValue: Boolean?): Boolean = when {
+            !isDiscardKey(key) -> true
+            key.endsWith(".allowed") -> boolValue == false
+            else -> false
+        }
+
+        /** The keys a restore removes after taking [key]: an "off" drops this phone's own waiting "on" for that mode (as turning it off does). */
+        fun restoreClears(key: String, boolValue: Boolean?): List<String> =
+            if (isDiscardKey(key) && key.endsWith(".allowed") && boolValue == false) RESTORE_PENDING_PARTS.map { key.removeSuffix("allowed") + it } else emptyList()
     }
 }

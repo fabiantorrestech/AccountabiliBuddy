@@ -57,6 +57,47 @@ object Lu1aSelfCheck {
         val behind = listOf(LunchPeer("Phone", at(61), ours.copy(counted = emptyList())))
         report.check("lu1a: other counted pieces are not on that device yet", LunchDelivery.line(ours, behind, at(62)) { "12:01 PM" }?.startsWith("Not on Phone yet") == true)
 
+        // S4: the keep path is idempotent for a fresh receiver too (the app restarted and the older file is read again), and a fresh receiver
+        // gets the same result as the one that had read it before.
+        val freshAgain = LunchReceiving().take(older, fromOlder, taken, at(80), ::sameDay)
+        report.check("lu1a: the same older file read by a fresh receiver (app restart) changes nothing", freshAgain == null, "$freshAgain")
+        val freshFirst = LunchReceiving().take(older, fromOlder, ours, at(72), ::sameDay)
+        report.check("lu1a: a fresh receiver takes the same lunch from the older file as the first one did", freshFirst == taken, "$freshFirst against $taken")
+
+        // B1: an older app's +5 on a lunch we discarded makes a running lunch, never a "discarded" one that runs.
+        val discarded = SyncLunch(at(0), at(0), at(5), 60, emptyList(), true)
+        val plusFive = SyncLunch(at(0), at(65), at(10))
+        val afterPlusFive = LunchReceiving().take(older, plusFive, discarded, at(15), ::sameDay)
+        report.check("lu1a: an older app's +5 on a discarded lunch is a running lunch whose minutes count",
+            afterPlusFive != null && !afterPlusFive.discarded && afterPlusFive.end == at(65) && afterPlusFive.allowance == 65, "$afterPlusFive")
+        report.check("lu1a: no received lunch is ever discarded and running at once",
+            listOf(afterPlusFive, LunchDay.held(SyncLunch(at(0), at(60), at(5), 60, emptyList(), true))).filterNotNull().none { it.discarded && it.end.isAfter(it.start) })
+        report.check("lu1a: that older +5 read again by a fresh receiver changes nothing", LunchReceiving().take(older, plusFive, afterPlusFive, at(20), ::sameDay) == null)
+
+        // S1: new phone, PC on piece 2 and an older phone whose +5 on piece 2 is read before the PC's file, or after it: the same lunch either way.
+        val piece1 = SyncLunch(at(0), at(20), at(20), 60, emptyList())
+        val pcFile = SyncLunch(at(60), at(100), at(60), 60, listOf(LunchPiece(at(0), at(20))))
+        val olderPlus = SyncLunch(at(60), at(105), at(70))
+        val receiverA = LunchReceiving()
+        val firstA = receiverA.take(older, olderPlus, piece1, at(72), ::sameDay)
+        val finalA = receiverA.take(phone, pcFile, firstA, at(74), ::sameDay) ?: firstA
+        val receiverB = LunchReceiving()
+        val firstB = receiverB.take(phone, pcFile, piece1, at(61), ::sameDay)
+        val finalB = receiverB.take(older, olderPlus, firstB, at(72), ::sameDay) ?: firstB
+        val wanted = SyncLunch(at(60), at(105), at(70), 65, listOf(LunchPiece(at(0), at(20))))
+        report.check("lu1a: the older +5 before the PC's file keeps the counted piece (3 devices)", finalA == wanted, "$finalA")
+        report.check("lu1a: the PC's file before the older +5 ends on the same lunch", finalB == wanted, "$finalB")
+
+        // S2: a restore never takes a waiting discard change, and an "on" in a file waits like any change (here: it is left as this phone has it).
+        report.check("lu1a: a phone restore leaves a waiting discard change out",
+            !LunchDiscardSetting.restoreTakesKey(LunchDiscardSetting.prefKey(false, "pending"), true) && !LunchDiscardSetting.restoreTakesKey(LunchDiscardSetting.prefKey(true, "pendingFrom"), null))
+        report.check("lu1a: a phone restore never turns discarding on at once, only off",
+            !LunchDiscardSetting.restoreTakesKey(LunchDiscardSetting.prefKey(true, "allowed"), true) && LunchDiscardSetting.restoreTakesKey(LunchDiscardSetting.prefKey(true, "allowed"), false))
+        report.check("lu1a: a phone restore takes the rest of the lunch settings as before", LunchDiscardSetting.restoreTakesKey("lengthMinutes", null))
+        report.check("lu1a: restoring off drops this phone's own waiting on for that mode",
+            LunchDiscardSetting.restoreClears(LunchDiscardSetting.prefKey(true, "allowed"), false) == listOf("discard.companion.pending", "discard.companion.pendingFrom")
+                && LunchDiscardSetting.restoreClears(LunchDiscardSetting.prefKey(true, "allowed"), true).isEmpty())
+
         report.check("lu1a: the discard setting is on by default, nothing waiting", LunchDiscardSetting() == LunchDiscardSetting(true, null, null))
     }
 }

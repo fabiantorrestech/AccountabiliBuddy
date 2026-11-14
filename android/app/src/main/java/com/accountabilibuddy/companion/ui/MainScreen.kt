@@ -345,9 +345,9 @@ fun MainScreen(
                         fixed = state.document.dayPlan.fixedLunchOn(java.time.LocalDate.now()),
                         taken = lunchTaken?.takeIf { it.start.atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() },
                         lengthMinutes = lunchLength,
-                        onStart = { app.lunch.start() },
-                        onBack = { app.lunch.endNow() },
-                        onAdjust = { longer -> app.lunch.adjust(longer) },
+                        onStart = { app.lunch.start(com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
+                        onBack = { app.lunch.endNow(com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
+                        onAdjust = { longer -> app.lunch.adjust(longer, com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
                         peers = lunchPeers,
                     )
                     TodayPane(

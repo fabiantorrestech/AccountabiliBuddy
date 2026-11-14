@@ -53,11 +53,13 @@ object LunchDay {
     /** The first piece of the day: runs [length] from [now] (held to 1 minute to 120), and that length (rounded up to a minute) is the day's allowance. */
     fun begin(now: Instant, length: Duration): SyncLunch {
         val held = maxOf(SHORTEST_LEFT, minOf(length, MAX_LENGTH))
-        val minutes = Math.ceil(held.toMillis() / 60000.0).toInt()
-        return SyncLunch(now, now.plus(held), now, minutes, emptyList(), false)
+        return SyncLunch(now, now.plus(held), now, ceilMinutes(held), emptyList(), false)
     }
 
-    /** A new piece after the last one: it runs for what is left. Null when a piece runs or too little is left. */
+    /**
+     * A new piece after the last one: it runs for what is left. Null when a piece runs or too little is left. [lunch] must be today's lunch
+     * (the caller passes only the lunch of today; there is no day check here).
+     */
     fun startAgain(lunch: SyncLunch, now: Instant, fallbackMinutes: Int): SyncLunch? {
         if (isRunning(lunch, now)) return null
         val remaining = remaining(lunch, now, fallbackMinutes)
@@ -73,7 +75,8 @@ object LunchDay {
 
     /**
      * "Discard it": the running piece never happened. Null when nothing runs or the mode doesn't allow it. The first piece becomes a zero-length
-     * record marked discarded (the day stays taken); a later piece goes back to the last counted one, which leaves the list.
+     * record marked discarded (the day stays taken); a later piece goes back to the last counted one, which leaves the list. [lunch] must be
+     * today's lunch (the caller passes only the lunch of today; there is no day check here).
      */
     fun discard(lunch: SyncLunch, now: Instant, allowedByMode: Boolean): SyncLunch? {
         if (!canDiscard(lunch, now, allowedByMode)) return null
@@ -99,14 +102,18 @@ object LunchDay {
         val soonest = now.plus(SHORTEST_LEFT)
         if (newEnd.isBefore(soonest)) newEnd = if (soonest.isBefore(end)) soonest else end
         if (newEnd == end) return null
-        val moved = Math.round(Duration.between(end, newEnd).toMillis() / 60000.0).toInt()
+        val moved = roundMinutes(Duration.between(end, newEnd))
         return lunch.copy(end = newEnd, editedAt = now, allowance = (allowanceMinutes(lunch, fallbackMinutes) + moved).coerceIn(0, MAX_MINUTES))
     }
 
-    /** The record held to its limits: the allowance 0 to 120, and the current piece ends so that the day's total is at most [MAX_LENGTH]. */
+    /**
+     * The record held to its limits: the allowance 0 to 120, the current piece ends so that the day's total is at most [MAX_LENGTH], and a
+     * discarded piece is zero length (end == start), so a "discarded" lunch can never read as running.
+     */
     fun held(lunch: SyncLunch): SyncLunch {
         val latestEnd = lunch.start.plus(maxOf(Duration.ZERO, MAX_LENGTH.minus(countedTotal(lunch))))
-        val held = if (lunch.end.isAfter(latestEnd)) lunch.copy(end = latestEnd) else lunch
+        var held = if (lunch.end.isAfter(latestEnd)) lunch.copy(end = latestEnd) else lunch
+        if (held.discarded && held.end != held.start) held = held.copy(end = held.start)
         val allowance = held.allowance
         return if (allowance != null && (allowance < 0 || allowance > MAX_MINUTES)) held.copy(allowance = allowance.coerceIn(0, MAX_MINUTES)) else held
     }
@@ -115,26 +122,78 @@ object LunchDay {
      * The lunch to take from another device's file, or null when nothing changes here (the caller checks that it is today's, and ignores a
      * record identical to the one last received from the same sender). The stamp is held to [now] ([LunchListening.clampFuture]) and the day's
      * total to [MAX_LENGTH]. A record whose `counted` is missing (not empty) is an older app's edit: when its start is ours it keeps our pieces
-     * and allowance (the +5 or End on piece 2 must not wipe the counted minutes), and when its start is one of our counted pieces it is a stale
-     * view of the day and changes nothing. Otherwise the newer edit wins, and the same pieces change nothing.
+     * and allowance (the +5 or End on piece 2 must not wipe the counted minutes; it is discarded only if it is still zero length, so an older
+     * app's +5 on a discarded lunch makes a running lunch, never a "discarded" one that runs), and when its start is one of our counted pieces
+     * it is a stale view of the day and changes nothing. The other way round, when our own pieces or allowance are unknown (we took an older
+     * app's edit first) and an older or equal record with the same start carries them, we take its pieces and allowance whatever its stamp, so
+     * the order the files arrive in never decides what is counted. Otherwise the newer edit wins, a tie in the stamp going to the same side on
+     * every device ([outranks]), and the same pieces change nothing.
      */
     fun receive(ours: SyncLunch?, received: SyncLunch, now: Instant): SyncLunch? {
         var lunch = LunchListening.clampFuture(received, now)
         if (lunch.counted == null && ours != null) {
             if ((ours.counted ?: emptyList()).any { it.start == lunch.start }) return null
             if (lunch.start == ours.start) {
-                lunch = lunch.copy(counted = ours.counted, allowance = ours.allowance ?: lunch.allowance, discarded = ours.discarded)
-                val allowance = lunch.allowance
-                if (allowance != null) {
-                    val piece = if (lunch.end.isAfter(lunch.start)) Duration.between(lunch.start, lunch.end) else Duration.ZERO
-                    val needed = Math.ceil(countedTotal(lunch).plus(piece).toMillis() / 60000.0).toInt()
-                    lunch = lunch.copy(allowance = minOf(MAX_MINUTES, maxOf(allowance, needed)))
-                }
+                lunch = lunch.copy(counted = ours.counted, allowance = ours.allowance ?: lunch.allowance, discarded = ours.discarded && !lunch.end.isAfter(lunch.start))
+                if (lunch.allowance != null) lunch = lunch.copy(allowance = covering(lunch))
             }
+        } else if (ours != null && lunch.start == ours.start && lunch.lastEdit <= ours.lastEdit && (ours.counted == null || ours.allowance == null)) {
+            var filled = ours.copy(counted = ours.counted ?: lunch.counted, allowance = ours.allowance ?: lunch.allowance)
+            if (filled.allowance != null) filled = filled.copy(allowance = covering(filled))
+            filled = held(filled)
+            if (!samePieces(ours, filled)) return filled
         }
 
         lunch = held(lunch)
-        return if (ours != null && (ours.lastEdit >= lunch.lastEdit || samePieces(ours, lunch))) null else lunch
+        return if (ours != null && (!newer(lunch, ours) || samePieces(ours, lunch))) null else lunch
+    }
+
+    /** The allowance raised to cover the counted pieces and the current piece (an older app may have lengthened it), at most [MAX_MINUTES]. */
+    private fun covering(lunch: SyncLunch): Int {
+        val piece = if (lunch.end.isAfter(lunch.start)) Duration.between(lunch.start, lunch.end) else Duration.ZERO
+        return minOf(MAX_MINUTES, maxOf(lunch.allowance ?: 0, ceilMinutes(countedTotal(lunch).plus(piece))))
+    }
+
+    /** Whether [received] replaces [ours]: a newer stamp, or the same stamp and a record that [outranks] ours. */
+    private fun newer(received: SyncLunch, ours: SyncLunch): Boolean =
+        received.lastEdit.isAfter(ours.lastEdit) || (received.lastEdit == ours.lastEdit && outranks(received, ours))
+
+    /**
+     * The one fixed order for two different records with the same stamp, so devices that disagree at the same stamp all end on the same record
+     * (the PC's Core LunchDay is the same order): known counted pieces before unknown, more counted pieces, then start, end, allowance (unknown
+     * lowest), discarded, and the counted pieces one by one.
+     */
+    private fun outranks(a: SyncLunch, b: SyncLunch): Boolean {
+        var order = (if (a.counted == null) 0 else 1).compareTo(if (b.counted == null) 0 else 1)
+        if (order == 0) order = (a.counted?.size ?: 0).compareTo(b.counted?.size ?: 0)
+        if (order == 0) order = a.start.compareTo(b.start)
+        if (order == 0) order = a.end.compareTo(b.end)
+        if (order == 0) order = (a.allowance ?: -1).compareTo(b.allowance ?: -1)
+        if (order == 0) order = a.discarded.compareTo(b.discarded)
+        val pieces = a.counted ?: emptyList()
+        var i = 0
+        while (order == 0 && i < pieces.size) {
+            order = pieces[i].start.compareTo(b.counted!![i].start)
+            if (order == 0) order = pieces[i].end.compareTo(b.counted!![i].end)
+            i++
+        }
+        return order > 0
+    }
+
+    private const val MINUTE_NANOS = 60_000_000_000L
+
+    /** Whole minutes of [length] rounded up, exact to the nanosecond (the PC's twin counts the same way, to the tick); 0 for nothing or less. */
+    fun ceilMinutes(length: Duration): Int {
+        val nanos = length.toNanos()
+        return if (nanos <= 0) 0 else minOf(Int.MAX_VALUE.toLong(), (nanos + MINUTE_NANOS - 1) / MINUTE_NANOS).toInt()
+    }
+
+    /** Whole minutes of [length] rounded to the nearest, a half minute away from zero (+30 s is 1, -30 s is -1); the PC's twin does the same. */
+    fun roundMinutes(length: Duration): Int {
+        val nanos = length.toNanos()
+        var minutes = nanos / MINUTE_NANOS
+        if (Math.abs(nanos % MINUTE_NANOS) * 2 >= MINUTE_NANOS) minutes += if (nanos < 0) -1 else 1
+        return minutes.toInt()
     }
 
     /** The same lunch apart from the edit stamp: current piece, allowance, discarded mark and counted pieces (missing and empty alike). */
@@ -144,7 +203,9 @@ object LunchDay {
 
     /**
      * Whether the device whose lunch is [theirs] has [ours] (LunchDelivery): the same current piece, and the same counted pieces and allowance
-     * when theirs sends them (an older app sends neither, so it is judged on the current piece alone).
+     * when theirs sends them (an older app sends neither, so it is judged on the current piece alone: it can only ever hold the current piece, so
+     * "has it" there means "has the piece it can show"; a newer app that took an older app's edit first no longer stays that way, because it fills in
+     * its pieces from the next file with the same start, see [receive]).
      */
     fun hasPieces(theirs: SyncLunch, ours: SyncLunch): Boolean =
         theirs.start == ours.start && theirs.end == ours.end && theirs.discarded == ours.discarded &&

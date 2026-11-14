@@ -27,7 +27,8 @@ import java.time.ZoneId
  * the lunch length (this phone's setting, 1 hour by default; it wins over a flexible break's own length); while it
  * runs, +5 / −5 min change its end. The same lunch on every device: its sync file carries it, and the newest edit for
  * the day wins (`editedAt`, else its start). "Lunch over!" comes from an alarm at its end. Preferences "lunch" (today's
- * state) and "lunchSettings" (the length, in the settings backup).
+ * state) and "lunchSettings" (the length, in the settings backup). Every time comes in as `now` from the caller, which passes the phone's
+ * trusted time ([com.accountabilibuddy.companion.guidance.TrustedTime], ADR 70 and 88): there is no default, so no caller can forget it.
  */
 class LunchStore(private val context: Context) {
     private val prefs = context.getSharedPreferences("lunch", Context.MODE_PRIVATE)
@@ -45,25 +46,25 @@ class LunchStore(private val context: Context) {
     /** Called after lunch starts, changes or ends here (the PC hears of it; the watch follows [lunch]). */
     var onChanged: (() -> Unit)? = null
 
-    fun today(now: Instant = Instant.now()): SyncLunch? = _lunch.value?.takeIf { isToday(it.start, now) }
+    fun today(now: Instant): SyncLunch? = _lunch.value?.takeIf { isToday(it.start, now) }
 
-    fun isOnLunch(now: Instant = Instant.now()): Boolean = today(now)?.let { now < it.end } == true
+    fun isOnLunch(now: Instant): Boolean = today(now)?.let { now < it.end } == true
 
     /** "Start lunch" shows: today is a workday (or has a flexible break) and no lunch was taken yet. */
-    fun canStart(plan: DayPlan, now: Instant = Instant.now()): Boolean {
+    fun canStart(plan: DayPlan, now: Instant): Boolean {
         val date = now.atZone(ZoneId.systemDefault()).toLocalDate()
         return (plan.isWorkday(date) || plan.flexibleBreakOn(date) != null) && today(now) == null
     }
 
     /** −5 min can still take something off: the running lunch ends more than a minute from now. */
-    fun canShorten(now: Instant = Instant.now()): Boolean =
+    fun canShorten(now: Instant): Boolean =
         today(now)?.let { now < it.end && it.end > now.plus(WatchLunch.SHORTEST_LEFT) } == true
 
     /** Starts lunch now for the lunch length. */
     @Synchronized
-    fun start(now: Instant = Instant.now()) {
+    fun start(now: Instant) {
         // The day's first piece: its length is the day's allowance, the same on every device (ADR 88).
-        save(LunchDay.begin(now, Duration.ofMinutes(_lengthMinutes.value.toLong())), overTold = false)
+        save(LunchDay.begin(now, Duration.ofMinutes(_lengthMinutes.value.toLong())), overTold = false, now = now)
         onChanged?.invoke()
     }
 
@@ -72,20 +73,20 @@ class LunchStore(private val context: Context) {
      * longer, and +5 never takes the whole lunch past [MAX_LENGTH].
      */
     @Synchronized
-    fun adjust(longer: Boolean, now: Instant = Instant.now()) {
+    fun adjust(longer: Boolean, now: Instant) {
         val current = today(now)?.takeIf { now < it.end } ?: return
         val change = if (longer) ADJUST_STEP else ADJUST_STEP.negated()
         // The day's total never goes past MAX_LENGTH, never sooner than a minute from now, -5 never makes it longer; the allowance moves with it.
         val adjusted = LunchDay.adjust(current, now, change, _lengthMinutes.value) ?: return
-        save(adjusted, overTold = false)
+        save(adjusted, overTold = false, now = now)
         onChanged?.invoke()
     }
 
     /** Back early: lunch ends now. */
     @Synchronized
-    fun endNow(now: Instant = Instant.now()) {
+    fun endNow(now: Instant) {
         val current = today(now)?.takeIf { now < it.end } ?: return
-        save(current.copy(end = now, editedAt = now), overTold = true)
+        save(current.copy(end = now, editedAt = now), overTold = true, now = now)
         onChanged?.invoke()
     }
 
@@ -132,7 +133,7 @@ class LunchStore(private val context: Context) {
         editor.apply()
     }
 
-    private fun discardKey(companion: Boolean, part: String): String = "discard.${if (companion) "companion" else "guarding"}.$part"
+    private fun discardKey(companion: Boolean, part: String): String = LunchDiscardSetting.prefKey(companion, part)
 
     /** Settings → Your day → "Lunch length": 15-120 minutes in steps of 5; the next lunch takes it. */
     fun setLength(minutes: Int) {
@@ -150,14 +151,14 @@ class LunchStore(private val context: Context) {
      * otherwise be re-clamped to the newer "now" and beat an edit made here in between.
      */
     @Synchronized
-    fun receive(sender: java.util.UUID, received: SyncLunch, now: Instant = Instant.now()): Boolean {
+    fun receive(sender: java.util.UUID, received: SyncLunch, now: Instant): Boolean {
         val lunch = receiving.take(sender, received, today(now), now) { isToday(it, now) } ?: return false
-        save(lunch, overTold = now >= lunch.end)
+        save(lunch, overTold = now >= lunch.end, now = now)
         return true
     }
 
     /** Today's lunch for the watch's Lunch page: shown on a workday (or a day with a flexible break), or while lunch runs. */
-    fun forWatch(plan: DayPlan, now: Instant = Instant.now()): WatchLunch {
+    fun forWatch(plan: DayPlan, now: Instant): WatchLunch {
         val date = now.atZone(ZoneId.systemDefault()).toLocalDate()
         val taken = today(now)
         return WatchLunch(
@@ -169,7 +170,7 @@ class LunchStore(private val context: Context) {
     }
 
     /** "Lunch over!" is due and not told yet. */
-    fun overDue(now: Instant = Instant.now()): Boolean = today(now)?.let { now >= it.end } == true && !prefs.getBoolean("overTold", false)
+    fun overDue(now: Instant): Boolean = today(now)?.let { now >= it.end } == true && !prefs.getBoolean("overTold", false)
 
     fun markOverTold() {
         prefs.edit().putBoolean("overTold", true).apply()
@@ -182,7 +183,7 @@ class LunchStore(private val context: Context) {
         prefs.edit().putString("hintedOn", day.toString()).apply()
     }
 
-    private fun save(lunch: SyncLunch, overTold: Boolean) {
+    private fun save(lunch: SyncLunch, overTold: Boolean, now: Instant) {
         _lunch.value = lunch
         val editor = prefs.edit()
             .putString("start", lunch.start.toString())
@@ -199,17 +200,17 @@ class LunchStore(private val context: Context) {
         if (lunch.counted != null) editor.putString("counted", SyncFileJson.writeLunch(lunch).getValue("counted").toString()) else editor.remove("counted")
         editor.putBoolean("discarded", lunch.discarded)
         editor.apply()
-        scheduleOver(lunch, overTold)
+        scheduleOver(lunch, overTold, now)
     }
 
     // The "Lunch over!" alarm at its end (inexact but allowed while idle: no special permission).
-    private fun scheduleOver(lunch: SyncLunch, overTold: Boolean) {
+    private fun scheduleOver(lunch: SyncLunch, overTold: Boolean, now: Instant) {
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
         val intent = PendingIntent.getBroadcast(
             context, 52, Intent(context, LunchReceiver::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         alarms.cancel(intent)
-        if (!overTold && lunch.end.isAfter(Instant.now())) {
+        if (!overTold && lunch.end.isAfter(now)) {
             alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, lunch.end.toEpochMilli(), intent)
         }
     }

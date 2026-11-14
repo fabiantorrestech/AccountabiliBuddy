@@ -501,7 +501,7 @@ class CompanionApp : Application() {
             this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received, sync.allReceived,
             pickedPc = { pcRemote.chosenPcId.value },
             // The watch's Lunch page: today's lunch and the length setting.
-            lunch = { lunch.forWatch(store.state.value.document.dayPlan) },
+            lunch = { lunch.forWatch(store.state.value.document.dayPlan, com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
             effectivePlan = { effectivePlan(it) },
             lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
             // ADR 42: the watch's "/hello" reads the PCs' files from Drive before it answers.
@@ -533,7 +533,7 @@ class CompanionApp : Application() {
             sync.received.collect { devices -> if (sleepSync.applyFrom(devices)) refreshSoon() }
         }
         // Lunch is the user's: this phone's goes out in its file; one from another device is taken here.
-        sync.lunch = { lunch.today() }
+        sync.lunch = { lunch.today(com.accountabilibuddy.companion.guidance.TrustedTime.now()) }
         // Daily steps (only while the switch is on): this phone's read goes out in its file, and a new count reaches the PCs at once.
         sync.steps = { steps.forSync() }
         steps.onChanged = {
@@ -641,7 +641,7 @@ class CompanionApp : Application() {
         appScope.launch {
             sync.received.collect { devices ->
                 // A lunch taken from another device's file: the notification and widget now, not at the 2-second redraw below.
-                val lunchTaken = devices.mapNotNull { device -> device.file.lunch?.let { lunch.receive(device.file.device.deviceId, it) } }.any { it }
+                val lunchTaken = devices.mapNotNull { device -> device.file.lunch?.let { lunch.receive(device.file.device.deviceId, it, com.accountabilibuddy.companion.guidance.TrustedTime.now()) } }.any { it }
                 if (lunchTaken) {
                     launch { runCatching { Refresher.refresh(this@CompanionApp) } }
                 }
