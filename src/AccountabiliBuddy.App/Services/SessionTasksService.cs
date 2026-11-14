@@ -518,7 +518,7 @@ public sealed partial class SessionTasksService : IDisposable
         }
 
         bool categoriesAdded = TakeCategoriesFrom(_nextTasks);
-        Current = DraftFromShared(Current.CurrentId).Grouped(_categories);
+        Current = DraftFromShared(Current.CurrentId).Grouped(Categories);
         if (categoriesAdded)
         {
             Task.Run(SaveCategoriesAsync).GetAwaiter().GetResult();
@@ -541,6 +541,28 @@ public sealed partial class SessionTasksService : IDisposable
     public Task AddAsync(string title, Guid? parentId, Guid? categoryId = null)
     {
         return SetAsync(Current.Add(title, parentId, categoryId));
+    }
+
+    /// <summary>The tags of <paramref name="tags"/> this device doesn't show (ADR 89: other devices' device-only tags); null for none.</summary>
+    public IReadOnlyList<string>? HiddenTagsOf(IReadOnlyList<string>? tags)
+    {
+        if (tags is not { Count: > 0 } || _taskStore is not { IsActive: true } store)
+        {
+            return null;
+        }
+
+        IReadOnlyList<string> shown = store.ShownTags(tags);
+        List<string> hidden = tags.Where(tag => !shown.Contains(tag, StringComparer.OrdinalIgnoreCase)).ToList();
+        return hidden.Count == 0 ? null : hidden;
+    }
+
+    /// <summary>
+    /// A task carried into the next session (the shutdown routine) keeps the label and tags this device doesn't show (ADR 89):
+    /// <paramref name="categoryId"/> may be a hidden label's category and <paramref name="hiddenTags"/> its hidden tags.
+    /// </summary>
+    public Task AddCarriedAsync(string title, Guid? categoryId, IReadOnlyList<string>? hiddenTags)
+    {
+        return SetAsync(Current.Add(title, null, categoryId, hiddenTags));
     }
 
     /// <summary>
@@ -1624,7 +1646,7 @@ public sealed partial class SessionTasksService : IDisposable
             checklist = SessionActions.Joined(SessionActions.Cleaned(checklist), checklist.Tasks.Where(task => !before.Contains(task.Id)).Select(task => task.Id), allowance);
         }
 
-        Current = checklist.Grouped(_categories);
+        Current = checklist.Grouped(Categories);
         bool shared = Current.SessionStart is null && ReconcileNextTasks(Current);
         Changed?.Invoke(this, EventArgs.Empty);
         await SaveAsync();
@@ -1728,7 +1750,7 @@ public sealed partial class SessionTasksService : IDisposable
     private async Task ShowSharedDraftAsync()
     {
         bool categoriesAdded = TakeCategoriesFrom(_nextTasks);
-        Current = DraftFromShared(Current.SessionStart is null ? Current.CurrentId : null).Grouped(_categories);
+        Current = DraftFromShared(Current.SessionStart is null ? Current.CurrentId : null).Grouped(Categories);
         if (categoriesAdded)
         {
             await SaveCategoriesAsync();

@@ -598,24 +598,31 @@ public sealed partial class ShelfViewModel : ObservableObject
             return null;
         }
 
-        var devices = new List<string>();
+        var labelDevices = new List<string>();
         foreach (Guid id in config.Labels ?? [])
         {
             if (store.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.Id == id && label.IsLive && !store.LabelShown(label)) is { } label)
             {
-                devices.Add(store.OtherDevicesText(label.OnlyOn) ?? "another device");
+                labelDevices.Add(store.OtherDevicesText(label.OnlyOn) ?? "another device");
             }
         }
 
+        // As the phone says it: a label first, else "Uses a tag from" for a view that filters only by tags.
+        if (labelDevices.Count > 0)
+        {
+            return "Uses a label from " + string.Join(", ", labelDevices.Distinct());
+        }
+
+        var tagDevices = new List<string>();
         foreach (string tag in config.Tags ?? [])
         {
             if (!store.TagShown(tag))
             {
-                devices.Add(store.OtherDevicesText(TaskScopes.ScopeOf(tag, store.Lists.TagScopes)?.OnlyOn) ?? "another device");
+                tagDevices.Add(store.OtherDevicesText(TaskScopes.ScopeOf(tag, store.Lists.TagScopes)?.OnlyOn) ?? "another device");
             }
         }
 
-        return devices.Count == 0 ? null : "Uses a label from " + string.Join(", ", devices.Distinct());
+        return tagDevices.Count == 0 ? null : "Uses a tag from " + string.Join(", ", tagDevices.Distinct());
     }
 
     private List<TaskLabel> LiveLabels()

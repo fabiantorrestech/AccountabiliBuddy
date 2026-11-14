@@ -30,7 +30,7 @@ public sealed partial class SessionTasksService
         ReadFromTaskStore();
         if (Current.SessionStart is null)
         {
-            Current = DraftFromShared(Current.CurrentId).Grouped(_categories);
+            Current = DraftFromShared(Current.CurrentId).Grouped(Categories);
         }
 
         tasks.Changed += OnTaskStoreChanged;

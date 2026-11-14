@@ -66,6 +66,19 @@ public sealed partial class SessionTasksService
         return (AddToTodayResult.Added, addedId);
     }
 
+    // ADR 89: the copy made here is a new task, so the hidden label and tags the original holds in the task list go on it before the original is deleted
+    // (the list's item shows only the shown ones). Called before the delete: a deleted task is no longer found.
+    private TodaySource WithHiddenKept(Guid id, TodaySource source)
+    {
+        if (_taskStore is not { IsActive: true } listed)
+        {
+            return source;
+        }
+
+        (string? category, string? color, IReadOnlyList<string>? tags) = listed.WithHiddenOf(id, source.Category, source.CategoryColor, source.Labels);
+        return source with { Category = category, CategoryColor = color, Labels = tags };
+    }
+
     /// <summary>
     /// A task chosen from a list for tomorrow's first task: at the top of the checklist, with what its list held, and gone from that list
     /// (a finished task stays in its record). Never over the three-task rule: as with a typed one, this is planning the next day.
@@ -76,15 +89,15 @@ public sealed partial class SessionTasksService
         switch (kind)
         {
             case ViewModels.PulledListKind.Later when Later?.Items.FirstOrDefault(candidate => candidate.Id == id) is SyncLaterItem item:
-                source = new TodaySource(item.Title, OpenStepsOf(item.Subtasks), item.Category, item.CategoryColor, item.EstimateMinutes, item.Note, item.Labels);
+                source = WithHiddenKept(id, new TodaySource(item.Title, OpenStepsOf(item.Subtasks), item.Category, item.CategoryColor, item.EstimateMinutes, item.Note, item.Labels));
                 await Later.DeleteAsync(id);
                 break;
             case ViewModels.PulledListKind.ComeBack when Comebacks?.Open.FirstOrDefault(candidate => candidate.Id == id) is Comeback comeback:
-                source = new TodaySource(comeback.Text, [], comeback.Category, comeback.CategoryColor, Labels: comeback.Labels);
+                source = WithHiddenKept(id, new TodaySource(comeback.Text, [], comeback.Category, comeback.CategoryColor, Labels: comeback.Labels));
                 await Comebacks.TickAsync(id);
                 break;
             case ViewModels.PulledListKind.AutoSaved when AutoSaved is not null:
-                source = new TodaySource(title, [], Labels: AutoSaved.Find(id)?.Labels);
+                source = WithHiddenKept(id, new TodaySource(title, [], Labels: AutoSaved.Find(id)?.Labels));
                 await AutoSaved.RemoveAsync(id);
                 break;
             case ViewModels.PulledListKind.Unfinished or ViewModels.PulledListKind.DoneToday or ViewModels.PulledListKind.Archive when PastTaskOf(id) is SessionTask task:
@@ -407,7 +420,9 @@ public sealed partial class SessionTasksService
         }
 
         List<SessionSubtask> steps = (item.Subtasks ?? []).Select(step => step with { DoneAt = step.DoneAt ?? doneAt }).ToList();
-        var task = new SessionTask(item.Id, item.Title, doneAt, steps, null, item.Category, item.CategoryColor, item.EstimateMinutes, item.Note, Labels: item.Labels);
+        // ADR 89: the record keeps the hidden label and tags the item holds in the task list (the list's item shows only the shown ones).
+        TodaySource kept = WithHiddenKept(item.Id, new TodaySource(item.Title, [], item.Category, item.CategoryColor, Labels: item.Labels));
+        var task = new SessionTask(item.Id, item.Title, doneAt, steps, null, kept.Category, kept.CategoryColor, item.EstimateMinutes, item.Note, Labels: kept.Labels);
         int at = _history.FindIndex(checklist => checklist.OutsideSession && checklist.Tasks.Any(held => held.DoneAt is DateTimeOffset done && LocalDate(done) == LocalDate(doneAt)));
         _history = at >= 0
             ? _history.Select((checklist, index) => index == at ? checklist with { Tasks = [.. checklist.Tasks, task] } : checklist).ToList()

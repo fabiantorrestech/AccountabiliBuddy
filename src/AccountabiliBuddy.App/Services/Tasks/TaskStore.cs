@@ -107,7 +107,26 @@ public sealed class TaskStore
     public IReadOnlyDictionary<Guid, string> ViewSearches => _viewSearches;
 
     /// <summary>The PC's task categories this device shows: the labels, with their ids here, without other devices' device-only ones (ADR 89).</summary>
-    public IReadOnlyList<TaskCategory> Categories => TaskFacadeLists.Categories(_lists.Labels, _categoryIds, LabelShown);
+    public IReadOnlyList<TaskCategory> Categories => ShownCategories();
+
+    // The shown list is one instance until what it is made of changes (the labels, their ids here, this device, the removed devices), so a
+    // screen that compares by reference (the session's Categories panel) isn't rebuilt on every read, and a name being typed isn't lost.
+    private IReadOnlyList<TaskCategory>? _shownCategories;
+    private (IReadOnlyList<SyncTaskLabel> Labels, Dictionary<Guid, Guid> Ids, Guid Self, string Removed) _shownCategoriesKey;
+
+    private IReadOnlyList<TaskCategory> ShownCategories()
+    {
+        IReadOnlyCollection<Guid>? removed = Removed;
+        string removedKey = removed is null ? string.Empty : string.Join(",", removed.OrderBy(id => id).Select(id => id.ToString("N")));
+        var key = (Labels: _lists.Labels, Ids: _categoryIds, Self, Removed: removedKey);
+        if (_shownCategories is null || !_shownCategoriesKey.Equals(key))
+        {
+            _shownCategories = TaskFacadeLists.Categories(_lists.Labels, _categoryIds, TaskScopes.LabelTest(Self, removed));
+            _shownCategoriesKey = key;
+        }
+
+        return _shownCategories;
+    }
 
     /// <summary>Every category, hidden ones too: for what goes to other devices and into backups, never for a screen.</summary>
     public IReadOnlyList<TaskCategory> AllCategories => TaskFacadeLists.Categories(_lists.Labels, _categoryIds);
@@ -151,24 +170,31 @@ public sealed class TaskStore
     /// <summary>"Uses a label from Laptop": the view filters by something other devices keep to themselves (never its name); null for none.</summary>
     public string? HiddenLabelNote(TaskViewConfig config)
     {
-        var devices = new List<string>();
+        var labelDevices = new List<string>();
         foreach (Guid id in config.Labels ?? [])
         {
             if (_lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.Id == id && label.IsLive && !LabelShown(label)) is { } label)
             {
-                devices.Add(OtherDevicesText(label.OnlyOn) ?? "another device");
+                labelDevices.Add(OtherDevicesText(label.OnlyOn) ?? "another device");
             }
         }
 
+        // As the phone says it: a label first, else "Uses a tag from" for a view that filters only by tags.
+        if (labelDevices.Count > 0)
+        {
+            return "Uses a label from " + string.Join(", ", labelDevices.Distinct());
+        }
+
+        var tagDevices = new List<string>();
         foreach (string tag in config.Tags ?? [])
         {
             if (!TagShown(tag))
             {
-                devices.Add(OtherDevicesText(TaskScopes.ScopeOf(tag, _lists.TagScopes)?.OnlyOn) ?? "another device");
+                tagDevices.Add(OtherDevicesText(TaskScopes.ScopeOf(tag, _lists.TagScopes)?.OnlyOn) ?? "another device");
             }
         }
 
-        return devices.Count == 0 ? null : "Uses a label from " + string.Join(", ", devices.Distinct());
+        return tagDevices.Count == 0 ? null : "Uses a tag from " + string.Join(", ", tagDevices.Distinct());
     }
 
     /// <summary>

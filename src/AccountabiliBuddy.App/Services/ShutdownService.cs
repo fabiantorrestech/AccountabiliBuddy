@@ -671,7 +671,7 @@ public sealed class ShutdownService : IDisposable
             .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone && !_tasks.WasMoved(task.Id)))
             .DistinctBy(task => task.Title, StringComparer.Ordinal)
             .Where(task => !waiting.Contains(task.Title))
-            .Select(task => new ShutdownTaskRow(task.Title, ExistingCategory(task.CategoryId)))
+            .Select(task => new ShutdownTaskRow(task.Title, ExistingCategory(task.CategoryId), HiddenCategory(task.CategoryId), _tasks.HiddenTagsOf(task.Labels)))
             .ToList();
         return GroupByCategory(rows);
     }
@@ -697,6 +697,12 @@ public sealed class ShutdownService : IDisposable
     private Guid? ExistingCategory(Guid? categoryId)
     {
         return _tasks.Categories.Any(category => category.Id == categoryId) ? categoryId : null;
+    }
+
+    // ADR 89: a label this device doesn't show isn't offered, but the task carrying it keeps it.
+    private Guid? HiddenCategory(Guid? categoryId)
+    {
+        return categoryId is Guid id && _tasks.IsHiddenCategory(id, null) ? id : null;
     }
 
     // Later items due within two weeks (or overdue), and tomorrow's and the next two weeks' events of the calendars that are shown.
@@ -886,7 +892,7 @@ public sealed class ShutdownService : IDisposable
     {
         foreach (ShutdownTaskRow row in card.Unfinished.Where(row => !row.IsDone))
         {
-            await _tasks.AddAsync(row.Title, null, ExistingCategory(row.CategoryId));
+            await _tasks.AddCarriedAsync(row.Title, ExistingCategory(row.CategoryId) ?? row.HiddenCategoryId, row.HiddenTags);
         }
 
         HashSet<string> ticked = card.Unfinished.Where(row => row.IsDone).Select(row => row.Title).ToHashSet(StringComparer.Ordinal);

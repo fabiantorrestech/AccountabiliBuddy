@@ -550,7 +550,9 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
     // task is ticked meanwhile (on the phone, say).
     private void RefreshCategories(IReadOnlyList<TaskCategory> categories)
     {
-        if (ReferenceEquals(categories, _shownCategories))
+        // By content (the same categories in the same order, TaskCategory compares by value): a read that builds a new list of the same
+        // categories must not rebuild the rows and wipe a name being typed.
+        if (_shownCategories is not null && (ReferenceEquals(categories, _shownCategories) || categories.SequenceEqual(_shownCategories)))
         {
             return;
         }

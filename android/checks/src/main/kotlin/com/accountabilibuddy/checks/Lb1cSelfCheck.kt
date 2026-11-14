@@ -423,6 +423,11 @@ object Lb1cSelfCheck {
         report.check("lb1c/scan: every read of a raw label or tag list in ui/ goes through TaskScopeView or is allow-listed with a reason", found.isNotEmpty() && offenders.isEmpty(), offenders.toString())
         val goalFiles = found.filter { (_, text) -> Regex("""allLabels\(\)""").containsMatchIn(text) }
         report.check("lb1c/scan: allLabels() in ui/ is only read next to GoalLabelScopes", goalFiles.all { it.second.contains("GoalLabelScopes") }, goalFiles.map { it.first }.toString())
+        // LB1b fix round 2 (C): another device's device-only label on a PC's running-session task shows as no label on Today's card and on the Tasks page.
+        val sessionCard = found.firstOrNull { it.first == "ui/today/ThisSessionCard.kt" }?.second.orEmpty()
+        val tasksModel = found.firstOrNull { it.first == "ui/tasks/TasksModel.kt" }?.second.orEmpty()
+        report.check("lb1c/scan: Today's This session card reads a PC's checklist through OldPaneScopes.checklist(scopeView)", sessionCard.contains("OldPaneScopes.checklist(sent.tasks, scopeView)") && !sessionCard.contains("val running = sent"))
+        report.check("lb1c/scan: the Tasks page's PC session rows come from OldPaneScopes.checklist", tasksModel.contains("OldPaneScopes.checklist(it.checklist.tasks, scopeView)".replace("scopeView", "scope")))
         val gateless = found.filter { (path, text) -> path != "ui/tasks/page/ShelfController.kt" && Regex("""confirmed = true""").containsMatchIn(text) && !text.contains(".confirmed()") }.map { it.first }
         report.check("lb1c/scan: every 'confirmed = true' in ui/ sits in a screen that asks through ScopeAsk first (ShelfController's createLabel is a writer: only NewLabelForm's dialog passes makeShared)", gateless.isEmpty(), gateless.toString())
     }
