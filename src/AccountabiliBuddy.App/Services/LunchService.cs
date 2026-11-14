@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Ports;
 using AccountabiliBuddy.Core.Storage;
@@ -107,6 +108,12 @@ public sealed class LunchService
     /// Until the app sets it, discarding is off: nothing is discarded by accident.
     /// </summary>
     public Func<bool> DiscardAllowed { get; set; } = () => false;
+
+    /// <summary>
+    /// Wires <see cref="DiscardAllowed"/> to the active mode's "Allow discarding a lunch" (Settings › Tasks; the app calls it once). The service is read
+    /// on every ask, so a mode switch mid-lunch takes the other mode's copy at once; none yet (the app is starting): off.
+    /// </summary>
+    public void FollowDiscardSetting(Func<TaskSettingsService?> settings) => DiscardAllowed = () => settings()?.Current.AllowLunchDiscard ?? false;
 
     /// <summary>"Discard it" is offered now: lunch runs and the mode allows it.</summary>
     public bool CanDiscard => Taken is SyncLunch lunch && LunchDay.CanDiscard(lunch, _sessions.Now, DiscardAllowed());

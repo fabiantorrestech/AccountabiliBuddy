@@ -653,7 +653,7 @@ public partial class App : Application
             new Win32UserIdleDetector());
         _lunch.LoadBlocking();
         // "Discard it" on the lunch ✕ follows the active mode's "Allow discarding a lunch" (Settings › Tasks, ADR 88).
-        _lunch.DiscardAllowed = () => _taskSettings?.Current.AllowLunchDiscard ?? false;
+        _lunch.FollowDiscardSetting(() => _taskSettings);
         // A fixed lunch period starts by itself; a session that would run into it asks first (Keep, Adjust, Flexible this time).
         _lunchRunInto = new LunchRunIntoService(_sessions!, _lunch) { EndEarlyAsync = () => _endFlow!.TryEndSessionAsync(null) };
         _lunchRunInto.CardChanged += (_, _) => Dispatcher.UIThread.Post(() => ShowLunchRunIntoCard(monitorLocator));

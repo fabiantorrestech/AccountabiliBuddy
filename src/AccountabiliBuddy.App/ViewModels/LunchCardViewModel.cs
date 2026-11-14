@@ -50,6 +50,14 @@ public sealed partial class LunchCardViewModel : ObservableObject
     [ObservableProperty]
     public partial string ChipText { get; set; } = string.Empty;
 
+    /// <summary>The chip when the window is narrow: "40m" (the words give way, the tooltip keeps them).</summary>
+    [ObservableProperty]
+    public partial string ChipShortText { get; set; } = string.Empty;
+
+    /// <summary>The chip's tooltip: "Lunch · 40 min left · until 11:10 AM".</summary>
+    [ObservableProperty]
+    public partial string ChipTipText { get; set; } = string.Empty;
+
     /// <summary>The "End lunch?" question the Today card shows under its ✕ (inline).</summary>
     public LunchEndPromptViewModel Prompt { get; }
 
@@ -91,7 +99,12 @@ public sealed partial class LunchCardViewModel : ObservableObject
         StartRestText = $"Start the rest ({leftMinutes} min left)";
         CanShorten = _lunch.CanShorten;
         IsVisible = CanStart || taken is not null;
-        ChipText = IsOnLunch && taken is not null ? $"Lunch · {Math.Max(1, (int)Math.Ceiling((taken.End - _sessions.Now).TotalMinutes))} min left" : string.Empty;
+        int chipMinutes = taken is null ? 0 : Math.Max(1, (int)Math.Ceiling((taken.End - _sessions.Now).TotalMinutes));
+        ChipText = IsOnLunch && taken is not null ? $"Lunch · {chipMinutes} min left" : string.Empty;
+        ChipShortText = IsOnLunch && taken is not null ? $"{chipMinutes}m" : string.Empty;
+        ChipTipText = IsOnLunch && taken is not null
+            ? $"{ChipText} · until {TimeZoneInfo.ConvertTime(taken.End, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)}"
+            : string.Empty;
         DeliveryText = IsOnLunch && taken is not null && Peers is not null
             ? LunchDelivery.Line(taken, Peers(), _sessions.Now, time => TimeZoneInfo.ConvertTime(time, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)) ?? string.Empty
             : string.Empty;
@@ -115,7 +128,7 @@ public sealed partial class LunchCardViewModel : ObservableObject
         else if (taken is not null)
         {
             Text = taken.Counted is { Count: > 0 }
-                ? $"Lunch done · {(int)Math.Round(_lunch.Used.TotalMinutes)} min in all"
+                ? $"Lunch done · {(int)Math.Floor(_lunch.Used.TotalMinutes)} min in all"
                 : $"Lunch done · {TimeZoneInfo.ConvertTime(taken.Start, zone):t} – {TimeZoneInfo.ConvertTime(taken.End, zone):t}";
         }
         else if (_lunch.AutoStartPending is FixedLunch waiting && _sessions.State.IsActive

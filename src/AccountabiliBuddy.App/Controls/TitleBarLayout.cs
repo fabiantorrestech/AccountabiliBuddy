@@ -18,10 +18,26 @@ public sealed class TitleBarLayout : Panel
     public static readonly AttachedProperty<TitleBarSlot> SlotProperty =
         AvaloniaProperty.RegisterAttached<TitleBarLayout, Control, TitleBarSlot>("Slot");
 
+    /// <summary>
+    /// An end child that gets compact (it gains the style class "compact") before an end child that keeps room on its left (the session
+    /// control) would be cut into its always-shown part: the lunch chip drops its words and keeps its icon, short time and ✕.
+    /// </summary>
+    public static readonly AttachedProperty<bool> CompactsFirstProperty =
+        AvaloniaProperty.RegisterAttached<TitleBarLayout, Control, bool>("CompactsFirst");
+
+    public const string CompactClass = "compact";
+
+    // The width each compacting child has when it is not compact; kept while it is compact, so the decision is stable (no flip-flop between passes).
+    private readonly Dictionary<Control, double> _fullWidth = [];
+
     static TitleBarLayout()
     {
-        AffectsParentMeasure<TitleBarLayout>(SlotProperty);
+        AffectsParentMeasure<TitleBarLayout>(SlotProperty, CompactsFirstProperty);
     }
+
+    public static bool GetCompactsFirst(Control control) => control.GetValue(CompactsFirstProperty);
+
+    public static void SetCompactsFirst(Control control, bool value) => control.SetValue(CompactsFirstProperty, value);
 
     public static TitleBarSlot GetSlot(Control control) => control.GetValue(SlotProperty);
 
@@ -32,8 +48,10 @@ public sealed class TitleBarLayout : Panel
         var unbounded = new Size(double.PositiveInfinity, availableSize.Height);
         bool bounded = !double.IsInfinity(availableSize.Width);
         double fixedEnd = 0;
+        double fixedEndFull = 0;
         double height = 0;
         var reserving = new List<Control>();
+        var compacting = new List<Control>();
         foreach (Control child in Children)
         {
             if (GetSlot(child) != TitleBarSlot.End)
@@ -50,6 +68,20 @@ public sealed class TitleBarLayout : Panel
             else
             {
                 fixedEnd += child.DesiredSize.Width;
+                if (GetCompactsFirst(child))
+                {
+                    compacting.Add(child);
+                    if (!child.Classes.Contains(CompactClass))
+                    {
+                        _fullWidth[child] = child.DesiredSize.Width;
+                    }
+
+                    fixedEndFull += _fullWidth.GetValueOrDefault(child, child.DesiredSize.Width);
+                }
+                else
+                {
+                    fixedEndFull += child.DesiredSize.Width;
+                }
             }
         }
 
@@ -64,6 +96,38 @@ public sealed class TitleBarLayout : Panel
                 startMinimum += child is GiveWayPanel row
                     ? row.SmallestWidth + row.Margin.Left + row.Margin.Right
                     : child.DesiredSize.Width;
+            }
+        }
+
+        // Compact first: when, with the compacting children at full width, a reserving child could not keep its always-shown part
+        // (its width without the room kept on its left), they go compact and take that room back for it.
+        if (bounded && compacting.Count > 0)
+        {
+            double needed = reserving.Sum(child => child.DesiredSize.Width - (child as ITitleBarLeftReserve)!.LeftReserve);
+            bool tight = needed > availableSize.Width - fixedEndFull - startMinimum;
+            foreach (Control child in compacting)
+            {
+                if (child.Classes.Contains(CompactClass) == tight)
+                {
+                    continue;
+                }
+
+                if (tight)
+                {
+                    child.Classes.Add(CompactClass);
+                }
+                else
+                {
+                    child.Classes.Remove(CompactClass);
+                }
+
+                fixedEnd -= child.DesiredSize.Width;
+                child.Measure(unbounded);
+                fixedEnd += child.DesiredSize.Width;
+                if (!tight)
+                {
+                    _fullWidth[child] = child.DesiredSize.Width;
+                }
             }
         }
 

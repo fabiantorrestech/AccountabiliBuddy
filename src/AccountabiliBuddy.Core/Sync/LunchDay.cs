@@ -84,9 +84,12 @@ public static class LunchDay
         return Held(new SyncLunch(now, now + remaining, now, AllowanceMinutes(lunch, fallbackMinutes), counted, false));
     }
 
-    /// <summary>"Count it" (and "I'm back"): the running piece ends now and counts; the rest of the allowance stays for later. Null when nothing runs.</summary>
+    /// <summary>
+    /// "Count it" (and "I'm back"): the running piece ends now and counts; the rest of the allowance stays for later. Null when nothing runs.
+    /// The end is held to the day's total (<see cref="Held"/>), so the counted minutes never add up to more than <see cref="MaxLength"/>.
+    /// </summary>
     public static SyncLunch? Count(SyncLunch lunch, DateTimeOffset now) =>
-        IsRunning(lunch, now) ? lunch with { End = Max(now, lunch.Start), EditedAt = now } : null;
+        IsRunning(lunch, now) ? Held(lunch with { End = Max(now, lunch.Start), EditedAt = now }) : null;
 
     /// <summary>
     /// "Discard it": the running piece never happened. Null when nothing runs or the mode doesn't allow it. The first piece becomes a zero-length record

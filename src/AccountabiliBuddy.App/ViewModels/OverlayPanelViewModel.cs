@@ -19,6 +19,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
 
     private readonly OverlaySettingsService _settings;
     private readonly SessionController _sessions;
+    private LunchEndPromptViewModel? _watchedPrompt;
 
     public OverlayPanelViewModel(TaskbarOverlayViewModel model, OverlaySettingsService settings, SessionController sessions)
     {
@@ -27,6 +28,8 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         _sessions = sessions;
         HeaderSub = TasksHeader = SwitchHint = PauseText = string.Empty;
         Size = settings.Current.PanelSize;
+        // The lunch row follows lunch while the panel is open: its time left ticks, and Count / Discard here or on another device takes it away.
+        _sessions.Ticked += (_, _) => RefreshLunchRow();
         settings.Changed += (_, _) =>
         {
             OnPropertyChanged(nameof(PeekKeysLocked));
@@ -188,9 +191,7 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         SwitchHint = state.IsActive ? "1–3 to switch" : "1–3 to start";
         // During a break too: lunch cuts the break short.
         ShowsLunch = (!state.IsActive || state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak) && Model.Actions.CanStartLunch();
-        ShowsLunchRow = Model.Actions.LunchRunning();
-        LunchLine = Model.Actions.LunchLine();
-        LunchPrompt = Model.Actions.LunchPrompt();
+        RefreshLunchRow();
         ShowsReady = Model.PlanFirst is { InStage: true };
         GoalText = Model.GoalText;
         OnPropertyChanged(nameof(HasQr));
@@ -212,6 +213,35 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>Reads the lunch row again: shown only while lunch runs, its time left, and its question (closed with the row when lunch ends).</summary>
+    public void RefreshLunchRow()
+    {
+        ShowsLunchRow = Model.Actions.LunchRunning();
+        LunchLine = Model.Actions.LunchLine();
+        LunchPrompt = Model.Actions.LunchPrompt();
+        if (!ReferenceEquals(_watchedPrompt, LunchPrompt))
+        {
+            if (_watchedPrompt is not null)
+            {
+                _watchedPrompt.Closed -= OnLunchPromptClosed;
+            }
+
+            _watchedPrompt = LunchPrompt;
+            if (_watchedPrompt is not null)
+            {
+                _watchedPrompt.Closed += OnLunchPromptClosed;
+            }
+        }
+
+        if (!ShowsLunchRow && LunchPrompt is { IsOpen: true })
+        {
+            LunchPrompt.Close();
+        }
+    }
+
+    // Answered or dismissed: read the row again (Count or Discard ended lunch under it).
+    private void OnLunchPromptClosed(object? sender, EventArgs e) => RefreshLunchRow();
 
     private static void Fill(ObservableCollection<string> target, IReadOnlyList<string> lines)
     {
@@ -317,9 +347,14 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         {
             LunchPrompt.Close();
         }
+        else if (Model.Actions.LunchRunning())
+        {
+            // Only while lunch runs: a stale ✕ (lunch just ended) never opens an empty question.
+            LunchPrompt?.Open();
+        }
         else
         {
-            LunchPrompt?.Open();
+            RefreshLunchRow();
         }
     }
 
