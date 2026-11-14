@@ -44,8 +44,10 @@ fun LunchCard(lunch: TodayLunch, clock: ClockFormat) {
     val onLunch = taken != null && now < taken.end
     val length = LunchStore.formatLength(lunch.lengthMinutes)
     // ADR 88: after a counted or discarded piece with time left, "Start the rest (N min left)".
-    val canStartRest = taken != null && LunchOps.canStartRest(taken, now, lunch.lengthMinutes)
-    val leftMinutes = if (taken != null) LunchOps.leftMinutes(taken, now, lunch.lengthMinutes) else 0
+    // The rules that act (and the store) run on trusted time; the ticking [now] only makes this redraw (and drives the countdown text).
+    val trusted = com.accountabilibuddy.companion.guidance.TrustedTime.now()
+    val canStartRest = taken != null && LunchOps.canStartRest(taken, trusted, lunch.lengthMinutes)
+    val leftMinutes = if (taken != null) LunchOps.leftMinutes(taken, trusted, lunch.lengthMinutes) else 0
     AbCard(verticalSpacing = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)) {

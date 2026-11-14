@@ -18,6 +18,11 @@ data class WatchLunch(
     val allowanceMinutes: Int? = null,
     /** Minutes of the earlier counted pieces; [start] and [end] are the current or last piece. */
     val countedMinutes: Int = 0,
+    /**
+     * What "Start the rest" offers, computed by the phone (whole minutes, rounded up as on the phone; 0 or null when it is not offered):
+     * sent only while no piece runs. The watch never works this out itself, so it can't offer a rest the phone would refuse.
+     */
+    val restMinutes: Int? = null,
 ) {
     /** True while lunch runs at [now]. */
     fun isRunning(now: Instant): Boolean = start != null && end != null && now.isBefore(end)
@@ -40,26 +45,25 @@ data class WatchLunch(
         return countedMinutes + piece.toInt()
     }
 
-    /** Whole minutes of the day's lunch still left at [now], never negative; 0 from an older phone. */
-    fun leftMinutes(now: Instant): Int = allowanceMinutes?.let { (it - usedMinutes(now)).coerceAtLeast(0) } ?: 0
+    /** Whole minutes of the day's lunch still left: the phone's own figure once the piece is over (see [restMinutes]), 0 from an older phone. */
+    fun leftMinutes(now: Instant): Int =
+        if (isRunning(now)) allowanceMinutes?.let { (it - usedMinutes(now)).coerceAtLeast(0) } ?: 0 else restMinutes ?: 0
 
-    /** "Start the rest (N min left)" shows: a piece was counted or discarded and at least a minute is left. */
-    fun canStartRest(now: Instant): Boolean = isDone(now) && allowanceMinutes != null && leftMinutes(now) >= 1
+    /** "Start the rest (N min left)" shows: the phone said a piece was counted or discarded and at least a minute is left. */
+    fun canStartRest(now: Instant): Boolean = isDone(now) && leftMinutes(now) >= 1
 
     /**
-     * What the phone will make of [action] as the Lunch page shows it at once (the phone's next snapshot confirms it); the watch's
-     * Discard it does nothing unless [discardAllowed], as on the phone.
+     * What the phone will make of [action] as the Lunch page shows it at once (the phone's next snapshot confirms it). Only what the phone
+     * cannot refuse is shown ahead: Discard it and Start the rest wait for the phone's answer, because the phone decides them (its mode's
+     * setting, the minutes left) and a stale watch must not show a change the phone did not make.
      */
     fun expected(action: String, now: Instant): WatchLunch {
         val end = end
         val start = start
         return when {
-            action == LunchRemote.START && start == null -> copy(start = now, end = now.plus(Duration.ofMinutes(lengthMinutes.toLong())), allowanceMinutes = lengthMinutes, countedMinutes = 0)
-            action == LunchRemote.REST && canStartRest(now) ->
-                copy(start = now, end = now.plus(Duration.ofMinutes(leftMinutes(now).toLong())), countedMinutes = usedMinutes(now))
+            action == LunchRemote.START && start == null -> copy(start = now, end = now.plus(Duration.ofMinutes(lengthMinutes.toLong())), allowanceMinutes = lengthMinutes, countedMinutes = 0, restMinutes = null)
             !isRunning(now) || end == null || start == null -> this
-            action == LunchRemote.BACK || action == LunchRemote.COUNT -> copy(end = now)
-            action == LunchRemote.DISCARD -> if (discardAllowed) copy(end = start) else this
+            action == LunchRemote.BACK || action == LunchRemote.COUNT -> copy(end = now, restMinutes = null)
             action == LunchRemote.PLUS -> copy(end = end.plus(ADJUST_STEP))
             action == LunchRemote.MINUS -> {
                 val soonest = now.plus(SHORTEST_LEFT)

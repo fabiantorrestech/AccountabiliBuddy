@@ -71,6 +71,18 @@ class WatchBridge(
     @Volatile private var knownWatchIds: Set<String> = emptySet()
     @Volatile private var lastHeard: Instant? = null
 
+    // Counted up to send the snapshot again whatever the dedupe thinks (see [resendNow]).
+    private val resendTrigger = MutableStateFlow(0)
+
+    /**
+     * Sends the snapshot again at once, even when this phone's own state did not change: used when the phone refuses something the watch asked
+     * for (a Discard against a setting that is off), so the watch's page returns to what the phone really has.
+     */
+    fun resendNow() {
+        lastSent = null
+        resendTrigger.value += 1
+    }
+
     /** Called after the watch is linked or unlinked here, so the PC's Devices tab learns it at once (Task 18). */
     var onLinkChanged: (() -> Unit)? = null
 
@@ -99,7 +111,8 @@ class WatchBridge(
                     delay(RESEND_MS)
                 }
             }
-            combine(store.state, links.settings, ticker, received, lunchChanges) { _, _, _, _, _ -> Unit }.collectLatest {
+            val lunchOrResend = combine(lunchChanges, resendTrigger) { changes, trigger -> changes to trigger }
+            combine(store.state, links.settings, ticker, received, lunchOrResend) { _, _, _, _, _ -> Unit }.collectLatest {
                 val snapshot = build() ?: return@collectLatest
                 val previous = lastSent
                 if (previous != null && sameContent(previous, snapshot)) {
@@ -111,7 +124,8 @@ class WatchBridge(
                 // Lunch started, changed or ended (on any device, or from the watch) goes at once too.
                 val startedOrEnded = previous == null || (previous.running == null) != (snapshot.running == null) ||
                     previous.lunch?.start != snapshot.lunch?.start || previous.lunch?.end != snapshot.lunch?.end ||
-                    previous.lunch?.discardAllowed != snapshot.lunch?.discardAllowed || previous.lunch?.countedMinutes != snapshot.lunch?.countedMinutes
+                    previous.lunch?.discardAllowed != snapshot.lunch?.discardAllowed || previous.lunch?.countedMinutes != snapshot.lunch?.countedMinutes ||
+                    previous.lunch?.restMinutes != snapshot.lunch?.restMinutes
                 if (!startedOrEnded) {
                     delay((lastSentAt + MIN_GAP_MS - SystemClock.elapsedRealtime()).coerceAtLeast(0))
                 }

@@ -145,7 +145,7 @@ class LunchStore(private val context: Context) {
             result
         }
         onChanged?.invoke()
-        if (outcome.lockChange != LunchLockChange.NONE) runCatching { LunchLockLift.check(context) }
+        if (outcome.lockChange != LunchLockChange.NONE) runCatching { LunchLockLift.check(context, TrustedTime.now()) }
         return true
     }
 
@@ -183,6 +183,10 @@ class LunchStore(private val context: Context) {
         }
     }
 
+    // Bumped whenever the discard setting is stored, so the watch's snapshot (which carries the current mode's setting) is sent again at once.
+    private val _discardChanges = MutableStateFlow(0)
+    val discardChanges: StateFlow<Int> = _discardChanges.asStateFlow()
+
     private fun saveDiscard(companion: Boolean, setting: LunchDiscardSetting) {
         val editor = settingsPrefs.edit().putBoolean(discardKey(companion, "allowed"), setting.allowed)
         val pending = setting.pending
@@ -190,6 +194,7 @@ class LunchStore(private val context: Context) {
         if (pending != null) editor.putBoolean(discardKey(companion, "pending"), pending) else editor.remove(discardKey(companion, "pending"))
         if (pendingFrom != null) editor.putString(discardKey(companion, "pendingFrom"), pendingFrom.toString()) else editor.remove(discardKey(companion, "pendingFrom"))
         editor.apply()
+        _discardChanges.value += 1
     }
 
     private fun discardKey(companion: Boolean, part: String): String = LunchDiscardSetting.prefKey(companion, part)
@@ -231,6 +236,8 @@ class LunchStore(private val context: Context) {
             discardAllowed = discardAllowed,
             allowanceMinutes = taken?.let { LunchDay.allowanceMinutes(it, _lengthMinutes.value) },
             countedMinutes = taken?.let { Math.floorDiv(LunchDay.countedTotal(it).seconds, 60L).toInt() } ?: 0,
+            // Start the rest, decided here: the minutes left exactly as the phone's own card shows them, only while no piece runs and the phone would accept it.
+            restMinutes = taken?.takeIf { trusted >= it.end && LunchOps.canStartRest(it, trusted, _lengthMinutes.value) }?.let { LunchOps.leftMinutes(it, trusted, _lengthMinutes.value) },
         )
     }
 

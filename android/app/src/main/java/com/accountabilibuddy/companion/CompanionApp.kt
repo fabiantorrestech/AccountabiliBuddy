@@ -503,7 +503,8 @@ class CompanionApp : Application() {
             // The watch's Lunch page: today's lunch and the length setting.
             lunch = { lunch.forWatch(store.state.value.document.dayPlan, com.accountabilibuddy.companion.guidance.TrustedTime.now(), lunchDiscardAllowed()) },
             effectivePlan = { effectivePlan(it) },
-            lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
+            // Lunch, its length, the discard setting and the mode (the snapshot carries the current mode's setting): any change sends a snapshot.
+            lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes, lunch.discardChanges, guidance.state) { taken, length, discard, mode -> listOf(taken, length, discard, mode) },
             // ADR 42: the watch's "/hello" reads the PCs' files from Drive before it answers.
             syncNow = {
                 driveSource.syncNow()
@@ -645,7 +646,7 @@ class CompanionApp : Application() {
                 if (lunchTaken) {
                     launch { runCatching { Refresher.refresh(this@CompanionApp) } }
                 }
-                runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(this@CompanionApp) }
+                runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(this@CompanionApp, com.accountabilibuddy.companion.guidance.TrustedTime.now()) }
                 actions.prune(devices)
                 pcRemote.expire()
                 pcNoise.expire()

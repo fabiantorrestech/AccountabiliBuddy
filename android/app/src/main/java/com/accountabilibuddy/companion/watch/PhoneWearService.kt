@@ -30,7 +30,8 @@ class PhoneWearService : WearableListenerService() {
             val app = application as CompanionApp
             val action = com.accountabilibuddy.shared.LunchRemote.read(event.data) ?: return
             if (event.sourceNodeId == app.watchBridge.linkSettings.value.linkedNodeId) {
-                LunchFromWatch.apply(app.lunch, app.store.state.value.document.dayPlan, action, app.lunchDiscardAllowed())
+                // A refused answer (Discard against the phone's setting, Start the rest with nothing left) puts the watch's page right again.
+                if (!LunchFromWatch.apply(app.lunch, app.store.state.value.document.dayPlan, action, app.lunchDiscardAllowed())) app.watchBridge.resendNow()
             }
             return
         }

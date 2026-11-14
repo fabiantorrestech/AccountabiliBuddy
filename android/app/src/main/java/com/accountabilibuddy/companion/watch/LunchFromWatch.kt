@@ -11,16 +11,18 @@ import com.accountabilibuddy.shared.LunchRemote
  * the linked watch is heard; a start on a day that isn't a workday, or after today's lunch, does nothing.
  */
 object LunchFromWatch {
-    fun apply(lunch: LunchStore, plan: DayPlan, action: String, discardAllowed: Boolean) {
+    /** True when the phone did what was asked; false when it refused (the caller then sends the watch the phone's real state). */
+    fun apply(lunch: LunchStore, plan: DayPlan, action: String, discardAllowed: Boolean): Boolean {
         val now = TrustedTime.now()
-        when (action) {
-            LunchRemote.START -> if (lunch.canStart(plan, now)) lunch.start(now)
+        return when (action) {
+            LunchRemote.START -> lunch.canStart(plan, now).also { if (it) lunch.start(now) }
             LunchRemote.BACK, LunchRemote.COUNT -> lunch.count(now)
             // The mode's setting is read here, on the phone: a watch that is out of date can never discard against it.
             LunchRemote.DISCARD -> lunch.discard(now, discardAllowed)
-            LunchRemote.REST -> if (lunch.canStartRest(now)) lunch.startRest(now)
-            LunchRemote.PLUS -> lunch.adjust(longer = true, now = now)
-            LunchRemote.MINUS -> lunch.adjust(longer = false, now = now)
+            LunchRemote.REST -> lunch.canStartRest(now) && lunch.startRest(now)
+            LunchRemote.PLUS -> true.also { lunch.adjust(longer = true, now = now) }
+            LunchRemote.MINUS -> true.also { lunch.adjust(longer = false, now = now) }
+            else -> false
         }
     }
 }

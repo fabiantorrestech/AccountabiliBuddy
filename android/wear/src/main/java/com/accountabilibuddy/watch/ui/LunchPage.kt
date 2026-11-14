@@ -47,8 +47,6 @@ fun LunchPage(lunch: WatchLunch, now: State<Instant>, zone: ZoneId) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var unreachable by remember { mutableStateOf(false) }
-    // The ✕ asks Count it / Discard it / Keep going (ADR 88); Discard it only when the phone's mode allows it.
-    var asking by remember { mutableStateOf(false) }
     fun send(action: String) = scope.launch { unreachable = !LunchLink.send(context, action) }
     fun clock(at: Instant): String = WatchText.clock(LocalTime.ofInstant(at, zone), use24HourClock)
 
@@ -56,6 +54,9 @@ fun LunchPage(lunch: WatchLunch, now: State<Instant>, zone: ZoneId) {
     // recomposed every second.
     val running by remember(lunch) { derivedStateOf { lunch.isRunning(now.value) } }
     val done by remember(lunch) { derivedStateOf { lunch.isDone(now.value) } }
+    // The ✕ asks Count it / Discard it / Keep going (ADR 88); Discard it only when the phone's mode allows it.
+    // Keyed on [running]: it closes by itself when lunch ends, so the next lunch never opens on the question.
+    var asking by remember(running) { mutableStateOf(false) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val ring = 10.dp.toPx()
@@ -72,7 +73,8 @@ fun LunchPage(lunch: WatchLunch, now: State<Instant>, zone: ZoneId) {
                     val at = now.value
                     Text("End lunch?", color = Color(LUNCH_COLOR), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     Text("${lunch.usedMinutes(at)} of ${lunch.allowanceMinutes ?: lunch.lengthMinutes} min used", color = Color(0xB3FFFFFF), fontSize = 11.sp)
-                    Button(onClick = { asking = false; send(LunchRemote.COUNT) }) { Text("Count it", fontSize = 13.sp) }
+                    // An older phone does not know Count it; its "back" is the same thing.
+                    Button(onClick = { asking = false; send(if (lunch.allowanceMinutes == null) LunchRemote.BACK else LunchRemote.COUNT) }) { Text("Count it", fontSize = 13.sp) }
                     // Offered only when the phone's snapshot says the mode allows it.
                     if (lunch.canDiscard(at)) {
                         Button(onClick = { asking = false; send(LunchRemote.DISCARD) }) { Text("Discard it", fontSize = 13.sp) }

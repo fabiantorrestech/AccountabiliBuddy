@@ -192,7 +192,7 @@ object TimelineNotifier {
             // ADR 88: while lunch runs, "End lunch" opens the app on the "End lunch?" question (Count it / Discard it / Keep going). One tap
             // never ends or discards anything, so a stray tap cannot discard a lunch; the answer is given in the app.
             val app = context.applicationContext as? com.accountabilibuddy.companion.CompanionApp
-            if (app != null && app.lunch.isOnLunch(java.time.Instant.now())) {
+            if (app != null && app.lunch.isOnLunch(com.accountabilibuddy.companion.guidance.TrustedTime.now())) {
                 views.setViewVisibility(R.id.timeline_cancel, View.VISIBLE)
                 views.setTextViewText(R.id.timeline_cancel, "End lunch")
                 views.setTextColor(R.id.timeline_cancel, color)

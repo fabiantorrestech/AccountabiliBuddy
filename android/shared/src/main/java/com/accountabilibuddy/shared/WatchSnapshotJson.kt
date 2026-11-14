@@ -38,6 +38,7 @@ object WatchSnapshotJson {
                 if (lunch.discardAllowed) put("discardAllowed", true)
                 lunch.allowanceMinutes?.let { put("allowanceMinutes", it) }
                 if (lunch.countedMinutes > 0) put("countedMinutes", lunch.countedMinutes)
+                lunch.restMinutes?.let { put("restMinutes", it) }
             })
         }
         if (snapshot.sources.isNotEmpty()) {
@@ -108,7 +109,7 @@ object WatchSnapshotJson {
         return WatchLunch(
             json.bool("workday"), json.int("lengthMinutes") ?: 60,
             start.takeIf { end != null }, end.takeIf { start != null },
-            json.bool("discardAllowed"), json.int("allowanceMinutes"), json.int("countedMinutes") ?: 0,
+            json.bool("discardAllowed"), json.int("allowanceMinutes"), json.int("countedMinutes") ?: 0, json.int("restMinutes"),
         )
     }
 
