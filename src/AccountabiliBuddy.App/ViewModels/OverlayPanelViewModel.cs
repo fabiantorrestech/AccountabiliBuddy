@@ -143,6 +143,18 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowsLunch { get; set; }
 
+    /// <summary>Lunch is running: the panel's lunch row (its time left and the ✕) shows (LU1b, ADR 88).</summary>
+    [ObservableProperty]
+    public partial bool ShowsLunchRow { get; set; }
+
+    /// <summary>"Lunch · 42 min left".</summary>
+    [ObservableProperty]
+    public partial string LunchLine { get; set; } = string.Empty;
+
+    /// <summary>The "End lunch?" question the lunch row's ✕ opens, shown under the row; null without one.</summary>
+    [ObservableProperty]
+    public partial LunchEndPromptViewModel? LunchPrompt { get; set; }
+
     [ObservableProperty]
     public partial bool CanSideTask { get; set; }
 
@@ -176,6 +188,9 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
         SwitchHint = state.IsActive ? "1–3 to switch" : "1–3 to start";
         // During a break too: lunch cuts the break short.
         ShowsLunch = (!state.IsActive || state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak) && Model.Actions.CanStartLunch();
+        ShowsLunchRow = Model.Actions.LunchRunning();
+        LunchLine = Model.Actions.LunchLine();
+        LunchPrompt = Model.Actions.LunchPrompt();
         ShowsReady = Model.PlanFirst is { InStage: true };
         GoalText = Model.GoalText;
         OnPropertyChanged(nameof(HasQr));
@@ -292,6 +307,20 @@ public sealed partial class OverlayPanelViewModel : ObservableObject
     private async Task StartAsync()
     {
         await Model.Actions.StartDefault();
+    }
+
+    /// <summary>The lunch row's ✕: asks "End lunch?" (Count it, Discard it, Keep going) under the row.</summary>
+    [RelayCommand]
+    private void AskEndLunch()
+    {
+        if (LunchPrompt is { IsOpen: true })
+        {
+            LunchPrompt.Close();
+        }
+        else
+        {
+            LunchPrompt?.Open();
+        }
     }
 
     [RelayCommand]

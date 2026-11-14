@@ -299,6 +299,21 @@
                                              SelectedIndex="{Binding SideTaskIndex}" AutomationProperties.Name="When I start a side task" />
                                 </Grid>
                             </Border>
+                            <Border Classes="sRow" search:SearchArea.Name="Allow discarding a lunch">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                    <mi:MaterialIcon Classes="rowIcon" Kind="SilverwareForkKnife" />
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock Classes="sTitle" Text="Allow discarding a lunch" />
+                                        <TextBlock Classes="sHint" Text="The lunch ✕ asks Count it or Discard it. Off: only Count it. Off applies at once; on waits." />
+                                        <StackPanel Spacing="2" IsVisible="{Binding HasLunchDiscardPending}">
+                                            <TextBlock Classes="sPending" Text="{Binding LunchDiscardPending}" />
+                                            <Button Classes="quiet" Content="Cancel this change" Command="{Binding CancelPendingCommand}" CommandParameter="lunchDiscard"
+                                                    HorizontalAlignment="Left" Padding="0,2" AutomationProperties.Name="Cancel this waiting change" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding AllowLunchDiscard}" VerticalAlignment="Top" AutomationProperties.Name="Allow discarding a lunch" />
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </StackPanel>
                 </Border>

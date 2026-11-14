@@ -184,6 +184,14 @@
         <Style Selector="TextBlock.deviceName.dim">
             <Setter Property="Opacity" Value="0.55" />
         </Style>
+        <!-- The lunch chip (LU1b): a quiet pill with the lunch's time left and its ✕. -->
+        <Style Selector="Border.titleChip">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="9,1,3,1" />
+        </Style>
         <Style Selector="FlyoutPresenter.syncPopover">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
@@ -235,6 +243,26 @@
                                                  chrome:WindowDecorationProperties.ElementRole="User" />
                     </Panel>
                 </controls:GiveWayPanel>
+
+                <!-- The lunch chip (LU1b, ADR 88): only while lunch runs, left of the session control: "Lunch · 42 min left" and a ✕ that opens
+                     "End lunch?" (Count it / Discard it / Keep going) in a pop-up. It is not a part of the idle bar, so nothing moves without lunch. -->
+                <Border x:Name="LunchChip" controls:TitleBarLayout.Slot="End" Classes="titleChip" Margin="0,0,8,0" VerticalAlignment="Center"
+                        IsVisible="{Binding Session.Lunch.IsOnLunch, FallbackValue=False}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="SilverwareForkKnife" Width="14" Height="14" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                        <TextBlock Text="{Binding Session.Lunch.ChipText, FallbackValue=''}" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Ink}" />
+                        <Button x:Name="LunchChipEndButton" Classes="quiet titleIcon" Width="24" Height="24" Padding="0" MinHeight="0" MinWidth="0"
+                                chrome:WindowDecorationProperties.ElementRole="User" AutomationProperties.Name="End lunch"
+                                ToolTip.Tip="End lunch: count it, discard it or keep going">
+                            <mi:MaterialIcon Kind="Close" Width="13" Height="13" />
+                            <Button.Flyout>
+                                <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Standard" FlyoutPresenterClasses="syncPopover">
+                                    <views:LunchEndPromptView x:Name="LunchChipPrompt" DataContext="{Binding Session.Lunch.TitleBarPrompt}" />
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+                </Border>
 
                 <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts): right, next to the synced devices (owner 2026-11-14). -->
                 <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="End" DataContext="{Binding SessionControl}"

@@ -403,10 +403,11 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         IReadOnlyList<LocalWindow> ended = WorkEnded?.Invoke() ?? [];
         IReadOnlyList<PlannedFocus> planned = DayWorkWindows.WorkWindows(PlanInForce, span, now, FocusedOn, NightFallback, ended);
         // A lunch taken (flexible break, schema v8) isn't work: it comes out of the planned work it lies in.
-        TimelineItem? lunch = TakenLunch();
-        if (lunch is not null)
+        IReadOnlyList<TimelineItem> lunch = TakenLunches();
+        if (lunch.Count > 0)
         {
-            planned = planned.SelectMany(focus => DayTimeline.Subtract([focus.Window], [lunch.Window]).Select(window => focus with { Window = window })).ToList();
+            // Every piece of a split lunch (ADR 88) comes out of the work it lies in.
+            planned = planned.SelectMany(focus => DayTimeline.Subtract([focus.Window], lunch.Select(piece => piece.Window).ToList()).Select(window => focus with { Window = window })).ToList();
         }
 
         List<(LocalWindow Window, string Tip, Guid? ProfileId, bool Added, IReadOnlyList<LocalWindow> Away, IReadOnlyList<LocalWindow> Distracted)> actual = ActualSessions(now, span);
@@ -457,7 +458,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
             focused,
             unfocused,
             taskMarks.Concat(phoneFree).ToList(),
-            lunch is null ? null : [lunch],
+            lunch.Count == 0 ? null : lunch,
             ended);
 
         (List<DayBarSpan> night, List<DayBarSpan> missed) = SleepSpans(now, range);
@@ -492,16 +493,23 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
     /// <summary>Today's lunch once started (flexible break, schema v8); set by the app.</summary>
     public Func<AccountabiliBuddy.Core.Sync.SyncLunch?>? Lunch { get; set; }
 
-    private TimelineItem? TakenLunch()
+    // Every piece of today's lunch that was taken (a split lunch has several, ADR 88); a discarded one is left out.
+    private IReadOnlyList<TimelineItem> TakenLunches()
     {
         if (Lunch?.Invoke() is not AccountabiliBuddy.Core.Sync.SyncLunch taken)
         {
-            return null;
+            return [];
         }
 
-        var window = new LocalWindow(ToLocal(taken.Start), ToLocal(taken.End));
-        string color = _configuration.Current.DayPlan.FlexibleBreakOn(DateOnly.FromDateTime(window.Start))?.Color ?? "#CA8A04";
-        return new TimelineItem(window, $"Lunch · {Times(window)}", color);
+        var items = new List<TimelineItem>();
+        foreach ((DateTimeOffset start, DateTimeOffset end) in LunchPieces.Of(taken))
+        {
+            var window = new LocalWindow(ToLocal(start), ToLocal(end));
+            string color = _configuration.Current.DayPlan.FlexibleBreakOn(DateOnly.FromDateTime(window.Start))?.Color ?? "#CA8A04";
+            items.Add(new TimelineItem(window, $"Lunch · {Times(window)}", color));
+        }
+
+        return items;
     }
 
     /// <summary>The starts of this PC's sessions the phone saw no pickup in (ADR 26); set by the app.</summary>
@@ -829,7 +837,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
                 : until is null ? "On a break" : $"On a break until {until}";
         }
 
-        if (TakenLunch() is TimelineItem lunch && lunch.Window.Contains(now))
+        if (TakenLunches().FirstOrDefault(piece => piece.Window.Contains(now)) is TimelineItem lunch)
         {
             return $"Lunch until {lunch.Window.End:t}";
         }

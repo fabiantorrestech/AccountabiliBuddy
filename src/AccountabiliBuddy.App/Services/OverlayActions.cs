@@ -33,8 +33,17 @@ public sealed class OverlayActions
     /// <summary>Lunch can start now.</summary>
     public Func<bool> CanStartLunch { get; set; } = () => false;
 
-    /// <summary>Starts lunch.</summary>
+    /// <summary>Starts lunch (or the rest of today's lunch after a counted piece).</summary>
     public Func<Task> StartLunch { get; set; } = () => Task.CompletedTask;
+
+    /// <summary>Lunch is running now: the panel shows its row with the ✕ (LU1b, ADR 88).</summary>
+    public Func<bool> LunchRunning { get; set; } = () => false;
+
+    /// <summary>"Lunch · 42 min left" for the panel's lunch row.</summary>
+    public Func<string> LunchLine { get; set; } = () => string.Empty;
+
+    /// <summary>The "End lunch?" question the panel's lunch ✕ shows; null when there is none.</summary>
+    public Func<AccountabiliBuddy.App.ViewModels.LunchEndPromptViewModel?> LunchPrompt { get; set; } = () => null;
 
     /// <summary>The next calendar event starting within the next 10 minutes (title, start), or null.</summary>
     public Func<(string Title, DateTime LocalStart)?> NextMeeting { get; set; } = () => null;

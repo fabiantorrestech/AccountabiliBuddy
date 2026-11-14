@@ -97,10 +97,28 @@ public sealed class LunchService
     public bool IsOnLunch => Taken is SyncLunch lunch && _sessions.Now < lunch.End;
 
     /// <summary>
-    /// True while lunch holds a session's step away (input doesn't end it): during lunch, and never past
-    /// <see cref="MaxLength"/> after it started, even if its end says otherwise.
+    /// True while lunch holds a session's step away (input doesn't end it): during lunch, and never past the day's lunch total
+    /// (<see cref="MaxLength"/> counting the earlier pieces too, <see cref="LunchDay.Held"/>), even if the stored end says otherwise.
     /// </summary>
-    public bool HoldsSessionAway => IsOnLunch && Taken is SyncLunch lunch && _sessions.Now < lunch.Start + MaxLength;
+    public bool HoldsSessionAway => IsOnLunch && Taken is SyncLunch lunch && _sessions.Now < LunchDay.Held(lunch).End;
+
+    /// <summary>
+    /// Whether the active mode lets "Discard it" through (Settings › Tasks › "Allow discarding a lunch", per mode, ADR 88); set by the app.
+    /// Until the app sets it, discarding is off: nothing is discarded by accident.
+    /// </summary>
+    public Func<bool> DiscardAllowed { get; set; } = () => false;
+
+    /// <summary>"Discard it" is offered now: lunch runs and the mode allows it.</summary>
+    public bool CanDiscard => Taken is SyncLunch lunch && LunchDay.CanDiscard(lunch, _sessions.Now, DiscardAllowed());
+
+    /// <summary>The lunch used so far today (counted pieces plus the running one); zero before a lunch.</summary>
+    public TimeSpan Used => Taken is SyncLunch lunch ? LunchDay.Used(lunch, _sessions.Now) : TimeSpan.Zero;
+
+    /// <summary>What is left of today's lunch allowance (the whole length before a lunch), never negative.</summary>
+    public TimeSpan Remaining => Taken is SyncLunch lunch ? LunchDay.Remaining(lunch, _sessions.Now, (int)Length.TotalMinutes) : Length;
+
+    /// <summary>Another piece of today's lunch can start: nothing runs and an earlier piece was counted or discarded with time left (the rest, ADR 88).</summary>
+    public bool CanStartRest => Taken is SyncLunch lunch && LunchDay.CanStart(lunch, _sessions.Now, (int)Length.TotalMinutes);
 
     /// <summary>Today's fixed lunch period from the plan (schema v13); null on a day without one.</summary>
     public FixedLunch? FixedToday => _configuration.Current.DayPlan.FixedLunchOn(DateOnly.FromDateTime(LocalNow()));
@@ -112,12 +130,15 @@ public sealed class LunchService
     /// Today's fixed lunch is still to start by itself: a workday with one, no lunch taken yet and "Flexible this time" not chosen.
     /// </summary>
     /// <remarks>Only until its window ends: after that it can no longer start by itself, and "Start lunch" is the user's.</remarks>
-    public FixedLunch? AutoStartPending => IsWorkdayToday && Taken is null && !IsFlexibleToday && FixedToday is FixedLunch lunch && LocalNow() < lunch.Window.End
+    public FixedLunch? AutoStartPending => IsWorkdayToday && LunchDay.AutoStartPending(Taken) && !IsFlexibleToday && FixedToday is FixedLunch lunch && LocalNow() < lunch.Window.End
         ? lunch
         : null;
 
     /// <summary>"Start lunch" shows: today is a workday (or has a flexible break) and no lunch was taken yet.</summary>
     public bool CanStart => (IsWorkdayToday || Today is not null) && Taken is null;
+
+    /// <summary>"Start the rest" shows: an earlier piece was counted or discarded today and time is left. (A lunch was started, so the day needs no check.)</summary>
+    public bool CanStartTheRest => CanStartRest;
 
     /// <summary>−5 min can still take something off: the running lunch ends more than a minute from now.</summary>
     public bool CanShorten => IsOnLunch && Taken is SyncLunch lunch && lunch.End > _sessions.Now + ShortestLeft;
@@ -134,8 +155,27 @@ public sealed class LunchService
         }
     }
 
-    /// <summary>Starts lunch now for the lunch length; a running session steps away.</summary>
-    public Task StartAsync() => StartForAsync(Length);
+    /// <summary>
+    /// Starts lunch now for the lunch length, or, when an earlier piece today was counted or discarded, for what is left of the day's
+    /// allowance (ADR 88); a running session steps away.
+    /// </summary>
+    public Task StartAsync() => Taken is null ? StartForAsync(Length) : StartRestAsync();
+
+    private async Task StartRestAsync()
+    {
+        DateTimeOffset now = _sessions.Now;
+        // Only today's lunch is passed (Taken is today's), as LunchDay.StartAgain needs.
+        if (Taken is not SyncLunch lunch || LunchDay.StartAgain(lunch, now, (int)Length.TotalMinutes) is not SyncLunch next)
+        {
+            return;
+        }
+
+        await SaveAsync(_state with
+        {
+            Start = next.Start, End = next.End, OverTold = false, EditedAt = next.EditedAt, AllowanceMinutes = next.Allowance, Counted = next.Counted, Discarded = false,
+        });
+        StepAwayForLunch();
+    }
 
     private async Task StartForAsync(TimeSpan length)
     {
@@ -146,8 +186,13 @@ public sealed class LunchService
         {
             Start = first.Start, End = first.End, OverTold = false, EditedAt = now, AllowanceMinutes = first.Allowance, Counted = first.Counted, Discarded = false,
         });
-        // Lunch takes the place of a break; during focus it pauses the session as a step away (always the paused kind, ADR 77), and a
-        // step away with the timer running becomes lunch's.
+        StepAwayForLunch();
+    }
+
+    // Lunch takes the place of a break; during focus it pauses the session as a step away (always the paused kind, ADR 77), and a
+    // step away with the timer running becomes lunch's.
+    private void StepAwayForLunch()
+    {
         if (!_sessions.EndBreakForLunch() && _sessions.State.IsActive && !_sessions.State.IsAway)
         {
             _sessions.StepAway(AwayKind.Break, keepTimerRunning: false);
@@ -188,17 +233,51 @@ public sealed class LunchService
         }
     }
 
-    /// <summary>Back early ("I'm back"): lunch ends now, and a session stepped away for it is back.</summary>
-    public async Task EndNowAsync()
+    /// <summary>"I'm back": the same as <see cref="CountAsync"/>. The minutes so far count and the rest of the day's lunch stays for later.</summary>
+    public Task EndNowAsync() => CountAsync();
+
+    /// <summary>
+    /// "Count it" (ADR 88): lunch ends now, the minutes so far count and the rest of the day's allowance stays for a later piece; a session
+    /// stepped away for it is back. False when no lunch runs.
+    /// </summary>
+    public async Task<bool> CountAsync()
     {
-        if (IsOnLunch)
+        if (!IsOnLunch || Taken is not SyncLunch lunch || LunchDay.Count(lunch, _sessions.Now) is not SyncLunch counted)
         {
-            DateTimeOffset now = _sessions.Now;
-            await SaveAsync(_state with { End = now, OverTold = true, EditedAt = now });
-            if (_sessions.State.IsActive && _sessions.State.IsAway)
-            {
-                _sessions.Return();
-            }
+            return false;
+        }
+
+        await SaveAsync(_state with { End = counted.End, OverTold = true, EditedAt = counted.EditedAt });
+        ReturnSession();
+        return true;
+    }
+
+    /// <summary>
+    /// "Discard it" (ADR 88): the running piece never happened, so the minutes so far don't count and the full allowance (or the rest after
+    /// the earlier counted pieces) is back. Refused (false) when no lunch runs or the active mode doesn't allow discarding (<see cref="DiscardAllowed"/>).
+    /// A discarded lunch is still taken for the day, so a fixed lunch never starts again by itself. A session stepped away for it is back.
+    /// </summary>
+    public async Task<bool> DiscardAsync()
+    {
+        if (!IsOnLunch || Taken is not SyncLunch lunch || LunchDay.Discard(lunch, _sessions.Now, DiscardAllowed()) is not SyncLunch discarded)
+        {
+            return false;
+        }
+
+        await SaveAsync(_state with
+        {
+            Start = discarded.Start, End = discarded.End, OverTold = true, EditedAt = discarded.EditedAt, Counted = discarded.Counted, Discarded = discarded.Discarded,
+        });
+        ReturnSession();
+        return true;
+    }
+
+    // A session stepped away for lunch is back (what "I'm back" always did; it never shortens a wait or unlocks anything).
+    private void ReturnSession()
+    {
+        if (_sessions.State.IsActive && _sessions.State.IsAway)
+        {
+            _sessions.Return();
         }
     }
 

@@ -6,7 +6,10 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace AccountabiliBuddy.App.ViewModels;
 
-/// <summary>Today's lunch card (flexible break, schema v8): "Start lunch" on any workday, then the time left, +5 / −5 min and "I'm back".</summary>
+/// <summary>
+/// Today's lunch card (flexible break, schema v8): "Start lunch" on any workday, then the time left, +5 / −5 min, "I'm back" (counts the minutes so
+/// far) and a ✕ that asks "End lunch?" (Count it, Discard it, Keep going; ADR 88). After a counted piece "Start the rest (40 min left)" starts the next.
+/// </summary>
 public sealed partial class LunchCardViewModel : ObservableObject
 {
     private readonly LunchService _lunch;
@@ -17,6 +20,9 @@ public sealed partial class LunchCardViewModel : ObservableObject
         _lunch = lunch;
         _sessions = sessions;
         Text = string.Empty;
+        Prompt = new LunchEndPromptViewModel(lunch, sessions);
+        TitleBarPrompt = new LunchEndPromptViewModel(lunch, sessions);
+        OverlayPrompt = new LunchEndPromptViewModel(lunch, sessions);
         _lunch.Changed += (_, _) => Refresh();
         _sessions.Ticked += (_, _) => Refresh();
         Refresh();
@@ -31,6 +37,27 @@ public sealed partial class LunchCardViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool IsOnLunch { get; set; }
+
+    /// <summary>A counted or discarded piece left time: "Start the rest" shows.</summary>
+    [ObservableProperty]
+    public partial bool CanStartRest { get; set; }
+
+    /// <summary>"Start the rest (40 min left)".</summary>
+    [ObservableProperty]
+    public partial string StartRestText { get; set; } = string.Empty;
+
+    /// <summary>The title bar's lunch chip: "Lunch · 42 min left" while lunch runs.</summary>
+    [ObservableProperty]
+    public partial string ChipText { get; set; } = string.Empty;
+
+    /// <summary>The "End lunch?" question the Today card shows under its ✕ (inline).</summary>
+    public LunchEndPromptViewModel Prompt { get; }
+
+    /// <summary>The "End lunch?" question the title bar's lunch chip shows in its pop-up.</summary>
+    public LunchEndPromptViewModel TitleBarPrompt { get; }
+
+    /// <summary>The "End lunch?" question the overlay panel's lunch row shows (inline).</summary>
+    public LunchEndPromptViewModel OverlayPrompt { get; }
 
     /// <summary>−5 min is enabled: the lunch ends more than a minute from now.</summary>
     [ObservableProperty]
@@ -59,8 +86,12 @@ public sealed partial class LunchCardViewModel : ObservableObject
         SyncLunch? taken = _lunch.Taken;
         IsOnLunch = _lunch.IsOnLunch;
         CanStart = _lunch.CanStart;
+        CanStartRest = _lunch.CanStartTheRest;
+        int leftMinutes = (int)Math.Ceiling(_lunch.Remaining.TotalMinutes);
+        StartRestText = $"Start the rest ({leftMinutes} min left)";
         CanShorten = _lunch.CanShorten;
         IsVisible = CanStart || taken is not null;
+        ChipText = IsOnLunch && taken is not null ? $"Lunch · {Math.Max(1, (int)Math.Ceiling((taken.End - _sessions.Now).TotalMinutes))} min left" : string.Empty;
         DeliveryText = IsOnLunch && taken is not null && Peers is not null
             ? LunchDelivery.Line(taken, Peers(), _sessions.Now, time => TimeZoneInfo.ConvertTime(time, _sessions.TimeProvider.LocalTimeZone).ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture)) ?? string.Empty
             : string.Empty;
@@ -71,9 +102,21 @@ public sealed partial class LunchCardViewModel : ObservableObject
             TimeSpan left = taken.End - _sessions.Now;
             Text = $"Lunch · {(int)left.TotalMinutes}:{Math.Max(0, left.Seconds):00} left · until {TimeZoneInfo.ConvertTime(taken.End, zone):t}";
         }
+        else if (taken is { Discarded: true })
+        {
+            // Discarded: as if it never started, but it stays "taken" so a fixed lunch doesn't start by itself again (ADR 88).
+            Text = $"Lunch discarded · {leftMinutes} min left for today";
+        }
+        else if (taken is not null && CanStartRest)
+        {
+            int usedMinutes = (int)Math.Floor(_lunch.Used.TotalMinutes);
+            Text = $"Lunch · {usedMinutes} min counted · {leftMinutes} min left for later";
+        }
         else if (taken is not null)
         {
-            Text = $"Lunch done · {TimeZoneInfo.ConvertTime(taken.Start, zone):t} – {TimeZoneInfo.ConvertTime(taken.End, zone):t}";
+            Text = taken.Counted is { Count: > 0 }
+                ? $"Lunch done · {(int)Math.Round(_lunch.Used.TotalMinutes)} min in all"
+                : $"Lunch done · {TimeZoneInfo.ConvertTime(taken.Start, zone):t} – {TimeZoneInfo.ConvertTime(taken.End, zone):t}";
         }
         else if (_lunch.AutoStartPending is FixedLunch waiting && _sessions.State.IsActive
                  && TimeZoneInfo.ConvertTime(_sessions.Now, zone).DateTime >= waiting.Window.Start)
@@ -102,8 +145,27 @@ public sealed partial class LunchCardViewModel : ObservableObject
     [RelayCommand]
     private Task StartAsync() => _lunch.StartAsync();
 
+    /// <summary>"Start the rest": the next piece of today's lunch, for what is left.</summary>
+    [RelayCommand]
+    private Task StartRestAsync() => _lunch.StartAsync();
+
+    /// <summary>"I'm back": the same as "Count it", without asking.</summary>
     [RelayCommand]
     private Task BackAsync() => _lunch.EndNowAsync();
+
+    /// <summary>The ✕: asks "End lunch?" (Count it, Discard it, Keep going) under the card's text.</summary>
+    [RelayCommand]
+    private void AskEnd()
+    {
+        if (Prompt.IsOpen)
+        {
+            Prompt.Close();
+        }
+        else if (_lunch.IsOnLunch)
+        {
+            Prompt.Open();
+        }
+    }
 
     [RelayCommand]
     private Task LongerAsync() => _lunch.AdjustAsync(LunchService.AdjustStep);

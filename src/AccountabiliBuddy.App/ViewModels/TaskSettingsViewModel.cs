@@ -54,7 +54,7 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         _account = account;
         _time = time;
         RingingSummary = ExportStatus = PickedStatus = TimeLimitHint = DefaultViewHint = StatusText = ResetNote = string.Empty;
-        CompactPending = ShelfPending = ActionsPending = SessionViewPending = StepAwayPending = SideTaskPending = string.Empty;
+        CompactPending = ShelfPending = ActionsPending = SessionViewPending = StepAwayPending = SideTaskPending = LunchDiscardPending = string.Empty;
         NewMarkerOpen = NewMarkerClose = MarkerProblem = string.Empty;
 
         _settings.Changed += (_, _) => Dispatcher.UIThread.Post(Load);
@@ -273,6 +273,16 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
 
     public bool HasSideTaskPending => SideTaskPending.Length > 0;
 
+    /// <summary>"Allow discarding a lunch" (ADR 88, per mode): the lunch ✕ offers "Discard it" next to "Count it". Off applies at once, on waits.</summary>
+    [ObservableProperty]
+    public partial bool AllowLunchDiscard { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLunchDiscardPending))]
+    public partial string LunchDiscardPending { get; set; }
+
+    public bool HasLunchDiscardPending => LunchDiscardPending.Length > 0;
+
     // ---- New tasks ----
 
     public IReadOnlyList<string> TimeLimitChoices { get; } = ["None", "15", "25", "50", "Custom"];
@@ -445,6 +455,8 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
             StepAwayPending = PendingText(settings.PendingStepAway is not null, settings.PendingStepAwayFrom, "Pause the timer");
             SideTaskIndex = settings.SideTask == StepAwayTimer.PauseTimer ? 1 : 0;
             SideTaskPending = PendingText(settings.PendingSideTask is not null, settings.PendingSideTaskFrom, "Pause the timer");
+            AllowLunchDiscard = settings.AllowLunchDiscard;
+            LunchDiscardPending = PendingText(settings.PendingAllowLunchDiscard == true, settings.PendingAllowLunchDiscardFrom, "Discarding a lunch on");
 
             int preset = Array.IndexOf(TimeLimitPresets, settings.DefaultTimeLimitMinutes);
             TimeLimitIndex = preset >= 0 && !_customTimeLimit ? preset : TimeLimitChoices.Count - 1;
@@ -772,6 +784,14 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         }
     }
 
+    partial void OnAllowLunchDiscardChanged(bool value)
+    {
+        if (!_loading)
+        {
+            _ = ApplyRuledAsync(() => _settings.SetAllowLunchDiscardAsync(value));
+        }
+    }
+
     partial void OnSideTaskIndexChanged(int value)
     {
         if (!_loading && value is 0 or 1)
@@ -796,6 +816,7 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
             "view" => _settings.SetSessionViewAsync(current.SessionView),
             "stepAway" => _settings.SetStepAwayAsync(current.StepAway),
             "sideTask" => _settings.SetSideTaskAsync(current.SideTask),
+            "lunchDiscard" => _settings.SetAllowLunchDiscardAsync(current.AllowLunchDiscard),
             _ => Task.FromResult(true),
         };
         await change;

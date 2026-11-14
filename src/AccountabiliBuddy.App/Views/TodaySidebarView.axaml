@@ -350,21 +350,32 @@
                     <views:TimersCardView DataContext="{Binding Owner.Timers}" />
                 </StackPanel>
 
-                <!-- Lunch (flexible lunch): start it, or −5 / +5 / I'm back while on it. -->
+                <!-- Lunch (flexible lunch): start it (or the rest of it after a counted piece), or −5 / +5 / I'm back while on it; the ✕ asks
+                     "End lunch?" (Count it / Discard it / Keep going, LU1b, ADR 88). -->
                 <StackPanel Spacing="8" IsVisible="{Binding $parent[ContentControl].((vm:TodaySidebarPartViewModel)DataContext).IsLunch, FallbackValue=False}" DataContext="{Binding Owner.Lunch}" x:DataType="vm:LunchCardViewModel">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                         <mi:MaterialIcon Kind="SilverwareForkKnife" Width="16" Height="16" VerticalAlignment="Top" Margin="0,2,0,0" Foreground="{DynamicResource Ab.Muted}" />
-                        <TextBlock Text="{Binding Text}" FontSize="13.5" TextWrapping="Wrap" MaxWidth="270" />
-                    </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13.5" TextWrapping="Wrap" />
+                        <Button Grid.Column="2" Classes="sideIcon" VerticalAlignment="Top" Margin="0,-4,-4,0" IsVisible="{Binding IsOnLunch}" Command="{Binding AskEndCommand}"
+                                ToolTip.Tip="End lunch: count it, discard it or keep going" AutomationProperties.Name="End lunch">
+                            <mi:MaterialIcon Kind="Close" Width="15" Height="15" />
+                        </Button>
+                    </Grid>
+                    <Border Classes="card" Padding="12,10" IsVisible="{Binding Prompt.IsOpen}">
+                        <views:LunchEndPromptView DataContext="{Binding Prompt}" />
+                    </Border>
                     <TextBlock Text="{Binding DeliveryText}" IsVisible="{Binding DeliveryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
                     <WrapPanel ItemSpacing="6" LineSpacing="6">
                         <Button Classes="quiet" Content="Start lunch" Command="{Binding StartCommand}" IsVisible="{Binding CanStart}" />
+                        <Button Classes="quiet" Content="{Binding StartRestText}" Command="{Binding StartRestCommand}" IsVisible="{Binding CanStartRest}"
+                                ToolTip.Tip="Start lunch again for what is left of today's lunch" />
                         <Button Classes="quiet" Content="−5 min" Command="{Binding ShorterCommand}" IsVisible="{Binding IsOnLunch}" IsEnabled="{Binding CanShorten}"
                                 ToolTip.Tip="End lunch 5 minutes sooner (never less than a minute from now); your other devices follow" />
                         <Button Classes="quiet" Content="+5 min" Command="{Binding LongerCommand}" IsVisible="{Binding IsOnLunch}"
                                 ToolTip.Tip="5 more minutes of lunch; your other devices follow" />
-                        <Button Classes="quiet" Content="I'm back" Command="{Binding BackCommand}" IsVisible="{Binding IsOnLunch}" />
+                        <Button Classes="quiet" Content="I'm back" Command="{Binding BackCommand}" IsVisible="{Binding IsOnLunch}"
+                                ToolTip.Tip="Count the lunch so far; what is left stays for later today" />
                     </WrapPanel>
                 </StackPanel>
 

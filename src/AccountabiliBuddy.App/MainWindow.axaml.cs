@@ -48,6 +48,8 @@ public partial class MainWindow : Window
     private bool _pointerOnSyncPopover;
     private Control? _syncPresenter;
 
+    private void OnLunchChipPromptClosed(object? sender, EventArgs e) => LunchChipEndButton.Flyout?.Hide();
+
     private bool _warmedUp;
     private bool _hookedWindowMessages;
 
@@ -156,6 +158,27 @@ public partial class MainWindow : Window
         _titleBarPopups.Add(SessionControl.SessionMenu);
         _titleBarPopups.Add(NoiseControl.VolumeFlyout);
         _titleBarPopups.Add(ThemeToggleControl.Menu);
+        // The lunch chip's "End lunch?" pop-up (LU1b): it reads lunch fresh when it opens and closes itself when answered.
+        if (LunchChipEndButton.Flyout is FlyoutBase lunchFlyout)
+        {
+            _titleBarPopups.Add(lunchFlyout);
+            lunchFlyout.Opened += (_, _) =>
+            {
+                if (DataContext is MainWindowViewModel { Session.Lunch: { } card })
+                {
+                    card.TitleBarPrompt.Closed -= OnLunchChipPromptClosed;
+                    card.TitleBarPrompt.Closed += OnLunchChipPromptClosed;
+                    card.TitleBarPrompt.Open();
+                }
+            };
+            lunchFlyout.Closed += (_, _) =>
+            {
+                if (DataContext is MainWindowViewModel { Session.Lunch: { } card })
+                {
+                    card.TitleBarPrompt.IsOpen = false;
+                }
+            };
+        }
 
         _syncHoverTimer.Tick += (_, _) =>
         {

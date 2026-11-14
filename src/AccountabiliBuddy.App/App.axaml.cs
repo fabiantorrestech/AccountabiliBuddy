@@ -652,6 +652,8 @@ public partial class App : Application
             () => _sessionCues?.Play(soundSettings.Current.BreakEndSound),
             new Win32UserIdleDetector());
         _lunch.LoadBlocking();
+        // "Discard it" on the lunch ✕ follows the active mode's "Allow discarding a lunch" (Settings › Tasks, ADR 88).
+        _lunch.DiscardAllowed = () => _taskSettings?.Current.AllowLunchDiscard ?? false;
         // A fixed lunch period starts by itself; a session that would run into it asks first (Keep, Adjust, Flexible this time).
         _lunchRunInto = new LunchRunIntoService(_sessions!, _lunch) { EndEarlyAsync = () => _endFlow!.TryEndSessionAsync(null) };
         _lunchRunInto.CardChanged += (_, _) => Dispatcher.UIThread.Post(() => ShowLunchRunIntoCard(monitorLocator));
@@ -2746,13 +2748,16 @@ public partial class App : Application
         overlayActions.ParkThought = () => _capture!.Show();
         overlayActions.ShowStart = () => _quickSession!.Show();
         overlayActions.StartDefault = () => _quickSession!.StartWithDefaultAsync();
-        overlayActions.CanStartLunch = () => _lunch is { CanStart: true };
+        overlayActions.CanStartLunch = () => _lunch is { CanStart: true } or { CanStartTheRest: true };
         overlayActions.StartLunch = () => _lunch!.StartAsync();
         overlayActions.IsWorkDone = () => _deepWork is { Progress.Met: true };
         overlayActions.ComebackTitles = () => _comebacks?.Open.OrderByDescending(item => item.CreatedAt).Select(item => item.Text).Take(4).ToList() ?? [];
         overlayActions.NextUp = () => sessionViewModel.NextUp?.Rows.Take(3).Select(row => (row.TimeText, row.Title)).ToList() ?? [];
         overlayActions.OpenTrayOverflow = _taskbarGeometry!.InvokeTrayOverflow;
         overlayActions.OpenCalendarFlyout = _taskbarGeometry.InvokeClock;
+        overlayActions.LunchRunning = () => _lunch is { IsOnLunch: true };
+        overlayActions.LunchLine = () => sessionViewModel.Lunch?.ChipText ?? string.Empty;
+        overlayActions.LunchPrompt = () => sessionViewModel.Lunch?.OverlayPrompt;
         overlayActions.NextMeeting = () =>
         {
             DateTime local = TimeZoneInfo.ConvertTime(_sessions!.Now, _sessions.TimeProvider.LocalTimeZone).DateTime;
