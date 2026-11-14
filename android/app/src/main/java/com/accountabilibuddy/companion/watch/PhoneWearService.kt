@@ -30,7 +30,7 @@ class PhoneWearService : WearableListenerService() {
             val app = application as CompanionApp
             val action = com.accountabilibuddy.shared.LunchRemote.read(event.data) ?: return
             if (event.sourceNodeId == app.watchBridge.linkSettings.value.linkedNodeId) {
-                LunchFromWatch.apply(app.lunch, app.store.state.value.document.dayPlan, action)
+                LunchFromWatch.apply(app.lunch, app.store.state.value.document.dayPlan, action, app.lunchDiscardAllowed())
             }
             return
         }

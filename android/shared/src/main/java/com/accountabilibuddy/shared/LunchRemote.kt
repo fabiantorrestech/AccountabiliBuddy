@@ -16,11 +16,16 @@ object LunchRemote {
     const val PLUS = "plus"
     const val MINUS = "minus"
 
-    private val actions = setOf(START, BACK, PLUS, MINUS)
+    /** The ✕'s answers (ADR 88): Count it (the same as [BACK]), Discard it (the phone refuses it when its mode does not allow it), and Start the rest. */
+    const val COUNT = "count"
+    const val DISCARD = "discard"
+    const val REST = "rest"
+
+    private val actions = setOf(START, BACK, PLUS, MINUS, COUNT, DISCARD, REST)
 
     fun write(action: String): ByteArray = buildJsonObject { put("action", action) }.toString().toByteArray()
 
-    /** The action, or null when it isn't one of the four. */
+    /** The action, or null when it isn't one of the known ones. */
     fun read(bytes: ByteArray): String? = runCatching {
         val json = Json.parseToJsonElement(bytes.decodeToString()) as JsonObject
         (json["action"] as JsonPrimitive).content

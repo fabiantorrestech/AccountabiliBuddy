@@ -4,6 +4,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.accountabilibuddy.companion.guidance.GuidanceStore
+import com.accountabilibuddy.companion.guidance.TrustedTime
+import com.accountabilibuddy.companion.ui.kit.AbTextButton
+import com.accountabilibuddy.shared.sync.LunchDiscardOutcome
+import java.time.Duration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -35,5 +45,42 @@ internal fun LunchSection(lengthMinutes: Int) {
                 enabled = lengthMinutes < LunchStore.MAX_LENGTH_MINUTES,
             )
         }
+        Note("The lunch's ✕ asks Count it (the minutes so far count, the rest stays for later today) or Discard it (as if lunch never started).")
+        DiscardRow("AccountabiliBuddy mode", companion = false)
+        DiscardRow("ProductaBuddy mode", companion = true)
     }
+}
+
+/**
+ * "Allow discarding a lunch" for one mode (ADR 88): on unless turned off. Off applies at once; on waits the looser-change delay, is refused
+ * during a focus session and has no "apply now". A waiting "on" shows with its time and a Cancel.
+ */
+@Composable
+private fun DiscardRow(title: String, companion: Boolean) {
+    val app = LocalContext.current.applicationContext as CompanionApp
+    var version by remember { mutableIntStateOf(0) }
+    var message by remember { mutableStateOf<String?>(null) }
+    // Reading settles a waiting "on" that waited long enough (and meets no session) first.
+    app.lunchDiscardAllowed()
+    val setting = version.let { app.lunch.discardSetting(companion) }
+    ToggleRow(
+        title, "Offers Discard it in this mode's \"End lunch?\" question, on the phone and the watch.", setting.allowed,
+    ) { wanted ->
+        val outcome = app.lunch.setDiscardAllowed(companion, wanted, TrustedTime.now(), GuidanceStore.DELAY, app.lunchSessionRunning())
+        message = when (outcome) {
+            LunchDiscardOutcome.APPLIED -> null
+            LunchDiscardOutcome.WAITING -> "Turning on waits ${GuidanceStore.DELAY.toMinutes()} min. It happens on its own unless you cancel."
+            LunchDiscardOutcome.REFUSED -> "Not during a focus session."
+        }
+        version++
+    }
+    val pendingFrom = setting.pendingFrom
+    if (setting.pending == true && pendingFrom != null) {
+        val minutes = Math.max(1L, Duration.between(TrustedTime.now(), pendingFrom).toMinutes() + 1)
+        Note("Turns on in about $minutes min.")
+        AbTextButton("Cancel this change", onClick = {
+            app.lunch.setDiscardAllowed(companion, false, TrustedTime.now(), GuidanceStore.DELAY, app.lunchSessionRunning()); message = null; version++
+        })
+    }
+    message?.let { Note(it) }
 }

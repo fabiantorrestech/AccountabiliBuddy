@@ -182,6 +182,9 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
      */
     val openRequest = MutableStateFlow<String?>(null)
 
+    /** "End lunch?" is asked (the lunch ✕ on Today or the pinned notification's "End lunch", ADR 88); the shell shows the dialog. */
+    val lunchAsk = MutableStateFlow(false)
+
     init {
         // A PC's answer through the sync files (ADR 42) shows once too.
         viewModelScope.launch {

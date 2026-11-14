@@ -198,6 +198,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "lu1-self" to Lu1SelfCheck::run,
     // LU1a: an older file reads as unknown pieces, a lunch from an older app keeps the counted pieces, the delivery line.
     "lu1a-self" to Lu1aSelfCheck::run,
+    // LU1c: the lunch X on the phone and the watch (Count it / Discard it / Keep going, Start the rest, the lock per piece, the watch snapshot).
+    "lu1c-self" to Lu1cSelfCheck::run,
     // PH1 + TD1 (phone): the day panel's one height, every Today part hideable in both layouts, More today bar show / hide, the steps part
     // gone with old layouts read fine, the one-time "Steps now live in Goals" card (phone only).
     "ph1td1-self" to Ph1Td1SelfCheck::run,

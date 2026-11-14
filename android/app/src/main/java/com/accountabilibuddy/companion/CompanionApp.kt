@@ -501,7 +501,7 @@ class CompanionApp : Application() {
             this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received, sync.allReceived,
             pickedPc = { pcRemote.chosenPcId.value },
             // The watch's Lunch page: today's lunch and the length setting.
-            lunch = { lunch.forWatch(store.state.value.document.dayPlan, com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
+            lunch = { lunch.forWatch(store.state.value.document.dayPlan, com.accountabilibuddy.companion.guidance.TrustedTime.now(), lunchDiscardAllowed()) },
             effectivePlan = { effectivePlan(it) },
             lunchChanges = kotlinx.coroutines.flow.combine(lunch.lunch, lunch.lengthMinutes) { taken, length -> taken to length },
             // ADR 42: the watch's "/hello" reads the PCs' files from Drive before it answers.
@@ -939,6 +939,18 @@ class CompanionApp : Application() {
 
         nudgeBeforeFolderRead()
         folderSource.syncNow()
+    }
+
+    /** A focus session the user started runs (the check the guards lock uses), on trusted time: a looser lunch setting is refused then. */
+    fun lunchSessionRunning(): Boolean = com.accountabilibuddy.companion.placement.GuardsLock.at(this, com.accountabilibuddy.companion.guidance.TrustedTime.now()) != null
+
+    /**
+     * Whether Discard it is offered in the mode this phone is in (ADR 88): a waiting "on" that has waited long enough and meets no session
+     * takes effect first. Read by the ✕ question, the watch's snapshot and the settings switch.
+     */
+    fun lunchDiscardAllowed(): Boolean {
+        lunch.settleDiscard(com.accountabilibuddy.companion.guidance.TrustedTime.now(), lunchSessionRunning())
+        return lunch.discardAllowed(guidance.isCompanion)
     }
 
     /** True while this phone listens fast for a lunch: running here or in a received file, or due on a workday ([com.accountabilibuddy.shared.sync.LunchListening]). */

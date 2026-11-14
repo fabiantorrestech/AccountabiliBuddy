@@ -110,7 +110,8 @@ class WatchBridge(
                 // while waiting replaces this one).
                 // Lunch started, changed or ended (on any device, or from the watch) goes at once too.
                 val startedOrEnded = previous == null || (previous.running == null) != (snapshot.running == null) ||
-                    previous.lunch?.start != snapshot.lunch?.start || previous.lunch?.end != snapshot.lunch?.end
+                    previous.lunch?.start != snapshot.lunch?.start || previous.lunch?.end != snapshot.lunch?.end ||
+                    previous.lunch?.discardAllowed != snapshot.lunch?.discardAllowed || previous.lunch?.countedMinutes != snapshot.lunch?.countedMinutes
                 if (!startedOrEnded) {
                     delay((lastSentAt + MIN_GAP_MS - SystemClock.elapsedRealtime()).coerceAtLeast(0))
                 }

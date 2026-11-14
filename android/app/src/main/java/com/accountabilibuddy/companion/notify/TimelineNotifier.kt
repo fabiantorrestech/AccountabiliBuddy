@@ -176,9 +176,29 @@ object TimelineNotifier {
         views.setOnClickPendingIntent(R.id.timeline_noise, noise.second)
     }
 
+    /** Opens the app with the "End lunch?" question (it asks, nothing is changed by the tap itself). */
+    private fun lunchEndIntent(context: Context): PendingIntent =
+        PendingIntent.getActivity(
+            context, 42,
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                .putExtra(com.accountabilibuddy.companion.lunch.LunchStore.EXTRA_ASK_END, true),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
     // Cancel for a wait running in the background (ADR 66); "Cancelling…" once a PC was asked and hasn't answered yet.
     private fun showCancel(context: Context, views: RemoteViews, wait: RunningWaits.Wait?, color: Int) {
         if (wait == null) {
+            // ADR 88: while lunch runs, "End lunch" opens the app on the "End lunch?" question (Count it / Discard it / Keep going). One tap
+            // never ends or discards anything, so a stray tap cannot discard a lunch; the answer is given in the app.
+            val app = context.applicationContext as? com.accountabilibuddy.companion.CompanionApp
+            if (app != null && app.lunch.isOnLunch(java.time.Instant.now())) {
+                views.setViewVisibility(R.id.timeline_cancel, View.VISIBLE)
+                views.setTextViewText(R.id.timeline_cancel, "End lunch")
+                views.setTextColor(R.id.timeline_cancel, color)
+                views.setOnClickPendingIntent(R.id.timeline_cancel, lunchEndIntent(context))
+                return
+            }
             views.setViewVisibility(R.id.timeline_cancel, View.GONE)
             return
         }

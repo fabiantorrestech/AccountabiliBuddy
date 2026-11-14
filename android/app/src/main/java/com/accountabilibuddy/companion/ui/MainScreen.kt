@@ -139,6 +139,10 @@ fun MainScreen(
     val noiseSettings by noise.settings.collectAsStateWithLifecycle()
     val openRequest by viewModel.openRequest.collectAsStateWithLifecycle()
 
+    // ADR 88: "End lunch?" from the lunch ✕ or the pinned notification.
+    val lunchAsk by viewModel.lunchAsk.collectAsStateWithLifecycle()
+    LunchEndDialog(open = lunchAsk, clock = viewModel.clock, onClose = { viewModel.lunchAsk.value = false })
+
     LaunchedEffect(message) {
         message?.let {
             snackbar.showSnackbar(it)
@@ -348,6 +352,8 @@ fun MainScreen(
                         onStart = { app.lunch.start(com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
                         onBack = { app.lunch.endNow(com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
                         onAdjust = { longer -> app.lunch.adjust(longer, com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
+                        onAsk = { viewModel.lunchAsk.value = true },
+                        onStartRest = { app.lunch.startRest(com.accountabilibuddy.companion.guidance.TrustedTime.now()) },
                         peers = lunchPeers,
                     )
                     TodayPane(

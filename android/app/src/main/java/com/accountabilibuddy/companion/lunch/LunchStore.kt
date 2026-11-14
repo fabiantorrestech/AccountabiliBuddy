@@ -8,7 +8,12 @@ import android.os.SystemClock
 import com.accountabilibuddy.companion.guidance.TrustedTime
 import com.accountabilibuddy.companion.model.DayPlan
 import com.accountabilibuddy.shared.WatchLunch
+import com.accountabilibuddy.companion.essentials.LunchLockLift
 import com.accountabilibuddy.shared.sync.LunchDay
+import com.accountabilibuddy.shared.sync.LunchLockChange
+import com.accountabilibuddy.shared.sync.LunchOps
+import com.accountabilibuddy.shared.sync.LunchOutcome
+import com.accountabilibuddy.shared.sync.LunchQuestion
 import com.accountabilibuddy.shared.sync.LunchDiscardOutcome
 import com.accountabilibuddy.shared.sync.LunchDiscardSetting
 import com.accountabilibuddy.shared.sync.SyncFileJson
@@ -95,13 +100,53 @@ class LunchStore(private val context: Context) {
         onChanged?.invoke()
     }
 
-    /** Back early: lunch ends now. */
-    @Synchronized
+    /** "I'm back": the same as [count] (ADR 88), without asking. */
     fun endNow(now: Instant) {
         @Suppress("NAME_SHADOWING") val now = TrustedTime.now()
-        val current = todayAt(now)?.takeIf { now < it.end } ?: return
-        save(current.copy(end = now, editedAt = now), overTold = true, now = now)
+        count(now)
+    }
+
+    /**
+     * "Count it" (ADR 88): lunch ends now, the minutes so far count and the rest of the day's allowance stays for a later piece. The session's
+     * lock is asked for again exactly as when lunch ends by itself ([LunchLockChange.RELOCK]). False when nothing runs.
+     */
+    fun count(now: Instant): Boolean = answer(overTold = true) { today, trusted -> LunchOps.count(today, trusted) }
+
+    /**
+     * "Discard it" (ADR 88): the running piece never happened. [allowed] is the mode's "Allow discarding a lunch"; false (nothing changes) when
+     * it is off or nothing runs. The lock comes back as for [count].
+     */
+    fun discard(now: Instant, allowed: Boolean): Boolean = answer(overTold = true) { today, trusted -> LunchOps.discard(today, trusted, allowed) }
+
+    /**
+     * "Start the rest" (ADR 88): a new piece for what is left of the day's allowance (never more, so the day stays within it and the lock is
+     * lifted only for that piece). False when a piece runs or less than a minute is left.
+     */
+    fun startRest(now: Instant): Boolean = answer(overTold = false) { today, trusted -> LunchOps.startRest(today, trusted, _lengthMinutes.value) }
+
+    /** "Start the rest" shows: today's lunch was counted or discarded and time is left. */
+    fun canStartRest(now: Instant): Boolean = TrustedTime.now().let { trusted -> LunchOps.canStartRest(todayAt(trusted), trusted, _lengthMinutes.value) }
+
+    /** Whole minutes left of today's allowance ("40 min left"); 0 before lunch started. */
+    fun leftMinutes(now: Instant): Int = TrustedTime.now().let { trusted -> todayAt(trusted)?.let { LunchOps.leftMinutes(it, trusted, _lengthMinutes.value) } ?: 0 }
+
+    /** The ✕'s question for today's running lunch (null when none runs); [allowed] is the mode's discard setting; [time] formats 12-hour. */
+    fun question(allowed: Boolean, time: (Instant) -> String): LunchQuestion? =
+        TrustedTime.now().let { trusted -> LunchOps.question(todayAt(trusted), trusted, _lengthMinutes.value, allowed, time) }
+
+    // One answer: today's lunch on trusted time through [change] (the pure rule), saved, then the hooks outside the lock (the pinned notification,
+    // the watch and the sync follow onChanged; a lock change asks LunchLockLift to lift or bring back the session's lock now).
+    private fun answer(overTold: Boolean, change: (SyncLunch, Instant) -> LunchOutcome?): Boolean {
+        val outcome = synchronized(this) {
+            val trusted = TrustedTime.now()
+            val today = todayAt(trusted) ?: return false
+            val result = change(today, trusted) ?: return false
+            save(result.lunch, overTold = overTold, now = trusted)
+            result
+        }
         onChanged?.invoke()
+        if (outcome.lockChange != LunchLockChange.NONE) runCatching { LunchLockLift.check(context) }
+        return true
     }
 
     /**
@@ -173,7 +218,7 @@ class LunchStore(private val context: Context) {
     }
 
     /** Today's lunch for the watch's Lunch page: shown on a workday (or a day with a flexible break), or while lunch runs. */
-    fun forWatch(plan: DayPlan, now: Instant): WatchLunch {
+    fun forWatch(plan: DayPlan, now: Instant, discardAllowed: Boolean = false): WatchLunch {
         val trusted = TrustedTime.now()
         val date = trusted.atZone(ZoneId.systemDefault()).toLocalDate()
         val taken = todayAt(trusted)
@@ -182,6 +227,10 @@ class LunchStore(private val context: Context) {
             lengthMinutes = _lengthMinutes.value,
             start = taken?.start,
             end = taken?.end,
+            // ADR 88: the mode's discard setting and the day's minutes, so the watch can offer Discard it and Start the rest.
+            discardAllowed = discardAllowed,
+            allowanceMinutes = taken?.let { LunchDay.allowanceMinutes(it, _lengthMinutes.value) },
+            countedMinutes = taken?.let { Math.floorDiv(LunchDay.countedTotal(it).seconds, 60L).toInt() } ?: 0,
         )
     }
 
@@ -257,6 +306,9 @@ class LunchStore(private val context: Context) {
     }
 
     companion object {
+        /** The extra on the pinned notification's "End lunch" intent: the app opens with the "End lunch?" question (ADR 88). */
+        const val EXTRA_ASK_END = "ab.lunchAskEnd"
+
         /** The preferences file with the lunch length (backed up with the phone's settings). */
         const val SETTINGS_PREFS = "lunchSettings"
 

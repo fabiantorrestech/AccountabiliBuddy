@@ -135,6 +135,8 @@ class MainActivity : ComponentActivity() {
         intent ?: return
         // A route to open (`--es ab.open settings/devices`): the shell navigates to it and does nothing else.
         intent.getStringExtra(AppNav.EXTRA_OPEN)?.let { viewModel.openRequest.value = it }
+        // The pinned notification's "End lunch" (ADR 88): shows the question; it only asks, nothing is changed by opening it.
+        if (intent.getBooleanExtra(com.accountabilibuddy.companion.lunch.LunchStore.EXTRA_ASK_END, false)) viewModel.lunchAsk.value = true
         val data = intent.data
         when {
             data?.scheme == SCHEME && data.host == JoinLink.HOST ->

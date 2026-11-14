@@ -34,6 +34,10 @@ object WatchSnapshotJson {
                 put("lengthMinutes", lunch.lengthMinutes)
                 lunch.start?.let { put("start", it.toString()) }
                 lunch.end?.let { put("end", it.toString()) }
+                // ADR 88: only a "discard allowed" mark and the day's minutes, never anything else.
+                if (lunch.discardAllowed) put("discardAllowed", true)
+                lunch.allowanceMinutes?.let { put("allowanceMinutes", it) }
+                if (lunch.countedMinutes > 0) put("countedMinutes", lunch.countedMinutes)
             })
         }
         if (snapshot.sources.isNotEmpty()) {
@@ -104,6 +108,7 @@ object WatchSnapshotJson {
         return WatchLunch(
             json.bool("workday"), json.int("lengthMinutes") ?: 60,
             start.takeIf { end != null }, end.takeIf { start != null },
+            json.bool("discardAllowed"), json.int("allowanceMinutes"), json.int("countedMinutes") ?: 0,
         )
     }
 

@@ -47,6 +47,8 @@ fun LunchPage(lunch: WatchLunch, now: State<Instant>, zone: ZoneId) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var unreachable by remember { mutableStateOf(false) }
+    // The ✕ asks Count it / Discard it / Keep going (ADR 88); Discard it only when the phone's mode allows it.
+    var asking by remember { mutableStateOf(false) }
     fun send(action: String) = scope.launch { unreachable = !LunchLink.send(context, action) }
     fun clock(at: Instant): String = WatchText.clock(LocalTime.ofInstant(at, zone), use24HourClock)
 
@@ -66,6 +68,17 @@ fun LunchPage(lunch: WatchLunch, now: State<Instant>, zone: ZoneId) {
 
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             when {
+                running && asking -> {
+                    val at = now.value
+                    Text("End lunch?", color = Color(LUNCH_COLOR), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("${lunch.usedMinutes(at)} of ${lunch.allowanceMinutes ?: lunch.lengthMinutes} min used", color = Color(0xB3FFFFFF), fontSize = 11.sp)
+                    Button(onClick = { asking = false; send(LunchRemote.COUNT) }) { Text("Count it", fontSize = 13.sp) }
+                    // Offered only when the phone's snapshot says the mode allows it.
+                    if (lunch.canDiscard(at)) {
+                        Button(onClick = { asking = false; send(LunchRemote.DISCARD) }) { Text("Discard it", fontSize = 13.sp) }
+                    }
+                    Button(onClick = { asking = false }) { Text("Keep going", fontSize = 13.sp) }
+                }
                 running -> {
                     val end = lunch.end!!
                     val at = now.value
@@ -78,11 +91,19 @@ fun LunchPage(lunch: WatchLunch, now: State<Instant>, zone: ZoneId) {
                         }
                         IconButton(onClick = { send(LunchRemote.PLUS) }, modifier = Modifier.size(40.dp)) { Text("+5", fontSize = 14.sp) }
                     }
-                    Button(onClick = { send(LunchRemote.BACK) }) { Text("I'm back", fontSize = 13.sp) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = { send(LunchRemote.BACK) }) { Text("I'm back", fontSize = 13.sp) }
+                        IconButton(onClick = { asking = true }, modifier = Modifier.size(40.dp)) { Text("✕", fontSize = 14.sp) }
+                    }
                 }
                 done -> {
-                    Text("Lunch done", color = Color(LUNCH_COLOR), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Text("${clock(lunch.start!!)} – ${clock(lunch.end!!)}", color = Color(0xB3FFFFFF), fontSize = 12.sp)
+                    // A discarded lunch is a zero-length piece (ADR 88).
+                    val discarded = lunch.start == lunch.end
+                    Text(if (discarded) "Lunch discarded" else "Lunch done", color = Color(LUNCH_COLOR), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    if (!discarded) Text("${clock(lunch.start!!)} – ${clock(lunch.end!!)}", color = Color(0xB3FFFFFF), fontSize = 12.sp)
+                    if (lunch.canStartRest(now.value)) {
+                        Button(onClick = { send(LunchRemote.REST) }) { Text("Start the rest (${lunch.leftMinutes(now.value)} min left)", fontSize = 12.sp) }
+                    }
                 }
                 else -> {
                     Text("Lunch · ${WatchText.duration(lunch.lengthMinutes)}", color = Color(LUNCH_COLOR), fontSize = 14.sp, fontWeight = FontWeight.Medium)

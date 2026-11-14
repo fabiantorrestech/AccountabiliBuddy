@@ -15,7 +15,12 @@ import com.accountabilibuddy.companion.lunch.LunchStore
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.shared.WatchLunch
+import com.accountabilibuddy.shared.sync.LunchDay
 import com.accountabilibuddy.shared.sync.LunchDelivery
+import com.accountabilibuddy.shared.sync.LunchOps
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -38,6 +43,9 @@ fun LunchCard(lunch: TodayLunch, clock: ClockFormat) {
     fun time(at: Instant) = clock.time(LocalDateTime.ofInstant(at, zone))
     val onLunch = taken != null && now < taken.end
     val length = LunchStore.formatLength(lunch.lengthMinutes)
+    // ADR 88: after a counted or discarded piece with time left, "Start the rest (N min left)".
+    val canStartRest = taken != null && LunchOps.canStartRest(taken, now, lunch.lengthMinutes)
+    val leftMinutes = if (taken != null) LunchOps.leftMinutes(taken, now, lunch.lengthMinutes) else 0
     AbCard(verticalSpacing = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)) {
@@ -46,6 +54,10 @@ fun LunchCard(lunch: TodayLunch, clock: ClockFormat) {
                         val left = Duration.between(now, taken.end).seconds.coerceAtLeast(0)
                         "Lunch · %d:%02d left · until %s".format(left / 60, left % 60, time(taken.end))
                     }
+                    taken != null && taken.discarded -> "Lunch discarded · $leftMinutes min left for today"
+                    taken != null && canStartRest ->
+                        "Lunch · ${Math.floorDiv(LunchDay.used(taken, now).seconds, 60L)} min counted · $leftMinutes min left for later"
+                    taken != null && !taken.counted.isNullOrEmpty() -> "Lunch done · ${Math.floorDiv(LunchDay.used(taken, now).seconds, 60L)} min in all"
                     taken != null -> "Lunch done · ${time(taken.start)} – ${time(taken.end)}"
                     // A fixed lunch period: the PC starts it by itself (this phone doesn't ask about it).
                     // Only until its window ends: after that it can't start by itself any more.
@@ -57,7 +69,12 @@ fun LunchCard(lunch: TodayLunch, clock: ClockFormat) {
                 IconTitle(text, style = com.accountabilibuddy.companion.ui.theme.Ab.type.bodyMedium, icon = SectionIcons.of("Lunch"))
             }
             when {
-                onLunch -> AbTonalButton("I'm back", onClick = lunch.onBack)
+                onLunch -> {
+                    AbTonalButton("I'm back", onClick = lunch.onBack)
+                    // The ✕ asks Count it / Discard it / Keep going (ADR 88); "I'm back" is Count it without asking.
+                    AbQuietIconButton(Icons.Outlined.Close, "End lunch", onClick = lunch.onAsk)
+                }
+                canStartRest -> AbTonalButton("Start the rest ($leftMinutes min left)", onClick = lunch.onStartRest)
                 taken == null -> AbTonalButton("Start lunch", onClick = lunch.onStart)
             }
         }
