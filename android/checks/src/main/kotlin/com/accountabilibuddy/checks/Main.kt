@@ -131,6 +131,10 @@ private val checks: List<FixtureCheck> = listOf(
     Lb1aCheck("clean-labels", R71ModelCases::taskJson),
     Lb1aCheck("clean-tag-scopes", Lb1aCases::cleanTagScopes),
     Lb1aCheck("search", Lb1aCases::search),
+    Lb1aCheck("merge-lists-rejoin", Lb1aCases::mergeListsRejoin),
+    Lb1aCheck("converge", Lb1aCases::converge),
+    Lb1aCheck("keep-hidden", Lb1aCases::keepHidden),
+    Lb1aCheck("restore-incoming", Lb1aCases::restoreIncoming),
     // Round 2 GS2: the goals sync (ADR 79) against the PC's Core: field merge, edits, tombstones, Deep work, reviews, file parts (gs1a);
     // entry rows, derived values, counting across devices, the shared history (gs1b).
     Gs2Check("gs1a", "merge", Gs2Cases::merge),

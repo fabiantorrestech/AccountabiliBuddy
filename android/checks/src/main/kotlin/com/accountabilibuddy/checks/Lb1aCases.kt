@@ -7,6 +7,8 @@ import com.accountabilibuddy.shared.tasks.TaskJson
 import com.accountabilibuddy.shared.tasks.TaskLabel
 import com.accountabilibuddy.shared.tasks.TaskLabelEdits
 import com.accountabilibuddy.shared.tasks.TaskLabelMerge
+import com.accountabilibuddy.shared.tasks.TaskListMerge
+import com.accountabilibuddy.shared.tasks.TaskListRules
 import com.accountabilibuddy.shared.tasks.TaskLists
 import com.accountabilibuddy.shared.tasks.TaskScopes
 import com.accountabilibuddy.shared.tasks.TaskSearch
@@ -124,6 +126,67 @@ object Lb1aCases {
         }
 
         return R71Json.same(case.expected, "json", scopesJson(read))
+    }
+
+    // The lists' parts the fix rules touch (tasks, labels, scopes), as the fixtures write them.
+    private fun listsOf(json: JsonElement): TaskLists {
+        val obj = json.jsonObject
+        val scopes = scopes(obj["scopes"]).ifEmpty { null }
+        return TaskLists(R71Json.tasks(obj.getValue("tasks")), R71Json.labels(obj.getValue("labels")), emptyList(), emptyList(), null, scopes)
+    }
+
+    private fun sameLists(expected: JsonElement, actual: TaskLists): String? {
+        val obj = expected.jsonObject
+        return JsonParity.difference(obj.getValue("tasks"), R71Json.tasksJson(actual.tasks))
+            ?: JsonParity.difference(obj.getValue("labels"), JsonArray(actual.labels.map { TaskJson.writeSyncLabel(it) }))
+            ?: JsonParity.difference(obj.getValue("scopes"), scopesJson(actual.tagScopes))
+    }
+
+    /** A device never loses sight of its own label (ADR 89): the labels and scopes after [TaskListMerge.mergeLists]. */
+    fun mergeListsRejoin(case: FixtureCase): String? {
+        val held = TaskLists(emptyList(), R71Json.labels(case.input.getValue("heldLabels")), emptyList(), emptyList(), null, scopes(case.input["heldScopes"]).ifEmpty { null })
+        val incoming = TaskLists(emptyList(), R71Json.labels(case.input.getValue("incomingLabels")), emptyList(), emptyList(), null, scopes(case.input["incomingScopes"]).ifEmpty { null })
+        val result = TaskListMerge.mergeLists(held, incoming, case.text("self"), R71Json.time(case))
+        val expected = case.expected.jsonObject
+        return JsonParity.difference(expected.getValue("labels"), JsonArray(result.labels.map { TaskJson.writeSyncLabel(it) })) ?: JsonParity.difference(expected.getValue("scopes"), scopesJson(result.tagScopes))
+    }
+
+    /** Three devices passing lists around in several orders end with the same lists as the PC. */
+    fun converge(case: FixtureCase): String? {
+        val ids = case.input.getValue("ids").jsonObject.mapValues { it.value.jsonPrimitive.content }
+        val devices = mutableMapOf(
+            "A" to TaskLists(emptyList(), R71Json.labels(case.input.getValue("a")), emptyList(), emptyList(), null, scopes(case.input["scopesA"])),
+            "B" to TaskLists(emptyList(), R71Json.labels(case.input.getValue("b")), emptyList(), emptyList(), null, scopes(case.input["scopesB"])),
+            "C" to TaskLists(emptyList(), R71Json.labels(case.input.getValue("c")), emptyList(), emptyList()),
+        )
+        val start = R71Json.time(case)
+        case.input.getValue("steps").jsonArray.forEachIndexed { step, pair ->
+            val receiver = pair.jsonArray[0].jsonPrimitive.content
+            val sender = pair.jsonArray[1].jsonPrimitive.content
+            devices[receiver] = TaskListMerge.mergeLists(devices.getValue(receiver), devices.getValue(sender), ids.getValue(receiver), start.plusMinutes(step.toLong()))
+        }
+
+        for ((device, lists) in devices) {
+            val expected = case.expected.jsonObject.getValue(device).jsonObject
+            JsonParity.difference(expected.getValue("labels"), JsonArray(lists.labels.map { TaskJson.writeSyncLabel(it) }))?.let { return "$device: $it" }
+            JsonParity.difference(expected.getValue("scopes"), scopesJson(lists.tagScopes))?.let { return "$device: $it" }
+        }
+
+        return null
+    }
+
+    /** Every writer of a task's tags or label ends with [TaskScopes.keepHidden]. */
+    fun keepHidden(case: FixtureCase): String? {
+        val result = TaskScopes.keepHidden(listsOf(case.input.getValue("before")), listsOf(case.input.getValue("after")), case.text("self"), ids(case.input["removed"]).orEmpty(), R71Json.time(case))
+        return sameLists(case.expected, result)
+    }
+
+    /** A backup taken in as a restore ([TaskListRules.restoredIncoming]). */
+    fun restoreIncoming(case: FixtureCase): String? {
+        val result = TaskListRules.restoredIncoming(
+            listsOf(case.input.getValue("current")), listsOf(case.input.getValue("backup")), nullable(case.input["device"]), case.text("self"), R71Json.time(case), ids(case.input["removed"]).orEmpty(),
+        )
+        return sameLists(case.expected, result)
     }
 
     fun search(case: FixtureCase): String? {

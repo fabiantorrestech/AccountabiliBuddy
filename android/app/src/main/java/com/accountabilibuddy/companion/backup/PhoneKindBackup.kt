@@ -6,6 +6,7 @@ import com.accountabilibuddy.companion.data.ImportedData
 import com.accountabilibuddy.companion.data.ProfileDocumentParser
 import com.accountabilibuddy.companion.data.SettingsJson
 import com.accountabilibuddy.companion.goals.PhoneGoalsBackup
+import com.accountabilibuddy.shared.sync.FieldStamp
 import com.accountabilibuddy.shared.sync.SessionNotesBackup
 import com.accountabilibuddy.shared.sync.SyncFileJson
 import kotlinx.serialization.json.Json
@@ -155,6 +156,8 @@ object PhoneKindBackup {
             put("later", SyncFileJson.writeLater(old.later))
             put("categories", SyncFileJson.writeCategories(old.categories))
             com.accountabilibuddy.shared.tasks.TaskJson.writeParts(parts).forEach { (name, value) -> put(if (name == "taskAccountSettings") "accountSettings" else name, value) }
+            // ADR 89: the device that wrote the backup, so a restore on a reinstalled phone (a new id) can swap it for itself in the label lists and tag scopes.
+            app.taskModel.selfId().takeIf { it != FieldStamp.NOBODY }?.let { put("device", it.lowercase()) }
             return@buildJsonObject
         }
 
@@ -200,6 +203,7 @@ object PhoneKindBackup {
             count = store.import(
                 com.accountabilibuddy.shared.tasks.TaskLists(parts.tasks!!, parts.labels.orEmpty(), parts.views.orEmpty(), parts.taskLog.orEmpty(), parts.accountSettings, parts.tagScopes),
                 restore,
+                (tasks["device"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull,
             )
         } else {
             val known = store.lists.value.tasks.map { it.id.lowercase() }.toSet()

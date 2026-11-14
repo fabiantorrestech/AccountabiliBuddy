@@ -166,7 +166,8 @@ public static class BackupAccess
                     TaskLog: store is { IsActive: true } ? store.Lists.Log : null,
                     AccountSettings: store is { IsActive: true, Lists.Account: { IsEmpty: false } held } ? held : null,
                     SessionNotes: includeSecrets && notes is not null ? notes.ForBackup() : null,
-                    TagScopes: store is { IsActive: true } ? store.Lists.TagScopes : null),
+                    TagScopes: store is { IsActive: true } ? store.Lists.TagScopes : null,
+                    Device: store is { IsActive: true } ? store.SelfId() : null),
                 SyncJson.Options),
             Import: async (value, restore) =>
             {
@@ -187,7 +188,7 @@ public static class BackupAccess
                 if (store is { IsActive: true } && lists.Tasks is { } backupTasks)
                 {
                     // ADR 76: the backup's task list goes into this one (the old documents stay as the migration left them).
-                    int live = await store.ImportAsync(new TaskLists(backupTasks, lists.Labels ?? [], lists.Views ?? [], lists.TaskLog ?? [], TagScopes: lists.TagScopes), restore);
+                    int live = await store.ImportAsync(new TaskLists(backupTasks, lists.Labels ?? [], lists.Views ?? [], lists.TaskLog ?? [], TagScopes: lists.TagScopes), restore, lists.Device);
                     if (account is not null && lists.AccountSettings is { } accountSettings)
                     {
                         await account.ImportAsync(accountSettings, restore);

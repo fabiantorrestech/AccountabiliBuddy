@@ -11,13 +11,18 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// </summary>
 public static class TaskCategoryEdits
 {
-    /// <param name="hiddenLabels">ADR 89: the labels this device doesn't show; never deleted for missing from <paramref name="categories"/>.</param>
+    /// <param name="removed">
+    /// ADR 89: the devices removed from the group (null: none; required, so a caller can't forget it). The labels this device doesn't show
+    /// (device-only elsewhere, from <paramref name="self"/> and this) are never deleted for missing from <paramref name="categories"/>, and a
+    /// category whose name is a hidden label's joins it (this device is added to its list) instead of binding to it unseen.
+    /// </param>
     /// <returns>The lists with the labels as the categories say, and the id map with any new category's id.</returns>
     public static (TaskLists Lists, Dictionary<Guid, Guid> CategoryIds) Apply(
         TaskLists lists, IReadOnlyList<TaskCategory> categories, IReadOnlyDictionary<Guid, Guid> categoryIds, Guid self, DateTimeOffset now,
-        IReadOnlySet<Guid>? hiddenLabels = null)
+        IReadOnlyCollection<Guid>? removed)
     {
         var labels = lists.Labels.Select(item => item.Label).ToList();
+        var hiddenLabels = labels.Where(label => label.IsLive && !TaskScopes.LabelVisible(label, self, removed)).Select(label => label.Id).ToHashSet();
         var ids = new Dictionary<Guid, Guid>(categoryIds);
         Dictionary<Guid, Guid> labelOfCategory = ids.GroupBy(pair => pair.Value).ToDictionary(group => group.Key, group => group.First().Key);
         var kept = new List<Guid>();
@@ -30,7 +35,13 @@ public static class TaskCategoryEdits
                 continue;
             }
 
-            int index = FindLabel(labels, category, labelOfCategory, name);
+            int index = FindLabel(labels, category, labelOfCategory, name, hiddenLabels);
+            if (index >= 0 && hiddenLabels.Remove(labels[index].Id))
+            {
+                // A hidden label of that name: the category joins it (a stamped edit of its device list only).
+                labels[index] = TaskLabelEdits.WithOnlyOn(labels[index], TaskLabelEdits.Joined(labels[index].OnlyOn, self), now, self);
+            }
+
             if (index < 0)
             {
                 index = AddLabel(labels, name, category.Color, now, self);
@@ -85,7 +96,7 @@ public static class TaskCategoryEdits
         for (int index = 0; index < labels.Count; index++)
         {
             // ADR 89: a label this device doesn't show (device-only elsewhere) isn't in its category list, so it is never "taken off" here.
-            if (labels[index].IsLive && !kept.Contains(labels[index].Id) && hiddenLabels?.Contains(labels[index].Id) != true)
+            if (labels[index].IsLive && !kept.Contains(labels[index].Id) && !hiddenLabels.Contains(labels[index].Id))
             {
                 gone.Add(labels[index].Id);
                 labels[index] = labels[index].Deleted(Next(now, labels[index].EditedAt));
@@ -101,12 +112,18 @@ public static class TaskCategoryEdits
         return (lists with { Tasks = tasks, Labels = labels.Select(label => new SyncTaskLabel(label)).ToList() }, ids);
     }
 
-    // The label a category is: by the id it had here, else (a category that came in by name) the live label of that name.
-    private static int FindLabel(List<TaskLabel> labels, TaskCategory category, Dictionary<Guid, Guid> labelOfCategory, string name)
+    // The label a category is: by the id it had here, else (a category that came in by name) the live label of that name; a label shown here
+    // first, a hidden one of that name last (the caller joins it).
+    private static int FindLabel(List<TaskLabel> labels, TaskCategory category, Dictionary<Guid, Guid> labelOfCategory, string name, HashSet<Guid> hidden)
     {
         Guid labelId = labelOfCategory.TryGetValue(category.Id, out Guid mapped) ? mapped : category.Id;
-        int index = labels.FindIndex(label => label.Id == labelId && label.IsLive);
-        return index >= 0 ? index : labels.FindIndex(label => label.IsLive && TaskLabel.SameName(label.Name, name));
+        int index = labels.FindIndex(label => label.Id == labelId && label.IsLive && !hidden.Contains(label.Id));
+        if (index < 0)
+        {
+            index = labels.FindIndex(label => label.IsLive && !hidden.Contains(label.Id) && TaskLabel.SameName(label.Name, name));
+        }
+
+        return index >= 0 ? index : labels.FindIndex(label => label.IsLive && hidden.Contains(label.Id) && TaskLabel.SameName(label.Name, name));
     }
 
     // A deleted label that comes back rings on every device again, stamped by self at the revive (TaskLabelMerge).

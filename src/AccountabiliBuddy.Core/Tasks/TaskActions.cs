@@ -294,8 +294,12 @@ public static class TaskActions
         return Result(lists, after, changed, TaskToasts.Renamed(changed.Count));
     }
 
-    /// <summary>Gives tasks one label, or none (<paramref name="labelId"/> null). An unknown label does nothing.</summary>
-    public static TaskActionResult SetLabel(TaskLists lists, IReadOnlyList<Guid> ids, Guid? labelId, DateTimeOffset now, Guid self)
+    /// <summary>
+    /// Gives tasks one label, or none (<paramref name="labelId"/> null). An unknown label does nothing. ADR 89: a task whose label is hidden
+    /// here keeps it when asked for none (<paramref name="removed"/>: the devices removed from the group, null for none; every writer of
+    /// labels or tags passes it, <see cref="TaskScopes.KeepHidden"/>).
+    /// </summary>
+    public static TaskActionResult SetLabel(TaskLists lists, IReadOnlyList<Guid> ids, Guid? labelId, DateTimeOffset now, Guid self, IReadOnlyCollection<Guid>? removed)
     {
         TaskLabel? label = labelId is Guid wanted ? lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.IsLive && item.Id == wanted) : null;
         if (labelId is not null && label is null)
@@ -304,32 +308,32 @@ public static class TaskActions
         }
 
         (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { LabelId = labelId }, [TaskField.Label], now, self);
-        return Result(lists, after, changed, TaskToasts.Labelled(label?.Name));
+        return Result(lists, TaskScopes.KeepHidden(lists, after, self, removed, now), changed, TaskToasts.Labelled(label?.Name));
     }
 
-    /// <summary>Adds tags to tasks (cleaned, no duplicates).</summary>
-    public static TaskActionResult AddTags(TaskLists lists, IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, DateTimeOffset now, Guid self)
+    /// <summary>Adds tags to tasks (cleaned, no duplicates). ADR 89: a tag typed that is hidden here is joined, not made shared.</summary>
+    public static TaskActionResult AddTags(TaskLists lists, IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, DateTimeOffset now, Guid self, IReadOnlyCollection<Guid>? removed)
     {
         IReadOnlyList<string> clean = TaskLabels.Clean(tags) ?? [];
         (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { Tags = TaskLabels.With(task.Tags, clean) }, [TaskField.Tags], now, self);
-        return Result(lists, after, changed, TaskToasts.Tagged(clean, added: true));
+        return Result(lists, TaskScopes.KeepHidden(lists, after, self, removed, now), changed, TaskToasts.Tagged(clean, added: true));
     }
 
     /// <summary>Takes tags off tasks.</summary>
-    public static TaskActionResult RemoveTags(TaskLists lists, IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, DateTimeOffset now, Guid self)
+    public static TaskActionResult RemoveTags(TaskLists lists, IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, DateTimeOffset now, Guid self, IReadOnlyCollection<Guid>? removed)
     {
         IReadOnlyList<string> clean = TaskLabels.Clean(tags) ?? [];
         (TaskLists after, List<TaskItem> changed) = Edit(
             lists, ids, (task, _) => task with { Tags = clean.Aggregate(task.Tags, (current, tag) => TaskLabels.Without(current, tag)) }, [TaskField.Tags], now, self);
-        return Result(lists, after, changed, TaskToasts.Tagged(clean, added: false));
+        return Result(lists, TaskScopes.KeepHidden(lists, after, self, removed, now), changed, TaskToasts.Tagged(clean, added: false));
     }
 
     /// <summary>The bulk Tags menu's tick: when every task has the tag it comes off all of them, otherwise it goes on all.</summary>
-    public static TaskActionResult ToggleTag(TaskLists lists, IReadOnlyList<Guid> ids, string tag, DateTimeOffset now, Guid self)
+    public static TaskActionResult ToggleTag(TaskLists lists, IReadOnlyList<Guid> ids, string tag, DateTimeOffset now, Guid self, IReadOnlyCollection<Guid>? removed)
     {
         List<TaskItem> tasks = LiveTasks(lists, ids);
         bool all = tasks.Count > 0 && tasks.All(task => TaskLabels.Has(task.Tags, tag));
-        return all ? RemoveTags(lists, ids, [tag], now, self) : AddTags(lists, ids, [tag], now, self);
+        return all ? RemoveTags(lists, ids, [tag], now, self, removed) : AddTags(lists, ids, [tag], now, self, removed);
     }
 
     /// <summary>Sets the time limit in minutes (null: none). Out of range values are cleaned as the checklist does.</summary>

@@ -78,7 +78,7 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
     @Synchronized
     fun recolor(name: String, color: String) {
         if (inModel { lists, self, now ->
-                if (TaskLabelEdits.named(lists, name) == null) TaskLabelEdits.add(lists, name, color, now, self) else TaskLabelEdits.recolour(lists, name, color, now)
+                if (TaskLabelEdits.named(lists, name) == null) TaskLabelEdits.add(lists, name, color, now, self) else TaskLabelEdits.recolour(lists, name, color, now, self)
             }) return
         val stamped = SyncCategory(name, color, now())
         val list = _categories.value
@@ -88,7 +88,7 @@ class TaskCategoriesStore(context: Context, private val now: () -> Instant = { I
     @Synchronized
     fun rename(oldName: String, newName: String, color: String?) {
         if (inModel { lists, self, now ->
-                if (TaskLabelEdits.named(lists, oldName) == null) TaskLabelEdits.add(lists, newName, color, now, self) else TaskLabelEdits.rename(lists, oldName, newName, now)
+                if (TaskLabelEdits.named(lists, oldName) == null) TaskLabelEdits.add(lists, newName, color, now, self) else TaskLabelEdits.rename(lists, oldName, newName, now, self)
             }) return
         val list = _categories.value
         val renamed = list.firstOrNull { it.name.equals(oldName, ignoreCase = true) }?.copy(name = newName)

@@ -160,6 +160,125 @@ public static class TaskScopes
     }
 
     /// <summary>
+    /// ADR 89, a device never loses sight of its own label: after a merge, a live label that this device's own copy (<paramref name="held"/>,
+    /// before the merge) showed here (a list that named <paramref name="self"/>) but whose merged list is a list without it (another device's
+    /// newer stamp won, the same name made device-only on two devices while offline) gets the merged list joined by <paramref name="self"/>,
+    /// stamped by <paramref name="self"/> just after the winning stamp. The joined list holds the winner's devices and carries the newest stamp, so
+    /// no other device's rule fires and every device ends with the same list; the next normal write sends it (a receive writes nothing
+    /// extra). No act removes a device from a live list ("make shared" is none or a tombstone, "only on this device" is a join), so this
+    /// never fights the user. Screens must never offer "remove device X"; changing the scope of a label several devices share uses
+    /// <see cref="TaskLabelEdits.Joined"/>.
+    /// </summary>
+    public static List<SyncTaskLabel> RejoinedLabels(IEnumerable<SyncTaskLabel> held, IReadOnlyList<SyncTaskLabel> merged, Guid self, DateTimeOffset now)
+    {
+        if (self == Guid.Empty)
+        {
+            return merged.ToList();
+        }
+
+        Dictionary<Guid, TaskLabel> own = held.Where(item => item.Label is { IsLive: true }).GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First().Label);
+        return merged.Select(item =>
+        {
+            TaskLabel label = item.Label;
+            if (!label.IsLive || !own.TryGetValue(item.Id, out TaskLabel? mine) || Normalized(mine.OnlyOn) is not { } before || !before.Contains(self))
+            {
+                return item;
+            }
+
+            IReadOnlyList<Guid>? winner = Normalized(label.OnlyOn);
+            if (winner is null || winner.Contains(self))
+            {
+                return item;
+            }
+
+            DateTimeOffset at = label.OnlyOnStamp is { } stamp ? stamp.At.AddTicks(1) : now;
+            return new SyncTaskLabel(label with { OnlyOn = TaskLabelEdits.Joined(winner, self), OnlyOnStamp = new TaskFieldStamp(at, self) });
+        }).ToList();
+    }
+
+    /// <summary>The same rule for the tag scopes (<see cref="RejoinedLabels"/>): the scope is edited just after the winning edit.</summary>
+    public static List<SyncTagScope>? RejoinedScopes(IReadOnlyList<SyncTagScope>? held, List<SyncTagScope>? merged, Guid self)
+    {
+        if (self == Guid.Empty || merged is null || held is null)
+        {
+            return merged;
+        }
+
+        Dictionary<Guid, SyncTagScope> own = held.Where(scope => scope is { DeletedAt: null }).GroupBy(scope => scope.Id).ToDictionary(group => group.Key, group => group.First());
+        return merged.Select(scope =>
+        {
+            if (scope.DeletedAt is not null || !own.TryGetValue(scope.Id, out SyncTagScope? mine) || Normalized(mine.OnlyOn) is not { } before || !before.Contains(self))
+            {
+                return scope;
+            }
+
+            IReadOnlyList<Guid>? winner = Normalized(scope.OnlyOn);
+            return winner is null || winner.Contains(self) ? scope : scope with { OnlyOn = TaskLabelEdits.Joined(winner, self), EditedAt = scope.EditedAt.AddTicks(1) };
+        }).ToList();
+    }
+
+    /// <summary>
+    /// ADR 89, a writer that doesn't see a label or tag never deletes it: <paramref name="after"/> is <paramref name="before"/> with a writer's
+    /// changes to tasks' tags and labels (the writer only knew what this device shows); every live task there that also is in
+    /// <paramref name="before"/> keeps the hidden tags and the hidden label it held (<see cref="WithHiddenTags"/>, <see cref="WithHiddenLabel"/>).
+    /// A tag or label the writer set that is hidden here and the task didn't hold was typed or chosen by the user, who joins it: this device
+    /// is added to its list (<see cref="TagScopeEdits.SetScope"/>, <see cref="TaskLabelEdits.SetOnlyOn"/>), never made shared for everyone.
+    /// Nothing changes on a device with no id. Every writer of a task's tags or label ends with this (the checks hold a mutation per writer).
+    /// </summary>
+    public static TaskLists KeepHidden(TaskLists before, TaskLists after, Guid self, IReadOnlyCollection<Guid>? removed, DateTimeOffset now)
+    {
+        if (self == Guid.Empty)
+        {
+            return after;
+        }
+
+        Dictionary<Guid, TaskItem> held = before.Tasks.Where(item => item.Task is { IsLive: true }).GroupBy(item => item.Id).ToDictionary(group => group.Key, group => group.First().Task);
+        List<TaskLabel> labels = after.Labels.Select(item => item.Label).ToList();
+        List<SyncTaskItem> tasks = after.Tasks.ToList();
+        var joinTags = new List<string>();
+        var joinLabels = new List<Guid>();
+        for (int index = 0; index < tasks.Count; index++)
+        {
+            TaskItem task = tasks[index].Task;
+            if (!task.IsLive)
+            {
+                continue;
+            }
+
+            held.TryGetValue(tasks[index].Id, out TaskItem? was);
+            IReadOnlyList<string>? tags = WithHiddenTags(task.Tags, was?.Tags, after.TagScopes, self, removed);
+            joinTags.AddRange((TaskLabels.Clean(task.Tags) ?? []).Where(tag => !TaskLabels.Has(was?.Tags, tag) && !TagVisible(tag, after.TagScopes, self, removed)));
+            if (task.LabelId is Guid chosen && chosen != was?.LabelId && labels.FirstOrDefault(label => label.Id == chosen && label.IsLive) is { } picked && !LabelVisible(picked, self, removed))
+            {
+                joinLabels.Add(chosen);
+            }
+
+            Guid? label = WithHiddenLabel(task.LabelId, was?.LabelId, labels, self, removed);
+            if (!TaskLabels.TieText(tags).Equals(TaskLabels.TieText(TaskLabels.Clean(task.Tags)), StringComparison.Ordinal) || label != task.LabelId)
+            {
+                tasks[index] = tasks[index] with { Task = task with { Tags = tags, LabelId = label } };
+            }
+        }
+
+        TaskLists result = after with { Tasks = tasks };
+        foreach (string tag in joinTags.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            result = result with { TagScopes = TagScopeEdits.SetScope(result.TagScopes, tag, true, now, self) };
+        }
+
+        foreach (Guid id in joinLabels.Distinct())
+        {
+            TaskLabel? label = result.Labels.Select(item => item.Label).FirstOrDefault(item => item.Id == id && item.IsLive);
+            if (label is not null)
+            {
+                result = TaskLabelEdits.SetOnlyOn(result, id, TaskLabelEdits.Joined(label.OnlyOn, self), now, self);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// A file's tag scopes cleaned: an entry with no id, a live one with no name or no devices, or a list over
     /// <see cref="TaskRingDevices.MaxDevices"/> devices is left out (never a deletion: the merge keeps what it has); device lists in
     /// their stored form; a tombstone holds neither name nor devices. Null stays null.

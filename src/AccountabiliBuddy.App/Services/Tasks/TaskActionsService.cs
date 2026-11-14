@@ -312,22 +312,22 @@ public sealed class TaskActionsService
 
     public Task<bool> SetLabelAsync(IReadOnlyList<Guid> ids, Guid? labelId)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self, removed: null));
     }
 
     public Task<bool> AddTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.AddTags(lists, ids, tags, now, self));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.AddTags(lists, ids, tags, now, self, removed: null));
     }
 
     public Task<bool> RemoveTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.RemoveTags(lists, ids, tags, now, self));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.RemoveTags(lists, ids, tags, now, self, removed: null));
     }
 
     public Task<bool> ToggleTagAsync(IReadOnlyList<Guid> ids, string tag)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.ToggleTag(lists, ids, tag, now, self));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.ToggleTag(lists, ids, tag, now, self, removed: null));
     }
 
     public Task<bool> SetTimeLimitAsync(IReadOnlyList<Guid> ids, int? minutes)

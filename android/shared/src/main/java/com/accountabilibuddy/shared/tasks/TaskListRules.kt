@@ -1,6 +1,7 @@
 package com.accountabilibuddy.shared.tasks
 
 import com.accountabilibuddy.shared.sync.DotNetTime
+import com.accountabilibuddy.shared.sync.FieldStamp
 import com.accountabilibuddy.shared.sync.SharedListMerge
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -92,6 +93,56 @@ object TaskListRules {
     }
 
     /**
+     * A backup's task list as a restore takes it in (ADR 71, 89; the PC's TaskListRules.RestoredIncoming): its live tasks, labels, views and
+     * scopes stamped [now] by [self], so they come back over later edits and deletions (their deletions don't). The device that wrote the backup
+     * ([backupDevice], null in an older backup) is swapped for this device in every label list and tag scope, so a reinstalled device (a new
+     * id) sees the labels and tags it made; a label's list stamp is stamped now like a scope's, so the backup's choice wins. A task keeps the
+     * labels and tags this device holds that are hidden here ([TaskScopes.withHiddenTags], [TaskScopes.withHiddenLabel], over the lists as they
+     * will be merged); [removed]: devices removed from the group.
+     */
+    fun restoredIncoming(current: TaskLists, backup: TaskLists, backupDevice: String?, self: String, now: OffsetDateTime, removed: Collection<String>?): TaskLists {
+        val me = self.lowercase()
+        val from = backupDevice?.lowercase()
+        fun swapped(devices: List<String>?): List<String>? =
+            if (from != null && from != FieldStamp.NOBODY && me != FieldStamp.NOBODY && from != me && devices != null) {
+                TaskScopes.normalized(devices.map { if (it.lowercase() == from) me else it })
+            } else {
+                devices
+            }
+
+        val stamp = FieldStamp(now, me)
+        val labels = backup.labels.filter { it.label.isLive }.map {
+            it.copy(label = it.label.copy(editedAt = now, onlyOn = swapped(it.label.onlyOn), onlyOnStamp = if (it.label.onlyOnStamp == null) null else stamp))
+        }
+        val scopes = backup.tagScopes?.filter { it.deleted == null }?.map { it.copy(edited = now, onlyOn = swapped(it.onlyOn)) }
+        val mergedLabels = TaskLabelMerge.merge(current.labels, labels, now).map { it.label }
+        val mergedScopes = TagScopeMerge.merge(current.tagScopes, scopes, now)
+        val held = HashMap<String, TaskItem>()
+        for (item in current.tasks) if (item.task.isLive) held.putIfAbsent(item.id.lowercase(), item.task)
+        val tasks = backup.tasks.filter { it.task.isLive }.map { item ->
+            var task = item.task.copy(editedAt = now, touchedAt = now)
+            val was = held[item.id.lowercase()]
+            if (was != null) {
+                task = task.copy(
+                    tags = TaskScopes.withHiddenTags(task.tags, was.tags, mergedScopes, me, removed),
+                    labelId = TaskScopes.withHiddenLabel(task.labelId, was.labelId, mergedLabels, me, removed),
+                )
+            }
+
+            SyncTaskItem(task, TaskFieldStamps.allAt(stamp))
+        }
+
+        return TaskLists(
+            tasks,
+            labels,
+            backup.views.filter { it.view.isLive }.map { it.copy(view = it.view.copy(editedAt = now)) },
+            backup.log,
+            backup.account,
+            scopes,
+        )
+    }
+
+    /**
      * Another device's (or a backup's) parts merged in: with `tasks`, tasks field by field and labels, views and History item by item
      * ([TaskListMerge]); **without `tasks` nothing of the task list changes** (Q583: a missing part is never read as an empty one, and an
      * older app's old fields are not read in). The account's Tasks settings merge whenever the file carries them. Null when nothing
@@ -114,7 +165,7 @@ object TaskListRules {
         // ADR 89: the tag scopes merge item by item whenever the file carries them; a file without (an older app, a QR file) leaves them alone.
         parts?.tagScopes?.let { scopes ->
             val basis = result ?: lists
-            result = basis.copy(tagScopes = TagScopeMerge.merge(basis.tagScopes, TaskScopes.clean(scopes), now))
+            result = basis.copy(tagScopes = TaskListMerge.mergedScopes(lists.tagScopes, basis.tagScopes, TaskScopes.clean(scopes), self, now))
         }
 
         return result

@@ -5,9 +5,12 @@ import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import com.accountabilibuddy.shared.sync.SyncFileJson
 import com.accountabilibuddy.shared.sync.SyncFileStrip
+import com.accountabilibuddy.shared.tasks.TaskFacadeLists
+import com.accountabilibuddy.shared.tasks.SyncTaskItem
 import com.accountabilibuddy.shared.tasks.SyncTagScope
 import com.accountabilibuddy.shared.tasks.SyncTaskLabel
 import com.accountabilibuddy.shared.tasks.TagScopeEdits
+import com.accountabilibuddy.shared.tasks.TagScopeMerge
 import com.accountabilibuddy.shared.tasks.TaskJson
 import com.accountabilibuddy.shared.tasks.TaskLabel
 import com.accountabilibuddy.shared.tasks.TaskLabelEdits
@@ -116,5 +119,59 @@ object Lb1aSelfCheck {
         report.check("lb1a: older apps' labels (no list) are shared", TaskScopes.isVisible(null, PHONE, null) && TaskScopes.isVisible(listOf(PC), FieldStamp.NOBODY, null))
         report.check("lb1a: every writer keeps the hidden tags (the same helper the PC has)", TaskScopes.withHiddenTags(listOf("home"), listOf("home", "private"), privateScope, PHONE, null) == listOf("home", "private") && TaskScopes.withHiddenTags(emptyList(), listOf("private"), privateScope, PC, null) == null)
         report.check("lb1a: a label chosen here replaces a hidden one; a task shown as No label keeps it", TaskScopes.withHiddenLabel(null, work.id, listOf(work), PHONE, null) == work.id && TaskScopes.withHiddenLabel("x", work.id, listOf(work), PHONE, null) == "x")
+
+        // The cap (the PC's TagScopeMerge.MaxScopes): the oldest tombstones go first, then the oldest live scopes.
+        val many = (0 until TagScopeMerge.MAX_SCOPES + 30).map { index ->
+            if (index < 20) SyncTagScope(TaskScopes.tagIdFor("tombstone $index"), "tombstone $index", listOf(PC), at(-5000 + index)).deleted(at(-4000 + index))
+            else SyncTagScope(TaskScopes.tagIdFor("live $index"), "live $index", listOf(PC), at(-3000 + index))
+        }
+        val capped = TagScopeMerge.merge(many, emptyList(), at(0))
+        report.check("lb1a: at most 2000 scopes; the oldest tombstones go first, then the oldest live ones",
+            capped != null && capped.size == TagScopeMerge.MAX_SCOPES && capped.all { it.deleted == null } && capped.none { it.name == "live 20" || it.name == "live 29" } && capped.any { it.name == "live 30" })
+        report.check("lb1a: under the limit nothing goes", TagScopeMerge.merge(many.take(TagScopeMerge.MAX_SCOPES), emptyList(), at(0))?.size == TagScopeMerge.MAX_SCOPES)
+
+        // A rename still sees a hidden label; a join stamps the list only (the label's edit time stays), asked shared joins all the same.
+        val hiddenWork = TaskLists(emptyList(), listOf(SyncTaskLabel(work.copy(onlyOn = listOf(PC), onlyOnStamp = FieldStamp(at(-100), PC)))), emptyList(), emptyList())
+        val joinedAll = TaskLabelEdits.addWithId(hiddenWork, "Work", null, at(0), PHONE).first.labels.single().label
+        report.check("lb1a: asking for a hidden name (not device-only) joins it and leaves the label's edit time", text(joinedAll.onlyOn) == "a,b" && joinedAll.editedAt == work.editedAt)
+        // Name lookups by name (the old category screens' recolour, rename, delete) join a hidden label instead of binding to it unseen.
+        val recoloured = TaskLabelEdits.recolour(hiddenWork, "Work", "#112233", at(0), PHONE).labels.single().label
+        report.check("lb1a: recolour of a name that is a hidden label's joins it (this phone added), then recolours", text(recoloured.onlyOn) == "a,b" && recoloured.color == "#112233")
+        val renamed = TaskLabelEdits.rename(hiddenWork, "Work", "Office", at(0), PHONE).labels.single().label
+        report.check("lb1a: rename of a hidden label's name joins it first", text(renamed.onlyOn) == "a,b" && renamed.name == "Office")
+        val twoLabels = TaskLists(emptyList(), hiddenWork.labels + SyncTaskLabel(TaskLabel(TaskLabel.idFor("Home"), "Home", "#E0322C", 2.0, at(-600))), emptyList(), emptyList())
+        report.check("lb1a: a rename to a hidden label's name is refused (no two live labels share a name)", TaskLabelEdits.rename(twoLabels, "Home", "Work", at(0), PHONE) == twoLabels)
+        report.check("lb1a: delete of a hidden label's name does nothing (a device can't delete what it can't see)", TaskLabelEdits.delete(hiddenWork, "Work", at(0), PHONE) == hiddenWork)
+
+        // Every phone writer of a task's tags or label keeps what this phone can't see (the PC's per-writer checks): the Shelf edits, the old lists.
+        val secret = TaskLabel(TaskLabel.idFor("Secret"), "Secret", "#E0322C", 2.0, at(-100), onlyOn = listOf(PC), onlyOnStamp = FieldStamp(at(-100), PC))
+        val hideScope = listOf(SyncTagScope(TaskScopes.tagIdFor("private"), "private", listOf(PC), at(-10)))
+        val taskId = "11111111-0000-0000-0000-000000000001"
+        fun world(vararg tags: String, label: String? = secret.id): TaskLists = TaskLists(
+            listOf(
+                SyncTaskItem(
+                    com.accountabilibuddy.shared.tasks.TaskItem(
+                        id = taskId, title = "Call the bank", bin = com.accountabilibuddy.shared.tasks.TaskBin.QUEUED, position = 1.0, createdAt = at(-1000), editedAt = at(-1000),
+                        touchedAt = at(-1000), labelId = label, tags = tags.toList().ifEmpty { null },
+                    ),
+                    com.accountabilibuddy.shared.tasks.TaskFieldStamps.NONE,
+                ),
+            ),
+            listOf(SyncTaskLabel(work.copy(onlyOn = null, onlyOnStamp = null)), SyncTaskLabel(secret)), emptyList(), emptyList(), null, hideScope,
+        )
+        val held = world("private", "home")
+        val noLabel = com.accountabilibuddy.shared.tasks.ShelfEdits.editAll(held, listOf(taskId), com.accountabilibuddy.shared.tasks.TaskField.LABEL, PHONE, at(0)) { it.copy(labelId = null) }.lists
+        report.check("lb1a/writer: the Shelf's label edit (select mode, ⋮ sheet) keeps the hidden label", noLabel.tasks.single().task.labelId == secret.id)
+        val noTags = com.accountabilibuddy.shared.tasks.ShelfEdits.edit(held, taskId, com.accountabilibuddy.shared.tasks.TaskField.TAGS, PHONE, at(0)) { it.copy(tags = null) }.lists
+        report.check("lb1a/writer: the Shelf's tag edit keeps the hidden tag", noTags.tasks.single().task.tags == listOf("private"))
+        val typedTag = com.accountabilibuddy.shared.tasks.ShelfEdits.editAll(world(), listOf(taskId), com.accountabilibuddy.shared.tasks.TaskField.TAGS, PHONE, at(0)) { it.copy(tags = listOf("Private")) }.lists
+        report.check("lb1a/writer: a hidden tag typed in the Shelf joins its scope (this phone added), never made shared", text(typedTag.tagScopes!!.single().onlyOn) == "a,b")
+        val added = com.accountabilibuddy.shared.tasks.ShelfEdits.add(
+            world(label = null), "22222222-0000-0000-0000-000000000002", "New", com.accountabilibuddy.shared.tasks.TaskBin.QUEUED, secret.id, listOf("private"), PHONE, at(0),
+        ).lists
+        report.check("lb1a/writer: the Add sheet's hidden label and tag typed are joined, not made shared", text(added.labels.map { it.label }.single { it.id == secret.id }.onlyOn) == "a,b" && text(added.tagScopes!!.single().onlyOn) == "a,b")
+        val stripped = TaskFacadeLists.draft(held, at(0)).single().copy(category = null, categoryColor = null, labels = null)
+        val local = com.accountabilibuddy.shared.tasks.TaskLocalEdits.apply(held, com.accountabilibuddy.shared.tasks.OldTaskFields(listOf(stripped.copy(editedAt = at(5).toInstant())), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()), PHONE, at(5), ZoneId.of("UTC"))
+        report.check("lb1a/writer: the old lists' edit (which show only what this phone shows) keeps the hidden label and tag", local.tasks.single().task.labelId == secret.id && local.tasks.single().task.tags == listOf("private"))
     }
 }

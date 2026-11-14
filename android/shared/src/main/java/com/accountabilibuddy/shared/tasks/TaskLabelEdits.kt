@@ -17,13 +17,14 @@ object TaskLabelEdits {
 
     /**
      * Whether [name] can be the name of the label [labelId] (null: a new one): blank or another live label's name can't. A label this device
-     * can't see (device-only on other devices, ADR 89) doesn't make the name taken; with no [self] every label is seen.
+     * can't see (device-only on other devices, ADR 89) doesn't make a NEW label's name taken ([add] joins it); a rename still sees it (no two
+     * live labels share a name). With no [self] every label is seen.
      */
     fun checkName(lists: TaskLists, labelId: String?, name: String, self: String = FieldStamp.NOBODY, removed: Collection<String>? = null): TaskLabelNameCheck {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return TaskLabelNameCheck.Blank
         val taken = lists.labels.map { it.label }.any {
-            it.isLive && !it.id.equals(labelId, ignoreCase = true) && TaskLabel.sameName(it.name, trimmed) && TaskScopes.labelVisible(it, self, removed)
+            it.isLive && !it.id.equals(labelId, ignoreCase = true) && TaskLabel.sameName(it.name, trimmed) && (labelId != null || TaskScopes.labelVisible(it, self, removed))
         }
         return if (taken) TaskLabelNameCheck.Taken else TaskLabelNameCheck.Fine
     }
@@ -37,9 +38,14 @@ object TaskLabelEdits {
         val wanted = TaskScopes.normalized(onlyOn)
         val label = lists.labels.map { it.label }.firstOrNull { it.isLive && it.id.equals(labelId, ignoreCase = true) } ?: return lists
         if (TaskRingDevices.same(TaskScopes.normalized(label.onlyOn), wanted)) return lists
-        val at = label.onlyOnStamp?.let { after(now, it.at) } ?: now
-        val changed = label.copy(onlyOn = wanted, onlyOnStamp = FieldStamp(at, self.lowercase()), editedAt = after(now, label.editedAt))
+        val changed = withOnlyOn(label, wanted, now, self)
         return lists.copy(labels = lists.labels.map { if (it.label.id == label.id) it.copy(label = changed) else it })
+    }
+
+    /** The label with [devices] as its list, stamped on its own (the whole label's editedAt stays: a join nobody sees can't revert a rename). */
+    fun withOnlyOn(label: TaskLabel, devices: List<String>?, now: OffsetDateTime, self: String): TaskLabel {
+        val at = label.onlyOnStamp?.let { after(now, it.at) } ?: now
+        return label.copy(onlyOn = TaskScopes.normalized(devices), onlyOnStamp = FieldStamp(at, self.lowercase()))
     }
 
     /** A device list with [self] added (a list of just [self] for a shared label). */
@@ -68,9 +74,9 @@ object TaskLabelEdits {
 
     /**
      * [add] with the id of the label the name came to (null when nothing was added). ADR 89: [onlyOnThisDevice] makes the label device-only
-     * on [self]. A label of that name that this device can't see is joined instead (this device is added to its list, a stamped edit), so
-     * the same name made on two devices is one label shared by them; asked shared, that label becomes shared. A device with no id makes a
-     * shared label. [removed] devices' device-only labels count as shared.
+     * on [self]. A label of that name that this device can't see is joined, whatever was asked (this device is added to its list, a stamped
+     * edit), so the same name made on two devices is one label shared by them; it is never made shared for everyone. A device with no id
+     * makes a shared label. [removed] devices' device-only labels count as shared.
      */
     fun addWithId(
         lists: TaskLists, name: String, color: String?, now: OffsetDateTime, self: String, onlyOnThisDevice: Boolean = false, removed: Collection<String>? = null,
@@ -82,7 +88,7 @@ object TaskLabelEdits {
 
         val deviceOnly = onlyOnThisDevice && !self.equals(FieldStamp.NOBODY, ignoreCase = true) && self.isNotBlank()
         named(lists, trimmed)?.let { hidden ->
-            return setOnlyOn(lists, hidden.id, if (deviceOnly) joined(hidden.onlyOn, self) else null, now, self) to hidden.id
+            return setOnlyOn(lists, hidden.id, joined(hidden.onlyOn, self), now, self) to hidden.id
         }
 
         val labels = lists.labels.map { it.label }.toMutableList()
@@ -103,24 +109,38 @@ object TaskLabelEdits {
         return with(lists, labels) to id
     }
 
-    /** A label's new colour (an invalid one changes nothing). */
-    fun recolour(lists: TaskLists, name: String, color: String, now: OffsetDateTime): TaskLists {
+    /**
+     * A label's new colour (an invalid one changes nothing). ADR 89: a name that is a hidden label's (the user wrote it, so it is theirs)
+     * joins that label first (this device is added to its list), never binds to it unseen; no [self] shows every label.
+     */
+    fun recolour(lists: TaskLists, name: String, color: String, now: OffsetDateTime, self: String = FieldStamp.NOBODY, removed: Collection<String>? = null): TaskLists {
         if (!TaskLabelColors.isValid(color)) return lists
         val wanted = color.trim()
-        return changed(lists, name) { label -> if (label.color.equals(wanted, ignoreCase = true)) null else label.copy(color = wanted, editedAt = after(now, label.editedAt)) }
+        return changed(joinedIfHidden(lists, name, now, self, removed), name) { label -> if (label.color.equals(wanted, ignoreCase = true)) null else label.copy(color = wanted, editedAt = after(now, label.editedAt)) }
     }
 
-    /** A label's new name; refused (unchanged) when blank or another live label has it. Its tasks keep it (they hold its id). */
-    fun rename(lists: TaskLists, oldName: String, newName: String, now: OffsetDateTime): TaskLists {
+    /**
+     * A label's new name; refused (unchanged) when blank or another live label has it (a hidden one too: no two live labels share a name).
+     * Its tasks keep it (they hold its id). A hidden label named [oldName] is joined first, as [recolour] does.
+     */
+    fun rename(lists: TaskLists, oldName: String, newName: String, now: OffsetDateTime, self: String = FieldStamp.NOBODY, removed: Collection<String>? = null): TaskLists {
         val trimmed = newName.trim()
         val other = named(lists, trimmed)
         if (trimmed.isEmpty() || (other != null && !TaskLabel.sameName(other.name, oldName))) return lists
-        return changed(lists, oldName) { label -> if (label.name == trimmed) null else label.copy(name = trimmed, editedAt = after(now, label.editedAt)) }
+        return changed(joinedIfHidden(lists, oldName, now, self, removed), oldName) { label -> if (label.name == trimmed) null else label.copy(name = trimmed, editedAt = after(now, label.editedAt)) }
     }
 
-    /** Deletes the label named [name]: its tasks are left with No label on every device. */
-    fun delete(lists: TaskLists, name: String, now: OffsetDateTime, self: String): TaskLists {
+    // The label named [name] joined when this device can't see it; unchanged when it is shown, missing or there is no [self].
+    private fun joinedIfHidden(lists: TaskLists, name: String, now: OffsetDateTime, self: String, removed: Collection<String>?): TaskLists {
         val label = named(lists, name) ?: return lists
+        if (self.isBlank() || self.equals(FieldStamp.NOBODY, ignoreCase = true) || TaskScopes.labelVisible(label, self, removed)) return lists
+        return setOnlyOn(lists, label.id, joined(label.onlyOn, self), now, self)
+    }
+
+    /** Deletes the label named [name]: its tasks are left with No label on every device. A label hidden here isn't deleted (a device can't delete what it can't see). */
+    fun delete(lists: TaskLists, name: String, now: OffsetDateTime, self: String, removed: Collection<String>? = null): TaskLists {
+        val label = named(lists, name) ?: return lists
+        if (!TaskScopes.labelVisible(label, self, removed)) return lists
         val labels = lists.labels.map { item -> if (item.label.id == label.id) SyncTaskLabel(label.deleted(after(now, label.editedAt))) else item }
         val tasks = lists.tasks.map { item ->
             if (item.task.isLive && item.task.labelId == label.id) TaskEdits.edit(item, TaskField.LABEL, item.task.copy(labelId = null), now, self) else item

@@ -14,8 +14,9 @@ public static class TaskLabelEdits
 {
     /// <summary>
     /// Whether <paramref name="name"/> can be the label's (<paramref name="labelId"/>: the label being renamed; null for a new one). A label
-    /// this device can't see (device-only on other devices, ADR 89) doesn't make the name taken: <see cref="Add"/> joins it. With no
-    /// <paramref name="self"/> (empty) every label is seen.
+    /// this device can't see (device-only on other devices, ADR 89) doesn't make a NEW label's name taken: <see cref="Add"/> joins it. A
+    /// rename still sees it (no two live labels share a name, which would make a name lookup ambiguous). With no <paramref name="self"/>
+    /// (empty) every label is seen.
     /// </summary>
     public static TaskLabelNameCheck CheckName(IEnumerable<TaskLabel> labels, Guid? labelId, string name, Guid self = default, IReadOnlyCollection<Guid>? removed = null)
     {
@@ -25,7 +26,7 @@ public static class TaskLabelEdits
             return TaskLabelNameCheck.Blank;
         }
 
-        bool taken = labels.Any(label => label.IsLive && label.Id != labelId && TaskLabel.SameName(label.Name, trimmed) && TaskScopes.LabelVisible(label, self, removed));
+        bool taken = labels.Any(label => label.IsLive && label.Id != labelId && TaskLabel.SameName(label.Name, trimmed) && (labelId is not null || TaskScopes.LabelVisible(label, self, removed)));
         return taken ? TaskLabelNameCheck.Taken : TaskLabelNameCheck.Fine;
     }
 
@@ -36,9 +37,9 @@ public static class TaskLabelEdits
     /// </summary>
     /// <param name="onlyOnThisDevice">
     /// ADR 89: the label is device-only on <paramref name="self"/>. A label of that name that this device can't see (device-only elsewhere) is
-    /// joined instead: this device is added to its list (a stamped edit, <paramref name="id"/> is that label's), so the same name made on two
-    /// devices is one label shared by them. Asked shared, the hidden label becomes shared (the user chose that name for everyone). A device
-    /// with no id can't be named: it makes a shared label.
+    /// joined, whatever was asked: this device is added to its list (a stamped edit, <paramref name="id"/> is that label's), so the same name
+    /// made on two devices is one label shared by them. It is never made shared for everyone (another device's choice; "Make shared" is an
+    /// explicit action of its own). A device with no id can't be named: it makes a shared label.
     /// </param>
     /// <param name="removed">The devices removed from the group (ADR 54): their device-only labels count as shared.</param>
     public static TaskLists Add(
@@ -56,9 +57,9 @@ public static class TaskLabelEdits
         int hidden = labels.FindIndex(label => label.IsLive && TaskLabel.SameName(label.Name, trimmed));
         if (hidden >= 0)
         {
-            // A label this device can't see: joined, or made shared.
+            // A label this device can't see: joined, never made shared.
             id = labels[hidden].Id;
-            return SetOnlyOn(lists, labels[hidden].Id, deviceOnly ? Joined(labels[hidden].OnlyOn, self) : null, now, self);
+            return SetOnlyOn(lists, labels[hidden].Id, Joined(labels[hidden].OnlyOn, self), now, self);
         }
 
         Guid newId = TaskLabelBook.FreeIdFor(trimmed, labels);
@@ -122,14 +123,20 @@ public static class TaskLabelEdits
     public static TaskLists SetOnlyOn(TaskLists lists, Guid labelId, IReadOnlyList<Guid>? onlyOn, DateTimeOffset now, Guid self)
     {
         IReadOnlyList<Guid>? wanted = TaskScopes.Normalized(onlyOn);
-        return Changed(lists, labelId, label => TaskRingDevices.Same(TaskScopes.Normalized(label.OnlyOn), wanted)
-            ? null
-            : label with
-            {
-                OnlyOn = wanted,
-                OnlyOnStamp = new TaskFieldStamp(label.OnlyOnStamp is { } held ? After(now, held.At) : now, self),
-                EditedAt = After(now, label.EditedAt),
-            });
+        return Changed(lists, labelId, label => TaskRingDevices.Same(TaskScopes.Normalized(label.OnlyOn), wanted) ? null : WithOnlyOn(label, wanted, now, self));
+    }
+
+    /// <summary>
+    /// The label with <paramref name="devices"/> as its list, stamped on its own (the whole label's <see cref="TaskLabel.EditedAt"/> stays,
+    /// so a join nobody sees can't revert another device's rename or recolour made at the same time).
+    /// </summary>
+    public static TaskLabel WithOnlyOn(TaskLabel label, IReadOnlyList<Guid>? devices, DateTimeOffset now, Guid self)
+    {
+        return label with
+        {
+            OnlyOn = TaskScopes.Normalized(devices),
+            OnlyOnStamp = new TaskFieldStamp(label.OnlyOnStamp is { } held ? After(now, held.At) : now, self),
+        };
     }
 
     /// <summary>A device list with <paramref name="self"/> added (a list of just <paramref name="self"/> for a shared label).</summary>

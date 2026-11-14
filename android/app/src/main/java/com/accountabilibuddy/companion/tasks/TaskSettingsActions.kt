@@ -65,9 +65,9 @@ class TaskSettingsActions(private val app: CompanionApp) {
         val lists = store.lists.value
         val label = lists.labels.map { it.label }.firstOrNull { it.isLive && it.id.equals(labelId, ignoreCase = true) } ?: return false
         if (TaskLabelEdits.checkName(lists, labelId, name) != TaskLabelNameCheck.Fine) return false
-        edit { held, _, now ->
-            val renamed = TaskLabelEdits.rename(held, label.name, name, now)
-            if (TaskLabelColors.isValid(color)) TaskLabelEdits.recolour(renamed, name.trim(), color, now) else renamed
+        edit { held, self, now ->
+            val renamed = TaskLabelEdits.rename(held, label.name, name, now, self)
+            if (TaskLabelColors.isValid(color)) TaskLabelEdits.recolour(renamed, name.trim(), color, now, self) else renamed
         }
         return true
     }

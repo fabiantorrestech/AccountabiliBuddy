@@ -40,7 +40,14 @@ object TaskLocalEdits {
     // Two positions closer than this are the same place (an old list's place maps back with a rounding error at most).
     private const val SAME_PLACE = 1e-6
 
-    fun apply(lists: TaskLists, changed: OldTaskFields, self: String, now: OffsetDateTime, zone: ZoneId, sessionActions: Int = SESSION_ACTIONS): TaskLists {
+    /**
+     * The old lists' changes read in as this device's edits. ADR 89: the old lists show only what this device shows, so a task keeps the labels
+     * and tags it holds that are hidden here, and a hidden label or tag the user wrote is joined ([TaskScopes.keepHidden]; [removed]: the devices
+     * removed from the group, null for none).
+     */
+    fun apply(
+        lists: TaskLists, changed: OldTaskFields, self: String, now: OffsetDateTime, zone: ZoneId, sessionActions: Int = SESSION_ACTIONS, removed: Collection<String>? = null,
+    ): TaskLists {
         val items = changed.nextTasks.map(::of) + changed.later.map(::of) + changed.parked.map(::of) + changed.autoSaved.map(::of)
         val work = Work(lists, self.lowercase(), now, zone, sessionActions)
         val live = items.filter { it.deletedAt == null }
@@ -58,7 +65,7 @@ object TaskLocalEdits {
         }
 
         items.filter { it.deletedAt != null }.forEach(work::applyTombstone)
-        return work.result()
+        return TaskScopes.keepHidden(lists, work.result(), self, removed, now)
     }
 
     /**

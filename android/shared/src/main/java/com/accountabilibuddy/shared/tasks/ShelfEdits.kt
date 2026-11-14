@@ -92,16 +92,18 @@ object ShelfEdits {
      * A drop on another page (change note §2 "Edge cases"): a bin page moves the tasks there; a label page gives them that label in
      * place of the old one ("No label" clears it); a tag page adds the tag and keeps the others ("No tag" changes nothing).
      */
-    fun dropOnPage(lists: TaskLists, ids: List<String>, page: ShelfPage, self: String, now: OffsetDateTime, sessionActions: Int = TaskLocalEdits.SESSION_ACTIONS): ShelfChange = when {
+    fun dropOnPage(
+        lists: TaskLists, ids: List<String>, page: ShelfPage, self: String, now: OffsetDateTime, sessionActions: Int = TaskLocalEdits.SESSION_ACTIONS, removed: Collection<String>? = null,
+    ): ShelfChange = when {
         page.bin != null -> move(lists, ids, page.bin, self, now, sessionActions)
-        page.tag != null -> each(lists, ids, TaskField.TAGS, self, now) { it.copy(tags = TaskLabels.with(it.tags, listOf(page.tag))) }
-        page.labelId != null || page.key == TaskViewRules.LABEL_NONE -> each(lists, ids, TaskField.LABEL, self, now) { it.copy(labelId = page.labelId) }
+        page.tag != null -> each(lists, ids, TaskField.TAGS, self, now, removed) { it.copy(tags = TaskLabels.with(it.tags, listOf(page.tag))) }
+        page.labelId != null || page.key == TaskViewRules.LABEL_NONE -> each(lists, ids, TaskField.LABEL, self, now, removed) { it.copy(labelId = page.labelId) }
         else -> ShelfChange(lists, emptyList(), emptyList())
     }
 
     /** Ticks the task: Finished today, remembering the bin it came from; its place in History comes when the day is over. */
     fun finish(lists: TaskLists, id: String, self: String, now: OffsetDateTime): ShelfChange =
-        each(lists, listOf(id), TaskField.BIN, self, now) { task ->
+        each(lists, listOf(id), TaskField.BIN, self, now, null) { task ->
             if (task.isDone) task else task.copy(bin = TaskBin.DONE, prevBin = task.bin, doneAt = now, position = TaskListRules.endOf(lists.tasks, TaskBin.DONE))
         }
 
@@ -113,12 +115,16 @@ object ShelfEdits {
     }
 
     /** One field of one task changed by [change] (the same task back: nothing changes). */
-    fun edit(lists: TaskLists, id: String, field: TaskField, self: String, now: OffsetDateTime, change: (TaskItem) -> TaskItem): ShelfChange =
-        each(lists, listOf(id), field, self, now, change)
+    fun edit(lists: TaskLists, id: String, field: TaskField, self: String, now: OffsetDateTime, removed: Collection<String>? = null, change: (TaskItem) -> TaskItem): ShelfChange =
+        each(lists, listOf(id), field, self, now, removed, change)
 
-    /** One field of each live task among [ids] changed by [change] (select mode's Label, Tags and Time limit for several). */
-    fun editAll(lists: TaskLists, ids: List<String>, field: TaskField, self: String, now: OffsetDateTime, change: (TaskItem) -> TaskItem): ShelfChange =
-        each(lists, ids, field, self, now, change)
+    /**
+     * One field of each live task among [ids] changed by [change] (select mode's Label, Tags and Time limit for several). ADR 89: a task keeps
+     * the labels and tags it holds that are hidden here, and a hidden one the user set is joined ([TaskScopes.keepHidden]; [removed]: devices
+     * removed from the group, null for none). Every edit through [edit], [editAll], [dropOnPage], [rename] and [add] ends this way.
+     */
+    fun editAll(lists: TaskLists, ids: List<String>, field: TaskField, self: String, now: OffsetDateTime, removed: Collection<String>? = null, change: (TaskItem) -> TaskItem): ShelfChange =
+        each(lists, ids, field, self, now, removed, change)
 
     /** The title, trimmed; a blank one changes nothing. */
     fun rename(lists: TaskLists, id: String, title: String, self: String, now: OffsetDateTime): ShelfChange =
@@ -134,6 +140,7 @@ object ShelfEdits {
     fun add(
         lists: TaskLists, id: String, title: String, bin: TaskBin, labelId: String?, tags: List<String>?, self: String, now: OffsetDateTime,
         sessionActions: Int = TaskLocalEdits.SESSION_ACTIONS,
+        removed: Collection<String>? = null,
         estimateMinutes: Int? = null, note: String? = null, steps: List<String>? = null, stepId: (Int) -> String = { "" },
         dueOn: java.time.LocalDate? = null, dueAt: java.time.LocalTime? = null, reminders: List<String>? = null, reminderId: (Int) -> String = { "" },
     ): ShelfChange {
@@ -151,7 +158,7 @@ object ShelfEdits {
                 .mapIndexed { index, rule -> TaskReminder(reminderId(index).lowercase(), rule) }.ifEmpty { null },
         )
         val item = SyncTaskItem(task, TaskFieldStamps.allAt(FieldStamp(now, self.lowercase())))
-        return ShelfChange(lists.copy(tasks = lists.tasks + item), listOf(task.id), emptyList(), if (target != bin) 1 else 0)
+        return ShelfChange(TaskScopes.keepHidden(lists, lists.copy(tasks = lists.tasks + item), self, removed, now), listOf(task.id), emptyList(), if (target != bin) 1 else 0)
     }
 
     /** Deletes the live tasks among [ids] into History ("deleted", 30 days, Bring back). */
@@ -199,7 +206,7 @@ object ShelfEdits {
     fun free(tasks: List<SyncTaskItem>, sessionActions: Int, exceptId: String = ""): Int = sessionActions -
         tasks.filter { it.task.isLive && it.task.bin == TaskBin.SESSION && !it.task.isDone && !it.id.equals(exceptId, ignoreCase = true) }.sumOf { it.task.actionCount }
 
-    private fun each(lists: TaskLists, ids: List<String>, field: TaskField, self: String, now: OffsetDateTime, change: (TaskItem) -> TaskItem): ShelfChange {
+    private fun each(lists: TaskLists, ids: List<String>, field: TaskField, self: String, now: OffsetDateTime, removed: Collection<String>?, change: (TaskItem) -> TaskItem): ShelfChange {
         var tasks = lists.tasks
         val touched = ArrayList<String>()
         val before = ArrayList<TaskItem>()
@@ -214,6 +221,6 @@ object ShelfEdits {
             before += held.task
         }
 
-        return ShelfChange(if (touched.isEmpty()) lists else lists.copy(tasks = tasks), touched, before)
+        return ShelfChange(if (touched.isEmpty()) lists else TaskScopes.keepHidden(lists, lists.copy(tasks = tasks), self, removed, now), touched, before)
     }
 }

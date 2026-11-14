@@ -373,11 +373,11 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
     }
 
     private fun edit(id: String, field: TaskField, change: (TaskItem) -> TaskItem) {
-        change { lists, self, now -> ShelfEdits.edit(lists, id, field, self, now, change) }
+        change { lists, self, now -> ShelfEdits.edit(lists, id, field, self, now, change = change) }
     }
 
     private fun bulk(ids: List<String>, field: TaskField, did: String, change: (TaskItem) -> TaskItem) {
-        val result = change { lists, self, now -> ShelfEdits.editAll(lists, ids, field, self, now, change) } ?: return
+        val result = change { lists, self, now -> ShelfEdits.editAll(lists, ids, field, self, now, change = change) } ?: return
         if (result.changed) toast(TasksToast("${ShelfToasts.tasksWord(result.ids.size)} $did", undo = undoOf(result, listOf(field))))
     }
 

@@ -13,12 +13,17 @@ import java.time.OffsetDateTime
 object TaskListMerge {
     fun mergeLists(lists: TaskLists, incoming: TaskLists, self: String, now: OffsetDateTime): TaskLists = TaskLists(
         TaskFieldMerge.merge(lists.tasks, incoming.tasks, now, self),
-        TaskLabelMerge.merge(lists.labels, incoming.labels, now),
+        // ADR 89: a device never loses sight of its own label (TaskScopes.rejoinedLabels).
+        TaskScopes.rejoinedLabels(lists.labels, TaskLabelMerge.merge(lists.labels, incoming.labels, now), self, now),
         views(lists.views, incoming.views, now),
         taskLog(lists.log, incoming.log, now),
         if (incoming.account == null) lists.account else TaskAccountSettingsMerge.merge(lists.account, incoming.account, now),
-        if (incoming.tagScopes == null) lists.tagScopes else TagScopeMerge.merge(lists.tagScopes, TaskScopes.clean(incoming.tagScopes), now),
+        if (incoming.tagScopes == null) lists.tagScopes else mergedScopes(lists.tagScopes, lists.tagScopes, TaskScopes.clean(incoming.tagScopes), self, now),
     )
+
+    /** The tag scopes merged item by item, then this device's own scope rejoined when a newer list left it out ([own]: before any merge). */
+    fun mergedScopes(own: List<SyncTagScope>?, basis: List<SyncTagScope>?, incoming: List<SyncTagScope>?, self: String, now: OffsetDateTime): List<SyncTagScope>? =
+        TaskScopes.rejoinedScopes(own, TagScopeMerge.merge(basis, incoming, now), self)
 
     fun views(held: List<SyncTaskView>, incoming: List<SyncTaskView>, now: OffsetDateTime): List<SyncTaskView> {
         val limit = now.plus(SharedListMerge.FUTURE_LIMIT)

@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.App.Services.Backup;
 /// restore merges them like another device's, so a note deleted since stays deleted (a deleted note's mark is kept as long as the note's
 /// 90-day window). They are the user's private text, so never a plain file, never a log. Since ADR 89 it holds the device-only tags too
 /// (<paramref name="TagScopes"/>, with their tombstones; the labels' own device lists are in <paramref name="Labels"/>): a restore merges them like
-/// another device's, so a tag made shared since stays shared.
+/// another device's, so a tag made shared since stays shared. The device that wrote it (<paramref name="Device"/>) is there so a restore on a
+/// reinstalled device (a new id) can swap it for itself in the label lists and tag scopes: it sees what it made.
 /// </summary>
 public sealed record TaskListsExport(
     IReadOnlyList<SyncNextTask>? NextTasks,
@@ -26,4 +27,5 @@ public sealed record TaskListsExport(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTaskLogItem>? TaskLog = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SyncTaskAccountSettings? AccountSettings = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncSessionNote>? SessionNotes = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTagScope>? TagScopes = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SyncTagScope>? TagScopes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? Device = null);

@@ -234,17 +234,11 @@ class PhoneTaskStore(context: Context, private val clock: () -> OffsetDateTime =
      * A backup's task list taken in (ADR 71), as another device's would be. With [restore], its live tasks, labels and views are stamped
      * now first, so they come back over later edits and deletions. Returns how many live tasks it held.
      */
-    fun import(backup: TaskLists, restore: Boolean): Int {
+    fun import(backup: TaskLists, restore: Boolean, backupDevice: String? = null): Int {
         if (!isActive) return 0
         commit { lists, self, now ->
-            val incoming = if (!restore) backup else TaskLists(
-                backup.tasks.filter { it.task.isLive }.map { com.accountabilibuddy.shared.tasks.SyncTaskItem(it.task.copy(editedAt = now, touchedAt = now), TaskFieldStamps.allAt(FieldStamp(now, self))) },
-                backup.labels.filter { it.label.isLive }.map { it.copy(label = it.label.copy(editedAt = now)) },
-                backup.views.filter { it.view.isLive }.map { it.copy(view = it.view.copy(editedAt = now)) },
-                backup.log,
-                backup.account,
-                backup.tagScopes?.filter { it.deleted == null }?.map { it.copy(edited = now) },
-            )
+            // ADR 89: the backup's writing device is swapped for this one in the label lists and tag scopes; hidden labels and tags are kept.
+            val incoming = if (!restore) backup else TaskListRules.restoredIncoming(lists, backup, backupDevice, self, now, removed = null)
             TaskListMerge.mergeLists(lists, incoming, self, now)
         }
         return backup.tasks.count { it.task.isLive }

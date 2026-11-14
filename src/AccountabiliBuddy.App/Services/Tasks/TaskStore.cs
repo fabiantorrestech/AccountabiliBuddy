@@ -28,6 +28,9 @@ public sealed class TaskStore
     /// <summary>ADR 89: the device-only tags (each with the devices that show it), sealed; synced and backed up with the lists.</summary>
     public const string TagScopesKey = "tasks.tagScopes";
 
+    /// <summary>Where a tag-scopes document that couldn't be read is kept (sealed, as it was) instead of being overwritten.</summary>
+    public const string UnreadableTagScopesKey = "tasks.tagScopes.unreadable";
+
     /// <summary>The account's Tasks settings (default view, picked calendar), sealed; synced and backed up with the lists.</summary>
     public const string AccountKey = "tasks.account";
     public const string ViewSearchesKey = "tasks.viewSearches";
@@ -225,7 +228,7 @@ public sealed class TaskStore
         }
 
         TaskLists withHeld = WithHeldBack(_lists, LiveIds(changed), out bool heldTaken);
-        TaskLists applied = TaskListRules.ApplyLocal(withHeld, changed, Self, Now, Zone, SessionActions());
+        TaskLists applied = TaskListRules.ApplyLocal(withHeld, changed, Self, Now, Zone, SessionActions(), removed: null);
         // A delete from one of the old lists is filed in History too (ADR 76), except a running session's tasks leaving the list.
         applied = TaskHistoryRules.WithDeletions(withHeld, applied, DeletedIds(changed), Now);
         Task save = Commit(applied, source, fromOtherDevice: false).Save;
@@ -284,7 +287,7 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        TaskLists placed = TaskListRules.Place(_lists, wanted, _running, Self, Now);
+        TaskLists placed = TaskListRules.Place(_lists, wanted, _running, Self, Now, removed: null);
         bool heldTaken = false;
         foreach (TaskItem task in wanted)
         {
@@ -433,7 +436,7 @@ public sealed class TaskStore
         };
         _running.Remove(fromId);
         _heldEndedAt.Remove(fromId);
-        TaskLists placed = TaskListRules.Place(_lists, [wanted], null, Self, Now);
+        TaskLists placed = TaskListRules.Place(_lists, [wanted], null, Self, Now, removed: null);
         return Task.WhenAll(Commit(placed, null, fromOtherDevice: false).Save, SaveRunningAsync());
     }
 
@@ -462,7 +465,7 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        (TaskLists applied, Dictionary<Guid, Guid> ids) = TaskCategoryEdits.Apply(_lists, categories, _categoryIds, Self, Now);
+        (TaskLists applied, Dictionary<Guid, Guid> ids) = TaskCategoryEdits.Apply(_lists, categories, _categoryIds, Self, Now, removed: null);
         bool idsChanged = ids.Count != _categoryIds.Count || ids.Any(pair => !_categoryIds.TryGetValue(pair.Key, out Guid held) || held != pair.Value);
         _categoryIds = ids;
         return Commit(applied, source, fromOtherDevice: false, forceSave: idsChanged).Save;
@@ -498,7 +501,7 @@ public sealed class TaskStore
     /// live tasks, labels and views are stamped now first, so they come back over later edits and deletions (nothing made since goes).
     /// </summary>
     /// <returns>How many live tasks the backup held.</returns>
-    public async Task<int> ImportAsync(TaskLists backup, bool restore)
+    public async Task<int> ImportAsync(TaskLists backup, bool restore, Guid? backupDevice = null)
     {
         if (!IsActive)
         {
@@ -507,14 +510,8 @@ public sealed class TaskStore
 
         DateTimeOffset now = Now;
         Guid self = Self;
-        TaskLists incoming = !restore ? backup : new TaskLists(
-            backup.Tasks.Where(item => item.Task?.IsLive == true)
-                .Select(item => new SyncTaskItem(item.Task with { EditedAt = now, TouchedAt = now }, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self))))
-                .ToList(),
-            backup.Labels.Where(item => item.Label?.IsLive == true).Select(item => new SyncTaskLabel(item.Label with { EditedAt = now })).ToList(),
-            backup.Views.Where(item => item.View?.IsLive == true).Select(item => new SyncTaskView(item.View with { EditedAt = now })).ToList(),
-            backup.Log.Where(item => item.Entry?.Task is not null).ToList(),
-            TagScopes: backup.TagScopes?.Where(scope => scope.DeletedAt is null).Select(scope => scope with { EditedAt = now }).ToList());
+        // ADR 89: the backup's writing device is swapped for this one in the label lists and tag scopes; hidden labels and tags are kept.
+        TaskLists incoming = !restore ? backup : TaskListRules.RestoredIncoming(_lists, backup, backupDevice, self, now, removed: null);
         await Commit(TaskListRules.MergeLists(_lists, incoming, self, now), null, fromOtherDevice: true).Save;
         return incoming.Tasks.Count(item => item.Task.IsLive);
     }
@@ -527,7 +524,7 @@ public sealed class TaskStore
             return Task.CompletedTask;
         }
 
-        TaskLists applied = TaskListRules.ApplyLocal(_lists, fields, Self, Now, Zone, SessionActions());
+        TaskLists applied = TaskListRules.ApplyLocal(_lists, fields, Self, Now, Zone, SessionActions(), removed: null);
         return Commit(applied, null, fromOtherDevice: true).Save;
     }
 
@@ -687,7 +684,8 @@ public sealed class TaskStore
     }
 
     // ADR 89's tag scopes: a document that can't be read here starts empty (every tag shown) rather than closing the task list; the other devices'
-    // files bring the scopes back.
+    // files bring the scopes back. The unreadable document itself is set aside (kept sealed under UnreadableTagScopesKey, the first one kept) so
+    // the next save doesn't overwrite it with an empty list.
     private List<SyncTagScope>? LoadTagScopes()
     {
         try
@@ -696,7 +694,25 @@ public sealed class TaskStore
         }
         catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
         {
+            SetAsideTagScopes();
             return null;
+        }
+    }
+
+    private void SetAsideTagScopes()
+    {
+        try
+        {
+            Stored? raw = Task.Run(() => _store.LoadAsync<Stored>(TagScopesKey)).GetAwaiter().GetResult();
+            Stored? aside = Task.Run(() => _store.LoadAsync<Stored>(UnreadableTagScopesKey)).GetAwaiter().GetResult();
+            if (raw is not null && aside is null)
+            {
+                Task.Run(() => _store.SaveAsync(UnreadableTagScopesKey, raw)).GetAwaiter().GetResult();
+            }
+        }
+        catch (Exception ex) when (ex is SqliteException or JsonException or NotSupportedException)
+        {
+            // Nothing more can be done for it; the list still opens.
         }
     }
 
