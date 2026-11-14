@@ -19,6 +19,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     private readonly Action<GoalSourceRowViewModel> _remove;
     private readonly Action _changed;
     private readonly bool _beeminderConnected;
+    private readonly bool _groupHasPhone;
+    private readonly bool _inSyncGroup;
 
     public GoalSourceRowViewModel(GoalSourceRule rule, GoalEditorLookups lookups, bool locked, Action<GoalSourceRowViewModel> remove, Action changed)
     {
@@ -26,6 +28,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         _remove = remove;
         _changed = changed;
         _beeminderConnected = lookups.BeeminderConnected;
+        _groupHasPhone = lookups.GroupHasPhone;
+        _inSyncGroup = lookups.InSyncGroup;
         IsLocked = locked;
         Labels = lookups.Labels;
         // A label another device keeps to itself (ADR 89) still counts: the row keeps it, says where it is from and never shows its name.
@@ -103,6 +107,14 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     };
 
     public string Detail => _rule.Type switch
+    {
+        // NG1: a source already chosen stays; with no phone in the group it says nothing arrives for it now.
+        GoalSourceType.HealthSteps or GoalSourceType.HealthSleep or GoalSourceType.ScreenTime when !_groupHasPhone
+            => DetailOfType + (_inSyncGroup ? " No phone is in your group now, so nothing arrives until one joins." : " Not in a sync group, so nothing arrives from a phone."),
+        _ => DetailOfType,
+    };
+
+    private string DetailOfType => _rule.Type switch
     {
         GoalSourceType.FocusAll => "Every counted minute of focus, as the guards count it. Deep work counts nothing else.",
         GoalSourceType.FocusLabel => "Sessions with a task carrying this label.",

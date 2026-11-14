@@ -15,7 +15,8 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// entry (ADR 58). Not written while this PC has no calendar window at all (the calendar may not be loaded yet; no zeros are written over
 /// earlier values on that guess).</item>
 /// </list>
-/// Beeminder's entries are written by the Beeminder reader through the same device marking (the PC's own id).
+/// Beeminder's entries are not written here: the Beeminder reader writes them, marked with this PC's id when it has one (<see cref="GoalEntry.DeviceId"/>
+/// stays null while it has none), and it does not wait for a group. Only the entries this service writes need the group.
 /// Screen time is not here (ST2). Nothing is written while this PC is not in a group (no id to mark them with) or the goals and this PC's
 /// sessions are not loaded. The last 90 days; older own entries stay as they are. Logs nothing. Use from the UI thread only.
 /// </summary>

@@ -558,6 +558,45 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
     {
         await WriteNowAsync();
         await ReadNowAsync();
+        await HistoryAsync();
+    }
+
+    /// <summary>The goal history pass over the sync folder (NG1: the same rules as Drive; set by the app).</summary>
+    public GoalHistorySync? GoalHistory { get; set; }
+
+    /// <summary>
+    /// A pass over the goal history files in the sync folder when one is due (<see cref="GoalHistorySync.RunEvery"/>); at once with
+    /// <paramref name="force"/>. A folder that can't be listed or written skips the pass (tried again at the next one), and is never shown
+    /// as a sync problem. Takes no folder lock: <see cref="GoalHistorySync"/> runs one pass at a time itself, and a history file is never a
+    /// sync file the reader or writer here touches.
+    /// </summary>
+    public async Task HistoryAsync(bool force = false)
+    {
+        GoalHistorySync? history = GoalHistory;
+        SyncSettings settings = _settings.Current;
+        if (history is null || _disposed || !settings.FolderOn || string.IsNullOrWhiteSpace(settings.FolderPath))
+        {
+            return;
+        }
+
+        bool inGroup = _identity.Key is not null;
+        try
+        {
+            var store = new FolderGoalHistoryStore(settings.FolderPath);
+            if (!inGroup)
+            {
+                // Left the group: the history files this PC put in the folder go (best effort).
+                await history.LeaveAsync(store, CancellationToken.None);
+                return;
+            }
+
+            await (force ? history.RunAsync(store, CancellationToken.None) : history.RunIfDueAsync(store, CancellationToken.None));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException
+            or System.Security.SecurityException or System.Text.Json.JsonException or InvalidOperationException or SqliteException)
+        {
+            // Tried again at the next pass.
+        }
     }
 
     /// <summary>On the watcher's thread: another device's file arrived or changed.</summary>
@@ -612,6 +651,8 @@ public sealed class SyncFolderService : IDisposable, IRekeyPublisher
     private void OnIdentityChanged(object? sender, EventArgs e)
     {
         Restart();
+        // Left the group (no key): the history files this PC put in the folder go (Restart does nothing without a key).
+        _ = HistoryAsync();
     }
 
     // The group got a new key (ADR 54): this PC's file and the removed devices' files of the old group leave the folder.

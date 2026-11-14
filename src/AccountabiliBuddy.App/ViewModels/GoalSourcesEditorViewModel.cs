@@ -136,9 +136,14 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         Available("focusTag", "Focus time · #tag", "Focus on tasks with a #tag", MaterialIconKind.Pound, GoalSourceType.FocusTag, "Counted on this PC");
         Available("hand", "Tick by hand", "Tick it, log a value or add time here or on Today", MaterialIconKind.HandBackRightOutline, GoalSourceType.Hand);
         Available("calendar", "Google Calendar", "Time in events of a day plan category", MaterialIconKind.CalendarOutline, GoalSourceType.CalendarCategory, "This PC only · never focus");
-        Available("healthConnect", "Health Connect", "Steps from your phone and apps that write to it", MaterialIconKind.HeartPulse, GoalSourceType.HealthSteps, "Measured on your phone");
-        Available("pixelWatch", "Pixel Watch", "Steps from the watch, through Health Connect", MaterialIconKind.WatchVariant, GoalSourceType.HealthSteps, "Measured on your phone");
-        Available("screenTime", "Screen time", "Time in an app or category on your phone", MaterialIconKind.Monitor, GoalSourceType.ScreenTime, "Measured on your phone");
+        // NG1: sources measured on a phone are offered only when a phone is in the group (screen time on the PC itself comes with ST2).
+        if (_lookups.GroupHasPhone)
+        {
+            Available("healthConnect", "Health Connect", "Steps from your phone and apps that write to it", MaterialIconKind.HeartPulse, GoalSourceType.HealthSteps, "Measured on your phone");
+            Available("pixelWatch", "Pixel Watch", "Steps from the watch, through Health Connect", MaterialIconKind.WatchVariant, GoalSourceType.HealthSteps, "Measured on your phone");
+            Available("screenTime", "Screen time", "Time in an app or category on your phone", MaterialIconKind.Monitor, GoalSourceType.ScreenTime, "Measured on your phone");
+        }
+
         if (_lookups.BeeminderConnected)
         {
             Available("beeminder", "Beeminder", "Counts one of your Beeminder goals day by day on this PC", MaterialIconKind.Bee, GoalSourceType.Beeminder, "Read · Send coming soon");

@@ -268,6 +268,12 @@ public sealed class SyncTroubleshootService
             await _drive.HistoryAsync(force: true);
         }
 
+        if (settings.FolderOn && _folder.GoalHistory is { } folderHistory)
+        {
+            await folderHistory.ResendKeptAsync("folder");
+            await _folder.HistoryAsync(force: true);
+        }
+
         bool waits = false;
         if (settings.RelayOn && _relay.GoalHistory is { } relayHistory)
         {
@@ -288,7 +294,7 @@ public sealed class SyncTroubleshootService
     }
 
     /// <summary>
-    /// "Re-read goal history (full)": this PC is new to the group again on Drive and the relay (every listed history file is read once through the
+    /// "Re-read goal history (full)": this PC is new to the group again on the sync folder, Drive and the relay (whichever are on; every listed history file is read once through the
     /// normal pass: its request cap, the relay's quota and the "no download before a goals part merged" gate all stay), then a pass runs. A relay
     /// pass stops at its cap and goes on at the next one.
     /// </summary>
@@ -303,15 +309,21 @@ public sealed class SyncTroubleshootService
         try
         {
             SyncSettings settings = _settings.Current;
-            if (_identity.Key is null || !settings.ShareTaskLists || (!settings.DriveOn && !settings.RelayOn))
+            if (_identity.Key is null || !settings.ShareTaskLists || (!settings.DriveOn && !settings.RelayOn && !settings.FolderOn))
             {
-                return "Goal history travels by Google Drive or the relay, with task lists shared: none is on.";
+                return "Goal history travels by the sync folder, Google Drive or the relay, with task lists shared: none is on.";
             }
 
             if (settings.DriveOn && _drive.GoalHistory is { } driveHistory)
             {
                 await driveHistory.ForceRereadAsync("drive");
                 await _drive.HistoryAsync(force: true);
+            }
+
+            if (settings.FolderOn && _folder.GoalHistory is { } folderHistory)
+            {
+                await folderHistory.ForceRereadAsync("folder");
+                await _folder.HistoryAsync(force: true);
             }
 
             bool relayWaits = false;
@@ -329,15 +341,16 @@ public sealed class SyncTroubleshootService
                 }
             }
 
-            if (relayWaits && !settings.DriveOn)
+            if (relayWaits && !settings.DriveOn && !settings.FolderOn)
             {
                 return "Wait a few minutes: the relay was read a moment ago.";
             }
 
             _coordinator.SyncLogger?.Note("history-reread");
+            string where = string.Join(" and ", new[] { settings.FolderOn ? "the sync folder" : null, settings.DriveOn ? "Google Drive" : null, settings.RelayOn && !relayWaits ? "the relay" : null }.OfType<string>());
             return relayWaits
-                ? "Goal history read again on Google Drive · the relay can be read again in a few minutes"
-                : "Goal history read again · a big history continues in the next pass";
+                ? $"Goal history read again on {where} · the relay can be read again in a few minutes"
+                : $"Goal history read again on {where} · a big history continues in the next pass";
         }
         finally
         {

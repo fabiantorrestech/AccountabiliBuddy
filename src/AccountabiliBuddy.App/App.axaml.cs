@@ -146,6 +146,9 @@ public partial class App : Application
     private EnforcementPresenter? _presenter;
     private Window? _coldTurkeyKeyWindow;
     private AccountabiliBuddy.App.Services.Sync.SyncFolderService? _syncFolder;
+    // NG1: a phone is in this PC's sync group (set once the received devices exist); the goal sources offered follow it.
+    private Func<bool> _groupHasPhone = () => false;
+    private Func<bool> _inSyncGroup = () => false;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
     private AccountabiliBuddy.App.Services.Sync.SyncRemovalService? _syncRemoval;
@@ -791,6 +794,9 @@ public partial class App : Application
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(FollowPhoneAlarm);
         FollowPhoneAlarm();
         var syncIdentity = new AccountabiliBuddy.App.Services.Sync.SyncIdentityService(documents, dataProtector, receivedDevices);
+        _inSyncGroup = () => syncIdentity.Key is not null;
+        _groupHasPhone = () => syncIdentity.Key is not null
+            && receivedDevices.Active.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone);
         // The phone's pickups during this PC's sessions (ADR 26), from its sync file.
         _phonePickups = new AccountabiliBuddy.App.Services.Sync.PhonePickups(receivedDevices, syncIdentity, time);
         syncIdentity.LoadBlocking();
@@ -1553,6 +1559,7 @@ public partial class App : Application
         syncCoordinator.GoalsReady = () => _goals?.Store.IsReady == true;
         _syncDrive!.GoalHistory = goalHistory;
         _syncRelay!.GoalHistory = goalHistory;
+        _syncFolder!.GoalHistory = goalHistory;
         _deepWork.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         goal.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         _ = goalData.ReloadAsync();
@@ -4033,7 +4040,7 @@ public partial class App : Application
         Func<string, string?> hiddenTagNote = tag => scopedStore is { } tagStore && !tagStore.TagShown(tag)
             ? "Uses a label from " + (tagStore.OtherDevicesText(AccountabiliBuddy.Core.Tasks.TaskScopes.ScopeOf(tag, tagStore.Lists.TagScopes)?.OnlyOn) ?? "another device")
             : null;
-        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote, hiddenTagNote);
+        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote, hiddenTagNote, GroupHasPhone: _groupHasPhone(), InSyncGroup: _inSyncGroup());
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
         if (suggested is not null)
         {
