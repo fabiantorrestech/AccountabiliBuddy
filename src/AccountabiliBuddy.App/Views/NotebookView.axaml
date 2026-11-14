@@ -65,6 +65,8 @@
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
                                 <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding CanTick}"
                                           ToolTip.Tip="Tick it off (untick to open it again)" VerticalAlignment="Top" MinWidth="0" AutomationProperties.Name="Done" />
+                                <!-- A row with no check box (the task list's, a step of another PC's task) keeps the text where the check box rows have it. -->
+                                <Border Width="28" IsVisible="{Binding !CanTick}" />
                                 <StackPanel Grid.Column="1" Spacing="2" ToolTip.Tip="{Binding EditHint}">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />

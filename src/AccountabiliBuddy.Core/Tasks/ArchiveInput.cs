@@ -9,10 +9,12 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <param name="Settled">What was done with past tasks on any device (ADR 72's shared settle records).</param>
 /// <param name="Lists">The one task list (ADR 76): its finished tasks and its History log.</param>
 /// <param name="Now">Now, from the trusted clock.</param>
+/// <param name="Running">Tasks of the running session's checklist: one ticked there is in the task list's finished tasks but isn't "From your task list" (its session's own row takes it when the session ends); null for none.</param>
 public sealed record ArchiveInput(
     IReadOnlyList<SyncTaskHistoryEntry> Own,
     IReadOnlyList<ArchiveReceivedDevice> Received,
     IReadOnlyList<SyncKeptPast> Kept,
     IReadOnlyList<SyncPastSettled> Settled,
     TaskLists Lists,
-    DateTimeOffset Now);
+    DateTimeOffset Now,
+    IReadOnlySet<Guid>? Running = null);

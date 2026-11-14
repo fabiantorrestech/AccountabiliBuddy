@@ -7,7 +7,7 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// The Archive's tasks, pure (AR1-fix), so the PC and the phone build the same rows from the same synced data. Sources, in the order
 /// that wins when one task id is in several: this device's own history, past tasks kept here, other PCs' histories, then the one task
 /// list's finished tasks (ADR 76: Queued, Next, To sort ticks, the phone's). Each id shows once. ADR 72's settle records are laid over
-/// the own and received rows (a tick, an untick or a delete done on any device shows at once, before the owner's file arrives). A task
+/// the received rows (a tick or an untick done on any device shows at once, before the owner's file arrives; steps stay as the file has them) and a delete over the own ones too. A task
 /// deleted from the one task list leaves the Archive and is listed in Recently deleted, as is a past task deleted anywhere. Received and
 /// kept rows can be ticked and deleted (those go through settle records or the keeper) but never renamed: their text is the other
 /// PC's. Task text is shown, never logged.
@@ -54,15 +54,16 @@ public static class ArchiveBuilder
 
             DateTimeOffset? doneAt = task.DoneAt;
             List<ArchiveStepRow> steps = task.Subtasks.Select(step => new ArchiveStepRow(step.Id, step.Title, step.DoneAt)).ToList();
-            if (record?.State == SyncPastSettled.Done)
+            // This PC's own copy already carries every tick (the settle records are applied to it), so an own row takes only a delete.
+            // A received copy is the other PC's file, maybe older than a tick made since: the record settles the task as a whole when the
+            // copy disagrees, and never changes its steps (a step tick is the owner's own, or comes with its file).
+            if (source == ArchiveSource.Received && record?.State == SyncPastSettled.Done && doneAt is null)
             {
-                doneAt ??= record.EditedAt;
-                steps = steps.Select(step => step with { DoneAt = step.DoneAt ?? record.EditedAt }).ToList();
+                doneAt = record.EditedAt;
             }
-            else if (record?.State == SyncPastSettled.Open)
+            else if (source == ArchiveSource.Received && record?.State == SyncPastSettled.Open)
             {
                 doneAt = null;
-                steps = steps.Select(step => step with { DoneAt = null }).ToList();
             }
 
             string title = task.Title;
@@ -114,7 +115,7 @@ public static class ArchiveBuilder
 
         foreach ((Guid id, (TaskItem task, DateTimeOffset at)) in finished.OrderBy(pair => pair.Key.ToString("D"), StringComparer.Ordinal))
         {
-            if (input.Now - at >= Listed || !seen.Add(id))
+            if (input.Now - at >= Listed || input.Running?.Contains(id) == true || !seen.Add(id))
             {
                 continue;
             }

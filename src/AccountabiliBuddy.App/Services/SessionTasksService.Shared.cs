@@ -255,8 +255,8 @@ public sealed partial class SessionTasksService
             return false;
         }
 
-        // The other PC's next file no longer carries the task, so this PC keeps its own copy for Recently deleted (AR1-fix): the delete is listed here too.
-        await RecordAsync(new DeletedItem(Guid.NewGuid(), _time.GetUtcNow(), DeletedKind.HistoryTask, foreign.Title, Task: foreign));
+        // The other PC's next file no longer carries the task, so this PC keeps its own copy for Recently deleted (AR1-fix): the delete is listed here too. Its restore only settles it again (never this PC's history).
+        await RecordAsync(new DeletedItem(Guid.NewGuid(), _time.GetUtcNow(), DeletedKind.ForeignPastTask, foreign.Title, Task: foreign));
         await PastSettled.SetAsync(id, SyncPastSettled.Deleted);
         Changed?.Invoke(this, EventArgs.Empty);
         return true;

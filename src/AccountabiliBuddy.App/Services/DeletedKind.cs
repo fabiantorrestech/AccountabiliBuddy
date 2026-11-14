@@ -26,4 +26,7 @@ public enum DeletedKind
 
     /// <summary>An Auto-saved item (tomorrow's first task from a shutdown card that closed by itself).</summary>
     AutoSaved,
+
+    /// <summary>Another PC's past task deleted here (AR1-fix review): restoring only settles it again; nothing goes into this PC's history.</summary>
+    ForeignPastTask,
 }

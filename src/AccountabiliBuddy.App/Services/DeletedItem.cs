@@ -37,7 +37,7 @@ public sealed record DeletedItem(
     /// <summary>The item's own id.</summary>
     public Guid ItemId => Kind switch
     {
-        DeletedKind.Task or DeletedKind.HistoryTask => Task!.Id,
+        DeletedKind.Task or DeletedKind.HistoryTask or DeletedKind.ForeignPastTask => Task!.Id,
         DeletedKind.Step or DeletedKind.HistoryStep or DeletedKind.LaterStep => Step!.Id,
         DeletedKind.Later => Later!.Id,
         DeletedKind.AutoSaved => AutoSaved!.Id,

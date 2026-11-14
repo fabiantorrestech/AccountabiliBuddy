@@ -202,7 +202,8 @@ public sealed partial class NotebookViewModel : ObservableObject
             _kept?.Items ?? [],
             _settled?.ForSync() ?? [],
             _taskStore is { IsActive: true } ? _taskStore.Lists : TaskLists.Empty,
-            _time.GetUtcNow());
+            _time.GetUtcNow(),
+            _tasks.IsLive ? _tasks.Current.Tasks.Select(task => task.Id).ToHashSet() : null);
     }
 
     // The device's own Recently deleted (Undo: steps, Later items, come-backs, tasks) plus what every device can see: tasks deleted from
@@ -350,10 +351,10 @@ public sealed partial class NotebookViewModel : ObservableObject
         }
     }
 
-    // A task of another PC is edited where it lives: its menu keeps label, move and delete, but not rename or steps.
+    // A task of another PC is edited where it lives: its menu keeps move and delete, but not rename, steps or its label (the label is that PC's).
     private static IReadOnlyList<TaskMenuEntry> WithoutEdits(IReadOnlyList<TaskMenuEntry> entries, bool canEdit)
     {
-        return canEdit ? entries : entries.Where(entry => entry.Header is not ("Rename" or "Add subtask")).ToList();
+        return canEdit ? entries : entries.Where(entry => entry.Header is not ("Rename" or "Add subtask" or "Label")).ToList();
     }
 
     private string When(DateTimeOffset time)

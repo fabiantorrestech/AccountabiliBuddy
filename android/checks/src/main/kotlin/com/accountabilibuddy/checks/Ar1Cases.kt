@@ -57,6 +57,7 @@ object Ar1Cases {
             SyncFileJson.readPastSettled(json.getValue("settled")).orEmpty(),
             lists(json.getValue("lists")),
             instant(case.text("now")),
+            case.input["running"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty(),
         )
     }
 

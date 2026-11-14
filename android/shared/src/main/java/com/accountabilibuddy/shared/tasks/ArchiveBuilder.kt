@@ -24,6 +24,8 @@ data class ArchiveInput(
     val settled: List<SyncPastSettled>,
     val lists: TaskLists,
     val now: Instant,
+    /** Tasks of the running session's checklist: one ticked there isn't "From your task list" until its session ends. */
+    val running: Set<String> = emptySet(),
 )
 
 /** One task of the Archive (done, or left open when its session ended); holds the user's task text: shown, never logged. */
@@ -75,6 +77,9 @@ object ArchiveBuilder {
     val LISTED: Duration = Duration.ofDays(90)
 
     // DateTimeOffset's default (0001-01-01), which the PC uses when a record has no time at all.
+    // The PC's Guid.Empty, for a step without an id.
+    private const val EMPTY_ID = "00000000-0000-0000-0000-000000000000"
+
     private val DEFAULT: Instant = Instant.parse("0001-01-01T00:00:00Z")
 
     private class Finished(val task: TaskItem, val at: Instant)
@@ -101,14 +106,13 @@ object ArchiveBuilder {
             if (deletedAt != null && (task.doneAt == null || deletedAt >= task.doneAt)) return
 
             var doneAt = task.doneAt
-            var steps = task.subtasks.map { ArchiveStepRow(it.id.orEmpty(), it.title, it.doneAt) }
-            if (record?.state == SyncPastSettled.DONE) {
-                val at = record.editedAt
-                doneAt = doneAt ?: at
-                steps = steps.map { it.copy(doneAt = it.doneAt ?: at) }
-            } else if (record?.state == SyncPastSettled.OPEN) {
+            var steps = task.subtasks.map { ArchiveStepRow(it.id ?: EMPTY_ID, it.title, it.doneAt) }
+            // Own copy already carries every tick (settle records are applied to it): an own row takes only a delete. A received copy may
+            // be older than a tick made since: the record settles the task as a whole when the copy disagrees, never its steps.
+            if (source == ArchiveSource.RECEIVED && record?.state == SyncPastSettled.DONE && doneAt == null) {
+                doneAt = record.editedAt
+            } else if (source == ArchiveSource.RECEIVED && record?.state == SyncPastSettled.OPEN) {
                 doneAt = null
-                steps = steps.map { it.copy(doneAt = null) }
             }
 
             var title = task.title
@@ -152,7 +156,7 @@ object ArchiveBuilder {
         }
 
         for ((id, item) in finished.entries.sortedWith(compareBy<Map.Entry<String, Finished>> { it.key })) {
-            if (Duration.between(item.at, input.now) >= LISTED || !seen.add(id)) continue
+            if (Duration.between(item.at, input.now) >= LISTED || id in input.running || !seen.add(id)) continue
             rows.add(
                 ArchiveTaskRow(
                     id, item.task.title, item.at, null, false, ArchiveSource.TASK_LIST, null, null,

@@ -94,6 +94,7 @@ public sealed partial class SessionTasksService
             DeletedKind.LaterStep when Later is not null => await RestoreLaterStepAsync(entry),
             DeletedKind.HistoryTask => await RestoreHistoryTaskAsync(entry),
             DeletedKind.HistoryStep => await RestoreHistoryStepAsync(entry),
+            DeletedKind.ForeignPastTask => await RestoreForeignPastAsync(entry),
             _ => (false, "That can't be restored here."),
         };
         if (outcome.Restored)
@@ -203,6 +204,25 @@ public sealed partial class SessionTasksService
 
         _history = _history.Select((checklist, index) => index == at ? checklist.Insert(entry.Task!, entry.Index) : checklist).ToList();
         await SaveHistoryAsync();
+        // AR1-fix review: the delete left a Deleted settle record; a newer one beats it on every device (not for "done outside" records, which never had one).
+        if (PastSettled is not null && !_history[at].OutsideSession)
+        {
+            await PastSettled.SetAsync(entry.Task!.Id, entry.Task.IsDone ? SyncPastSettled.Done : SyncPastSettled.Open);
+        }
+
+        return (true, null);
+    }
+
+    // Another PC's task deleted here (AR1-fix review): nothing of it is in this PC's history, so a restore only settles it again.
+    private async Task<(bool, string?)> RestoreForeignPastAsync(DeletedItem entry)
+    {
+        if (PastSettled is null)
+        {
+            return (false, "That can't be restored here.");
+        }
+
+        await PastSettled.SetAsync(entry.Task!.Id, entry.Task.IsDone ? SyncPastSettled.Done : SyncPastSettled.Open);
+        Changed?.Invoke(this, EventArgs.Empty);
         return (true, null);
     }
 
