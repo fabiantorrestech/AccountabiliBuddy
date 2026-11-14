@@ -26,6 +26,18 @@ public interface IActivityLog
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Only the apps-and-sites part of <see cref="GetSummaryAsync"/> (<see cref="UsageSummary.AppsAndSites"/>): time per app, site and site
+    /// section for segments that started in [<paramref name="from"/>, <paramref name="to"/>), one query. For readers that need nothing else
+    /// (goal screen time), which would otherwise run the focus-total and top-distraction queries for nothing.
+    /// </summary>
+    /// <param name="deleted">App or site time the user deleted from History; it counts nowhere.</param>
+    Task<IReadOnlyList<AppSiteUsage>> GetAppsAndSitesAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        IReadOnlyList<UsageDeletion>? deleted = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Distracting time inside focus sessions, for segments that started in [<paramref name="from"/>,
     /// <paramref name="to"/>), oldest first. Readable columns only.
     /// </summary>

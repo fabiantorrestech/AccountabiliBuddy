@@ -149,6 +149,10 @@ public partial class App : Application
     // NG1: a phone is in this PC's sync group (set once the received devices exist); the goal sources offered follow it.
     private Func<bool> _groupHasPhone = () => false;
     private Func<bool> _inSyncGroup = () => false;
+    // ST2: this PC's id and name, the other devices of its group (watches left out) and whether goals sync is on, for the screen-time device list.
+    private Func<(Guid Id, string Name)> _goalSelfDevice = () => (Guid.Empty, "This PC");
+    private Func<IReadOnlyList<GoalChoice>> _goalOtherDevices = () => [];
+    private Func<bool> _goalsSyncOn = () => false;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
     private AccountabiliBuddy.App.Services.Sync.SyncRemovalService? _syncRemoval;
@@ -1520,6 +1524,31 @@ public partial class App : Application
         // goal counts the highest of them and a synced Health Connect value, never both).
         goalData.DeviceId = selfId;
         goalData.Steps = () => dailySteps.Current;
+        // ST2: this PC's own screen time for goals, counted from its activity history (names stay here; only whole minutes per day travel, as derived
+        // entries). Deleted History time counts nowhere and is read again after a change; a rename only changes how names match.
+        var goalScreenTime = new AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSource(
+            activityLog, () => deletedUsage.Parts.ToList(), displayNames.NameFor, time, hiddenUsage.IsHidden);
+        goalData.ScreenTime = goalScreenTime;
+        Action screenTimeChanged = () => Dispatcher.UIThread.Post(() =>
+        {
+            goalScreenTime.Invalidate();
+            _ = goalData.ReloadAsync();
+        });
+        deletedUsage.Changed += (_, _) => screenTimeChanged();
+        activityLog.AllDeleted += (_, _) => screenTimeChanged();
+        displayNames.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            goalScreenTime.NamesChanged();
+            goalData.Recompute();
+        });
+        _goalSelfDevice = () => (selfId() ?? Guid.Empty, syncIdentity.DeviceName);
+        _goalOtherDevices = () => receivedDevices.Active
+            .Where(device => device.File.Device.Kind != AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindWatch)
+            .Select(device => new GoalChoice(
+                device.File.Device.DeviceId.ToString(), receivedDevices.LabelOf(device.File.Device),
+                device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone ? Material.Icons.MaterialIconKind.Cellphone : Material.Icons.MaterialIconKind.Laptop))
+            .ToList();
+        _goalsSyncOn = () => syncIdentity.Key is not null && syncSettings.Current.ShareTaskLists;
         dailySteps.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         // ADR 79 (GS3b): the derived day values this PC measures (#tag extras, calendar) go into its own goal entries, marked with its id,
         // for the other devices; at most every five minutes, and only when a value changed.
@@ -4040,7 +4069,15 @@ public partial class App : Application
         Func<string, string?> hiddenTagNote = tag => scopedStore is { } tagStore && !tagStore.TagShown(tag)
             ? "Uses a label from " + (tagStore.OtherDevicesText(AccountabiliBuddy.Core.Tasks.TaskScopes.ScopeOf(tag, tagStore.Lists.TagScopes)?.OnlyOn) ?? "another device")
             : null;
-        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote, hiddenTagNote, GroupHasPhone: _groupHasPhone(), InSyncGroup: _inSyncGroup());
+        // ST2: what this PC saw in its own history in the last 30 days (the screen-time pick list; read here, held while the dialog is open, never stored).
+        // Read lazily, when a screen-time row opens (a dialog for another goal never queries the history).
+        AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSeen? seen = null;
+        Func<AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSeen> readSeen = () =>
+            seen ??= data.ScreenTime?.ReadSeen() ?? AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSeen.Empty;
+        (Guid selfDeviceId, string selfDeviceName) = _goalSelfDevice();
+        var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote, hiddenTagNote,
+            GroupHasPhone: _groupHasPhone(), InSyncGroup: _inSyncGroup(), ReadSeen: readSeen, SelfDeviceId: selfDeviceId, SelfDeviceName: selfDeviceName,
+            OtherDevices: _goalOtherDevices(), GoalsSyncOn: _goalsSyncOn());
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
         if (suggested is not null)
         {

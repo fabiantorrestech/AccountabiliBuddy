@@ -50,7 +50,14 @@ public sealed class GoalSourceDataService
         _store = store;
         _time = time;
         Current = new GoalSourceData([], [], time.LocalTimeZone);
-        _store.Changed += (_, _) => Recompute();
+        _store.Changed += (_, _) =>
+        {
+            Recompute();
+            if (NeedsScreenTimeRead())
+            {
+                _ = RefreshScreenTimeAsync();
+            }
+        };
     }
 
     /// <summary>The data the goals are counted from now (empty until the first <see cref="ReloadAsync"/>).</summary>
@@ -61,6 +68,13 @@ public sealed class GoalSourceDataService
     /// its #tag extra is measured from (<see cref="GoalDerivedMinutes.FocusLocalExtra"/>, ADR 79).
     /// </summary>
     public IReadOnlyList<GoalFocusSession> OwnFocus { get; private set; } = [];
+
+    /// <summary>
+    /// ST2: this PC's screen time (its activity history matched by the goals' screen-time sources); null where it isn't wired (checks). Read when
+    /// the log is read again (<see cref="ReloadAsync"/>) and when a goal starts needing earlier days; <see cref="Recompute"/> puts this PC's
+    /// fresh readings in place of its stored own screen-time entries for what the goals count, in memory only.
+    /// </summary>
+    public GoalScreenTimeSource? ScreenTime { get; set; }
 
     /// <summary>True once this PC's records were read once.</summary>
     public bool IsLoaded { get; private set; }
@@ -114,7 +128,41 @@ public sealed class GoalSourceDataService
         _records = records;
         IsLoaded = true;
         Recompute();
+
+        // Screen time after the first recompute: the goals show at once and get their screen time when its (up to 90 days) read is done.
+        if (NeedsScreenTimeRead(refreshToday: true))
+        {
+            await RefreshScreenTimeCoreAsync();
+            if (number == _loadNumber)
+            {
+                Recompute();
+            }
+        }
     }
+
+    /// <summary>Reads the days the goals' screen-time sources need (the log's rows per day) and recomputes; a goal that just got such a source starts here.</summary>
+    public async Task RefreshScreenTimeAsync()
+    {
+        await RefreshScreenTimeCoreAsync();
+        Recompute();
+    }
+
+    // Whether a screen-time read is wanted: some goal counts it here and (a log change: today again) or (earlier days are not held yet).
+    private bool NeedsScreenTimeRead(bool refreshToday = false)
+    {
+        return ScreenTime is { } screen && _store.IsReady
+            && screen.DaysNeededFrom(_store.Lists.LiveGoals, OwnDeviceId, Today) is DateOnly from && (refreshToday || screen.NeedsRefresh(from));
+    }
+
+    private async Task RefreshScreenTimeCoreAsync()
+    {
+        if (ScreenTime is { } screen && _store.IsReady && screen.DaysNeededFrom(_store.Lists.LiveGoals, OwnDeviceId, Today) is DateOnly from)
+        {
+            await screen.RefreshAsync(from, Today);
+        }
+    }
+
+    private Guid OwnDeviceId => DeviceId?.Invoke() ?? Guid.Empty;
 
     /// <summary>Recomputes from the records held, the other devices' sessions and the store's entries (a store change, a file, a minute).</summary>
     public void Recompute()
@@ -129,7 +177,10 @@ public sealed class GoalSourceDataService
             focus.AddRange(GoalFocusAttribution.FromSynced(device, now, zone));
         }
 
-        Current = new GoalSourceData(focus, _store.Lists.Entries, zone, CalendarWindows?.Invoke(), Steps: Steps?.Invoke(), DeviceId: DeviceId?.Invoke());
+        IReadOnlyList<GoalEntry> entries = ScreenTime is { } screen && _store.IsReady
+            ? screen.WithReadings(_store.Lists.Entries, _store.Lists.LiveGoals, OwnDeviceId, Today, now)
+            : _store.Lists.Entries;
+        Current = new GoalSourceData(focus, entries, zone, CalendarWindows?.Invoke(), Steps: Steps?.Invoke(), DeviceId: DeviceId?.Invoke());
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -113,6 +113,16 @@ public sealed class SqliteActivityLog : IActivityLog
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<AppSiteUsage>> GetAppsAndSitesAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        IReadOnlyList<UsageDeletion>? deleted = null,
+        CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await _database.OpenAsync(cancellationToken).ConfigureAwait(false);
+        return await AppsAndSitesAsync(connection, from, to, deleted ?? Array.Empty<UsageDeletion>(), cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<UsageSummary> GetSummaryAsync(
         DateTimeOffset from,
         DateTimeOffset to,

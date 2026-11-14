@@ -26,7 +26,7 @@ object GoalSourceLines {
                 GoalSourceType.HealthSteps -> "Daily steps from your phone"
                 GoalSourceType.HealthWeight -> "Weight from Health Connect"
                 GoalSourceType.HealthSleep -> "Sleep from Health Connect"
-                GoalSourceType.ScreenTime -> "Screen time, measured on your phone"
+                GoalSourceType.ScreenTime -> "Screen time"
                 GoalSourceType.Beeminder -> "Beeminder · ${rule.beeminderSlug ?: ""}"
                 GoalSourceType.GoalField -> "Tasks that carry this goal"
                 GoalSourceType.MilestoneTasks -> "Its milestone tasks"

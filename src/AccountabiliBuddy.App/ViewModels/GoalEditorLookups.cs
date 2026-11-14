@@ -1,3 +1,5 @@
+using AccountabiliBuddy.App.Services.Goals;
+
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
@@ -14,6 +16,12 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="HiddenTagNote">ADR 89: "Uses a label from Laptop" for a tag this device doesn't show (it still counts; the name never shows here); null for any other tag.</param>
 /// <param name="GroupHasPhone">NG1: a phone is in this PC's sync group. Health Connect, Pixel Watch and Screen time (measured on a phone) are offered only then; a goal that already has one keeps it, with a note.</param>
 /// <param name="InSyncGroup">This PC is in a sync group (only used for the wording of the note on a phone source a goal keeps while no phone is in the group).</param>
+/// <param name="Seen">ST2: what this PC saw in its own activity history in the last 30 days (the screen-time pick list and the "Not seen on this device yet" note); read when the dialog opens, never stored.</param>
+/// <param name="ReadSeen">ST2: reads <paramref name="Seen"/> when a screen-time row opens (so a dialog without one never queries the history); used when <paramref name="Seen"/> is null.</param>
+/// <param name="SelfDeviceId">ST2: this PC's device id, stamped on a new screen-time source (<see cref="Core.Goals.GoalSourceRule.CreatedOn"/>); empty where it isn't known.</param>
+/// <param name="SelfDeviceName">ST2: this PC's name in the "Counts from" list.</param>
+/// <param name="OtherDevices">ST2: the other devices of the sync group that run AccountabiliBuddy (watches left out): key = the device id as text, text = its name, icon = PC or phone.</param>
+/// <param name="GoalsSyncOn">ST2: other devices' day values reach this PC (goals sync, ADR 79, follows "Sync task lists with my other devices"); with it off the other devices are listed but greyed.</param>
 /// <param name="IsProductaBuddy">ProductaBuddy mode (ADR 68): the PB badge, per-mode defaults, lowering Deep work at once.</param>
 public sealed record GoalEditorLookups(
     IReadOnlyList<GoalChoice> Labels,
@@ -26,7 +34,13 @@ public sealed record GoalEditorLookups(
     Func<Guid, string?>? HiddenLabelNote = null,
     Func<string, string?>? HiddenTagNote = null,
     bool GroupHasPhone = true,
-    bool InSyncGroup = true)
+    bool InSyncGroup = true,
+    GoalScreenTimeSeen? Seen = null,
+    Func<GoalScreenTimeSeen>? ReadSeen = null,
+    Guid SelfDeviceId = default,
+    string SelfDeviceName = "This PC",
+    IReadOnlyList<GoalChoice>? OtherDevices = null,
+    bool GoalsSyncOn = true)
 {
     public static GoalEditorLookups Empty { get; } = new([], [], false, [], false);
 }

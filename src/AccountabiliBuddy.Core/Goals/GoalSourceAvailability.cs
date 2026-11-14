@@ -12,7 +12,7 @@ public enum GoalSourceAvailability
     /// <summary>Counted on the PC only; the phone shows "Measured on your PC".</summary>
     PcOnly,
 
-    /// <summary>Counted on the phone only; the PC shows "Measured on your phone" (until ADR 79 lets the derived day value travel).</summary>
+    /// <summary>Counted on the phone only; the PC shows "Measured on your phone" and takes the phone's synced day value (ADR 79). Health Connect steps and sleep; screen time is <see cref="Everywhere"/> since ST1.</summary>
     PhoneOnly,
 
     /// <summary>Drawn greyed, "Coming soon", not clickable: it needs an ADR that isn't accepted yet.</summary>

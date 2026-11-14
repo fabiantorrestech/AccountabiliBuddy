@@ -89,7 +89,9 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
             return false;
         }
 
-        Rows.Add(NewRow(new GoalSourceRule(Guid.NewGuid(), type)));
+        // A screen-time source remembers the device that made it (the default of its device list, ST2).
+        Guid? self = _lookups.SelfDeviceId == Guid.Empty ? null : _lookups.SelfDeviceId;
+        Rows.Add(NewRow(new GoalSourceRule(Guid.NewGuid(), type) { CreatedOn = type == GoalSourceType.ScreenTime ? self : null }));
         Refresh();
         return true;
     }
@@ -120,8 +122,8 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    // Sources that make sense once per goal; labels, tags, categories and apps can be added several times.
-    private static bool IsSingle(GoalSourceType type) => type is GoalSourceType.Hand or GoalSourceType.HealthSteps or GoalSourceType.HealthSleep;
+    // Sources that make sense once per goal; labels, tags and categories can be added several times. Screen time holds a list of apps and sites itself.
+    private static bool IsSingle(GoalSourceType type) => type is GoalSourceType.Hand or GoalSourceType.HealthSteps or GoalSourceType.HealthSleep or GoalSourceType.ScreenTime;
 
     private void BuildTiles()
     {
@@ -136,13 +138,14 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         Available("focusTag", "Focus time · #tag", "Focus on tasks with a #tag", MaterialIconKind.Pound, GoalSourceType.FocusTag, "Counted on this PC");
         Available("hand", "Tick by hand", "Tick it, log a value or add time here or on Today", MaterialIconKind.HandBackRightOutline, GoalSourceType.Hand);
         Available("calendar", "Google Calendar", "Time in events of a day plan category", MaterialIconKind.CalendarOutline, GoalSourceType.CalendarCategory, "This PC only · never focus");
-        // NG1: sources measured on a phone are offered only when a phone is in the group (screen time on the PC itself comes with ST2).
+        // NG1: sources measured only on a phone are offered when a phone is in the group. Screen time (ST2) is measured on this PC too, so it is always offered.
         if (_lookups.GroupHasPhone)
         {
             Available("healthConnect", "Health Connect", "Steps from your phone and apps that write to it", MaterialIconKind.HeartPulse, GoalSourceType.HealthSteps, "Measured on your phone");
             Available("pixelWatch", "Pixel Watch", "Steps from the watch, through Health Connect", MaterialIconKind.WatchVariant, GoalSourceType.HealthSteps, "Measured on your phone");
-            Available("screenTime", "Screen time", "Time in an app or category on your phone", MaterialIconKind.Monitor, GoalSourceType.ScreenTime, "Measured on your phone");
         }
+
+        Available("screenTime", "Screen time", "Time in apps and sites on this PC, and on the devices you pick", MaterialIconKind.Monitor, GoalSourceType.ScreenTime, "This PC and your other devices");
 
         if (_lookups.BeeminderConnected)
         {

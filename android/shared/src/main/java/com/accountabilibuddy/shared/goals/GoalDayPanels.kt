@@ -83,7 +83,7 @@ object GoalDayPanels {
                 GoalSourceType.Hand -> parts += if (goal.kind == GoalKind.Habit) (if (state.hit) "ticked by hand" else "unticked by hand") else "added by hand"
                 GoalSourceType.CalendarCategory -> parts += "time from your calendar"
                 GoalSourceType.HealthSteps, GoalSourceType.HealthWeight, GoalSourceType.HealthSleep -> parts += "from Health Connect"
-                GoalSourceType.ScreenTime -> parts += "from screen time on your phone"
+                GoalSourceType.ScreenTime -> parts += "from screen time"
                 GoalSourceType.Beeminder -> parts += "from Beeminder"
                 else -> Unit
             }

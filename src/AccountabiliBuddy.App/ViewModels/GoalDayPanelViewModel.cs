@@ -273,7 +273,7 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
                     parts.Add("from Health Connect");
                     break;
                 case GoalSourceType.ScreenTime:
-                    parts.Add("from screen time on your phone");
+                    parts.Add("from screen time");
                     break;
                 case GoalSourceType.Beeminder:
                     parts.Add("from Beeminder");

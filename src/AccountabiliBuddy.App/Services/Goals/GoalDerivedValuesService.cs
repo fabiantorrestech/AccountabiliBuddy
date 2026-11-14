@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// <summary>
 /// The derived day values this PC writes for the other devices (ADR 79, GS3b), through Core's <see cref="GoalDerivedWriter"/>: one entry per
 /// goal, source, this PC's id and day, written and removed only by this PC, updated in place only when the value changed (so a run that
-/// finds nothing new writes nothing). Two sources are measured here:
+/// finds nothing new writes nothing). Three sources are measured here:
 /// <list type="bullet">
 /// <item><b>#tag extras</b> (<see cref="GoalEntrySource.FocusLocal"/>): the minutes this PC's local-only #tag attribution adds for its OWN
 /// sessions beyond the synced-shape (label) attribution every device makes (<see cref="GoalDerivedMinutes.FocusLocalExtra"/>).</item>
@@ -14,10 +14,15 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// PC knows (<see cref="GoalDerivedMinutes.CalendarExtra"/>). Goal counts only: no focus total, Stats focus, goal unlock or guard reads an
 /// entry (ADR 58). Not written while this PC has no calendar window at all (the calendar may not be loaded yet; no zeros are written over
 /// earlier values on that guess).</item>
+/// <item><b>Screen time</b> (<see cref="GoalEntrySource.ScreenTime"/>, ST2): the whole minutes of this PC's own activity history that the
+/// goal's screen-time entries match (<see cref="GoalScreenTimeSource.ReadingsFor"/>), written when this PC is one of the devices the goal
+/// counts (<see cref="GoalAppMatching.CountsOn"/>), from the goal's first day: a real 0 for a day it logged activity but nothing matched.
+/// Its entries are never removed because a rule is missing (a newer app's rule is kept, not read); counters ignore devices a goal doesn't count.
+/// Only minutes leave the PC (inside the sealed sync file), never an app, site or title.</item>
 /// </list>
 /// Beeminder's entries are not written here: the Beeminder reader writes them, marked with this PC's id when it has one (<see cref="GoalEntry.DeviceId"/>
 /// stays null while it has none), and it does not wait for a group. Only the entries this service writes need the group.
-/// Screen time is not here (ST2). Nothing is written while this PC is not in a group (no id to mark them with) or the goals and this PC's
+/// Screen time is written only after the history has been read without a failure. Nothing is written while this PC is not in a group (no id to mark them with) or the goals and this PC's
 /// sessions are not loaded. The last 90 days; older own entries stay as they are. Logs nothing. Use from the UI thread only.
 /// </summary>
 public sealed class GoalDerivedValuesService
@@ -120,9 +125,27 @@ public sealed class GoalDerivedValuesService
                 HashSet<DateOnly> days = [.. ownCalendarDays, .. DaysOf(windows, from, today)];
                 AddReadings(readings, covers, goal, GoalEntrySource.Calendar, from, today, days, day => GoalDerivedMinutes.CalendarExtra(goal, data, day));
             }
+
+            AddScreenTime(readings, covers, goal, me, from, today, OwnDays(entries, goal, me, GoalEntrySource.ScreenTime, from, today));
         }
 
         return (readings, covers);
+    }
+
+    // Screen time: the readings of the days this PC measured, covering only the days the history was read for and the goal existed.
+    private void AddScreenTime(
+        List<GoalDerivedReading> readings, List<GoalDerivedCover> covers, Goal goal, Guid me, DateOnly from, DateOnly to, HashSet<DateOnly> ownDays)
+    {
+        // Never a removal because no rule was found: a rule of a newer app lands in the goal's kept newer items, not in its sources, and a
+        // switched-off source or a changed device list is already ignored by every counter (the entries just stay, as the phone's twin does).
+        if (_data.ScreenTime is { LoadedFrom: DateOnly held } screen && GoalScreenTimeSource.CountedRules(goal, me).Count > 0)
+        {
+            // Only from the goal's own first day (the in-memory count starts there too): no values for days before it existed.
+            DateOnly first = screen.DaysNeededFrom([goal], me, to) is DateOnly goalFrom && goalFrom > from ? goalFrom : from;
+            first = first < held ? held : first;
+            covers.Add(new GoalDerivedCover(goal.Id, GoalEntrySource.ScreenTime, first, to));
+            readings.AddRange(screen.ReadingsFor(goal, me, first, to, ownDays.Contains));
+        }
     }
 
     private static void AddReadings(
