@@ -4,12 +4,16 @@ import com.accountabilibuddy.shared.sync.SyncDeletedPastTask
 import com.accountabilibuddy.shared.sync.SyncHistoryTask
 import com.accountabilibuddy.shared.sync.SyncKeptPast
 import com.accountabilibuddy.shared.sync.SyncPastSettled
+import com.accountabilibuddy.shared.sync.SyncSessionNote
 import com.accountabilibuddy.shared.sync.SyncTaskHistoryEntry
 import java.time.Duration
 import java.time.Instant
 
 /** Where an Archive row came from (the PC's ArchiveSource). */
 enum class ArchiveSource { OWN, KEPT, RECEIVED, TASK_LIST }
+
+// The PC's Guid.Empty: a step without an id, a note without a writing device, an input without a self id.
+internal const val EMPTY_ID = "00000000-0000-0000-0000-000000000000"
 
 /** A step of an Archive task, after the settle records are applied. */
 data class ArchiveStepRow(val id: String, val title: String, val doneAt: Instant?)
@@ -27,6 +31,12 @@ data class ArchiveInput(
     val now: Instant,
     /** Tasks of the running session's checklist: one ticked there isn't "From your task list" until its session ends. */
     val running: Set<String> = emptySet(),
+    /** AR1c: every device's session notes (ADR 87) as the notes store holds them, tombstones included. */
+    val notes: List<SyncSessionNote> = emptyList(),
+    /** This device's id: a note by it (or by none yet) isn't marked "from". */
+    val self: String = EMPTY_ID,
+    /** The last known name of each other device by id (lower case); an id missing here reads "another device". */
+    val deviceNames: Map<String, String> = emptyMap(),
 )
 
 /** One task of the Archive (done, or left open when its session ended); holds the user's task text: shown, never logged. */
@@ -68,8 +78,17 @@ data class ArchiveDeletedRow(
     val canRestoreByStamp: Boolean get() = entryId == null && restoreAs != null
 }
 
-/** What [ArchiveBuilder] makes: the Archive's tasks and its synced Recently deleted lines, newest first. */
-data class ArchiveRows(val tasks: List<ArchiveTaskRow>, val deleted: List<ArchiveDeletedRow>)
+/**
+ * One session note of the Archive (AR1b, ADR 87; the PC's `ArchiveNoteRow`), the same on every device. The note's text is the user's private
+ * text: shown, never logged.
+ */
+data class ArchiveNoteRow(val id: String, val text: String, val at: Instant, val by: String, val deviceName: String?, val fromOther: Boolean) {
+    /** The words after the time: "from Work PC", "from another device" (a removed device, or one never named), or null for this device's own note. */
+    val fromText: String? get() = if (fromOther) "from ${deviceName ?: "another device"}" else null
+}
+
+/** What [ArchiveBuilder] makes: the Archive's tasks, its synced Recently deleted lines (newest first) and every device's notes (newest first). */
+data class ArchiveRows(val tasks: List<ArchiveTaskRow>, val deleted: List<ArchiveDeletedRow>, val notes: List<ArchiveNoteRow> = emptyList())
 
 /**
  * The Archive's tasks, pure: the phone's twin of the PC's Core ArchiveBuilder (AR1-fix), so both build the same rows from the same
@@ -84,7 +103,6 @@ object ArchiveBuilder {
 
     // DateTimeOffset's default (0001-01-01), which the PC uses when a record has no time at all.
     // The PC's Guid.Empty, for a step without an id.
-    private const val EMPTY_ID = "00000000-0000-0000-0000-000000000000"
 
     private val DEFAULT: Instant = Instant.parse("0001-01-01T00:00:00Z")
 
@@ -198,7 +216,22 @@ object ArchiveBuilder {
         return ArchiveRows(
             rows.sortedWith(compareByDescending<ArchiveTaskRow> { it.sort }.thenBy { it.id }),
             deleted.sortedWith(compareByDescending<ArchiveDeletedRow> { it.deletedAt }.thenBy { it.id }),
+            notes(input),
         )
+    }
+
+    // The session notes of every device (ADR 87), newest first: each one from another device says "from <device>" (a removed device's notes
+    // stay, with its last known name, or "another device" when none is known); this device's own are unmarked.
+    private fun notes(input: ArchiveInput): List<ArchiveNoteRow> {
+        val names = input.deviceNames.mapKeys { it.key.lowercase() }
+        return input.notes
+            .filter { it.deletedAt == null && !it.text.isNullOrBlank() }
+            .map { note ->
+                val other = note.by != EMPTY_ID && !note.by.equals(input.self, ignoreCase = true)
+                val name = if (other) names[note.by.lowercase()]?.takeIf { it.isNotBlank() } else null
+                ArchiveNoteRow(note.id, note.text!!, note.at, note.by, name, other)
+            }
+            .sortedWith(compareByDescending<ArchiveNoteRow> { it.at }.thenBy { it.id })
     }
 
     /** The state Restore stamps for a deleted past task: DONE when it was done, else OPEN. */

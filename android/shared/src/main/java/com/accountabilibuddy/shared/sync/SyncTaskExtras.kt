@@ -87,6 +87,20 @@ data class SyncTaskHistoryEntry(
     val deleted: List<SyncDeletedPastTask>? = null,
 ) {
     val at: Instant? get() = sessionStart ?: tasks.mapNotNull { it.doneAt }.minOrNull()
+
+    companion object {
+        /** How long history is kept and sent (the PC's `SyncTaskHistoryEntry.Kept`). */
+        val KEPT: Duration = Duration.ofDays(90)
+
+        /**
+         * What a device keeps of another PC's history as its file arrives (the PC's `ReceivedTaskHistoryStore.ReceiveAsync`): an entry with no time, or
+         * older than the 90 days history is kept, is dropped; one exactly 90 days old stays.
+         */
+        fun cut(entries: List<SyncTaskHistoryEntry>, now: Instant): List<SyncTaskHistoryEntry> {
+            val from = now.minus(KEPT)
+            return entries.filter { entry -> entry.at?.let { !it.isBefore(from) } == true }
+        }
+    }
 }
 
 /**

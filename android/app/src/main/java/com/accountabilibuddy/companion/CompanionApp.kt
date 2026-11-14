@@ -312,6 +312,8 @@ class CompanionApp : Application() {
 
     /** The shared next-session tasks and come-backs (ADR 48): items with edit times, merged with the other devices' lists. */
     val sharedLists by lazy { com.accountabilibuddy.companion.sync.SharedListsStore(this) }
+    /** AR1c (ADR 87): every device's session notes, for the Archive; sealed, never logged. */
+    val sessionNotes by lazy { com.accountabilibuddy.companion.sync.SessionNotesStore(this) }
 
     /** R7.2 (ADR 76): the one task list, the source once its one-time migration ran ([com.accountabilibuddy.companion.tasks.PhoneTaskModelMigration]). */
     val taskModel by lazy { com.accountabilibuddy.companion.tasks.PhoneTaskStore(this) }
@@ -582,8 +584,19 @@ class CompanionApp : Application() {
         sync.autoSaved = { if (taskModel.isClosed) null else sharedLists.autoSavedForSync() }
         sync.handoverAcks = { sharedLists.receiptsForSync() }
         sharedLists.selfId = { if (sync.isJoined) sync.deviceId.toString() else null }
+        // ADR 87 (AR1c): this phone's notes go out in its file; other devices' merge in (only while "Sync task lists" is on, which the receive gate checks).
+        sync.sessionNotes = { sessionNotes.forSync() }
+        sessionNotes.onChanged = {
+            relaySoon()
+            appScope.launch {
+                runCatching { folderSource.syncNow() }
+                driveSource.syncNow()
+            }
+        }
         sync.onTaskExtras = { file ->
             val card = file.device
+            // A file without the part leaves the notes alone (an older app, a QR file); an empty list is a real "none".
+            file.sessionNotes?.let { sessionNotes.receive(it) }
             if (sharedLists.receiveExtras(card.deviceId.toString(), card.name, card.kind == com.accountabilibuddy.shared.sync.SyncDeviceCard.KIND_PC, file.taskHistory, file.pastSettled, file.autoSaved, file.handovers)) {
                 sharedLists.onChanged()
             }

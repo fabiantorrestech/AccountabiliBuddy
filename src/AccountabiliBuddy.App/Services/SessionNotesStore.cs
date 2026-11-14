@@ -11,7 +11,7 @@ namespace AccountabiliBuddy.App.Services;
 /// and kept with the session in History, and listed in the Archive. One DPAPI-encrypted list on this computer (documents
 /// "capture.notes"), kept 90 days. Since ADR 87 the notes travel between the user's own devices, only inside the sealed sync files
 /// and only while "Sync task lists" is on (<c>TaskListSync</c>): each note keeps the session it was written in (start and
-/// focus profile id) and the device that wrote it, an edit stamp, and, once deleted, a tombstone with no text kept 30 days
+/// focus profile id) and the device that wrote it, an edit stamp, and, once deleted, a tombstone with no text kept for the note's 90-day window
 /// (<see cref="SessionNoteRules"/>). The texts are never logged. Use from the UI thread only.
 /// </summary>
 public sealed class SessionNotesStore
@@ -255,7 +255,7 @@ public sealed class SessionNotesStore
 
     private Task SaveAsync(bool prune = true, bool raise = true)
     {
-        // The window and the tombstones' 30 days are applied on every save (the merge applies them too).
+        // The window and a tombstone's 90 days (the note's whole window) are applied on every save (the merge applies them too).
         if (prune)
         {
             _all = SessionNoteRules.ForFile(_all, _time.GetUtcNow());

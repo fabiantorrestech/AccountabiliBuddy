@@ -106,4 +106,23 @@ object Ar1Cases {
         val at = expected.indices.first { expected[it] != actual[it] }
         return "line $at: C# ${expected[at]} vs kotlin ${actual[at]}"
     }
+
+    // AR1c: the notes of ArchiveBuilder (AR1b, ADR 87) against the PC's: every device's live note newest first, "from <device>", a removed device's note stays.
+    fun notes(case: FixtureCase): String? {
+        val json = case.input
+        val names = json.getValue("deviceNames").jsonObject.mapValues { it.value.jsonPrimitive.content }
+        val input = ArchiveInput(
+            emptyList(), emptyList(), emptyList(), emptyList(), TaskLists.EMPTY, Instant.parse("2026-11-13T12:00:00Z"), emptySet(),
+            SyncFileJson.readSessionNotes(json.getValue("notes")).orEmpty(), text(json, "self"), names,
+        )
+        val expected = case.expected.jsonObject.getValue("notes").jsonArray.map { element ->
+            val row = element.jsonObject
+            "${text(row, "id")}|${text(row, "text")}|${time(instant(text(row, "at")))}|${text(row, "by")}|${text(row, "deviceName")}|${row.getValue("fromOther").jsonPrimitive.content}|${text(row, "fromText")}"
+        }
+        val actual = ArchiveBuilder.build(input).notes.map { row ->
+            "${row.id}|${row.text}|${time(row.at)}|${row.by}|${row.deviceName.orEmpty()}|${row.fromOther}|${row.fromText.orEmpty()}"
+        }
+        if (expected == actual) return null
+        return "C# $expected vs kotlin $actual"
+    }
 }

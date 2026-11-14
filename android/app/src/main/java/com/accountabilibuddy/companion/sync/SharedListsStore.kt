@@ -9,6 +9,7 @@ import com.accountabilibuddy.shared.sync.SyncLaterItem
 import com.accountabilibuddy.shared.sync.SyncNextTask
 import com.accountabilibuddy.shared.sync.SyncParked
 import com.accountabilibuddy.shared.sync.SyncAutoSavedItem
+import com.accountabilibuddy.shared.sync.PastSettleEdits
 import com.accountabilibuddy.shared.sync.SyncPastSettled
 import com.accountabilibuddy.shared.sync.SyncTaskHistoryEntry
 import com.accountabilibuddy.shared.sync.SyncHistoryTask
@@ -16,6 +17,7 @@ import com.accountabilibuddy.shared.sync.SyncHandover
 import com.accountabilibuddy.shared.sync.SyncHandoverAck
 import com.accountabilibuddy.shared.sync.SyncKeptPast
 import com.accountabilibuddy.shared.sync.TaskLabels
+import com.accountabilibuddy.shared.tasks.ArchiveReceivedDevice
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,12 +76,19 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
     private val _later = MutableStateFlow(liveLater())
     private val _autoSaved = MutableStateFlow(liveAutoSaved())
     private val _unfinished = MutableStateFlow(unfinishedNow())
+    private val _archive = MutableStateFlow(archiveNow())
 
     /** ADR 72: the shared Auto-saved list, live items, newest first. */
     val autoSaved: StateFlow<List<SyncAutoSavedItem>> = _autoSaved.asStateFlow()
 
     /** ADR 72: the PCs' tasks their past sessions left open (last two weeks), not settled, and the ones kept here; newest first. */
     val unfinished: StateFlow<List<PastTaskRow>> = _unfinished.asStateFlow()
+
+    /**
+     * AR1c: what the Archive builds its tasks from besides the task list: the other PCs' histories (each as its last file carried it, inside its
+     * 90 days), the past tasks kept here and every device's settle records. A new value whenever one of them changes.
+     */
+    val archive: StateFlow<ArchiveSources> = _archive.asStateFlow()
 
     /** This phone's id in its sync group (ADR 72's keeper rule); null while it isn't in one. Set by the app. */
     var selfId: () -> String? = { null }
@@ -223,6 +232,11 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
 
     /** Ticks a come-back: it leaves the open list, keeping when it was ticked. */
     fun tickParked(id: String) = changeParked(id) { item, time -> item.copy(doneAt = time, editedAt = SharedListMerge.nextStamp(time, item)) }
+
+    /** Opens a ticked come-back again (the Archive's tick box): its done time goes with a newer stamp. */
+    fun untickParked(id: String) = changeParked(id) { item, time ->
+        if (item.doneAt == null) item else item.copy(doneAt = null, editedAt = SharedListMerge.nextStamp(time, item))
+    }
 
     /** Changes a come-back's text; a blank text changes nothing. */
     fun editParked(id: String, text: String) {
@@ -537,7 +551,9 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         val me = selfId()
         var lists = all
         if (isPc && history != null) {
-            lists = lists.copy(history = lists.history.filterNot { it.deviceId.equals(deviceId, ignoreCase = true) } + DeviceHistory(deviceId, name, history))
+            // The PC's rule on receipt (ReceivedTaskHistoryStore): an entry with no time, or older than the 90 days history is kept, is not kept.
+            val inside = SyncTaskHistoryEntry.cut(history, time)
+            lists = lists.copy(history = lists.history.filterNot { it.deviceId.equals(deviceId, ignoreCase = true) } + DeviceHistory(deviceId, name, inside))
         }
 
         settled?.let { lists = lists.copy(pastSettled = SharedListMerge.merge(lists.pastSettled, it, time)) }
@@ -588,6 +604,25 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             settle(lists, id, SyncPastSettled.DONE, time)
         }
     }
+
+    /**
+     * Opens a past task again (the Archive's tick box): another PC's, through a settle record (Open), so it is open on every device; one kept
+     * here, here only. Never a raw edit of the owner's history.
+     */
+    fun untickPast(id: String) = edit { lists, time ->
+        val kept = lists.kept.firstOrNull { it.task.id.equals(id, ignoreCase = true) }
+        if (kept != null) {
+            lists.copy(kept = lists.kept.map { if (it === kept) it.copy(task = it.task.copy(doneAt = null), editedAt = time) else it })
+        } else {
+            settle(lists, id, SyncPastSettled.OPEN, time)
+        }
+    }
+
+    /**
+     * Restores a past task deleted anywhere (Recently deleted › Restore): a settle record of [state] (Done or Open, what [ArchiveBuilder.restoreStateOf] says)
+     * stamped newer than the delete, so the owning PC puts it back and every device lists it again. Never a raw restore; nothing but those two states is written.
+     */
+    fun restorePast(id: String, state: String) = edit { lists, time -> lists.copy(pastSettled = PastSettleEdits.restore(lists.pastSettled, id, state, time)) }
 
     /** Moves a past task to Later (its open steps, category, estimate, note and labels): it leaves Unfinished on every device. */
     fun movePastToLater(id: String) = edit { lists, time ->
@@ -641,11 +676,8 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
             all.parked.filter { it.deletedAt == null }.map { it.labels } + all.autoSaved.filter { it.deletedAt == null }.map { it.labels },
     )
 
-    private fun settle(lists: Lists, id: String, state: String, time: Instant): Lists {
-        val held = lists.pastSettled.firstOrNull { it.id.equals(id, ignoreCase = true) }
-        val record = SyncPastSettled(id, state, SharedListMerge.nextStamp(time, held))
-        return lists.copy(pastSettled = lists.pastSettled.filterNot { it.id.equals(id, ignoreCase = true) } + record)
-    }
+    private fun settle(lists: Lists, id: String, state: String, time: Instant): Lists =
+        lists.copy(pastSettled = PastSettleEdits.settle(lists.pastSettled, id, state, time))
 
     // An item handed to this phone to keep: it replaces any stub or older copy; a past task joins the kept ones.
     private fun adopt(lists: Lists, handover: SyncHandover, me: String): Lists = when (handover.list) {
@@ -711,9 +743,15 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         _later.value = liveLater()
         _autoSaved.value = liveAutoSaved()
         _unfinished.value = unfinishedNow()
+        _archive.value = archiveNow()
         // R7.2: the four lists shown are always the task list's views.
         if (modelActive || modelClosed) refreshFromModelLocked()
     }
+
+    private fun archiveNow() = ArchiveSources(
+        all.history.map { ArchiveReceivedDevice(it.deviceId, it.name, it.entries) },
+        all.kept, all.pastSettled,
+    )
 
     private fun liveNextTasks() = all.nextTasks.filter { it.deletedAt == null }
 
@@ -848,3 +886,10 @@ class SharedListsStore(context: Context, private val now: () -> Instant = { Inst
         private const val MIN_POSITION_GAP = 1e-9
     }
 }
+
+/** What the Archive builds its tasks from besides the task list (AR1c): other PCs' histories, the past tasks kept on this phone and the settle records. */
+data class ArchiveSources(
+    val received: List<ArchiveReceivedDevice>,
+    val kept: List<com.accountabilibuddy.shared.sync.SyncKeptPast>,
+    val settled: List<SyncPastSettled>,
+)

@@ -351,6 +351,9 @@ class SyncCoordinator(
 
     /** ADR 72: the shared settle records, Auto-saved list and handover receipts for this phone's file; set by the app. */
     var pastSettled: () -> List<com.accountabilibuddy.shared.sync.SyncPastSettled>? = { null }
+
+    /** AR1c (ADR 87): every session note this phone holds, tombstones included, for its file (private text: only inside the sealed file). */
+    var sessionNotes: () -> List<com.accountabilibuddy.shared.sync.SyncSessionNote>? = { null }
     var autoSaved: () -> List<com.accountabilibuddy.shared.sync.SyncAutoSavedItem>? = { null }
     var handoverAcks: () -> List<com.accountabilibuddy.shared.sync.SyncHandoverAck>? = { null }
 
@@ -1083,6 +1086,8 @@ class SyncCoordinator(
         // ADR 79 (GS4): the goals travel with the task lists, under the same switch; none at all while the goals are not ready.
         goalParts = if (sharesTaskLists()) runCatching { goalParts() }.getOrNull() else null,
         goalYearsMerged = if (sharesTaskLists()) runCatching { goalYearsMerged() }.getOrNull() else null,
+        // ADR 87 (AR1c): the session notes travel with the task lists, under the same switch; the phone edits and deletes them, the PCs type them.
+        sessionNotes = if (sharesTaskLists()) runCatching { sessionNotes() }.getOrNull() else null,
         steps = runCatching { steps() }.getOrNull(),
         workEnded = runCatching { workEnded() }.getOrNull(),
         guidance = runCatching { guidance() }.getOrNull(),

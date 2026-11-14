@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
@@ -89,6 +90,9 @@ import com.accountabilibuddy.companion.ui.sheets.AbSheet
 import com.accountabilibuddy.companion.ui.sheets.AbSheetHeight
 import com.accountabilibuddy.companion.ui.shell.LocalBottomBarOverride
 import com.accountabilibuddy.companion.ui.tasks.TasksPc
+import com.accountabilibuddy.companion.ui.tasks.archive.ArchiveEntryRow
+import com.accountabilibuddy.companion.ui.tasks.archive.ArchiveRowHeight
+import com.accountabilibuddy.companion.ui.tasks.archive.ArchiveScreen
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.DotNetTime
 import com.accountabilibuddy.shared.sync.TaskLabels
@@ -197,6 +201,8 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     var expanded by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf<Pair<String, TaskMenuPage>?>(null) }
     var options by remember { mutableStateOf<OptionsPage?>(null) }
+    // AR1c: the Archive, a page over this one (the row at the bottom); the PC's Archive row opens its Notebook the same way.
+    var archiveOpen by rememberSaveable { mutableStateOf(false) }
     var adding by remember { mutableStateOf<ShelfPage?>(null) }
     var addingAnywhere by remember { mutableStateOf(false) }
     var addAnother by remember { mutableStateOf(false) }
@@ -653,6 +659,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                     }
                 }
             }
+            ArchiveEntryRow(onOpen = { archiveOpen = true })
         }
 
         // Select mode's bar, in the "+" button's place.
@@ -666,7 +673,7 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                 modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp).blocksDrag(drag, "bulk"),
             )
         } else if (!drag.active && toast == null) {
-            Fab(onClick = { addingAnywhere = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 20.dp).blocksDrag(drag, "fab"))
+            Fab(onClick = { addingAnywhere = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 20.dp + ArchiveRowHeight).blocksDrag(drag, "fab"))
         }
 
         toast?.let { current ->
@@ -689,6 +696,11 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                     modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 16.dp, vertical = 12.dp).blocksDrag(drag, "toast"),
                 )
             }
+        }
+
+        // AR1c: the full Archive, over the page; Back (or its arrow) returns to the Tasks.
+        if (archiveOpen) {
+            ArchiveScreen(pc, now.toInstant(), controller, onBack = { archiveOpen = false })
         }
 
         if (drag.active) {

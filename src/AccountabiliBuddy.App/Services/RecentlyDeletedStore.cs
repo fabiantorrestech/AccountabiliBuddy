@@ -8,7 +8,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// Recently deleted (ADR 50): the tasks, steps, Later items and come-backs deleted in the last 30 days, with their content, so
 /// "Undo" and "Restore" can bring them back as they were. Kept in one DPAPI-encrypted document ("session.recentlyDeleted") on this
-/// PC only: never synced (the tombstones that sync carry no text) and never logged. Entries older than 30 days go. Use from the UI
+/// PC only: the document itself is never synced (a deletion travels as a tombstone with no text; what other devices list as deleted comes from the synced task list and settle records, AR1b) and never logged. Entries older than 30 days go. Use from the UI
 /// thread only.
 /// </summary>
 public sealed class RecentlyDeletedStore

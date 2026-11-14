@@ -6,6 +6,7 @@ import com.accountabilibuddy.companion.data.ImportedData
 import com.accountabilibuddy.companion.data.ProfileDocumentParser
 import com.accountabilibuddy.companion.data.SettingsJson
 import com.accountabilibuddy.companion.goals.PhoneGoalsBackup
+import com.accountabilibuddy.shared.sync.SessionNotesBackup
 import com.accountabilibuddy.shared.sync.SyncFileJson
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -59,13 +60,13 @@ object PhoneKindBackup {
                     put("guidance", app.guidance.state.value.mode.name.lowercase())
                 })
                 if (app.sync.sharesTaskLists()) {
-                    tasks(app)?.let { put("tasks", it) }
+                    tasks(app, includesNotes)?.let { put("tasks", it) }
                     PhoneGoalsBackup.export(app.goals, includesNotes)?.let { put(PhoneGoalsBackup.PART, it) }
                 }
             }
             Kind.Device -> put("device", Json.parseToJsonElement(PhoneBackup.export(app, app.appVersion(), forDeviceKind = true)))
             Kind.Tasks -> {
-                tasks(app)?.let { put("tasks", it) }
+                tasks(app, includesNotes)?.let { put("tasks", it) }
                 PhoneGoalsBackup.export(app.goals, includesNotes)?.let { put(PhoneGoalsBackup.PART, it) }
             }
         }
@@ -138,7 +139,9 @@ object PhoneKindBackup {
     }
 
     // None while the task list is closed (R7.2 review item 2): neither it nor the stale old lists go in a backup.
-    private fun tasks(app: CompanionApp): JsonObject? = if (app.taskModel.isClosed) null else buildJsonObject {
+    private fun tasks(app: CompanionApp, includesNotes: Boolean): JsonObject? = if (app.taskModel.isClosed) null else buildJsonObject {
+        // AR1c (ADR 87, owner 2026-11-14): the session notes only inside a password-protected backup; a plain one never holds a note's text.
+        SessionNotesBackup.part(app.sessionNotes.forSync(), includesNotes, Instant.now())?.let { put("sessionNotes", it) }
         val parts = app.taskModel.backupParts()
         if (parts != null) {
             // R7.2 (ADR 76): the task list itself (the PC's names: tasks, labels, views, taskLog, accountSettings), with the old lists
@@ -162,6 +165,13 @@ object PhoneKindBackup {
     }
 
     private fun importTasks(app: CompanionApp, tasks: JsonObject, restore: Boolean): String {
+        // Notes merge back like another device's file (a note deleted since stays deleted); they are not part of the task list, so a closed one doesn't block them.
+        val noteCount = SessionNotesBackup.read(tasks["sessionNotes"]).also { app.sessionNotes.receive(it) }.count { it.deletedAt == null }
+        val notesText = if (noteCount > 0) " $noteCount session note${if (noteCount == 1) "" else "s"} in the backup merged." else ""
+        return importTaskLists(app, tasks, restore) + notesText
+    }
+
+    private fun importTaskLists(app: CompanionApp, tasks: JsonObject, restore: Boolean): String {
         if (app.taskModel.isClosed) return "The task lists weren't restored: this phone's task list can't be opened right now (it's kept as it was)."
         if (app.taskModel.isActive) return importIntoTaskList(app, tasks, restore)
         val now = Instant.now()

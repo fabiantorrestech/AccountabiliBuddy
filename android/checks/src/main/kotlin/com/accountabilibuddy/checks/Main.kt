@@ -110,6 +110,8 @@ private val checks: List<FixtureCheck> = listOf(
     Lu1aCheck("wire", Lu1aCases::wire),
     // AR1-fix: the Archive's rows (every source, the settle records, Recently deleted) against the PC's Core ArchiveBuilder.
     Ar1Check("archive-rows", Ar1Cases::rows),
+    // AR1c: the Archive's notes (every device's, "from <device>", a removed device's stay) against the PC's Core ArchiveBuilder.
+    Ar1Check("archive-notes", Ar1Cases::notes),
     // AR1a: session notes (ADR 87): the merge (newest edit, tombstones, window, clamp), which notes a device's own session shows, the lenient read and clean-up against Core's SessionNoteRules.
     Ar1aCheck("merge", Ar1aCases::merge),
     Ar1aCheck("between", Ar1aCases::between),
@@ -200,6 +202,9 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "lu1a-self" to Lu1aSelfCheck::run,
     // LU1c: the lunch X on the phone and the watch (Count it / Discard it / Keep going, Start the rest, the lock per piece, the watch snapshot).
     "lu1c-self" to Lu1cSelfCheck::run,
+    // AR1c (phone): the Archive page's list (order, filters, search, 12-hour times, Recently deleted), notes edit/delete/merge, settle-record restore,
+    // notes out of the watch, plain backups and logs, the UI rules of the new page (phone only; no PC twin for the Compose code).
+    "ar1c-self" to Ar1cSelfCheck::run,
     // PH1 + TD1 (phone): the day panel's one height, every Today part hideable in both layouts, More today bar show / hide, the steps part
     // gone with old layouts read fine, the one-time "Steps now live in Goals" card (phone only).
     "ph1td1-self" to Ph1Td1SelfCheck::run,

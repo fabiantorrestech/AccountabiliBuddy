@@ -55,7 +55,12 @@ public sealed class ReceivedTaskHistoryStore
         DateTimeOffset from = _time.GetUtcNow() - SyncTaskHistoryEntry.Kept;
         List<SyncTaskHistoryEntry> kept = history
             .Where(entry => entry?.Tasks is not null && entry.At is DateTimeOffset at && at >= from)
-            .Select(entry => entry with { Tasks = entry.Tasks.OfType<SessionTask>().ToList() })
+            .Select(entry => entry with
+            {
+                Tasks = entry.Tasks.OfType<SessionTask>().ToList(),
+                // A malformed deleted item (null, or with no task) is dropped here so the Archive never meets one.
+                Deleted = entry.Deleted?.Where(gone => gone?.Task is not null).ToList(),
+            })
             .ToList();
         DeviceHistory? held = _devices.FirstOrDefault(device => device.DeviceId == deviceId);
         var updated = new DeviceHistory(deviceId, name, kept);
