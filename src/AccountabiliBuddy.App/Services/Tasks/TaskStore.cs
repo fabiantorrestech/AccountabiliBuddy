@@ -583,6 +583,7 @@ public sealed class TaskStore
             DueOn = original.DueOn,
             DueAt = original.DueAt,
             Calendar = original.Calendar,
+            GoalId = original.GoalId ?? copy.Task.GoalId,
             // ADR 89: the copy keeps the labels and tags the original had that this device doesn't show (belt and braces: the record holds them too).
             LabelId = TaskScopes.WithHiddenLabel(copy.Task.LabelId, original.LabelId, _lists.Labels.Select(item => item.Label), Self, Removed),
             Tags = TaskScopes.WithHiddenTags(copy.Task.Tags, original.Tags, _lists.TagScopes, Self, Removed),

@@ -64,6 +64,7 @@ public sealed partial class TasksViewModel
                 Value: item.EstimateMinutes is int minutes ? EstimateText.Of(minutes) : null),
             new("Label", Children: LabelChoicesFor(ids, item.LabelId, markCurrent: true), Icon: MaterialIconKind.CircleSlice8, Value: LabelOf(item.LabelId)?.Name),
             new("Tags", Children: TagChoicesFor(ids), Icon: MaterialIconKind.Pound, Value: TagsValue(ShownTagsOf(item.Tags))),
+            GoalEntry(ids, item.GoalId),
             new("Reminders & due date", ViewAction: "reminders", Icon: MaterialIconKind.BellOutline,
                 Value: $"{(item.Reminders ?? []).Count} of {TaskReminder.MaxPerTask}", OpensMore: true),
             HighlightEntry(ids, [item]),
@@ -145,6 +146,7 @@ public sealed partial class TasksViewModel
         entries.Add(TaskMenuEntry.Group("Time limit", TimeLimitChoicesFor(ids, null), MaterialIconKind.TimerOutline));
         entries.Add(TaskMenuEntry.Group("Label", LabelChoicesFor(ids, null, markCurrent: false), MaterialIconKind.CircleSlice8));
         entries.Add(TaskMenuEntry.Group("Tags", TagChoicesFor(ids), MaterialIconKind.Pound));
+        entries.Add(GoalEntry(ids, null));
         entries.Add(HighlightEntry(ids, tasks));
         if (RenameEachRequested is not null && ids.Count > 1)
         {
@@ -334,6 +336,12 @@ public sealed partial class TasksViewModel
             "No label", new AsyncRelayCommand(() => BulkAsync(actions => actions.SetLabelAsync(ids, null))), IsChecked: markCurrent && current is null));
         entries.Add(TaskMenuEntry.Do("New label…", () => AskNewCategory(categoryId => ApplyNewLabelAsync(ids, categoryId)), MaterialIconKind.Plus));
         return entries;
+    }
+
+    // GS5: "Link to goal" and its Unlink (TaskGoalMenu); a link to a goal that no longer exists shows as none.
+    private TaskMenuEntry GoalEntry(IReadOnlyList<Guid> ids, Guid? current)
+    {
+        return TaskGoalMenu.Entry(LinkableGoals?.Invoke() ?? [], current, (goalId, goalName) => BulkAsync(actions => actions.SetGoalAsync(ids, goalId, goalName)));
     }
 
     // A label made from "New label…" (a category of the session list underneath, ADR 76): found by its name in the task list.

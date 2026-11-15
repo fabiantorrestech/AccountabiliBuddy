@@ -47,5 +47,5 @@ data class GoalSourceRule(
     /** Whether the rule counts time (focus or calendar windows) rather than readings or ticks. */
     val countsTime: Boolean
         get() = type == GoalSourceType.FocusAll || type == GoalSourceType.FocusLabel || type == GoalSourceType.FocusTag ||
-            type == GoalSourceType.CalendarCategory
+            type == GoalSourceType.GoalField || type == GoalSourceType.CalendarCategory
 }

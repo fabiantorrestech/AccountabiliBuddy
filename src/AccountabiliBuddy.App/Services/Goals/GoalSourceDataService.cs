@@ -104,6 +104,24 @@ public sealed class GoalSourceDataService
     /// </summary>
     public Func<SyncSteps?>? Steps { get; set; }
 
+    /// <summary>
+    /// GS5: the tasks that carry a goal (<see cref="GoalTaskLinks.From"/>); null = none. Set by the app; read on every recompute.
+    /// </summary>
+    public Func<IReadOnlyList<GoalTaskLink>?>? TaskLinks { get; set; }
+
+    /// <summary>
+    /// The task list changed: recounts only when the links differ from the ones counted (a task's goal, title or finish time), so typing
+    /// in a task or moving one never recounts the goals.
+    /// </summary>
+    public void TaskLinksMaybeChanged()
+    {
+        IReadOnlyList<GoalTaskLink> links = TaskLinks?.Invoke() ?? [];
+        if (!links.SequenceEqual(Current.TaskLinks ?? []))
+        {
+            Recompute();
+        }
+    }
+
     /// <summary>Raised after <see cref="Current"/> changed.</summary>
     public event EventHandler? Changed;
 
@@ -180,7 +198,7 @@ public sealed class GoalSourceDataService
         IReadOnlyList<GoalEntry> entries = ScreenTime is { } screen && _store.IsReady
             ? screen.WithReadings(_store.Lists.Entries, _store.Lists.LiveGoals, OwnDeviceId, Today, now)
             : _store.Lists.Entries;
-        Current = new GoalSourceData(focus, entries, zone, CalendarWindows?.Invoke(), Steps: Steps?.Invoke(), DeviceId: DeviceId?.Invoke());
+        Current = new GoalSourceData(focus, entries, zone, CalendarWindows?.Invoke(), Steps: Steps?.Invoke(), DeviceId: DeviceId?.Invoke(), TaskLinks: TaskLinks?.Invoke());
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -14,8 +14,9 @@ namespace AccountabiliBuddy.Core.Goals;
 /// unlock or <c>focusDay</c>.</item>
 /// <item><b>The rule:</b> a session has no record of which task was current minute by minute, so <b>all of a session's counted
 /// focus counts toward a label goal when any task of its checklist carries that label</b> (the task's label is the checklist
-/// task's category: its id, or <see cref="TaskLabel.IdFor"/> its name), and toward a #tag goal when any task carries that tag
-/// (the checklist task's ADR 72 labels). A session with no checklist counts only toward "all focus" (Deep work).</item>
+/// task's category: its id, or <see cref="TaskLabel.IdFor"/> its name), toward a #tag goal when any task carries that tag
+/// (the checklist task's ADR 72 labels), and toward a goal with "a task carries this goal" when any task of its checklist carries the goal
+/// (GS5: the checklist task's id is the task's, <see cref="GoalSourceData.TaskIdsOf"/>; the link as it is now, not as it was when the session ran). A session with no checklist counts only toward "all focus" (Deep work).</item>
 /// <item><b>Pieces:</b> a synced session travels in pieces (time away cut out) and only the first carries the checklist
 /// (<see cref="SyncFileBuilder"/>). On a receiver a piece with no checklist continues the session before it, from the same
 /// device, when neither was added by hand, they have the same profile name, it starts at or after that piece's end, and either
@@ -105,7 +106,8 @@ public static class GoalFocusAttribution
 
     /// <summary>Whether <paramref name="rule"/> takes <paramref name="session"/>'s focus (an off rule takes nothing).</summary>
     /// <param name="tagsAvailable">False where #tag rules aren't counted (the phone until ADR 79, plan §3b 5).</param>
-    public static bool Matches(GoalFocusSession session, GoalSourceRule rule, bool tagsAvailable)
+    /// <param name="goalTaskIds">The tasks that carry the goal the rule belongs to (GS5, <see cref="GoalSourceData.TaskIdsOf"/>); null for none.</param>
+    public static bool Matches(GoalFocusSession session, GoalSourceRule rule, bool tagsAvailable, IReadOnlySet<Guid>? goalTaskIds = null)
     {
         if (!rule.Automatic)
         {
@@ -117,6 +119,7 @@ public static class GoalFocusAttribution
             GoalSourceType.FocusAll => true,
             GoalSourceType.FocusLabel => rule.LabelId is Guid labelId && session.Tasks.Any(task => CarriesLabel(task, labelId)),
             GoalSourceType.FocusTag => tagsAvailable && rule.Tag is string tag && session.Tasks.Any(task => (task.Labels ?? []).Any(label => TaskLabels.Same(label, tag))),
+            GoalSourceType.GoalField => goalTaskIds is { Count: > 0 } && session.Tasks.Any(task => goalTaskIds.Contains(task.Id)),
             _ => false,
         };
     }
@@ -125,10 +128,11 @@ public static class GoalFocusAttribution
     /// The focus that counts toward a goal: the windows of every session any of its focus rules takes, each minute once,
     /// earliest first.
     /// </summary>
-    public static IReadOnlyList<LocalWindow> FocusWindows(IEnumerable<GoalFocusSession> sessions, IReadOnlyList<GoalSourceRule> rules, bool tagsAvailable)
+    public static IReadOnlyList<LocalWindow> FocusWindows(
+        IEnumerable<GoalFocusSession> sessions, IReadOnlyList<GoalSourceRule> rules, bool tagsAvailable, IReadOnlySet<Guid>? goalTaskIds = null)
     {
         List<GoalSourceRule> focusRules = rules
-            .Where(rule => rule.Type is GoalSourceType.FocusAll or GoalSourceType.FocusLabel or GoalSourceType.FocusTag)
+            .Where(rule => rule.Type is GoalSourceType.FocusAll or GoalSourceType.FocusLabel or GoalSourceType.FocusTag or GoalSourceType.GoalField)
             .ToList();
         if (focusRules.Count == 0)
         {
@@ -136,7 +140,7 @@ public static class GoalFocusAttribution
         }
 
         return DayTimeline.Union(sessions
-            .Where(session => focusRules.Any(rule => Matches(session, rule, tagsAvailable)))
+            .Where(session => focusRules.Any(rule => Matches(session, rule, tagsAvailable, goalTaskIds)))
             .SelectMany(session => session.Windows));
     }
 

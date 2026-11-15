@@ -127,6 +127,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         GoalSourceType.HealthSleep => "Health Connect · sleep",
         GoalSourceType.ScreenTime => "Screen time",
         GoalSourceType.CalendarCategory => "Google Calendar",
+        GoalSourceType.GoalField => "A task carries this goal",
+        GoalSourceType.MilestoneTasks => "Milestone tasks",
         GoalSourceType.Beeminder => SelectedBeeminder is GoalChoice linked ? $"Beeminder · {linked.Key}" : "Beeminder",
         _ => _rule.Type.ToString(),
     };
@@ -149,6 +151,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         GoalSourceType.HealthSleep => "Measured on your phone (Health Connect). Its daily values count here once your phone syncs them.",
         GoalSourceType.ScreenTime => "Time in these apps and sites. This PC counts them from its own activity history; the devices you tick add theirs.",
         GoalSourceType.CalendarCategory => "Time in events of this day plan category. This PC only; it never counts as focus or for a guard.",
+        GoalSourceType.GoalField => "Focus in sessions whose checklist holds a task linked to this goal (task menu › Link to goal). Counted on this PC; the phone shows it as measured on your PC until it can link tasks.",
+        GoalSourceType.MilestoneTasks => "Each task linked to this goal that you finish counts one, on the day you finished it. Counted on this PC; the phone shows it as measured on your PC until it can link tasks.",
         GoalSourceType.Beeminder when !_beeminderConnected => "Read on the PC that has your Beeminder token; its daily values reach this PC when it syncs",
         GoalSourceType.Beeminder => SelectedBeeminder?.Note is string note ? $"Counts its daily values on this PC · {note}" : "Counts its daily values on this PC",
         _ => string.Empty,

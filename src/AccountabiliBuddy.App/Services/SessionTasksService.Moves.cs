@@ -86,22 +86,59 @@ public sealed partial class SessionTasksService
     public async Task TakeFirstFromListAsync(ViewModels.PulledListKind kind, Guid id, string title)
     {
         TodaySource source = new(title, []);
+        // GS5 (Q1121): with the task list as the source the task keeps its id and it moves as a bin change of the same task (the checklist is
+        // mirrored into the task list), and a copy is held only while a session runs, as "Add to Today" does: a hold with no session would refuse Undo and
+        // let a stale copy win over later edits. A pick from a past session is a new task that takes its held copy's fields.
+        bool keepsId = false;
+        bool fromPastSession = false;
+        Func<Task>? leaveList = null; // The list's delete comes after the checklist took the task (its same-id move), as in "Add to Today".
         switch (kind)
         {
             case ViewModels.PulledListKind.Later when Later?.Items.FirstOrDefault(candidate => candidate.Id == id) is SyncLaterItem item:
-                source = WithHiddenKept(id, new TodaySource(item.Title, OpenStepsOf(item.Subtasks), item.Category, item.CategoryColor, item.EstimateMinutes, item.Note, item.Labels));
-                await Later.DeleteAsync(id);
+                keepsId = _taskStore is not null;
+                source = WithHiddenKept(id, new TodaySource(item.Title, keepsId ? item.Subtasks ?? [] : OpenStepsOf(item.Subtasks), item.Category, item.CategoryColor, item.EstimateMinutes, item.Note, item.Labels));
+                if (keepsId)
+                {
+                    await HoldIfLiveAsync(id);
+                    leaveList = () => Later.DeleteAsync(id);
+                }
+                else
+                {
+                    await Later.DeleteAsync(id);
+                }
+
                 break;
             case ViewModels.PulledListKind.ComeBack when Comebacks?.Open.FirstOrDefault(candidate => candidate.Id == id) is Comeback comeback:
+                keepsId = _taskStore is not null;
                 source = WithHiddenKept(id, new TodaySource(comeback.Text, [], comeback.Category, comeback.CategoryColor, Labels: comeback.Labels));
-                await Comebacks.TickAsync(id);
+                if (keepsId)
+                {
+                    await HoldIfLiveAsync(id);
+                    leaveList = () => Comebacks.DeleteAsync(id);
+                }
+                else
+                {
+                    await Comebacks.TickAsync(id);
+                }
+
                 break;
             case ViewModels.PulledListKind.AutoSaved when AutoSaved is not null:
+                keepsId = _taskStore is not null && AutoSaved.Find(id) is not null;
                 source = WithHiddenKept(id, new TodaySource(title, [], Labels: AutoSaved.Find(id)?.Labels));
-                await AutoSaved.RemoveAsync(id);
+                if (keepsId)
+                {
+                    await HoldIfLiveAsync(id);
+                    leaveList = () => AutoSaved.RemoveAsync(id);
+                }
+                else
+                {
+                    await AutoSaved.RemoveAsync(id);
+                }
+
                 break;
             case ViewModels.PulledListKind.Unfinished or ViewModels.PulledListKind.DoneToday or ViewModels.PulledListKind.Archive when PastTaskOf(id) is SessionTask task:
                 source = SourceOfTask(task);
+                fromPastSession = true;
                 if (!task.IsDone)
                 {
                     await RememberMovedAsync(id);
@@ -113,12 +150,22 @@ public sealed partial class SessionTasksService
         Guid? categoryId = source.Category is { } name && name.Trim().Length > 0
             ? await ResolveRemoteCategoryAsync(new SyncTaskRequest(Category: name, CategoryColor: source.CategoryColor))
             : null;
-        List<SessionSubtask> steps = source.Steps.Select(step => new SessionSubtask(Guid.NewGuid(), step.Title, null)).ToList();
+        List<SessionSubtask> steps = source.Steps.Select(step => new SessionSubtask(keepsId ? step.Id : Guid.NewGuid(), step.Title, keepsId ? step.DoneAt : null)).ToList();
         var first = new SessionTask(
-            Guid.NewGuid(), title.Trim(), null, steps, categoryId,
+            keepsId ? id : Guid.NewGuid(), title.Trim(), null, steps, categoryId,
             EstimateMinutes: SessionChecklist.CleanEstimate(source.EstimateMinutes), Note: SessionChecklist.CleanNote(source.Note),
             Labels: TaskLabels.Clean(source.Labels));
         await SetAsync(Current with { Tasks = [first, .. Current.Tasks] });
+        if (fromPastSession)
+        {
+            // The new task takes the held copy's goal link, reminders and due date, as "Add to Today" does for a past task.
+            await CarryHeldAsync(id, first.Id);
+        }
+
+        if (leaveList is not null)
+        {
+            await leaveList();
+        }
     }
 
     /// <summary>"Add to Today" for a Later item: it joins today's list and leaves the Later list (its plan and due date go).</summary>

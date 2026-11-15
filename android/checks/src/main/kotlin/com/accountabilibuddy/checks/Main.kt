@@ -69,6 +69,8 @@ private val checks: List<FixtureCheck> = listOf(
     // trip of a task with every field set), field merge, local edits, labels, account settings, old fields, the migration rule.
     R71Check("task-json", R71ModelCases::taskJson),
     R71Check("values", R71ModelCases::values),
+    // GS5a: a task with a goal link and its stamp (goalId / goal, unknown to the phone until GS5b) read and written again, byte for byte.
+    Gs5aCheck("task-json", R71ModelCases::taskJson),
     R71Check("field-merge", R71MergeCases::fieldMerge),
     R71Check("task-edits", R71MergeCases::taskEdits),
     R71Check("label-merge", R71MergeCases::labelMerge),

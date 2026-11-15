@@ -313,6 +313,17 @@ public static class TaskActions
         return Result(lists, TaskScopes.KeepHidden(lists, after, self, removed, now), changed, TaskToasts.Labelled(label?.Name));
     }
 
+    /// <summary>
+    /// Links tasks to one goal, or to none (<paramref name="goalId"/> null; GS5): the goal part of each task, stamped like any other field, so a
+    /// link on one device and a label on another both survive. <paramref name="goalName"/> only words the toast. Whether the goal exists is the
+    /// caller's to check (goals live in their own store); an id no live goal has is ignored by every view and kept on the task.
+    /// </summary>
+    public static TaskActionResult SetGoal(TaskLists lists, IReadOnlyList<Guid> ids, Guid? goalId, string? goalName, DateTimeOffset now, Guid self)
+    {
+        (TaskLists after, List<TaskItem> changed) = Edit(lists, ids, (task, _) => task with { GoalId = goalId }, [TaskField.Goal], now, self);
+        return Result(lists, after, changed, TaskToasts.Linked(goalId is null ? null : goalName ?? string.Empty));
+    }
+
     /// <summary>Adds tags to tasks (cleaned, no duplicates). ADR 89: a tag typed that is hidden here is joined, not made shared.</summary>
     public static TaskActionResult AddTags(TaskLists lists, IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, DateTimeOffset now, Guid self, IReadOnlyCollection<Guid>? removed)
     {
@@ -471,7 +482,7 @@ public static class TaskActions
 
     /// <summary>
     /// "Keep both as separate tasks": the shown version stays on the task (the conflict closes as in <see cref="ResolveConflict"/>) and
-    /// the other version becomes a new task <paramref name="newId"/> at the end of Queued, with the task's label, tags, time limit and
+    /// the other version becomes a new task <paramref name="newId"/> at the end of Queued, with the task's label, goal, tags, time limit and
     /// steps (new step ids, none in focus), and on the same devices (a local or limited task's copy stays where the task is, ADR 72).
     /// Reminders, due date and highlight stay with the original only, so nothing rings twice.
     /// </summary>
@@ -495,13 +506,14 @@ public static class TaskActions
         var copy = new TaskItem(
             newId, title, TaskBin.Queued, TaskListRules.EndOf(resolved.Lists, TaskBin.Queued), now, now, now,
             LabelId: source.LabelId,
+            GoalId: source.GoalId,
             Tags: source.Tags,
             Steps: steps is { Count: > 0 } ? steps : null,
             EstimateMinutes: source.EstimateMinutes,
             Note: note,
             Origin: source.Number is TaskNumber number ? "Other version of " + number.Value : "Other version",
             Devices: source.Devices);
-        List<SyncTaskItem> tasks = [.. resolved.Lists.Tasks, new SyncTaskItem(copy, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self)))];
+        List<SyncTaskItem> tasks = [.. resolved.Lists.Tasks, new SyncTaskItem(copy, TaskFieldStamps.ForNew(copy, new TaskFieldStamp(now, self)))];
         return new TaskActionResult(resolved.Lists with { Tasks = tasks }, "Kept both · the other copy is in Queued", [id, newId]);
     }
 

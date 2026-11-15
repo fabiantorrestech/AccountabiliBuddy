@@ -28,4 +28,7 @@ public enum TaskField
 
     /// <summary>The day part it was put in the plan for (ADR 50).</summary>
     Plan,
+
+    /// <summary>The goal it carries (GS5, ADR 76 amended): set, changed or cleared like any other part; a goal's deletion never clears it.</summary>
+    Goal,
 }

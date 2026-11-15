@@ -75,7 +75,12 @@ public static class TaskFieldMerge
             };
 
             result = TaskFieldValues.With(result, pick.FromFirst ? a : b, field);
-            stamps = stamps.With(field, pick.Stamp);
+
+            // GS5: neither copy ever stamped a goal link and both hold the same value (the common case: no link at all, or an older device's
+            // copy), so the merged task has no goal stamp either and its text stays what it was before the field existed. When the unstamped
+            // values differ the picked stamp is kept, or merging the result again could pick the other value.
+            bool goalNeverStamped = field == TaskField.Goal && one.Stamps.Goal is null && other.Stamps.Goal is null && valueA == valueB;
+            stamps = stamps.With(field, goalNeverStamped ? null : pick.Stamp);
             if (pick.Conflict is not null)
             {
                 conflicts.Add(pick.Conflict);

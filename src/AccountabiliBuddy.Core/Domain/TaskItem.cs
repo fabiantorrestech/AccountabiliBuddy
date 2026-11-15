@@ -34,6 +34,11 @@ namespace AccountabiliBuddy.Core.Domain;
 /// <param name="PlannedFor">The day part it was put in the plan for (ADR 50, "Put in plan"); kept so the day-part rule still works.</param>
 /// <param name="DeletedAt">Set on a tombstone: when it was deleted. A tombstone keeps no text.</param>
 /// <param name="Conflicts">"Changed on both devices" versions waiting for the user's pick; null for none.</param>
+/// <param name="GoalId">
+/// The goal it carries (GS5, ADR 76 amended; JSON <c>goalId</c>, left out when none): an ADR 76 field of its own (<see cref="Sync.TaskField.Goal"/>)
+/// for the goal source "a task carries this goal" and a milestone goal's tasks. Never cleared when the goal is deleted (a restored goal gets its
+/// tasks back); a view ignores an id no live goal has. A device that doesn't know it keeps it (the older sync fields never carry it).
+/// </param>
 /// <param name="AutoSavedFor">
 /// For a To sort task that came from Auto-saved (ADR 72): the plan day its shutdown card wrapped up. While it is open and within
 /// Auto-saved's 30 days it travels to older apps in the old <c>autoSaved</c> field (not <c>parked</c>), so it shows once there.
@@ -67,7 +72,8 @@ public sealed record TaskItem(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlannedSlot? PlannedFor = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TaskConflict>? Conflicts = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? AutoSavedFor = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? AutoSavedFor = null,
+    [property: JsonPropertyName("goalId")][property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? GoalId = null)
 {
     /// <summary>Neither a tombstone nor a local item's stub.</summary>
     [JsonIgnore]

@@ -15,6 +15,12 @@ public sealed partial class TasksViewModel
     /// <summary>The other devices of the sync group a local item can be kept on (id and name; the watch never); set by the app.</summary>
     public Func<IReadOnlyList<(Guid Id, string Name)>>? KeepOnDevices { get; set; }
 
+    /// <summary>
+    /// GS5: the goals a task can be linked to (a live goal that isn't Deep work, in the Goals page's order: id, name and Material icon); null or
+    /// empty where goals aren't ready. Set by the app.
+    /// </summary>
+    public Func<IReadOnlyList<(Guid Id, string Name, MaterialIconKind Icon)>>? LinkableGoals { get; set; }
+
     /// <summary>This PC's id in its sync group; null while it isn't in one. Set by the app.</summary>
     public Func<Guid?>? SelfId { get; set; }
 

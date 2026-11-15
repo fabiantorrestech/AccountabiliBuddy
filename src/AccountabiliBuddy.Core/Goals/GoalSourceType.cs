@@ -15,7 +15,7 @@ public enum GoalSourceType
     /// <summary>Focus in sessions with a task carrying the #tag <see cref="GoalSourceRule.Tag"/>.</summary>
     FocusTag,
 
-    /// <summary>A task carries this goal. "Coming soon": tasks have no goal link until ADR 79 is accepted (plan §3b 2).</summary>
+    /// <summary>A task carries this goal (GS5, ADR 76 amended: <see cref="Domain.TaskItem.GoalId"/>): the focus of sessions whose checklist holds one of its tasks.</summary>
     GoalField,
 
     /// <summary>Ticked, logged or time added by hand.</summary>
@@ -37,6 +37,6 @@ public enum GoalSourceType
     /// <summary>A linked Beeminder goal (<see cref="GoalSourceRule.BeeminderSlug"/>); read only (ADR 43).</summary>
     Beeminder,
 
-    /// <summary>The milestone's own task list. "Coming soon" until ADR 79 is accepted (plan §3b 2).</summary>
+    /// <summary>The milestone's own tasks (GS5: the tasks that carry the goal): each finished one counts one on its day.</summary>
     MilestoneTasks,
 }

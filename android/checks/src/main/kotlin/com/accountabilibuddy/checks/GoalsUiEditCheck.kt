@@ -86,11 +86,13 @@ object GoalsUiEditCheck {
             GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(label)) }) == "Pick a label for the focus source." &&
                 GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(label.copy(labelId = id(11)))) }) == null &&
                 GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(12), GoalSourceType.FocusAll))) }) != null &&
-                GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(13), GoalSourceType.GoalField))) }) != null &&
-                GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(14), GoalSourceType.MilestoneTasks))) }) != null)
+                GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(13), GoalSourceType.HealthWeight))) }) != null)
+        report.check("$name: GS5a: a goal that holds the PC's task sources can still be saved (they are kept untouched, \"Measured on your PC\")",
+            GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(13), GoalSourceType.GoalField), GoalSourceRule(id(14), GoalSourceType.MilestoneTasks))) }) == null &&
+                GoalPhoneRules.measuredOnPc(GoalSourceType.GoalField) && GoalPhoneRules.measuredOnPc(GoalSourceType.MilestoneTasks))
         report.check("$name: sleep and steps sources can be saved; PC-only sources are marked Measured on your PC, Coming soon ones aren't counted on the phone",
             GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(15), GoalSourceType.HealthSleep), GoalSourceRule(id(16), GoalSourceType.HealthSteps))) }) == null &&
-                GoalPhoneRules.measuredOnPc(GoalSourceType.FocusTag) && GoalPhoneRules.measuredOnPc(GoalSourceType.CalendarCategory) && !GoalPhoneRules.countsOnPhone(GoalSourceType.GoalField))
+                GoalPhoneRules.measuredOnPc(GoalSourceType.FocusTag) && GoalPhoneRules.measuredOnPc(GoalSourceType.CalendarCategory) && !GoalPhoneRules.countsOnPhone(GoalSourceType.HealthWeight))
         report.check("$name: Create stays off until step 1, the target and the sources are all clear", GoalDrafts.canCreate(draft()) && !GoalDrafts.canCreate(draft { it.copy(name = "") }) && !GoalDrafts.canCreate(time))
     }
 
@@ -119,6 +121,12 @@ object GoalsUiEditCheck {
         report.check("$name: moving to another area puts it at the end of that area", moved?.position == 9.0 && moved.areaId == id(3))
         val round = GoalDrafts.fromGoal(base)
         report.check("$name: a goal read into a draft and made again is the same goal", GoalDrafts.toGoal(round, base, now, 2.0) == base)
+        // GS5a: editing a goal that holds the PC's task sources keeps both rules as they are (a habit's threshold goes on the link rule, as the PC's ToRule does).
+        val taskRules = listOf(GoalSourceRule(id(60), GoalSourceType.GoalField, thresholdMinutes = 15.0), GoalSourceRule(id(61), GoalSourceType.MilestoneTasks))
+        val withTasks = base.copy(kind = GoalKind.Habit, target = GoalTarget(GoalPeriod.Day, null, GoalUnit.YesNo), sources = taskRules)
+        val editedWithTasks = GoalDrafts.toGoal(GoalDrafts.fromGoal(withTasks).copy(name = "Renamed"), withTasks, now, 2.0)
+        report.check("$name: GS5a: renaming a goal that holds the PC's task sources saves it and keeps both rules untouched",
+            editedWithTasks != null && editedWithTasks.name == "Renamed" && editedWithTasks.sources == taskRules, editedWithTasks?.sources.toString())
         val lowered = GoalDrafts.toGoal(GoalDrafts.fromGoal(edited!!).copy(amount = "1"), edited, now, 2.0)
         report.check("$name: lowering an ordinary goal's target applies at once on the phone, as on the PC (only Deep work waits)", lowered?.target?.amount == 1.0 && lowered.target.pendingChange == null)
         report.check("$name: a draft with a problem makes no goal", GoalDrafts.toGoal(draft { it.copy(name = "") }, null, now, 1.0) == null && GoalDrafts.toGoal(draft { it.copy(kind = GoalKind.Time) }, null, now, 1.0) == null)

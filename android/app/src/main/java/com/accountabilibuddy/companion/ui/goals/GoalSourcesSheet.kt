@@ -44,7 +44,7 @@ import java.util.UUID
  *   the devices that count; the **Usage access** row under it says whether the permission is on and opens the system's page.
  * - Greyed with a reason: **#tag** and **Google Calendar** ("Measured on your PC": tags
  *   and calendar time are counted on the PC until ADR 79), **Beeminder** (read on the PC), **A task carries this goal** and
- *   **Milestone tasks** ("Coming soon": tasks have no goal link until ADR 79).
+ *   **Milestone tasks** (GS5a: "Measured on your PC" until GS5b).
  * Hand, steps and sleep can be added once; a label once each. [onAdd] takes the new rule.
  *
  * @param labels Every task label name on this phone.
@@ -135,9 +135,9 @@ fun GoalSourcesSheet(
         AbSheetRow("Google Calendar", onClick = null, icon = Icons.Outlined.CalendarMonth, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.CalendarCategory), subtitle = GoalPhoneRules.MEASURED_ON_PC)
         AbSheetRow("Beeminder", onClick = null, icon = Icons.Outlined.Computer, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.Beeminder), subtitle = "Read on your PC")
 
-        Head("COMING SOON")
-        AbSheetRow("A task carries this goal", onClick = null, icon = Icons.Outlined.Checklist, enabled = false, subtitle = "Coming soon")
-        AbSheetRow("Milestone tasks", onClick = null, icon = Icons.Outlined.Check, enabled = false, subtitle = "Coming soon")
+        // GS5a: the PC counts the task sources until GS5b lets the phone link tasks; never "Coming soon".
+        AbSheetRow("A task carries this goal", onClick = null, icon = Icons.Outlined.Checklist, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.GoalField), subtitle = GoalPhoneRules.MEASURED_ON_PC)
+        AbSheetRow("Milestone tasks", onClick = null, icon = Icons.Outlined.Check, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.MilestoneTasks), subtitle = GoalPhoneRules.MEASURED_ON_PC)
     }
 }
 

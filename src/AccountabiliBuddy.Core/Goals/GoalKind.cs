@@ -15,6 +15,6 @@ public enum GoalKind
     /// <summary>Minutes: focus time on labels or #tags, calendar time, time added by hand. Deep work is one.</summary>
     Time,
 
-    /// <summary>A milestone with its own tasks (the task list is "Coming soon" until ADR 79); done by hand for now.</summary>
+    /// <summary>A milestone with its own tasks (GS5: the tasks that carry it, finished ones counting); also done by hand.</summary>
     Milestone,
 }

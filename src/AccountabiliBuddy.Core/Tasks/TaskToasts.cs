@@ -88,6 +88,12 @@ public static class TaskToasts
         return labelName is null ? "Label removed" : "Label " + labelName;
     }
 
+    /// <summary>"Linked to Spanish" / "Link removed" (GS5); a goal with no name says "Linked to a goal".</summary>
+    public static string Linked(string? goalName)
+    {
+        return goalName is null ? "Link removed" : goalName.Length == 0 ? "Linked to a goal" : "Linked to " + goalName;
+    }
+
     public static string Renamed(int count)
     {
         return "Renamed " + count + (count > 1 ? " tasks" : " task");

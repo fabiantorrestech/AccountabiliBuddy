@@ -127,7 +127,7 @@ object GoalListRulesCheck {
                 // Newer than this phone's: merge takes it (notes stay this phone's without a password).
                 goal(502, id(2), edited = at(-2), notes = "backup notes").copy(name = "Backup 502"),
                 // A new goal with a waiting change, a second target and sources not allowed (all focus, a task goal link).
-                goal(503, id(5), edited = at(-5), sources = listOf(hand(), GoalSourceRule(id(901), GoalSourceType.FocusAll), GoalSourceRule(id(902), GoalSourceType.GoalField))).copy(
+                goal(503, id(5), edited = at(-5), sources = listOf(hand(), GoalSourceRule(id(901), GoalSourceType.FocusAll), GoalSourceRule(id(902), GoalSourceType.GoalField), GoalSourceRule(id(903), GoalSourceType.MilestoneTasks))).copy(
                     target = GoalTarget(GoalPeriod.Day, 1.0, GoalUnit.YesNo, pendingChange = GoalPendingChange(0.5, at(1))),
                     secondTarget = GoalTarget(GoalPeriod.Week, 3.0, GoalUnit.Count),
                 ),
@@ -152,8 +152,9 @@ object GoalListRulesCheck {
         report.check("$name: merge takes the backup's newer edit, keeping this phone's notes without a password", m502.named() == "Backup 502" && m502?.notes == "mine too")
         report.check("$name: merge never takes the backup's tombstones and no second built-in goal", merged.goals.none { it.id == id(505) || it.id == id(504) })
         report.check(
-            "$name: a new goal comes without a waiting change or second target, with only the sources allowed now",
-            m503 != null && m503.target.pendingChange == null && m503.secondTarget == null && m503.sources.map { it.type } == listOf(GoalSourceType.Hand),
+            "$name: a new goal comes without a waiting change or second target; all focus is dropped but the PC's task sources are kept as they are (GS5a)",
+            m503 != null && m503.target.pendingChange == null && m503.secondTarget == null &&
+                m503.sources.map { it.type } == listOf(GoalSourceType.Hand, GoalSourceType.GoalField, GoalSourceType.MilestoneTasks),
         )
         report.check(
             "$name: Deep work takes name, icon, show on Today; keeps its area, its locked source and no target; notes stay without a password",

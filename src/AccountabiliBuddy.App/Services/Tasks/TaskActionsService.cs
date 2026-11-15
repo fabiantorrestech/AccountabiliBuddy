@@ -315,6 +315,12 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self, removed: _store.Removed));
     }
 
+    /// <summary>Links tasks to a goal, or to none (GS5); the caller passes a goal that exists.</summary>
+    public Task<bool> SetGoalAsync(IReadOnlyList<Guid> ids, Guid? goalId, string? goalName)
+    {
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetGoal(lists, ids, goalId, goalName, now, self));
+    }
+
     public Task<bool> AddTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags)
     {
         return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.AddTags(lists, ids, tags, now, self, removed: _store.Removed));

@@ -37,6 +37,7 @@ public static class TaskFieldValues
             TaskField.Calendar => task.Calendar ? "1" : "0",
             TaskField.Number => Json(task.Number),
             TaskField.Plan => task.PlannedFor?.TieText ?? string.Empty,
+            TaskField.Goal => task.GoalId?.ToString("D") ?? string.Empty,
             _ => throw new ArgumentOutOfRangeException(nameof(field)),
         };
     }
@@ -87,6 +88,7 @@ public static class TaskFieldValues
             TaskField.Calendar => target with { Calendar = source.Calendar },
             TaskField.Number => target with { Number = source.Number },
             TaskField.Plan => target with { PlannedFor = source.PlannedFor },
+            TaskField.Goal => target with { GoalId = source.GoalId },
             _ => throw new ArgumentOutOfRangeException(nameof(field)),
         };
     }

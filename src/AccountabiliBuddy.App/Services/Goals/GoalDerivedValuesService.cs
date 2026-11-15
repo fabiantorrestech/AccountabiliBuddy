@@ -113,7 +113,7 @@ public sealed class GoalDerivedValuesService
             {
                 // Days with own focus (a day without any measures 0, which is written only over an earlier value, so it is a day with an own entry).
                 HashSet<DateOnly> days = [.. ownTagDays, .. DaysOf(_data.OwnFocus.SelectMany(session => session.Windows), from, today)];
-                AddReadings(readings, covers, goal, GoalEntrySource.FocusLocal, from, today, days, day => GoalDerivedMinutes.FocusLocalExtra(goal, _data.OwnFocus, day));
+                AddReadings(readings, covers, goal, GoalEntrySource.FocusLocal, from, today, days, day => GoalDerivedMinutes.FocusLocalExtra(goal, _data.OwnFocus, day, data.TaskIdsOf(goal.Id)));
             }
 
             HashSet<DateOnly> ownCalendarDays = OwnDays(entries, goal, me, GoalEntrySource.Calendar, from, today);

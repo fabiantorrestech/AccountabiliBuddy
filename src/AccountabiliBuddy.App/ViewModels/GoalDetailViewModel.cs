@@ -98,6 +98,21 @@ public sealed partial class GoalDetailViewModel : ObservableObject
     [ObservableProperty]
     public partial string RemindersFoot { get; set; } = string.Empty;
 
+    /// <summary>GS5: the tasks that carry the goal, open ones first then the latest finished; at most <see cref="MaxTaskRows"/>.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<GoalTaskRow> LinkedTasks { get; set; } = [];
+
+    /// <summary>The Tasks card shows when the goal has a task source or a task linked to it.</summary>
+    [ObservableProperty]
+    public partial bool HasTasksCard { get; set; }
+
+    /// <summary>"2 of 5 finished", "3 more not shown", or what to do when none is linked.</summary>
+    [ObservableProperty]
+    public partial string TasksFoot { get; set; } = string.Empty;
+
+    /// <summary>How many tasks the card lists before "N more".</summary>
+    public const int MaxTaskRows = 8;
+
     [ObservableProperty]
     public partial string NotesPreview { get; set; } = string.Empty;
 
@@ -158,9 +173,28 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         HasReminders = Reminders.Count > 0;
         IsProductaBuddy = productaBuddy;
         RemindersFoot = productaBuddy ? "Suggestions only: nothing locks or waits." : "They ring like task reminders. Nothing locks or waits.";
+        ShowTasks(goal, data);
         string notes = goal.Notes?.Trim() ?? string.Empty;
         HasNotes = notes.Length > 0;
         NotesPreview = HasNotes ? (notes.Length > 280 ? notes[..280].TrimEnd() + "…" : notes) : "No notes yet. Why it matters, links: add them in Edit goal › Notes.";
+    }
+
+    // GS5: the goal's linked tasks (a deleted task isn't here; a link to this goal from a task is, whatever the goal's sources say).
+    private void ShowTasks(Goal goal, GoalSourceData data)
+    {
+        List<GoalTaskLink> links = (data.TaskLinks ?? [])
+            .Where(link => link.GoalId == goal.Id)
+            .OrderBy(link => link.IsDone)
+            .ThenByDescending(link => link.DoneAt ?? DateTimeOffset.MinValue)
+            .ThenBy(link => link.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        HasTasksCard = !goal.IsDeepWork && (links.Count > 0 || goal.Sources.Any(rule => rule.Type is GoalSourceType.GoalField or GoalSourceType.MilestoneTasks));
+        LinkedTasks = links.Take(MaxTaskRows).Select(link => new GoalTaskRow(link.Title, link.IsDone)).ToList();
+        int done = links.Count(link => link.IsDone);
+        TasksFoot = links.Count == 0
+            ? "No task is linked yet. Open a task's menu › Link to goal"
+            : links.Count > MaxTaskRows ? $"{done} of {links.Count} finished · {links.Count - MaxTaskRows} more not shown"
+            : $"{done} of {links.Count} finished";
     }
 
     /// <summary>The day panel goes back to today (the goal menu's Log a value… / Add time by hand…).</summary>
@@ -483,7 +517,6 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         }
 
         lines.Add(new GoalSourceLine(goal.Kind == GoalKind.Habit ? "Ticking it by hand here or on Today" : "Values and time you add by hand"));
-        lines.Add(new GoalSourceLine("Tasks that carry this goal · Coming soon", true));
         return lines;
     }
 

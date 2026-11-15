@@ -95,7 +95,7 @@ public static class TaskListRules
                 DateTimeOffset at = gone is DateTimeOffset deletedAt && deletedAt >= now ? deletedAt.AddTicks(1) : now;
                 placed = new SyncTaskItem(
                     target with { EditedAt = at, TouchedAt = at, DeletedAt = null, CreatedAt = target.CreatedAt > at ? at : target.CreatedAt },
-                    TaskFieldStamps.AllAt(new TaskFieldStamp(at, self)));
+                    TaskFieldStamps.ForNew(target, new TaskFieldStamp(at, self)));
             }
             else
             {
@@ -267,7 +267,9 @@ public static class TaskListRules
                     };
                 }
 
-                return new SyncTaskItem(task, TaskFieldStamps.AllAt(stamp));
+                // GS5: a restored link is stamped now, so it comes back over a later clear; a backup with no link (also one made before the
+                // field existed) says nothing about links and never clears one.
+                return new SyncTaskItem(task, TaskFieldStamps.ForNew(task, stamp));
             }).ToList();
         return new TaskLists(
             tasks,

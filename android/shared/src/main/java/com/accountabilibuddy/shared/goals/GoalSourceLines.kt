@@ -38,7 +38,6 @@ object GoalSourceLines {
 
         if (threshold != null) lines += GoalSourceLine("Ticks itself at ${GoalTexts.minutes(threshold)} in a day")
         lines += GoalSourceLine(if (goal.kind == GoalKind.Habit) "Ticking it by hand here or on Today" else "Values and time you add by hand")
-        lines += GoalSourceLine("Tasks that carry this goal · Coming soon", true)
         return lines
     }
 }

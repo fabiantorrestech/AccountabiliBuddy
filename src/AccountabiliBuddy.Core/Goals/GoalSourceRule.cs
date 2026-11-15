@@ -75,5 +75,5 @@ public sealed record GoalSourceRule(
 
     /// <summary>Whether the rule counts time (focus or calendar windows) rather than readings or ticks.</summary>
     [JsonIgnore]
-    public bool CountsTime => Type is GoalSourceType.FocusAll or GoalSourceType.FocusLabel or GoalSourceType.FocusTag or GoalSourceType.CalendarCategory;
+    public bool CountsTime => Type is GoalSourceType.FocusAll or GoalSourceType.FocusLabel or GoalSourceType.FocusTag or GoalSourceType.GoalField or GoalSourceType.CalendarCategory;
 }

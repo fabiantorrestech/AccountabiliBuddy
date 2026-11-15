@@ -370,7 +370,7 @@ public static class OldTaskFieldsReader
                 task = task with { DueOn = dueOn, DueAt = dueOn == kept.DueOn ? kept.DueAt : null };
             }
 
-            return new SyncTaskItem(task, TaskFieldStamps.AllAt(new TaskFieldStamp(at, _input.SenderId)));
+            return new SyncTaskItem(task, TaskFieldStamps.ForNew(task, new TaskFieldStamp(at, _input.SenderId)));
         }
 
         private void HandleDeleted(OldTaskShape dead, int taskIndex)
@@ -579,7 +579,7 @@ public static class OldTaskFieldsReader
                 task = task with { DueOn = old.DueOn, DueAt = old.DueOn is null ? null : kept?.DueAt };
             }
 
-            return new SyncTaskItem(task, TaskFieldStamps.AllAt(new TaskFieldStamp(at, _input.SenderId)));
+            return new SyncTaskItem(task, TaskFieldStamps.ForNew(task, new TaskFieldStamp(at, _input.SenderId)));
         }
 
         private string? OriginOf(OldTaskShape old)

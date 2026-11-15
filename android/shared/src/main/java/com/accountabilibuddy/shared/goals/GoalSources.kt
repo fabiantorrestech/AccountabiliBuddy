@@ -48,7 +48,11 @@ object GoalSources {
         // Screen time v2: each device counts its own usage (the PC from its activity history, the phone from Usage access).
         GoalSourceType.ScreenTime -> GoalSourceAvailability.Everywhere
 
-        // Plan §3b 2 (task goal link, ADR 79) and ADR 81 (READ_WEIGHT).
-        GoalSourceType.GoalField, GoalSourceType.MilestoneTasks, GoalSourceType.HealthWeight -> GoalSourceAvailability.ComingSoon
+        // GS5a (task goal link, ADR 76 amended): the PC counts them from its task list; the phone shows "Measured on your PC" and keeps the
+        // rules untouched until GS5b lets it link tasks.
+        GoalSourceType.GoalField, GoalSourceType.MilestoneTasks -> GoalSourceAvailability.PcOnly
+
+        // ADR 81 (READ_WEIGHT).
+        GoalSourceType.HealthWeight -> GoalSourceAvailability.ComingSoon
     }
 }

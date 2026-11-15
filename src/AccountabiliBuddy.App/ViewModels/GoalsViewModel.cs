@@ -109,6 +109,9 @@ public sealed partial class GoalsViewModel : ObservableObject
     /// <summary>A row should come into view (the This week card's "N behind" jump).</summary>
     public event EventHandler<Guid>? BringIntoViewRequested;
 
+    /// <summary>GS5: "Open its tasks" showed the goal; the page scrolls its Tasks card into view.</summary>
+    public event EventHandler? TasksCardRequested;
+
     /// <summary>Stats, for the goal shown (set by the app; Stats can't filter by goal yet, so it opens Stats).</summary>
     public Action<Guid?>? OpenStats { get; set; }
 
@@ -248,7 +251,7 @@ public sealed partial class GoalsViewModel : ObservableObject
     /// <summary>
     /// The goal menu (right-click, the Menu key, Shift+F10, the row's ⋯, the detail's ⋮; brief §4.4, change note §4a; no shortcut letters):
     /// the goal's name; Start a session › (the presets inline: the default ✓, the others, Custom…; the usual session start, never around
-    /// its rules) │ the kind's quick log (Tick today / Log a value… / Add time by hand… / Open its tasks (Coming soon, plan §3b 2) / Open
+    /// its rules) │ the kind's quick log (Tick today / Log a value… / Add time by hand… / Open its tasks (GS5: shows the Tasks card) / Open
     /// in Beeminder when linked) │ Edit goal…, Reminders…, Move to area ›, Show on Today ✓, Pause goal… (opens the Active switch: the
     /// only place that pauses) │ Delete goal… (red), or for Deep work "Track time only, no target" (through its waiting rule).
     /// </summary>
@@ -344,6 +347,13 @@ public sealed partial class GoalsViewModel : ObservableObject
         return await _goals.UpdateGoalAsync(goal with { AreaId = areaId, Position = position }, this);
     }
 
+    // The goal's page with its Tasks card in view (a task is linked from its own menu: Link to goal).
+    private void OpenTasks(Guid id)
+    {
+        Select(id);
+        TasksCardRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     private TaskMenuEntry StartSessionEntry(Goal goal)
     {
         if (SessionRunning?.Invoke() == true)
@@ -404,8 +414,12 @@ public sealed partial class GoalsViewModel : ObservableObject
                         Note: "Counts for the goal, never for a guard", OpensMore: true);
                     break;
                 default:
-                    yield return new TaskMenuEntry("Open its tasks", Icon: MaterialIconKind.FormatListChecks, Note: "Coming soon");
+                {
+                    int linked = (_data.Current.TaskLinks ?? []).Count(link => link.GoalId == id);
+                    yield return new TaskMenuEntry("Open its tasks", new RelayCommand(() => OpenTasks(id)), Icon: MaterialIconKind.FormatListChecks,
+                        Note: linked == 0 ? "None linked yet" : $"{linked} linked");
                     break;
+                }
             }
         }
 

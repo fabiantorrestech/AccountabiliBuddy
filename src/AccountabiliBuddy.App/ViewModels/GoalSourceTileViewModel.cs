@@ -9,7 +9,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// One tile of Edit goal › Tracking &amp; sources › "Add a source" (round 2 R5.7, brief §6.1): an available source (Focus time on a label
 /// or #tag, Tick by hand, Google Calendar, Health Connect, Pixel Watch through Health Connect, Screen time, Beeminder when connected), or a
 /// greyed "Coming soon…" tile that can't be clicked and makes no connection (tooltip "Not available yet"): Garmin, Focusmate, Toggl,
-/// RescueTime, GitHub, Strava, Webhook, CSV, and the task goal link / milestone tasks (plan §3b 2).
+/// RescueTime, GitHub, Strava, Webhook and CSV (the task goal link and milestone tasks became real tiles in GS5a).
 /// </summary>
 public sealed partial class GoalSourceTileViewModel : ObservableObject
 {
@@ -46,7 +46,7 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
     /// <summary>Greyed, "Coming soon…", not clickable.</summary>
     public bool IsComingSoon => _add is null;
 
-    public string Tooltip => IsComingSoon ? "Not available yet" : $"Add {Title}";
+    public string Tooltip => IsComingSoon ? "Not available yet" : Unavailable ?? $"Add {Title}";
 
     /// <summary>Already counting (a source that can only be added once: Tick by hand, steps); the tile says "Added".</summary>
     [ObservableProperty]
@@ -58,9 +58,14 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(AddCommand))]
     public partial bool IsLocked { get; set; }
 
-    public bool CanAdd => !IsComingSoon && !IsAdded && !IsLocked;
+    /// <summary>Why this goal can't take the source (GS5: milestone tasks only count on a milestone); null when it can. The tile is greyed with it.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddCommand))]
+    public partial string? Unavailable { get; set; }
 
-    public string ButtonText => IsComingSoon ? "Coming soon…" : IsAdded ? "Added" : "Add";
+    public bool CanAdd => !IsComingSoon && !IsAdded && !IsLocked && Unavailable is null;
+
+    public string ButtonText => IsComingSoon ? "Coming soon…" : IsAdded ? "Added" : Unavailable is not null ? "Milestones only" : "Add";
 
     [RelayCommand(CanExecute = nameof(CanAdd))]
     private void Add()
@@ -78,4 +83,11 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
     }
 
     partial void OnIsLockedChanged(bool value) => OnPropertyChanged(nameof(CanAdd));
+
+    partial void OnUnavailableChanged(string? value)
+    {
+        OnPropertyChanged(nameof(CanAdd));
+        OnPropertyChanged(nameof(ButtonText));
+        OnPropertyChanged(nameof(Tooltip));
+    }
 }

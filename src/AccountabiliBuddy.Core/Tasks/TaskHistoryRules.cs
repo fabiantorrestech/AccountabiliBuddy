@@ -57,7 +57,7 @@ public static class TaskHistoryRules
 
     /// <summary>
     /// "Do again": a finished task's entry makes a new task in Queued, at the end of it, with a new id (and a number of its own
-    /// once given), its label, tags, time limit, note and steps (open again, new ids), and the origin "Done again from 142". Reminders,
+    /// once given), its label, goal, tags, time limit, note and steps (open again, new ids), and the origin "Done again from 142". Reminders,
     /// due date and highlight are not copied. The entry stays, so it can be done again, and its number stays taken.
     /// </summary>
     public static TaskActionResult DoAgain(TaskLists lists, Guid entryId, DateTimeOffset now, Guid self)
@@ -72,6 +72,7 @@ public static class TaskHistoryRules
         var copy = new TaskItem(
             Guid.NewGuid(), old.Title, TaskBin.Queued, TaskListRules.EndOf(lists, TaskBin.Queued), now, now, now,
             LabelId: old.LabelId,
+            GoalId: old.GoalId,
             Tags: old.Tags,
             Steps: steps is { Count: > 0 } ? steps : null,
             EstimateMinutes: old.EstimateMinutes,
@@ -80,7 +81,7 @@ public static class TaskHistoryRules
             Origin: TaskOrigins.DoneAgain(old.Number),
             Devices: old.Devices,
             Calendar: old.Calendar);
-        List<SyncTaskItem> tasks = [.. lists.Tasks, new SyncTaskItem(copy, TaskFieldStamps.AllAt(new TaskFieldStamp(now, self)))];
+        List<SyncTaskItem> tasks = [.. lists.Tasks, new SyncTaskItem(copy, TaskFieldStamps.ForNew(copy, new TaskFieldStamp(now, self)))];
         return new TaskActionResult(lists with { Tasks = tasks }, TaskToasts.DoneAgain(copy), [copy.Id]);
     }
 
@@ -115,7 +116,7 @@ public static class TaskHistoryRules
             EditedAt = at,
             TouchedAt = at,
         };
-        var revived = new SyncTaskItem(back, TaskFieldStamps.AllAt(new TaskFieldStamp(at, self)));
+        var revived = new SyncTaskItem(back, TaskFieldStamps.ForNew(back, new TaskFieldStamp(at, self)));
         if (index >= 0)
         {
             tasks[index] = revived;

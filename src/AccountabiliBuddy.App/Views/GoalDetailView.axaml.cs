@@ -19,6 +19,9 @@ public partial class GoalDetailView : UserControl
     /// <summary>The ⋮ next to Edit (the goal menu opens under it).</summary>
     public Control MenuAnchor => MenuButton;
 
+    /// <summary>GS5: scrolls the Tasks card into view ("Open its tasks").</summary>
+    public void ShowTasksCard() => TasksCard.BringIntoView();
+
     private void ReportHeatmapWidth(double width)
     {
         if (DataContext is GoalDetailViewModel detail && width > 0)

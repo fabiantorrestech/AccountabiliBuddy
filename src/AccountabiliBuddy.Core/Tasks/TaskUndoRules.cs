@@ -200,7 +200,7 @@ public static class TaskUndoRules
         {
             // Gone (deleted, or a move's departure): it comes back whole, newer than the tombstone, so every device takes it back.
             DateTimeOffset at = current is null ? now : SharedListMerge.NextStamp(now, current);
-            return new SyncTaskItem(snapshot.Task with { EditedAt = at, DeletedAt = null }, TaskFieldStamps.AllAt(new TaskFieldStamp(at, self)));
+            return new SyncTaskItem(snapshot.Task with { EditedAt = at, DeletedAt = null }, TaskFieldStamps.ForNew(snapshot.Task, new TaskFieldStamp(at, self)));
         }
 
         SyncTaskItem item = current;

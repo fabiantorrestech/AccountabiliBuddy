@@ -16,6 +16,7 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
 {
     private GoalEditorLookups _lookups = GoalEditorLookups.Empty;
     private bool _deepWork;
+    private GoalKind _kind = GoalKind.Habit;
 
     public GoalSourcesEditorViewModel()
     {
@@ -47,6 +48,7 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
     {
         _lookups = lookups;
         _deepWork = goal.IsDeepWork;
+        _kind = goal.Kind;
         Rows.Clear();
         IEnumerable<GoalSourceRule> rules = goal.IsDeepWork ? GoalSources.CountedFor(goal) : goal.Sources;
         foreach (GoalSourceRule rule in rules)
@@ -57,6 +59,13 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         BuildTiles();
         Refresh();
         OnPropertyChanged(nameof(IsDeepWork));
+    }
+
+    /// <summary>The goal's kind changed in the editor (GS5: milestone tasks count only on a milestone).</summary>
+    public void SetKind(GoalKind kind)
+    {
+        _kind = kind;
+        Refresh();
     }
 
     /// <summary>The rules to save (the habit's threshold on its time sources); Deep work's are its own.</summary>
@@ -80,6 +89,11 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
     public bool Add(GoalSourceType type)
     {
         if (_deepWork || type == GoalSourceType.FocusAll || GoalSources.AvailabilityOf(type) == GoalSourceAvailability.ComingSoon)
+        {
+            return false;
+        }
+
+        if (type == GoalSourceType.MilestoneTasks && _kind != GoalKind.Milestone)
         {
             return false;
         }
@@ -113,6 +127,7 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         foreach (GoalSourceTileViewModel tile in Tiles)
         {
             tile.IsLocked = _deepWork;
+            tile.Unavailable = tile.Type == GoalSourceType.MilestoneTasks && _kind != GoalKind.Milestone ? "Milestone tasks only count on a milestone goal" : null;
             tile.IsAdded = tile.Type is GoalSourceType type && IsSingle(type) && Rows.Any(row => row.Type == type);
         }
 
@@ -123,7 +138,7 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
     }
 
     // Sources that make sense once per goal; labels, tags and categories can be added several times. Screen time holds a list of apps and sites itself.
-    private static bool IsSingle(GoalSourceType type) => type is GoalSourceType.Hand or GoalSourceType.HealthSteps or GoalSourceType.HealthSleep or GoalSourceType.ScreenTime;
+    private static bool IsSingle(GoalSourceType type) => type is GoalSourceType.Hand or GoalSourceType.HealthSteps or GoalSourceType.HealthSleep or GoalSourceType.ScreenTime or GoalSourceType.GoalField or GoalSourceType.MilestoneTasks;
 
     private void BuildTiles()
     {
@@ -136,6 +151,8 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
 
         Available("focusLabel", "Focus time · label", "Focus in AccountabiliBuddy on tasks with a label", MaterialIconKind.TimerOutline, GoalSourceType.FocusLabel);
         Available("focusTag", "Focus time · #tag", "Focus on tasks with a #tag", MaterialIconKind.Pound, GoalSourceType.FocusTag, "Counted on this PC");
+        Available("goalField", "A task carries this goal", "Focus in sessions that hold a task linked to this goal", MaterialIconKind.LinkVariant, GoalSourceType.GoalField, "Link tasks from their menu");
+        Available("milestoneTasks", "Milestone tasks", "Each task linked to this goal and finished counts one", MaterialIconKind.FormatListChecks, GoalSourceType.MilestoneTasks, "For milestones · this PC");
         Available("hand", "Tick by hand", "Tick it, log a value or add time here or on Today", MaterialIconKind.HandBackRightOutline, GoalSourceType.Hand);
         Available("calendar", "Google Calendar", "Time in events of a day plan category", MaterialIconKind.CalendarOutline, GoalSourceType.CalendarCategory, "This PC only · never focus");
         // NG1: sources measured only on a phone are offered when a phone is in the group. Screen time (ST2) is measured on this PC too, so it is always offered.
@@ -157,8 +174,6 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
             SoonTiles.Add(new GoalSourceTileViewModel(key, title, text, icon, type, add: null));
         }
 
-        Soon("goalField", "A task carries this goal", "Tasks with this goal count their focus", MaterialIconKind.LinkVariant, GoalSourceType.GoalField);
-        Soon("milestoneTasks", "Milestone tasks", "The milestone's own task list", MaterialIconKind.FormatListChecks, GoalSourceType.MilestoneTasks);
         Soon("garmin", "Garmin", "Activities and steps", MaterialIconKind.Watch);
         Soon("focusmate", "Focusmate", "Sessions you booked", MaterialIconKind.AccountGroupOutline);
         Soon("toggl", "Toggl Track", "Tracked time by project", MaterialIconKind.TimerPlayOutline);

@@ -74,7 +74,9 @@ object GoalListRules {
         val ownDeepWork = lists.goals.firstOrNull { it.id == Goal.DEEP_WORK_ID }
         val incomingGoals = backup.goals.filter { !it.isDeepWork }.map { goal ->
             goal.copy(
-                sources = goal.sources.filter { GoalSources.allowedFor(goal, it.type) },
+                // GS5a: a rule this phone can't count (the PC's task sources, weight) is kept as it is: availability is a display and counting
+                // question, never a strip (a restore here would otherwise remove it from every device). Only all focus, Deep work's own, goes.
+                sources = goal.sources.filter { it.type != GoalSourceType.FocusAll },
                 secondTarget = null,
                 target = goal.target.copy(pendingChange = null),
             )

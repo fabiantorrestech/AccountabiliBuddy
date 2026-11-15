@@ -37,6 +37,7 @@ public partial class GoalsView : UserControl
         {
             _subscribed.DetailMenuRequested -= OnDetailMenuRequested;
             _subscribed.BringIntoViewRequested -= OnBringIntoViewRequested;
+            _subscribed.TasksCardRequested -= OnTasksCardRequested;
             _subscribed.ConfirmRequested -= OnConfirmRequested;
         }
 
@@ -45,6 +46,7 @@ public partial class GoalsView : UserControl
         {
             _subscribed.DetailMenuRequested += OnDetailMenuRequested;
             _subscribed.BringIntoViewRequested += OnBringIntoViewRequested;
+            _subscribed.TasksCardRequested += OnTasksCardRequested;
             _subscribed.ConfirmRequested += OnConfirmRequested;
         }
     }
@@ -61,6 +63,11 @@ public partial class GoalsView : UserControl
     private async void OnConfirmRequested(object? sender, GoalConfirmRequest request)
     {
         await GoalConfirmDialog.ShowAsync(this, request);
+    }
+
+    private void OnTasksCardRequested(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(DetailPane.ShowTasksCard, DispatcherPriority.Background);
     }
 
     private void OnBringIntoViewRequested(object? sender, Guid id)

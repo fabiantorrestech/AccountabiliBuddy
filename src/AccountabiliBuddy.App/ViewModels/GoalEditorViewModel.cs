@@ -115,7 +115,7 @@ public sealed partial class GoalEditorViewModel : ObservableObject
         0 => "Yes or no each day (or N times a week): ticked by hand, or ticking itself once focus time reaches a threshold.",
         1 => "A value over time: steps, a count, a weight. A day's value is your own edit, else its first reading.",
         2 => "Minutes: focus on a label or #tag, calendar time, time added by hand. Never counts for a guard.",
-        _ => "A milestone you mark done by hand; its own task list is coming soon.",
+        _ => "A milestone you tick off by hand, or by finishing the tasks you link to it (Milestone tasks).",
     };
 
     [ObservableProperty]
@@ -778,6 +778,7 @@ public sealed partial class GoalEditorViewModel : ObservableObject
             }
 
             Target.SetKind(kind);
+            Sources.SetKind(kind);
         }
 
         OnPropertyChanged(nameof(KindHint));

@@ -14,7 +14,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// the day's first reading.</item>
 /// <item><b>Habits</b>: the latest hand entry decides (a tick, or an explicit untick that wins over the threshold); without one
 /// the day ticks itself once its time sources reach the smallest <see cref="GoalSourceRule.ThresholdMinutes"/>.</item>
-/// <item><b>Milestones</b>: the day's hand entries added up (their task lists are "Coming soon").</item>
+/// <item><b>Milestones</b>: the day's hand entries added up, plus (GS5, with a switched-on "milestone tasks" source) one for each task that
+/// carries the goal and was finished that day.</item>
 /// <item>A paused day is neither hit nor missed; a day before the goal existed or after today asks for nothing.</item>
 /// <item>Hand time counts toward goals, never toward a guard: guards, the goal unlock and <c>focusDay</c> never read these values,
 /// so back-filling a past day updates its week and streak and never changes a guard decision already made.</item>
@@ -253,6 +254,7 @@ public static class GoalCounting
         private readonly bool _countsCalendarValues;
         private readonly List<LocalWindow> _focusWindows;
         private readonly List<LocalWindow> _calendarWindows;
+        private readonly Dictionary<DateOnly, int> _milestoneTasksDone;
 
         public Context(Goal goal, GoalSourceData data)
         {
@@ -262,7 +264,7 @@ public static class GoalCounting
             _sources = GoalSources.CountedFor(goal);
             _timeRules = _sources
                 .Where(rule => rule.Automatic && rule.CountsTime)
-                .Select(rule => (rule, WindowsOf(rule, data)))
+                .Select(rule => (rule, WindowsOf(rule, data, data.TaskIdsOf(goal.Id))))
                 .ToList();
             _readable = ReadableSources(goal);
             _entriesByDay = EntriesOf(goal, data)
@@ -277,6 +279,21 @@ public static class GoalCounting
             _countsCalendarValues = !goal.IsDeepWork && _sources.Any(rule => rule.Automatic && rule.Type == GoalSourceType.CalendarCategory);
             _focusWindows = _timeRules.Where(item => item.Rule.Type != GoalSourceType.CalendarCategory).SelectMany(item => item.Windows).ToList();
             _calendarWindows = _timeRules.Where(item => item.Rule.Type == GoalSourceType.CalendarCategory).SelectMany(item => item.Windows).ToList();
+            _milestoneTasksDone = MilestoneTasksDoneByDay(goal, data, _sources);
+        }
+
+        // GS5: a milestone with a switched-on "milestone tasks" source counts each finished task that carries it as one, on the day it was finished.
+        private static Dictionary<DateOnly, int> MilestoneTasksDoneByDay(Goal goal, GoalSourceData data, IReadOnlyList<GoalSourceRule> sources)
+        {
+            if (goal.IsDeepWork || goal.Kind != GoalKind.Milestone || !sources.Any(rule => rule.Automatic && rule.Type == GoalSourceType.MilestoneTasks))
+            {
+                return [];
+            }
+
+            return (data.TaskLinks ?? [])
+                .Where(link => link.GoalId == goal.Id && link.DoneAt is not null)
+                .GroupBy(link => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(link.DoneAt!.Value, data.Zone).DateTime))
+                .ToDictionary(group => group.Key, group => group.Count());
         }
 
         // The other PCs' derived #tag and calendar minutes for the day (Time goals and habits): the #tag extras added up, the calendar
@@ -414,8 +431,14 @@ public static class GoalCounting
 
                 default:
                 {
-                    value = hand.Sum(entry => entry.Value);
-                    valueWithoutHand = 0;
+                    int tasksDone = _milestoneTasksDone.GetValueOrDefault(day);
+                    if (tasksDone > 0 && !sources.Contains(GoalSourceType.MilestoneTasks))
+                    {
+                        sources.Add(GoalSourceType.MilestoneTasks);
+                    }
+
+                    value = hand.Sum(entry => entry.Value) + tasksDone;
+                    valueWithoutHand = tasksDone;
                     byHand = hand.Count > 0;
                     hasValue = value > 0;
                     break;
@@ -527,14 +550,14 @@ public static class GoalCounting
             return new GoalDayState(day, value, minutes, hasValue, hit, status, gap, sources, byHand, backFilled);
         }
 
-        private static IReadOnlyList<LocalWindow> WindowsOf(GoalSourceRule rule, GoalSourceData data)
+        private static IReadOnlyList<LocalWindow> WindowsOf(GoalSourceRule rule, GoalSourceData data, IReadOnlySet<Guid> goalTaskIds)
         {
             if (rule.Type == GoalSourceType.CalendarCategory)
             {
                 return GoalDerivedMinutes.CalendarWindows(rule, data);
             }
 
-            return GoalFocusAttribution.FocusWindows(data.Focus, [rule], data.TagsAvailable);
+            return GoalFocusAttribution.FocusWindows(data.Focus, [rule], data.TagsAvailable, goalTaskIds);
         }
     }
 

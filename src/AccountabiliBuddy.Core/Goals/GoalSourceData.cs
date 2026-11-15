@@ -27,6 +27,10 @@ namespace AccountabiliBuddy.Core.Goals;
 /// This device's id (ADR 79): its own #tag and calendar extras are left out (it counts its own sessions and calendar itself); null where it
 /// isn't known (then every device's extras count).
 /// </param>
+/// <param name="TaskLinks">
+/// The tasks that carry a goal (GS5, <see cref="GoalTaskLinks.From"/>): what the sources "a task carries this goal" (the focus of a session
+/// whose checklist holds one of them) and "milestone tasks" (each finished one adds one to its day) count from; null = none.
+/// </param>
 public sealed record GoalSourceData(
     IReadOnlyList<GoalFocusSession> Focus,
     IReadOnlyList<GoalEntry> Entries,
@@ -34,4 +38,12 @@ public sealed record GoalSourceData(
     IReadOnlyDictionary<Guid, IReadOnlyList<LocalWindow>>? CalendarWindows = null,
     bool TagsAvailable = true,
     SyncSteps? Steps = null,
-    Guid? DeviceId = null);
+    Guid? DeviceId = null,
+    IReadOnlyList<GoalTaskLink>? TaskLinks = null)
+{
+    /// <summary>The ids of the tasks that carry <paramref name="goalId"/> (open or finished); empty for none.</summary>
+    public IReadOnlySet<Guid> TaskIdsOf(Guid goalId)
+    {
+        return (TaskLinks ?? []).Where(link => link.GoalId == goalId).Select(link => link.TaskId).ToHashSet();
+    }
+}

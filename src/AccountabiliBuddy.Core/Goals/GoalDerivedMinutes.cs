@@ -21,7 +21,7 @@ public static class GoalDerivedMinutes
     /// The #tag extra of <paramref name="goal"/> on <paramref name="day"/> from this PC's own sessions (<see cref="GoalFocusAttribution.FromRecords"/>):
     /// their focus counted with #tags minus the same sessions counted without. 0 when the goal has no switched-on #tag rule, and for Deep work.
     /// </summary>
-    public static double FocusLocalExtra(Goal goal, IReadOnlyList<GoalFocusSession> ownSessions, DateOnly day)
+    public static double FocusLocalExtra(Goal goal, IReadOnlyList<GoalFocusSession> ownSessions, DateOnly day, IReadOnlySet<Guid>? goalTaskIds = null)
     {
         IReadOnlyList<GoalSourceRule> rules = GoalSources.CountedFor(goal);
         if (goal.IsDeepWork || !rules.Any(rule => rule.Automatic && rule.Type == GoalSourceType.FocusTag))
@@ -30,8 +30,8 @@ public static class GoalDerivedMinutes
         }
 
         LocalWindow dayWindow = DayWindow(day);
-        double local = GoalCounting.WholeMinutes(Clip(GoalFocusAttribution.FocusWindows(ownSessions, rules, true), dayWindow));
-        double shape = GoalCounting.WholeMinutes(Clip(GoalFocusAttribution.FocusWindows(ownSessions, rules, false), dayWindow));
+        double local = GoalCounting.WholeMinutes(Clip(GoalFocusAttribution.FocusWindows(ownSessions, rules, true, goalTaskIds), dayWindow));
+        double shape = GoalCounting.WholeMinutes(Clip(GoalFocusAttribution.FocusWindows(ownSessions, rules, false, goalTaskIds), dayWindow));
         return Math.Max(0, local - shape);
     }
 
@@ -58,7 +58,7 @@ public static class GoalDerivedMinutes
             return 0;
         }
 
-        IReadOnlyList<LocalWindow> focus = GoalFocusAttribution.FocusWindows(data.Focus, rules.Where(rule => rule.Automatic).ToList(), data.TagsAvailable);
+        IReadOnlyList<LocalWindow> focus = GoalFocusAttribution.FocusWindows(data.Focus, rules.Where(rule => rule.Automatic).ToList(), data.TagsAvailable, data.TaskIdsOf(goal.Id));
         return Extra(Clip(focus, dayWindow), Clip(calendar, dayWindow));
     }
 

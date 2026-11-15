@@ -1524,6 +1524,9 @@ public partial class App : Application
         // goal counts the highest of them and a synced Health Connect value, never both).
         goalData.DeviceId = selfId;
         goalData.Steps = () => dailySteps.Current;
+        // GS5 (ADR 76 amended): the tasks that carry a goal, read off the task list; goals recount only when a link, a title or a finish changed.
+        goalData.TaskLinks = () => taskStore.IsActive ? AccountabiliBuddy.Core.Goals.GoalTaskLinks.From(taskStore.Lists) : null;
+        taskStore.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.TaskLinksMaybeChanged);
         // ST2: this PC's own screen time for goals, counted from its activity history (names stay here; only whole minutes per day travel, as derived
         // entries). Deleted History time counts nowhere and is read again after a change; a rename only changes how names match.
         var goalScreenTime = new AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSource(
@@ -1951,6 +1954,10 @@ public partial class App : Application
                 // ADR 72: "Keep on…" offers this PC and the group's other PCs and phones (never the watch).
                 SelfId = selfId,
                 SetLocal = _taskListSync!.SetLocalAsync,
+                // GS5: "Link to goal" lists the live goals (never Deep work, which counts all focus).
+                LinkableGoals = () => goalStore.IsReady
+                    ? goalStore.Lists.LiveGoals.Where(goal => !goal.IsDeepWork).Select(goal => (goal.Id, goal.Name, AccountabiliBuddy.App.ViewModels.GoalIcons.Of(goal.Icon))).ToList()
+                    : [],
                 KeepOnDevices = () => receivedDevices.Active
                     .Where(device => device.File.Device.Kind is AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPc or AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone)
                     .Where(device => device.File.Device.DeviceId != syncIdentity.DeviceId)

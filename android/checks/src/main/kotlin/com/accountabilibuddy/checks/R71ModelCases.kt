@@ -112,7 +112,11 @@ object R71ModelCases {
 
         val task = TaskJson.readTask(case.input.getValue("task"))
         val expected = case.expected as JsonObject
-        if (expected.size != TaskField.entries.size) return "the PC has ${expected.size} fields, the phone ${TaskField.entries.size}"
+        // GS5a: the PC's canonical texts also have `Goal` (the task's goal link); the phone does not know that field until GS5b.
+        val unknownToPhone = expected.keys.filter { name -> TaskField.entries.none { it.wire.equals(name, ignoreCase = true) } }
+        if (unknownToPhone.any { !it.equals("Goal", ignoreCase = true) } || expected.size - unknownToPhone.size != TaskField.entries.size) {
+            return "the PC has ${expected.size} fields, the phone ${TaskField.entries.size}"
+        }
         for (field in TaskField.entries) {
             val name = expected.keys.firstOrNull { it.equals(field.wire, ignoreCase = true) } ?: return "the PC has no field ${field.wire}"
             GoalCaseRunner.sameText(expected.getValue(name).jsonPrimitive.content, TaskFieldValues.canonical(task, field))?.let { return "${field.wire}: $it" }
