@@ -178,15 +178,15 @@ public sealed class GoalReviewService : IDisposable
     }
 
     /// <summary>
-    /// The This week card's Snooze: AccountabiliBuddy mode for Settings › Goals' 1 or 2 days (then it asks again); ProductaBuddy mode until
-    /// next week's review (it stays snoozed). Answers made so far stay.
+    /// The This week card's Snooze: AccountabiliBuddy mode until 9:00 AM 1 or 2 days later (Settings › Goals; then it asks again);
+    /// ProductaBuddy mode until 9:00 AM on next week's review day (it stays snoozed). See <see cref="GoalReviewSnooze"/>. Answers made so far stay.
     /// </summary>
     public async Task<GoalChangeResult> SnoozeAsync()
     {
         DateTimeOffset now = Now;
         DateTimeOffset due = DueAt(now);
         DateOnly week = WeekOf(due);
-        DateTimeOffset until = IsProductaBuddy ? due.AddDays(7) : now.AddDays(Settings.ReviewSettings.SnoozeDays);
+        DateTimeOffset until = GoalReviewSnooze.Until(IsProductaBuddy, due, now, Settings.ReviewSettings.SnoozeDays, Zone);
         GoalReviewRecord record = RecordFor(week) ?? NewRecord(week);
         GoalChangeResult result = await _goals.SaveReviewAsync(record with { SnoozedUntil = until });
         NotifyChanged();
