@@ -242,6 +242,9 @@ class CompanionApp : Application() {
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
 
+    /** "How your phone locks" (ADR 73): LockMyPhone-Extended or the built-in essentials screen. */
+    val lockScreen by lazy { com.accountabilibuddy.companion.essentials.LockScreenChoice(this) }
+
     /** The essential apps (allowed, the essentials screen), folders, and the LockMyPhone-Extended hardcore profile. */
     val essentials by lazy { com.accountabilibuddy.companion.essentials.EssentialsStore(this) }
     /** The night's essentials (Settings → Sleep): from bedtime until the wake time. */
@@ -672,6 +675,8 @@ class CompanionApp : Application() {
                     launch { runCatching { Refresher.refresh(this@CompanionApp) } }
                 }
                 runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(this@CompanionApp, com.accountabilibuddy.companion.guidance.TrustedTime.now()) }
+                // A PC session's end or break may have moved: the hold follows (ADR 73).
+                runCatching { com.accountabilibuddy.companion.essentials.SessionLock.reconcile(this@CompanionApp) }
                 actions.prune(devices)
                 pcRemote.expire()
                 pcNoise.expire()

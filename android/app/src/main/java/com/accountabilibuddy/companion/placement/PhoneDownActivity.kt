@@ -50,7 +50,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.CompanionApp
-import com.accountabilibuddy.companion.essentials.EssentialsActivity
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.nudge.EmergencyChooser
 import com.accountabilibuddy.companion.ui.CompanionTheme
@@ -103,6 +102,7 @@ class PhoneDownActivity : ComponentActivity() {
                         app, intent.getBooleanExtra(EXTRA_POCKET, false), shown,
                         onPutAway = { putAway() },
                         onEssentials = { toEssentials() },
+                        onFree = { toFree() },
                     )
                 }
             }
@@ -167,10 +167,18 @@ class PhoneDownActivity : ComponentActivity() {
         }
     }
 
-    // Essentials / quick reply: the essentials screen takes over; the unlock was logged as a pickup when this screen came up.
+    // Essentials / quick reply: the essentials screen takes over, or LockMyPhone-Extended locks when it is the lock (ADR 73);
+    // the unlock was logged as a pickup when this screen came up.
     private fun toEssentials() {
         done = true
-        startActivity(EssentialsActivity.intent(this))
+        com.accountabilibuddy.companion.essentials.EssentialsLaunch.essentialsIntentOrLock(this)?.let(::startActivity)
+        finish()
+    }
+
+    // Emergency or "Need it for work" started: the phone is free for its minutes (ADR 73), no screen.
+    private fun toFree() {
+        done = true
+        com.accountabilibuddy.companion.essentials.SessionLock.reconcile(this)
         finish()
     }
 
@@ -189,7 +197,7 @@ class PhoneDownActivity : ComponentActivity() {
 private enum class Mode { Main, Work, Emergency }
 
 @Composable
-private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, shown: Boolean, onPutAway: () -> Unit, onEssentials: () -> Unit) {
+private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, shown: Boolean, onPutAway: () -> Unit, onEssentials: () -> Unit, onFree: () -> Unit) {
     // Back does nothing here: the ways out are the options (and the session ending).
     BackHandler {}
     var mode by remember { mutableStateOf(Mode.Main) }
@@ -232,14 +240,14 @@ private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, shown: Boolean, 
                 }
 
                 mode == Mode.Work -> com.accountabilibuddy.companion.placement.WorkUseChooser(
-                    app, onStarted = onEssentials, onBack = { mode = Mode.Main },
+                    app, onStarted = onFree, onBack = { mode = Mode.Main },
                 )
 
                 mode == Mode.Emergency -> EmergencyChooser(
                     app.emergency,
                     onStarted = {
                         app.refreshSoon()
-                        onEssentials()
+                        onFree()
                     },
                     onBack = { mode = Mode.Main },
                 )
@@ -255,7 +263,7 @@ private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, shown: Boolean, 
                     }
                     OutlinedButton(onClick = onEssentials, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Outlined.Call, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Text("  Essentials / quick reply")
+                        Text("  " + com.accountabilibuddy.companion.essentials.EssentialsLaunch.essentialsButtonLabel(app) + " / quick reply")
                     }
                     OutlinedButton(onClick = { mode = Mode.Emergency }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Outlined.Warning, contentDescription = null, modifier = Modifier.size(20.dp))

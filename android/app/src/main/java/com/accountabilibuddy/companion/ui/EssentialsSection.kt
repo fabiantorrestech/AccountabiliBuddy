@@ -52,6 +52,7 @@ import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.essentials.EssentialsStore
 import com.accountabilibuddy.companion.essentials.LaunchableApp
 import com.accountabilibuddy.companion.essentials.LockMyPhoneProfiles
+import com.accountabilibuddy.companion.essentials.LooserChangeRules
 import com.accountabilibuddy.companion.essentials.LunchLockLift
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbCheckRow
@@ -62,6 +63,7 @@ import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.kit.AbTextField
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import com.accountabilibuddy.companion.ui.theme.Ab
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -93,22 +95,47 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
     var search by remember { mutableStateOf("") }
     var onUnlock by remember { mutableStateOf(store.onUnlockInSession) }
     var icons by remember { mutableStateOf(store.showIcons) }
-    var hardcore by remember { mutableStateOf(store.hardcoreProfile.orEmpty()) }
+    var hardcore by remember { mutableStateOf(store.hardcoreProfile) }
+    // Looser changes wait (10 minutes, trusted time) or are refused in a session; what is waiting or refused is said under the setting.
+    var onUnlockNote by remember { mutableStateOf(store.pendingOffAt()?.let { LooserChangeRules.waitingText("Turns off", it) }) }
+    var profileNote by remember { mutableStateOf(store.pendingProfile()?.let { (name, at) -> LooserChangeRules.waitingText("Switches to \"$name\"", at) }) }
+    var nightInPb by remember { mutableStateOf(store.nightInProductaBuddy) }
+    var nightInPbNote by remember { mutableStateOf(store.pendingNightInPbOffAt()?.let { LooserChangeRules.waitingText("Turns off", it) }) }
     var useLmp by remember { mutableStateOf(store.useLockMyPhone) }
     var newFolder by remember { mutableStateOf("") }
     var opened by remember { mutableStateOf<String?>(null) }
     val reader = remember { PhoneUsageReader(context) }
     val lockCard = remember { BringIntoViewRequester() }
     LaunchedEffect(scrollToLock) { if (scrollToLock) lockCard.bringIntoView() }
+    // While this page is open, a waiting change that comes due shows its new state (the switches follow the store, not a stale copy).
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5_000)
+            onUnlock = store.onUnlockInSession
+            hardcore = store.hardcoreProfile
+            nightInPb = store.nightInProductaBuddy
+            if (store.pendingOffAt() == null && onUnlockNote?.startsWith("Turns off") == true) onUnlockNote = null
+            if (store.pendingProfile() == null && profileNote?.startsWith("Switches to") == true) profileNote = null
+            if (store.pendingNightInPbOffAt() == null && nightInPbNote?.startsWith("Turns off") == true) nightInPbNote = null
+        }
+    }
 
     val summary = if (night) {
         listOfNotNull(
             "${essentials.apps.size} apps",
             if (onUnlock) "on unlock at night" else "screen off",
-            "lock for the night".takeIf { useLmp && hardcore.isNotBlank() },
+            "LockMyPhone-Extended at night".takeIf { useLmp && onUnlock },
         ).joinToString(" · ")
     } else {
-        "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone && store.hardcoreProfile != null) " · hardcore on" else ""}"
+        "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone) " · LockMyPhone-Extended" else ""}"
+    }
+
+    fun pickProfile(name: String) {
+        when (store.requestHardcoreProfile(name)) {
+            LooserChangeRules.Decision.Applied -> { hardcore = store.hardcoreProfile; profileNote = null }
+            LooserChangeRules.Decision.Waits -> profileNote = store.pendingProfile()?.let { (n, at) -> LooserChangeRules.waitingText("Switches to \"$n\"", at) }
+            LooserChangeRules.Decision.Refused -> profileNote = LooserChangeRules.REFUSED_TEXT
+        }
     }
 
     val cards: @Composable (Boolean) -> Unit = { framed ->
@@ -119,6 +146,10 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
         )
         if (night && !app.store.state.collectAsState().value.sleep.enabled) {
             Note("Sleep mode is off: the night needs a bedtime and a wake time (Sleep times).", color = Ab.colors.drift)
+        }
+        // ADR 73: the one choice every essentials place follows.
+        if (!night) {
+            if (framed) AbCard(verticalSpacing = 8.dp) { LockChoiceCard() } else LockChoiceCard()
         }
         if (!night && !reader.hasAccess()) {
             Note("Grant Usage access so Essentials knows when you leave an essential app.", color = Ab.colors.waiting)
@@ -148,13 +179,22 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
         // The screen: when it comes up, whether it shows icons, and a way to try and arrange it.
         EssentialsGroup(if (night) "The bedtime essentials screen" else "The essentials screen", framed) {
             ToggleRow(
-                if (night) "On unlocking at night" else "On unlocking during a session",
-                if (night) "From bedtime until your wake time, unlocking the phone lands on the bedtime essentials screen (a session on another device shows its own)"
-                else "On another device, unlocking the phone lands on the essentials screen",
+                if (night) "At night" else "During focus sessions",
+                when {
+                    night && useLmp -> "From bedtime until your wake time, LockMyPhone-Extended locks the phone (a session on another device has its own lock)"
+                    night -> "From bedtime until your wake time, unlocking the phone lands on the bedtime essentials screen (a session on another device shows its own)"
+                    useLmp -> "During a session on another device, LockMyPhone-Extended holds the phone locked with these essentials"
+                    else -> "During a session on another device, unlocking the phone lands on the essentials screen"
+                },
                 onUnlock,
             ) {
-                store.onUnlockInSession = it; onUnlock = it
+                when (store.requestOnUnlockInSession(it)) {
+                    LooserChangeRules.Decision.Applied -> { onUnlock = it; onUnlockNote = null }
+                    LooserChangeRules.Decision.Waits -> onUnlockNote = store.pendingOffAt()?.let { at -> LooserChangeRules.waitingText("Turns off", at) }
+                    LooserChangeRules.Decision.Refused -> onUnlockNote = LooserChangeRules.REFUSED_TEXT
+                }
             }
+            onUnlockNote?.let { Note(it) }
             ToggleRow("App icons", "Icons next to the names on the essentials screen", icons) { store.showIcons = it; icons = it }
             if (night) {
                 GuardTextButton("Replace with a copy of my focus essentials", onClick = { store.update { app.essentials.essentials.value } })
@@ -203,41 +243,48 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
             }
         }
 
-        // Hardcore: LockMyPhone-Extended really locks the phone for the session (or the night).
-        EssentialsGroup(if (night) "Lock for the night (LockMyPhone-Extended)" else "Hardcore (LockMyPhone-Extended)", framed, Modifier.bringIntoViewRequester(lockCard)) {
-            if (night) {
-                if (!useLmp) {
-                    Note("LockMyPhone-Extended is off (Settings › Guards › Phone guard › Essentials › Use LockMyPhone-Extended).")
-                }
-            } else {
-                ToggleRow(
-                    "Use LockMyPhone-Extended",
-                    "Off: ${com.accountabilibuddy.companion.guidance.appBrandName()} never starts its profiles or keeps its \"$syncedName\" profiles in step",
-                    useLmp,
-                ) {
-                    store.useLockMyPhone = it; useLmp = it
-                    // The night's synced profile follows the same switch.
-                    app.bedtimeEssentials.resync()
-                }
+        // LockMyPhone-Extended's lock for this list (ADR 73): the profile, what it does, lunch, ProductaBuddy's night.
+        EssentialsGroup(if (night) "The night's LockMyPhone-Extended lock" else "LockMyPhone-Extended lock", framed, Modifier.bringIntoViewRequester(lockCard)) {
+            if (!useLmp) {
+                Note("The built-in screen is how your phone locks (Guards › Phone guard › Essentials), so LockMyPhone-Extended isn't used.")
             }
             LockMyPhoneProfilePicker(
-                selected = hardcore.ifBlank { null },
+                selected = hardcore,
                 enabled = useLmp,
-                noneLabel = if (night) "none (no lock at night)" else "none (no lock for sessions)",
-                onPick = { name -> hardcore = name.orEmpty(); store.hardcoreProfile = name },
+                noneLabel = "\"$syncedName\" (this app's own)",
+                onPick = { name -> (name ?: syncedName).let { pickProfile(it) } },
             )
+            profileNote?.let { Note(it) }
             Note(
                 when {
                     !EssentialsLaunch.lockMyPhoneInstalled(context) -> "LockMyPhone-Extended isn't installed on this phone."
-                    night && !canSync -> "At bedtime LockMyPhone-Extended starts that profile until your wake time; it decides what's allowed. Update LockMyPhone-Extended to 0.13.0 to get an \"$syncedName\" profile kept in step with this list."
-                    night -> "At bedtime LockMyPhone-Extended starts that profile until your wake time (or at your first unlock after it); it decides what's allowed. Its \"$syncedName\" profile always allows exactly these bedtime essentials."
-                    else -> "When a session starts on another device, LockMyPhone-Extended starts that profile for the session's length; it decides what's allowed. Its \"$syncedName\" profile always allows exactly these essentials."
+                    night && !canSync -> "From bedtime until your wake time LockMyPhone-Extended locks with that profile. Update LockMyPhone-Extended to 0.13.0 to get an \"$syncedName\" profile kept in step with this list."
+                    night -> "From bedtime until your wake time (or your first unlock after bedtime) LockMyPhone-Extended locks with that profile. \"$syncedName\" always allows exactly these bedtime essentials, with this screen's Phone corner and icons."
+                    else -> "During a session's focus time LockMyPhone-Extended holds the phone locked with that profile: no early unlock while it runs, and this app always allowed. Breaks, lunch (below), emergency phone time and Need it for work leave the phone free. \"$syncedName\" always allows exactly these essentials, with this screen's Phone corner, icons and parts."
                 },
             )
             if (useLmp && canSync && EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != syncedName) {
-                GuardTextButton("Use \"$syncedName\" (kept in sync with these essentials)", onClick = { hardcore = syncedName; store.hardcoreProfile = syncedName })
+                GuardTextButton("Use \"$syncedName\" (kept in sync with these essentials)", onClick = { pickProfile(syncedName) })
             }
-            if (!night) LunchLiftSetting(enabled = useLmp && hardcore.isNotBlank())
+            if (!night) {
+                com.accountabilibuddy.companion.essentials.SessionLock.lastReply(context)?.let { (event, lock) ->
+                    if (event == "held_by_other" && lock != null) Note("Your own \"$lock\" lock runs now, with the session's rules (no early unlock).")
+                    if (event == "refused") Note("LockMyPhone-Extended refused the session's lock (check the profile and its device admin); the built-in screen stands in.", color = Ab.colors.drift)
+                }
+                LunchLiftSetting(enabled = useLmp)
+            } else {
+                ToggleRow("In ProductaBuddy too", "Off by default: ProductaBuddy keeps no night unless you turn this on (the night's reminders stay off there)", nightInPb) {
+                    when (store.requestNightInProductaBuddy(it)) {
+                        LooserChangeRules.Decision.Applied -> { nightInPb = it; nightInPbNote = null }
+                        LooserChangeRules.Decision.Waits -> nightInPbNote = store.pendingNightInPbOffAt()?.let { at -> LooserChangeRules.waitingText("Turns off", at) }
+                        LooserChangeRules.Decision.Refused -> nightInPbNote = LooserChangeRules.REFUSED_TEXT
+                    }
+                }
+                nightInPbNote?.let { Note(it) }
+            }
+        }
+        if (night) {
+            if (framed) AbCard(verticalSpacing = 8.dp) { MorningLockCard() } else MorningLockCard()
         }
     }
 
@@ -435,6 +482,14 @@ private fun LockMyPhoneProfilePicker(selected: String?, enabled: Boolean, noneLa
 private fun LunchLiftSetting(enabled: Boolean) {
     val context = LocalContext.current
     var on by remember { mutableStateOf(LunchLockLift.enabled(context)) }
+    var waitNote by remember { mutableStateOf(LunchLockLift.pendingOnAt(context)?.let { LooserChangeRules.waitingText("Turns on", it) }) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5_000)
+            on = LunchLockLift.enabled(context)
+            if (LunchLockLift.pendingOnAt(context) == null && waitNote?.startsWith("Turns on") == true) waitNote = null
+        }
+    }
     var hasToken by remember { mutableStateOf(LunchLockLift.hasToken(context)) }
     var token by remember { mutableStateOf("") }
     var note by remember { mutableStateOf(LunchLockLift.note(context)) }
@@ -442,7 +497,14 @@ private fun LunchLiftSetting(enabled: Boolean) {
         "Lift the lock for lunch",
         "When lunch starts (on any device) the session's LockMyPhone-Extended lock is stopped; it comes back when lunch ends. Only a lock started for the session, never one you started there or the night's.",
         on,
-    ) { LunchLockLift.setEnabled(context, it); on = it }
+    ) {
+        when (LunchLockLift.requestEnabled(context, it)) {
+            LooserChangeRules.Decision.Applied -> { on = it; waitNote = null }
+            LooserChangeRules.Decision.Waits -> waitNote = LunchLockLift.pendingOnAt(context)?.let { at -> LooserChangeRules.waitingText("Turns on", at) }
+            LooserChangeRules.Decision.Refused -> waitNote = LooserChangeRules.REFUSED_TEXT
+        }
+    }
+    waitNote?.let { Note(it) }
     if (on) {
         AbTextField(
             token, { token = it }, label = if (hasToken) "Token saved (paste to replace)" else "Intent API token",

@@ -205,6 +205,8 @@ private val checks: List<FixtureCheck> = listOf(
  * fixture checks. Round 2 R6a: the phone goals store's rules.
  */
 private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
+    // lmp-lock (ADR 73-75): the hold, looser-change wait, capability memory, redirect and signing rules of the phone lock.
+    "lmp-lock" to ::lmpLockSelfCheck,
     "goals-store" to GoalListRulesCheck::run,
     // Round 2 R6b1: the readings list, the trend and the goal menu order (phone only: no C# twin).
     "goals-ui-page" to GoalsUiPageCheck::run,

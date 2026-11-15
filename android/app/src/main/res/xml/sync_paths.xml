@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What FileProvider may hand out: only what SyncShare writes into cache/sync/ for the share sheet: the sealed sync files (ADR 22) and the
-     diagnostics report (SYNC1c, counts only, no names or text). Nothing else of the app's cache is reachable. -->
+<!-- What FileProvider may hand out: only what the app writes into its cache for the share sheet and the installer: the sealed sync files (ADR 22) and
+     the diagnostics report (SYNC1c, counts only, no names or text) in cache/sync/, and the downloaded LockMyPhone-Extended installer in
+     cache/lockmyphone/ for Android's package installer (ADR 74). Nothing else of the app's cache is reachable. -->
 <paths>
     <cache-path name="sync" path="sync/" />
+    <cache-path name="lockmyphone" path="lockmyphone/" />
 </paths>

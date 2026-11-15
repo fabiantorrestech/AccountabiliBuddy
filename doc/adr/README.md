@@ -19,6 +19,9 @@
 | [0078](0078-export-task-reminders-to-the-apps-own-google-calendar.md) | Export task reminders to the app's own Google calendar | Accepted | — |
 | [0077](0077-step-away-keeps-the-timer-running-with-blocking-on.md) | Step away keeps the timer running with blocking on | Accepted | — |
 | [0076](0076-one-task-list-with-bins-labels-and-tags.md) | One task list with bins, labels and tags | Accepted | — |
+| [0075](0075-let-productabuddy-keep-an-optional-night.md) | Let ProductaBuddy keep an optional night | Accepted | — |
+| [0074](0074-download-lockmyphone-extended-from-the-app.md) | Download LockMyPhone-Extended from the app | Accepted | — |
+| [0073](0073-use-lockmyphone-extended-as-the-phones-lock-when-it-is-installed.md) | Use LockMyPhone-Extended as the phone's lock when it is installed | Accepted | — |
 | [0072](0072-sync-every-task-list-with-labels-and-local-items-kept-on-a-chosen-device.md) | Sync every task list, with labels, and keep local items on a chosen device | Accepted | — |
 | [0071](0071-back-up-settings-by-kind-and-let-a-device-stop-syncing-task-lists.md) | Back up settings by kind, and let a device stop syncing its task lists | Accepted | — |
 | [0070](0070-read-network-time-to-guard-waits.md) | Read network time to guard waits | Accepted | — |

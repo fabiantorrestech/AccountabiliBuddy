@@ -137,6 +137,10 @@ class MainActivity : ComponentActivity() {
         intent.getStringExtra(AppNav.EXTRA_OPEN)?.let { viewModel.openRequest.value = it }
         // The pinned notification's "End lunch" (ADR 88): shows the question; it only asks, nothing is changed by opening it.
         if (intent.getBooleanExtra(com.accountabilibuddy.companion.lunch.LunchStore.EXTRA_ASK_END, false)) viewModel.lunchAsk.value = true
+        // LockMyPhone-Extended's "Edit in Accountabilibuddy" (its ADR 0012): the essentials of the profile it was on.
+        if (intent.action == ACTION_EDIT_ESSENTIALS) {
+            viewModel.openRequest.value = if (intent.getStringExtra("slot") == "bedtime") "settings/sleep#bedtime-essentials" else "settings/guards#essentials"
+        }
         val data = intent.data
         when {
             data?.scheme == SCHEME && data.host == JoinLink.HOST ->
@@ -197,6 +201,7 @@ class MainActivity : ComponentActivity() {
     private companion object {
         /** The host of the PC's sync QR codes ([com.accountabilibuddy.shared.sync.SyncQr.LINK_START]). */
         const val SCHEME = "accountabilibuddy"
+        const val ACTION_EDIT_ESSENTIALS = "com.accountabilibuddy.companion.action.EDIT_ESSENTIALS"
         const val SYNC_HOST = "sync"
 
         /** A permission request answered this fast (ms) was not shown: Health Connect stopped asking after repeated declines. */

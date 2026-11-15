@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
-import com.accountabilibuddy.companion.essentials.EssentialsActivity
 import com.accountabilibuddy.companion.ui.CompanionTheme
 
 /** "Need it for work" from the parked notice or Today during a session: the work use chooser on its own. */
@@ -25,8 +24,8 @@ class WorkUseActivity : ComponentActivity() {
             CompanionTheme {
                 GuardFrame(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)).padding(28.dp), contentAlignment = Alignment.Center) {
                     WorkUseChooser(app, onStarted = {
-                        // As after "I need my phone for a bit": on to the essentials screen.
-                        startActivity(EssentialsActivity.intent(this@WorkUseActivity))
+                        // ADR 73: "Need it for work" leaves the phone free for its minutes (no screen; the session's lock lifts).
+                        com.accountabilibuddy.companion.essentials.SessionLock.reconcile(this@WorkUseActivity)
                         finish()
                     }, onBack = { finish() })
                 }

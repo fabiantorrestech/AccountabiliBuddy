@@ -36,10 +36,16 @@ object SetupFeatures {
     const val TASKS_REDESIGN = "tasks.redesign"
     const val TASK_RING_DEVICES = "tasks.ringDevices"
     const val SCREEN_TIME_GOALS = "goals.screenTime"
+    const val ESSENTIALS_LOCK = "essentials.lock"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            ESSENTIALS_LOCK, "0.1.79", "How your phone locks (LockMyPhone-Extended or the built-in screen), when it engages, starter apps and the morning lock",
+            relevant = { true },
+            setUp = { done(it, ESSENTIALS_LOCK) },
+        ),
         SetupFeature(
             TASKS_REDESIGN, "0.1.79", "Tasks: pages per bin, label and tag, labels, saved views and the view the page opens with",
             // Only once the one task list is in use; set up once seen in the assistant, or a default view was chosen for the account.

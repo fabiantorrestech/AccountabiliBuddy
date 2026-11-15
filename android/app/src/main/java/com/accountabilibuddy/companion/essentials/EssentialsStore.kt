@@ -1,6 +1,8 @@
 package com.accountabilibuddy.companion.essentials
 
 import android.content.Context
+import com.accountabilibuddy.companion.guidance.TrustedTime
+import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,8 +60,6 @@ data class Essentials(val apps: List<EssentialApp> = emptyList(), val folders: L
 class EssentialsStore(context: Context, val kind: EssentialsKind = EssentialsKind.Focus) {
     private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences(kind.prefs, Context.MODE_PRIVATE)
-    // The switches both lists share (using LockMyPhone-Extended at all) live with the focus list.
-    private val shared = context.getSharedPreferences(EssentialsKind.Focus.prefs, Context.MODE_PRIVATE)
     private val legacy = context.getSharedPreferences("emergency", Context.MODE_PRIVATE)
     private val _essentials = MutableStateFlow(read())
     val essentials: StateFlow<Essentials> = _essentials.asStateFlow()
@@ -70,43 +70,169 @@ class EssentialsStore(context: Context, val kind: EssentialsKind = EssentialsKin
     }
 
     /**
-     * Whether AccountabiliBuddy uses LockMyPhone-Extended at all (on by default, both lists): the profiles started for
-     * sessions and nights and the synced profiles kept in step with the essentials. Off = none of it.
+     * Whether LockMyPhone-Extended is the phone's lock right now (ADR 73): the global "How your phone locks" choice
+     * ([LockScreenChoice]) and installed. Then the profiles started for sessions and nights, and the synced profiles
+     * kept in step with the essentials; otherwise the built-in essentials screen.
      */
-    var useLockMyPhone: Boolean
-        get() = shared.getBoolean(KEY_USE_LMP, true)
-        set(value) {
-            shared.edit().putBoolean(KEY_USE_LMP, value).apply()
-            resync()
-        }
+    val useLockMyPhone: Boolean
+        get() = (appContext as com.accountabilibuddy.companion.CompanionApp).lockScreen.usesLockMyPhone()
 
     /** Sends this list to its LockMyPhone-Extended profile, when LockMyPhone-Extended is used. */
     fun resync() {
-        if (useLockMyPhone) ProfileSync.send(appContext, _essentials.value, kind)
+        if (useLockMyPhone) ProfileSync.send(appContext, _essentials.value, kind, phoneCorner, showIcons)
     }
 
     /**
-     * The essentials screen on unlocking: during a session on another device (focus, on by default), or during the
-     * night (bedtime, off by default).
+     * When this list engages ("When it engages", ADR 73): during a session on another device (focus, on by default), or
+     * during the night (bedtime, off by default). LockMyPhone-Extended's lock or the built-in screen, whichever is the
+     * choice. A night that had a LockMyPhone-Extended lock before ADR 73 starts engaged, so it keeps its lock.
      */
-    var onUnlockInSession: Boolean
-        get() = prefs.getBoolean(KEY_IN_SESSION, kind == EssentialsKind.Focus)
-        set(value) = prefs.edit().putBoolean(KEY_IN_SESSION, value).apply()
+    val onUnlockInSession: Boolean
+        get() {
+            settle(TrustedTime.now())
+            return storedInSession()
+        }
+
+    /**
+     * Turns [onUnlockInSession] on (at once) or off (a looser change: refused during a session, else it waits
+     * [LooserChangeRules.WAIT] on trusted time). The result says which.
+     */
+    @Synchronized
+    fun requestOnUnlockInSession(on: Boolean, now: Instant = TrustedTime.now()): LooserChangeRules.Decision {
+        settle(now)
+        if (on == storedInSession()) {
+            inSessionChange.cancel()
+            return LooserChangeRules.Decision.Applied
+        }
+        val decision = LooserChangeRules.request(loosening = !on, sessionRunning = sessionRunning(now))
+        when (decision) {
+            LooserChangeRules.Decision.Applied -> {
+                prefs.edit().putBoolean(KEY_IN_SESSION, on).apply()
+                inSessionChange.cancel()
+            }
+            LooserChangeRules.Decision.Waits -> inSessionChange.schedule(on.toString(), now)
+            LooserChangeRules.Decision.Refused -> Unit
+        }
+        return decision
+    }
+
+    /** When "off" is due, when turning [onUnlockInSession] off is waiting; else null. */
+    fun pendingOffAt(now: Instant = TrustedTime.now()): Instant? {
+        settle(now)
+        return inSessionChange.pending()?.takeIf { it.first == "false" }?.second
+    }
+
+    /** The night in ProductaBuddy (ADR 75): off by default; on, the night engages there too. Bedtime list only. */
+    val nightInProductaBuddy: Boolean
+        get() {
+            settle(TrustedTime.now())
+            return prefs.getBoolean(KEY_NIGHT_IN_PB, false)
+        }
+
+    /** Turns the night in ProductaBuddy on (at once) or off (a looser change: refused in a session, else it waits like the other lock settings). */
+    @Synchronized
+    fun requestNightInProductaBuddy(on: Boolean, now: Instant = TrustedTime.now()): LooserChangeRules.Decision {
+        settle(now)
+        if (on == prefs.getBoolean(KEY_NIGHT_IN_PB, false)) {
+            nightInPbChange.cancel()
+            return LooserChangeRules.Decision.Applied
+        }
+        val decision = LooserChangeRules.request(loosening = !on, sessionRunning = sessionRunning(now))
+        when (decision) {
+            LooserChangeRules.Decision.Applied -> { prefs.edit().putBoolean(KEY_NIGHT_IN_PB, on).apply(); nightInPbChange.cancel() }
+            LooserChangeRules.Decision.Waits -> nightInPbChange.schedule(on.toString(), now)
+            LooserChangeRules.Decision.Refused -> Unit
+        }
+        return decision
+    }
+
+    /** When "off" is due, when turning the night in ProductaBuddy off is waiting; else null. */
+    fun pendingNightInPbOffAt(now: Instant = TrustedTime.now()): Instant? {
+        settle(now)
+        return nightInPbChange.pending()?.takeIf { it.first == "false" }?.second
+    }
 
     /** Where the Phone shortcut sits on the essentials screen: "right" (bottom right, the default), "left" or "list". */
     var phoneCorner: String
         get() = prefs.getString(KEY_PHONE, "right") ?: "right"
-        set(value) = prefs.edit().putString(KEY_PHONE, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_PHONE, value).apply()
+            resync()
+        }
 
     /** Icons next to the names (on by default). */
     var showIcons: Boolean
         get() = prefs.getBoolean(KEY_ICONS, true)
-        set(value) = prefs.edit().putBoolean(KEY_ICONS, value).apply()
+        set(value) {
+            prefs.edit().putBoolean(KEY_ICONS, value).apply()
+            resync()
+        }
 
-    /** The LockMyPhone-Extended profile to start for each session on another device (or each night); null = off. */
-    var hardcoreProfile: String?
-        get() = prefs.getString(KEY_HARDCORE, null)?.takeIf { it.isNotBlank() }
-        set(value) = prefs.edit().putString(KEY_HARDCORE, value?.trim()).apply()
+    /**
+     * The LockMyPhone-Extended profile started for each session on another device (or each night). By default the
+     * profile this app keeps in step with the list ([EssentialsKind.lockMyPhoneName]), which it creates there when
+     * missing; the user may pick one of their own (ADR 73).
+     */
+    val hardcoreProfile: String
+        get() {
+            settle(TrustedTime.now())
+            return storedProfile()
+        }
+
+    /**
+     * Picks the profile. This app's own profile ([EssentialsKind.lockMyPhoneName]) is the strict one and applies at once;
+     * any other pick is a looser change: refused during a session, else it waits [LooserChangeRules.WAIT] on trusted time.
+     */
+    @Synchronized
+    fun requestHardcoreProfile(name: String, now: Instant = TrustedTime.now()): LooserChangeRules.Decision {
+        settle(now)
+        val next = name.trim()
+        if (next == storedProfile()) {
+            profileChange.cancel()
+            return LooserChangeRules.Decision.Applied
+        }
+        val decision = LooserChangeRules.request(
+            loosening = LooserChangeRules.profileLoosens(storedProfile(), next, kind.lockMyPhoneName),
+            sessionRunning = sessionRunning(now),
+        )
+        when (decision) {
+            LooserChangeRules.Decision.Applied -> {
+                prefs.edit().putString(KEY_HARDCORE, next).apply()
+                profileChange.cancel()
+            }
+            LooserChangeRules.Decision.Waits -> profileChange.schedule(next, now)
+            LooserChangeRules.Decision.Refused -> Unit
+        }
+        return decision
+    }
+
+    /** The profile waiting to be applied and when, or null. */
+    fun pendingProfile(now: Instant = TrustedTime.now()): Pair<String, Instant>? {
+        settle(now)
+        return profileChange.pending()
+    }
+
+    private val inSessionChange = DelayedSetting(prefs, KEY_IN_SESSION)
+    private val profileChange = DelayedSetting(prefs, KEY_HARDCORE)
+    private val nightInPbChange = DelayedSetting(prefs, KEY_NIGHT_IN_PB)
+
+    private fun storedInSession(): Boolean =
+        prefs.getBoolean(KEY_IN_SESSION, kind == EssentialsKind.Focus || prefs.getString(KEY_HARDCORE, null) != null)
+
+    private fun storedProfile(): String = prefs.getString(KEY_HARDCORE, null)?.takeIf { it.isNotBlank() } ?: kind.lockMyPhoneName
+
+    private fun sessionRunning(now: Instant): Boolean =
+        (appContext as com.accountabilibuddy.companion.CompanionApp).lockScreen.locked(now)
+
+    // Applies the changes that have waited out their time; a session that started cancels them.
+    @Synchronized
+    private fun settle(now: Instant) {
+        if (inSessionChange.pending() == null && profileChange.pending() == null && nightInPbChange.pending() == null) return
+        val running = sessionRunning(now)
+        inSessionChange.settle(running, now)?.let { prefs.edit().putBoolean(KEY_IN_SESSION, it.toBoolean()).apply() }
+        profileChange.settle(running, now)?.let { prefs.edit().putString(KEY_HARDCORE, it).apply() }
+        nightInPbChange.settle(running, now)?.let { prefs.edit().putBoolean(KEY_NIGHT_IN_PB, it.toBoolean()).apply() }
+    }
 
     fun isAllowed(packageName: String?, activity: String? = null): Boolean = _essentials.value.isAllowed(packageName, activity)
 
@@ -219,7 +345,7 @@ class EssentialsStore(context: Context, val kind: EssentialsKind = EssentialsKin
         private const val KEY_ICONS = "showIcons"
         private const val KEY_PHONE = "phoneCorner"
         private const val KEY_HARDCORE = "hardcoreProfile"
-        private const val KEY_USE_LMP = "useLockMyPhone"
+        private const val KEY_NIGHT_IN_PB = "nightInProductaBuddy"
 
         /** Google's phone, messages, maps, clock, calendar and authenticator; banking apps are added in Settings. */
         val DEFAULT_APPS = setOf(

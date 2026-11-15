@@ -45,8 +45,11 @@ object SettingsAnchors {
     /** ADR 68, 69: App mode (AccountabiliBuddy or ProductaBuddy), first on App & data, with the differences between the modes. */
     const val GUIDANCE = "guidance"
 
-    /** ADR 69: AccountabiliBuddy-only rows, hidden from every page while ProductaBuddy is in effect. */
-    val AB_ONLY: Set<String> by lazy { setOf(BEDTIME_REMINDERS, BEDTIME_ESSENTIALS, START_NUDGE, EMERGENCY) }
+    /**
+     * ADR 69: AccountabiliBuddy-only rows, hidden from every page while ProductaBuddy is in effect. Bedtime essentials
+     * stay: ProductaBuddy may keep the night as an opt-in (ADR 75).
+     */
+    val AB_ONLY: Set<String> by lazy { setOf(BEDTIME_REMINDERS, START_NUDGE, EMERGENCY) }
     const val PHONE_DOWN = "phone-down"
     const val ESSENTIALS = "essentials"
     const val PLACEMENT = "placement"

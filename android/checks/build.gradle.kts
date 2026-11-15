@@ -82,6 +82,12 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/stats/StatsDay.kt",
             "com/accountabilibuddy/companion/engine/DayTimeline.kt",
             "com/accountabilibuddy/companion/model/LocalWindow.kt",
+            // lmp-lock (ADR 73-75): the pure rules of the phone LockMyPhone-Extended lock (checked by LmpLockSelfCheck).
+            "com/accountabilibuddy/companion/essentials/LooserChangeRules.kt",
+            "com/accountabilibuddy/companion/essentials/HoldRules.kt",
+            "com/accountabilibuddy/companion/essentials/CapabilityMemory.kt",
+            "com/accountabilibuddy/companion/essentials/RedirectRules.kt",
+            "com/accountabilibuddy/companion/essentials/SigningCertificates.kt",
         )
     }
     into(layout.buildDirectory.dir("sharedSrc"))

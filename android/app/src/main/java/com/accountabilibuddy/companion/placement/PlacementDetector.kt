@@ -18,8 +18,6 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.accountabilibuddy.companion.CompanionApp
-import com.accountabilibuddy.companion.essentials.EssentialsActivity
-import com.accountabilibuddy.companion.essentials.EssentialsKind
 import com.accountabilibuddy.companion.nudge.Takeover
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import kotlinx.coroutines.CoroutineScope
@@ -310,8 +308,8 @@ class PlacementDetector(context: Context) {
             return true
         }
 
-        Log.i(TAG, "out for 3 minutes: opening the essentials screen")
-        Takeover.startFromBackground(context, EssentialsActivity.intent(context, EssentialsKind.Focus))
+        Log.i(TAG, "out for 3 minutes: the essentials screen (or LockMyPhone-Extended's lock)")
+        com.accountabilibuddy.companion.essentials.EssentialsLaunch.showEssentials(context)
         return true
     }
 

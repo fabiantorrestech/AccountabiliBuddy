@@ -154,7 +154,8 @@ class NudgeActivity : ComponentActivity() {
                     setReader = ::setTagReader,
                     finish = { FinishedWork.finish(app) },
                 ), onEssentials = {
-                    startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.intent(this))
+                    // ADR 73: LockMyPhone-Extended locks when it is the lock, else the built-in screen.
+                    com.accountabilibuddy.companion.essentials.EssentialsLaunch.essentialsIntentOrLock(this)?.let(::startActivity)
                 }, onDone = {
                     store.update { it.copy(unanswered = false) }
                     finish()
@@ -342,7 +343,7 @@ private fun NudgeCard(
                     Text("Not now", color = Color.White)
                 }
                 OutlinedButton(onClick = { onDone(); onEssentials() }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Essentials only", color = Color.White)
+                    Text(essentialsOnlyLabel(), color = Color.White)
                 }
                 TextButton(onClick = { menu = MENU_CHOOSE }, modifier = Modifier.fillMaxWidth()) {
                     Text("Not working today · need my phone", color = Color(0x99FFFFFF))
@@ -377,7 +378,7 @@ private fun NudgeCard(
             }
             // Just the essentials (calls, messages, maps…), without leaving work time behind.
             OutlinedButton(onClick = { onDone(); onEssentials() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Essentials only", color = Color.White)
+                Text(essentialsOnlyLabel(), color = Color.White)
             }
             TextButton(onClick = { menu = MENU_CHOOSE }, modifier = Modifier.fillMaxWidth()) {
                 Text("Not working today · need my phone", color = Color(0x99FFFFFF))
@@ -401,3 +402,10 @@ private class FinishingWork(
     val setReader: (((android.nfc.Tag) -> Unit)?) -> Unit,
     val finish: () -> Unit,
 )
+
+/** "Essentials only", or that LockMyPhone-Extended will lock when it is the lock (ADR 73). */
+@Composable
+private fun essentialsOnlyLabel(): String {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return if ((context.applicationContext as CompanionApp).lockScreen.usesLockMyPhone()) "Essentials only (LockMyPhone-Extended)" else "Essentials only"
+}
