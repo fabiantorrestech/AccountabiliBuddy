@@ -58,11 +58,12 @@ public static class SyncFileBuilder
                 bool added = counted.Record.Mode == SessionMode.Added;
                 string? profile = added ? null : profileName(counted.Record.ProfileId);
                 IReadOnlyList<SessionTask>? tasks = tasksOf?.Invoke(counted.Record.StartedAt);
-                // The running session goes whole, except for its planning stage and time with the PC off (not focus time): the devices
-                // count focus from when planning ended. Its other away stretches come out once it has ended.
-                IReadOnlyList<AwayStretch> cut = counted.Record.Away is not { Count: > 0 } away ? []
-                    : counted.Running ? away.Where(stretch => stretch.Kind is AwayKind.Planning or AwayKind.DeviceOff).ToList()
-                    : away;
+                // Every away stretch is cut out of the session's pieces, running or ended (pause, lunch, step away, the planning stage, time
+                // with the device off: never focus anywhere, ADR 77, owner "cut paused time", PS1a review B1). A stretch still going ends the
+                // piece before it where it began (its start is all the writer needs: Step away has no awaySince), and the open piece that
+                // follows starts when the file is written; it counts nothing until the user is back. The devices count focus from when
+                // planning ended.
+                IReadOnlyList<AwayStretch> cut = counted.Record.Away is not { Count: > 0 } away ? [] : away;
                 if (cut.Count == 0)
                 {
                     return [new SyncSession(counted.Record.StartedAt, counted.Running ? null : counted.End, profile, added, tasks)];
@@ -96,7 +97,8 @@ public static class SyncFileBuilder
     private static int? OffMinutesBefore(IReadOnlyList<AwayStretch> cut, DateTimeOffset pieceStart)
     {
         double minutes = cut.Where(stretch => stretch.Kind == AwayKind.DeviceOff && stretch.To == pieceStart).Sum(stretch => (stretch.To - stretch.From).TotalMinutes);
-        return minutes >= 1 ? (int)Math.Round(minutes) : null;
+        // Half-up, the same on every device (the phone's Math.round): 30 min 30 s is 31, 31 min 30 s is 32; under a minute is none.
+        return minutes >= 1 ? (int)Math.Round(minutes, MidpointRounding.AwayFromZero) : null;
     }
 
     /// <summary>

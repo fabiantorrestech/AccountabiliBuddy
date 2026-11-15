@@ -37,6 +37,12 @@ public sealed record SessionTask(
 {
     public bool IsDone => DoneAt is not null;
 
+    /// <summary>The task as a session piece of a sync file carries it (ADR 72): a task kept local to a device goes as its stub, no text.</summary>
+    public SessionTask ForSyncFile()
+    {
+        return LocalTo is Guid keeper ? AsLocalStub(keeper) : this;
+    }
+
     /// <summary>The task as a local stub (ADR 72): its id and its keeper only, no text.</summary>
     public SessionTask AsLocalStub(Guid keeper)
     {

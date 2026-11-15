@@ -58,9 +58,10 @@ public sealed record SessionChecklist(
     public bool HasTasks => Tasks.Count > 0;
 
     /// <summary>
-    /// Every task ticked (with all its steps, focused or not), and none taken off open while the session ran
-    /// (<see cref="DroppedOpen"/>). Focus never changes it: a task whose focused steps are done but that has open steps left is not
-    /// done, so counting actions (ADR 76) never makes "All tasks done" (ADR 25) easier to reach.
+    /// Every task ticked (a task's tick is what counts: ticking it ticks all its steps in one tap, and unticking a step or adding one
+    /// clears the task's tick), and none taken off open while the session ran (<see cref="DroppedOpen"/>). Focus never changes it: a
+    /// task whose focused steps are done but that has open steps left is not ticked, so counting actions (ADR 76) never makes
+    /// "All tasks done" (ADR 25) easier to reach.
     /// </summary>
     public bool AllDone => HasTasks && DroppedOpen == 0 && Tasks.All(task => task.IsDone);
 

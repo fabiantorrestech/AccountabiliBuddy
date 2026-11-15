@@ -815,7 +815,7 @@ public partial class App : Application
         syncCoordinator.Gaps = sessionGaps;
         // Guided sessions (ADR 24): the checklist goes to other devices in this PC's sync file, each task
         // with its category's name and colour.
-        syncCoordinator.TasksOf = start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.LabelledForSync(checklist) : null;
+        syncCoordinator.TasksOf = start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.LabelledForSync(checklist).Select(task => task.ForSyncFile()).ToList() : null;
         sessionTasks.Changed += (_, _) =>
         {
             syncCoordinator.NotifyHistoryChanged();
@@ -1255,7 +1255,7 @@ public partial class App : Application
                 DateTimeOffset now = time.GetUtcNow();
                 return sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(now.AddDays(-2), now.AddDays(1))));
             },
-            () => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed(receivedDevices.Devices),
+            () => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed(receivedDevices.Devices, time.GetUtcNow()),
             omittedSessions.IsOmitted);
         // Read again once the log has the session's start or end (not on the state change, which comes first).
         _recorder!.LogChanged += (_, _) => Dispatcher.UIThread.Post(() => _deepWork?.NotifyLogChanged());
@@ -1498,7 +1498,7 @@ public partial class App : Application
         // it is written; a received file, a goal change, the daily goal or a minute of focus only recompute. Never read by a guard.
         var goalData = new AccountabiliBuddy.App.Services.Goals.GoalSourceDataService(
             async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
-            () => receivedDevices.Devices.Select(device => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed([device])),
+            () => receivedDevices.Devices.Select(device => AccountabiliBuddy.App.Services.Sync.ReceivedSessions.Closed([device], time.GetUtcNow())),
             start => sessionTasks.ForSession(start) is { HasTasks: true } checklist ? sessionTasks.LabelledForSync(checklist) : null,
             omittedSessions.IsOmitted,
             () => _sessions!.State.IsRealSession,

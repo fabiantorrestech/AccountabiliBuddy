@@ -919,7 +919,7 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
             .Select(session => new TimeRange(session.Start, session.End ?? own.Device.WrittenAt))
             .Where(range => range.To > dayStart && range.From < dayEnd && range.To > range.From)
             .ToList();
-        IReadOnlyList<ReceivedSession> theirs = ReceivedSessions.In(_received.Devices, dayStart, dayEnd);
+        IReadOnlyList<ReceivedSession> theirs = ReceivedSessions.In(_received.Devices, dayStart, dayEnd, _time.GetUtcNow());
         // Time any device was in focus counts once.
         TimeSpan total = ReceivedSessions.Covered(mine.Concat(theirs.Select(session => new TimeRange(session.Start, session.End))), dayStart, dayEnd);
         int count = (mine.Count > 0 ? 1 : 0) + theirs.Select(session => session.DeviceId).Distinct().Count();

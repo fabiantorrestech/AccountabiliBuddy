@@ -97,7 +97,7 @@ public sealed class ReceivedDevicesService
             }
 
             DateTimeOffset now = _time.GetUtcNow();
-            SyncFile merged = SyncMerge.Merge(stored?.File, file, now);
+            SyncFile merged = SyncMerge.Merge(stored?.File, file, now, stored?.ReceivedAt);
             if (stored is not null && ReferenceEquals(merged, stored.File))
             {
                 return;

@@ -26,14 +26,19 @@ public static class SyncMerge
     /// file was written before it.
     /// </returns>
     /// <exception cref="ArgumentException">The stored copy is another device's.</exception>
-    public static SyncFile Merge(SyncFile? stored, SyncFile incoming, DateTimeOffset now)
+    /// <param name="storedReceivedAt">
+    /// When the stored copy's file arrived (the receiver's trusted time); null when unknown. A phone's stamp ahead of it is not believed
+    /// (<see cref="GroupSessions.HeardAt"/>): the file counts as no newer than it arrived, so a later honest file isn't refused as older
+    /// than a skewed one, and the copy's open piece closes there (and where the user went away).
+    /// </param>
+    public static SyncFile Merge(SyncFile? stored, SyncFile incoming, DateTimeOffset now, DateTimeOffset? storedReceivedAt = null)
     {
         if (stored is not null && stored.Device.DeviceId != incoming.Device.DeviceId)
         {
             throw new ArgumentException("The stored copy is another device's.", nameof(stored));
         }
 
-        if (stored is not null && incoming.Device.WrittenAt < stored.Device.WrittenAt)
+        if (stored is not null && incoming.Device.WrittenAt < GroupSessions.HeardAt(stored.Device, storedReceivedAt ?? stored.Device.WrittenAt))
         {
             return stored;
         }
@@ -55,9 +60,11 @@ public static class SyncMerge
                 : sessionsFrom;
             if (stored is not null)
             {
-                // A session that was running when the copy was written is taken as ending then, as it was shown.
+                // A session that was running when the copy was written is taken as ending then, as it was shown (a phone's
+                // time ahead of ours is held to when it arrived, and a paused one ends when the pause began: ADR 85, B1, B2).
+                DateTimeOffset storedEnd = GroupSessions.OpenPieceEnd(stored, storedReceivedAt ?? now, now);
                 sessions.AddRange(stored.Sessions
-                    .Select(session => session.End is null ? session with { End = stored.Device.WrittenAt } : session)
+                    .Select(session => session.End is null ? session with { End = storedEnd } : session)
                     .Where(session => session.End <= sessionsFrom));
                 drift.AddRange(stored.Drift.Where(mark => mark.End <= driftFrom));
             }

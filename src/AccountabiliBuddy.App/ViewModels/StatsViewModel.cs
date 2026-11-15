@@ -692,7 +692,7 @@ public sealed partial class StatsViewModel : ObservableObject
         }
 
         // The services are read here on the UI thread; the union, day sums and merging of 90 days run off it.
-        IReadOnlyList<SyncSession> others = ReceivedSessions.Closed(_received.Devices).ToList();
+        IReadOnlyList<SyncSession> others = ReceivedSessions.Closed(_received.Devices, now).ToList();
         HashSet<DateTimeOffset> omittedStarts = records.Where(record => _omitted.IsOmitted(record.StartedAt)).Select(record => record.StartedAt).ToHashSet();
         bool running = _isSessionRunning();
         // A session left out of the totals leaves its pickups out too.
@@ -701,7 +701,7 @@ public sealed partial class StatsViewModel : ObservableObject
             .Select(record => record.StartedAt).ToList();
         IReadOnlyList<SyncPickup> pickups = _phone.Between(from, now.AddDays(1))
             .Where(pickup => !leftOutStarts.Any(start => (start - pickup.SessionStart).Duration() <= PickupStartTolerance)).ToList();
-        IReadOnlyList<ReceivedSession> receivedSessions = ReceivedSessions.In(_received.Devices, from, now.AddDays(1));
+        IReadOnlyList<ReceivedSession> receivedSessions = ReceivedSessions.In(_received.Devices, from, now.AddDays(1), now);
         SyncSmartBedtime? bedtime = PhoneBedtime.Of(_received.Active);
         bool phoneCounts = _phone.IsCounting;
         bool loggingOn = _privacy.Current.ActivityLogEnabled;

@@ -1,4 +1,5 @@
 using AccountabiliBuddy.Core.Domain;
+using AccountabiliBuddy.Core.Sync;
 
 namespace AccountabiliBuddy.App.Services.Sync;
 
@@ -13,15 +14,17 @@ public static class ReceivedSessions
 
     /// <summary>Every received session touching [<paramref name="from"/>, <paramref name="to"/>), by start.</summary>
     /// <param name="nameOf">The name to show for a device (<see cref="ReceivedDevicesService.LabelOf"/> adds "(removed)"); the device's own name when null.</param>
+    /// <param name="now">The trusted time (required: a phone's open session ends where <see cref="GroupSessions.OpenPieceEnd"/> says, never after this).</param>
     public static IReadOnlyList<ReceivedSession> In(
-        IReadOnlyList<ReceivedDevice> devices, DateTimeOffset from, DateTimeOffset to, Func<AccountabiliBuddy.Core.Sync.SyncDeviceCard, string>? nameOf = null)
+        IReadOnlyList<ReceivedDevice> devices, DateTimeOffset from, DateTimeOffset to, DateTimeOffset now,
+        Func<AccountabiliBuddy.Core.Sync.SyncDeviceCard, string>? nameOf = null)
     {
         return devices
             .SelectMany(device => device.File.Sessions.Select(session => new ReceivedSession(
                 device.File.Device.DeviceId,
                 nameOf is null ? device.File.Device.Name : nameOf(device.File.Device),
                 session.Start,
-                session.End ?? device.File.Device.WrittenAt,
+                session.End ?? OpenEnd(device, now),
                 session.Profile,
                 session.Added)))
             .Where(session => session.End > from && session.Start < to && session.End > session.Start)
@@ -30,13 +33,19 @@ public static class ReceivedSessions
     }
 
     /// <summary>The received devices' sessions, each one still open ending when its device's file was written (never before it starts).</summary>
-    public static IEnumerable<AccountabiliBuddy.Core.Sync.SyncSession> Closed(IReadOnlyList<ReceivedDevice> devices)
+    /// <param name="now">The trusted time (required: a phone's open session ends where <see cref="GroupSessions.OpenPieceEnd"/> says, never after this).</param>
+    public static IEnumerable<AccountabiliBuddy.Core.Sync.SyncSession> Closed(IReadOnlyList<ReceivedDevice> devices, DateTimeOffset now)
     {
         // A PC's open piece while it plans starts at the planning end, after the file was written: it counts for nothing, so it is
         // left out rather than closed before it starts.
         return devices.SelectMany(device => device.File.Sessions
-            .Where(session => session.End is not null || session.Start <= device.File.Device.WrittenAt)
-            .Select(session => session.End is null ? session with { End = device.File.Device.WrittenAt } : session));
+            .Where(session => session.End is not null || session.Start <= OpenEnd(device, now))
+            .Select(session => session.End is null ? session with { End = OpenEnd(device, now) } : session));
+    }
+
+    private static DateTimeOffset OpenEnd(ReceivedDevice device, DateTimeOffset now)
+    {
+        return GroupSessions.OpenPieceEnd(device.File, device.ReceivedAt, now);
     }
 
     /// <summary>

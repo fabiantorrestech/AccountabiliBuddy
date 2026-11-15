@@ -963,7 +963,7 @@ public sealed partial class DayBarViewModel : ObservableObject, IDisposable
         TimeZoneInfo zone = _time.LocalTimeZone;
         DateTimeOffset from = new(span.Start, zone.GetUtcOffset(span.Start));
         DateTimeOffset to = new(span.End, zone.GetUtcOffset(span.End));
-        return ReceivedSessions.In(_received.Devices, from, to, _received.LabelOf)
+        return ReceivedSessions.In(_received.Devices, from, to, _time.GetUtcNow(), _received.LabelOf)
             .Select(session =>
             {
                 var window = new LocalWindow(ToLocal(session.Start), ToLocal(session.End));

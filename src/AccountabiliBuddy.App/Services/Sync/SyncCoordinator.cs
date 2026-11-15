@@ -543,7 +543,9 @@ public sealed class SyncCoordinator
         Receipts?.RecordArrival(sender.DeviceId, method, sender.WrittenAt);
 
         ReceivedDevice? stored = _received.Devices.FirstOrDefault(device => device.File.Device.DeviceId == sender.DeviceId);
-        if (stored is not null && sender.WrittenAt < stored.File.Device.WrittenAt)
+        // A phone's stamp is held to when its file arrived (GroupSessions.HeardAt), so a file stamped far ahead can't make its later, honest
+        // files "older" than what is stored (PS1a review, B2).
+        if (stored is not null && sender.WrittenAt < GroupSessions.HeardAt(stored.File.Device, stored.ReceivedAt))
         {
             return $"This PC already has newer data from {sender.Name}.";
         }
