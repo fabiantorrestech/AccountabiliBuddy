@@ -1,8 +1,10 @@
 using System.Globalization;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
+using AccountabiliBuddy.Core.Sync;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
@@ -15,7 +17,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// on hover or keyboard focus, Step away, the end time and the session menu. Away: "Away 6 min" with I'm back. Ended: "Ended ·
 /// switches next time" until Tasks is next opened (<see cref="SessionLayoutService"/>). Every action goes through the services the
 /// rest of the app uses: ending early is <see cref="SessionEndFlow"/> (wait and reason), stepping away and pausing are
-/// <see cref="StepAwayService"/>; nothing here shortens a wait or unlocks anything. Times come from the session's trusted clock.
+/// <see cref="StepAwayService"/>; nothing here shortens a wait or unlocks anything. While another device runs a session (ADR 85) and none
+/// runs here, the control says so ("Session on Pixel · 32 min left", not clickable, "Only Pixel can end it"); a phone's session that went quiet brings
+/// Start back with a muted "last heard" line in its tooltip. Times come from the session's trusted clock.
 /// Refreshed on every session tick. Use from the UI thread only.
 /// </summary>
 public sealed partial class SessionControlViewModel : ObservableObject
@@ -52,10 +56,45 @@ public sealed partial class SessionControlViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsIdle), nameof(IsEnded), nameof(IsRunningOrAway), nameof(ForcesOpen))]
+    [NotifyPropertyChangedFor(nameof(IsIdle), nameof(IsEnded), nameof(IsElsewhere), nameof(IsRunningOrAway), nameof(ForcesOpen))]
     public partial SessionControlState State { get; set; }
 
     public bool IsIdle => State == SessionControlState.Idle;
+
+    /// <summary>Another device's session is live and none runs here: the not-clickable "Session on Pixel" pill shows instead of Start.</summary>
+    public bool IsElsewhere => State == SessionControlState.Elsewhere;
+
+    /// <summary>The session live on another device (ADR 85, R2); set by the app. Null: none.</summary>
+    public Func<GroupSessionLive?>? LiveElsewhere { get; set; }
+
+    /// <summary>A phone's session that went quiet (R3); set by the app. Null: none.</summary>
+    public Func<GroupSessionStale?>? StaleElsewhere { get; set; }
+
+    /// <summary>The device's own name, the first thing the pill shows (the icon says it is a device); trimmed in the view when long.</summary>
+    [ObservableProperty]
+    public partial string ElsewhereTitle { get; set; } = string.Empty;
+
+    /// <summary>The pill's accessible name: "Session on Pixel · 32 min left".</summary>
+    [ObservableProperty]
+    public partial string ElsewhereLabel { get; set; } = string.Empty;
+
+    /// <summary>The muted part after it: "32 min left", "32 min left · paused" or "no set end".</summary>
+    [ObservableProperty]
+    public partial string ElsewhereDetail { get; set; } = string.Empty;
+
+    /// <summary>The tooltip: "Only Pixel can end it" (R6).</summary>
+    [ObservableProperty]
+    public partial string ElsewhereTip { get; set; } = string.Empty;
+
+    /// <summary>A phone or a PC, by the device's kind (Material icons).</summary>
+    [ObservableProperty]
+    public partial MaterialIconKind ElsewhereIcon { get; set; } = MaterialIconKind.Cellphone;
+
+    /// <summary>The idle Start pill's tooltip: the shortcut, plus the muted "last heard" line (R3) when a phone's session went quiet.</summary>
+    [ObservableProperty]
+    public partial string StartTip { get; set; } = StartTipBase;
+
+    private const string StartTipBase = "Start a session (Ctrl+Shift+S)";
 
     public bool IsEnded => State == SessionControlState.Ended;
 
@@ -267,6 +306,20 @@ public sealed partial class SessionControlViewModel : ObservableObject
         RingValue = 0;
         CanPause = CanSideTask = CanExtend = CanEndToQueued = false;
         EndsText = EndsShortText = string.Empty;
+        // Another device's live session comes first: "Ended" has no time limit (it stays until Tasks is opened), and this is what holds Start.
+        if (LiveElsewhere?.Invoke() is { } live)
+        {
+            State = SessionControlState.Elsewhere;
+            ElsewhereTitle = live.Name;
+            ElsewhereLabel = SessionElsewhereText.OnDevice(live, now);
+            ElsewhereDetail = SessionElsewhereText.Detail(live, now);
+            ElsewhereTip = SessionElsewhereText.OnlyCanEnd(live);
+            ElsewhereIcon = live.Kind == SyncDeviceCard.KindPc ? MaterialIconKind.Laptop : MaterialIconKind.Cellphone;
+            PrimaryText = SecondaryText = EndedTip = string.Empty;
+            StartTip = StartTipBase;
+            return;
+        }
+
         if (_layout.EndedAt is DateTimeOffset endedAt)
         {
             State = SessionControlState.Ended;
@@ -278,6 +331,8 @@ public sealed partial class SessionControlViewModel : ObservableObject
 
         State = SessionControlState.Idle;
         PrimaryText = SecondaryText = EndedTip = string.Empty;
+        ElsewhereTitle = ElsewhereLabel = ElsewhereDetail = ElsewhereTip = string.Empty;
+        StartTip = StaleElsewhere?.Invoke() is { } stale ? $"{StartTipBase}\n{SessionElsewhereText.LastHeard(stale, zone)}" : StartTipBase;
     }
 
     // The ring: the share of the phase left (as on Today), or a dashed ring for a session with no set end.

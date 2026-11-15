@@ -1,6 +1,7 @@
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Sync;
 using Avalonia.Threading;
 
 namespace AccountabiliBuddy.App.Services;
@@ -131,9 +132,19 @@ public sealed class SessionController : IDisposable
         return resume;
     }
 
+    /// <summary>
+    /// ADR 85, rule R1: the session live on another device of the group now, or null. While one is, no real session starts here
+    /// (<see cref="StartManual"/>, <see cref="StartPomodoro"/>, <see cref="StartFocusThenBreak"/> return false); a test session, a
+    /// session already running and putting a saved session back at launch are never held by it. Set by the app.
+    /// </summary>
+    public Func<GroupSessionLive?> LiveElsewhere { get; set; } = static () => null;
+
+    /// <summary>The device whose live session holds Start back, or null when a session may start here.</summary>
+    public GroupSessionLive? StartBlockedBy => _engine.State.IsActive ? null : LiveElsewhere();
+
     public bool StartManual(Guid profileId, TimeSpan? duration)
     {
-        return Started(_engine.StartManual(profileId, duration, PlanningLength()));
+        return StartBlockedBy is null && Started(_engine.StartManual(profileId, duration, PlanningLength()));
     }
 
     /// <summary>"When I step away" in effect now (ADR 77): kept with each session as it starts. Set by the app.</summary>
@@ -190,7 +201,7 @@ public sealed class SessionController : IDisposable
     public bool StartPomodoro(Guid profileId, int? totalCycles)
     {
         PomodoroSettings settings = _configuration.Current.PomodoroDefaults with { TotalCycles = totalCycles };
-        return Started(_engine.StartPomodoro(profileId, settings, planning: PlanningLength()));
+        return StartBlockedBy is null && Started(_engine.StartPomodoro(profileId, settings, planning: PlanningLength()));
     }
 
     /// <summary>One focus block followed by one break, then the session ends (quick session with a break).</summary>
@@ -198,7 +209,7 @@ public sealed class SessionController : IDisposable
     {
         // One cycle never reaches the long-break count, so the single break is shown as a short break.
         var settings = new PomodoroSettings(focus, breakLength, breakLength, CyclesBeforeLongBreak: 2, TotalCycles: 1);
-        return Started(_engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true, planning: PlanningLength()));
+        return StartBlockedBy is null && Started(_engine.StartPomodoro(profileId, settings, breakAfterLastCycle: true, planning: PlanningLength()));
     }
 
     /// <summary>

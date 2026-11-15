@@ -73,4 +73,27 @@ data class PhoneSessionRecord(
 
     /** The start of a gap with the phone off (R13): when it said it was going off, else the last heartbeat. */
     val offFrom: Instant get() = offAt ?: heartbeatAt
+
+    /**
+     * Every time of the record moved by [by] (B2 of the PS2a review): the times a session wrote on a clock that could not be checked, moved by the
+     * correction when the network time arrives, so the start, the end, the stretches and the heartbeat are on the trusted time again.
+     */
+    fun shifted(by: Duration): PhoneSessionRecord = copy(
+        startedAt = startedAt.plus(by),
+        phaseStartedAt = phaseStartedAt.plus(by),
+        phaseEndsAt = phaseEndsAt?.plus(by),
+        away = away.map { it.copy(from = it.from.plus(by), to = it.to?.plus(by)) },
+        checklist = checklist.copy(sessionStart = checklist.sessionStart?.plus(by)),
+        endRequestedAt = endRequestedAt?.plus(by),
+        armedEnd = armedEnd?.copy(requestedAt = armedEnd.requestedAt.plus(by), readyAt = armedEnd.readyAt.plus(by)),
+        heartbeatAt = heartbeatAt.plus(by),
+        offAt = offAt?.plus(by),
+        endedAt = endedAt?.plus(by),
+    )
+
+    /** Only an End in progress moved by [by]: its request time and its armed end's times (written during a hold on an unchecked clock). */
+    fun endShifted(by: Duration): PhoneSessionRecord = copy(
+        endRequestedAt = endRequestedAt?.plus(by),
+        armedEnd = armedEnd?.copy(requestedAt = armedEnd.requestedAt.plus(by), readyAt = armedEnd.readyAt.plus(by)),
+    )
 }

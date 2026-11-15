@@ -1,6 +1,8 @@
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Storage;
+using AccountabiliBuddy.Core.Sync;
 using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -259,6 +261,36 @@ public sealed partial class SessionViewModel : ObservableObject
     }
 
     /// <summary>
+    /// ADR 85, R2: "Running on Pixel · 32 min left" while a session is live on another device and none runs here; empty otherwise. It
+    /// takes the place of the start card's line and greys Start (<see cref="CanStartHere"/>); the card keeps its skeleton.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasElsewhere), nameof(CanStartHere))]
+    public partial string ElsewhereText { get; set; } = string.Empty;
+
+    /// <summary>R3: "Pixel's session last heard from 2:05 PM", the muted line when that phone's session went quiet (Start works again); empty otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStaleLine))]
+    public partial string StaleText { get; set; } = string.Empty;
+
+    /// <summary>The device's name and the rest ("32 min left · paused") apart, so the card trims the name and never the status.</summary>
+    [ObservableProperty]
+    public partial string ElsewhereName { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ElsewhereStatus { get; set; } = string.Empty;
+
+    public bool HasElsewhere => ElsewhereText.Length > 0;
+
+    public bool HasStaleLine => StaleText.Length > 0;
+
+    /// <summary>R1: Start is available here (no session is live on another device).</summary>
+    public bool CanStartHere => ElsewhereText.Length == 0;
+
+    /// <summary>R3: the phone's session that went quiet, if any (set by the app).</summary>
+    public Func<GroupSessionStale?>? StaleElsewhere { get; set; }
+
+    /// <summary>
     /// Round 2 (Today's start card, brief §4.2): "Nothing running · next: Deep work at 1:00 PM", or "Nothing running" without a next
     /// block.
     /// </summary>
@@ -338,6 +370,12 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
+        if (!CanStartHere)
+        {
+            ErrorMessage = ElsewhereText;
+            return;
+        }
+
         if (!TryParseOptionalPositive(PomodoroCycles, out int? cycles))
         {
             ErrorMessage = "Cycles must be a whole number above 0, or blank to run until you stop it.";
@@ -354,6 +392,12 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         if (QuickStart.SelectedProfile is not { } profile || IsSessionActive)
         {
+            return;
+        }
+
+        if (!CanStartHere)
+        {
+            ErrorMessage = ElsewhereText;
             return;
         }
 
@@ -386,6 +430,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         QuickSessionViewModel old = QuickStart;
         QuickStart = _quickSession.CreateStartControls();
+        QuickStart.BlockedText = ElsewhereText.Length > 0 ? ElsewhereText : null;
         old.Dispose();
     }
 
@@ -412,6 +457,19 @@ public sealed partial class SessionViewModel : ObservableObject
         EndSessionText = state.IsTest ? "End test" : "End session…";
         StatusTitle = SessionStatusFormatter.Title(state, profileName);
         StatusDetail = SessionStatusFormatter.Detail(state, _sessions.Now);
+        RefreshElsewhere(state);
+    }
+
+    // ADR 85: a session live on another device (R2) greys Start; a quiet phone session (R3) only adds a muted line.
+    private void RefreshElsewhere(SessionState state)
+    {
+        GroupSessionLive? live = state.IsActive ? null : _sessions.StartBlockedBy;
+        ElsewhereText = live is null ? string.Empty : SessionElsewhereText.Running(live, _sessions.Now);
+        ElsewhereName = live?.Name ?? string.Empty;
+        ElsewhereStatus = live is null ? string.Empty : SessionElsewhereText.Detail(live, _sessions.Now);
+        QuickStart.BlockedText = live is null ? null : ElsewhereText;
+        GroupSessionStale? stale = live is null && !state.IsActive ? StaleElsewhere?.Invoke() : null;
+        StaleText = stale is null ? string.Empty : SessionElsewhereText.LastHeard(stale, _sessions.TimeProvider.LocalTimeZone);
     }
 
     private static bool TryParseOptionalPositive(string text, out int? value)

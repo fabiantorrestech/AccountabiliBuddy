@@ -112,6 +112,9 @@ object PhoneSessionEngine {
         var at = maxOf(from, record.startedAt, lastEnd ?: record.startedAt)
         if (open != null) at = maxOf(at, open.from)
         at = minOf(at, now)
+        // `now` can be earlier than the session's start or the last stretch (a clock that was not yet anchored): never open a stretch before them (S2 of the PS2a review).
+        at = maxOf(at, record.startedAt, lastEnd ?: record.startedAt)
+        if (open != null) at = maxOf(at, open.from)
         val closed = if (open != null) closeOpenAway(record, at) else record
         val next = closed.copy(away = closed.away + PhoneAway(PhoneAwayKind.LUNCH, at, null))
         return PhoneSessionResult.Done(next, changed(next))
@@ -174,14 +177,14 @@ object PhoneSessionEngine {
      * Records that the phone is alive at [now] (R13): saved at every refresh and state change. Changes nothing while an untrusted-clock hold is
      * open. PS2a must never pass a time from an untrusted anchor to this or to [phoneOff]: [PhoneSessionOffGap.decide] treats them as trusted.
      */
-    fun heartbeat(record: PhoneSessionRecord, now: Instant): PhoneSessionResult {
-        if (!record.isRunning || record.holdsDeviceOff || !now.isAfter(record.heartbeatAt)) return PhoneSessionResult.Done(record)
+    fun heartbeat(record: PhoneSessionRecord, now: Instant, timeIsTrusted: Boolean): PhoneSessionResult {
+        if (!timeIsTrusted || !record.isRunning || record.holdsDeviceOff || !now.isAfter(record.heartbeatAt)) return PhoneSessionResult.Done(record)
         return PhoneSessionResult.Done(record.copy(heartbeatAt = now), listOf(PhoneSessionEffect.Persist))
     }
 
     /** `ACTION_SHUTDOWN`: the phone is going off at [now] (R13). Changes nothing while a hold is open (see [heartbeat]). */
-    fun phoneOff(record: PhoneSessionRecord, now: Instant): PhoneSessionResult {
-        if (!record.isRunning || record.holdsDeviceOff) return PhoneSessionResult.Done(record)
+    fun phoneOff(record: PhoneSessionRecord, now: Instant, timeIsTrusted: Boolean): PhoneSessionResult {
+        if (!timeIsTrusted || !record.isRunning || record.holdsDeviceOff) return PhoneSessionResult.Done(record)
         return PhoneSessionResult.Done(record.copy(offAt = now, heartbeatAt = maxOf(now, record.heartbeatAt)), listOf(PhoneSessionEffect.Persist))
     }
 
@@ -190,12 +193,15 @@ object PhoneSessionEngine {
      * set end that passed before it for SET_END_PASSED, still told as ended by time); a pause makes a DeviceOff stretch (out of focus, the
      * end moves on by the gap) and the next piece carries `offMinutesBefore` ([com.accountabilibuddy.shared.sync.SessionPieces]); a hold
      * (untrusted clock) opens the DeviceOff stretch and keeps `offAt` until trusted time decides (a later pause closes it, a close ends the session).
+     *
+     * @param timeIsTrusted [now] may be saved as a heartbeat (network-backed, or a phone that can never have network time: the controller decides). When it is not, the heartbeat is left as it was: an untrusted time is never saved as a heartbeat
+     * ([PhoneSessionOffGap.decide] treats the stored heartbeat as trusted; PS2a review of the PS1b engine).
      */
-    fun applyOffGap(record: PhoneSessionRecord, decision: PhoneSessionOffGap.Decision, now: Instant): PhoneSessionResult {
+    fun applyOffGap(record: PhoneSessionRecord, decision: PhoneSessionOffGap.Decision, now: Instant, timeIsTrusted: Boolean): PhoneSessionResult {
         if (!record.isRunning) return PhoneSessionResult.Done(record)
         return when (decision) {
             PhoneSessionOffGap.Decision.Nothing ->
-                PhoneSessionResult.Done(record.copy(offAt = null, heartbeatAt = maxOf(now, record.heartbeatAt)), listOf(PhoneSessionEffect.Persist))
+                PhoneSessionResult.Done(record.copy(offAt = null, heartbeatAt = beat(record, now, timeIsTrusted)), listOf(PhoneSessionEffect.Persist))
             is PhoneSessionOffGap.Decision.Close -> {
                 val kind = if (decision.why == PhoneSessionOffGap.CloseWhy.SET_END_PASSED) PhoneSessionEndKind.TIME_UP else PhoneSessionEndKind.PHONE_OFF
                 val ended = finish(record, decision.at, kind)
@@ -222,7 +228,7 @@ object PhoneSessionEngine {
                     // The hold ends where trusted time puts it: the stretch closes (the end moves on by it), what it interrupted goes on.
                     var next = closeOpenAway(record, decision.to)
                     next.heldAway?.let { kind -> next = next.copy(away = next.away + PhoneAway(kind, decision.to, null)) }
-                    next = next.copy(offAt = null, heldAway = null, heartbeatAt = maxOf(now, next.heartbeatAt))
+                    next = next.copy(offAt = null, heldAway = null, heartbeatAt = beat(next, now, timeIsTrusted))
                     return PhoneSessionResult.Done(next, changed(next) + endEffects(next) + PhoneSessionEffect.OffGapNotice(decision.from, decision.to, closed = false))
                 }
                 val open = record.openAway
@@ -230,7 +236,7 @@ object PhoneSessionEngine {
                 if (open != null) next = closeOpenAway(next, maxOf(decision.from, open.from))
                 next = addClosedAway(next, PhoneAwayKind.DEVICE_OFF, decision.from, decision.to)
                 if (open != null) next = next.copy(away = next.away + PhoneAway(open.kind, decision.to, null))
-                next = next.copy(offAt = null, heartbeatAt = maxOf(now, next.heartbeatAt))
+                next = next.copy(offAt = null, heartbeatAt = beat(next, now, timeIsTrusted))
                 PhoneSessionResult.Done(next, changed(next) + endEffects(next) + PhoneSessionEffect.OffGapNotice(decision.from, decision.to, closed = false))
             }
         }
@@ -352,6 +358,8 @@ object PhoneSessionEngine {
         val shifted = if (kind.pausesTimer) shift(record, Duration.between(from, end)) else record
         return shifted.copy(away = shifted.away + PhoneAway(kind, from, end))
     }
+
+    private fun beat(record: PhoneSessionRecord, now: Instant, trusted: Boolean): Instant = if (trusted) maxOf(now, record.heartbeatAt) else record.heartbeatAt
 
     private fun shift(record: PhoneSessionRecord, by: Duration): PhoneSessionRecord =
         record.copy(phaseStartedAt = record.phaseStartedAt.plus(by), phaseEndsAt = record.phaseEndsAt?.plus(by))

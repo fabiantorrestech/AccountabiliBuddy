@@ -314,7 +314,7 @@ public sealed class SyncActionsService
         return ok ? Ok(action, message) : invalid ? Invalid(action, message) : Refused(action, message);
     }
 
-    // Refused while a session runs, the profile must exist, the length 1 minute to 12 hours.
+    // Refused while a session runs here or on another device (R5), the profile must exist, the length 1 minute to 12 hours.
     private async Task<SyncActionResult> StartAsync(SyncAction action, DateTimeOffset now)
     {
         if (IsLate(action, ControlFresh, now))
@@ -325,6 +325,13 @@ public sealed class SyncActionsService
         if (Read<SyncStartRequest>(action.Text) is not SyncStartRequest request)
         {
             return Invalid(action, "The PC couldn't read this request.");
+        }
+
+        // R5 (ADR 85): any received file with a live session, the sender's own included, refuses the start (the phone may have started
+        // its own meanwhile); a session already running here is refused by the control below, as before.
+        if (!_sessions.State.IsActive && SessionsElsewhere.LiveAmong(_received.Active, now) is { } elsewhere)
+        {
+            return Refused(action, SessionElsewhereText.Refusal(elsewhere));
         }
 
         // Three kinds of request: a profile for some minutes; "no set end" (explicit: it counts up); and a Quick Start, which

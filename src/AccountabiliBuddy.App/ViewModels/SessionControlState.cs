@@ -14,4 +14,10 @@ public enum SessionControlState
 
     /// <summary>A real session ended and Tasks still shows its layout: "Ended · switches next time".</summary>
     Ended,
+
+    /// <summary>
+    /// No session here, but one is live on another device of the group (ADR 85, R1 and R2): "Session on Pixel · 32 min left", not
+    /// clickable (only that device can end it, R6). Start is held back until it ends or goes quiet (R3).
+    /// </summary>
+    Elsewhere,
 }

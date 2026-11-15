@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
 using AccountabiliBuddy.Core.Sync;
@@ -6,7 +7,7 @@ namespace AccountabiliBuddy.App.Services.Remote;
 
 /// <summary>
 /// Starting and ending the PC's session from another device, by the PC's own rules, as the phone asks in a sync file
-/// (ADR 42). A start is refused while a session runs; ending early takes the
+/// (ADR 42). A start is refused while a session runs here or is live on another device (ADR 85, R1); ending early takes the
 /// End session dialog's wait and reason, except for breaks and sessions that end on command
 /// (<see cref="BypassPolicy.EndsOnCommand"/>). UI thread only: the callers move there.
 /// </summary>
@@ -35,6 +36,11 @@ public sealed class RemoteSessionControl
             return RunningMessage;
         }
 
+        if (_sessions.StartBlockedBy is { } elsewhere)
+        {
+            return SessionElsewhereText.Refusal(elsewhere);
+        }
+
         if (!Exists(profileId))
         {
             return MissingProfileMessage;
@@ -57,6 +63,11 @@ public sealed class RemoteSessionControl
             return RunningMessage;
         }
 
+        if (_sessions.StartBlockedBy is { } elsewhere)
+        {
+            return SessionElsewhereText.Refusal(elsewhere);
+        }
+
         return await _quickSession.StartWithDefaultAsync() ? null : "The Quick Start profile couldn't be set up on the PC.";
     }
 
@@ -67,6 +78,11 @@ public sealed class RemoteSessionControl
         if (_sessions.State.IsActive)
         {
             return RunningMessage;
+        }
+
+        if (_sessions.StartBlockedBy is { } elsewhere)
+        {
+            return SessionElsewhereText.Refusal(elsewhere);
         }
 
         if (!Exists(profileId))
@@ -86,6 +102,11 @@ public sealed class RemoteSessionControl
             return RunningMessage;
         }
 
+        if (_sessions.StartBlockedBy is { } elsewhere)
+        {
+            return SessionElsewhereText.Refusal(elsewhere);
+        }
+
         return await _quickSession.StartOpenEndedWithDefaultAsync() ? null : "The Quick Start profile couldn't be set up on the PC.";
     }
 
@@ -96,6 +117,11 @@ public sealed class RemoteSessionControl
         if (_sessions.State.IsActive)
         {
             return RunningMessage;
+        }
+
+        if (_sessions.StartBlockedBy is { } elsewhere)
+        {
+            return SessionElsewhereText.Refusal(elsewhere);
         }
 
         if (!Exists(profileId))

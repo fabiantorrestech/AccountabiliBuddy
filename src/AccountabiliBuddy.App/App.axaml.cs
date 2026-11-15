@@ -781,6 +781,11 @@ public partial class App : Application
         syncSettings.LoadBlocking();
         var receivedDevices = new AccountabiliBuddy.App.Services.Sync.ReceivedDevicesService(documents, time);
         receivedDevices.LoadBlocking();
+        // ADR 85, R1 to R3: a session live on another device of the group (a PC's or a phone's file) holds every real Start back here.
+        var sessionsElsewhere = new AccountabiliBuddy.App.Services.Sync.SessionsElsewhere(receivedDevices, time);
+        _sessions.LiveElsewhere = () => sessionsElsewhere.Live;
+        _quickSession.LiveElsewhere = () => sessionsElsewhere.Live;
+        _startNudge!.SessionLiveElsewhere = () => sessionsElsewhere.Live is not null;
         // The daily steps a paired phone read from Health Connect, from its sync file: this PC never reads Health Connect.
         var dailySteps = new AccountabiliBuddy.App.Services.DailyStepsService(documents, time);
         dailySteps.LoadBlocking();
@@ -833,8 +838,8 @@ public partial class App : Application
         // ADR 50: the Later list goes the same way.
         syncCoordinator.Later = _later.ForSync;
         syncCoordinator.MergeLater = _later.MergeAsync;
-        // A fixed lunch doesn't start by itself while another PC runs a session (its file says so).
-        _lunch!.OtherPcSessionRunning = () => AccountabiliBuddy.App.Services.Sync.OtherPcSessions.IsRunning(receivedDevices.Active, time.GetUtcNow());
+        // A fixed lunch doesn't start by itself while another device (a PC or a phone) runs a session (its file says so).
+        _lunch!.OtherDeviceSessionRunning = () => sessionsElsewhere.Live is not null;
         // Beeminder (ADR 43): only the derived summary goes in this PC's sync file; removing the token removes it.
         syncCoordinator.Beeminder = _beeminder.SyncSummary;
         IReadOnlyList<AccountabiliBuddy.Core.Sync.SyncBeeminderGoal>? lastBeeminder = _beeminder.SyncSummary();
@@ -1231,6 +1236,7 @@ public partial class App : Application
             Day = timelineDay,
             ColdTurkey = new ColdTurkeyStatusViewModel(_coldTurkey, _sessions),
         };
+        sessionViewModel.StaleElsewhere = () => sessionsElsewhere.Stale;
         // Focus mode: the Today page while a session runs (the main window's day bar is the one it reads).
         sessionViewModel.Comebacks = new ComebacksViewModel(_comebacks!, sessionTasks);
         sessionViewModel.Timers = new TimersViewModel(_timers!, _sessions);
@@ -1984,6 +1990,9 @@ public partial class App : Application
                     ? () => _endFlow!.TryEndSessionAsync(VisibleMainWindow(), unfinishedToQueued: true)
                     : null,
                 OffersEndToQueued = () => sessionTasks.CanEndToQueued,
+                // ADR 85: another device's live session replaces Start with "Session on Pixel · 32 min left"; a quiet phone session brings it back.
+                LiveElsewhere = () => sessionsElsewhere.Live,
+                StaleElsewhere = () => sessionsElsewhere.Stale,
             },
         };
         // Round 2 R5: the Goals page (after Stats in the rail). Stats can't filter by goal yet, so its button opens Stats; the dialogs
@@ -1997,7 +2006,12 @@ public partial class App : Application
             // The usual start (QuickSessionService: the remembered length, the session rules); refused while one runs.
             StartPreset = profileId => Task.FromResult<string?>(_sessions!.State.IsActive
                 ? "A session is already running."
+                : _sessions.StartBlockedBy is { } elsewhere ? AccountabiliBuddy.App.Services.Sync.SessionElsewhereText.Refusal(elsewhere)
                 : _quickSession!.StartQuick(profileId) ? null : "The session couldn't start (its profile or the session rules held it)."),
+            // ADR 85, R1: a session live on another device: the goal menu's Start says where it runs instead of offering the presets.
+            RunningElsewhereNote = () => _sessions!.StartBlockedBy is { } live
+                ? AccountabiliBuddy.App.Services.Sync.SessionElsewhereText.Running(live, _sessions.Now)
+                : null,
             OpenStartControls = () => _quickSession!.Show(),
             SessionRunning = () => _sessions!.State.IsActive,
             // Opens Beeminder's site in the user's browser: the app itself makes no connection for it.
@@ -2818,7 +2832,8 @@ public partial class App : Application
         overlayActions.ExtendFocus = () => _sessions!.ExtendFocus(TimeSpan.FromMinutes(10));
         overlayActions.ParkThought = () => _capture!.Show();
         overlayActions.ShowStart = () => _quickSession!.Show();
-        overlayActions.StartDefault = () => _quickSession!.StartWithDefaultAsync();
+        // ADR 85, R1: while another device's session is live nothing starts; the quick-session popup opens and says where it runs.
+        overlayActions.StartDefault = () => _quickSession!.StartFromOverlayAsync();
         overlayActions.CanStartLunch = () => _lunch is { CanStart: true } or { CanStartTheRest: true };
         overlayActions.StartLunch = () => _lunch!.StartAsync();
         overlayActions.IsWorkDone = () => _deepWork is { Progress.Met: true };

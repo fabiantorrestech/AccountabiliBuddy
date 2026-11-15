@@ -1,4 +1,5 @@
 using System.Globalization;
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Engine;
@@ -76,6 +77,12 @@ public sealed class StartNudgeService
 
     /// <summary>True once today's deep-work goal is met; then nothing steers. Set by the app.</summary>
     public Func<bool> IsGoalMet { get; set; } = () => false;
+
+    /// <summary>
+    /// True while a session is live on another device of the group (ADR 85, R2); then the user is working there, so nothing steers, like a
+    /// calendar event. Set by the app.
+    /// </summary>
+    public Func<bool> SessionLiveElsewhere { get; set; } = () => false;
 
     /// <summary>Counted focus on a date, for the day plan's Budget days (a met budget ends the day's work windows). Set by the app.</summary>
     public Func<DateOnly, TimeSpan>? FocusedOn { get; set; }
@@ -201,16 +208,20 @@ public sealed class StartNudgeService
             PruneLog(); // Old reasons go after 14 days even when no new one is added.
         }
 
-        // A calendar event, lunch (a day off counts it) or the goal holding the nudge back: when it lifts, work didn't
+        // A calendar event, lunch (a day off counts it), the goal or a session live on another device holding the nudge back: when it lifts, work didn't
         // just start, so the nudge after it is quiet.
         // "Work over for today" holds the nudge back too, but when it ends work does start: the normal nudge, not the quiet "Resumed" one.
-        bool holding = IsDayOff() || InCalendarEvent() || IsGoalMet();
+        bool holding = IsDayOff() || InCalendarEvent() || IsGoalMet() || SessionLiveElsewhere();
         bool suppressed = holding || IsWorkOver();
         bool suppressionJustLifted = _suppressedLastTick && !suppressed;
         _suppressedLastTick = holding;
         if (sessionRunning && _sessions.State.IsRealSession)
         {
             Assistant?.MarkDone(Today()); // A session the user started is the day's start; a test session is not.
+        }
+        else if (!sessionRunning && SessionLiveElsewhere())
+        {
+            Assistant?.MarkDone(Today()); // ADR 85: a session live on another device is the day's start too (owner, Q1174).
         }
 
         // Before the day's first window the assistant already waits for the user (the ordinary nudge does not).
@@ -325,6 +336,7 @@ public sealed class StartNudgeService
         _cardDueAt = null;
         Assistant!.MarkDone(Today());
         AssistantCard = Assistant.CreateCard(Settings.RepeatMinutes > 0, OnAssistantStartAsync, OnAssistantNotNow);
+        AssistantCard.StartRefusedText = () => _sessions.StartBlockedBy is { } live ? SessionElsewhereText.Refusal(live) : null;
         AssistantCard.Reason = _keptAssistantReason;
         _keptAssistantReason = string.Empty;
         AssistantCardChanged?.Invoke(this, EventArgs.Empty);

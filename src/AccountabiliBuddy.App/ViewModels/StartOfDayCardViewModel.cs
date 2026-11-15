@@ -17,6 +17,9 @@ public sealed partial class StartOfDayCardViewModel : ObservableObject, IDisposa
     private readonly Action<StartOfDayCardViewModel, string> _notNow;
     private readonly int _rememberedMinutes;
 
+    /// <summary>Why a refused Start was refused when a session is live on another device (ADR 85); null for the usual text. Set by the app.</summary>
+    public Func<string?>? StartRefusedText { get; set; }
+
     /// <param name="setHours">Applies the hours to today's goal (and Budget); returns what is waiting and why, or null.</param>
     /// <param name="openTaskCount">How many open tasks the next session has now.</param>
     /// <param name="onStart">Starts the session; false when it did not start (the card stays).</param>
@@ -138,7 +141,8 @@ public sealed partial class StartOfDayCardViewModel : ObservableObject, IDisposa
                     Message = string.Empty;
                     if (!await _start(this))
                     {
-                        Message = "The session did not start. Try again, or start it from Today.";
+                        // ADR 85: another device's live session refuses it; say where it runs.
+                        Message = StartRefusedText?.Invoke() ?? "The session did not start. Try again, or start it from Today.";
                     }
 
                     break;

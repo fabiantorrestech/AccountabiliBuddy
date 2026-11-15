@@ -130,6 +130,9 @@ public sealed partial class GoalsViewModel : ObservableObject
     /// <summary>A session runs now (Start a session is greyed).</summary>
     public Func<bool>? SessionRunning { get; set; }
 
+    /// <summary>ADR 85, R1: "Running on Pixel · 32 min left" while a session is live on another device (none here); null otherwise. Set by the app.</summary>
+    public Func<string?>? RunningElsewhereNote { get; set; }
+
     /// <summary>Opens an address in the user's own browser (Open in Beeminder; set by the app).</summary>
     public Action<string>? OpenInBrowser { get; set; }
 
@@ -359,6 +362,11 @@ public sealed partial class GoalsViewModel : ObservableObject
         if (SessionRunning?.Invoke() == true)
         {
             return new TaskMenuEntry("Start a session", Icon: MaterialIconKind.PlayOutline, Note: "A session is running");
+        }
+
+        if (RunningElsewhereNote?.Invoke() is string elsewhere)
+        {
+            return new TaskMenuEntry("Start a session", Icon: MaterialIconKind.PlayOutline, Note: elsewhere);
         }
 
         IReadOnlyList<GoalSessionPreset> presets = SessionPresets?.Invoke() ?? [];

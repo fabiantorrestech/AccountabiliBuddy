@@ -573,8 +573,9 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.S && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
         {
-            // The title bar's "Start session": the app's start controls, only with no session running.
-            if (viewModel.SessionControl is { } control && (control.IsIdle || control.IsEnded))
+            // The title bar's "Start session": the app's start controls, only with no session running here (while another device's
+            // session is live they open too, and say so: Start is greyed there).
+            if (viewModel.SessionControl is { } control && (control.IsIdle || control.IsEnded || control.IsElsewhere))
             {
                 control.StartCommand.Execute(null);
             }

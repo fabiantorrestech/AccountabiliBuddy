@@ -108,6 +108,8 @@ public partial class SessionControlView : UserControl, AccountabiliBuddy.App.Con
 
     protected override Size MeasureOverride(Size availableSize)
     {
+        // The Elsewhere pill never asks for more than it is given: its device name trims instead (the time and the dot stay).
+        ElsewherePill.MaxWidth = ElsewherePill.IsVisible && !double.IsInfinity(availableSize.Width) ? Math.Max(0, availableSize.Width) : double.PositiveInfinity;
         var unbounded = new Size(double.PositiveInfinity, availableSize.Height);
         Size full = base.MeasureOverride(unbounded);
         // The extras' natural width is read from their row, which measures its children unconstrained whatever width it is given
@@ -117,7 +119,7 @@ public partial class SessionControlView : UserControl, AccountabiliBuddy.App.Con
         double naturalExtras = Pill.IsVisible ? Math.Min(ExtrasRow.NaturalWidth, ExtrasOpenMaxWidth) : 0;
         double natural = Math.Max(full.Width, resting + naturalExtras);
 
-        int state = Pill.IsVisible ? 1 : EndedButton.IsVisible ? 2 : 0;
+        int state = Pill.IsVisible ? 1 : EndedButton.IsVisible ? 2 : ElsewherePill.IsVisible ? 3 : 0;
         if (state != _footprintState)
         {
             OnFootprintStateChanged(state);

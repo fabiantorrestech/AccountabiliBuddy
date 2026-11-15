@@ -40,6 +40,9 @@ object PhoneSessionOffGap {
      * @param now The time at the start: trusted (network-backed) or not, see [timeIsTrusted].
      * @param newBoot The boot count changed or `offAt` was saved. In the same boot with no `offAt` the session simply ran (an OEM kill, a
      * crash, a force-stop: the elapsed clock covers it), so no gap is made (B3a).
+     * @param trustCanCome Network time can still arrive on this phone (Android 13 and later). Then an UNTRUSTED gap is always a [Decision.Hold], never a
+     * [Decision.Pause], however far the clock is past the off moment (B1 of the PS2a review: a clock set back by about the off time would otherwise give a pause
+     * of a few seconds, and the off time would count as the session). Only where trust can never come (below Android 13) is a pause decided on an untrusted clock.
      * @param timeIsTrusted [now] is network-backed. An untrusted time never closes the session for the gap's length or for a new day (B3b),
      * and has no cap (Q1163b, PS1b verify): a clock set BACK gives a [Decision.Hold] (the timer paused and locked until the clock is at or past
      * the off moment); a clock at or past the off moment gives a [Decision.Pause] from the off moment to now (the end moves on by the whole gap,
@@ -49,19 +52,22 @@ object PhoneSessionOffGap {
      * heartbeat, which the held boot may have written from an untrusted clock (V-B1): a held gap ends only as a Pause, never as a close for 4 h
      * or a new day (the time held was paused and locked anyway, so a close there could only loosen).
      */
-    fun decide(record: PhoneSessionRecord, now: Instant, newBoot: Boolean, timeIsTrusted: Boolean, zone: ZoneId): Decision {
+    fun decide(record: PhoneSessionRecord, now: Instant, newBoot: Boolean, timeIsTrusted: Boolean, trustCanCome: Boolean, zone: ZoneId): Decision {
         if (!record.isRunning || !newBoot) return Decision.Nothing
         val held = record.holdsDeviceOff
         val from = if (held) record.openAway!!.from else record.offFrom
         val endAtOff = record.effectiveEnd(from)
         if (endAtOff != null && !endAtOff.isAfter(from)) return Decision.Close(endAtOff, CloseWhy.SET_END_PASSED)
-        if (!timeIsTrusted) return if (now.isBefore(from)) Decision.Hold(from) else Decision.Pause(from, now)
+        if (!timeIsTrusted) return if (trustCanCome || now.isBefore(from)) Decision.Hold(from) else Decision.Pause(from, now)
         // A hold already paused the timer: it ends here as a pause whatever the gap, so the time off is never focus.
         if (held) return Decision.Pause(from, maxOf(from, now))
         val gap = Duration.between(from, now)
         if (gap < SHORT_GAP) return Decision.Nothing
-        if (gap >= LONG_GAP) return Decision.Close(from, CloseWhy.FOUR_HOURS)
-        if (crossesLocalDay(from, now, zone)) return Decision.Close(from, CloseWhy.NEW_DAY)
+        // A gap with no `offAt` (no shutdown was heard: a kill, a force-stop, a dead battery) can only pause, never close (S7 of the PS2a review): the
+        // last heartbeat may be old only because the phone slept or the app was stopped, not because the phone was off.
+        val heard = record.offAt != null
+        if (gap >= LONG_GAP) return if (heard) Decision.Close(from, CloseWhy.FOUR_HOURS) else Decision.Pause(from, now)
+        if (crossesLocalDay(from, now, zone)) return if (heard) Decision.Close(from, CloseWhy.NEW_DAY) else Decision.Pause(from, now)
         return Decision.Pause(from, maxOf(from, now))
     }
 

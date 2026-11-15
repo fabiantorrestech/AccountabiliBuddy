@@ -205,12 +205,22 @@
                         <TextBlock Classes="ringLabel" Text="planned" />
                     </StackPanel>
                 </Panel>
-                <TextBlock Classes="cardLine" Text="{Binding IdleCardLine}" />
+                <TextBlock Classes="cardLine" Text="{Binding IdleCardLine}" IsVisible="{Binding !HasElsewhere}" />
+                <!-- ADR 85, R2: another device's session replaces that line: "Running on Pixel · 32 min left" (one line, the name trims). -->
+                <!-- The device's name trims; "· 32 min left · paused" never does. -->
+                <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Center" IsVisible="{Binding HasElsewhere}" ToolTip.Tip="{Binding ElsewhereText}"
+                      AutomationProperties.Name="{Binding ElsewhereText}">
+                    <TextBlock Grid.Column="0" Classes="cardLine" Text="Running on" Margin="0,0,5,0" TextWrapping="NoWrap" />
+                    <TextBlock Grid.Column="1" Classes="cardLine" Text="{Binding ElsewhereName}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="2" Classes="cardLine" Text="{Binding ElsewhereStatus, StringFormat=' · {0}'}" TextWrapping="NoWrap" />
+                </Grid>
+                <!-- ADR 85, R3: a phone's session that went quiet: Start is back, with this muted line. -->
+                <TextBlock Classes="cardLine" FontSize="12.5" Text="{Binding StaleText}" IsVisible="{Binding HasStaleLine}" />
                 <!-- After the shutdown routine: "Work over for today", until the next work part. Nothing is locked by it. -->
                 <TextBlock Classes="cardLine" FontSize="12.5" Text="{Binding WorkOver.Line, FallbackValue={x:Null}}" IsVisible="{Binding ShowsWorkOver}" />
                 <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
                     <Button Classes="primary cardButton" Command="{Binding QuickStart.StartCommand}" AutomationProperties.Name="Start session"
-                            ToolTip.Tip="{Binding QuickStart.StartLabel}">
+                            IsEnabled="{Binding CanStartHere}" ToolTip.Tip="{Binding QuickStart.StartLabel}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <mi:MaterialIcon Kind="Play" Width="16" Height="16" VerticalAlignment="Center" />
                             <TextBlock Text="Start session" VerticalAlignment="Center" />

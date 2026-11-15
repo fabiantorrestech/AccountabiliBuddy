@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Sync;
 using AccountabiliBuddy.App.ViewModels;
 using AccountabiliBuddy.App.Views;
 using AccountabiliBuddy.Core.Domain;
@@ -37,6 +38,12 @@ public sealed class QuickSessionService
 
     // True while a session started from the popup is running, so its natural end can offer another one.
     private bool _ownsRunningSession;
+
+    /// <summary>
+    /// ADR 85, R1: the session live on another device now, or null. The popup then shows it ("Running on Pixel · 32 min left") with
+    /// Close alone, since only that device can end it, and the Session tab's start controls grey Start. Set by the app.
+    /// </summary>
+    public Func<Core.Sync.GroupSessionLive?> LiveElsewhere { get; set; } = static () => null;
 
     /// <summary>Guided sessions: the checklist the start controls edit before Start; set by the app.</summary>
     public SessionTasksService? Tasks { get; set; }
@@ -127,7 +134,10 @@ public sealed class QuickSessionService
     public QuickSessionViewModel CreateStartControls()
     {
         var viewModel = new QuickSessionViewModel(
-            _configuration.Current.Profiles, Preferences, sessionCompleted: false, runningSessionText: null, _sessions.TimeProvider);
+            _configuration.Current.Profiles, Preferences, sessionCompleted: false, runningSessionText: null, _sessions.TimeProvider)
+        {
+            BlockedText = BlockedText(),
+        };
         viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: false);
         viewModel.Checklist = Tasks is null ? null : new ChecklistViewModel(Tasks, ChecklistMode.Draft, _sessions.TimeProvider);
         HookQuickStart(viewModel);
@@ -162,26 +172,7 @@ public sealed class QuickSessionService
             return;
         }
 
-        SessionState state = _sessions.State;
-        string? runningText = state.IsActive
-            ? $"{SessionStatusFormatter.Title(state, ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId))} · "
-              + SessionStatusFormatter.Detail(state, _sessions.Now)
-            : null;
-
-        var viewModel = new QuickSessionViewModel(
-            _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider)
-        {
-            EndSessionText = state.IsTest ? "End test" : "End session…",
-        };
-        viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: true);
-        viewModel.Checklist = Tasks is null ? null : new ChecklistViewModel(Tasks, ChecklistMode.Draft, _sessions.TimeProvider);
-        HookQuickStart(viewModel);
-        viewModel.EndSessionRequested += async (_, _) =>
-        {
-            CloseAll();
-            await _endFlow.TryEndSessionAsync(owner: null);
-        };
-        viewModel.CloseRequested += (_, _) => CloseAll();
+        QuickSessionViewModel viewModel = CreatePopupViewModel(sessionCompleted);
 
         // Snapshot first, so the backdrop shows the screen as it was, not with our windows on it.
         _backdrop = new BlurBackdrop();
@@ -196,6 +187,59 @@ public sealed class QuickSessionService
 
         _backdrop.Show();
         _window.Show();
+    }
+
+    /// <summary>
+    /// The popup's view model: the start controls, or, while a session runs here, its status with End, or, while one is live on another
+    /// device (ADR 85), "Running on Pixel · 32 min left" with Close alone (only that device can end it).
+    /// </summary>
+    public QuickSessionViewModel CreatePopupViewModel(bool sessionCompleted)
+    {
+        SessionState state = _sessions.State;
+        string? elsewhereText = state.IsActive ? null : BlockedText();
+        string? runningText = state.IsActive
+            ? $"{SessionStatusFormatter.Title(state, ProfileOptions.NameOf(_configuration.Current.Profiles, state.ProfileId))} · "
+              + SessionStatusFormatter.Detail(state, _sessions.Now)
+            : elsewhereText;
+
+        var viewModel = new QuickSessionViewModel(
+            _configuration.Current.Profiles, Preferences, sessionCompleted, runningText, _sessions.TimeProvider)
+        {
+            EndSessionText = state.IsTest ? "End test" : "End session…",
+            CanEndSession = elsewhereText is null,
+        };
+        viewModel.StartRequested += async (_, _) => await StartAsync(viewModel, fromPopup: true);
+        viewModel.Checklist = Tasks is null ? null : new ChecklistViewModel(Tasks, ChecklistMode.Draft, _sessions.TimeProvider);
+        HookQuickStart(viewModel);
+        viewModel.EndSessionRequested += async (_, _) =>
+        {
+            CloseAll();
+            await _endFlow.TryEndSessionAsync(owner: null);
+        };
+        viewModel.CloseRequested += (_, _) => CloseAll();
+        return viewModel;
+    }
+
+    /// <summary>
+    /// The overlay panel's Start: "Quick Start with Default". While a session is live on another device (ADR 85, R1) nothing starts:
+    /// the popup opens and says where it runs.
+    /// </summary>
+    /// <returns>True when a session started.</returns>
+    public Task<bool> StartFromOverlayAsync()
+    {
+        if (_sessions.StartBlockedBy is not null)
+        {
+            Show();
+            return Task.FromResult(false);
+        }
+
+        return StartWithDefaultAsync();
+    }
+
+    // "Running on Pixel · 32 min left" while another device's session is live (R1), else null.
+    private string? BlockedText()
+    {
+        return LiveElsewhere() is { } live && !_sessions.State.IsActive ? SessionElsewhereText.Running(live, _sessions.Now) : null;
     }
 
     /// <param name="fromPopup">Only a session started from the popup reopens it ("start another?") when it ends.</param>

@@ -89,6 +89,22 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
     /// <summary>The end button while a session runs: "End test" for a test session.</summary>
     public string EndSessionText { get; init; } = "End session…";
 
+    /// <summary>False while the running session is another device's: only that device can end it (ADR 85, R6), so the popup offers Close alone.</summary>
+    public bool CanEndSession { get; init; } = true;
+
+    /// <summary>
+    /// ADR 85, R1: set to "Running on Pixel · 32 min left" while a session is live on another device. Start, Quick Start with Default and
+    /// No set end can't run then (greyed); a test session still can. Null otherwise.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(QuickStartDefaultCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StartOpenEndedCommand))]
+    [NotifyPropertyChangedFor(nameof(IsBlockedElsewhere))]
+    public partial string? BlockedText { get; set; }
+
+    public bool IsBlockedElsewhere => BlockedText is not null;
+
     public bool CanChoose => !IsSessionRunning;
 
     public bool HasProfiles => ProfileOptions.Count > 0;
@@ -295,7 +311,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         ApplyUntil();
     }
 
-    private bool CanStart => !IsSessionRunning && SelectedProfile is not null && FocusLength >= TimeSpan.FromMinutes(1);
+    private bool CanStart => !IsSessionRunning && !IsBlockedElsewhere && SelectedProfile is not null && FocusLength >= TimeSpan.FromMinutes(1);
 
     [RelayCommand(CanExecute = nameof(CanStart))]
     private void Start()
@@ -303,7 +319,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         StartRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool CanQuickStartDefault => !IsSessionRunning;
+    private bool CanQuickStartDefault => !IsSessionRunning && !IsBlockedElsewhere;
 
     [RelayCommand(CanExecute = nameof(CanQuickStartDefault))]
     private void QuickStartDefault()
@@ -311,7 +327,10 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         QuickStartDefaultRequested?.Invoke(this, EventArgs.Empty);
     }
 
-    private bool CanStartOpenEnded => !IsSessionRunning && SelectedProfile is not null;
+    private bool CanStartOpenEnded => !IsSessionRunning && !IsBlockedElsewhere && SelectedProfile is not null;
+
+    // A test session is never held by another device's session (R1): it is never counted or synced.
+    private bool CanStartTest => !IsSessionRunning && SelectedProfile is not null;
 
     [RelayCommand(CanExecute = nameof(CanStartOpenEnded))]
     private void StartOpenEnded()
@@ -322,7 +341,7 @@ public sealed partial class QuickSessionViewModel : ObservableObject, IDisposabl
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanStartOpenEnded))]
+    [RelayCommand(CanExecute = nameof(CanStartTest))]
     private void StartTest()
     {
         StartTestRequested?.Invoke(this, EventArgs.Empty);
