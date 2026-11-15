@@ -93,7 +93,8 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
     var search by remember { mutableStateOf("") }
     var onUnlock by remember { mutableStateOf(store.onUnlockInSession) }
     var icons by remember { mutableStateOf(store.showIcons) }
-    var hardcore by remember { mutableStateOf(store.hardcoreProfile.orEmpty()) }
+    var hardcore by remember { mutableStateOf(store.hardcoreProfile) }
+    var nightInPb by remember { mutableStateOf(store.nightInProductaBuddy) }
     var useLmp by remember { mutableStateOf(store.useLockMyPhone) }
     var newFolder by remember { mutableStateOf("") }
     var opened by remember { mutableStateOf<String?>(null) }
@@ -105,10 +106,10 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
         listOfNotNull(
             "${essentials.apps.size} apps",
             if (onUnlock) "on unlock at night" else "screen off",
-            "lock for the night".takeIf { useLmp && hardcore.isNotBlank() },
+            "LockMyPhone-Extended at night".takeIf { useLmp && onUnlock },
         ).joinToString(" · ")
     } else {
-        "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone && store.hardcoreProfile != null) " · hardcore on" else ""}"
+        "${essentials.apps.size} apps · ${essentials.folders.size} folders${if (store.useLockMyPhone) " · LockMyPhone-Extended" else ""}"
     }
 
     val cards: @Composable (Boolean) -> Unit = { framed ->
@@ -119,6 +120,10 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
         )
         if (night && !app.store.state.collectAsState().value.sleep.enabled) {
             Note("Sleep mode is off: the night needs a bedtime and a wake time (Sleep times).", color = Ab.colors.drift)
+        }
+        // ADR 73: the one choice every essentials place follows.
+        if (!night) {
+            if (framed) AbCard(verticalSpacing = 8.dp) { LockChoiceCard() } else LockChoiceCard()
         }
         if (!night && !reader.hasAccess()) {
             Note("Grant Usage access so Essentials knows when you leave an essential app.", color = Ab.colors.waiting)
@@ -148,9 +153,13 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
         // The screen: when it comes up, whether it shows icons, and a way to try and arrange it.
         EssentialsGroup(if (night) "The bedtime essentials screen" else "The essentials screen", framed) {
             ToggleRow(
-                if (night) "On unlocking at night" else "On unlocking during a session",
-                if (night) "From bedtime until your wake time, unlocking the phone lands on the bedtime essentials screen (a session on another device shows its own)"
-                else "On another device, unlocking the phone lands on the essentials screen",
+                if (night) "At night" else "During focus sessions",
+                when {
+                    night && useLmp -> "From bedtime until your wake time, LockMyPhone-Extended locks the phone (a session on another device has its own lock)"
+                    night -> "From bedtime until your wake time, unlocking the phone lands on the bedtime essentials screen (a session on another device shows its own)"
+                    useLmp -> "During a session on another device, LockMyPhone-Extended holds the phone locked with these essentials"
+                    else -> "During a session on another device, unlocking the phone lands on the essentials screen"
+                },
                 onUnlock,
             ) {
                 store.onUnlockInSession = it; onUnlock = it
@@ -203,41 +212,42 @@ private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scro
             }
         }
 
-        // Hardcore: LockMyPhone-Extended really locks the phone for the session (or the night).
-        EssentialsGroup(if (night) "Lock for the night (LockMyPhone-Extended)" else "Hardcore (LockMyPhone-Extended)", framed, Modifier.bringIntoViewRequester(lockCard)) {
-            if (night) {
-                if (!useLmp) {
-                    Note("LockMyPhone-Extended is off (Settings › Guards › Phone guard › Essentials › Use LockMyPhone-Extended).")
-                }
-            } else {
-                ToggleRow(
-                    "Use LockMyPhone-Extended",
-                    "Off: ${com.accountabilibuddy.companion.guidance.appBrandName()} never starts its profiles or keeps its \"$syncedName\" profiles in step",
-                    useLmp,
-                ) {
-                    store.useLockMyPhone = it; useLmp = it
-                    // The night's synced profile follows the same switch.
-                    app.bedtimeEssentials.resync()
-                }
+        // LockMyPhone-Extended's lock for this list (ADR 73): the profile, what it does, lunch, ProductaBuddy's night.
+        EssentialsGroup(if (night) "The night's LockMyPhone-Extended lock" else "LockMyPhone-Extended lock", framed, Modifier.bringIntoViewRequester(lockCard)) {
+            if (!useLmp) {
+                Note("The built-in screen is how your phone locks (Guards › Phone guard › Essentials), so LockMyPhone-Extended isn't used.")
             }
             LockMyPhoneProfilePicker(
-                selected = hardcore.ifBlank { null },
+                selected = hardcore,
                 enabled = useLmp,
-                noneLabel = if (night) "none (no lock at night)" else "none (no lock for sessions)",
-                onPick = { name -> hardcore = name.orEmpty(); store.hardcoreProfile = name },
+                noneLabel = "\"$syncedName\" (this app's own)",
+                onPick = { name -> (name ?: syncedName).let { hardcore = it; store.hardcoreProfile = it } },
             )
             Note(
                 when {
                     !EssentialsLaunch.lockMyPhoneInstalled(context) -> "LockMyPhone-Extended isn't installed on this phone."
-                    night && !canSync -> "At bedtime LockMyPhone-Extended starts that profile until your wake time; it decides what's allowed. Update LockMyPhone-Extended to 0.13.0 to get an \"$syncedName\" profile kept in step with this list."
-                    night -> "At bedtime LockMyPhone-Extended starts that profile until your wake time (or at your first unlock after it); it decides what's allowed. Its \"$syncedName\" profile always allows exactly these bedtime essentials."
-                    else -> "When a session starts on another device, LockMyPhone-Extended starts that profile for the session's length; it decides what's allowed. Its \"$syncedName\" profile always allows exactly these essentials."
+                    night && !canSync -> "From bedtime until your wake time LockMyPhone-Extended locks with that profile. Update LockMyPhone-Extended to 0.13.0 to get an \"$syncedName\" profile kept in step with this list."
+                    night -> "From bedtime until your wake time (or your first unlock after bedtime) LockMyPhone-Extended locks with that profile. \"$syncedName\" always allows exactly these bedtime essentials, with this screen's Phone corner and icons."
+                    else -> "During a session's focus time LockMyPhone-Extended holds the phone locked with that profile: no early unlock while it runs, and this app always allowed. Breaks, lunch (below), emergency phone time and Need it for work leave the phone free. \"$syncedName\" always allows exactly these essentials, with this screen's Phone corner, icons and parts."
                 },
             )
             if (useLmp && canSync && EssentialsLaunch.lockMyPhoneInstalled(context) && hardcore != syncedName) {
                 GuardTextButton("Use \"$syncedName\" (kept in sync with these essentials)", onClick = { hardcore = syncedName; store.hardcoreProfile = syncedName })
             }
-            if (!night) LunchLiftSetting(enabled = useLmp && hardcore.isNotBlank())
+            if (!night) {
+                com.accountabilibuddy.companion.essentials.SessionLock.lastReply(context)?.let { (event, lock) ->
+                    if (event == "held_by_other" && lock != null) Note("Your own \"$lock\" lock runs now, with the session's rules (no early unlock).")
+                    if (event == "refused") Note("LockMyPhone-Extended refused the session's lock (check the profile and its device admin); the built-in screen stands in.", color = Ab.colors.drift)
+                }
+                LunchLiftSetting(enabled = useLmp)
+            } else {
+                ToggleRow("In ProductaBuddy too", "Off by default: ProductaBuddy keeps no night unless you turn this on (the night's reminders stay off there)", nightInPb) {
+                    store.nightInProductaBuddy = it; nightInPb = it
+                }
+            }
+        }
+        if (night) {
+            if (framed) AbCard(verticalSpacing = 8.dp) { MorningLockCard() } else MorningLockCard()
         }
     }
 

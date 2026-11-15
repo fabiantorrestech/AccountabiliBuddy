@@ -38,9 +38,14 @@
     <!-- Lets the sync worker read steps with the app closed, so the PC's ring moves through the day. Asked for together with the steps
          permission only when this Health Connect offers it; declined or not offered, steps are read only while the app is in front. -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
-    <!-- Keeps LockMyPhone-Extended's "Accountabilibuddy" profile in sync with the essentials (ProfileSync). Granted only when
-         LockMyPhone-Extended, signed with the same key, was installed first. -->
+    <!-- LockMyPhone-Extended's companion contract (ProfileSync, the session hold, the Morning lock; its ADR 0008-0013). Declared
+         here too, with the same signature level, so either app can be installed first (its ADR 0012); both are signed with the same key. -->
+    <permission
+        android:name="com.fabiantorrestech.lockmyphone_extended.permission.MANAGE_PROFILES"
+        android:protectionLevel="signature" />
     <uses-permission android:name="com.fabiantorrestech.lockmyphone_extended.permission.MANAGE_PROFILES" />
+    <!-- ADR 74: installing LockMyPhone-Extended from the app (on a tap only); Android still asks the user to allow it. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Which app was in front, for today's phone use (granted by the user in Settings > Usage access). -->
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -106,6 +111,11 @@
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
+            <!-- LockMyPhone-Extended's "Edit in Accountabilibuddy" (its ADR 0012): the essentials settings for its profile. -->
+            <intent-filter>
+                <action android:name="com.accountabilibuddy.companion.action.EDIT_ESSENTIALS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <!-- Device sync (ADR 22): the PC's link code (join) and its sync QR codes (sync), opened by the camera. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -138,6 +148,16 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/sync_paths" />
         </provider>
+
+        <!-- LockMyPhone-Extended's answer to the session hold (its ADR 0011); only it can send it (same signature). -->
+        <receiver
+            android:name=".essentials.LockResultReceiver"
+            android:exported="true"
+            android:permission="com.fabiantorrestech.lockmyphone_extended.permission.MANAGE_PROFILES">
+            <intent-filter>
+                <action android:name="com.fabiantorrestech.lockmyphone_extended.action.LOCK_RESULT" />
+            </intent-filter>
+        </receiver>
 
         <!-- Health Connect (Android 14+): why the app reads sleep and, when turned on, steps. -->
         <activity

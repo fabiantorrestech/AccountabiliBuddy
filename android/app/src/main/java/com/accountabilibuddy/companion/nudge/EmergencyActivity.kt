@@ -25,7 +25,8 @@ class EmergencyActivity : ComponentActivity() {
                 GuardFrame(Modifier.fillMaxSize().background(Color(0xFF0B1F1E)).padding(28.dp), contentAlignment = Alignment.Center) {
                     EmergencyChooser(app.emergency, onStarted = {
                         app.refreshSoon()
-                        startActivity(com.accountabilibuddy.companion.essentials.EssentialsActivity.intent(this@EmergencyActivity))
+                        // ADR 73: emergency phone time leaves the phone free (no screen; the session's lock lifts).
+                        com.accountabilibuddy.companion.essentials.SessionLock.reconcile(this@EmergencyActivity)
                         finish()
                     }, onBack = { finish() })
                 }

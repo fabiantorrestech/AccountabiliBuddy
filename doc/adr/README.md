@@ -5,6 +5,9 @@
 
 | ADR | Title | Status | Supersedes |
 | --- | --- | --- | --- |
+| [0075](0075-let-productabuddy-keep-an-optional-night.md) | Let ProductaBuddy keep an optional night | Accepted | — |
+| [0074](0074-download-lockmyphone-extended-from-the-app.md) | Download LockMyPhone-Extended from the app | Accepted | — |
+| [0073](0073-use-lockmyphone-extended-as-the-phones-lock-when-it-is-installed.md) | Use LockMyPhone-Extended as the phone's lock when it is installed | Accepted | — |
 | [0071](0071-back-up-settings-by-kind-and-let-a-device-stop-syncing-task-lists.md) | Back up settings by kind, and let a device stop syncing its task lists | Accepted | — |
 | [0070](0070-read-network-time-to-guard-waits.md) | Read network time to guard waits | Accepted | — |
 | [0069](0069-keep-separate-settings-per-mode.md) | Keep separate settings per mode | Accepted | — |

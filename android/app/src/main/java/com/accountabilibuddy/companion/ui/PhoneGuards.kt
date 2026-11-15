@@ -55,10 +55,10 @@ object PhoneGuards {
         val installed = runCatching { context.packageManager.getPackageInfo(EssentialsLaunch.LOCK_MY_PHONE, 0) }.isSuccess
         val profile = app.essentials.hardcoreProfile
         return when {
-            !installed -> PhoneGuard("LockMyPhone-Extended", "Not installed")
-            profile.isNullOrBlank() -> PhoneGuard("LockMyPhone-Extended", "Installed · no hardcore profile set (Guards › Phone guard › Essentials)")
-            else -> PhoneGuard("LockMyPhone-Extended", "Hardcore profile \"$profile\" starts with each PC session",
-                listOf("Its own blocks and allowed apps are set in LockMyPhone-Extended."))
+            !installed -> PhoneGuard("LockMyPhone-Extended", "Not installed · the built-in essentials screen is used")
+            !app.lockScreen.usesLockMyPhone() -> PhoneGuard("LockMyPhone-Extended", "Installed · not used (the built-in screen is the choice)")
+            else -> PhoneGuard("LockMyPhone-Extended", "Holds the phone locked with \"$profile\" during each PC session",
+                listOf("No early unlock while a session's focus time runs; breaks, lunch, emergency time and Need it for work leave the phone free."))
         }
     }
 
@@ -70,14 +70,14 @@ object PhoneGuards {
         val folders = list.folders.count { it.shown }
         val details = listOf(
             "$shown app${if (shown == 1) "" else "s"} shown · $folders folder${if (folders == 1) "" else "s"} · $hidden hidden (search only)",
-            if (store.onUnlockInSession) "Opens on unlock during PC sessions and emergency time" else "Opens on unlock during emergency time",
+            if (store.onUnlockInSession) "Opens on unlock during PC sessions (unless LockMyPhone-Extended locks instead)" else "Off during PC sessions",
         )
-        return PhoneGuard("Essentials screen", if (app.emergency.isActive()) "On (emergency time)" else "Ready", details)
+        return PhoneGuard("Essentials screen", if (app.emergency.isActive()) "Off (emergency time: the phone is free)" else "Ready", details)
     }
 
     private fun bedtime(app: CompanionApp): PhoneGuard {
         val store = app.bedtimeEssentials
-        val lock = store.hardcoreProfile?.takeIf { app.essentials.useLockMyPhone }
+        val lock = store.hardcoreProfile.takeIf { app.essentials.useLockMyPhone && store.onUnlockInSession }
         val details = listOfNotNull(
             "${store.essentials.value.apps.size} apps",
             if (store.onUnlockInSession) "Opens on unlock from bedtime until wake" else "Doesn't open by itself (Settings › Sleep)",

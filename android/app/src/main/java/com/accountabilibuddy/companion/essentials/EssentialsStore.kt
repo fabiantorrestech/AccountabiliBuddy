@@ -58,8 +58,6 @@ data class Essentials(val apps: List<EssentialApp> = emptyList(), val folders: L
 class EssentialsStore(context: Context, val kind: EssentialsKind = EssentialsKind.Focus) {
     private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences(kind.prefs, Context.MODE_PRIVATE)
-    // The switches both lists share (using LockMyPhone-Extended at all) live with the focus list.
-    private val shared = context.getSharedPreferences(EssentialsKind.Focus.prefs, Context.MODE_PRIVATE)
     private val legacy = context.getSharedPreferences("emergency", Context.MODE_PRIVATE)
     private val _essentials = MutableStateFlow(read())
     val essentials: StateFlow<Essentials> = _essentials.asStateFlow()
@@ -70,43 +68,56 @@ class EssentialsStore(context: Context, val kind: EssentialsKind = EssentialsKin
     }
 
     /**
-     * Whether AccountabiliBuddy uses LockMyPhone-Extended at all (on by default, both lists): the profiles started for
-     * sessions and nights and the synced profiles kept in step with the essentials. Off = none of it.
+     * Whether LockMyPhone-Extended is the phone's lock right now (ADR 73): the global "How your phone locks" choice
+     * ([LockScreenChoice]) and installed. Then the profiles started for sessions and nights, and the synced profiles
+     * kept in step with the essentials; otherwise the built-in essentials screen.
      */
-    var useLockMyPhone: Boolean
-        get() = shared.getBoolean(KEY_USE_LMP, true)
-        set(value) {
-            shared.edit().putBoolean(KEY_USE_LMP, value).apply()
-            resync()
-        }
+    val useLockMyPhone: Boolean
+        get() = (appContext as com.accountabilibuddy.companion.CompanionApp).lockScreen.usesLockMyPhone()
 
     /** Sends this list to its LockMyPhone-Extended profile, when LockMyPhone-Extended is used. */
     fun resync() {
-        if (useLockMyPhone) ProfileSync.send(appContext, _essentials.value, kind)
+        if (useLockMyPhone) ProfileSync.send(appContext, _essentials.value, kind, phoneCorner, showIcons)
     }
 
     /**
-     * The essentials screen on unlocking: during a session on another device (focus, on by default), or during the
-     * night (bedtime, off by default).
+     * When this list engages ("When it engages", ADR 73): during a session on another device (focus, on by default), or
+     * during the night (bedtime, off by default). LockMyPhone-Extended's lock or the built-in screen, whichever is the
+     * choice. A night that had a LockMyPhone-Extended lock before ADR 73 starts engaged, so it keeps its lock.
      */
     var onUnlockInSession: Boolean
-        get() = prefs.getBoolean(KEY_IN_SESSION, kind == EssentialsKind.Focus)
+        get() = prefs.getBoolean(KEY_IN_SESSION, kind == EssentialsKind.Focus || prefs.getString(KEY_HARDCORE, null) != null)
         set(value) = prefs.edit().putBoolean(KEY_IN_SESSION, value).apply()
+
+    /** The night in ProductaBuddy (ADR 75): off by default; on, the night engages there too. Bedtime list only. */
+    var nightInProductaBuddy: Boolean
+        get() = prefs.getBoolean(KEY_NIGHT_IN_PB, false)
+        set(value) = prefs.edit().putBoolean(KEY_NIGHT_IN_PB, value).apply()
 
     /** Where the Phone shortcut sits on the essentials screen: "right" (bottom right, the default), "left" or "list". */
     var phoneCorner: String
         get() = prefs.getString(KEY_PHONE, "right") ?: "right"
-        set(value) = prefs.edit().putString(KEY_PHONE, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_PHONE, value).apply()
+            resync()
+        }
 
     /** Icons next to the names (on by default). */
     var showIcons: Boolean
         get() = prefs.getBoolean(KEY_ICONS, true)
-        set(value) = prefs.edit().putBoolean(KEY_ICONS, value).apply()
+        set(value) {
+            prefs.edit().putBoolean(KEY_ICONS, value).apply()
+            resync()
+        }
 
-    /** The LockMyPhone-Extended profile to start for each session on another device (or each night); null = off. */
-    var hardcoreProfile: String?
-        get() = prefs.getString(KEY_HARDCORE, null)?.takeIf { it.isNotBlank() }
-        set(value) = prefs.edit().putString(KEY_HARDCORE, value?.trim()).apply()
+    /**
+     * The LockMyPhone-Extended profile started for each session on another device (or each night). By default the
+     * profile this app keeps in step with the list ([EssentialsKind.lockMyPhoneName]), which it creates there when
+     * missing; the user may pick one of their own (ADR 73).
+     */
+    var hardcoreProfile: String
+        get() = prefs.getString(KEY_HARDCORE, null)?.takeIf { it.isNotBlank() } ?: kind.lockMyPhoneName
+        set(value) = prefs.edit().putString(KEY_HARDCORE, value.trim()).apply()
 
     fun isAllowed(packageName: String?, activity: String? = null): Boolean = _essentials.value.isAllowed(packageName, activity)
 
@@ -219,7 +230,7 @@ class EssentialsStore(context: Context, val kind: EssentialsKind = EssentialsKin
         private const val KEY_ICONS = "showIcons"
         private const val KEY_PHONE = "phoneCorner"
         private const val KEY_HARDCORE = "hardcoreProfile"
-        private const val KEY_USE_LMP = "useLockMyPhone"
+        private const val KEY_NIGHT_IN_PB = "nightInProductaBuddy"
 
         /** Google's phone, messages, maps, clock, calendar and authenticator; banking apps are added in Settings. */
         val DEFAULT_APPS = setOf(

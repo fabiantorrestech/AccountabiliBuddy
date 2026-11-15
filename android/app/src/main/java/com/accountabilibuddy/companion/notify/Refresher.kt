@@ -115,13 +115,19 @@ object Refresher {
             // for the chosen profile. ADR 68: sessions keep their lock in ProductaBuddy, so only the pause stops it.
             val sessionRunning = if (app.guidance.isCompanion && !app.pause.isQuiet) HeaderSource.focus(app, now)?.running else running
             val testRunning = !app.pause.isQuiet && app.testSession.running() != null
-            if (sessionRunning != null || testRunning) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
-            // Lunch lifts the session's LockMyPhone-Extended lock and brings it back after.
-            runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(context) }
+            val guarded = sessionRunning != null || testRunning
+            if (com.accountabilibuddy.companion.essentials.SessionLock.holdCapable(context)) {
+                // ADR 73: the session's hold (lunch, breaks, emergency and work use free the phone; it comes back after).
+                com.accountabilibuddy.companion.essentials.SessionLock.reconcile(context, sessionGuarded = guarded)
+            } else {
+                if (guarded) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
+                // Lunch lifts the session's LockMyPhone-Extended lock and brings it back after.
+                runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(context) }
+            }
             // The night's lock: LockMyPhone-Extended's profile from bedtime until the wake time.
-            // ADR 68: not in ProductaBuddy (a session's lock above still runs).
-            if (!app.guidance.isCompanion) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
-            bedtimeAt = app.bedtimeEssentials.hardcoreProfile?.let {
+            // ADR 68/75: in ProductaBuddy only when the night was chosen there (a session's lock above still runs).
+            com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
+            bedtimeAt = if (!app.bedtimeEssentials.onUnlockInSession) null else {
                 com.accountabilibuddy.companion.essentials.BedtimeNight.nextStart(app)?.atZone(java.time.ZoneId.systemDefault())?.toInstant()
             }
             // Curbox hard mode: a focus group that can't be exited, for each session on another device.

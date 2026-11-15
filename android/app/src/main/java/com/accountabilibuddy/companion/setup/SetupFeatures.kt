@@ -31,10 +31,16 @@ object SetupFeatures {
     const val AUTOSYNC_NUDGE = "sync.autosyncNudge"
     const val FINISHED_WORK_TAG = "nudge.finishedWorkTag"
     const val GUIDANCE = "guidance.mode"
+    const val ESSENTIALS_LOCK = "essentials.lock"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            ESSENTIALS_LOCK, "0.1.79", "How your phone locks (LockMyPhone-Extended or the built-in screen), when it engages, starter apps and the morning lock",
+            relevant = { true },
+            setUp = { done(it, ESSENTIALS_LOCK) },
+        ),
         SetupFeature(
             GUIDANCE, "0.1.77", "ProductaBuddy: a companion without the guarding, on all your devices",
             relevant = { true },
