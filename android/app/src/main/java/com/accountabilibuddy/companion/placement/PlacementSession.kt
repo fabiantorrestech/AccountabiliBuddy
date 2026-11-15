@@ -46,7 +46,10 @@ object PlacementSession {
             .filter { it.file.running?.isAwayOverdue(it.file.device.writtenAt, now) != true }
             .maxByOrNull { it.file.device.writtenAt } ?: return null
         val running = file.file.running!!
-        val counted = file.file.sessions.lastOrNull { it.end == null && !it.added }?.start
+        // The session's own start (ADR 85, `running.sessionStartedAt`) in preference to the open piece's start: a session is cut at every away
+        // stretch, so the open piece's start moves, and per-session state (work-use uses, the placement record) must not reset with it.
+        // An older file has no such start: the open piece's, as before.
+        val counted = running.sessionStartedAt ?: file.file.sessions.lastOrNull { it.end == null && !it.added }?.start
         return Info(counted ?: running.planningStartedAt ?: running.phaseStartedAt, authoritative = counted != null, onBreak = running.isBreak, endsAt = running.phaseEndsAt.takeIf { running.awaySince == null })
     }
 }

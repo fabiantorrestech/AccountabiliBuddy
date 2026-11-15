@@ -68,6 +68,15 @@ object PcFileControl {
         return file.sessions.filter { it.start.atZone(zone).toLocalDate() == today }.sumOf { it.offMinutesBefore ?: 0 }
     }
 
+    /**
+     * The PC rule for the group's "is a session running elsewhere" on the phone (R1, "Running on <PC>", Start blocking; plan R2 [B], PS1b review
+     * S1): the same rule the Today PC card and the lock seam read ([liveRunning] + [guardsHold], and with [ignoreOff] the lock-style hold), so the
+     * card and the Start sheet always agree. Pass this as `pcLive` of `GroupSessions.liveElsewhere/isLive`. `GroupSessions.pcRuleOfCore` is
+     * Core's rule, for counting and the fixtures' parity only.
+     */
+    fun groupLive(received: com.accountabilibuddy.shared.sync.ReceivedSyncFile, now: Instant, ignoreOff: Boolean = false): com.accountabilibuddy.shared.sync.SyncRunning? =
+        liveRunning(received.file, now)?.takeIf { ignoreOff || guardsHold(received.file, now) }
+
     /** The PC files on this phone, newest first. */
     fun pcs(received: List<ReceivedDevice>): List<ReceivedDevice> =
         received.filter { it.file.device.kind == SyncDeviceCard.KIND_PC }.sortedByDescending { it.file.device.writtenAt }
@@ -140,7 +149,7 @@ object PcFileControl {
             phaseEndsAt = running?.phaseEndsAt?.let { OffsetDateTime.ofInstant(it, zone) },
             profiles = file.profileOptions.orEmpty().map { PcProfile(it.id, it.name) },
             countUpProfileId = running?.countUpProfileId ?: file.defaultProfileId,
-            tasks = if (running == null) emptyList() else file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty(),
+            tasks = if (running == null) emptyList() else com.accountabilibuddy.shared.sync.SessionPieces.runningTasks(file.sessions),
             currentTask = running?.currentTask,
             comebacks = file.comebacks,
             planningStartedAt = running?.planningStartedAt?.let { OffsetDateTime.ofInstant(it, zone) },

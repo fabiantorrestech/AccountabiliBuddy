@@ -130,6 +130,8 @@ object SyncFileJson {
                 running.planningStartedAt?.let { put("planningStartedAt", writeTime(it)) }
                 running.planningEndsAt?.let { put("planningEndsAt", writeTime(it)) }
                 running.offSince?.let { put("offSince", writeTime(it)) }
+                // Optional (ADR 85, PS1b review B3): when the session itself started; absent from older apps and null is left out.
+                running.sessionStartedAt?.let { put("sessionStartedAt", writeTime(it)) }
             })
         }
         // Optional (ADR 42): a PC's answers, its end-early offer, its goal and its profiles for the start picker.
@@ -372,6 +374,7 @@ object SyncFileJson {
                         running.optionalTime("planningStartedAt"),
                         running.optionalTime("planningEndsAt"),
                         running.optionalTime("offSince"),
+                        running.optionalTime("sessionStartedAt"),
                     )
                 }.getOrNull()
             },

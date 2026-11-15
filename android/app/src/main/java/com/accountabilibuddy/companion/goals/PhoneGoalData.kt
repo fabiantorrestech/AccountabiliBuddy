@@ -14,6 +14,7 @@ import com.accountabilibuddy.shared.goals.GoalSourceType
 import com.accountabilibuddy.shared.goals.GoalTaskLink
 import com.accountabilibuddy.shared.goals.GoalTaskLinks
 import com.accountabilibuddy.shared.goals.GoalSyncedPiece
+import com.accountabilibuddy.shared.sync.GroupSessions
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import com.accountabilibuddy.shared.sync.SyncFileJson
@@ -52,9 +53,13 @@ object PhoneGoalData {
         slept: List<GoalWindow> = emptyList(),
         screen: List<GoalEntry> = emptyList(),
         taskLinks: List<GoalTaskLink> = emptyList(),
+        receivedAtOf: (SyncFile) -> Instant = { it.device.writtenAt },
     ): GoalSourceData {
+        // Another device's open piece ends where a receiver counts it (heard from, never after now, never after it went away), as the PC's
+        // goals read ReceivedSessions.Closed, not at `now` (PS1b review S2). The default reads each stamp as its arrival: callers that hold
+        // the arrival time pass it.
         val focus = files.filter { it.device.kind != SyncDeviceCard.KIND_WATCH }.flatMap { file ->
-            GoalFocusAttribution.fromSynced(pieces(file), now, zone)
+            GoalFocusAttribution.fromSynced(pieces(GroupSessions.closeOpenPieces(file, receivedAtOf(file), now)), now, zone)
         }
         val sleep = GoalSleepReadings.entries(goals, slept, if (slept.isEmpty()) null else now, zone)
         // ADR 79 (GS4): the phone writes its steps and sleep as stored entries ([PhoneGoalDerived]); a reading for a goal and day that already

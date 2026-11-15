@@ -524,6 +524,12 @@ data class SyncRunning(
     val planningEndsAt: java.time.Instant? = null,
     /** ADR 60: the PC signalled it was going off with this session running. Optional (older builds leave it out). */
     val offSince: java.time.Instant? = null,
+    /**
+     * ADR 85, optional (older apps leave it out): when the SESSION started. A session is cut into pieces at every away stretch, so the open
+     * piece's start moves; this does not. Readers key per-session state (work-use uses, the placement record) on it, falling back to the open
+     * piece's start for an older file.
+     */
+    val sessionStartedAt: java.time.Instant? = null,
 ) {
     /**
      * Still worth showing at [now] (a PC that went off mid-session stops counting down): before the end of its phase and

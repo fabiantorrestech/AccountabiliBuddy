@@ -437,6 +437,8 @@ class CompanionApp : Application() {
             deviceName,
             appVersion(),
             PhoneSyncSettingsStore(File(filesDir, "companion/sync-settings.json")),
+            // The arrival time of a file (ReceivedDevice.receivedAt) and the stamp of this phone's own file come from trusted time (PS1b review S6).
+            { com.accountabilibuddy.companion.guidance.TrustedTime.now() },
         )
         // ADR 55, 56: a removed device's backup opens with the group's key or a past key.
         backupOpener = BackupOpener({ sync.key.value }, pastKeys, { sync.deviceId })

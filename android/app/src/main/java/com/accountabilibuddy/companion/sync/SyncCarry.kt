@@ -28,11 +28,12 @@ object SyncCarry {
         }
 
         val stored = devices.firstOrNull { it.file.device.deviceId == sender.deviceId }
-        if (stored != null && sender.writtenAt < stored.file.device.writtenAt) {
+        // Older than when the stored copy was last heard from (a skewed stamp on it can't lock out the honest files after it, PS1a review B2).
+        if (stored != null && sender.writtenAt < com.accountabilibuddy.shared.sync.GroupSessions.heardAt(stored.file.device, stored.receivedAt)) {
             return Outcome(devices, "This phone already has newer data from ${sender.name}.")
         }
 
-        val merged = SyncMerge.merge(stored?.file, file, now)
+        val merged = SyncMerge.merge(stored?.file, file, now, stored?.receivedAt)
         return Outcome(devices.filter { it !== stored } + ReceivedDevice(merged, now, method, sealed), null)
     }
 

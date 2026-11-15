@@ -189,6 +189,15 @@ private val checks: List<FixtureCheck> = listOf(
     Sync1aCheck("local"),
     Sync1aCheck("keep-both"),
     Sync1aCheck("backup"),
+    // PS1b (ADR 85, phone-run sessions): the Kotlin twins of PS1a's rules against its fixtures (ps1/*.json): who is live (R2, R3, B4), the
+    // pieces a phone writes, the task JSON (B11), "All tasks done" (R9, B6), what a receiver keeps (B5), counted focus across devices (R4).
+    Ps1Check("live", Ps1Cases::live),
+    Ps1Check("pieces", Ps1Cases::pieces),
+    Ps1Check("tasks", Ps1Cases::tasks),
+    Ps1Check("end-at-once", Ps1Cases::endAtOnce),
+    Ps1Check("checklist-ops", Ps1Cases::checklistOps),
+    Ps1Check("merge", Ps1Cases::merge),
+    Ps1Check("overlap", Ps1Cases::overlap),
 )
 
 /**
@@ -263,10 +272,12 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "fx1a-self" to Fx1aSelfCheck::run,
     // FX-C: an "at most" goal's words on Today's goals card and in the review (phone only; the shared tiles are parity-checked).
     "fxc-self" to FxcSelfCheck::run,
+    // PS1b: the phone session engine (every transition, the refusals, R13's thresholds, R11's scope by mode, the file's privacy, trusted time scans).
+    "ps1-self" to Ps1SelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
-private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1", "lu1a", "ar1a", "lb1")
+private val fullyCheckedAreas = listOf("goals", "goals-ui", "gs0", "gs1a", "gs1b", "r71", "r72", "r73", "gs4", "sync1a", "gs3bfix", "gs3bk", "pt1", "ar1", "lu1", "lu1a", "ar1a", "lb1", "ps1")
 
 /**
  * Runs each check over its fixture file. A check whose file is missing fails (the C# checks didn't write it), so a broken

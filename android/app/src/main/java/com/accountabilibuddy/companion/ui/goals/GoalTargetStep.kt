@@ -283,7 +283,8 @@ private fun TakesBox(draft: GoalDraft, stored: Goal?, allReceived: List<Received
                 val now = Instant.now()
                 // A goal's screen time is read now (off the main thread) so its What it takes counts it before the first save.
                 PhoneScreenTime.rowsByDay(app)
-                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone, PhoneGoalData.slept(app), PhoneScreenTime.unstored(app, listOf(goal), lists.liveEntries), taskLinks)
+                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone, PhoneGoalData.slept(app), PhoneScreenTime.unstored(app, listOf(goal), lists.liveEntries), taskLinks,
+                    receivedAtOf = { file -> allReceived.firstOrNull { it.file === file }?.receivedAt ?: file.device.writtenAt })
                 val today = now.atZone(zone).toLocalDate()
                 GoalFactsBuilder.build(goal, data, today, display.weekStart).whatItTakes?.let { GoalTakesText.of(it, goal, today) }
             }.getOrNull()

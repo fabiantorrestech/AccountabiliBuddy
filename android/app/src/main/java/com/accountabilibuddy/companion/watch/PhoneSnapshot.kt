@@ -92,7 +92,7 @@ object PhoneSnapshot {
             .maxByOrNull { it.device.writtenAt }
             ?.let { file ->
                 val running = PcFileControl.liveRunning(file, now)!!
-                val tasks = file.sessions.lastOrNull { it.end == null }?.tasks.orEmpty()
+                val tasks = com.accountabilibuddy.shared.sync.SessionPieces.runningTasks(file.sessions)
                 RunningSession(
                     running.profile, running.phaseStartedAt, running.phaseEndAt(now), running.isBreak,
                     planningStartedAt = running.planningStartedAt, planningEndsAt = running.planningEndsAt,

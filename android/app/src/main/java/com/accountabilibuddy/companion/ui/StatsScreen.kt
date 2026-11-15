@@ -100,7 +100,7 @@ fun StatsScreen(
     // Worked out off the main thread (it runs every minute and on every sync file); the last result stays on screen while the next builds.
     val built by produceState<StatsData?>(null, received, active, plan, minute) {
         value = withContext(Dispatchers.Default) {
-            StatsData.build(received.map { it.file }, active.map { it.file }, Instant.now(), zone) { date -> plan.isWorkday(date) }
+            StatsData.build(received.map { com.accountabilibuddy.shared.sync.ReceivedSyncFile(it.file, it.receivedAt) }, active.map { it.file }, com.accountabilibuddy.companion.guidance.TrustedTime.now(), zone) { date -> plan.isWorkday(date) }
         }
     }
     val data = built ?: return

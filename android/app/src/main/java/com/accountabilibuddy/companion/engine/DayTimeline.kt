@@ -1,7 +1,6 @@
 package com.accountabilibuddy.companion.engine
 
 import com.accountabilibuddy.companion.model.LocalWindow
-import com.accountabilibuddy.companion.model.CategoryBehavior
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit

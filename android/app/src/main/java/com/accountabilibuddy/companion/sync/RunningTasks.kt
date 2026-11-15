@@ -24,8 +24,9 @@ data class RunningTasks(val source: String, val tasks: List<SessionTaskItem>, va
                 .filter { Duration.between(it.file.device.writtenAt, now) <= FRESH }
                 .mapNotNull { device ->
                     // The task picked on the PC comes with its running session (ADR 42).
-                    device.file.sessions.lastOrNull { it.end == null && it.tasks.isNotEmpty() }
-                        ?.let { device.file.device.writtenAt to RunningTasks(device.file.device.name, it.tasks, device.file.running?.currentTask) }
+                    // Every device cuts a session at a pause, lunch or step away, so the checklist is on an earlier piece than the open one.
+                    com.accountabilibuddy.shared.sync.SessionPieces.runningTasks(device.file.sessions).takeIf { it.isNotEmpty() }
+                        ?.let { tasks -> device.file.device.writtenAt to RunningTasks(device.file.device.name, tasks, device.file.running?.currentTask) }
                 }
                 .maxByOrNull { it.first }
                 ?.second

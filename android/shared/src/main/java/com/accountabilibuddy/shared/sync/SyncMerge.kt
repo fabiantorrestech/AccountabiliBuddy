@@ -26,11 +26,14 @@ object SyncMerge {
      *
      * @param stored This device's copy of the sender's part; null for the first file from it.
      * @param incoming A file the sender sealed, by any method (also when another device carries it).
+     * @param storedReceivedAt When the stored copy arrived (the receiver's trusted time); null when unknown. Its stamp ahead of that is not believed ([GroupSessions.heardAt]).
      * @throws IllegalArgumentException The stored copy is another device's.
      */
-    fun merge(stored: SyncFile?, incoming: SyncFile, now: Instant): SyncFile {
+    fun merge(stored: SyncFile?, incoming: SyncFile, now: Instant, storedReceivedAt: Instant? = null): SyncFile {
         require(stored == null || stored.device.deviceId == incoming.device.deviceId) { "The stored copy is another device's." }
-        if (stored != null && incoming.device.writtenAt.isBefore(stored.device.writtenAt)) {
+        // A file is refused as older only when its stamp is earlier than when the stored copy was last heard from (PS1a review B2): a
+        // skewed stamp on the stored copy can't lock out the honest files after it.
+        if (stored != null && incoming.device.writtenAt.isBefore(GroupSessions.heardAt(stored.device, storedReceivedAt ?: stored.device.writtenAt))) {
             return stored
         }
 
@@ -46,9 +49,11 @@ object SyncMerge {
             val earliestMark = incoming.drift.minOfOrNull { it.start }
             val driftFrom = if (earliestMark != null && earliestMark.isBefore(sessionsFrom)) earliestMark else sessionsFrom
             if (stored != null) {
-                // A session that was running when the copy was written is taken as ending then, as it was shown.
+                // A session that was running when the copy was written is taken as ending then, as it was shown (a phone's time ahead of
+                // ours is held to when it arrived, and a paused one ends where the pause began: ADR 85, B1, B2; Core's SyncMerge does the same).
+                val storedEnd = GroupSessions.openPieceEnd(stored, storedReceivedAt ?: now, now)
                 stored.sessions
-                    .map { if (it.end == null) it.copy(end = stored.device.writtenAt) else it }
+                    .map { if (it.end == null) it.copy(end = storedEnd) else it }
                     .filterTo(sessions) { !it.end!!.isAfter(sessionsFrom) }
                 stored.drift.filterTo(drift) { !it.end.isAfter(driftFrom) }
             }

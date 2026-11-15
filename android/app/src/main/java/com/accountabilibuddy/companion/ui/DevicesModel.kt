@@ -100,7 +100,10 @@ object DevicesModel {
     /** E.g. "Today: 5h 10m focused across 3 devices"; null when there's nothing to add up. */
     fun todayLine(devices: DevicesState, now: Instant, zone: ZoneId): String? {
         val today = now.atZone(zone).toLocalDate()
-        val combined = FocusDayCombine.combine(devices.allReceived.map { it.file.device.name to it.file }, today, zone, now) ?: return null
+        val combined = FocusDayCombine.combine(
+            devices.allReceived.map { it.file.device.name to it.file }, today, zone, now,
+            receivedAtOf = { file -> devices.allReceived.firstOrNull { it.file === file }?.receivedAt ?: file.device.writtenAt },
+        ) ?: return null
         val count = combined.sessions.mapNotNull { it.device }.distinct().size
         val minutes = combined.focusedMinutes
         val time = if (minutes >= 60) "${minutes / 60}h ${"%02d".format(minutes % 60)}m" else "${minutes}m"

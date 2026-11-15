@@ -414,9 +414,10 @@ class SyncCoordinator(
         val sessions = store.devices.value
             .filter { it.file.device.kind != SyncDeviceCard.KIND_PHONE }
             .flatMap { device -> device.file.sessions.map { device.file.device.deviceId to it } }
-        val from = sessions.minOfOrNull { it.second.start } ?: return emptyList()
+        val started = store.devices.value.mapNotNull { device -> device.file.running?.sessionStartedAt?.let { device.file.device.deviceId to it } }.toMap()
+        val from = (sessions.map { it.second.start } + started.values).minOrNull() ?: return emptyList()
         val unlocks = unlocksSince(from) ?: return null
-        return SyncPickup.count(sessions, unlocks, now, emergencyWindows())
+        return SyncPickup.count(sessions, unlocks, now, emergencyWindows(), started)
     }
 
     /**

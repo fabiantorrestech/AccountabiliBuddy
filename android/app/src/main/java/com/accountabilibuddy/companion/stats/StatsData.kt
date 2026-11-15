@@ -1,6 +1,8 @@
 package com.accountabilibuddy.companion.stats
 
 import com.accountabilibuddy.companion.model.LocalWindow
+import com.accountabilibuddy.shared.sync.GroupSessions
+import com.accountabilibuddy.shared.sync.ReceivedSyncFile
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
 import java.time.Duration
@@ -62,20 +64,21 @@ class StatsData(
         const val KEPT_DAYS = 90
 
         /**
-         * @param files Each received device's merged sync file, removed devices' kept copies included (as the PC's totals count them).
+         * @param files Each received device's merged sync file with when it arrived (the receiver's trusted time), removed devices' kept copies included (as the PC's totals count them).
          * @param goalFiles The files of the devices that are still in the group: the daily goal comes from the newest PC among them, as on Today.
          * @param isWorkday Whether a date is a workday in the day plan (`DayPlan.isWorkday`).
          */
-        fun build(files: List<SyncFile>, goalFiles: List<SyncFile>, now: Instant, zone: ZoneId, isWorkday: (LocalDate) -> Boolean): StatsData {
+        fun build(files: List<ReceivedSyncFile>, goalFiles: List<SyncFile>, now: Instant, zone: ZoneId, isWorkday: (LocalDate) -> Boolean): StatsData {
             val nowLocal = LocalDateTime.ofInstant(now, zone)
             val today = nowLocal.toLocalDate()
             val first = today.minusDays(KEPT_DAYS - 1L)
-            val windows = FocusWindows.of(files, zone)
+            val windows = FocusWindows.of(files, zone, now)
             val days = FocusWindows.daysIn(windows, first, today)
-            val sessions = files.flatMap { file ->
-                val written = file.device.writtenAt
+            val sessions = files.flatMap { received ->
+                val file = received.file
+                val written = GroupSessions.openPieceEnd(file, received.receivedAt, now)
                 file.sessions
-                    .filter { it.end != null || !it.start.isAfter(written) }
+                    .filter { it.end != null || written.isAfter(it.start) }
                     .map { session ->
                         StatsSession(
                             file.device.name,
@@ -90,7 +93,7 @@ class StatsData(
             return StatsData(
                 today, nowLocal, zone, first, firstData, earliest != null, goalOf(goalFiles), windows, days,
                 // Each device's own drift is joined on its own, as the PC joins only its own (two devices on one site stay two visits).
-                files.flatMap { DriftMarks.of(it.drift) }.sortedBy { it.start }, sessions, isWorkday,
+                files.flatMap { DriftMarks.of(it.file.drift) }.sortedBy { it.start }, sessions, isWorkday,
             )
         }
 

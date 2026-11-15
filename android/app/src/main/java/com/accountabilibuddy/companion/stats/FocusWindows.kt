@@ -2,6 +2,8 @@ package com.accountabilibuddy.companion.stats
 
 import com.accountabilibuddy.companion.engine.DayTimeline
 import com.accountabilibuddy.companion.model.LocalWindow
+import com.accountabilibuddy.shared.sync.GroupSessions
+import com.accountabilibuddy.shared.sync.ReceivedSyncFile
 import com.accountabilibuddy.shared.sync.SyncFile
 import java.time.Duration
 import java.time.Instant
@@ -15,16 +17,21 @@ import java.time.ZoneId
  */
 object FocusWindows {
     /**
-     * The stretches of counted focus in [files] (each device's merged sync file), earliest first, overlaps merged. A session
-     * still open when its file was written ends then; one that starts after that (a PC's open piece while it plans) counts for
-     * nothing and is left out, as on the PC.
+     * The stretches of counted focus in [files] (each device's merged sync file with its arrival time), earliest first, overlaps merged. A
+     * session still open ends where [GroupSessions.openPieceEnd] says, for any device: when it was last heard from (a stamp ahead of the
+     * arrival is not believed), never after [now], and where the user went away (`awaySince`), so a skewed clock can't count focus time
+     * that hasn't happened and paused time is never focus (ADR 85, plan check B4, PS1a review B1, B2). One that starts after that (a PC's
+     * open piece while it plans) counts for nothing.
+     *
+     * @param now The trusted time.
      */
-    fun of(files: List<SyncFile>, zone: ZoneId): List<LocalWindow> {
+    fun of(files: List<ReceivedSyncFile>, zone: ZoneId, now: Instant): List<LocalWindow> {
         val windows = mutableListOf<LocalWindow>()
-        for (file in files) {
-            val written = file.device.writtenAt
+        for (received in files) {
+            val file = received.file
+            val written = GroupSessions.openPieceEnd(file, received.receivedAt, now)
             for (session in file.sessions) {
-                if (session.end == null && session.start.isAfter(written)) continue
+                if (session.end == null && !written.isAfter(session.start)) continue
                 val end = session.end ?: written
                 if (end.isAfter(session.start)) windows += LocalWindow(local(session.start, zone), local(end, zone))
             }

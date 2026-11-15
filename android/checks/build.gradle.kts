@@ -21,6 +21,8 @@ val sharedSources = listOf(
     "com/accountabilibuddy/shared/tasks/*.kt",
     "com/accountabilibuddy/shared/sync/*.kt",
     "com/accountabilibuddy/shared/*.kt",
+    // PS1b (ADR 85): the phone session engine and its rules (shared/session; sync/ already holds GroupSessions and SessionPieces).
+    "com/accountabilibuddy/shared/session/*.kt",
 )
 
 // Files of the packages above that use Android APIs (the Keystore, android.util.Base64), and the ones built on them. SyncKey and
@@ -74,6 +76,12 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/notify/GoalReminderIds.kt",
             "com/accountabilibuddy/companion/engine/ClockFormat.kt",
             "com/accountabilibuddy/companion/ui/tasks/page/AddTaskDirty.kt",
+            // PS1b (B9/B10): the phone's counted-focus union and what it needs (FocusWindows takes the trusted now: a phone's stamp ahead of it
+            // ends its open piece at now). (engine/DayTimeline.kt's unused CategoryBehavior import was dropped so DayPlan.kt isn't needed.)
+            "com/accountabilibuddy/companion/stats/FocusWindows.kt",
+            "com/accountabilibuddy/companion/stats/StatsDay.kt",
+            "com/accountabilibuddy/companion/engine/DayTimeline.kt",
+            "com/accountabilibuddy/companion/model/LocalWindow.kt",
         )
     }
     into(layout.buildDirectory.dir("sharedSrc"))

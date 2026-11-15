@@ -37,11 +37,19 @@ data class SyncPickup(
             now: Instant,
             /** Emergency phone time (start, end): its minutes inside each session are counted apart. */
             emergency: List<Pair<Instant, Instant>> = emptyList(),
+            /**
+             * Each device's `running.sessionStartedAt` (when its file says it): the OPEN piece of a running session is keyed by the session's own
+             * start, because the piece's start moves while the user is away (every device cuts at an away stretch). As the PC's `PcPickupsService`.
+             */
+            sessionStartedAt: Map<UUID, Instant> = emptyMap(),
         ): List<SyncPickup> {
             val sorted = unlocks.sorted()
             return sessions
                 .filter { (_, session) -> !session.added && session.start >= now.minus(KEPT) && session.start < now }
-                .map { (deviceId, session) ->
+                .map { (deviceId, piece) ->
+                    // The open piece is keyed by the session's own start when the file says it and it is not after the piece's start.
+                    val started = if (piece.end == null) sessionStartedAt[deviceId]?.takeIf { !it.isAfter(piece.start) } else null
+                    val session = if (started != null) piece.copy(start = started) else piece
                     val end = minOf(session.end ?: now, now)
                     val inside = sorted.filter { it >= session.start && it < end }
                     val marks = listOf(session.start) + inside + end
