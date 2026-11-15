@@ -126,6 +126,15 @@ object ShelfEdits {
     fun editAll(lists: TaskLists, ids: List<String>, field: TaskField, self: String, now: OffsetDateTime, removed: Collection<String>? = null, change: (TaskItem) -> TaskItem): ShelfChange =
         each(lists, ids, field, self, now, removed, change)
 
+    /**
+     * Links the live tasks among [ids] to the goal [goalId], or to none (null; GS5, the PC's `TaskActions.SetGoal`): the goal part of each,
+     * stamped like any other field, so a link on one device and a label on another both survive. Whether the goal exists is the caller's to
+     * check (goals live in their own store); an id no live goal has is ignored by every view and kept on the task. Undo is
+     * [restore] with [TaskField.GOAL].
+     */
+    fun setGoal(lists: TaskLists, ids: List<String>, goalId: String?, self: String, now: OffsetDateTime, removed: Collection<String>? = null): ShelfChange =
+        each(lists, ids, TaskField.GOAL, self, now, removed) { it.copy(goalId = goalId?.lowercase()) }
+
     /** The title, trimmed; a blank one changes nothing. */
     fun rename(lists: TaskLists, id: String, title: String, self: String, now: OffsetDateTime, removed: Collection<String>? = null): ShelfChange =
         if (title.isBlank()) ShelfChange(lists, emptyList(), emptyList()) else edit(lists, id, TaskField.TITLE, self, now, removed) { it.copy(title = title.trim()) }

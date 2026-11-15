@@ -272,17 +272,18 @@ private fun TakesBox(draft: GoalDraft, stored: Goal?, allReceived: List<Received
     val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
     val steps by app.steps.state.collectAsStateWithLifecycle()
     val lists by app.goals.lists.collectAsStateWithLifecycle()
+    val taskLinks = rememberTaskLinks()
     val goal = remember(draft, stored) {
         GoalDrafts.toGoal(draft.copy(name = draft.name.ifBlank { "Goal" }, areaId = draft.areaId ?: draft.id), stored, OffsetDateTime.now(), 1.0)
     }
-    val takes by produceState<GoalTakesText?>(null, goal, display.weekStart, allReceived, steps) {
+    val takes by produceState<GoalTakesText?>(null, goal, display.weekStart, allReceived, steps, taskLinks) {
         value = if (goal == null) null else withContext(Dispatchers.Default) {
             runCatching {
                 val zone = ZoneId.systemDefault()
                 val now = Instant.now()
                 // A goal's screen time is read now (off the main thread) so its What it takes counts it before the first save.
                 PhoneScreenTime.rowsByDay(app)
-                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone, PhoneGoalData.slept(app), PhoneScreenTime.unstored(app, listOf(goal), lists.liveEntries))
+                val data = PhoneGoalData.build(allReceived.map { it.file }, listOf(goal), lists.liveEntries.filter { it.goalId == goal.id }, steps, now, zone, PhoneGoalData.slept(app), PhoneScreenTime.unstored(app, listOf(goal), lists.liveEntries), taskLinks)
                 val today = now.atZone(zone).toLocalDate()
                 GoalFactsBuilder.build(goal, data, today, display.weekStart).whatItTakes?.let { GoalTakesText.of(it, goal, today) }
             }.getOrNull()

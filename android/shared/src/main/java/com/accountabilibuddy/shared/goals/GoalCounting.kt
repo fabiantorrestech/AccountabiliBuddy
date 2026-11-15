@@ -18,7 +18,8 @@ import kotlin.math.max
  * - **Amount** goals: the latest hand edit if there is one, else the day's first reading.
  * - **Habits**: the latest hand entry decides (a tick, or an untick that wins over the threshold); without one the day ticks
  *   itself once its time sources reach the smallest [GoalSourceRule.thresholdMinutes].
- * - **Milestones**: the day's hand entries added up.
+ * - **Milestones**: the day's hand entries added up, plus (GS5, with a switched-on "milestone tasks" source) one for each task that carries
+ *   the goal and was finished that day.
  * - A paused day is neither hit nor missed; a day before the goal existed or after today asks for nothing.
  * Readings only count from a source the goal has a switched-on rule for; hand entries always count. Deep work counts all focus
  * and nothing else ([GoalSources.countedFor]). Goal values never feed a guard, the goal unlock or `focusDay`.
@@ -195,7 +196,7 @@ object GoalCounting {
         private val createdOn: LocalDate = goal.createdOn(data.zone)
         private val rules: List<GoalSourceRule> = GoalSources.countedFor(goal)
         private val timeRules: List<Pair<GoalSourceRule, List<GoalWindow>>> =
-            rules.filter { it.automatic && it.countsTime }.map { it to windowsOf(it, data) }
+            rules.filter { it.automatic && it.countsTime }.map { it to windowsOf(it, data, data.taskIdsOf(goal.id)) }
         private val readable: Set<GoalEntrySource> = readableSources(goal)
         private val entriesByDay: Map<LocalDate, List<GoalEntry>> = entriesOf(goal, data).groupBy { it.day }
         private val threshold: Double? = rules
@@ -207,6 +208,19 @@ object GoalCounting {
         private val countsCalendarValues = !goal.isDeepWork && rules.any { it.automatic && it.type == GoalSourceType.CalendarCategory }
         private val focusWindows = timeRules.filter { it.first.type != GoalSourceType.CalendarCategory }.flatMap { it.second }
         private val calendarWindows = timeRules.filter { it.first.type == GoalSourceType.CalendarCategory }.flatMap { it.second }
+        private val milestoneTasksDone: Map<LocalDate, Int> = milestoneTasksDoneByDay(goal, data, rules)
+
+        // GS5: a milestone with a switched-on "milestone tasks" source counts each finished task that carries it as one, on the day it was finished.
+        private fun milestoneTasksDoneByDay(goal: Goal, data: GoalSourceData, sources: List<GoalSourceRule>): Map<LocalDate, Int> {
+            if (goal.isDeepWork || goal.kind != GoalKind.Milestone || sources.none { it.automatic && it.type == GoalSourceType.MilestoneTasks }) {
+                return emptyMap()
+            }
+
+            return data.taskLinks.orEmpty()
+                .filter { it.goalId == goal.id && it.doneAt != null }
+                .groupBy { it.doneAt!!.toInstant().atZone(data.zone).toLocalDate() }
+                .mapValues { it.value.size }
+        }
 
         // The other PCs' derived #tag and calendar minutes for the day (Time goals and habits): the #tag extras added up, the calendar
         // values' highest beyond what this device's own calendar windows already added.
@@ -307,8 +321,13 @@ object GoalCounting {
                 }
 
                 GoalKind.Milestone -> {
-                    value = hand.sumOf { it.value }
-                    valueWithoutHand = 0.0
+                    val tasksDone = milestoneTasksDone[day] ?: 0
+                    if (tasksDone > 0 && GoalSourceType.MilestoneTasks !in sources) {
+                        sources += GoalSourceType.MilestoneTasks
+                    }
+
+                    value = hand.sumOf { it.value } + tasksDone
+                    valueWithoutHand = tasksDone.toDouble()
                     byHand = hand.isNotEmpty()
                     hasValue = value > 0
                 }
@@ -396,13 +415,13 @@ object GoalCounting {
             }
         }
 
-        private fun windowsOf(rule: GoalSourceRule, data: GoalSourceData): List<GoalWindow> {
+        private fun windowsOf(rule: GoalSourceRule, data: GoalSourceData, goalTaskIds: Set<UUID>): List<GoalWindow> {
             if (rule.type == GoalSourceType.CalendarCategory) {
                 val windows = rule.calendarCategoryId?.let { data.calendarWindows?.get(it) } ?: return emptyList()
                 return GoalTimeline.union(windows)
             }
 
-            return GoalFocusAttribution.focusWindows(data.focus, listOf(rule), data.tagsAvailable)
+            return GoalFocusAttribution.focusWindows(data.focus, listOf(rule), data.tagsAvailable, goalTaskIds)
         }
     }
 }

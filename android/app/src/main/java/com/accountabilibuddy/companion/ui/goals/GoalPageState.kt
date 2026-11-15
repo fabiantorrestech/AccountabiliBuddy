@@ -38,6 +38,7 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
     // NG1: the phone-owned daily target (no PC in the group) recounts too.
     val dailyState by app.goals.deepWorkDaily.state.collectAsStateWithLifecycle()
     val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
+    val taskLinks = rememberTaskLinks()
     val minute by produceState(Instant.now()) {
         while (true) {
             val now = Instant.now()
@@ -45,7 +46,7 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    return produceState<PhoneGoalPage?>(null, goalId, status, lists, weeklyState, dailyState, display.weekStart, display.extraTiles, allReceived, received, steps, minute, scopeView) {
+    return produceState<PhoneGoalPage?>(null, goalId, status, lists, weeklyState, dailyState, display.weekStart, display.extraTiles, allReceived, received, steps, minute, scopeView, taskLinks) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState
@@ -58,6 +59,7 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
                     goalId, lists, display, allReceived.map { it.file }, received.map { it.file }, steps, GoalLabelScopes.pickable(names, scopeView), Instant.now(), ZoneId.systemDefault(),
                     app.goals.deepWork.current(), PhoneGoalData.slept(app),
                     hiddenNote = { id -> GoalLabelScopes.hiddenNote(id, names, scopeView) { device -> scopeDeviceName(app, device) } },
+                    taskLinks = taskLinks,
                 )
             }.getOrNull()
         }

@@ -4,6 +4,6 @@ import java.util.UUID
 
 /**
  * What goals read of a synced session's checklist task (the PC's `SessionTask`, plan §3b 5: nothing new): its label as the
- * category (its id, or the name an older device sends) and its #tags (the ADR 72 labels). Titles and notes are never read.
+ * category (its id, or the name an older device sends) and its #tags (the ADR 72 labels). Its id says which task it is, for "a task carries this goal" (GS5). Titles and notes are never read.
  */
-data class GoalSessionTask(val categoryId: UUID?, val category: String?, val labels: List<String>?)
+data class GoalSessionTask(val categoryId: UUID?, val category: String?, val labels: List<String>?, val id: UUID? = null)

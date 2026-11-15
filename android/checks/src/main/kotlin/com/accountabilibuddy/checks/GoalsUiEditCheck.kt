@@ -87,9 +87,10 @@ object GoalsUiEditCheck {
                 GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(label.copy(labelId = id(11)))) }) == null &&
                 GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(12), GoalSourceType.FocusAll))) }) != null &&
                 GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(13), GoalSourceType.HealthWeight))) }) != null)
-        report.check("$name: GS5a: a goal that holds the PC's task sources can still be saved (they are kept untouched, \"Measured on your PC\")",
+        report.check("$name: GS5b: a goal with the task sources can be saved and the phone counts them itself (no longer \"Measured on your PC\")",
             GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(13), GoalSourceType.GoalField), GoalSourceRule(id(14), GoalSourceType.MilestoneTasks))) }) == null &&
-                GoalPhoneRules.measuredOnPc(GoalSourceType.GoalField) && GoalPhoneRules.measuredOnPc(GoalSourceType.MilestoneTasks))
+                !GoalPhoneRules.measuredOnPc(GoalSourceType.GoalField) && !GoalPhoneRules.measuredOnPc(GoalSourceType.MilestoneTasks) &&
+                GoalPhoneRules.countsOnPhone(GoalSourceType.GoalField) && GoalPhoneRules.countsOnPhone(GoalSourceType.MilestoneTasks))
         report.check("$name: sleep and steps sources can be saved; PC-only sources are marked Measured on your PC, Coming soon ones aren't counted on the phone",
             GoalDrafts.sourcesProblem(draft { it.copy(sources = listOf(GoalSourceRule(id(15), GoalSourceType.HealthSleep), GoalSourceRule(id(16), GoalSourceType.HealthSteps))) }) == null &&
                 GoalPhoneRules.measuredOnPc(GoalSourceType.FocusTag) && GoalPhoneRules.measuredOnPc(GoalSourceType.CalendarCategory) && !GoalPhoneRules.countsOnPhone(GoalSourceType.HealthWeight))

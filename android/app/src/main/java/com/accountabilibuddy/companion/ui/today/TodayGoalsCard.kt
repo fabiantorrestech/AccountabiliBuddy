@@ -87,14 +87,15 @@ fun rememberTodayGoals(allReceived: List<ReceivedDevice>, received: List<Receive
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    return produceState<GoalTodayCard?>(null, status, lists, weekly, daily, display.weekStart, allReceived, received, steps, minute, inSession) {
+    val taskLinks = com.accountabilibuddy.companion.ui.goals.rememberTaskLinks()
+    return produceState<GoalTodayCard?>(null, status, lists, weekly, daily, display.weekStart, allReceived, received, steps, minute, inSession, taskLinks) {
         if (status != PhoneGoalStatus.Ready || lists.liveGoals.none { it.showOnToday }) {
             value = null
             return@produceState
         }
         value = withContext(Dispatchers.Default) {
             runCatching {
-                val overview = PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), com.accountabilibuddy.companion.goals.PhoneGoalData.slept(app))
+                val overview = PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), com.accountabilibuddy.companion.goals.PhoneGoalData.slept(app), taskLinks)
                 val names = overview.areas.associate { it.id to it.name }
                 GoalTodayRows.of(overview.facts, names::get, inSession)
             }.getOrNull()

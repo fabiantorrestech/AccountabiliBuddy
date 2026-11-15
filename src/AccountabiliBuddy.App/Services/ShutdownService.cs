@@ -671,7 +671,7 @@ public sealed class ShutdownService : IDisposable
             .SelectMany(checklist => checklist.Tasks.Where(task => !task.IsDone && !_tasks.WasMoved(task.Id)))
             .DistinctBy(task => task.Title, StringComparer.Ordinal)
             .Where(task => !waiting.Contains(task.Title))
-            .Select(task => new ShutdownTaskRow(task.Title, ExistingCategory(task.CategoryId), HiddenCategory(task.CategoryId), _tasks.HiddenTagsOf(task.Labels)))
+            .Select(task => new ShutdownTaskRow(task.Title, ExistingCategory(task.CategoryId), HiddenCategory(task.CategoryId), _tasks.HiddenTagsOf(task.Labels), task.Id))
             .ToList();
         return GroupByCategory(rows);
     }
@@ -892,7 +892,7 @@ public sealed class ShutdownService : IDisposable
     {
         foreach (ShutdownTaskRow row in card.Unfinished.Where(row => !row.IsDone))
         {
-            await _tasks.AddCarriedAsync(row.Title, ExistingCategory(row.CategoryId) ?? row.HiddenCategoryId, row.HiddenTags);
+            await _tasks.AddCarriedAsync(row.Title, ExistingCategory(row.CategoryId) ?? row.HiddenCategoryId, row.HiddenTags, row.TaskId);
         }
 
         HashSet<string> ticked = card.Unfinished.Where(row => row.IsDone).Select(row => row.Title).ToHashSet(StringComparer.Ordinal);

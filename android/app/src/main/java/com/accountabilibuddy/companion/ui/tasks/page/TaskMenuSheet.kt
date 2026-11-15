@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Star
@@ -58,7 +59,7 @@ private val TIME_LIMITS = listOf(10, 15, 25, 50, 90)
  * The ⋮ sheet of a task (board Tasks-Phone-Task-Menu; the same menu, in the same order, as the PC's row menu), 80% tall: the title
  * is the task's, the subtitle where it is ("Shelf · Next"). Rename (or hold the title) · the **Move to** grid (Today: This session,
  * Queued; Shelf: To sort, Next, Later; the current one filled) · Time limit · Reminders · Label (its row's mark is the label's colour
- * dot) · Tags · Highlight (switch) · Effort (greyed, "Coming soon") · Sync · Delete (red) · Copy ID (last).
+ * dot) · Tags · Link to goal (GS5b; the goal's name at the right) · Highlight (switch) · Effort (greyed, "Coming soon") · Sync · Delete (red) · Copy ID (last).
  *
  * The rows with › open a sub-page of the same sheet with a back arrow ([TaskMenuPage]); [start] opens one directly (holding a title
  * opens Rename). Every change goes through [controller].
@@ -83,6 +84,9 @@ fun TaskMenuSheet(
     val app = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
     val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
     val label = scopeView.labels.firstOrNull { it.id.equals(task.labelId, ignoreCase = true) }
+    // GS5b: the goals a task can be linked to; a link to a goal that no longer exists shows as none (the id stays on the task).
+    val goals = rememberLinkableGoals()
+    val linkedGoal = linkedGoalOf(goals, task.goalId)
     val back: (() -> Unit)? = when {
         page == TaskMenuPage.Main -> null
         page == start -> onDismiss
@@ -100,6 +104,7 @@ fun TaskMenuSheet(
             TaskMenuPage.Label -> "Label"
             TaskMenuPage.NewLabel -> "New label"
             TaskMenuPage.Tags -> "Tags"
+            TaskMenuPage.Goal -> "Link to goal"
             TaskMenuPage.Sync -> "Sync"
         },
         subtitle = if (page == TaskMenuPage.Main) TaskBins.place(task.bin) else task.title,
@@ -126,6 +131,10 @@ fun TaskMenuSheet(
                     }
                 }
                 AbSheetRow("Tags", onClick = { page = TaskMenuPage.Tags }, icon = Icons.Outlined.Tag, trailing = { AbSheetValue(TaskLabels.text(task.tags).ifEmpty { "None" }) })
+                AbSheetRow(
+                    "Link to goal", onClick = { page = TaskMenuPage.Goal }, icon = Icons.Outlined.Link, enabled = goals.isNotEmpty() || task.goalId != null,
+                    subtitle = if (goals.isEmpty()) (if (task.goalId != null) "Its goal is gone · Unlink" else "No goals yet") else null, trailing = { AbSheetValue(linkedGoal?.name ?: "None") },
+                )
                 AbSheetRow(
                     "Highlight", onClick = { controller.setHighlight(task.id, !task.highlight) }, icon = Icons.Outlined.Star, subtitle = "Stars it and pins it to the top",
                     role = Role.Switch, trailing = { AbSwitch(task.highlight) },
@@ -217,6 +226,8 @@ fun TaskMenuSheet(
                     }
                 }
             }
+
+            TaskMenuPage.Goal -> TaskGoalRows(goals, linkedGoal?.id?.toString(), task.goalId != null, listOf(task.id), controller, onDone = closeOrMain)
 
             TaskMenuPage.Sync -> TaskSyncPage(task, self, controller)
         }

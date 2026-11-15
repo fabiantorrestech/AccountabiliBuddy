@@ -614,6 +614,7 @@ object GoalJson {
             obj.optionalGuid("categoryId"),
             obj.optionalText("category"),
             obj.optionalArray("labels")?.map { text(it, "labels") },
+            obj.optionalGuid("id"),
         )
     }
 

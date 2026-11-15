@@ -11,6 +11,8 @@ import com.accountabilibuddy.shared.goals.GoalFocusAttribution
 import com.accountabilibuddy.shared.goals.GoalJson
 import com.accountabilibuddy.shared.goals.GoalSourceData
 import com.accountabilibuddy.shared.goals.GoalSourceType
+import com.accountabilibuddy.shared.goals.GoalTaskLink
+import com.accountabilibuddy.shared.goals.GoalTaskLinks
 import com.accountabilibuddy.shared.goals.GoalSyncedPiece
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncFile
@@ -35,6 +37,8 @@ import kotlinx.serialization.json.JsonArray
  * - **Screen time (ST3):** this phone's own derived entries ([PhoneGoalDerived], device id on them) and each chosen device's, added up by
  *   [com.accountabilibuddy.shared.goals.GoalCounting]; [screen] holds in-memory readings only for a goal and day with no stored entry yet
  *   (a goal being edited), read by [PhoneScreenTime].
+ * - **Task links (GS5b):** the tasks that carry a goal, read off the phone's task list ([taskLinks]): "a task carries this goal" counts the focus
+ *   of a session whose checklist holds one of them, "milestone tasks" counts the finished ones.
  * - #tag rules and calendar time are the PC's ([GoalSourceData.forPhone]): those sources say "Measured on your PC".
  */
 object PhoneGoalData {
@@ -47,6 +51,7 @@ object PhoneGoalData {
         zone: ZoneId,
         slept: List<GoalWindow> = emptyList(),
         screen: List<GoalEntry> = emptyList(),
+        taskLinks: List<GoalTaskLink> = emptyList(),
     ): GoalSourceData {
         val focus = files.filter { it.device.kind != SyncDeviceCard.KIND_WATCH }.flatMap { file ->
             GoalFocusAttribution.fromSynced(pieces(file), now, zone)
@@ -56,8 +61,11 @@ object PhoneGoalData {
         // has a stored Health Connect entry is left out, so nothing counts twice. The in-memory readings stay for a goal not saved yet (a draft).
         val stored = entries.filter { it.source == GoalEntrySource.HealthConnect }.map { it.goalId to it.day }.toSet()
         val fresh = (stepReadings(goals, steps, zone) + sleep).filter { (it.goalId to it.day) !in stored }
-        return GoalSourceData.forPhone(focus, entries + fresh + screen, zone)
+        return GoalSourceData.forPhone(focus, entries + fresh + screen, zone, taskLinks)
     }
+
+    /** The goal links of the phone's task list as it is now ([GoalTaskLinks.from]); none while the task list is not the source. */
+    fun taskLinks(app: CompanionApp): List<GoalTaskLink> = GoalTaskLinks.from(app.taskModel.lists.value)
 
     /**
      * The sleep the phone already read from Health Connect (`SleepReader`, only once the user granted it; the last 21 days, in memory),

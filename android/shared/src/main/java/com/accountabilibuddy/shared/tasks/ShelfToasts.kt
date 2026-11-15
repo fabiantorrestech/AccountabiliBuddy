@@ -38,6 +38,13 @@ object ShelfToasts {
     /** The tap's name for a screen reader: "Show them in Later". */
     fun show(count: Int, where: String): String = "Show ${them(count)} in $where"
 
+    /** "Linked to Spanish" / "Link removed" (GS5; the PC's `TaskToasts.Linked`); a goal with no name says "Linked to a goal". */
+    fun linked(goalName: String?): String = when {
+        goalName == null -> "Link removed"
+        goalName.isEmpty() -> "Linked to a goal"
+        else -> "Linked to ${short(goalName)}"
+    }
+
     /** A title short enough to quote. */
     fun short(title: String): String = if (title.length <= SHORT_TITLE) title else title.take(SHORT_TITLE - 1).trimEnd() + "…"
 

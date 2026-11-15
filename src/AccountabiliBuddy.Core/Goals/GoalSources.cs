@@ -55,8 +55,8 @@ public static class GoalSources
             // Screen time v2: each device counts its own usage (the PC from its activity history, the phone from Usage access).
             GoalSourceType.ScreenTime => GoalSourceAvailability.Everywhere,
 
-            // GS5a (task goal link, ADR 76 amended): the PC counts them from its task list; the phone shows "Measured on your PC" and counts them from GS5b.
-            GoalSourceType.GoalField or GoalSourceType.MilestoneTasks => GoalSourceAvailability.PcOnly,
+            // GS5 (task goal link, ADR 76 amended): every device counts them from the task list it holds (the phone links tasks since GS5b).
+            GoalSourceType.GoalField or GoalSourceType.MilestoneTasks => GoalSourceAvailability.Everywhere,
 
             // ADR 81 (READ_WEIGHT).
             GoalSourceType.HealthWeight => GoalSourceAvailability.ComingSoon,

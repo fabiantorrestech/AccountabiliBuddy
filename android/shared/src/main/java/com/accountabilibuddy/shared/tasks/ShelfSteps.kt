@@ -54,7 +54,7 @@ object ShelfSteps {
 
     /**
      * "Make it its own task": the step [stepId] leaves the task [id] and becomes the task [newId], right after it in the same bin, with
-     * its label and tags (and the step's time as its time limit); a ticked step stays a step. A task in This session hands its step
+     * its label, goal and tags (and the step's time as its time limit); a ticked step stays a step. A task in This session hands its step
      * to Queued (the new task would need room there). [ShelfChange.ids] holds the new task first, then the old one; [ShelfChange.before]
      * the old one as it was.
      */
@@ -71,9 +71,10 @@ object ShelfSteps {
         val position = if (bin == parent.bin) SharedListMerge.positionBetween(parent.position, following) else TaskListRules.endOf(taken.lists.tasks, bin)
         val task = TaskItem(
             newId.lowercase(), step.title, bin, position, now, now, now,
-            labelId = parent.labelId, tags = parent.tags, origin = TaskOrigins.FROM_PHONE, estimateMinutes = step.estimateMinutes,
+            labelId = parent.labelId, goalId = parent.goalId, tags = parent.tags, origin = TaskOrigins.FROM_PHONE, estimateMinutes = step.estimateMinutes,
         )
-        val item = SyncTaskItem(task, TaskFieldStamps.allAt(FieldStamp(now, self.lowercase())))
+        // GS5b (Q1129): a step made its own task keeps the parent's goal link, stamped as set now (a copy is a new link), as its label and tags.
+        val item = SyncTaskItem(task, TaskFieldStamps.forNew(task, FieldStamp(now, self.lowercase())))
         return ShelfChange(taken.lists.copy(tasks = taken.lists.tasks + item), listOf(task.id, parent.id), listOf(parent))
     }
 

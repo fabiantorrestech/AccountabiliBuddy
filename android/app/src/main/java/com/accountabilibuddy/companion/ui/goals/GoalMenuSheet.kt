@@ -59,8 +59,9 @@ import java.util.UUID
  * Working here: Tick / Untick today, Log a value / Add time by hand (a hand entry for today), Show on Today, Move to area, Pause / Resume
  * (at once, from today; Deep work refuses), Delete goal… (asks first; Deep work refuses), Start a session… (the presets page:
  * the PC's default, its profiles, Custom…, through the start Today uses; greyed with the reason when Start isn't possible), Reminders
- * ("4 set ›" with "Next: today 8:00 PM"; Edit goal's Reminders page, R6b3). Edit goal… opens the goal's sheets (R6b2). Greyed with a reason: Open its tasks (Coming soon), Open in
- * Beeminder (read on the PC), Deep work's Track time only (its target is the PC's, ADR 29).
+ * ("4 set ›" with "Next: today 8:00 PM"; Edit goal's Reminders page, R6b3). Edit goal… opens the goal's sheets (R6b2). Greyed with a reason: Open in
+ * Beeminder (read on the PC), Deep work's Track time only (its target is the PC's, ADR 29). A milestone's **Open its tasks** (GS5b) shows the
+ * goal's page with its Tasks card in view ([onOpenTasks]).
  *
  * @param onDeleted Called after the goal is deleted (the goal page goes back to the list).
  * @param onEdit Edit goal…: the caller closes this menu and opens the editor sheets ([GoalEditorSheets]).
@@ -78,6 +79,8 @@ fun GoalMenuSheet(
     start: GoalSessionStart? = null,
     /** Reminders: the caller closes this menu and opens Edit goal's Reminders page (round 2 R6b3). */
     onReminders: () -> Unit = {},
+    /** Open its tasks (a milestone's): the caller closes this menu and shows the goal's page scrolled to its Tasks card (GS5b). */
+    onOpenTasks: () -> Unit = {},
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val page = rememberGoalPage(goalId, allReceived, received).value
@@ -154,7 +157,7 @@ fun GoalMenuSheet(
     val items = GoalMenuPlan.of(
         goal, page.facts.todayState, page.facts.isPaused, page.reminderCount, page.areaName,
         startValue = "Default", startBlocked = if (start == null) GoalSessionStart.NO_PC_TEXT else start.blocked,
-        reminderNext = page.reminderNext, noPc = !com.accountabilibuddy.companion.goals.PhoneDeepWork.hasPc(app.sync.received.value.map { it.file }),
+        reminderNext = page.reminderNext, linkedTasks = page.linkedTasks, hasTasksCard = page.tasksCard != null, noPc = !com.accountabilibuddy.companion.goals.PhoneDeepWork.hasPc(app.sync.received.value.map { it.file }),
     )
     val heading = items.first()
     AbSheet(title = heading.title, subtitle = listOfNotNull(page.areaName, GoalTexts.targetLine(goal, today)).joinToString(" · "), onDismiss = onDismiss, height = AbSheetHeight.Tall) {
@@ -170,6 +173,7 @@ fun GoalMenuSheet(
                     GoalMenuItemId.StartSession -> ({ inPresets = true })
                     GoalMenuItemId.Reminders -> onReminders
                     GoalMenuItemId.EditGoal -> onEdit
+                    GoalMenuItemId.OpenTasks -> onOpenTasks
                     GoalMenuItemId.TickToday -> ({ done(app.goals.addHandEntry(goalId, today, if (page.facts.todayState.hit) 0.0 else 1.0)) })
                     GoalMenuItemId.LogValue, GoalMenuItemId.AddTimeByHand -> ({ valueDialog = true })
                     GoalMenuItemId.MoveToArea -> ({ inAreas = true })

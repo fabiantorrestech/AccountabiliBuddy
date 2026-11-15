@@ -24,7 +24,7 @@ data class SyncTaskItem(val task: TaskItem, val stamps: TaskFieldStamps, val ext
 
     override val localTo: String? get() = task.localTo
 
-    /** The PC's tie-break: the item as the PC's JSON text (known fields only). Never logged or shown. */
+    /** The PC's tie-break: the item as the PC's JSON text (known fields only, `goalId` and the goal stamp included since GS5b). Never logged or shown. */
     override val tieBreak: String get() = TaskJson.text(TaskJson.writeSyncTask(this, unknown = false))
 
     // [TaskFieldMerge] clamps with the receiver's offset before the shared merge runs, so this only ever sees times it keeps.

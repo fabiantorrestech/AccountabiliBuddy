@@ -25,7 +25,13 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.automirrored.outlined.ShowChart
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.text.style.TextDecoration
+import com.accountabilibuddy.shared.goals.GoalTasksCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -77,7 +83,7 @@ import java.util.UUID
  * with "15 min a day · Learning · 6 months going", ⋮ (the goal menu), then by kind:
  * - habit, time, milestone and other amounts: the tiles (Today, This period, Target with "What it takes ›", Streak / Total when on), the
  *   3-month heatmap with tap-to-select and the day panel under it (Tick it / Untick, a value by hand), then Progress tracking and
- *   Reminders rows (a milestone also shows "Open its tasks", Coming soon);
+ *   Reminders rows; a **Tasks** card lists the tasks that carry the goal (GS5b), and a milestone's menu "Open its tasks" scrolls to it;
  * - a level to reach (weight): the latest value, the trend with its dashed projection and banner, Log weight, Target, the readings list.
  * Slots keep their height while the numbers load, so nothing jumps (brief §3.1). Weight is hand entries only (ADR 81 is Proposed).
  */
@@ -92,6 +98,8 @@ fun GoalPageScreen(
     session: GoalSessionStart? = null,
     /** The header's Stats button: Stats on this goal (round 2 R6b4); null leaves the button out. */
     onOpenStats: (() -> Unit)? = null,
+    /** "tasks" scrolls the Tasks card into view (a milestone's "Open its tasks", GS5b). */
+    anchor: String? = null,
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val status by app.goals.status.collectAsStateWithLifecycle()
@@ -109,6 +117,15 @@ fun GoalPageScreen(
     val weekly by app.goals.deepWork.state.collectAsStateWithLifecycle()
     var editDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedDay by rememberSaveable(goalId) { mutableStateOf<Long?>(null) }
+    // GS5b: the Tasks card comes into view when "Open its tasks" asked for it (once the numbers are worked out and the card is drawn).
+    val tasksCardRequester = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var tasksAsked by rememberSaveable(goalId, anchor) { mutableStateOf(anchor == TASKS_ANCHOR) }
+    LaunchedEffect(tasksAsked, page?.tasksCard != null) {
+        if (tasksAsked && page?.tasksCard != null) {
+            tasksCardRequester.bringIntoView()
+            tasksAsked = false
+        }
+    }
 
     // A goal that is gone (deleted here or elsewhere) goes back to the list; the goals not being ready say so.
     val stored = lists.liveGoals.firstOrNull { it.id == goalId }
@@ -143,6 +160,7 @@ fun GoalPageScreen(
                     style = Ab.type.small, color = Ab.colors.faint, modifier = Modifier.padding(horizontal = 4.dp),
                 )
                 NotesCard(stored?.notes, onEdit = { editAtTarget = true; editOpen = true })
+                TasksCard(page.tasksCard, tint, Modifier.bringIntoViewRequester(tasksCardRequester))
                 BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { editAtTarget = false; editAtReminders = true; editOpen = true })
             }
         } else {
@@ -166,6 +184,7 @@ fun GoalPageScreen(
                     )
                 }
                 NotesCard(stored?.notes, onEdit = { editAtTarget = true; editOpen = true })
+                TasksCard(page.tasksCard, tint, Modifier.bringIntoViewRequester(tasksCardRequester))
                 BottomRows(page, onTracking = { trackingOpen = true }, onReminders = { editAtTarget = false; editAtReminders = true; editOpen = true })
             }
         }
@@ -176,6 +195,7 @@ fun GoalPageScreen(
             goalId, allReceived, received, onMessage, onDismiss = { menuOpen = false }, onDeleted = onBack,
             onEdit = { menuOpen = false; editAtTarget = false; editAtReminders = false; editOpen = true }, start = session,
             onReminders = { menuOpen = false; editAtTarget = false; editAtReminders = true; editOpen = true },
+            onOpenTasks = { menuOpen = false; tasksAsked = true },
         )
     }
     if (editOpen) {
@@ -281,14 +301,44 @@ private fun BottomRows(page: PhoneGoalPage, onTracking: () -> Unit, onReminders:
         AbListRow(
             "Reminders", icon = Icons.Outlined.NotificationsNone,
             subtitle = page.reminderNext ?: if (page.reminderCount == 0) "None yet · add one" else "None coming up",
-            onClick = onReminders, divider = page.goal.kind == GoalKind.Milestone,
+            onClick = onReminders,
             trailing = if (page.reminderCount > 0) ({ Text("${page.reminderCount}", style = Ab.type.small.copy(fontFeatureSettings = "tnum"), color = Ab.colors.muted) }) else null,
         )
-        if (page.goal.kind == GoalKind.Milestone) {
-            AbListRow("Open its tasks", icon = Icons.Outlined.Checklist, subtitle = "Coming soon", showChevron = false)
-        }
     }
 }
+
+/**
+ * GS5b: the Tasks card (the PC's goal page Tasks card): the tasks that carry the goal, open first then the latest finished, at most
+ * [GoalTasksCard.MAX_ROWS], a finished one struck through with a check, and the foot ("2 of 5 finished", "3 more not shown", or how to
+ * link one). Titles are private text, drawn here only. Nothing is drawn when the page has no card (Deep work, no task source or link).
+ */
+@Composable
+private fun TasksCard(card: GoalTasksCard?, tint: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    if (card == null) return
+    val colors = Ab.colors
+    AbCard(modifier, verticalSpacing = 8.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Outlined.Checklist, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            Text("Tasks", style = Ab.type.bodyMedium, color = colors.ink)
+        }
+        card.rows.forEach { row ->
+            Row(Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(
+                    if (row.done) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank, contentDescription = if (row.done) "Finished" else "Open",
+                    tint = if (row.done) tint else colors.faint, modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    row.title, style = Ab.type.small.copy(textDecoration = if (row.done) TextDecoration.LineThrough else null),
+                    color = if (row.done) colors.muted else colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Text(card.foot, style = Ab.type.small, color = colors.muted)
+        card.note?.let { Text(it, style = Ab.type.small, color = colors.faint) }
+    }
+}
+
+private const val TASKS_ANCHOR = "tasks"
 
 // A waiting lowering of Deep work's weekly target, or Track time only turning on (brief §5.7): what changes and when, "never during a session", with Cancel.
 // There is no "apply now": it applies by itself once its time has come and no session runs.

@@ -47,6 +47,7 @@ data class PhoneGoalsOverview(
             zone: ZoneId,
             weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
             slept: List<GoalWindow> = emptyList(),
+            taskLinks: List<com.accountabilibuddy.shared.goals.GoalTaskLink> = emptyList(),
         ): PhoneGoalsOverview {
             val today = now.atZone(zone).toLocalDate()
             val pcDaily = PhoneDeepWork.dailyMinutes(goalFiles)
@@ -55,7 +56,7 @@ data class PhoneGoalsOverview(
             val goals = lists.liveGoals
                 .map { PhoneDeepWork.view(it, pcDaily, weekly) }
                 .sortedWith(compareBy({ areaOrder[it.areaId] ?: Int.MAX_VALUE }, { it.position }))
-            val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone, slept)
+            val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone, slept, taskLinks = taskLinks)
             val facts = goals.map { GoalFactsBuilder.build(it, data, today, display.weekStart) }
             return PhoneGoalsOverview(today, areas, facts, GoalWeekSummary.of(facts, today, display.weekStart), pcDaily, data, PhoneDeepWork.hasPc(goalFiles))
         }

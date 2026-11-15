@@ -112,9 +112,8 @@ object R71ModelCases {
 
         val task = TaskJson.readTask(case.input.getValue("task"))
         val expected = case.expected as JsonObject
-        // GS5a: the PC's canonical texts also have `Goal` (the task's goal link); the phone does not know that field until GS5b.
-        val unknownToPhone = expected.keys.filter { name -> TaskField.entries.none { it.wire.equals(name, ignoreCase = true) } }
-        if (unknownToPhone.any { !it.equals("Goal", ignoreCase = true) } || expected.size - unknownToPhone.size != TaskField.entries.size) {
+        // GS5b: the PC's canonical texts include `Goal` (the task's goal link); the phone checks it like every other field.
+        if (expected.size != TaskField.entries.size) {
             return "the PC has ${expected.size} fields, the phone ${TaskField.entries.size}"
         }
         for (field in TaskField.entries) {

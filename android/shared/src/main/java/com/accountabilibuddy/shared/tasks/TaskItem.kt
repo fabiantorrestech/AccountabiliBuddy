@@ -27,6 +27,9 @@ import java.time.OffsetDateTime
  * @property deletedAt Set on a tombstone, which keeps no text.
  * @property conflicts "Changed on both devices" versions waiting for the user's pick.
  * @property autoSavedFor For a To sort task that came from Auto-saved: the plan day its shutdown card wrapped up.
+ * @property goalId The goal it carries (GS5, ADR 76 amended; JSON `goalId`, left out when none; lower-case id): an ADR 76 field of its own
+ * ([TaskField.GOAL]) for the goal sources "a task carries this goal" and a milestone's tasks. Never cleared when the goal is deleted (a
+ * restored goal gets its tasks back); a view ignores an id no live goal has.
  * @property extra Fields a newer app wrote that this version doesn't know ([TaskUnknown]).
  */
 data class TaskItem(
@@ -59,6 +62,7 @@ data class TaskItem(
     val deletedAt: OffsetDateTime? = null,
     val conflicts: List<TaskConflict>? = null,
     val autoSavedFor: LocalDate? = null,
+    val goalId: String? = null,
     val extra: JsonObject = TaskUnknown.NONE,
 ) {
     /** Neither a tombstone nor a local item's stub. */

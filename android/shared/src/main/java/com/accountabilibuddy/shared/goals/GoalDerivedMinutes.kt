@@ -9,12 +9,12 @@ import kotlin.math.max
  */
 object GoalDerivedMinutes {
     /** The extra #tag minutes of [ownSessions] on [day]: counted with tags minus counted without (what a phone would show of them). */
-    fun focusLocalExtra(goal: Goal, ownSessions: List<GoalFocusSession>, day: LocalDate): Double {
+    fun focusLocalExtra(goal: Goal, ownSessions: List<GoalFocusSession>, day: LocalDate, goalTaskIds: Set<java.util.UUID>? = null): Double {
         val rules = GoalSources.countedFor(goal)
         if (goal.isDeepWork || rules.none { it.automatic && it.type == GoalSourceType.FocusTag }) return 0.0
         val dayWindow = dayWindow(day)
-        val local = GoalCounting.wholeMinutes(clip(GoalFocusAttribution.focusWindows(ownSessions, rules, true), dayWindow))
-        val shape = GoalCounting.wholeMinutes(clip(GoalFocusAttribution.focusWindows(ownSessions, rules, false), dayWindow))
+        val local = GoalCounting.wholeMinutes(clip(GoalFocusAttribution.focusWindows(ownSessions, rules, true, goalTaskIds), dayWindow))
+        val shape = GoalCounting.wholeMinutes(clip(GoalFocusAttribution.focusWindows(ownSessions, rules, false, goalTaskIds), dayWindow))
         return max(0.0, local - shape)
     }
 
@@ -25,7 +25,7 @@ object GoalDerivedMinutes {
         val dayWindow = dayWindow(day)
         val calendar = rules.filter { it.automatic && it.type == GoalSourceType.CalendarCategory }.flatMap { calendarWindows(it, data) }
         if (calendar.isEmpty()) return 0.0
-        val focus = GoalFocusAttribution.focusWindows(data.focus, rules.filter { it.automatic }, data.tagsAvailable)
+        val focus = GoalFocusAttribution.focusWindows(data.focus, rules.filter { it.automatic }, data.tagsAvailable, data.taskIdsOf(goal.id))
         return extra(clip(focus, dayWindow), clip(calendar, dayWindow))
     }
 

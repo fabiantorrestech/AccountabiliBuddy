@@ -75,7 +75,8 @@ fun rememberStatsGoals(allReceived: List<ReceivedDevice>, received: List<Receive
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, dailyState, display.weekStart, allReceived, received, steps, minute) {
+    val taskLinks = com.accountabilibuddy.companion.ui.goals.rememberTaskLinks()
+    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, dailyState, display.weekStart, allReceived, received, steps, minute, taskLinks) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState
@@ -84,7 +85,7 @@ fun rememberStatsGoals(allReceived: List<ReceivedDevice>, received: List<Receive
             runCatching {
                 PhoneGoalsOverview.build(
                     lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(),
-                    app.goals.deepWork.current(), PhoneGoalData.slept(app),
+                    app.goals.deepWork.current(), PhoneGoalData.slept(app), taskLinks,
                 )
             }.getOrNull()
         }

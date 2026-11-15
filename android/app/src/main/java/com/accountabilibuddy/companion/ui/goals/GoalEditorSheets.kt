@@ -140,7 +140,7 @@ fun GoalEditorSheets(
     val steps by app.steps.state.collectAsStateWithLifecycle()
     if (sourcesOpen) {
         GoalSourcesSheet(
-            current = draft.sources, labels = labels, stepsOn = steps.enabled,
+            current = draft.sources, labels = labels, kind = draft.kind, stepsOn = steps.enabled,
             onAdd = { rule: GoalSourceRule -> draft = draft.copy(sources = draft.sources + rule) },
             onChange = { rule: GoalSourceRule -> draft = draft.copy(sources = draft.sources.map { if (it.id == rule.id) rule else it }) },
             selfId = app.sync.deviceId,

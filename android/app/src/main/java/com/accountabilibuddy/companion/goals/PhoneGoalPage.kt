@@ -12,6 +12,8 @@ import com.accountabilibuddy.shared.goals.GoalSourceData
 import com.accountabilibuddy.shared.goals.GoalSourceLine
 import com.accountabilibuddy.shared.goals.GoalSourceLines
 import com.accountabilibuddy.shared.goals.GoalTakesText
+import com.accountabilibuddy.shared.goals.GoalTasksCard
+import com.accountabilibuddy.shared.goals.GoalTaskLink
 import com.accountabilibuddy.shared.goals.GoalTile
 import com.accountabilibuddy.shared.goals.GoalTiles
 import com.accountabilibuddy.shared.goals.GoalKind
@@ -40,8 +42,13 @@ data class PhoneGoalPage(
     val reminderCount: Int,
     val reminderNext: String?,
     val labelName: (UUID) -> String?,
+    /** GS5b: the Tasks card (the tasks that carry this goal); null when the page shows none. */
+    val tasksCard: GoalTasksCard? = null,
 ) {
     val usesTrend: Boolean get() = goal.kind == GoalKind.Amount && goal.target.direction == GoalDirection.Reach
+
+    /** How many tasks carry this goal (open or finished): the goal menu's "N linked". */
+    val linkedTasks: Int get() = tasksCard?.linked ?: 0
 
     companion object {
         /** Null when the goal is gone. [labels]: every label name on this phone's lists (ids come from [GoalLabelId.idFor]). */
@@ -58,11 +65,12 @@ data class PhoneGoalPage(
             weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
             slept: List<GoalWindow> = emptyList(),
             hiddenNote: (UUID) -> String? = { null },
+            taskLinks: List<GoalTaskLink> = emptyList(),
         ): PhoneGoalPage? {
             val stored = lists.liveGoals.firstOrNull { it.id == goalId } ?: return null
             val goal = PhoneDeepWork.view(stored, PhoneDeepWork.dailyMinutes(goalFiles), weekly)
             val today = now.atZone(zone).toLocalDate()
-            val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone, slept)
+            val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone, slept, taskLinks = taskLinks)
             val facts = GoalFactsBuilder.build(goal, data, today, display.weekStart)
             val byId = labels.associateBy { GoalLabelId.idFor(it) }
             val labelName: (UUID) -> String? = { byId[it] }
@@ -78,6 +86,7 @@ data class PhoneGoalPage(
                 reminderCount = lists.reminders.count { it.goalId == goalId && it.isLive },
                 reminderNext = GoalReminderEdits.nextText(lists.reminders, goal, now, zone),
                 labelName = labelName,
+                tasksCard = GoalTasksCard.of(goal, taskLinks),
             )
         }
     }

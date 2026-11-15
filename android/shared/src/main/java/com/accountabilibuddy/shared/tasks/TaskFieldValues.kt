@@ -51,6 +51,8 @@ object TaskFieldValues {
         TaskField.NUMBER -> TaskJson.text(task.number?.let { TaskJson.writeNumber(it, unknown = false) } ?: JsonNull)
         // The PC's PlannedSlot.TieText: the start to whole seconds.
         TaskField.PLAN -> task.plannedFor?.let { listOf(it.date, it.partId.lowercase(), it.start.take(8)).joinToString("\u0003") } ?: ""
+        // The PC's TaskFieldValues: the goal's id in "D" form (lower case), or nothing.
+        TaskField.GOAL -> task.goalId ?: ""
     }
 
     /**
@@ -96,6 +98,7 @@ object TaskFieldValues {
         TaskField.CALENDAR -> target.copy(calendar = source.calendar)
         TaskField.NUMBER -> target.copy(number = source.number)
         TaskField.PLAN -> target.copy(plannedFor = source.plannedFor)
+        TaskField.GOAL -> target.copy(goalId = source.goalId)
     }
 
     private const val HEX = "0123456789abcdef"

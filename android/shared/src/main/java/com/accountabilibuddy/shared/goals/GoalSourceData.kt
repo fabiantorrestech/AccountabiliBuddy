@@ -14,6 +14,8 @@ import java.util.UUID
  * @property tagsAvailable False where #tag rules aren't counted: the phone until ADR 79 (plan §3b 5; [forPhone]).
  * @property steps The phones' synced daily step counts: one more Health Connect "device" (the empty id) for a steps goal (ADR 79).
  * @property deviceId This device's id: its own #tag and calendar extras are not counted twice.
+ * @property taskLinks The tasks that carry a goal ([GoalTaskLinks.from]): what "a task carries this goal" (the focus of a session whose
+ * checklist holds one of them) and "milestone tasks" (each finished one adds one to its day) count from; null = none.
  */
 data class GoalSourceData(
     val focus: List<GoalFocusSession>,
@@ -23,13 +25,17 @@ data class GoalSourceData(
     val tagsAvailable: Boolean = true,
     val steps: SyncSteps? = null,
     val deviceId: UUID? = null,
+    val taskLinks: List<GoalTaskLink>? = null,
 ) {
+    /** The ids of the tasks that carry [goalId] (open or finished); empty for none (GS5). */
+    fun taskIdsOf(goalId: UUID): Set<UUID> = taskLinks.orEmpty().filter { it.goalId == goalId }.map { it.taskId }.toSet()
+
     companion object {
         /**
          * The phone's data: no #tag rules (plan §3b 5, "Measured on your PC") and no calendar time (plan §3b 7, PC only), so a
          * goal with those sources counts only its other sources here.
          */
-        fun forPhone(focus: List<GoalFocusSession>, entries: List<GoalEntry>, zone: ZoneId): GoalSourceData =
-            GoalSourceData(focus, entries, zone, calendarWindows = null, tagsAvailable = false)
+        fun forPhone(focus: List<GoalFocusSession>, entries: List<GoalEntry>, zone: ZoneId, taskLinks: List<GoalTaskLink>? = null): GoalSourceData =
+            GoalSourceData(focus, entries, zone, calendarWindows = null, tagsAvailable = false, taskLinks = taskLinks)
     }
 }

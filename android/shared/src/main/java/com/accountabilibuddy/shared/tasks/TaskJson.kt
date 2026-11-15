@@ -83,6 +83,7 @@ object TaskJson {
         task.deletedAt?.let { put("deletedAt", GoalJson.timeValue(it)) }
         task.conflicts?.let { conflicts -> put("conflicts", JsonArray(conflicts.map { writeConflict(it, unknown) })) }
         task.autoSavedFor?.let { put("autoSavedFor", it.toString()) }
+        task.goalId?.let { put("goalId", it) }
         putExtra(task.extra, unknown)
     }
 
@@ -401,6 +402,7 @@ object TaskJson {
         val deletedAt = fields.time("deletedAt")
         val conflicts = fields.array("conflicts")?.map(::readConflict)
         val autoSavedFor = fields.date("autoSavedFor")
+        val goalId = fields.guid("goalId")
         if (title == null && deletedAt == null) {
             throw missing("title")
         }
@@ -408,7 +410,7 @@ object TaskJson {
         return TaskItem(
             id, title ?: "", bin, position, createdAt, editedAt, touchedAt, number, formerNumbers, prevBin, labelId, tags, steps,
             estimateMinutes, effort, note, dueOn, dueAt, reminders, cantMiss, highlight, origin, doneAt, devices, calendar, plannedFor,
-            deletedAt, conflicts, autoSavedFor, fields.extra(TASK_COMPUTED),
+            deletedAt, conflicts, autoSavedFor, goalId, fields.extra(TASK_COMPUTED),
         )
     }
 

@@ -86,7 +86,7 @@ object GoalReminders {
         val weekly = app.goals.deepWork.current()
         val goals = lists.liveGoals.map { PhoneDeepWork.view(it, pcDaily, weekly) }
         val data = runCatching {
-            PhoneGoalData.build(app.sync.allReceived.value.map { it.file }, goals, lists.liveEntries, app.steps.state.value, now, zone, PhoneGoalData.slept(app))
+            PhoneGoalData.build(app.sync.allReceived.value.map { it.file }, goals, lists.liveEntries, app.steps.state.value, now, zone, PhoneGoalData.slept(app), taskLinks = PhoneGoalData.taskLinks(app))
         }.getOrNull()
         val weekStart = GoalDisplayPrefs.display.value.weekStart
         val held = paused || PhoneGoalReview.sessionRunning(app, now)

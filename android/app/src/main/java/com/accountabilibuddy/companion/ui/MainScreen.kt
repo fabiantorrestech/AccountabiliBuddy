@@ -447,6 +447,7 @@ fun MainScreen(
                             onBack = { nav.back() }, onMessage = { viewModel.message.value = it }, session = goalSession,
                             // Stats on this goal (round 2 R6b4): the Goals view of Stats, opened on it; Back returns here.
                             onOpenStats = { nav.open(AppDestination.Stats, openGoal.toString()) },
+                            anchor = shown.anchor,
                         )
                     } else com.accountabilibuddy.companion.ui.goals.GoalsScreen(
                         allReceived = syncAllReceived,
@@ -455,6 +456,7 @@ fun MainScreen(
                             onOpenStats = { nav.open(AppDestination.Stats) },
                             // New goal, Edit goal, Edit area and Areas are sheets the Goals screen owns (R6b2).
                             onOpenGoal = { nav.open(AppDestination.Goals, it.toString()) },
+                            onOpenGoalTasks = { nav.open(AppDestination.Goals, it.toString(), "tasks") },
                             onMessage = { viewModel.message.value = it },
                             onOpenGoalsSettings = { nav.open(AppDestination.Settings, SettingsCategory.Goals.key) },
                             session = goalSession,

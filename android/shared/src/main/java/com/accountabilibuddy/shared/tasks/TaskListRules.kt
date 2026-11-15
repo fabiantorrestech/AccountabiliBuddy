@@ -129,7 +129,9 @@ object TaskListRules {
                 )
             }
 
-            SyncTaskItem(task, TaskFieldStamps.allAt(stamp))
+            // GS5: a restored link is stamped now, so it comes back over a later clear; a backup with no link (also one made before the
+            // field existed) says nothing about links and never clears one.
+            SyncTaskItem(task, TaskFieldStamps.forNew(task, stamp))
         }
 
         return TaskLists(

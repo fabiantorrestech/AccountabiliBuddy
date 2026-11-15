@@ -152,7 +152,7 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         Available("focusLabel", "Focus time · label", "Focus in AccountabiliBuddy on tasks with a label", MaterialIconKind.TimerOutline, GoalSourceType.FocusLabel);
         Available("focusTag", "Focus time · #tag", "Focus on tasks with a #tag", MaterialIconKind.Pound, GoalSourceType.FocusTag, "Counted on this PC");
         Available("goalField", "A task carries this goal", "Focus in sessions that hold a task linked to this goal", MaterialIconKind.LinkVariant, GoalSourceType.GoalField, "Link tasks from their menu");
-        Available("milestoneTasks", "Milestone tasks", "Each task linked to this goal and finished counts one", MaterialIconKind.FormatListChecks, GoalSourceType.MilestoneTasks, "For milestones · this PC");
+        Available("milestoneTasks", "Milestone tasks", "Each task linked to this goal and finished counts one", MaterialIconKind.FormatListChecks, GoalSourceType.MilestoneTasks, "For milestones");
         Available("hand", "Tick by hand", "Tick it, log a value or add time here or on Today", MaterialIconKind.HandBackRightOutline, GoalSourceType.Hand);
         Available("calendar", "Google Calendar", "Time in events of a day plan category", MaterialIconKind.CalendarOutline, GoalSourceType.CalendarCategory, "This PC only · never focus");
         // NG1: sources measured only on a phone are offered when a phone is in the group. Screen time (ST2) is measured on this PC too, so it is always offered.

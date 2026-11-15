@@ -113,14 +113,15 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
             delay(60_000L - (now.toEpochMilli() % 60_000L))
         }
     }
-    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, dailyState, display.weekStart, allReceived, received, steps, minute) {
+    val taskLinks = rememberTaskLinks()
+    val overview by produceState<PhoneGoalsOverview?>(null, status, lists, weeklyState, dailyState, display.weekStart, allReceived, received, steps, minute, taskLinks) {
         if (status != PhoneGoalStatus.Ready) {
             value = null
             return@produceState
         }
         value = withContext(Dispatchers.Default) {
             runCatching {
-                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), PhoneGoalData.slept(app))
+                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), PhoneGoalData.slept(app), taskLinks)
             }.getOrNull()
         }
     }
@@ -241,6 +242,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
             GoalMenuSheet(
                 id, allReceived, received, actions.onMessage, onDismiss = { menuGoal = null }, onEdit = { menuGoal = null; editAtReminders = false; editGoal = id.toString() },
                 start = actions.session, onReminders = { menuGoal = null; editAtReminders = true; editGoal = id.toString() },
+                onOpenTasks = { menuGoal = null; actions.onOpenGoalTasks(id) },
             )
         }
     }

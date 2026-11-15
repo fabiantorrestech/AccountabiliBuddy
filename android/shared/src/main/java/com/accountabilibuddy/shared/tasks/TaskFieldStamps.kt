@@ -34,7 +34,17 @@ data class TaskFieldStamps(private val stamps: Map<TaskField, FieldStamp> = empt
     companion object {
         val NONE = TaskFieldStamps()
 
-        /** Every field stamped the same (a new task, or one the migration made). */
-        fun allAt(stamp: FieldStamp): TaskFieldStamps = TaskFieldStamps(TaskField.entries.associateWith { stamp })
+        /**
+         * Every field stamped the same (a new task, or one the migration made), except the goal link (GS5): it is stamped when it is first
+         * set, so a task that never carried a goal writes no `goal` stamp (an older reader and the PC's twin see the same text as before).
+         * An unstamped goal counts as made when the task was created, older than any link.
+         */
+        fun allAt(stamp: FieldStamp): TaskFieldStamps = TaskFieldStamps(TaskField.entries.filter { it != TaskField.GOAL }.associateWith { stamp })
+
+        /**
+         * [allAt] for a task that may already carry a goal link (a copy, a task put back whole, a restore, one built from an older device's
+         * item): the link is stamped with the rest, so it counts as set then; with no link there is no goal stamp.
+         */
+        fun forNew(task: TaskItem, stamp: FieldStamp): TaskFieldStamps = allAt(stamp).with(TaskField.GOAL, if (task.goalId == null) null else stamp)
     }
 }

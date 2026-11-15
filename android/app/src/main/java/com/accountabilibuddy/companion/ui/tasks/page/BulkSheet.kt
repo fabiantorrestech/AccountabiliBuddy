@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material.icons.outlined.Timer
@@ -41,11 +42,11 @@ import com.accountabilibuddy.shared.tasks.TaskLists
 import com.accountabilibuddy.shared.tasks.TaskRowText
 
 /** The pages of select mode's sheets (bundle spec §12 and its sheet list): the bulk bar's Move and Options, and the selected list. */
-enum class BulkPage { Move, Options, TimeLimit, Label, NewLabel, Tags, Selected }
+enum class BulkPage { Move, Options, TimeLimit, Label, NewLabel, Tags, Goal, Selected }
 
 /**
  * Select mode's sheets for the selected tasks ([tasks]): **Move** (the Move to grid: Today's This session and Queued, the Shelf's
- * To sort, Next and Later), **Options** (Time limit ›, Label ›, Tags ›, Effort soon, Rename one by one ›) with their pages, and the
+ * To sort, Next and Later), **Options** (Time limit ›, Label ›, Tags ›, Link to goal › (GS5b), Effort soon, Rename one by one ›) with their pages, and the
  * **selected list** (each row's × unselects it; unselecting the last one closes it). Every sub-page has a back arrow, also when it
  * was opened directly. Each change is one stamped edit per task with one Undo for all of them.
  *
@@ -72,6 +73,7 @@ fun BulkSheet(
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
     val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
     val count = ShelfToasts.tasksWord(tasks.size)
+    val goals = rememberLinkableGoals()
     val toOptions = { if (start == BulkPage.Options) page = BulkPage.Options else onDismiss() }
     val back: (() -> Unit)? = when (page) {
         BulkPage.Move, BulkPage.Options, BulkPage.Selected -> null
@@ -87,6 +89,7 @@ fun BulkSheet(
             BulkPage.Label -> "Label for ${tasks.size}"
             BulkPage.NewLabel -> "New label"
             BulkPage.Tags -> "Tags"
+            BulkPage.Goal -> "Link ${tasks.size} to a goal"
             BulkPage.Selected -> "${tasks.size} selected"
         },
         subtitle = when (page) {
@@ -109,6 +112,10 @@ fun BulkSheet(
                 AbSheetRow("Time limit", onClick = { page = BulkPage.TimeLimit }, icon = Icons.Outlined.Timer, trailing = { AbSheetValue(null) })
                 SheetMarkRow("Label", onClick = { page = BulkPage.Label }, leading = { LabelDot(null, 12.dp) }) { AbSheetValue(null) }
                 AbSheetRow("Tags", onClick = { page = BulkPage.Tags }, icon = Icons.Outlined.Tag, trailing = { AbSheetValue(null) })
+                AbSheetRow(
+                    "Link to goal", onClick = { page = BulkPage.Goal }, icon = Icons.Outlined.Link, enabled = goals.isNotEmpty() || tasks.any { it.goalId != null },
+                    subtitle = if (goals.isEmpty()) (if (tasks.any { it.goalId != null }) "Their goal is gone · Unlink" else "No goals yet") else null, trailing = { AbSheetValue(null) },
+                )
                 AbSheetRow("Effort", onClick = null, icon = Icons.Outlined.Speed, subtitle = "Coming soon", enabled = false)
                 AbSheetRow("Rename one by one", onClick = { onRenameEach(); onDismiss() }, icon = Icons.Outlined.Edit, subtitle = "Each title in turn", trailing = { AbSheetValue(null) })
             }
@@ -154,6 +161,8 @@ fun BulkSheet(
                     }
                 }
             }
+
+            BulkPage.Goal -> TaskGoalRows(goals, null, tasks.any { it.goalId != null }, ids, controller, onDone = toOptions)
 
             BulkPage.Selected -> {
                 tasks.forEach { task ->

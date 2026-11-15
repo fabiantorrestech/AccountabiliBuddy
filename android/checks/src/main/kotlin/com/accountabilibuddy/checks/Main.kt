@@ -69,8 +69,12 @@ private val checks: List<FixtureCheck> = listOf(
     // trip of a task with every field set), field merge, local edits, labels, account settings, old fields, the migration rule.
     R71Check("task-json", R71ModelCases::taskJson),
     R71Check("values", R71ModelCases::values),
-    // GS5a: a task with a goal link and its stamp (goalId / goal, unknown to the phone until GS5b) read and written again, byte for byte.
+    // GS5a / GS5b: a task with a goal link and its stamp (goalId / goal) read and written again, byte for byte; the merge of that field (15
+    // scenarios, each forward, swapped and again), the goal sources' counting and the links read off the task list, against the PC.
     Gs5aCheck("task-json", R71ModelCases::taskJson),
+    Gs5aCheck("field-merge", R71MergeCases::fieldMerge),
+    Gs5aCheck("counting", Gs5aCases::counting),
+    Gs5aCheck("links", Gs5aCases::links),
     R71Check("field-merge", R71MergeCases::fieldMerge),
     R71Check("task-edits", R71MergeCases::taskEdits),
     R71Check("label-merge", R71MergeCases::labelMerge),
@@ -203,6 +207,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "goals-ui-review-reminders" to GoalsUiReviewRemindersCheck::run,
     // Round 2 R6b4: Stats per goal's chart (a bar per day, the target line, paused days hatched and left out of the numbers; phone only).
     "goals-ui-stats-series" to GoalsUiStatsSeriesCheck::run,
+    // GS5b (phone): the task goal link as a field: stamping, every writer keeping it, the merge, counting (Q1126 closed), the Tasks card and menu words.
+    "gs5b-self" to Gs5bSelfCheck::run,
     // Round 2 R7.1: unknown fields and newer entries kept, the shared stamp helper, phone-only numbering, the label book, the migration's promises.
     "r71-self" to TaskModelSelfCheck::run,
     // Round 2 R7.2: the phone's own edits, label edits, the switch's refusal, newer entries, timing (phone only).

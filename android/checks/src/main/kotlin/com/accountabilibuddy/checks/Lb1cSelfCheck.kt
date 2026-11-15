@@ -416,6 +416,7 @@ object Lb1cSelfCheck {
             "ui/tasks/archive/ArchiveData.kt" to "builds its own scopeView from the raw list, shows names only through it",
             "ui/MainScreen.kt" to "taskModel.earlierNotice / requestSort, no lists",
             "ui/today/TodayTaskSections.kt" to "the zone only; the list is scopeView.shown()",
+            "ui/goals/TaskLinksState.kt" to "GS5b: reads the raw list only for GoalTaskLinks.from (task id, goal id, finished, title): no label or tag is read",
         )
         val uiDir = File("$app/ui")
         val found = uiDir.walkTopDown().filter { it.isFile && it.extension == "kt" }.map { file -> file.relativeTo(File(app)).path.replace(File.separatorChar, '/') to file.readText().replace("\r\n", "\n") }.toList()

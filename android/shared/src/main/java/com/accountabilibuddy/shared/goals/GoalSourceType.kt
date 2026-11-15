@@ -11,7 +11,7 @@ enum class GoalSourceType {
     /** Focus in sessions with a task carrying the #tag [GoalSourceRule.tag]. Counted on the PC only until ADR 79 (plan §3b 5). */
     FocusTag,
 
-    /** A task carries this goal. "Coming soon": tasks have no goal link until ADR 79 is accepted (plan §3b 2). */
+    /** A task carries this goal (GS5, ADR 76 amended): the focus of a session whose checklist holds a task linked to the goal; counted on every device from its task list. */
     GoalField,
 
     /** Ticked, logged or time added by hand. */
@@ -33,6 +33,6 @@ enum class GoalSourceType {
     /** A linked Beeminder goal ([GoalSourceRule.beeminderSlug]); read only (ADR 43), on the PC. */
     Beeminder,
 
-    /** The milestone's own task list. "Coming soon" until ADR 79 is accepted (plan §3b 2). */
+    /** The milestone's tasks (GS5): each task linked to the goal and finished counts one, on its day; only on a milestone goal. */
     MilestoneTasks,
 }

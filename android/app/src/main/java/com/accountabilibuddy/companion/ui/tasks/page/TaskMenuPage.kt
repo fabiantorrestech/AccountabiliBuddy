@@ -9,5 +9,6 @@ enum class TaskMenuPage {
     Label,
     NewLabel,
     Tags,
+    Goal,
     Sync,
 }

@@ -165,7 +165,7 @@ object GoalsUiPageCheck {
         )
         val pausedItems = GoalMenuPlan.of(habit, GoalCounting.day(habit, data(emptyList()), today, today), true, 0, "Learning").associateBy { it.id }
         report.check("$name: a paused goal offers Resume and greys its quick log", pausedItems.getValue(GoalMenuItemId.Pause).title == "Resume goal" && !pausedItems.getValue(GoalMenuItemId.TickToday).enabled)
-        report.check("$name: Open its tasks is Coming soon (greyed)", GoalMenuPlan.of(milestone, GoalCounting.day(milestone, data(emptyList()), today, today), false, 0, "A").first { it.id == GoalMenuItemId.OpenTasks }.let { !it.enabled && it.note == "Coming soon" })
+        report.check("$name: GS5b: Open its tasks works (a milestone's menu; it says how many tasks are linked)", GoalMenuPlan.of(milestone, GoalCounting.day(milestone, data(emptyList()), today, today), false, 0, "A").first { it.id == GoalMenuItemId.OpenTasks }.let { it.enabled && it.note == "None linked yet" })
         val untick = GoalMenuPlan.of(habit, GoalCounting.day(habit, data(listOf(entry(1, habit.id, today, null, 1.0, GoalEntrySource.Hand))), today, today), false, 0, "A").first { it.id == GoalMenuItemId.TickToday }
         report.check("$name: a ticked habit offers Untick today", untick.title == "Untick today" && GoalCounting.day(habit, data(listOf(entry(1, habit.id, today, null, 1.0, GoalEntrySource.Hand))), today, today).status != GoalDayStatus.Missed)
     }

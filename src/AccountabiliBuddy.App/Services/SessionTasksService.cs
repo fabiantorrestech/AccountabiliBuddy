@@ -560,9 +560,18 @@ public sealed partial class SessionTasksService : IDisposable
     /// A task carried into the next session (the shutdown routine) keeps the label and tags this device doesn't show (ADR 89):
     /// <paramref name="categoryId"/> may be a hidden label's category and <paramref name="hiddenTags"/> its hidden tags.
     /// </summary>
-    public Task AddCarriedAsync(string title, Guid? categoryId, IReadOnlyList<string>? hiddenTags)
+    /// <param name="originalId">
+    /// The checklist task of the ended session the carried task stands for (GS5b): the new task takes the held copy's goal link, due date,
+    /// reminders and number, as "Add to Today" does for a past task (<see cref="CarryHeldAsync"/>); nothing more happens when no copy is held.
+    /// </param>
+    public async Task AddCarriedAsync(string title, Guid? categoryId, IReadOnlyList<string>? hiddenTags, Guid? originalId = null)
     {
-        return SetAsync(Current.Add(title, null, categoryId, hiddenTags));
+        HashSet<Guid> before = Current.Tasks.Select(task => task.Id).ToHashSet();
+        await SetAsync(Current.Add(title, null, categoryId, hiddenTags));
+        if (originalId is Guid original && Current.Tasks.FirstOrDefault(task => !before.Contains(task.Id)) is SessionTask added)
+        {
+            await CarryHeldAsync(original, added.Id);
+        }
     }
 
     /// <summary>

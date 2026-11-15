@@ -252,7 +252,7 @@ object TaskLocalEdits {
                 task = TaskMigration.fillSession(listOf(task), maxOf(1, free(exceptId = task.id))).single().copy(bin = TaskBin.SESSION)
             }
 
-            put(index, SyncTaskItem(task, TaskFieldStamps.allAt(FieldStamp(at, self))))
+            put(index, SyncTaskItem(task, TaskFieldStamps.forNew(task, FieldStamp(at, self))))
         }
 
         // The ticked state or place an old item in the task's own list asks for, or null.

@@ -29,4 +29,7 @@ enum class TaskField(val wire: String) {
 
     /** The day part it was put in the plan for (ADR 50). */
     PLAN("plan"),
+
+    /** The goal it carries (GS5, ADR 76 amended): set, changed or cleared like any other part; a goal's deletion never clears it. */
+    GOAL("goal"),
 }

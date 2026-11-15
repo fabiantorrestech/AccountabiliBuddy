@@ -193,6 +193,15 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
         edit(id, TaskField.DEVICES) { TaskReminderEdits.setDevices(it, only, self) }
     }
 
+    /**
+     * GS5b: links the tasks to the goal [goalId] (named [goalName] in the toast), or to none (null). One stamped edit each, one Undo for all;
+     * a task already linked to it changes nothing. A link to a goal that is deleted later stays on the task (a restored goal gets its tasks back).
+     */
+    fun setGoal(ids: List<String>, goalId: String?, goalName: String?) {
+        val result = change { lists, self, now -> ShelfEdits.setGoal(lists, ids, goalId, self, now, removed()) } ?: return
+        if (result.changed) toast(TasksToast(ShelfToasts.linked(if (goalId == null) null else goalName.orEmpty()), undo = undoOf(result, listOf(TaskField.GOAL))))
+    }
+
     /** Select mode's Label for several tasks: a live label's id, or null for No label; with Undo. */
     fun setLabelAll(ids: List<String>, labelId: String?) = bulk(ids, TaskField.LABEL, "relabelled") { it.copy(labelId = labelId) }
 

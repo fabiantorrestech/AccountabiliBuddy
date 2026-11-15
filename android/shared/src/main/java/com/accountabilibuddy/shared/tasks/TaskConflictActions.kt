@@ -36,7 +36,7 @@ object TaskConflictActions {
 
     /**
      * "Keep both as separate tasks": the shown version stays on the task (the conflict closes as in [resolveConflict]) and the other version
-     * becomes a new task [newId] at the end of Queued, with the task's label, tags, time limit and steps (new step ids from [newStepId], none in
+     * becomes a new task [newId] at the end of Queued, with the task's label, goal, tags, time limit and steps (new step ids from [newStepId], none in
      * focus), and on the same devices (a local or limited task's copy stays where the task is, ADR 72). Reminders, due date and highlight stay
      * with the original only, so nothing rings twice.
      */
@@ -55,6 +55,7 @@ object TaskConflictActions {
         val copy = TaskItem(
             newId.lowercase(), title, TaskBin.QUEUED, TaskListRules.endOf(resolved.lists, TaskBin.QUEUED), at, at, at,
             labelId = source.labelId,
+            goalId = source.goalId,
             tags = source.tags,
             steps = steps,
             estimateMinutes = source.estimateMinutes,
@@ -62,7 +63,7 @@ object TaskConflictActions {
             origin = source.number?.let { "Other version of ${it.value}" } ?: "Other version",
             devices = source.devices,
         )
-        val tasks = resolved.lists.tasks + SyncTaskItem(copy, TaskFieldStamps.allAt(FieldStamp(at, self.lowercase())))
+        val tasks = resolved.lists.tasks + SyncTaskItem(copy, TaskFieldStamps.forNew(copy, FieldStamp(at, self.lowercase())))
         return TaskConflictChange(resolved.lists.copy(tasks = tasks), "Kept both · the other copy is in Queued", listOf(id, newId))
     }
 

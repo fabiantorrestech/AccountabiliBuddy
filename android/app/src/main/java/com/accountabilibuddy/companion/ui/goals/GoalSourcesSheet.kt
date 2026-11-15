@@ -8,7 +8,7 @@ import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
-import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.CenterFocusStrong
 import androidx.compose.material.icons.outlined.Computer
 import androidx.compose.material.icons.outlined.Monitor
@@ -28,6 +28,7 @@ import com.accountabilibuddy.companion.ui.sheets.AbSheetHeight
 import com.accountabilibuddy.companion.ui.sheets.AbSheetRow
 import com.accountabilibuddy.companion.ui.sheets.AbSheetValue
 import com.accountabilibuddy.companion.ui.theme.Ab
+import com.accountabilibuddy.shared.goals.GoalKind
 import com.accountabilibuddy.shared.goals.GoalLabelId
 import com.accountabilibuddy.shared.goals.GoalPhoneRules
 import com.accountabilibuddy.shared.goals.GoalScreenTimeEditor
@@ -42,9 +43,10 @@ import java.util.UUID
  *   says where to connect Health Connect when it isn't).
  * - **Screen time** (ST3): its own page ([ScreenTimeSourceSheet]) with the list of apps and sites, a pick list of apps seen on this phone and
  *   the devices that count; the **Usage access** row under it says whether the permission is on and opens the system's page.
+ * - **A task carries this goal** and **Milestone tasks** (GS5b): counted from the phone's task list; a task is linked from its own menu. Milestone tasks
+ *   is greyed ("Milestones only") unless the goal is a milestone ([kind]), as on the PC.
  * - Greyed with a reason: **#tag** and **Google Calendar** ("Measured on your PC": tags
- *   and calendar time are counted on the PC until ADR 79), **Beeminder** (read on the PC), **A task carries this goal** and
- *   **Milestone tasks** (GS5a: "Measured on your PC" until GS5b).
+ *   and calendar time are counted on the PC until ADR 79), **Beeminder** (read on the PC).
  * Hand, steps and sleep can be added once; a label once each. [onAdd] takes the new rule.
  *
  * @param labels Every task label name on this phone.
@@ -54,6 +56,7 @@ import java.util.UUID
 fun GoalSourcesSheet(
     current: List<GoalSourceRule>,
     labels: List<String>,
+    kind: GoalKind,
     stepsOn: Boolean,
     onAdd: (GoalSourceRule) -> Unit,
     onChange: (GoalSourceRule) -> Unit,
@@ -127,6 +130,20 @@ fun GoalSourcesSheet(
             trailing = { AbSheetValue(null) },
         )
         UsageAccessRow(usageAccess, context)
+        // GS5b: the two task sources count on this phone from its task list (a task is linked from its menu: Link to goal). Same icons as the PC's tiles.
+        AbSheetRow(
+            "A task carries this goal", onClick = { add(GoalSourceType.GoalField) }, icon = Icons.Outlined.Link, enabled = !has(GoalSourceType.GoalField),
+            subtitle = if (has(GoalSourceType.GoalField)) "Already counting" else "Focus in sessions that hold a task linked to this goal · link tasks from their menu",
+        )
+        val milestoneOnly = kind != GoalKind.Milestone
+        AbSheetRow(
+            "Milestone tasks", onClick = { add(GoalSourceType.MilestoneTasks) }, icon = Icons.Outlined.Checklist, enabled = !has(GoalSourceType.MilestoneTasks) && !milestoneOnly,
+            subtitle = when {
+                has(GoalSourceType.MilestoneTasks) -> "Already counting"
+                milestoneOnly -> "Milestones only · Milestone tasks only count on a milestone goal"
+                else -> "Each task linked to this goal and finished counts one"
+            },
+        )
         // Brief §7: shown as a placeholder until its permission is decided (ADR 81, Proposed); weight is typed in until then.
         AbSheetRow("Weight from Health Connect", onClick = null, icon = Icons.Outlined.MonitorWeight, enabled = false, subtitle = "Coming soon · typed in until then")
 
@@ -135,9 +152,6 @@ fun GoalSourcesSheet(
         AbSheetRow("Google Calendar", onClick = null, icon = Icons.Outlined.CalendarMonth, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.CalendarCategory), subtitle = GoalPhoneRules.MEASURED_ON_PC)
         AbSheetRow("Beeminder", onClick = null, icon = Icons.Outlined.Computer, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.Beeminder), subtitle = "Read on your PC")
 
-        // GS5a: the PC counts the task sources until GS5b lets the phone link tasks; never "Coming soon".
-        AbSheetRow("A task carries this goal", onClick = null, icon = Icons.Outlined.Checklist, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.GoalField), subtitle = GoalPhoneRules.MEASURED_ON_PC)
-        AbSheetRow("Milestone tasks", onClick = null, icon = Icons.Outlined.Check, enabled = !GoalPhoneRules.measuredOnPc(GoalSourceType.MilestoneTasks), subtitle = GoalPhoneRules.MEASURED_ON_PC)
     }
 }
 

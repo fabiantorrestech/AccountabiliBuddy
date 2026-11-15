@@ -46,7 +46,7 @@ object TaskHistoryRules {
     }
 
     /**
-     * "Do again": a finished task's entry makes a new task at the end of Queued with a new id ([newId]), its label, tags, time limit,
+     * "Do again": a finished task's entry makes a new task at the end of Queued with a new id ([newId]), its label, goal, tags, time limit,
      * note and steps (open again, new ids), and the origin "Done again from 142"; reminders, due date and highlight are not copied.
      */
     fun doAgain(lists: TaskLists, entryId: String, now: OffsetDateTime, self: String, newId: () -> String): Result {
@@ -59,10 +59,10 @@ object TaskHistoryRules {
         val steps = old.steps?.map { TaskStep(newId(), it.title, estimateMinutes = it.estimateMinutes) }
         val copy = TaskItem(
             newId(), old.title, TaskBin.QUEUED, TaskListRules.endOf(lists, TaskBin.QUEUED), now, now, now,
-            labelId = old.labelId, tags = old.tags, steps = steps?.ifEmpty { null }, estimateMinutes = old.estimateMinutes, effort = old.effort,
+            labelId = old.labelId, goalId = old.goalId, tags = old.tags, steps = steps?.ifEmpty { null }, estimateMinutes = old.estimateMinutes, effort = old.effort,
             note = old.note, origin = doneAgainOrigin(old.number), devices = old.devices, calendar = old.calendar,
         )
-        return Result(lists.copy(tasks = lists.tasks + SyncTaskItem(copy, TaskFieldStamps.allAt(FieldStamp(now, self.lowercase())))), listOf(copy.id))
+        return Result(lists.copy(tasks = lists.tasks + SyncTaskItem(copy, TaskFieldStamps.forNew(copy, FieldStamp(now, self.lowercase())))), listOf(copy.id))
     }
 
     /**
@@ -93,7 +93,7 @@ object TaskHistoryRules {
             editedAt = at,
             touchedAt = at,
         )
-        val revived = SyncTaskItem(back, TaskFieldStamps.allAt(FieldStamp(at, self.lowercase())))
+        val revived = SyncTaskItem(back, TaskFieldStamps.forNew(back, FieldStamp(at, self.lowercase())))
         if (index >= 0) tasks[index] = revived else tasks += revived
 
         val log = lists.log.toMutableList()

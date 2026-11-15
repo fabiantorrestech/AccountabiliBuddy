@@ -7,7 +7,8 @@ package com.accountabilibuddy.shared.goals
  * Deep work Track time only. [GoalMenuItemId.Separator] rows are the thin dividers between the groups.
  *
  * On the phone: Deep work's daily target is the PC's (ADR 29; with no PC in the group, [noPc], it is the phone's own and is set in Edit goal), so its last row is greyed; Beeminder is read on the PC, so Open in
- * Beeminder is greyed; "Open its tasks" is "Coming soon" (plan §3b 2). Whether a row's screen exists yet is the screen's business.
+ * Beeminder is greyed. "Open its tasks" (a milestone's; GS5b) shows the goal's page with its Tasks card in view, and says how many tasks are
+ * linked. Whether a row's screen exists yet is the screen's business.
  */
 object GoalMenuPlan {
     /**
@@ -25,6 +26,8 @@ object GoalMenuPlan {
         startBlocked: String? = null,
         reminderNext: String? = null,
         noPc: Boolean = false,
+        linkedTasks: Int = 0,
+        hasTasksCard: Boolean = true,
     ): List<GoalMenuItem> {
         val items = mutableListOf(GoalMenuItem(GoalMenuItemId.Heading, goal.name))
         items += GoalMenuItem(
@@ -32,7 +35,7 @@ object GoalMenuPlan {
             value = startValue.takeIf { startBlocked == null }, enabled = startBlocked == null, opensMore = true,
         )
         items += separator
-        items += quickLog(goal, todayState, paused, noPc)
+        items += quickLog(goal, todayState, paused, noPc, linkedTasks, hasTasksCard)
         items += separator
         items += GoalMenuItem(GoalMenuItemId.EditGoal, "Edit goal…", note = "Target, tracking & sources, notes", opensMore = true)
         items += GoalMenuItem(GoalMenuItemId.Reminders, "Reminders", note = reminderNext, value = if (reminderCount == 0) "None" else "$reminderCount set", opensMore = true)
@@ -57,7 +60,7 @@ object GoalMenuPlan {
 
     private val separator = GoalMenuItem(GoalMenuItemId.Separator, "")
 
-    private fun quickLog(goal: Goal, state: GoalDayState, paused: Boolean, noPc: Boolean): List<GoalMenuItem> {
+    private fun quickLog(goal: Goal, state: GoalDayState, paused: Boolean, noPc: Boolean, linkedTasks: Int, hasTasksCard: Boolean): List<GoalMenuItem> {
         val log = when {
             goal.isDeepWork -> GoalMenuItem(
                 GoalMenuItemId.AddTimeByHand, "Add time by hand…",
@@ -74,7 +77,12 @@ object GoalMenuPlan {
                 }
                 GoalKind.Amount -> GoalMenuItem(GoalMenuItemId.LogValue, "Log a value…", opensMore = true)
                 GoalKind.Time -> GoalMenuItem(GoalMenuItemId.AddTimeByHand, "Add time by hand…", note = "Counts for the goal, never for a guard", opensMore = true)
-                GoalKind.Milestone -> GoalMenuItem(GoalMenuItemId.OpenTasks, "Open its tasks", note = "Coming soon", enabled = false)
+                GoalKind.Milestone -> if (hasTasksCard) {
+                    GoalMenuItem(GoalMenuItemId.OpenTasks, "Open its tasks", note = if (linkedTasks == 0) "None linked yet" else "$linkedTasks linked")
+                } else {
+                    // The page draws no Tasks card (no task source and no linked task): nothing to open.
+                    GoalMenuItem(GoalMenuItemId.OpenTasks, "Open its tasks", note = "Add Milestone tasks as a source first", enabled = false)
+                }
             }
         }
         val beeminder = goal.sources.firstOrNull { it.type == GoalSourceType.Beeminder && it.beeminderSlug != null }

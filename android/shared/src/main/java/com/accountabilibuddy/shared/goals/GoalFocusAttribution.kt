@@ -18,6 +18,8 @@ import java.util.UUID
  *   profile name, it starts at or after that piece's end, and either the PC was off just before it (`offMinutesBefore`) or it
  *   starts within [CONTINUATION_GAP] of it. Two known edges (Q360), kept the same as the PC: a step-away of over an hour cuts
  *   the session on a receiver (P1), and a new checklist-less session with the same profile within an hour joins the one before (P2).
+ * - **A task carries the goal (GS5):** the same for a goal whose rule is "a task carries this goal", by the checklist task's id against the
+ *   task list's links as they are now ([GoalSourceData.taskIdsOf]).
  * A minute counts once per goal even when several sessions or rules match it ([focusWindows] unions them).
  */
 object GoalFocusAttribution {
@@ -61,7 +63,7 @@ object GoalFocusAttribution {
     }
 
     /** Whether [rule] takes [session]'s focus (an off rule takes nothing). [tagsAvailable] is false on the phone (plan §3b 5). */
-    fun matches(session: GoalFocusSession, rule: GoalSourceRule, tagsAvailable: Boolean): Boolean {
+    fun matches(session: GoalFocusSession, rule: GoalSourceRule, tagsAvailable: Boolean, goalTaskIds: Set<UUID>? = null): Boolean {
         if (!rule.automatic) {
             return false
         }
@@ -71,20 +73,25 @@ object GoalFocusAttribution {
             GoalSourceType.FocusLabel -> rule.labelId != null && session.tasks.any { carriesLabel(it, rule.labelId) }
             GoalSourceType.FocusTag -> tagsAvailable && rule.tag != null &&
                 session.tasks.any { task -> task.labels.orEmpty().any { label -> TaskLabels.same(label, rule.tag) } }
+            // GS5: the checklist task's id is the task's; the link as it is now, not as it was when the session ran.
+            GoalSourceType.GoalField -> !goalTaskIds.isNullOrEmpty() && session.tasks.any { task -> task.id != null && task.id in goalTaskIds }
             else -> false
         }
     }
 
     /** The focus that counts toward a goal: the windows of every session any of its focus rules takes, each minute once, earliest first. */
-    fun focusWindows(sessions: Iterable<GoalFocusSession>, rules: List<GoalSourceRule>, tagsAvailable: Boolean): List<GoalWindow> {
+    fun focusWindows(
+        sessions: Iterable<GoalFocusSession>, rules: List<GoalSourceRule>, tagsAvailable: Boolean, goalTaskIds: Set<UUID>? = null,
+    ): List<GoalWindow> {
         val focusRules = rules.filter {
-            it.type == GoalSourceType.FocusAll || it.type == GoalSourceType.FocusLabel || it.type == GoalSourceType.FocusTag
+            it.type == GoalSourceType.FocusAll || it.type == GoalSourceType.FocusLabel || it.type == GoalSourceType.FocusTag ||
+                it.type == GoalSourceType.GoalField
         }
         if (focusRules.isEmpty()) {
             return emptyList()
         }
 
-        return GoalTimeline.union(sessions.filter { session -> focusRules.any { matches(session, it, tagsAvailable) } }.flatMap { it.windows })
+        return GoalTimeline.union(sessions.filter { session -> focusRules.any { matches(session, it, tagsAvailable, goalTaskIds) } }.flatMap { it.windows })
     }
 
     /** A time as local wall-clock time in [zone] (the PC's `FocusDayBuilder.Local`). */
