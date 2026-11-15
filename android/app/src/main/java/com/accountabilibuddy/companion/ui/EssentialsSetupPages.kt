@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.EssentialsKind
 import com.accountabilibuddy.companion.essentials.EssentialsStore
+import com.accountabilibuddy.companion.essentials.LooserChangeRules
 import com.accountabilibuddy.companion.essentials.StarterApp
 import com.accountabilibuddy.companion.essentials.StarterApps
 import com.accountabilibuddy.companion.ui.kit.AbCheckRow
@@ -63,7 +64,7 @@ internal fun EssentialsOccasionsSetupPage() {
                     store = app.essentials,
                     starters = remember { StarterApps.focus(context) },
                     isOn = { app.essentials.onUnlockInSession },
-                    setOn = { app.essentials.onUnlockInSession = it },
+                    setOn = { app.essentials.requestOnUnlockInSession(it) },
                 )
                 OccasionWithStarters(
                     title = "At night",
@@ -72,8 +73,14 @@ internal fun EssentialsOccasionsSetupPage() {
                     starters = remember { StarterApps.night(context) },
                     isOn = { app.bedtimeEssentials.onUnlockInSession && (!inProductaBuddy || app.bedtimeEssentials.nightInProductaBuddy) },
                     setOn = { on ->
-                        app.bedtimeEssentials.onUnlockInSession = on
-                        if (inProductaBuddy) app.bedtimeEssentials.nightInProductaBuddy = on
+                        val decision = app.bedtimeEssentials.requestOnUnlockInSession(on)
+                        // In ProductaBuddy the night's own switch follows, with the same wait when it turns off.
+                        val pb = if (inProductaBuddy) app.bedtimeEssentials.requestNightInProductaBuddy(on) else decision
+                        when {
+                            decision == LooserChangeRules.Decision.Refused || pb == LooserChangeRules.Decision.Refused -> LooserChangeRules.Decision.Refused
+                            decision == LooserChangeRules.Decision.Waits || pb == LooserChangeRules.Decision.Waits -> LooserChangeRules.Decision.Waits
+                            else -> LooserChangeRules.Decision.Applied
+                        }
                     },
                 )
                 MorningLockCard()
@@ -99,7 +106,7 @@ private fun OccasionWithStarters(
     store: EssentialsStore,
     starters: List<StarterApp>,
     isOn: () -> Boolean,
-    setOn: (Boolean) -> Unit,
+    setOn: (Boolean) -> LooserChangeRules.Decision,
 ) {
     val context = LocalContext.current
     // During a session the lists can't grow (more allowed apps is a looser change).
@@ -108,16 +115,22 @@ private fun OccasionWithStarters(
     // What the list held when this page opened: never taken away here (C5).
     val before = remember { store.essentials.value.apps.map { it.packageName }.toSet() }
     var ticked by remember { mutableStateOf(starters.filter { it.ticked || it.packageName in before }.map { it.packageName }.toSet()) }
-    // Switched on: the pre-ticked starters join the list straight away.
-    LaunchedEffect(on) {
-        if (on && !locked) ticked.filter { it !in before }.forEach { store.setAllowed(it, true) }
-    }
+    var note by remember { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ToggleRow(title, detail, on, enabled = !locked) {
-            setOn(it)
-            on = it
+        ToggleRow(title, detail, on, enabled = !locked) { want ->
+            when (setOn(want)) {
+                LooserChangeRules.Decision.Applied -> {
+                    note = null
+                    on = want
+                    // Only a tap that switches it on adds the pre-ticked starters; looking at this page never changes the list (S5).
+                    if (want && !locked) ticked.filter { it !in before }.forEach { store.setAllowed(it, true) }
+                }
+                LooserChangeRules.Decision.Waits -> note = "Turns off in ${LooserChangeRules.WAIT.toMinutes()} minutes (a looser change waits)."
+                LooserChangeRules.Decision.Refused -> note = LooserChangeRules.REFUSED_TEXT
+            }
         }
+        note?.let { Note(it) }
         if (on) {
             AbSectionLabel(if (store.kind == EssentialsKind.Bedtime) "Starter apps for the night" else "Starter apps")
             if (starters.isEmpty()) Note("No default apps found; add them in Settings.")

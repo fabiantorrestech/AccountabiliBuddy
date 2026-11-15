@@ -116,7 +116,7 @@ object Refresher {
             val sessionRunning = if (app.guidance.isCompanion && !app.pause.isQuiet) HeaderSource.focus(app, now)?.running else running
             val testRunning = !app.pause.isQuiet && app.testSession.running() != null
             val guarded = sessionRunning != null || testRunning
-            if (com.accountabilibuddy.companion.essentials.SessionLock.holdCapable(context)) {
+            if (com.accountabilibuddy.companion.essentials.SessionLock.holdCapable(context) || com.accountabilibuddy.companion.essentials.SessionLock.holding(context)) {
                 // ADR 73: the session's hold (lunch, breaks, emergency and work use free the phone; it comes back after).
                 com.accountabilibuddy.companion.essentials.SessionLock.reconcile(context, sessionGuarded = guarded)
             } else {

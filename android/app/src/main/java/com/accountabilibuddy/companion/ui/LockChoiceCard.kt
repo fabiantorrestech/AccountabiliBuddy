@@ -28,6 +28,7 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
 import com.accountabilibuddy.companion.essentials.LockMyPhoneClient
 import com.accountabilibuddy.companion.essentials.LockMyPhoneInstaller
+import com.accountabilibuddy.companion.essentials.LockMyPhoneTrust
 import com.accountabilibuddy.companion.essentials.LockScreen
 import com.accountabilibuddy.companion.essentials.LockScreenChoice
 import com.accountabilibuddy.companion.ui.kit.AbSectionLabel
@@ -63,6 +64,7 @@ internal fun LockChoiceCard() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val installed = remember(reads) { EssentialsLaunch.lockMyPhoneInstalled(context) }
+    val notTheRealOne = remember(reads) { !installed && LockMyPhoneTrust.present(context) }
     val choice = remember(reads) { app.lockScreen.chosen() }
     val pendingAt = remember(reads) { app.lockScreen.pendingBuiltInAt() }
     val needsUpdate = remember(reads) { LockMyPhoneClient.needsUpdate(context) }
@@ -112,14 +114,23 @@ internal fun LockChoiceCard() {
         }
         when {
             !installed -> {
-                Note("LockMyPhone-Extended isn't installed. It's recommended: it gives far more control than the built-in screen.", color = Ab.colors.waiting)
-                GuardTonalButton(if (downloaded) "Install LockMyPhone-Extended" else "Download LockMyPhone-Extended", enabled = !busy, onClick = {
-                    if (downloaded) {
-                        message = if (LockMyPhoneInstaller.install(context)) null else "Allow this app to install apps, then tap Install again."
-                    } else {
-                        downloadAndInstall()
-                    }
-                }, modifier = Modifier.fillMaxWidth())
+                if (notTheRealOne) {
+                    // Android refuses an update from a different signer, so a download can't replace it: no button until it is gone.
+                    Note(
+                        "An app with LockMyPhone-Extended's name is installed, but it isn't signed with this app's key, so it isn't used. " +
+                            "Uninstall it first, then come back here to download the right one.",
+                        color = Ab.colors.drift,
+                    )
+                } else {
+                    Note("LockMyPhone-Extended isn't installed. It's recommended: it gives far more control than the built-in screen.", color = Ab.colors.waiting)
+                    GuardTonalButton(if (downloaded) "Install LockMyPhone-Extended" else "Download LockMyPhone-Extended", enabled = !busy, onClick = {
+                        if (downloaded) {
+                            message = if (LockMyPhoneInstaller.install(context)) null else "Allow this app to install apps, then tap Install again."
+                        } else {
+                            downloadAndInstall()
+                        }
+                    }, modifier = Modifier.fillMaxWidth())
+                }
             }
             needsUpdate -> {
                 Note("Your LockMyPhone-Extended is older than this app needs for strict session locks.", color = Ab.colors.waiting)

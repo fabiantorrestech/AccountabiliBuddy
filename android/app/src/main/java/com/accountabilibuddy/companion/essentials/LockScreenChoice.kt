@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.essentials
 
 import android.content.Context
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.guidance.TrustedTime
 import java.time.Duration
 import java.time.Instant
 
@@ -29,7 +30,7 @@ class LockScreenChoice(context: Context) {
 
     /** The choice right now (a pending switch to the built-in screen still counts as LockMyPhone-Extended until due). */
     @Synchronized
-    fun chosen(now: Instant = Instant.now()): LockScreen {
+    fun chosen(now: Instant = TrustedTime.now()): LockScreen {
         settle(now)
         return stored() ?: defaultChoice()
     }
@@ -38,18 +39,18 @@ class LockScreenChoice(context: Context) {
      * True when LockMyPhone-Extended is the lock right now: chosen and installed. When it isn't installed, the built-in
      * screen is used whatever was chosen (fail closed: never no screen in a session).
      */
-    fun usesLockMyPhone(now: Instant = Instant.now()): Boolean =
+    fun usesLockMyPhone(now: Instant = TrustedTime.now()): Boolean =
         chosen(now) == LockScreen.LockMyPhone && EssentialsLaunch.lockMyPhoneInstalled(app)
 
     /** When a pending switch to the built-in screen is due; null when none is waiting. */
     @Synchronized
-    fun pendingBuiltInAt(now: Instant = Instant.now()): Instant? {
+    fun pendingBuiltInAt(now: Instant = TrustedTime.now()): Instant? {
         settle(now)
         return prefs.getLong(KEY_BUILT_IN_AT, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
     }
 
     /** True while a session runs: the choice can't be loosened then. */
-    fun locked(now: Instant = Instant.now()): Boolean = EssentialsLaunch.runningSessionStart(app, now) != null
+    fun locked(now: Instant = TrustedTime.now()): Boolean = EssentialsLaunch.runningSessionStart(app, now) != null
 
     /** LockMyPhone-Extended: applies at once and cancels a pending switch. */
     @Synchronized
@@ -64,7 +65,7 @@ class LockScreenChoice(context: Context) {
      * while a session runs.
      */
     @Synchronized
-    fun requestBuiltIn(now: Instant = Instant.now()): Boolean {
+    fun requestBuiltIn(now: Instant = TrustedTime.now()): Boolean {
         if (!usesLockMyPhone(now)) {
             prefs.edit().putString(KEY_CHOICE, LockScreen.BuiltIn.name).remove(KEY_BUILT_IN_AT).apply()
             return true
@@ -97,7 +98,7 @@ class LockScreenChoice(context: Context) {
 
     companion object {
         /** How long switching from LockMyPhone-Extended to the built-in screen waits (the looser-change wait). */
-        val BUILT_IN_WAIT: Duration = Duration.ofMinutes(10)
+        val BUILT_IN_WAIT: Duration = LooserChangeRules.WAIT
         private const val KEY_CHOICE = "lockScreen"
         private const val KEY_BUILT_IN_AT = "lockScreenBuiltInAt"
         private const val KEY_LEGACY_USE_LMP = "useLockMyPhone"

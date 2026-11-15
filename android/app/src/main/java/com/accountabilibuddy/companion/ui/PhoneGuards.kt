@@ -52,7 +52,7 @@ object PhoneGuards {
     }
 
     private fun lockMyPhone(context: Context, app: CompanionApp): PhoneGuard {
-        val installed = runCatching { context.packageManager.getPackageInfo(EssentialsLaunch.LOCK_MY_PHONE, 0) }.isSuccess
+        val installed = EssentialsLaunch.lockMyPhoneInstalled(context)
         val profile = app.essentials.hardcoreProfile
         return when {
             !installed -> PhoneGuard("LockMyPhone-Extended", "Not installed · the built-in essentials screen is used")

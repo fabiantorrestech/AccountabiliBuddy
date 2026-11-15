@@ -8,6 +8,7 @@ import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.nudge.Takeover
 import com.accountabilibuddy.companion.placement.PhoneDownLaunch
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
+import com.accountabilibuddy.companion.guidance.TrustedTime
 import java.time.Duration
 import java.time.Instant
 
@@ -39,7 +40,7 @@ object EssentialsLaunch {
     private const val SLOTS_SINCE_VERSION_CODE = 7L
 
     /** The phone was just unlocked. */
-    fun onUnlock(context: Context, now: Instant = Instant.now()) {
+    fun onUnlock(context: Context, now: Instant = TrustedTime.now()) {
         val app = context.applicationContext as CompanionApp
         // ADR 73: emergency phone time and "Need it for work" leave the phone free, in both modes (no screen, no lock of ours).
         if (app.emergency.isActive(now) || app.workUse.active(now) != null) {
@@ -69,7 +70,7 @@ object EssentialsLaunch {
      * Phone down's buttons): LockMyPhone-Extended's lock when it is the lock (ADR 73), else the built-in screen, or Phone
      * down on an unlock when the placement guard asks for it.
      */
-    fun showEssentials(context: Context, now: Instant = Instant.now(), fromUnlock: Boolean = false) {
+    fun showEssentials(context: Context, now: Instant = TrustedTime.now(), fromUnlock: Boolean = false) {
         if (lockWithLockMyPhone(context, now)) return
         if (fromUnlock && PhoneDownLaunch.shouldShowOnUnlock(context, now)) {
             PhoneDownLaunch.showOnUnlock(context, now)
@@ -82,7 +83,7 @@ object EssentialsLaunch {
      * For a screen's Essentials button: null after LockMyPhone-Extended was asked to lock (the caller just closes), else
      * the built-in essentials screen to open.
      */
-    fun essentialsIntentOrLock(context: Context, now: Instant = Instant.now()): Intent? =
+    fun essentialsIntentOrLock(context: Context, now: Instant = TrustedTime.now()): Intent? =
         if (lockWithLockMyPhone(context, now)) null else EssentialsActivity.intent(context)
 
     /** The label of a screen's Essentials button: says whether it opens this app's screen or locks with LockMyPhone-Extended. */
@@ -97,8 +98,9 @@ object EssentialsLaunch {
         if (runningSessionStart(app, now) == null) {
             return sendSessionLock(context, app.essentials.hardcoreProfile, endsAt = null, now = now)
         }
-        if (SessionLock.holdCapable(context)) {
-            SessionLock.reconcile(context, now)
+        if (SessionLock.holdCapable(context) || SessionLock.holding(context)) {
+            // An unlock re-sends the hold (idempotent): a lock that died on LockMyPhone-Extended's side comes back (S2).
+            SessionLock.reconcile(context, now, resend = true)
             // Refused just now (no profile, no device admin there): the built-in screen stands in.
             return SessionLock.lockMyPhoneLocks(context, now)
         }
@@ -110,7 +112,7 @@ object EssentialsLaunch {
      * During the night (and no session on another device): asks LockMyPhone-Extended to start the night's profile
      * until the wake time, once per night.
      */
-    fun maybeStartBedtimeHardcore(context: Context, now: Instant = Instant.now()) {
+    fun maybeStartBedtimeHardcore(context: Context, now: Instant = TrustedTime.now()) {
         val app = context.applicationContext as CompanionApp
         if (!app.essentials.useLockMyPhone || !app.bedtimeEssentials.onUnlockInSession) return
         // ADR 68/75: in ProductaBuddy only when the night was chosen there.
@@ -128,12 +130,12 @@ object EssentialsLaunch {
         val minutes = Duration.between(now, wake).toMinutes()
         if (minutes <= 0) return
         val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile).putExtra("duration_min", minutes.toInt())
-        runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
+        LockMyPhoneLink.send(context, intent)
         Log.i(TAG, "bedtime: asked LockMyPhone-Extended for '$profile' until ${night.end}")
     }
 
     /** A session started on another device: asks LockMyPhone-Extended to start the hardcore profile, once per session. */
-    fun maybeStartHardcore(context: Context, now: Instant = Instant.now()) {
+    fun maybeStartHardcore(context: Context, now: Instant = TrustedTime.now()) {
         val app = context.applicationContext as CompanionApp
         if (!app.essentials.useLockMyPhone || !app.essentials.onUnlockInSession) return
         val profile = app.essentials.hardcoreProfile
@@ -149,7 +151,7 @@ object EssentialsLaunch {
         val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile)
         // Rounded up, so a 1-minute test asked a moment after it started still gets its minute.
         endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
-        runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
+        LockMyPhoneLink.send(context, intent)
         Log.i(TAG, "hardcore: asked LockMyPhone-Extended for '$profile' until $endsAt")
     }
 
@@ -175,25 +177,24 @@ object EssentialsLaunch {
     internal fun sendSessionLock(context: Context, profile: String, endsAt: Instant?, now: Instant): Boolean {
         val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile)
         endsAt?.let { end -> ceilMinutes(Duration.between(now, end)).takeIf { it > 0 }?.let { intent.putExtra("duration_min", it.toInt()) } }
-        return runCatching { context.sendBroadcast(intent) }.isSuccess
+        return LockMyPhoneLink.send(context, intent)
     }
 
     /** True while a test lock started here may still be running (Settings → Essentials → "Test stop"). */
-    fun testLockMayRun(context: Context, now: Instant = Instant.now()): Boolean =
+    fun testLockMayRun(context: Context, now: Instant = TrustedTime.now()): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_TEST_LOCK_UNTIL, 0L) > now.toEpochMilli()
 
     /** Starts a LockMyPhone-Extended lock with [profile] for [minutes] (Settings → Essentials → try it for 1 minute). */
     fun startTestLock(context: Context, profile: String, minutes: Int = 1) {
         val intent = Intent(LMP_START).setPackage(LMP_PACKAGE).putExtra("profile", profile).putExtra("duration_min", minutes)
-        runCatching { context.sendBroadcast(intent) }.onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
+        LockMyPhoneLink.send(context, intent)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putLong(KEY_TEST_LOCK_UNTIL, Instant.now().plus(Duration.ofMinutes(minutes.toLong())).toEpochMilli()).apply()
+            .putLong(KEY_TEST_LOCK_UNTIL, TrustedTime.now().plus(Duration.ofMinutes(minutes.toLong())).toEpochMilli()).apply()
         Log.i(TAG, "test: asked LockMyPhone-Extended for '$profile' for $minutes min")
     }
 
-    /** True when LockMyPhone-Extended is installed. */
-    fun lockMyPhoneInstalled(context: Context): Boolean =
-        runCatching { context.packageManager.getPackageInfo(LMP_PACKAGE, 0) }.isSuccess
+    /** True when LockMyPhone-Extended is installed and is the real one: signed with this app's key ([LockMyPhoneTrust]). */
+    fun lockMyPhoneInstalled(context: Context): Boolean = LockMyPhoneTrust.verified(context)
 
     /** True when the installed LockMyPhone-Extended keeps a synced profile per slot (0.13.0 on). */
     fun lockMyPhoneHasSlots(context: Context): Boolean =

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.guidance.TrustedTime
 import com.accountabilibuddy.shared.TokenVault
 import java.time.Instant
 
@@ -27,10 +28,47 @@ object LunchLockLift {
 
     const val NOTE_FAILED = "Couldn't lift the lock: check the token"
 
-    fun enabled(context: Context): Boolean = prefs(context).getBoolean(KEY_ON, false)
+    fun enabled(context: Context): Boolean {
+        settleChange(context, TrustedTime.now())
+        return prefs(context).getBoolean(KEY_ON, false)
+    }
 
-    fun setEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean(KEY_ON, on).apply()
+    /**
+     * Turns lifting off (at once) or on. On is the looser change (more of the lock is let go): refused during a session, else it
+     * waits [LooserChangeRules.WAIT] on trusted time, like the other lock settings.
+     */
+    @Synchronized
+    fun requestEnabled(context: Context, on: Boolean, now: Instant = TrustedTime.now()): LooserChangeRules.Decision {
+        settleChange(context, now)
+        val prefs = prefs(context)
+        val change = DelayedSetting(prefs, KEY_ON)
+        if (on == prefs.getBoolean(KEY_ON, false)) {
+            change.cancel()
+            return LooserChangeRules.Decision.Applied
+        }
+        val running = (context.applicationContext as CompanionApp).lockScreen.locked(now)
+        val decision = LooserChangeRules.request(loosening = on, sessionRunning = running)
+        when (decision) {
+            LooserChangeRules.Decision.Applied -> { prefs.edit().putBoolean(KEY_ON, on).apply(); change.cancel() }
+            LooserChangeRules.Decision.Waits -> change.schedule(on.toString(), now)
+            LooserChangeRules.Decision.Refused -> Unit
+        }
+        return decision
+    }
+
+    /** When turning lifting on is due, or null when nothing waits. */
+    fun pendingOnAt(context: Context, now: Instant = TrustedTime.now()): Instant? {
+        settleChange(context, now)
+        return DelayedSetting(prefs(context), KEY_ON).pending()?.second
+    }
+
+    // Applies a change that has waited out its time; a session that started cancels it.
+    @Synchronized
+    private fun settleChange(context: Context, now: Instant) {
+        val change = DelayedSetting(prefs(context), KEY_ON)
+        if (change.pending() == null) return
+        val running = (context.applicationContext as CompanionApp).lockScreen.locked(now)
+        change.settle(running, now)?.let { prefs(context).edit().putBoolean(KEY_ON, it.toBoolean()).apply() }
     }
 
     fun hasToken(context: Context): Boolean = prefs(context).getString(KEY_TOKEN, null) != null
@@ -93,8 +131,8 @@ object LunchLockLift {
     /** Sends STOP_LOCK with the stored token; false when there is no token or the broadcast failed. */
     private fun stop(context: Context): Boolean {
         val token = prefs(context).getString(KEY_TOKEN, null)?.let { TokenVault.open(it, TokenVault.LMPE_TOKEN_ALIAS) } ?: return false
-        val intent = Intent(EssentialsLaunch.LMP_STOP).setPackage(EssentialsLaunch.LOCK_MY_PHONE).putExtra("token", token)
-        val sent = runCatching { context.sendBroadcast(intent) }.isSuccess
+        val intent = Intent(EssentialsLaunch.LMP_STOP).putExtra("token", token)
+        val sent = LockMyPhoneLink.send(context, intent)
         Log.i(TAG, "lunch: asked LockMyPhone-Extended to stop the session lock (sent $sent)")
         return sent
     }

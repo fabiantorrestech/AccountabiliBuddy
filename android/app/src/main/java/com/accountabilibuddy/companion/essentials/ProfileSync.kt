@@ -62,7 +62,6 @@ object ProfileSync {
         if (!EssentialsLaunch.lockMyPhoneInstalled(context)) return
         if (kind.lockMyPhoneSlot != null && !EssentialsLaunch.lockMyPhoneHasSlots(context)) return
         val intent = Intent(ACTION_SYNC)
-            .setPackage(EssentialsLaunch.LOCK_MY_PHONE)
             .putExtra("manager", context.packageName)
             .putExtra("name", kind.lockMyPhoneName)
             .apply { kind.lockMyPhoneSlot?.let { putExtra("slot", it) } }
@@ -75,8 +74,6 @@ object ProfileSync {
             .putExtra("phone_button", phoneButton(phoneCorner))
             .putExtra("show_icons", showIcons)
             .putExtra("parts", partsJson(essentials))
-        runCatching { context.sendBroadcast(intent) }
-            .onSuccess { Log.i(TAG, "sent ${essentials.apps.size} ${kind.name.lowercase()} essentials to LockMyPhone-Extended") }
-            .onFailure { Log.w(TAG, "LockMyPhone-Extended not reached", it) }
+        if (LockMyPhoneLink.send(context, intent)) Log.i(TAG, "sent ${essentials.apps.size} ${kind.name.lowercase()} essentials to LockMyPhone-Extended")
     }
 }

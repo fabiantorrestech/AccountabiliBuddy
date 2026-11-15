@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.essentials
 import android.content.Context
 import android.util.Log
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.guidance.TrustedTime
 import java.time.Duration
 import java.time.Instant
 
@@ -32,26 +33,34 @@ object SessionLock {
     private const val KEY_LAST_EVENT = "lastEvent"
     private const val KEY_LAST_LOCK = "lastLock"
 
-    /** A phase with no set end is held this long at a time, and renewed when less than [RENEW_BEFORE] is left. */
+    private const val KEY_SENT_AT = "heldSentAt"
+
+    /** A phase with no set end is held this long at a time, and renewed when less than [HoldRules.RENEW_BEFORE] is left. */
     val LEASE: Duration = Duration.ofMinutes(30)
-    private val RENEW_BEFORE: Duration = Duration.ofMinutes(15)
 
     /** True when the installed LockMyPhone-Extended has the hold. */
     fun holdCapable(context: Context): Boolean = LockMyPhoneClient.supports(context, LockMyPhoneClient.HOLD_LOCK)
 
+    /** True while this app believes a hold of its own is in place (it keeps the strict path through one missed capabilities query). */
+    fun holding(context: Context): Boolean = prefs(context).getString(KEY_HELD_FOR, null) != null
+
     /**
-     * Holds, moves, renews or releases the session's hold to match now.
+     * Holds, moves, renews or releases the session's hold to match now. All decisions are on trusted time ([TrustedTime]).
+     * A hold already believed in place is sent again every [HoldRules.RESEND_AFTER] (and on every unlock, [resend]), so a
+     * lock that died on LockMyPhone-Extended's side comes back at the next refresh or unlock.
      *
      * @param sessionGuarded false when nothing may hold the phone now, whatever runs; by default, unless the phone
      *   guard's pause (or "Pause in the car") is on, as for the older lock.
+     * @param resend true from an unlock: the hold is sent again whatever was sent last.
      */
     @Synchronized
-    fun reconcile(context: Context, now: Instant = Instant.now(), sessionGuarded: Boolean? = null) {
+    fun reconcile(context: Context, now: Instant = TrustedTime.now(), sessionGuarded: Boolean? = null, resend: Boolean = false) {
         val app = context.applicationContext as CompanionApp
         val guarded = sessionGuarded ?: !app.pause.isQuiet
         val prefs = prefs(context)
         val heldFor = prefs.getString(KEY_HELD_FOR, null)
-        if (!app.lockScreen.usesLockMyPhone(now) || !holdCapable(context)) {
+        // Not the lock (or not installed / not the real one): the hold is dropped. A missed capabilities query is not that (S3).
+        if (!app.lockScreen.usesLockMyPhone(now)) {
             heldFor?.let { release(context, it) }
             return
         }
@@ -65,25 +74,30 @@ object SessionLock {
             }
             return
         }
+        // No hold on offer (an LMP without it, or its answer is gone past the grace): give the hold up, so the older START_LOCK path or
+        // the built-in screen takes over (hard rules: fail closed). One missed query is absorbed by the capabilities' grace.
+        if (!holdCapable(context)) {
+            Log.w(TAG, "no hold available: releasing '$heldFor'")
+            heldFor?.let { release(context, it) }
+            return
+        }
 
         val holdId = session.first.toString()
         val profile = app.essentials.hardcoreProfile
         val untilMs = session.second?.toEpochMilli() ?: now.plus(LEASE).toEpochMilli()
         val heldUntil = prefs.getLong(KEY_HELD_UNTIL, 0L)
         if (heldFor != null && heldFor != holdId) release(context, heldFor)
-        val due = heldFor != holdId ||
-            (session.second != null && heldUntil != untilMs) ||
-            (session.second == null && heldUntil - now.toEpochMilli() < RENEW_BEFORE.toMillis())
+        val due = HoldRules.due(heldFor, holdId, heldUntil, untilMs, session.second != null, prefs.getLong(KEY_SENT_AT, 0L), now, resend)
         if (!due) return
 
         if (LockMyPhoneClient.hold(context, holdId, profile, untilMs)) {
-            prefs.edit().putString(KEY_HELD_FOR, holdId).putLong(KEY_HELD_UNTIL, untilMs).apply()
+            prefs.edit().putString(KEY_HELD_FOR, holdId).putLong(KEY_HELD_UNTIL, untilMs).putLong(KEY_SENT_AT, now.toEpochMilli()).apply()
             Log.i(TAG, "holding '$holdId' with '$profile' until $untilMs")
         }
     }
 
     /** Why the phone is free of the session's lock right now, or null when it isn't. */
-    fun freeReason(context: Context, now: Instant = Instant.now()): String? {
+    fun freeReason(context: Context, now: Instant = TrustedTime.now()): String? {
         val app = context.applicationContext as CompanionApp
         return when {
             app.emergency.isActive(now) -> "emergency phone time"
@@ -100,10 +114,10 @@ object SessionLock {
         val editor = prefs(context).edit().putString(KEY_LAST_EVENT, event).putString(KEY_LAST_LOCK, lockName)
         when (event) {
             // The built-in screen stands in; the next refresh asks again (the profile or device admin may be fixed by then).
-            "refused" -> editor.putString(KEY_REFUSED_FOR, holdId).remove(KEY_HELD_FOR).remove(KEY_HELD_UNTIL)
+            "refused" -> editor.putString(KEY_REFUSED_FOR, holdId).remove(KEY_HELD_FOR).remove(KEY_HELD_UNTIL).remove(KEY_SENT_AT)
             "started", "held_by_other" -> editor.remove(KEY_REFUSED_FOR)
             // Over on LockMyPhone-Extended's side: the next reconcile holds again if the session still wants it.
-            "ended", "released" -> if (prefs(context).getString(KEY_HELD_FOR, null) == holdId) editor.remove(KEY_HELD_FOR).remove(KEY_HELD_UNTIL)
+            "ended", "released" -> if (prefs(context).getString(KEY_HELD_FOR, null) == holdId) editor.remove(KEY_HELD_FOR).remove(KEY_HELD_UNTIL).remove(KEY_SENT_AT)
         }
         editor.apply()
         Log.i(TAG, "LockMyPhone-Extended: '$holdId' $event${lockName?.let { " ($it)" } ?: ""}")
@@ -113,7 +127,7 @@ object SessionLock {
      * True when LockMyPhone-Extended is the lock for this session right now: in use, and (with the hold) its hold
      * wasn't refused. False means the built-in essentials screen stands in (fail closed).
      */
-    fun lockMyPhoneLocks(context: Context, now: Instant = Instant.now()): Boolean {
+    fun lockMyPhoneLocks(context: Context, now: Instant = TrustedTime.now()): Boolean {
         val app = context.applicationContext as CompanionApp
         if (!app.lockScreen.usesLockMyPhone(now)) return false
         if (!holdCapable(context)) return true
@@ -127,7 +141,7 @@ object SessionLock {
 
     private fun release(context: Context, holdId: String) {
         LockMyPhoneClient.release(context, holdId)
-        prefs(context).edit().remove(KEY_HELD_FOR).remove(KEY_HELD_UNTIL).apply()
+        prefs(context).edit().remove(KEY_HELD_FOR).remove(KEY_HELD_UNTIL).remove(KEY_SENT_AT).apply()
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

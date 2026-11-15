@@ -3,7 +3,10 @@ package com.accountabilibuddy.companion.essentials
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Log
+import com.accountabilibuddy.companion.guidance.TrustedTime
+import java.time.Duration
 
 /** A Morning lock as LockMyPhone-Extended holds it for this app (LMP ADR 0013). */
 data class MorningLockState(
@@ -36,17 +39,33 @@ object LockMyPhoneClient {
     /** The contract version this app needs for everything in ADR 73; an older LockMyPhone-Extended is offered an update. */
     const val NEEDED_CONTRACT_VERSION = 2
 
-    // The last answer, for a minute: it's asked on every unlock and refresh, and only changes when the app is updated.
+    /** How long one failed query keeps the last good answer (S3). */
+    val GRACE: Duration = Duration.ofMinutes(15)
+
+    // The last answer, for a minute: it's asked on every unlock and refresh, and only changes when the app is updated. Timed on
+    // the monotonic clock, so a moved wall clock can't freeze a miss (S3).
     private var cached: Pair<Int, Set<String>>? = null
-    private var cachedAtMs = 0L
+    private var cachedAtElapsedMs = -CACHE_MS
     private const val CACHE_MS = 60_000L
 
-    /** The installed LockMyPhone-Extended's contract version and actions; null when it can't be asked (missing, too old, no permission). */
+    // The last good answer, kept for a while when a query fails once: a missed query never drops the strict hold path (S3).
+    private val lastGood = CapabilityMemory<Pair<Int, Set<String>>>(GRACE)
+
+    /**
+     * The installed LockMyPhone-Extended's contract version and actions; null when it can't be asked (not installed or not
+     * the real one, too old, no permission). One failed query keeps the last good answer for [GRACE] (trusted time).
+     */
     @Synchronized
     fun capabilities(context: Context): Pair<Int, Set<String>>? {
-        val now = System.currentTimeMillis()
-        if (now - cachedAtMs < CACHE_MS) return cached
-        cached = runCatching {
+        if (!EssentialsLaunch.lockMyPhoneInstalled(context)) {
+            lastGood.forget()
+            cached = null
+            cachedAtElapsedMs = -CACHE_MS
+            return null
+        }
+        val elapsed = SystemClock.elapsedRealtime()
+        if (elapsed - cachedAtElapsedMs in 0 until CACHE_MS) return cached
+        val answer = runCatching {
             context.contentResolver.query(CAPABILITIES, null, null, null, null)?.use { cursor ->
                 if (!cursor.moveToFirst()) return@use null
                 val version = cursor.getInt(cursor.getColumnIndexOrThrow("contract_version"))
@@ -54,14 +73,18 @@ object LockMyPhoneClient {
                 version to actions
             }
         }.getOrNull()
-        cachedAtMs = now
+        val now = TrustedTime.now()
+        if (answer != null) lastGood.record(answer, now, elapsed)
+        cached = answer ?: lastGood.recall(now, elapsed)
+        cachedAtElapsedMs = elapsed
         return cached
     }
 
     /** Forgets the cached capabilities (after LockMyPhone-Extended was installed or updated). */
     @Synchronized
     fun forgetCapabilities() {
-        cachedAtMs = 0L
+        cachedAtElapsedMs = -CACHE_MS
+        lastGood.forget()
     }
 
     /** True when the installed LockMyPhone-Extended accepts [action]. */
@@ -93,7 +116,7 @@ object LockMyPhoneClient {
     )
 
     /** This app's Morning lock as LockMyPhone-Extended holds it now; null when there is none or it can't be asked. */
-    fun morningLock(context: Context): MorningLockState? = runCatching {
+    fun morningLock(context: Context): MorningLockState? = if (!EssentialsLaunch.lockMyPhoneInstalled(context)) null else runCatching {
         context.contentResolver.query(MORNING_LOCK, null, null, null, null)?.use { cursor ->
             if (!cursor.moveToFirst()) return@use null
             MorningLockState(
@@ -107,10 +130,6 @@ object LockMyPhoneClient {
         }
     }.getOrNull()
 
-    private fun send(context: Context, intent: Intent): Boolean {
-        intent.setPackage(PACKAGE).putExtra("manager", context.packageName)
-        return runCatching { context.sendBroadcast(intent) }
-            .onFailure { Log.w(TAG, "LockMyPhone-Extended not reached (${intent.action})", it) }
-            .isSuccess
-    }
+    private fun send(context: Context, intent: Intent): Boolean =
+        LockMyPhoneLink.send(context, intent.putExtra("manager", context.packageName))
 }

@@ -14,7 +14,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
-import java.security.MessageDigest
 
 /**
  * Downloads and installs LockMyPhone-Extended from the owner's public releases (ADR 74). The phone's one connection
@@ -38,6 +37,7 @@ object LockMyPhoneInstaller {
     private const val FILE_NAME = "LockMyPhoneExtended.apk"
     private const val MAX_BYTES = 80L * 1024 * 1024
     private const val TIMEOUT_MS = 20_000
+    private const val MAX_REDIRECTS = 5
 
     /** Why a download can't be installed, for the user. */
     sealed interface Outcome {
@@ -57,14 +57,8 @@ object LockMyPhoneInstaller {
         target.parentFile?.mkdirs()
         val partial = File(target.parentFile, "$FILE_NAME.part")
         val result = runCatching {
-            val connection = (URL(APK_URL).openConnection() as HttpURLConnection).apply {
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "AccountabiliBuddy-Android")
-            }
+            val connection = openFollowingAllowedRedirects()
             try {
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) error("The download answered ${connection.responseCode}")
                 connection.inputStream.use { input ->
                     partial.outputStream().use { output ->
                         val buffer = ByteArray(64 * 1024)
@@ -93,8 +87,40 @@ object LockMyPhoneInstaller {
             return@withContext Outcome.Failed(problem)
         }
         target.delete()
-        partial.renameTo(target)
+        if (!partial.renameTo(target)) {
+            partial.delete()
+            return@withContext Outcome.Failed("Couldn't save the download in this app's storage.")
+        }
         Outcome.Ready
+    }
+
+    // Follows GitHub's redirect by hand: the first address and every hop must pass [RedirectRules.allowed] (https, github.com or
+    // objects.githubusercontent.com), so a redirect can never lead the download anywhere else.
+    private fun openFollowingAllowedRedirects(): HttpURLConnection {
+        var url = APK_URL
+        repeat(MAX_REDIRECTS + 1) {
+            if (!RedirectRules.allowed(url)) error("The download was sent to an address that isn't GitHub's")
+            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                instanceFollowRedirects = false
+                setRequestProperty("User-Agent", "AccountabiliBuddy-Android")
+            }
+            when (connection.responseCode) {
+                HttpURLConnection.HTTP_OK -> return connection
+                HttpURLConnection.HTTP_MOVED_PERM, HttpURLConnection.HTTP_MOVED_TEMP, HttpURLConnection.HTTP_SEE_OTHER, 307, 308 -> {
+                    val next = RedirectRules.resolve(url, connection.getHeaderField("Location"))
+                    connection.disconnect()
+                    url = next ?: error("The download's redirect couldn't be read")
+                }
+                else -> {
+                    val code = connection.responseCode
+                    connection.disconnect()
+                    error("The download answered $code")
+                }
+            }
+        }
+        error("The download was redirected too many times")
     }
 
     /**
@@ -125,9 +151,8 @@ object LockMyPhoneInstaller {
         val pm = context.packageManager
         val archive = archiveInfo(pm, apk) ?: return "The download isn't an app that can be installed."
         if (archive.packageName != EssentialsLaunch.LOCK_MY_PHONE) return "The download isn't LockMyPhone-Extended."
-        val own = runCatching { packageInfo(pm, context.packageName) }.getOrNull() ?: return "This app's own signature couldn't be read."
-        val theirs = certificates(archive)
-        if (theirs.isEmpty() || theirs != certificates(own)) {
+        val own = runCatching { LockMyPhoneTrust.packageInfo(pm, context.packageName) }.getOrNull() ?: return "This app's own signature couldn't be read."
+        if (!SigningCertificates.matches(LockMyPhoneTrust.certificates(archive), LockMyPhoneTrust.certificates(own))) {
             return "The download isn't signed with this app's key, so it wouldn't work with it. Install it from the apps page instead."
         }
         return null
@@ -140,26 +165,6 @@ object LockMyPhoneInstaller {
             @Suppress("DEPRECATION")
             pm.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNATURES)
         }
-
-    private fun packageInfo(pm: PackageManager, packageName: String): PackageInfo =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-        } else {
-            @Suppress("DEPRECATION")
-            pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
-        }
-
-    // The SHA-256 of each signing certificate.
-    private fun certificates(info: PackageInfo): Set<String> {
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            info.signingInfo?.apkContentsSigners
-        } else {
-            @Suppress("DEPRECATION")
-            info.signatures
-        }
-        val digest = MessageDigest.getInstance("SHA-256")
-        return signatures.orEmpty().map { sig -> digest.digest(sig.toByteArray()).joinToString("") { "%02x".format(it) } }.toSet()
-    }
 
     private fun file(context: Context): File = File(File(context.cacheDir, FOLDER), FILE_NAME)
 }

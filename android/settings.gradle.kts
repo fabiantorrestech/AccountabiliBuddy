@@ -20,3 +20,5 @@ include(":app")
 include(":shared")
 // The Pixel Watch companion (ADR 21, Proposed; mockup on sample data).
 include(":wear")
+// Pure-Kotlin checks for the phone LockMyPhone-Extended lock rules (./gradlew :checks:run).
+include(":checks")
