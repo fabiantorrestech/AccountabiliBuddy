@@ -213,16 +213,16 @@ object Ps1SelfCheck {
 
     private fun offGap(report: CheckReport) {
         val running = started(60)
-        fun decide(record: PhoneSessionRecord, now: Instant, newBoot: Boolean = true, trusted: Boolean = true) = PhoneSessionOffGap.decide(record, now, newBoot, trusted, zone)
+        fun decide(record: PhoneSessionRecord, now: Instant, newBoot: Boolean = true, trusted: Boolean = true, trustCanCome: Boolean = false) = PhoneSessionOffGap.decide(record, now, newBoot, trusted, trustCanCome, zone)
         val off = running.copy(heartbeatAt = at(10))
         report.check("ps1/off-gap (R13): 1:59 off carries on with nothing", decide(off, at(11, 59)) == PhoneSessionOffGap.Decision.Nothing)
         report.check("ps1/off-gap (R13): 2:00 off makes a DeviceOff pause", decide(off, at(12)) == PhoneSessionOffGap.Decision.Pause(at(10), at(12)))
         report.check("ps1/off-gap (R13): 3 h 59 min 59 s off still pauses", decide(running.copy(heartbeatAt = at(1), phaseEndsAt = null), at(1, 3 * 3600 + 59 * 60 + 59)) is PhoneSessionOffGap.Decision.Pause)
-        report.check("ps1/off-gap (R13): exactly 4 h off closes the session at the moment the phone went off", decide(running.copy(heartbeatAt = at(1), phaseEndsAt = null), at(1, 4 * 3600)) ==
+        report.check("ps1/off-gap (R13): exactly 4 h off closes the session at the moment the phone went off", decide(running.copy(heartbeatAt = at(1), offAt = at(1), phaseEndsAt = null), at(1, 4 * 3600)) ==
             PhoneSessionOffGap.Decision.Close(at(1), PhoneSessionOffGap.CloseWhy.FOUR_HOURS))
         // 12:00 local is t0 (UTC-5); 23:50 local is t0 + 11h50.
         val lateNight = running.copy(phaseEndsAt = null, heartbeatAt = at(11 * 60 + 50))
-        report.check("ps1/off-gap (R13): a new local day after 2 minutes or more closes the session where the phone went off", decide(lateNight, at(12 * 60 + 10)) ==
+        report.check("ps1/off-gap (R13): a new local day after 2 minutes or more closes the session where the phone went off", decide(lateNight.copy(offAt = at(11 * 60 + 50)), at(12 * 60 + 10)) ==
             PhoneSessionOffGap.Decision.Close(at(11 * 60 + 50), PhoneSessionOffGap.CloseWhy.NEW_DAY))
         report.check("ps1/off-gap (R13): a quick restart across midnight (under 2 minutes) carries on", decide(lateNight.copy(heartbeatAt = at(11 * 60 + 59, 0)), at(12 * 60, 59)) == PhoneSessionOffGap.Decision.Nothing)
         report.check("ps1/off-gap (R13): the same day does not close (an 11:50 to 11:55 gap is a pause)", decide(lateNight.copy(heartbeatAt = at(1)), at(10)) is PhoneSessionOffGap.Decision.Pause)
@@ -232,28 +232,28 @@ object Ps1SelfCheck {
                 decide(lateNight, at(12 * 60 + 10), trusted = false) == PhoneSessionOffGap.Decision.Pause(at(11 * 60 + 50), at(12 * 60 + 10)) &&
                 decide(off, at(10, 30), trusted = false) == PhoneSessionOffGap.Decision.Pause(at(10), at(10, 30)))
         report.check("ps1/off-gap (B2): an untrusted clock set BACK (a negative gap) is a Hold, never Nothing and never a close", decide(off, at(-120), trusted = false) == PhoneSessionOffGap.Decision.Hold(at(10)))
-        val held = done(PhoneSessionEngine.applyOffGap(off, PhoneSessionOffGap.Decision.Hold(at(10)), at(-120))).record
+        val held = done(PhoneSessionEngine.applyOffGap(off, PhoneSessionOffGap.Decision.Hold(at(10)), at(-120), true)).record
         report.check("ps1/off-gap (B2): a Hold opens a DeviceOff stretch at the moment the phone went off, keeps offAt, pauses the timer and sends awaySince; nothing counts as focus meanwhile",
             held.holdsDeviceOff && held.openAway?.from == at(10) && held.offAt == at(10) && held.isTimerPaused && SessionPieces.runningOf(held)?.awaySince == at(10) &&
                 SessionPieces.build(listOf(held), at(100), zone, null).sessions.let { it.size == 2 && it[0].end == at(10) && it[1].start == at(100) })
-        report.check("ps1/off-gap (B2): the Hold is applied once (a second Hold changes nothing)", done(PhoneSessionEngine.applyOffGap(held, PhoneSessionOffGap.Decision.Hold(at(10)), at(-100))).record == held)
+        report.check("ps1/off-gap (B2): the Hold is applied once (a second Hold changes nothing)", done(PhoneSessionEngine.applyOffGap(held, PhoneSessionOffGap.Decision.Hold(at(10)), at(-100), true)).record == held)
         report.check("ps1/off-gap (V-B1): while a Hold is open, trusted time ends it only as a Pause from the hold's own start: even after 5 h or a new day it never closes",
             decide(held, at(10, 5 * 3600)) == PhoneSessionOffGap.Decision.Pause(at(10), at(10, 5 * 3600)) && decide(held, at(12 * 60 + 10)) is PhoneSessionOffGap.Decision.Pause)
         // The reviewer's scenario: set the clock back 5 h, reboot offline (Hold), power off again: ACTION_SHUTDOWN reports an untrusted time.
-        val offAgain = done(PhoneSessionEngine.phoneOff(held, at(-290))).record
-        val forward = done(PhoneSessionEngine.heartbeat(held, at(10, 20 * 3600))).record
+        val offAgain = done(PhoneSessionEngine.phoneOff(held, at(-290), true)).record
+        val forward = done(PhoneSessionEngine.heartbeat(held, at(10, 20 * 3600), true)).record
         report.check("ps1/off-gap (V-B1): phoneOff and heartbeat change nothing while a Hold is open (their times may come from an untrusted anchor)", offAgain == held && forward == held)
         report.check("ps1/off-gap (V-B1): a held decide ignores offAt and the heartbeat (even if an untrusted clock wrote them): it measures from the hold's own start",
             decide(held.copy(offAt = at(-290), heartbeatAt = at(10, 20 * 3600)), at(16)) == PhoneSessionOffGap.Decision.Pause(at(10), at(16)))
         report.check("ps1/off-gap (V-B1): the scenario: Hold at 10:10, power off at an untrusted -5 h, boot with network time at 10:16: a pause of 6 minutes, the session lives (never a close at the fake off time)",
             decide(offAgain, at(16)) == PhoneSessionOffGap.Decision.Pause(at(10), at(16)) &&
-                done(PhoneSessionEngine.applyOffGap(offAgain, decide(offAgain, at(16)), at(16))).record.let { it.isRunning && it.phaseEndsAt == at(66) })
-        val resolved = done(PhoneSessionEngine.applyOffGap(held, decide(held, at(40)), at(40))).record
+                done(PhoneSessionEngine.applyOffGap(offAgain, decide(offAgain, at(16)), at(16), true)).record.let { it.isRunning && it.phaseEndsAt == at(66) })
+        val resolved = done(PhoneSessionEngine.applyOffGap(held, decide(held, at(40)), at(40), true)).record
         report.check("ps1/off-gap (B2): trusted time 30 minutes later closes the stretch there and the end moves on by it",
             decide(held, at(40)) is PhoneSessionOffGap.Decision.Pause && resolved.away == listOf(PhoneAway(PhoneAwayKind.DEVICE_OFF, at(10), at(40))) && resolved.phaseEndsAt == at(90) && resolved.offAt == null && !resolved.isAway)
         report.check("ps1/off-gap (B2): a gap under 2 minutes still closes a hold that is open (the timer was paused), never Nothing", decide(held, at(10, 30)) is PhoneSessionOffGap.Decision.Pause)
-        val heldPaused = done(PhoneSessionEngine.applyOffGap(done(PhoneSessionEngine.pause(started(100), at(5))).record.copy(heartbeatAt = at(10)), PhoneSessionOffGap.Decision.Hold(at(10)), at(11))).record
-        val heldBack = done(PhoneSessionEngine.applyOffGap(heldPaused, decide(heldPaused, at(40)), at(40))).record
+        val heldPaused = done(PhoneSessionEngine.applyOffGap(done(PhoneSessionEngine.pause(started(100), at(5))).record.copy(heartbeatAt = at(10)), PhoneSessionOffGap.Decision.Hold(at(10)), at(11), true)).record
+        val heldBack = done(PhoneSessionEngine.applyOffGap(heldPaused, decide(heldPaused, at(40)), at(40), true)).record
         report.check("ps1/off-gap (B2): a Hold in a Pause timer gives the pause back when it ends (open again from the hold's end), and the shifts add up",
             heldPaused.heldAway == PhoneAwayKind.PAUSED && heldBack.openAway == PhoneAway(PhoneAwayKind.PAUSED, at(40), null) && heldBack.heldAway == null && heldBack.phaseEndsAt == at(100 + 5 + 30))
         report.check("ps1/off-gap (B3c): the set end passed before the phone went off closes at the SET END, not at the off moment", decide(running.copy(heartbeatAt = at(70)), at(75)) ==
@@ -261,22 +261,22 @@ object Ps1SelfCheck {
         report.check("ps1/off-gap (B3c): that holds on an untrusted clock too (it needs no trust: stored times only)", decide(running.copy(heartbeatAt = at(70)), at(75), trusted = false) is PhoneSessionOffGap.Decision.Close)
         report.check("ps1/off-gap (R13): offAt (ACTION_SHUTDOWN) is used before the last heartbeat", decide(off.copy(offAt = at(20)), at(30)) == PhoneSessionOffGap.Decision.Pause(at(20), at(30)))
 
-        val paused = done(PhoneSessionEngine.applyOffGap(off, PhoneSessionOffGap.Decision.Pause(at(10), at(40)), at(40)))
+        val paused = done(PhoneSessionEngine.applyOffGap(off, PhoneSessionOffGap.Decision.Pause(at(10), at(40)), at(40), true))
         report.check("ps1/off-gap: a pause adds a DeviceOff stretch, moves start and end on by the gap (30 min), tells the user",
             paused.record.away == listOf(PhoneAway(PhoneAwayKind.DEVICE_OFF, at(10), at(40))) && paused.record.phaseEndsAt == at(90) && paused.record.phaseStartedAt == at(30) &&
                 PhoneSessionEffect.OffGapNotice(at(10), at(40), closed = false) in paused.effects)
         val pieces = SessionPieces.build(listOf(paused.record), at(50), zone, null).sessions
         report.check("ps1/off-gap: the pieces cut the DeviceOff gap out and the next piece carries offMinutesBefore 30", pieces.size == 2 && pieces[0].end == at(10) && pieces[1].start == at(40) && pieces[1].end == null && pieces[1].offMinutesBefore == 30)
-        val closed = done(PhoneSessionEngine.applyOffGap(off, PhoneSessionOffGap.Decision.Close(at(10), PhoneSessionOffGap.CloseWhy.FOUR_HOURS), at(400)))
+        val closed = done(PhoneSessionEngine.applyOffGap(off, PhoneSessionOffGap.Decision.Close(at(10), PhoneSessionOffGap.CloseWhy.FOUR_HOURS), at(400), true))
         report.check("ps1/off-gap: a close ends the session at the off moment as PHONE_OFF and releases the enforcement", closed.record.endedAt == at(10) && closed.record.endKind == PhoneSessionEndKind.PHONE_OFF &&
             PhoneSessionEffect.ReleaseEnforcement(PhoneSessionEndKind.PHONE_OFF) in closed.effects)
         val pausedWhileOff = done(PhoneSessionEngine.pause(started(100), at(5))).record.copy(heartbeatAt = at(10))
-        val both = done(PhoneSessionEngine.applyOffGap(pausedWhileOff, PhoneSessionOffGap.Decision.Pause(at(10), at(40)), at(40))).record
+        val both = done(PhoneSessionEngine.applyOffGap(pausedWhileOff, PhoneSessionOffGap.Decision.Pause(at(10), at(40)), at(40), true)).record
         report.check("ps1/off-gap: a gap in a Pause timer keeps the pause going after it (open again from the gap's end) and the shifts add up",
             both.openAway == PhoneAway(PhoneAwayKind.PAUSED, at(40), null) && both.away.size == 3 && both.phaseEndsAt == at(100 + 5 + 30))
-        report.check("ps1/off-gap: nothing to do clears the saved off time", done(PhoneSessionEngine.applyOffGap(off.copy(offAt = at(11)), PhoneSessionOffGap.Decision.Nothing, at(12))).record.offAt == null)
-        report.check("ps1/heartbeat: saved at each refresh, never moving back; ACTION_SHUTDOWN saves offAt", done(PhoneSessionEngine.heartbeat(running, at(3))).record.heartbeatAt == at(3) &&
-            done(PhoneSessionEngine.heartbeat(off, at(2))).record.heartbeatAt == at(10) && done(PhoneSessionEngine.phoneOff(running, at(4))).record.offAt == at(4))
+        report.check("ps1/off-gap: nothing to do clears the saved off time", done(PhoneSessionEngine.applyOffGap(off.copy(offAt = at(11)), PhoneSessionOffGap.Decision.Nothing, at(12), true)).record.offAt == null)
+        report.check("ps1/heartbeat: saved at each refresh, never moving back; ACTION_SHUTDOWN saves offAt", done(PhoneSessionEngine.heartbeat(running, at(3), true)).record.heartbeatAt == at(3) &&
+            done(PhoneSessionEngine.heartbeat(off, at(2), true)).record.heartbeatAt == at(10) && done(PhoneSessionEngine.phoneOff(running, at(4), true)).record.offAt == at(4))
     }
 
     private fun locks(report: CheckReport) {

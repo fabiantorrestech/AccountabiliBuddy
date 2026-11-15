@@ -71,6 +71,7 @@ object Ps2aSelfCheck {
         reboot(report)
         untrustedReboot(report)
         fixRound(report)
+        endAcrossReboot(report)
         unreadable(report)
         engineHeartbeat(report)
         sources(report)
@@ -288,14 +289,14 @@ object Ps2aSelfCheck {
 
         val old = PhoneSessionReason("s-old", at(0), "old reason")
         val fresh = PhoneSessionReason("s-new", at(0).plus(Duration.ofDays(89)), SECRET_REASON)
-        store.addReason(old, at(0), true)
-        store.addReason(fresh, at(0).plus(Duration.ofDays(89)), true)
+        store.addReason(old, at(0), true, false)
+        store.addReason(fresh, at(0).plus(Duration.ofDays(89)), true, false)
         report.check("ps2a/store: a reason of 89 days ago is kept", store.readReasons().map { it.sessionId } == listOf("s-old", "s-new"))
-        store.addReason(PhoneSessionReason("s-3", at(0).plus(Duration.ofDays(91)), "later"), at(0).plus(Duration.ofDays(91)), true)
+        store.addReason(PhoneSessionReason("s-3", at(0).plus(Duration.ofDays(91)), "later"), at(0).plus(Duration.ofDays(91)), true, false)
         report.check("ps2a/store: reasons older than 90 days are dropped", store.readReasons().map { it.sessionId } == listOf("s-new", "s-3"))
         report.check("ps2a/store: the reasons file is sealed too", !files.second.readText().contains("plugh"))
         val log = listOf(richRecord().copy(id = "a", endedAt = at(0)), richRecord().copy(id = "b", endedAt = at(0).plus(Duration.ofDays(80))))
-        val pruned = PhoneSessionStoreData(log = log).withEnded(richRecord().copy(id = "c", endedAt = at(0).plus(Duration.ofDays(91))), at(0).plus(Duration.ofDays(91)), prune = true)
+        val pruned = PhoneSessionStoreData(log = log).withEnded(richRecord().copy(id = "c", endedAt = at(0).plus(Duration.ofDays(91))), at(0).plus(Duration.ofDays(91)), prune = true, capAtNewest = false)
         report.check("ps2a/store: the log keeps 90 days (an ended session is added, older ones go)", pruned.log.map { it.id } == listOf("b", "c") && pruned.checkpoint == null)
     }
 
@@ -799,7 +800,7 @@ object Ps2aSelfCheck {
             report.check("ps2a/prune (S6): the 90-day log is pruned only on a trusted clock (${if (networkOn) "trusted" else "unchecked"}: ${expectedKept} kept)", pc.log.size == expectedKept, "${pc.log.map { it.id }}")
         }
         val reasonWorld = World(FakeSource(network = false))
-        reasonWorld.ports.store.addReason(PhoneSessionReason("old", t0.minus(Duration.ofDays(200)), "old reason"), t0, true)
+        reasonWorld.ports.store.addReason(PhoneSessionReason("old", t0.minus(Duration.ofDays(200)), "old reason"), t0, true, false)
         reasonWorld.restart().start("p", "x", 60)
         reasonWorld.source.advance(min)
         reasonWorld.controller.endEarly(SECRET_REASON)
@@ -879,6 +880,106 @@ object Ps2aSelfCheck {
         report.check("ps2a/engine (S4): heartbeat and phoneOff do nothing for an untrusted time and work for a trusted one",
             done(PhoneSessionEngine.heartbeat(eng, at(5), false)).record == eng && done(PhoneSessionEngine.phoneOff(eng, at(5), false)).record == eng &&
                 done(PhoneSessionEngine.heartbeat(eng, at(5), true)).record.heartbeatAt == at(5) && done(PhoneSessionEngine.phoneOff(eng, at(5), true)).record.offAt == at(5))
+    }
+
+    // --- An End in progress across a reboot (the Opus verify: V-B1) and pruning below Android 13 (V-S1) -------------------------------
+
+    private fun longWait(source: FakeSource = FakeSource()): World {
+        val w = World(source)
+        w.ports.settings = PhoneEndSettings(waitSeconds = 1800, minReasonLength = 15) // a 30-minute wait
+        w.controller.start("p", "x", 240)
+        w.source.advance(10 * min)
+        w.controller.refresh()
+        return w
+    }
+
+    private fun endAcrossReboot(report: CheckReport) {
+        // 1: 13+, End confirmed on a checked clock (ready at +40), the clock set 2 h ahead and an offline reboot: the End starts again.
+        val a = longWait()
+        a.controller.endEarly(SECRET_REASON)
+        val armed = a.controller.running!!.armedEnd
+        a.controller.onShutdown()
+        val ac = a.rebootAndStart(Duration.ofHours(2), networkAfter = false)
+        report.check("ps2a/end-reboot (V-B1, 1): an End armed on a checked clock does not survive a reboot onto an unchecked clock set 2 h ahead: the session lives and the End is dropped",
+            armed != null && armed.readyAt == at(40) && ac.running != null && ac.log.isEmpty() && ac.running!!.armedEnd == null && ac.running!!.endRequestedAt == null && a.ports.alarms[PhoneAlarmKind.ARMED] == null)
+        a.source.wall = at(25)
+        a.source.network = true
+        ac.refresh()
+        report.check("ps2a/end-reboot (V-B1, 1): and still running after the network time arrives, until a new confirm has served its full wait",
+            ac.running != null && ac.running!!.armedEnd == null)
+        ac.endEarly(SECRET_REASON)
+        report.check("ps2a/end-reboot (V-B1, 1): the new confirm waits its full 30 minutes from the new clock", ac.running!!.armedEnd!!.readyAt == ac.now().plus(Duration.ofMinutes(30)))
+
+        // 2: 13+, an End confirmed during a hold (written unchecked), then a reboot with network time: dropped, not applied at once.
+        val b = longWait()
+        b.source.boot += 1
+        b.source.elapsed = 2_000
+        b.source.wall = at(5) // clock set back
+        b.source.network = false
+        b.ports.alarms.clear()
+        val bc = b.restart()
+        bc.endEarly(SECRET_REASON)
+        val inHold = bc.running!!.armedEnd
+        b.source.boot += 1
+        b.source.elapsed = 3_000
+        b.source.wall = at(200) // the real time
+        b.source.network = true
+        b.ports.alarms.clear()
+        val bc2 = b.restart()
+        report.check("ps2a/end-reboot (V-B1, 2): an End armed during a hold (on the unchecked clock) is not applied at the next boot, even with network time: it is dropped and must be confirmed again",
+            inHold != null && bc2.running != null && bc2.log.isEmpty() && bc2.running!!.armedEnd == null && bc2.running!!.endRequestedAt == null)
+
+        // 3: below 13, End armed, clock set 1 h ahead, reboot: not applied.
+        val c = longWait(FakeSource(network = false, canCome = false))
+        c.controller.endEarly(SECRET_REASON)
+        c.controller.onShutdown()
+        val cc = c.rebootAndStart(Duration.ofHours(1), networkAfter = false)
+        report.check("ps2a/end-reboot (V-B1, 3): below Android 13 an End armed before a reboot with the clock set 1 h ahead is dropped, not applied", cc.running != null && cc.log.isEmpty() && cc.running!!.armedEnd == null)
+
+        // 4: End opened (not confirmed) on a checked clock, an offline reboot, then confirm: the wait counts from the new confirm.
+        val d = longWait()
+        d.controller.openEnd()
+        val opened = d.controller.running!!.endRequestedAt
+        val dc = d.rebootAndStart(Duration.ofMinutes(5), networkAfter = false)
+        dc.endEarly(SECRET_REASON)
+        report.check("ps2a/end-reboot (V-B1, 4): an End opened on a checked clock is not reused in the hold: the wait counts from the new confirm, 30 minutes from there",
+            opened == at(10) && dc.running!!.armedEnd != null && dc.running!!.armedEnd!!.requestedAt == dc.now() && dc.running!!.armedEnd!!.readyAt == dc.now().plus(Duration.ofMinutes(30)))
+
+        // Control: an End armed on a checked clock that reboots onto a checked clock keeps its wait (real time passed).
+        val e = longWait()
+        e.controller.endEarly(SECRET_REASON)
+        e.controller.onShutdown()
+        val ec = e.rebootAndStart(Duration.ofMinutes(5), networkAfter = true)
+        report.check("ps2a/end-reboot: an End armed on a checked clock that reboots onto a checked clock keeps its wait", ec.running != null && ec.running!!.armedEnd?.readyAt == at(40))
+
+        // V-S1: below Android 13 the log and the reasons are pruned by min(now, the newest end kept).
+        val ancient = richRecord().copy(id = "ancient", startedAt = t0.minus(Duration.ofDays(300)), endedAt = t0.minus(Duration.ofDays(300)), armedEnd = null, endKind = PhoneSessionEndKind.TIME_UP)
+        val older = richRecord().copy(id = "older", startedAt = t0.minus(Duration.ofDays(100)), endedAt = t0.minus(Duration.ofDays(100)), armedEnd = null, endKind = PhoneSessionEndKind.TIME_UP)
+        val p = World(FakeSource(network = false, canCome = false))
+        p.ports.store.write(PhoneSessionStoreData(log = listOf(ancient, older)))
+        val pc = p.restart()
+        pc.start("p", "x", 25)
+        p.source.advance(26 * min)
+        pc.tick()
+        report.check("ps2a/prune (V-S1): below Android 13 the log is pruned by min(now, the newest end kept): the ancient one goes, the 100-day-old one stays, the new one is added",
+            pc.log.map { it.id }.let { ids -> ids.size == 2 && "ancient" !in ids && "older" in ids }, "${pc.log.map { it.id }}")
+        val far = World(FakeSource(wall = t0.plus(Duration.ofDays(400)), network = false, canCome = false))
+        far.ports.store.write(PhoneSessionStoreData(log = listOf(older)))
+        val fc = far.restart()
+        fc.start("p", "x", 25)
+        far.source.advance(26 * min)
+        fc.tick()
+        report.check("ps2a/prune (V-S1): a session ending on a clock set 400 days ahead cannot sweep the log below Android 13", fc.log.size == 2 && fc.log.any { it.id == "older" })
+        val rw = World(FakeSource(network = false, canCome = false))
+        rw.ports.store.addReason(PhoneSessionReason("ancient", t0.minus(Duration.ofDays(300)), "a"), t0.minus(Duration.ofDays(300)), true, false)
+        rw.ports.store.addReason(PhoneSessionReason("older", t0.minus(Duration.ofDays(100)), "b"), t0.minus(Duration.ofDays(100)), true, false)
+        rw.restart().start("p", "x", 60)
+        rw.source.advance(min)
+        rw.controller.endEarly(SECRET_REASON)
+        rw.source.advance(61_000)
+        rw.controller.tick()
+        report.check("ps2a/prune (V-S1): below Android 13 the reasons too: the ancient one goes, the 100-day-old one stays",
+            rw.ports.store.readReasons().map { it.sessionId }.let { ids -> "ancient" !in ids && "older" in ids && ids.size == 2 }, "${rw.ports.store.readReasons().map { it.sessionId }}")
     }
 
     // --- An unreadable log (B5) -------------------------------------------------------------------------------------------------

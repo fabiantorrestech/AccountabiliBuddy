@@ -40,9 +40,11 @@ data class PhoneSessionStoreData(
      * The log after the session ended: the record is added; those older than [KEPT_FOR] are dropped only when [prune] (a trusted [now], S6: an unchecked
      * clock set far ahead must not sweep the log, which would make the sync file tell receivers the phone has no history).
      */
-    fun withEnded(record: PhoneSessionRecord, now: Instant, prune: Boolean): PhoneSessionStoreData {
+    fun withEnded(record: PhoneSessionRecord, now: Instant, prune: Boolean, capAtNewest: Boolean): PhoneSessionStoreData {
         val all = log.filter { it.id != record.id } + record
-        return copy(checkpoint = null, log = if (prune) prune(all, now) else all)
+        // Capped (below Android 13, an unchecked clock): never past the newest end already kept (V-S1).
+        val base = if (capAtNewest) log.mapNotNull { it.endedAt }.maxOrNull()?.let { minOf(now, it) } ?: now else now
+        return copy(checkpoint = null, log = if (prune) prune(all, base) else all)
     }
 
     companion object {

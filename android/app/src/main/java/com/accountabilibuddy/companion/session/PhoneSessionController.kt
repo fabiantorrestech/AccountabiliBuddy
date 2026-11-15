@@ -241,7 +241,11 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         if (rebooted) {
             // Times written on an unchecked anchor of the boot before can't be corrected across a reboot (the off time in between is unknown): the gap decides Pause-only.
             storedTrusted = data.checkpoint?.startUntrusted != true
+            val endWrittenUnchecked = data.checkpoint?.endUntrusted == true
             clock.reanchor()
+            // An End in progress is judged against the clock it was written on (V-B1): onto an unchecked clock, or written on one, it starts again: the
+            // user confirms again and the wait is served on this clock. (An End on a checked clock that reboots onto a checked clock keeps its wait.)
+            if (!clock.isTrusted || endWrittenUnchecked) dropEnd()
         }
         if (rebooted || record.offAt != null) settleOffGap(rebooted, storedTrusted)
         running?.let { current ->
@@ -301,6 +305,21 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         if (clock.isTrusted) data.checkpoint?.takeIf { it.startUntrusted }?.let { data = data.copy(checkpoint = it.copy(startUntrusted = false)); persist() }
     }
 
+    private fun dropEnd() {
+        val current = running ?: return
+        if (current.endRequestedAt == null && current.armedEnd == null) {
+            data.checkpoint?.takeIf { it.endUntrusted }?.let { data = data.copy(checkpoint = it.copy(endUntrusted = false)); persist() }
+            return
+        }
+        transitionRaw { r, _ -> PhoneSessionEngine.cancelEnd(r) }
+    }
+
+    // Where the 90-day log and the reasons may be pruned (V-S1): on a trusted clock by the time now; below Android 13 (an unchecked clock is all there is) by
+    // the time now but never past the newest end already kept, so one session ending on a clock set far ahead can't sweep them; on 13+ with an unchecked clock not at all.
+    private fun mayPrune(): Boolean = clock.isTrusted || !clock.trustCanCome
+
+    private fun capPrune(): Boolean = !clock.isTrusted
+
     private fun observeLunchRaw() {
         val record = running ?: return
         val lunchRunning = ports.lunchRunning()
@@ -353,7 +372,7 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
             }
             next.isTest -> data.copy(checkpoint = null, notice = notice ?: data.notice)
             // The 90-day log is pruned only on a trusted clock (S6).
-            else -> data.withEnded(next, now, prune = clock.isTrusted).copy(notice = notice ?: data.notice)
+            else -> data.withEnded(next, now, prune = mayPrune(), capAtNewest = capPrune()).copy(notice = notice ?: data.notice)
         }
         persist()
         // Saved first: what the effects ask (the sync file, the enforcement) reads the saved session.
@@ -374,7 +393,7 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
                 PhoneSessionEffect.WriteSyncFile -> ports.requestSyncWrite()
                 is PhoneSessionEffect.EnforceUntil -> ports.enforceUntil(record, effect.endsAt)
                 is PhoneSessionEffect.ReleaseEnforcement -> ports.releaseEnforcement(record, effect.kind)
-                is PhoneSessionEffect.SaveReason -> ports.store.addReason(PhoneSessionReason(record.id, now, effect.reason), now, prune = clock.isTrusted)
+                is PhoneSessionEffect.SaveReason -> ports.store.addReason(PhoneSessionReason(record.id, now, effect.reason), now, prune = mayPrune(), capAtNewest = capPrune())
             }
         }
     }

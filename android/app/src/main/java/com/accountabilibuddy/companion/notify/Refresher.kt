@@ -55,6 +55,8 @@ object Refresher {
     suspend fun refresh(context: Context) {
         drawing.withLock {
             val app = context.applicationContext as CompanionApp
+            // ADR 85 (R13): the phone session's heartbeat, its end, a lunch and the network time are looked at at every refresh.
+            runCatching { app.phoneSession.refresh() }
             app.refreshWakeAlarm()
             runCatching { app.smartBedtime.refresh() }
             val state = app.store.state.value

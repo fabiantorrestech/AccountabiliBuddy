@@ -108,6 +108,9 @@ class CompanionApp : Application() {
     /** ADR 69: the settings the phone keeps per mode; they follow the mode as it switches. */
     val modeSettings by lazy { com.accountabilibuddy.companion.guidance.PhoneModeSettings(this) }
 
+    /** Phone-run focus sessions (ADR 85, PS2a): the sealed store, the session's own trusted clock, the alarms, the controller that is their only writer. */
+    val phoneSession by lazy { com.accountabilibuddy.companion.session.PhoneSessionRuntime(this) }
+
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
@@ -907,6 +910,8 @@ class CompanionApp : Application() {
         refreshOnScreenOn()
         // Timers and alarms set again at every start: a force stop or a battery manager drops the app's alarms.
         runCatching { com.accountabilibuddy.companion.timers.TimerScheduler.restore(this) }
+        // ADR 85: a phone session that was running when the process died (or the phone went off) is looked at now: the gap, the alarms, the lunch.
+        runCatching { phoneSession.start() }
     }
 
     /** Android's next alarm changed (ADR 23): the wake time, the header, and this phone's file for the PCs follow. */

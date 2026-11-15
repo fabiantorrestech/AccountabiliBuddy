@@ -54,9 +54,12 @@ class PhoneSessionStore(private val sessionsFile: File, private val reasonsFile:
      * False when it could not be kept.
      */
     @Synchronized
-    fun addReason(reason: PhoneSessionReason, now: Instant, prune: Boolean): Boolean {
-        val limit = now.minusSeconds(KEPT_DAYS * 24 * 3600)
-        val kept = readReasons().let { all -> if (prune) all.filter { it.at.isAfter(limit) } else all } + reason
+    fun addReason(reason: PhoneSessionReason, now: Instant, prune: Boolean, capAtNewest: Boolean): Boolean {
+        val existing = readReasons()
+        // Capped (below Android 13, an unchecked clock): never past the newest reason already kept (V-S1).
+        val base = if (capAtNewest) existing.maxOfOrNull { it.at }?.let { minOf(now, it) } ?: now else now
+        val limit = base.minusSeconds(KEPT_DAYS * 24 * 3600)
+        val kept = (if (prune) existing.filter { it.at.isAfter(limit) } else existing) + reason
         return writeSealed(reasonsFile, PhoneSessionCodec.writeReasons(kept))
     }
 
@@ -79,12 +82,16 @@ class PhoneSessionStore(private val sessionsFile: File, private val reasonsFile:
 
     // A Keystore that errs for a moment looks like a file that can't be opened: try again before calling it unreadable (S5).
     private fun openWithRetry(sealed: String): String? {
-        repeat(OPEN_TRIES) { sealer.open(sealed)?.let { return it } }
+        repeat(OPEN_TRIES) { n ->
+            sealer.open(sealed)?.let { return it }
+            if (n < OPEN_TRIES - 1) Thread.sleep(RETRY_PAUSE_MS)
+        }
         return null
     }
 
     companion object {
         const val OPEN_TRIES = 3
+        const val RETRY_PAUSE_MS = 60L
         const val SESSIONS_FILE = "phone-sessions.sealed"
         const val REASONS_FILE = "phone-session-reasons.sealed"
         const val UNREADABLE_SUFFIX = ".unreadable"

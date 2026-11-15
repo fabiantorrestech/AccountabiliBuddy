@@ -82,6 +82,12 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/stats/StatsDay.kt",
             "com/accountabilibuddy/companion/engine/DayTimeline.kt",
             "com/accountabilibuddy/companion/model/LocalWindow.kt",
+            // PS2a (ADR 85): the phone session's store (File + a handed-in sealer), ports and controller: pure Kotlin, driven here with fakes.
+            "com/accountabilibuddy/companion/session/PhoneSessionController.kt",
+            "com/accountabilibuddy/companion/session/PhoneSessionPorts.kt",
+            "com/accountabilibuddy/companion/session/PhoneSessionSealer.kt",
+            "com/accountabilibuddy/companion/session/PhoneSessionStart.kt",
+            "com/accountabilibuddy/companion/session/PhoneSessionStore.kt",
             // lmp-lock (ADR 73-75): the pure rules of the phone LockMyPhone-Extended lock (checked by LmpLockSelfCheck).
             "com/accountabilibuddy/companion/essentials/LooserChangeRules.kt",
             "com/accountabilibuddy/companion/essentials/HoldRules.kt",

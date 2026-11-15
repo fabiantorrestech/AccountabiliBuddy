@@ -276,6 +276,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "fxc-self" to FxcSelfCheck::run,
     // PS1b: the phone session engine (every transition, the refusals, R13's thresholds, R11's scope by mode, the file's privacy, trusted time scans).
     "ps1-self" to Ps1SelfCheck::run,
+    // PS2a: the phone session's runtime (clock, sealed codec and store, controller, lunch observer, the phone off, source scans), on the JVM with fakes.
+    "ps2a-self" to Ps2aSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */
