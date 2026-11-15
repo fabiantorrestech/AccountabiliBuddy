@@ -12,7 +12,7 @@ object GoalDayPanels {
         val threshold = GoalTexts.threshold(goal)
         val unit = goal.target.unit
         val (big, of) = when {
-            goal.kind == GoalKind.Habit && threshold != null -> floor(state.minutes).toInt().toString() to "of ${GoalTexts.minutes(threshold)}"
+            goal.kind == GoalKind.Habit && threshold != null && !GoalTexts.tickedByBeeminder(state, threshold) -> floor(state.minutes).toInt().toString() to "of ${GoalTexts.minutes(threshold)}"
             goal.kind == GoalKind.Habit -> (if (state.hit) "Done" else "Not yet") to null
             goal.kind == GoalKind.Time -> {
                 val amount = goal.target.amount
@@ -48,18 +48,23 @@ object GoalDayPanels {
             canTick = !deepWork && goal.kind == GoalKind.Habit && open,
             tickText = if (state.hit) "Untick" else if (past) "Tick it" else "Tick it now",
             canEdit = !deepWork && goal.kind != GoalKind.Habit && open,
-            editCaption = if (goal.kind == GoalKind.Time) "Minutes to add by hand for ${GoalTexts.date(state.day, today)}" else "Value for ${GoalTexts.date(state.day, today)}",
+            editCaption = (if (goal.kind == GoalKind.Time) "Minutes to add by hand for ${GoalTexts.date(state.day, today)}" else "Value for ${GoalTexts.date(state.day, today)}")
+                .let { caption -> GoalTexts.replacesBeeminder(goal, state)?.let { "$caption · $it" } ?: caption },
         )
     }
 
     private fun statusOf(goal: Goal, state: GoalDayState): Pair<String, GoalDayPanel.Tone> {
         fun short(gap: Double) = if (goal.kind == GoalKind.Habit || goal.target.unit == GoalUnit.Minutes) GoalTexts.minutes(gap) else GoalTexts.value(gap, goal.target.unit)
+        // A daily "at most" goal reads as room left under its limit, never "short" or "to go" (FX-C).
+        val limit = GoalTexts.isLimit(goal) && GoalCounting.countsDays(goal)
         return when (state.status) {
             GoalDayStatus.CountedTickedItself -> (if (state.hit) "Counted · ticked itself" else "Counted") to GoalDayPanel.Tone.Teal
             GoalDayStatus.Counted -> (if (state.byHand) "Counted · by hand" else "Counted") to GoalDayPanel.Tone.Teal
-            GoalDayStatus.NotCounted -> "Not counted · ${short(state.short)} short" to GoalDayPanel.Tone.Amber
+            GoalDayStatus.NotCounted -> (if (limit) GoalTexts.limitLeftSentence(goal, state.value) else "Not counted · ${short(state.short)} short") to GoalDayPanel.Tone.Amber
             GoalDayStatus.Missed -> "Missed" to GoalDayPanel.Tone.Amber
-            GoalDayStatus.InProgress -> (if (state.short > 0) "In progress · ${short(state.short)} to go" else "In progress") to GoalDayPanel.Tone.Grey
+            GoalDayStatus.InProgress -> (
+                if (limit) "In progress · ${GoalTexts.limitLeft(goal, state.value)}" else if (state.short > 0) "In progress · ${short(state.short)} to go" else "In progress"
+            ) to GoalDayPanel.Tone.Grey
             GoalDayStatus.Paused -> "Paused" to GoalDayPanel.Tone.Grey
             GoalDayStatus.NotDue -> "Not due" to GoalDayPanel.Tone.Grey
         }

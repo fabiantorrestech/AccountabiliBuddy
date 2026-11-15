@@ -96,7 +96,7 @@ data class GoalReviewSuggestion(
             return GoalReviewSuggestion(choice, behindPeriods, checkedPeriods.size, behindDays, change, pace, takes?.projectedFinish, quiet)
         }
 
-        private fun active(state: GoalDayState): Boolean = state.hasValue && (state.value > 0 || state.minutes > 0)
+        private fun active(state: GoalDayState): Boolean = state.hasValue && (state.value > 0 || state.minutes > 0 || (state.beeminder ?: 0.0) > 0)
 
         private fun sumLive(goal: Goal, data: GoalSourceData, days: Map<LocalDate, GoalDayState>, from: LocalDate, to: LocalDate): Double {
             var sum = 0.0

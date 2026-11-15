@@ -118,7 +118,7 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
         GoalUnit unit = goal.Target.Unit;
         switch (goal.Kind)
         {
-            case GoalKind.Habit when threshold is double minutes:
+            case GoalKind.Habit when threshold is double minutes && !GoalTexts.TickedByBeeminder(state, minutes):
                 Big = ((int)Math.Floor(state.Minutes)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 Of = $"of {GoalTexts.Minutes(minutes)}";
                 break;
@@ -142,7 +142,9 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
         CanTick = !deepWork && goal.Kind == GoalKind.Habit && state.Status is not (GoalDayStatus.Paused or GoalDayStatus.NotDue);
         TickText = state.Hit ? "Untick" : IsPast ? "Tick it" : "Tick it now";
         CanEdit = !deepWork && goal.Kind != GoalKind.Habit && state.Status is not (GoalDayStatus.Paused or GoalDayStatus.NotDue);
-        EditCaption = goal.Kind == GoalKind.Time ? $"Minutes to add by hand for {GoalTexts.Date(state.Day, today)}" : $"Value for {GoalTexts.Date(state.Day, today)}";
+        string caption = goal.Kind == GoalKind.Time ? $"Minutes to add by hand for {GoalTexts.Date(state.Day, today)}" : $"Value for {GoalTexts.Date(state.Day, today)}";
+        // While a Beeminder source is on, a hand entry replaces its value for the day (owner-visible, FX-C).
+        EditCaption = GoalTexts.ReplacesBeeminder(goal, state) is string replaces ? $"{caption} · {replaces}" : caption;
         Note = deepWork ? "Deep work counts focus only: no hand entries."
             : state.Status == GoalDayStatus.Paused ? "Paused days are neither hit nor missed."
             : !IsPast && threshold is double at ? $"It also ticks itself at {GoalTexts.Minutes(at)}."
@@ -224,13 +226,15 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
     private static (string Text, bool Teal, bool Amber, bool Grey) StatusOf(Goal goal, GoalDayState state, double? threshold)
     {
         string Short(double gap) => goal.Kind == GoalKind.Habit || goal.Target.Unit == GoalUnit.Minutes ? GoalTexts.Minutes(gap) : GoalTexts.Value(gap, goal.Target.Unit);
+        // A daily "at most" goal reads as room left under its limit, never "short" or "to go" (FX-C).
+        bool limit = GoalTexts.IsLimit(goal) && GoalCounting.CountsDays(goal);
         return state.Status switch
         {
             GoalDayStatus.CountedTickedItself => (state.Hit ? "Counted · ticked itself" : "Counted", true, false, false),
             GoalDayStatus.Counted => (state.ByHand ? "Counted · by hand" : "Counted", true, false, false),
-            GoalDayStatus.NotCounted => ($"Not counted · {Short(state.Short)} short", false, true, false),
+            GoalDayStatus.NotCounted => (limit ? GoalTexts.LimitLeftSentence(goal, state.Value) : $"Not counted · {Short(state.Short)} short", false, true, false),
             GoalDayStatus.Missed => ("Missed", false, true, false),
-            GoalDayStatus.InProgress => (state.Short > 0 ? $"In progress · {Short(state.Short)} to go" : "In progress", false, false, true),
+            GoalDayStatus.InProgress => (limit ? $"In progress · {GoalTexts.LimitLeft(goal, state.Value)}" : state.Short > 0 ? $"In progress · {Short(state.Short)} to go" : "In progress", false, false, true),
             GoalDayStatus.Paused => ("Paused", false, false, true),
             _ => ("Not due", false, false, true),
         };

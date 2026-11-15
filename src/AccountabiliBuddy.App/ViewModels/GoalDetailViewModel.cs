@@ -332,7 +332,7 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         tile.Icon = goal.Kind is GoalKind.Habit or GoalKind.Time ? MaterialIconKind.TimerOutline : GoalIcons.Of(goal.Icon);
         switch (goal.Kind)
         {
-            case GoalKind.Habit when facts.Threshold is double threshold:
+            case GoalKind.Habit when facts.Threshold is double threshold && !GoalTexts.TickedByBeeminder(today, threshold):
                 tile.Big = ((int)Math.Floor(today.Minutes)).ToString(System.Globalization.CultureInfo.InvariantCulture);
                 tile.Of = $"of {GoalTexts.Minutes(threshold)}";
                 tile.Caption = "Minutes today";
@@ -355,8 +355,10 @@ public sealed partial class GoalDetailViewModel : ObservableObject
                 tile.Caption = goal.IsDeepWork ? "Focus today" : "Minutes today";
                 tile.ShowsBar = daily is not null;
                 tile.Fraction = daily is double target && target > 0 ? Math.Clamp(today.Value / target, 0, 1) : 0;
+                // An "at most" goal has room left under its limit, not minutes to go (FX-C).
                 tile.Foot = daily is double goalMinutes
-                    ? (today.Value >= goalMinutes ? "Met today" : $"{GoalTexts.Minutes(goalMinutes - today.Value)} to go")
+                    ? (GoalTexts.IsLimit(goal) ? GoalTexts.LimitLeftSentence(goal, today.Value)
+                        : today.Value >= goalMinutes ? "Met today" : $"{GoalTexts.Minutes(goalMinutes - today.Value)} to go")
                     : goal.IsDeepWork && goal.Target.Amount is null ? "Tracking only: no daily target" : null;
                 break;
             }
@@ -369,7 +371,9 @@ public sealed partial class GoalDetailViewModel : ObservableObject
                 tile.Caption = goal.Kind == GoalKind.Amount && goal.Target.Direction == GoalDirection.Reach ? "Today's reading" : "Today";
                 tile.ShowsBar = daily is not null;
                 tile.Fraction = daily is double target && target > 0 ? Math.Clamp(today.Value / target, 0, 1) : 0;
-                tile.Foot = today.HasValue ? null : "Nothing logged yet today";
+                // Nothing logged yet under an at-most limit is the whole limit left ("3 left"), not a missing reading (FX-C).
+                tile.Foot = GoalTexts.IsLimit(goal) && daily is not null ? GoalTexts.LimitLeftSentence(goal, today.Value)
+                    : today.HasValue ? null : "Nothing logged yet today";
                 break;
             }
         }
@@ -380,7 +384,7 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         Goal goal = facts.PeriodGoal;
         GoalPeriodResult period = facts.Period;
         string name = GoalTexts.PeriodName(goal.Target.Period);
-        string pace = facts.Status switch
+        string pace = GoalTexts.LimitStatus(goal, facts.Status) is string limitWord ? $" · {limitWord}" : facts.Status switch
         {
             GoalPeriodStatus.OnTrack => " · on pace",
             GoalPeriodStatus.Behind => " · behind",
@@ -409,7 +413,7 @@ public sealed partial class GoalDetailViewModel : ObservableObject
             tile.ShowsBar = true;
             tile.Fraction = amount > 0 ? Math.Clamp(period.Progress / amount, 0, 1) : 0;
             tile.Segments = null;
-            tile.Foot = null;
+            tile.Foot = GoalTexts.IsLimit(goal) ? GoalTexts.LimitLeftSentence(goal, period.Progress, period.Required) : null;
         }
         else
         {

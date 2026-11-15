@@ -92,7 +92,7 @@ public sealed record GoalReviewSuggestion(
 
     private static bool Active(GoalDayState state)
     {
-        return state.HasValue && (state.Value > 0 || state.Minutes > 0);
+        return state.HasValue && (state.Value > 0 || state.Minutes > 0 || state.Beeminder > 0);
     }
 
     private static double SumLive(Goal goal, GoalSourceData data, IReadOnlyDictionary<DateOnly, GoalDayState> days, DateOnly from, DateOnly to)

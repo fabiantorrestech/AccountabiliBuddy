@@ -14,6 +14,7 @@ import java.time.LocalDate
  * @property sources The kinds of source that gave it something, in rule order (and Hand last when a hand entry counted).
  * @property byHand Whether a hand entry decided or added to it.
  * @property backFilled Whether a hand entry for it was made after the day.
+ * @property beeminder The day's Beeminder value when the goal reads one (whether or not a hand entry won over it); null otherwise (FX-C).
  */
 data class GoalDayState(
     val day: LocalDate,
@@ -26,4 +27,5 @@ data class GoalDayState(
     val sources: List<GoalSourceType>,
     val byHand: Boolean,
     val backFilled: Boolean,
+    val beeminder: Double? = null,
 )

@@ -17,7 +17,10 @@ import kotlin.math.max
  *   the day add on top. Whole minutes: the windows' total is rounded down.
  * - **Amount** goals: the latest hand edit if there is one, else the day's first reading.
  * - **Habits**: the latest hand entry decides (a tick, or an untick that wins over the threshold); without one the day ticks
- *   itself once its time sources reach the smallest [GoalSourceRule.thresholdMinutes].
+ *   itself once its time sources reach the smallest [GoalSourceRule.thresholdMinutes], or once its Beeminder day value is above 0 (at the
+ *   threshold or more when the goal has one; FX-C).
+ * - **Beeminder readings (FX-C)**: for every kind a hand entry of the day wins over the Beeminder value (Time: minutes; Habit: the tick;
+ *   Milestone: the count); Amount keeps its own rule.
  * - **Milestones**: the day's hand entries added up, plus (GS5, with a switched-on "milestone tasks" source) one for each task that carries
  *   the goal and was finished that day.
  * - A paused day is neither hit nor missed; a day before the goal existed or after today asks for nothing.
@@ -278,6 +281,8 @@ object GoalCounting {
             val hand = dayEntries.filter { it.source == GoalEntrySource.Hand }
             val backFilled = hand.any { it.isBackFill(data.zone) }
 
+            val beeminderRead = beeminderValue(readings)
+            var beeminderOverridden = false // A hand entry decided the day, so the Beeminder value isn't what counted (FX-C).
             val value: Double
             var minutes = autoMinutes
             val valueWithoutHand: Double
@@ -293,10 +298,14 @@ object GoalCounting {
                         GoalTimeline.clip(GoalWindow(start, start.plusNanos(minutesAsNanos(entry.value))), dayWindow)
                     }
                     val untimed = handTime.filter { it.time == null }.sumOf { it.value }
-                    val readingTotal = readings.groupBy { it.source }.entries.sumOf { (source, group) -> combined(goal, source, group, false, data.deviceId)?.first ?: 0.0 }
+                    // Screen time and the other readings add on top; a Beeminder reading is the day's minutes unless a hand entry of the day wins (FX-C).
+                    val otherReadings = readings.filter { it.source != GoalEntrySource.Beeminder }.groupBy { it.source }.entries
+                        .sumOf { (source, group) -> combined(goal, source, group, false, data.deviceId)?.first ?: 0.0 }
+                    val beeminder = beeminderRead ?: 0.0
+                    beeminderOverridden = handTime.isNotEmpty() // Only a hand value above 0 wins; a 0 is no value to replace it with (FX-C).
                     minutes = wholeMinutes(autoWindows + timed) + timeValues + untimed
-                    value = minutes + readingTotal
-                    valueWithoutHand = autoMinutes + readingTotal
+                    value = minutes + otherReadings + (if (beeminderOverridden) 0.0 else beeminder)
+                    valueWithoutHand = autoMinutes + otherReadings + beeminder
                     byHand = handTime.isNotEmpty()
                     hasValue = value > 0
                 }
@@ -304,12 +313,16 @@ object GoalCounting {
                 GoalKind.Habit -> {
                     val latest = latestHand(hand)
                     handDecision = latest?.let { it.value > 0 }
-                    val autoHit = threshold != null && autoMinutes >= threshold
+                    // FX-C: a Beeminder day value ticks the day (above 0, or the goal's threshold when it has one); the hand decision still wins.
+                    val beeminder = beeminderRead
+                    beeminderOverridden = latest != null
+                    val readingHit = beeminder != null && (if (threshold != null) beeminder >= threshold else beeminder > 0)
+                    val autoHit = (threshold != null && autoMinutes >= threshold) || readingHit
                     val ticked = handDecision ?: autoHit
                     value = if (ticked) 1.0 else 0.0
                     valueWithoutHand = if (autoHit) 1.0 else 0.0
                     byHand = latest != null
-                    hasValue = ticked || autoMinutes > 0 || latest != null
+                    hasValue = ticked || autoMinutes > 0 || latest != null || (beeminder != null && beeminder > 0)
                 }
 
                 GoalKind.Amount -> {
@@ -317,6 +330,7 @@ object GoalCounting {
                     value = amount ?: 0.0
                     valueWithoutHand = value
                     byHand = fromHand
+                    beeminderOverridden = fromHand
                     hasValue = amount != null
                 }
 
@@ -326,11 +340,18 @@ object GoalCounting {
                         sources += GoalSourceType.MilestoneTasks
                     }
 
-                    value = hand.sumOf { it.value } + tasksDone
-                    valueWithoutHand = tasksDone.toDouble()
+                    // FX-C: a Beeminder day value counts when no hand entry of the day does.
+                    val beeminder = beeminderRead ?: 0.0
+                    beeminderOverridden = hand.any { it.value > 0 } // As for Time: only a hand count above 0 wins (FX-C).
+                    value = (if (beeminderOverridden) hand.sumOf { it.value } else beeminder) + tasksDone
+                    valueWithoutHand = beeminder + tasksDone
                     byHand = hand.isNotEmpty()
                     hasValue = value > 0
                 }
+            }
+
+            if (beeminderOverridden) {
+                sources.remove(GoalSourceType.Beeminder)
             }
 
             if (byHand) {
@@ -346,7 +367,7 @@ object GoalCounting {
             }
 
             fun state(hit: Boolean, status: GoalDayStatus, gap: Double) =
-                GoalDayState(day, value, minutes, hasValue, hit, status, gap, sources, byHand, backFilled)
+                GoalDayState(day, value, minutes, hasValue, hit, status, gap, sources, byHand, backFilled, beeminderRead)
 
             if (day > today || day < createdOn) {
                 return state(false, GoalDayStatus.NotDue, 0.0)
@@ -387,6 +408,10 @@ object GoalCounting {
             // Nothing on a day that was asked for: missed on a daily goal; a day an "N of the period's days" goal didn't need is not due.
             return state(false, if (goal.target.period == GoalPeriod.Day) GoalDayStatus.Missed else GoalDayStatus.NotDue, 0.0)
         }
+
+        // The day's Beeminder value (one writer, so the newest reading), or null when the day has none.
+        private fun beeminderValue(readings: List<GoalEntry>): Double? =
+            combined(goal, GoalEntrySource.Beeminder, readings.filter { it.source == GoalEntrySource.Beeminder }, false, data.deviceId)?.first
 
         private fun isHit(value: Double, hasValue: Boolean, handDecision: Boolean?): Boolean {
             if (goal.kind == GoalKind.Habit) {

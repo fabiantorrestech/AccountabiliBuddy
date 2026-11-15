@@ -16,6 +16,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class GoalThisWeekViewModel : ObservableObject
 {
     private readonly Action _jumpToBehind;
+    private bool _behindAllLimits;
 
     public GoalThisWeekViewModel(Action jumpToBehind)
     {
@@ -46,7 +47,7 @@ public sealed partial class GoalThisWeekViewModel : ObservableObject
     [ObservableProperty]
     public partial IReadOnlyList<GoalWeekSegment> Segments { get; set; } = [];
 
-    public string BehindText => $"{Behind} behind";
+    public string BehindText => _behindAllLimits ? $"{Behind} over the limit" : $"{Behind} behind";
 
     public string NotDueText => $"{NotDue} not due yet";
 
@@ -95,6 +96,7 @@ public sealed partial class GoalThisWeekViewModel : ObservableObject
         Total = active.Count;
         OnTrack = active.Count(facts => facts.Status == GoalPeriodStatus.OnTrack);
         Behind = active.Count(facts => facts.Status == GoalPeriodStatus.Behind);
+        _behindAllLimits = Behind > 0 && active.Where(facts => facts.Status == GoalPeriodStatus.Behind).All(facts => GoalTexts.IsLimit(facts.Goal)); // FX-C: "over the limit" when every goal behind is an at-most one.
         NotDue = active.Count(facts => facts.Status == GoalPeriodStatus.NotDueYet);
         CountText = $"{OnTrack} of {Total}";
         GoalPeriodSpan week = GoalPeriods.WeekOf(today, weekStart);

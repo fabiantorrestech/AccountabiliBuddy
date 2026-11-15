@@ -14,6 +14,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Sources">The kinds of source that gave it something, in rule order (and Hand last when a hand entry counted).</param>
 /// <param name="ByHand">Whether a hand entry decided or added to it.</param>
 /// <param name="BackFilled">Whether a hand entry for it was made after the day.</param>
+/// <param name="Beeminder">The day's Beeminder value when the goal reads one (whether or not a hand entry won over it); null otherwise (FX-C).</param>
 public sealed record GoalDayState(
     DateOnly Day,
     double Value,
@@ -24,4 +25,5 @@ public sealed record GoalDayState(
     double Short,
     IReadOnlyList<GoalSourceType> Sources,
     bool ByHand,
-    bool BackFilled);
+    bool BackFilled,
+    double? Beeminder = null);

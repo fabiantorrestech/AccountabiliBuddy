@@ -13,7 +13,7 @@ object GoalNumbers {
             goal.kind == GoalKind.Habit -> {
                 if (target.period == GoalPeriod.Day) {
                     val threshold = facts.threshold
-                    return if (threshold != null) {
+                    return if (threshold != null && !GoalTexts.tickedByBeeminder(facts.todayState, threshold)) {
                         "${kotlin.math.floor(facts.todayState.minutes).toInt()} / ${GoalTexts.minutes(threshold)}"
                     } else if (facts.todayState.hit) {
                         "Done"
@@ -93,7 +93,7 @@ object GoalNumbers {
         }
 
         if (facts.status == GoalPeriodStatus.Behind) {
-            return "Behind" to true
+            return (if (GoalTexts.isLimit(facts.goal)) "Over the limit" else "Behind") to true
         }
 
         if (facts.status == GoalPeriodStatus.NotDueYet && facts.goal.target.period != GoalPeriod.Day && facts.hasPeriodTarget) {

@@ -169,7 +169,7 @@ public sealed class GoalReminderSource : IReminderSource
         GoalFacts facts = GoalFactsBuilder.Build(goal, _data.Current, today, _goals.Store.PageSettings.WeekStart);
         bool nudge = entry.Rule == NudgeRule;
         string head = nudge
-            ? $"Goal nudge · behind {GoalTexts.PeriodName(goal.Target.Period)}"
+            ? $"Goal nudge · {(GoalTexts.IsLimit(goal) ? "over the limit" : "behind")} {GoalTexts.PeriodName(goal.Target.Period)}"
             : $"Goal reminder · {GoalTexts.Time(entry.Due, Zone)}";
         if (entry.Status == TaskReminderStatus.Snoozed)
         {
@@ -177,14 +177,14 @@ public sealed class GoalReminderSource : IReminderSource
         }
 
         string reason = nudge
-            ? "You dropped below pace yesterday. Just this one nudge."
+            ? (GoalTexts.IsLimit(goal) ? "You went over the limit yesterday. Just this one nudge." : "You dropped below pace yesterday. Just this one nudge.")
             : _goals.Lists.Reminders.FirstOrDefault(item => item.Id == entry.ReminderId)?.Reason ?? string.Empty;
         (string primary, MaterialIconKind primaryIcon) = PrimaryOf(goal, facts);
         return new ReminderSourceCard(
             head,
             goal.Name,
             reason,
-            $"{GoalNumbers.Number(facts)} · {StatusText(facts.Status)}",
+            $"{GoalNumbers.Number(facts)} · {StatusText(goal, facts.Status)}",
             GoalIcons.Of(goal.Icon),
             GoalIcons.Brush(goal.Color),
             primary,
@@ -339,8 +339,10 @@ public sealed class GoalReminderSource : IReminderSource
         };
     }
 
-    private static string StatusText(GoalPeriodStatus status) => status switch
+    private static string StatusText(Goal goal, GoalPeriodStatus status) => status switch
     {
+        GoalPeriodStatus.OnTrack when GoalTexts.IsLimit(goal) => "Within the limit",
+        GoalPeriodStatus.Behind when GoalTexts.IsLimit(goal) => "Over the limit",
         GoalPeriodStatus.OnTrack => "On track",
         GoalPeriodStatus.Behind => "Behind",
         GoalPeriodStatus.Paused => "Paused",

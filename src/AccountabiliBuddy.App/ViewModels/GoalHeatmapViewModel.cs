@@ -300,8 +300,9 @@ public sealed partial class GoalHeatmapViewModel : ObservableObject
 
         if (goal.Target.Unit == GoalUnit.Minutes)
         {
+            // An "at most" day counts at the limit or under it (FX-C).
             return goal.Target is { Period: GoalPeriod.Day, Amount: double amount }
-                ? $"Shade = minutes that day ({GoalTexts.Minutes(amount)}+ counts)"
+                ? $"Shade = minutes that day ({GoalTexts.Minutes(amount)}{(goal.Target.Direction == GoalDirection.AtMost ? " or less" : "+")} counts)"
                 : "Shade = minutes that day";
         }
 

@@ -28,7 +28,7 @@ object GoalTiles {
         val today = facts.todayState
         val unit = goal.target.unit
         val threshold = facts.threshold
-        if (goal.kind == GoalKind.Habit && threshold != null) {
+        if (goal.kind == GoalKind.Habit && threshold != null && !GoalTexts.tickedByBeeminder(today, threshold)) {
             return GoalTile(
                 "today", floor(today.minutes).toInt().toString(), "of ${GoalTexts.minutes(threshold)}", "Minutes today",
                 if (today.hit) {
@@ -51,6 +51,8 @@ object GoalTiles {
                     "today", GoalTexts.minutes(today.value), daily?.let { "of ${GoalTexts.minutes(it)}" },
                     if (goal.isDeepWork) "Focus today" else "Minutes today",
                     when {
+                        // An "at most" goal has room left under its limit, not minutes to go (FX-C).
+                        daily != null && GoalTexts.isLimit(goal) -> GoalTexts.limitLeftSentence(goal, today.value)
                         daily != null -> if (today.value >= daily) "Met today" else "${GoalTexts.minutes(daily - today.value)} to go"
                         goal.isDeepWork && goal.target.amount == null -> "Tracking only: no daily target"
                         else -> null
@@ -64,7 +66,9 @@ object GoalTiles {
                     "today", if (today.hasValue) GoalTexts.value(today.value, unit) else "–",
                     daily?.let { "of ${GoalTexts.shortValue(it, unit)}" },
                     if (goal.kind == GoalKind.Amount && goal.target.direction == GoalDirection.Reach) "Today's reading" else "Today",
-                    if (today.hasValue) null else "Nothing logged yet today",
+                    // Nothing logged yet under an at-most limit is the whole limit left ("3 left"), not a missing reading (FX-C).
+                    if (GoalTexts.isLimit(goal) && daily != null) GoalTexts.limitLeftSentence(goal, today.value)
+                    else if (today.hasValue) null else "Nothing logged yet today",
                     if (daily != null) (if (daily > 0) clamp(today.value / daily) else 0.0) else null, null, null, false, null,
                 )
             }
@@ -75,7 +79,7 @@ object GoalTiles {
         val goal = facts.periodGoal
         val period = facts.period
         val name = GoalTexts.periodName(goal.target.period)
-        val pace = when (facts.status) {
+        val pace = GoalTexts.limitStatus(goal, facts.status)?.let { " · $it" } ?: when (facts.status) {
             GoalPeriodStatus.OnTrack -> " · on pace"
             GoalPeriodStatus.Behind -> " · behind"
             GoalPeriodStatus.NotDueYet -> " · not due yet"
@@ -95,7 +99,8 @@ object GoalTiles {
         if (amount != null && goal.target.direction != GoalDirection.Reach) {
             return GoalTile(
                 "period", GoalTexts.value(period.progress, goal.target.unit), "of ${GoalTexts.shortValue(amount, goal.target.unit)}",
-                "${name[0].uppercaseChar()}${name.substring(1)}$pace", null, if (amount > 0) clamp(period.progress / amount) else 0.0, null, null, false, null,
+                "${name[0].uppercaseChar()}${name.substring(1)}$pace", if (GoalTexts.isLimit(goal)) GoalTexts.limitLeftSentence(goal, period.progress, period.required) else null,
+                if (amount > 0) clamp(period.progress / amount) else 0.0, null, null, false, null,
             )
         }
 

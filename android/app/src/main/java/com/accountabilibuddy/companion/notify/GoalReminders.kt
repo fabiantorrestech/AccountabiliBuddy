@@ -197,12 +197,12 @@ object GoalReminders {
         val id = GoalReminderIds.notificationId(occurrence.key)
         fun code(family: GoalReminderIds.Family) = GoalReminderIds.code(occurrence.key, family)
         val title = if (occurrence.nudge) {
-            "Goal nudge · behind ${GoalTexts.periodName(goal.target.period)}"
+            "Goal nudge · ${if (GoalTexts.isLimit(goal)) "over the limit" else "behind"} ${GoalTexts.periodName(goal.target.period)}"
         } else {
             "Goal reminder · ${occurrence.due.atZoneSameInstant(zone).format(CLOCK)}${if (occurrence.snoozeCount > 0) " · snoozed" else ""}"
         }
         // The goal's name may be here (owner, Q549), never a reason or a note; a secure lock screen shows the public version, without the name.
-        val text = "${goal.name} · ${GoalTexts.kindText(goal)} · ${GoalNumbers.number(facts)} · ${statusText(facts.status)}"
+        val text = "${goal.name} · ${GoalTexts.kindText(goal)} · ${GoalNumbers.number(facts)} · ${statusText(goal, facts.status)}"
         val public = NotificationCompat.Builder(context, Channels.GOALS)
             .setSmallIcon(R.drawable.ic_stat_timeline)
             .setLocalOnly(true)
@@ -234,7 +234,13 @@ object GoalReminders {
         return runCatching { NotificationManagerCompat.from(context).notify(id, builder.build()) }.isSuccess
     }
 
-    private fun statusText(status: GoalPeriodStatus): String = when (status) {
+    private fun statusText(goal: Goal, status: GoalPeriodStatus): String = when {
+        status == GoalPeriodStatus.OnTrack && GoalTexts.isLimit(goal) -> "Within the limit"
+        status == GoalPeriodStatus.Behind && GoalTexts.isLimit(goal) -> "Over the limit"
+        else -> plainStatusText(status)
+    }
+
+    private fun plainStatusText(status: GoalPeriodStatus): String = when (status) {
         GoalPeriodStatus.OnTrack -> "On track"
         GoalPeriodStatus.Behind -> "Behind"
         GoalPeriodStatus.Paused -> "Paused"

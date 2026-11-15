@@ -41,6 +41,60 @@ object GoalTexts {
         if (unit == GoalUnit.Steps && value >= 1000) "${number(value / 1000, 1)}k" else value(value, unit)
 
     /**
+     * Whether the goal is an "at most" limit with an amount ("at most 1h a day"): a Time or Amount goal, never a habit (FX-C). Its words
+     * read as room left under the limit, never as "to go" or "short".
+     */
+    fun isLimit(goal: Goal): Boolean = goal.kind != GoalKind.Habit && goal.target.direction == GoalDirection.AtMost && goal.target.amount != null
+
+    /**
+     * How much of an at-most goal's limit is used, in words that start lower case: "15 min left", "at the limit", "over by 10 min".
+     * The limit is the goal's amount (a day's) unless [limit] says otherwise (a period's prorated cap, `GoalPeriodResult.required`);
+     * [used] is the day's or the period's value.
+     */
+    fun limitLeft(goal: Goal, used: Double, limit: Double? = null): String {
+        val cap = limit ?: goal.target.amount ?: 0.0
+        val unit = goal.target.unit
+        return when {
+            used > cap -> "over by ${value(used - cap, unit)}"
+            used < cap -> "${value(cap - used, unit)} left"
+            else -> "at the limit"
+        }
+    }
+
+    /** [limitLeft] starting with a capital: "15 min left", "At the limit", "Over by 10 min". */
+    fun limitLeftSentence(goal: Goal, used: Double, limit: Double? = null): String = limitLeft(goal, used, limit).replaceFirstChar { it.uppercaseChar() }
+
+    /** A limit goal's period status in its own words: "within the limit" / "over the limit"; null for any other status or goal (FX-C). */
+    fun limitStatus(goal: Goal, status: GoalPeriodStatus): String? {
+        if (!isLimit(goal)) return null
+        return when (status) {
+            GoalPeriodStatus.OnTrack -> "within the limit"
+            GoalPeriodStatus.Behind -> "over the limit"
+            else -> null
+        }
+    }
+
+    /** Whether the goal has a switched-on Beeminder source (its day values can be replaced by a hand entry). */
+    fun readsBeeminder(goal: Goal): Boolean = GoalSources.countedFor(goal).any { it.automatic && it.type == GoalSourceType.Beeminder }
+
+    /**
+     * What a hand entry does to a Beeminder day (FX-C, owner-visible): "Replaces Beeminder's 1h 30m", or "Replaces Beeminder for this day"
+     * with no reading; null when the goal reads no Beeminder, is a habit (its tick has its own button) or is Deep work.
+     */
+    fun replacesBeeminder(goal: Goal, state: GoalDayState): String? {
+        if (goal.isDeepWork || goal.kind == GoalKind.Habit || !readsBeeminder(goal)) return null
+        val reading = state.beeminder
+        return if (reading != null) "Replaces Beeminder's ${value(reading, goal.target.unit)}" else "Replaces Beeminder for this day"
+    }
+
+    /** A habit with a threshold that Beeminder ticked: its focus minutes are under the threshold, so "0 of 15 min" would be wrong (FX-C). */
+    fun tickedByBeeminder(state: GoalDayState, threshold: Double?): Boolean =
+        state.hit && !state.byHand && state.beeminder != null && threshold != null && state.minutes < threshold
+
+    /** The sources editor's note when a milestone counts both Beeminder and its tasks. */
+    const val BEEMINDER_AND_TASKS_NOTE = "Beeminder and Milestone tasks may count the same work twice."
+
+    /**
      * A whole or one-decimal number with group separators ("6,240", "182.4"): .NET's `Math.Round` (to even, scaled) and its
      * "#,0" / "#,0.#" formats with the invariant culture.
      */

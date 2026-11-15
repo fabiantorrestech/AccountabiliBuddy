@@ -34,6 +34,7 @@ import com.accountabilibuddy.shared.goals.GoalPhoneRules
 import com.accountabilibuddy.shared.goals.GoalScreenTimeEditor
 import com.accountabilibuddy.shared.goals.GoalSourceRule
 import com.accountabilibuddy.shared.goals.GoalSourceType
+import com.accountabilibuddy.shared.goals.GoalTexts
 import java.util.UUID
 
 /**
@@ -105,6 +106,9 @@ fun GoalSourcesSheet(
     fun add(type: GoalSourceType) { onAdd(GoalSourceRule(UUID.randomUUID(), type)); onBack() }
 
     AbSheet(title = "Add a source", subtitle = "Sources add up · overlapping time counts once · your edits win", onDismiss = onDismiss, height = AbSheetHeight.Tall, onBack = onBack) {
+        if (has(GoalSourceType.Beeminder) && has(GoalSourceType.MilestoneTasks)) {
+            Text(GoalTexts.BEEMINDER_AND_TASKS_NOTE, style = Ab.type.small, color = Ab.colors.muted, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+        }
         Head("ON THIS PHONE")
         AbSheetRow("Focus · a label", onClick = { pickingLabel = true }, icon = Icons.Outlined.CenterFocusStrong, subtitle = "Time in sessions with a task carrying the label", trailing = { AbSheetValue(null) })
         AbSheetRow("Tick by hand", onClick = { add(GoalSourceType.Hand) }, icon = Icons.Outlined.TouchApp, enabled = !has(GoalSourceType.Hand), subtitle = if (has(GoalSourceType.Hand)) "Already counting" else "Tick, log or add time yourself")

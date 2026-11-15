@@ -110,7 +110,9 @@ data class GoalHeatmap(
 
             if (goal.target.unit == GoalUnit.Minutes) {
                 val amount = goal.target.amount
-                return if (goal.target.period == GoalPeriod.Day && amount != null) "Shade = minutes that day (${GoalTexts.minutes(amount)}+ counts)" else "Shade = minutes that day"
+                // An "at most" day counts at the limit or under it (FX-C).
+                val counts = if (goal.target.direction == GoalDirection.AtMost) " or less" else "+"
+                return if (goal.target.period == GoalPeriod.Day && amount != null) "Shade = minutes that day (${GoalTexts.minutes(amount)}$counts counts)" else "Shade = minutes that day"
             }
 
             return "Shade = the day's value"

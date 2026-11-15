@@ -591,6 +591,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <TextBlock Classes="muted" FontSize="12" Text="{Binding DoubleCountNote}" TextWrapping="Wrap" IsVisible="{Binding HasDoubleCountNote}" />
                         <TextBlock Classes="muted" FontSize="12" Text="{Binding RuleLine}" />
                     </StackPanel>
                     </Panel>

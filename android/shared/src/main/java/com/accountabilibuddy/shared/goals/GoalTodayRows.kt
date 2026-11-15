@@ -32,7 +32,7 @@ object GoalTodayRows {
             subLine = subLine(facts, area, control, inSession),
             control = control,
             checked = control == GoalTodayControl.Tick && facts.todayState.hit,
-            number = if (control == GoalTodayControl.Tick && goal.target.period == GoalPeriod.Day && threshold != null) {
+            number = if (control == GoalTodayControl.Tick && goal.target.period == GoalPeriod.Day && threshold != null && !GoalTexts.tickedByBeeminder(facts.todayState, threshold)) {
                 "${floor(facts.todayState.minutes).toInt()}/${floor(threshold).toInt()}"
             } else {
                 null
@@ -41,7 +41,8 @@ object GoalTodayRows {
             done = when (control) {
                 GoalTodayControl.Tick -> facts.todayState.hit
                 GoalTodayControl.Log -> facts.todayState.hasValue
-                GoalTodayControl.Bar -> fraction >= 1.0
+                // An "at most" goal asks for nothing to do (a full bar means the limit is used up, not that the goal is finished; FX-C).
+                GoalTodayControl.Bar -> fraction >= 1.0 || GoalTexts.isLimit(goal)
                 GoalTodayControl.None -> true
             },
             isDeepWork = goal.isDeepWork,
@@ -85,10 +86,14 @@ object GoalTodayRows {
             GoalTodayControl.Bar -> {
                 val amount = target.amount
                 val line = if (amount != null && amount > 0) {
-                    val done = if (target.period == GoalPeriod.Day) facts.todayState.value else facts.period.progress
+                    // An "at most" goal that counts days holds a per day amount; its period's cap is the prorated one (FX-C).
+                    val perDay = target.period == GoalPeriod.Day || (GoalTexts.isLimit(goal) && GoalCounting.countsDays(goal))
+                    val done = if (perDay) facts.todayState.value else facts.period.progress
                     val gap = amount - done
                     val head = "${GoalTexts.value(done, target.unit)} of ${GoalTexts.shortValue(amount, target.unit)}"
-                    if (gap > 0) "$head · ${GoalTexts.value(gap, target.unit)} to go" else "$head · done"
+                    // An "at most" goal has room left under its limit, never "to go" or "done" (FX-C).
+                    if (GoalTexts.isLimit(goal)) "$head · ${GoalTexts.limitLeft(goal, done, if (perDay) amount else facts.period.required)}"
+                    else if (gap > 0) "$head · ${GoalTexts.value(gap, target.unit)} to go" else "$head · done"
                 } else {
                     GoalNumbers.number(facts)
                 }

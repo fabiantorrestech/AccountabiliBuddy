@@ -19,7 +19,7 @@ public static class GoalNumbers
             case GoalKind.Habit:
                 if (target.Period == GoalPeriod.Day)
                 {
-                    return facts.Threshold is double threshold
+                    return facts.Threshold is double threshold && !GoalTexts.TickedByBeeminder(facts.TodayState, threshold)
                         ? $"{(int)Math.Floor(facts.TodayState.Minutes)} / {GoalTexts.Minutes(threshold)}"
                         : facts.TodayState.Hit ? "Done" : "Not yet";
                 }
@@ -100,7 +100,7 @@ public static class GoalNumbers
         if (facts.Status == GoalPeriodStatus.Behind)
         {
             amber = true;
-            return "Behind";
+            return GoalTexts.IsLimit(facts.Goal) ? "Over the limit" : "Behind";
         }
 
         if (facts.Status == GoalPeriodStatus.NotDueYet && facts.Goal.Target.Period != GoalPeriod.Day && facts.HasPeriodTarget)

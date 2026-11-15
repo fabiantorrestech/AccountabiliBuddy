@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AccountabiliBuddy.App.Services.Goals;
 using AccountabiliBuddy.Core.Goals;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Material.Icons;
@@ -42,6 +43,12 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
 
     /// <summary>The goal has no source yet (it counts nothing until one is added).</summary>
     public bool IsEmpty => Rows.Count == 0;
+
+    /// <summary>A milestone that counts both Beeminder and its tasks may count the same work twice (FX-C).</summary>
+    public string? DoubleCountNote => _kind == GoalKind.Milestone && Rows.Any(row => row.Type == GoalSourceType.Beeminder) && Rows.Any(row => row.Type == GoalSourceType.MilestoneTasks)
+        ? GoalTexts.BeeminderAndTasksNote : null;
+
+    public bool HasDoubleCountNote => DoubleCountNote is not null;
 
     /// <summary>Shows a goal's sources (a new goal: Tick by hand to start with).</summary>
     public void Load(Goal goal, GoalEditorLookups lookups)
@@ -132,6 +139,8 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(DoubleCountNote));
+        OnPropertyChanged(nameof(HasDoubleCountNote));
         OnPropertyChanged(nameof(Problem));
         OnPropertyChanged(nameof(Summary));
         Changed?.Invoke(this, EventArgs.Empty);

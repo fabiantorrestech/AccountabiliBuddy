@@ -55,6 +55,84 @@ public static class GoalTexts
         return Value(value, unit);
     }
 
+    /// <summary>
+    /// Whether the goal is an "at most" limit with an amount ("at most 1h a day"): a Time or Amount goal, never a habit (FX-C). Its words
+    /// read as room left under the limit, never as "to go" or "short".
+    /// </summary>
+    public static bool IsLimit(Goal goal)
+    {
+        return goal.Kind != GoalKind.Habit && goal.Target.Direction == GoalDirection.AtMost && goal.Target.Amount is not null;
+    }
+
+    /// <summary>
+    /// How much of an at-most goal's limit is used, in words that start lower case: "15 min left", "at the limit", "over by 10 min".
+    /// The limit is the goal's amount (a day's) unless <paramref name="limit"/> says otherwise (a period's prorated cap, <c>GoalPeriodResult.Required</c>);
+    /// <paramref name="used"/> is the day's or the period's value.
+    /// </summary>
+    public static string LimitLeft(Goal goal, double used, double? limit = null)
+    {
+        double cap = limit ?? goal.Target.Amount ?? 0;
+        GoalUnit unit = goal.Target.Unit;
+        if (used > cap)
+        {
+            return $"over by {Value(used - cap, unit)}";
+        }
+
+        return used < cap ? $"{Value(cap - used, unit)} left" : "at the limit";
+    }
+
+    /// <summary><see cref="LimitLeft"/> starting with a capital: "15 min left", "At the limit", "Over by 10 min".</summary>
+    public static string LimitLeftSentence(Goal goal, double used, double? limit = null)
+    {
+        string text = LimitLeft(goal, used, limit);
+        return char.ToUpperInvariant(text[0]) + text[1..];
+    }
+
+    /// <summary>A limit goal's period status in its own words: "within the limit" / "over the limit"; null for any other status or goal (FX-C).</summary>
+    public static string? LimitStatus(Goal goal, GoalPeriodStatus status)
+    {
+        if (!IsLimit(goal))
+        {
+            return null;
+        }
+
+        return status switch
+        {
+            GoalPeriodStatus.OnTrack => "within the limit",
+            GoalPeriodStatus.Behind => "over the limit",
+            _ => null,
+        };
+    }
+
+    /// <summary>Whether the goal has a switched-on Beeminder source (its day values can be replaced by a hand entry).</summary>
+    public static bool ReadsBeeminder(Goal goal)
+    {
+        return GoalSources.CountedFor(goal).Any(rule => rule.Automatic && rule.Type == GoalSourceType.Beeminder);
+    }
+
+    /// <summary>
+    /// What a hand entry does to a Beeminder day (FX-C, owner-visible): "Replaces Beeminder's 1h 30m", or "Replaces Beeminder for this day"
+    /// with no reading; null when the goal reads no Beeminder, is a habit (its tick has its own button) or is Deep work.
+    /// </summary>
+    public static string? ReplacesBeeminder(Goal goal, GoalDayState state)
+    {
+        if (goal.IsDeepWork || goal.Kind == GoalKind.Habit || !ReadsBeeminder(goal))
+        {
+            return null;
+        }
+
+        return state.Beeminder is double reading ? $"Replaces Beeminder's {Value(reading, goal.Target.Unit)}" : "Replaces Beeminder for this day";
+    }
+
+    /// <summary>A habit with a threshold that Beeminder ticked: its focus minutes are under the threshold, so "0 of 15 min" would be wrong (FX-C).</summary>
+    public static bool TickedByBeeminder(GoalDayState state, double? threshold)
+    {
+        return state.Hit && !state.ByHand && state.Beeminder is not null && threshold is double bar && state.Minutes < bar;
+    }
+
+    /// <summary>The sources editor's note when a milestone counts both Beeminder and its tasks.</summary>
+    public const string BeeminderAndTasksNote = "Beeminder and Milestone tasks may count the same work twice.";
+
     /// <summary>A whole or one-decimal number with group separators ("6,240", "182.4").</summary>
     public static string Number(double value, int decimals)
     {

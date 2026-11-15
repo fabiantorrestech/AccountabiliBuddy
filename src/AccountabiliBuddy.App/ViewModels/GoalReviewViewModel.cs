@@ -327,14 +327,17 @@ public sealed partial class GoalReviewViewModel : ObservableObject
             facts.Add(new GoalReviewFact("Nothing for 3 weeks", IsAmber: true));
         }
 
+        // An "at most" goal is over its limit, not behind (FX-C).
+        bool limit = GoalTexts.IsLimit(goal);
         if (suggestion.BehindDays > 0)
         {
-            facts.Add(new GoalReviewFact(suggestion.BehindDays == 1 ? "1 day behind" : $"{suggestion.BehindDays} days behind", IsAmber: true));
+            string days = suggestion.BehindDays == 1 ? "1 day" : $"{suggestion.BehindDays} days";
+            facts.Add(new GoalReviewFact(limit ? $"{days} over the limit" : $"{days} behind", IsAmber: true));
         }
 
         if (suggestion.BehindPeriods >= 2)
         {
-            facts.Add(new GoalReviewFact($"Behind in {suggestion.BehindPeriods} of the last {suggestion.PeriodsChecked}", IsAmber: true));
+            facts.Add(new GoalReviewFact($"{(limit ? "Over the limit" : "Behind")} in {suggestion.BehindPeriods} of the last {suggestion.PeriodsChecked}", IsAmber: true));
         }
 
         GoalUnit unit = goal.Target.Unit;

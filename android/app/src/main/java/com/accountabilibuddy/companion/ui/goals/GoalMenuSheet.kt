@@ -204,7 +204,8 @@ fun GoalMenuSheet(
         val isTime = goal.kind == GoalKind.Time
         GoalValueDialog(
             title = if (isTime) "Add time by hand" else "Log a value",
-            caption = if (isTime) "Minutes to add for today" else "Value for today",
+            caption = (if (isTime) "Minutes to add for today" else "Value for today")
+                .let { caption -> GoalTexts.replacesBeeminder(goal, page.facts.todayState)?.let { "$caption · $it" } ?: caption },
             onSave = { value -> app.goals.addHandEntry(goalId, today, value).also { if (it != null) onMessage(it) } == null },
             onDismiss = { valueDialog = false; onDismiss() },
         )

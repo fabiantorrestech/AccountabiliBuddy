@@ -16,11 +16,14 @@ object GoalReviewFacts {
     fun of(goal: Goal, suggestion: GoalReviewSuggestion, data: GoalSourceData, today: LocalDate): List<GoalReviewFact> {
         val facts = mutableListOf<GoalReviewFact>()
         if (suggestion.quiet) facts += GoalReviewFact("Nothing for 3 weeks", amber = true)
+        // An "at most" goal is over its limit, not behind (FX-C).
+        val limit = GoalTexts.isLimit(goal)
         if (suggestion.behindDays > 0) {
-            facts += GoalReviewFact(if (suggestion.behindDays == 1) "1 day behind" else "${suggestion.behindDays} days behind", amber = true)
+            val days = if (suggestion.behindDays == 1) "1 day" else "${suggestion.behindDays} days"
+            facts += GoalReviewFact(if (limit) "$days over the limit" else "$days behind", amber = true)
         }
         if (suggestion.behindPeriods >= 2) {
-            facts += GoalReviewFact("Behind in ${suggestion.behindPeriods} of the last ${suggestion.periodsChecked}", amber = true)
+            facts += GoalReviewFact("${if (limit) "Over the limit" else "Behind"} in ${suggestion.behindPeriods} of the last ${suggestion.periodsChecked}", amber = true)
         }
 
         val unit = goal.target.unit

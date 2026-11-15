@@ -13,8 +13,11 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <item><b>Amount</b> goals: the day's value is the latest hand edit if there is one (it wins over any later reading), else
 /// the day's first reading.</item>
 /// <item><b>Habits</b>: the latest hand entry decides (a tick, or an explicit untick that wins over the threshold); without one
-/// the day ticks itself once its time sources reach the smallest <see cref="GoalSourceRule.ThresholdMinutes"/>.</item>
-/// <item><b>Milestones</b>: the day's hand entries added up, plus (GS5, with a switched-on "milestone tasks" source) one for each task that
+/// the day ticks itself once its time sources reach the smallest <see cref="GoalSourceRule.ThresholdMinutes"/>, or once its Beeminder
+/// day value is above 0 (at the threshold or more when the goal has one; FX-C).</item>
+/// <item><b>Beeminder readings (FX-C)</b>: for every kind a hand entry of the day wins over the Beeminder value (Time: minutes, the
+/// hand's time replaces the reading; Habit: the tick; Milestone: the count); Amount keeps its own rule above.</item>
+/// <item><b>Milestones</b>: the day's hand entries added up (or, without one, the Beeminder day value), plus (GS5, with a switched-on "milestone tasks" source) one for each task that
 /// carries the goal and was finished that day.</item>
 /// <item>A paused day is neither hit nor missed; a day before the goal existed or after today asks for nothing.</item>
 /// <item>Hand time counts toward goals, never toward a guard: guards, the goal unlock and <c>focusDay</c> never read these values,
@@ -375,6 +378,8 @@ public static class GoalCounting
             List<GoalEntry> hand = dayEntries.Where(entry => entry.Source == GoalEntrySource.Hand).ToList();
             bool backFilled = hand.Any(entry => entry.IsBackFill(_data.Zone));
 
+            double? beeminderRead = BeeminderValue(readings);
+            bool beeminderOverridden = false; // A hand entry decided the day, so the Beeminder value isn't what counted (FX-C).
             double value;
             double minutes = autoMinutes;
             double valueWithoutHand;
@@ -395,12 +400,16 @@ public static class GoalCounting
                         })
                         .OfType<LocalWindow>();
                     double untimed = handTime.Where(entry => entry.Time is null).Sum(entry => entry.Value);
-                    double readingTotal = readings
+                    // Screen time and the other readings add on top; a Beeminder reading is the day's minutes unless a hand entry of the day wins (FX-C).
+                    double otherReadings = readings
+                        .Where(entry => entry.Source != GoalEntrySource.Beeminder)
                         .GroupBy(entry => entry.Source)
                         .Sum(group => Combined(_goal, group.Key, group.ToList(), false, _data.DeviceId)?.Value ?? 0);
+                    double beeminder = beeminderRead ?? 0;
+                    beeminderOverridden = handTime.Count > 0; // Only a hand value above 0 wins; a 0 is no value to replace it with (FX-C).
                     minutes = WholeMinutes(autoWindows.Concat(timed)) + timeValues + untimed;
-                    value = minutes + readingTotal;
-                    valueWithoutHand = autoMinutes + readingTotal;
+                    value = minutes + otherReadings + (beeminderOverridden ? 0 : beeminder);
+                    valueWithoutHand = autoMinutes + otherReadings + beeminder;
                     byHand = handTime.Count > 0;
                     hasValue = value > 0;
                     break;
@@ -410,12 +419,16 @@ public static class GoalCounting
                 {
                     GoalEntry? latest = LatestHand(hand);
                     handDecision = latest is null ? null : latest.Value > 0;
-                    bool autoHit = _threshold is double threshold && autoMinutes >= threshold;
+                    // FX-C: a Beeminder day value ticks the day (above 0, or the goal's threshold when it has one); the hand decision still wins.
+                    double? beeminder = beeminderRead;
+                    beeminderOverridden = latest is not null;
+                    bool readingHit = beeminder is double reading && (_threshold is double bar ? reading >= bar : reading > 0);
+                    bool autoHit = (_threshold is double threshold && autoMinutes >= threshold) || readingHit;
                     bool ticked = handDecision ?? autoHit;
                     value = ticked ? 1 : 0;
                     valueWithoutHand = autoHit ? 1 : 0;
                     byHand = latest is not null;
-                    hasValue = ticked || autoMinutes > 0 || latest is not null;
+                    hasValue = ticked || autoMinutes > 0 || latest is not null || beeminder > 0;
                     break;
                 }
 
@@ -425,6 +438,7 @@ public static class GoalCounting
                     value = amount ?? 0;
                     valueWithoutHand = value;
                     byHand = fromHand;
+                    beeminderOverridden = fromHand;
                     hasValue = amount is not null;
                     break;
                 }
@@ -437,12 +451,20 @@ public static class GoalCounting
                         sources.Add(GoalSourceType.MilestoneTasks);
                     }
 
-                    value = hand.Sum(entry => entry.Value) + tasksDone;
-                    valueWithoutHand = tasksDone;
+                    // FX-C: a Beeminder day value counts when no hand entry of the day does.
+                    double beeminder = beeminderRead ?? 0;
+                    beeminderOverridden = hand.Any(entry => entry.Value > 0); // As for Time: only a hand count above 0 wins (FX-C).
+                    value = (beeminderOverridden ? hand.Sum(entry => entry.Value) : beeminder) + tasksDone;
+                    valueWithoutHand = beeminder + tasksDone;
                     byHand = hand.Count > 0;
                     hasValue = value > 0;
                     break;
                 }
+            }
+
+            if (beeminderOverridden)
+            {
+                sources.Remove(GoalSourceType.Beeminder);
             }
 
             if (byHand)
@@ -458,12 +480,12 @@ public static class GoalCounting
 
             if (day > today || day < _createdOn)
             {
-                return State(day, value, minutes, hasValue, false, GoalDayStatus.NotDue, 0, sources, byHand, backFilled);
+                return State(day, value, minutes, hasValue, false, GoalDayStatus.NotDue, 0, sources, byHand, backFilled, beeminderRead);
             }
 
             if (_goal.IsPausedOn(day))
             {
-                return State(day, value, minutes, hasValue, false, GoalDayStatus.Paused, 0, sources, byHand, backFilled);
+                return State(day, value, minutes, hasValue, false, GoalDayStatus.Paused, 0, sources, byHand, backFilled, beeminderRead);
             }
 
             if (!countsDays)
@@ -471,13 +493,13 @@ public static class GoalCounting
                 GoalDayStatus loose = day == today ? GoalDayStatus.InProgress
                     : hasValue ? (byHand ? GoalDayStatus.Counted : GoalDayStatus.CountedTickedItself)
                     : GoalDayStatus.NotDue;
-                return State(day, value, minutes, hasValue, false, loose, 0, sources, byHand, backFilled);
+                return State(day, value, minutes, hasValue, false, loose, 0, sources, byHand, backFilled, beeminderRead);
             }
 
             if (hit && (day < today || _goal.Target.Direction != GoalDirection.AtMost))
             {
                 GoalDayStatus counted = hitWithoutHand ? GoalDayStatus.CountedTickedItself : GoalDayStatus.Counted;
-                return State(day, value, minutes, hasValue, true, counted, 0, sources, byHand, backFilled);
+                return State(day, value, minutes, hasValue, true, counted, 0, sources, byHand, backFilled, beeminderRead);
             }
 
             double gap = Gap(value, minutes);
@@ -487,19 +509,26 @@ public static class GoalCounting
                 // An at-most day under its cap isn't hit until it is over.
                 GoalDayStatus todayStatus = over ? GoalDayStatus.NotCounted : GoalDayStatus.InProgress;
                 double toGo = over || _goal.Kind == GoalKind.Habit || _goal.Target.Direction == GoalDirection.AtLeast ? gap : 0;
-                return State(day, value, minutes, hasValue, false, todayStatus, toGo, sources, byHand, backFilled);
+                return State(day, value, minutes, hasValue, false, todayStatus, toGo, sources, byHand, backFilled, beeminderRead);
             }
 
             // An explicit untick by hand is the user's decision: the day reads as missed, whatever the time sources say.
             bool someProgress = _goal.Kind == GoalKind.Habit ? minutes > 0 && handDecision != false : hasValue && value > 0;
             if (someProgress || over)
             {
-                return State(day, value, minutes, hasValue, false, GoalDayStatus.NotCounted, gap, sources, byHand, backFilled);
+                return State(day, value, minutes, hasValue, false, GoalDayStatus.NotCounted, gap, sources, byHand, backFilled, beeminderRead);
             }
 
             // Nothing on a day that was asked for: missed on a daily goal; a day an "N of the period's days" goal didn't need is not due.
             GoalDayStatus empty = _goal.Target.Period == GoalPeriod.Day ? GoalDayStatus.Missed : GoalDayStatus.NotDue;
-            return State(day, value, minutes, hasValue, false, empty, 0, sources, byHand, backFilled);
+            return State(day, value, minutes, hasValue, false, empty, 0, sources, byHand, backFilled, beeminderRead);
+        }
+
+        // The day's Beeminder value (one writer, so the newest reading), or null when the day has none.
+        private double? BeeminderValue(List<GoalEntry> readings)
+        {
+            List<GoalEntry> beeminder = readings.Where(entry => entry.Source == GoalEntrySource.Beeminder).ToList();
+            return Combined(_goal, GoalEntrySource.Beeminder, beeminder, false, _data.DeviceId)?.Value;
         }
 
         private bool IsHit(double value, bool hasValue, bool? handDecision)
@@ -545,9 +574,9 @@ public static class GoalCounting
 
         private static GoalDayState State(
             DateOnly day, double value, double minutes, bool hasValue, bool hit, GoalDayStatus status, double gap,
-            List<GoalSourceType> sources, bool byHand, bool backFilled)
+            List<GoalSourceType> sources, bool byHand, bool backFilled, double? beeminder)
         {
-            return new GoalDayState(day, value, minutes, hasValue, hit, status, gap, sources, byHand, backFilled);
+            return new GoalDayState(day, value, minutes, hasValue, hit, status, gap, sources, byHand, backFilled, beeminder);
         }
 
         private static IReadOnlyList<LocalWindow> WindowsOf(GoalSourceRule rule, GoalSourceData data, IReadOnlySet<Guid> goalTaskIds)
