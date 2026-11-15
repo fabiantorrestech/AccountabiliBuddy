@@ -91,11 +91,13 @@ public sealed class PcPickupsService : IDisposable
             {
                 bool running = session.End is not DateTimeOffset ended || ended >= now;
                 DateTimeOffset end = running ? now : session.End!.Value;
+                // The open piece of a running session is keyed by the session's own start when the file says it (the piece's start moves while away).
+                DateTimeOffset sessionStart = session.End is null && device.File.Running?.SessionStartedAt is DateTimeOffset started && started <= session.Start ? started : session.Start;
                 // A running session counts up to this moment, a start this second included.
-                List<DateTimeOffset> inside = _starts.Where(start => start >= session.Start && (running ? start <= end : start < end)).OrderBy(start => start).ToList();
-                List<DateTimeOffset> marks = [session.Start, .. inside, end];
+                List<DateTimeOffset> inside = _starts.Where(start => start >= sessionStart && (running ? start <= end : start < end)).OrderBy(start => start).ToList();
+                List<DateTimeOffset> marks = [sessionStart, .. inside, end];
                 TimeSpan longest = marks.Zip(marks.Skip(1), (a, b) => b - a).DefaultIfEmpty(TimeSpan.Zero).Max();
-                list.Add(new SyncPickup(device.File.Device.DeviceId, session.Start, inside.Count, (int)longest.TotalMinutes, end));
+                list.Add(new SyncPickup(device.File.Device.DeviceId, sessionStart, inside.Count, (int)longest.TotalMinutes, end));
             }
         }
 

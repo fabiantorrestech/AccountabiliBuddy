@@ -80,9 +80,13 @@ public static class SyncFileBuilder
                     pieces.Add((from, from));
                 }
 
-                return pieces.Select((piece, index) => new SyncSession(
-                    piece.Start, counted.Running && piece.End >= counted.End ? null : piece.End, profile, added, index == 0 ? tasks : null,
-                    OffMinutesBefore(cut, piece.Start)));
+                // The checklist goes with the first piece, and with the open piece of a running session too (a reader of the running
+                // session finds it there, however many away stretches were cut before it; goal attribution joins the pieces as before).
+                return pieces.Select((piece, index) =>
+                {
+                    bool open = counted.Running && piece.End >= counted.End;
+                    return new SyncSession(piece.Start, open ? null : piece.End, profile, added, index == 0 || open ? tasks : null, OffMinutesBefore(cut, piece.Start));
+                });
             })
             .Where(session => session.End is not DateTimeOffset end || end > from)
             .ToList();
@@ -91,6 +95,17 @@ public static class SyncFileBuilder
             .Select(mark => new SyncDrift(mark.Start, mark.End, mark.ProcessName, mark.Domain, mark.Section))
             .ToList();
         return new SyncFile(SyncFile.CurrentFormatVersion, written, sessions, marks, dayPlan, documents, coversFrom);
+    }
+
+    /// <summary>
+    /// The start of the session running now: the newest recorded session that isn't added by hand, when it has no end (the one
+    /// <see cref="Build"/> sends as running, and the key of its checklist); null when there is none. Goes in <c>running.sessionStartedAt</c>.
+    /// </summary>
+    /// <param name="records">Newest first (<see cref="SessionHistoryBuilder.Build"/>).</param>
+    public static DateTimeOffset? RunningSessionStart(IReadOnlyList<SessionRecord> records)
+    {
+        SessionRecord? newest = records.FirstOrDefault(record => record.Mode != SessionMode.Added);
+        return newest is { EndedAt: null } ? newest.StartedAt : null;
     }
 
     // ADR 60: the time with the PC off that ended where this piece starts; only times travel, never why.

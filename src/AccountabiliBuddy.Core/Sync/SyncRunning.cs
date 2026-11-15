@@ -19,6 +19,9 @@ namespace AccountabiliBuddy.Core.Sync;
 /// length after it), so a build that doesn't know planning still shows a sensible countdown. Older builds leave it out.</param>
 /// <param name="PlanningEndsAt">Phase 11: when planning ends (time up); it keeps counting past it until the user answers "Ready?".</param>
 /// <param name="OffSince">ADR 60: the PC signalled it was going off with this session running. Older builds leave it out.</param>
+/// <param name="SessionStartedAt">ADR 85 (PS1a follow-up): when the running session started (a timestamp only). Every away stretch is cut out of the
+/// session's pieces, so the open piece's own start moves while the user is away; a reader that keys a per-session record uses this when present.
+/// Null when unknown; older builds ignore it.</param>
 public sealed record SyncRunning(
     string? Profile,
     DateTimeOffset PhaseStartedAt,
@@ -30,4 +33,5 @@ public sealed record SyncRunning(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? CountUpProfileId = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanningStartedAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? PlanningEndsAt = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? OffSince = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? OffSince = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? SessionStartedAt = null);

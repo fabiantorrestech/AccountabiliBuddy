@@ -290,7 +290,7 @@ public sealed class SyncCoordinator
         SyncNoise? noise = Noise is null ? null : await Noise();
         SyncFile built = SyncFileBuilder.Build(card, records, drift, _omitted.IsOmitted, id => ProfileOptions.NameOf(profiles, id),
             _sessions.State.IsRealSession, OwnPlan(), SharedDocuments(), now, zone, oldestSessionStart, TasksOf,
-            _sessions.State.IsPlanning ? _sessions.State.PhaseEndsAt : null) with { Comebacks = ShareTaskLists() ? Comebacks?.Invoke() : null, Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles), Events = Events?.Invoke(),
+            _sessions.State.IsPlanning ? _sessions.State.PhaseEndsAt : null) with { Comebacks = ShareTaskLists() ? Comebacks?.Invoke() : null, Lunch = Lunch?.Invoke(), Acks = Acks?.Invoke() is { Count: > 0 } acks ? acks : null, Running = RunningNow(profiles, records), Events = Events?.Invoke(),
                 Pickups = PcPickups?.PickupsForOtherPcs(), InputRuns = PcPickups?.InputRunsToday(),
                 ReminderActions = ReminderActions?.Invoke() is { Count: > 0 } actions ? actions : null,
                 Blockers = Blockers?.Invoke(), Beeminder = Beeminder?.Invoke(),
@@ -410,7 +410,7 @@ public sealed class SyncCoordinator
     public Func<IReadOnlyList<SyncLaterItem>, Task<bool>>? MergeLater { get; set; }
 
     // The running session for the phone's countdown (ADR 26); old scheduled blocks don't count.
-    private SyncRunning? RunningNow(IReadOnlyList<FocusProfile> profiles)
+    private SyncRunning? RunningNow(IReadOnlyList<FocusProfile> profiles, IReadOnlyList<SessionRecord> records)
     {
         SessionState state = _sessions.State;
         // A test session is never sent.
@@ -426,7 +426,8 @@ public sealed class SyncCoordinator
         return new SyncRunning(ProfileOptions.NameOf(profiles, state.ProfileId), state.FocusStartsAt(_sessions.Now) ?? started, state.FocusEndsAt(_sessions.Now),
             // ADR 77: a step away with the timer running goes out as no away, so an older phone keeps counting down to the real end.
             state.Phase is SessionPhase.ShortBreak or SessionPhase.LongBreak, state.AwayTimerRuns ? null : state.AwaySince,
-            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt, GoingOffAt);
+            CurrentTask?.Invoke(), state.ProfileId, CountUpProfileId?.Invoke(), planningStartedAt, planningEndsAt, GoingOffAt,
+            SyncFileBuilder.RunningSessionStart(records));
     }
 
     /// <summary>ADR 60: Windows said it is shutting down, with a session running; goes in this PC's last file. Null otherwise.</summary>
