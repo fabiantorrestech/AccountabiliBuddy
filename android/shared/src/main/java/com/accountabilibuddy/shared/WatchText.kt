@@ -10,7 +10,7 @@ object WatchText {
     // Data younger than this needs no "updated … ago".
     private val FRESH: Duration = Duration.ofMinutes(10)
 
-    private val twelveHour = DateTimeFormatter.ofPattern("h:mm a")
+    private val twelveHour = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)
     private val twentyFourHour = DateTimeFormatter.ofPattern("HH:mm")
 
     /** E.g. "2h 55m", "45m", "7h". */

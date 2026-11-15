@@ -24,10 +24,16 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -38,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -62,14 +69,44 @@ fun AbSheet(
     icon: ImageVector? = null,
     footer: (@Composable ColumnScope.() -> Unit)? = null,
     aboveKeyboard: Boolean = false,
+    /** FX-A: this sheet's own guard (a sheet that holds a draft of its own); the flow's [LocalSheetDiscardGuard] otherwise. */
+    discardGuard: SheetDiscardGuard? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = Ab.colors
     val shapes = Ab.shapes
     val sheetHeight = (LocalConfiguration.current.screenHeightDp * height.fraction).dp
+    // FX-A: inside a flow that holds unsaved changes, a swipe down, a tap outside and Back ask first and the sheet stays (or comes back).
+    val guard by rememberUpdatedState(discardGuard ?: LocalSheetDiscardGuard.current)
+    val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { target ->
+            val held = guard
+            if (target == SheetValue.Hidden && held != null && SheetDiscardRules.refuses(true, held.dirty)) {
+                held.ask()
+                false
+            } else {
+                true
+            }
+        },
+    )
+    val refusing = guard?.let { SheetDiscardRules.refuses(true, it.dirty) } == true
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        // While there is something to lose Back is taken over (the BackHandler below asks), so a predictive back never starts the sheet's
+        // own hide and can't leave it shrunk when the question is answered "Keep editing" (review S1).
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = !refusing),
+        onDismissRequest = {
+            val held = guard
+            if (held != null && SheetDiscardRules.refuses(true, held.dirty)) {
+                // Safety net: if the sheet was hidden anyway, bring it back, then ask.
+                held.ask()
+                scope.launch { runCatching { sheetState.show() } }
+            } else {
+                onDismiss()
+            }
+        },
+        sheetState = sheetState,
         // A sheet that is typed in handles the keyboard itself (below), so the sheet never grows or moves when the keyboard comes up.
         contentWindowInsets = if (aboveKeyboard) ({ WindowInsets(0, 0, 0, 0) }) else ({ BottomSheetDefaults.windowInsets }),
         shape = RoundedCornerShape(topStart = shapes.large, topEnd = shapes.large),
@@ -80,6 +117,7 @@ fun AbSheet(
             Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 4.dp).background(colors.faint, shapes.pill))
         },
     ) {
+        BackHandler(enabled = refusing) { guard?.ask?.invoke() }
         // A sheet that is typed in ([aboveKeyboard]) keeps its height and place: its content and footer make room for the keyboard
         // inside it, following the keyboard as it slides in, so the sheet itself never jumps.
         Column(Modifier.fillMaxWidth().height(sheetHeight).navigationBarsPadding().then(if (aboveKeyboard) Modifier.imePadding() else Modifier)) {

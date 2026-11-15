@@ -15,6 +15,9 @@ import com.accountabilibuddy.companion.goals.GoalSettingsPrefs
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
 import com.accountabilibuddy.companion.guidance.isCompanionMode
 import com.accountabilibuddy.companion.sync.ReceivedDevice
+import com.accountabilibuddy.companion.ui.sheets.DiscardChangesDialog
+import com.accountabilibuddy.companion.ui.sheets.ProvideSheetDiscardGuard
+import com.accountabilibuddy.companion.ui.sheets.SheetDiscardGuard
 import com.accountabilibuddy.shared.goals.GoalDeepWorkWeeklyResult
 import com.accountabilibuddy.shared.goals.GoalDraft
 import com.accountabilibuddy.shared.goals.GoalDraftText
@@ -73,12 +76,12 @@ fun GoalEditorSheets(
     }
     if (status != PhoneGoalStatus.Ready || (goalId != null && stored == null)) return
 
-    var draft by rememberSaveable(goalId, stateSaver = DraftSaver) {
-        mutableStateOf(
-            if (stored != null) GoalDrafts.withAdjustment(GoalDrafts.fromGoal(stored, weekly.minutes), suggested)
-            else GoalDrafts.newDraft(UUID.randomUUID(), lists.liveAreas.firstOrNull()?.id),
-        )
+    // What the sheet opened with (kept across a screen turn): the draft is compared with it to know whether closing would lose something.
+    val start = rememberSaveable(goalId, saver = DraftSaver) {
+        // The review's suggested numbers are already in the draft when it opens: they aren't a change until something is typed.
+        if (stored != null) GoalDrafts.withAdjustment(GoalDrafts.fromGoal(stored, weekly.minutes), suggested) else GoalDrafts.newDraft(UUID.randomUUID(), lists.liveAreas.firstOrNull()?.id)
     }
+    var draft by rememberSaveable(goalId, stateSaver = DraftSaver) { mutableStateOf(GoalDrafts.withAdjustment(start, suggested)) }
     // R6 milestone carry (f81bb32b item 2): whether the Deep work weekly field was touched in this sheet.
     var weeklyEdited by rememberSaveable(goalId) { mutableStateOf(false) }
     val storedReminders = remember(goalId) { lists.reminders.filter { it.goalId == goalId && it.isLive }.sortedBy { it.position } }
@@ -86,6 +89,11 @@ fun GoalEditorSheets(
     val startRules = remember(goalId) { GoalReminderEdits.rulesOf(storedReminders, reminderDefaults, productaBuddy) }
     var skipWhenDone by rememberSaveable(goalId) { mutableStateOf(startRules.first) }
     var nudgeWhenBehind by rememberSaveable(goalId) { mutableStateOf(startRules.second) }
+    // FX-A (device finding 1): a swipe down, a tap outside or Back on any sheet of the flow asks "Discard this goal?" while there is something to lose.
+    // Not saved across a screen turn: a restored dialog would sit behind the sheet's window (review S2); the draft itself is kept.
+    var askDiscard by remember(goalId) { mutableStateOf(false) }
+    val dirty = GoalEditorDirty.isDirty(draft, start, reminders, storedReminders, skipWhenDone to nudgeWhenBehind, startRules)
+    val guard = SheetDiscardGuard(dirty) { askDiscard = true }
     var step by rememberSaveable(goalId) { mutableStateOf(if ((startAtTarget || startAtReminders) && stored != null) 2 else 1) }
     var sourcesOpen by rememberSaveable { mutableStateOf(false) }
     var remindersOpen by rememberSaveable(goalId) { mutableStateOf(startAtReminders && stored != null) }
@@ -96,8 +104,15 @@ fun GoalEditorSheets(
         draft = next
     }
 
+    if (askDiscard) {
+        DiscardChangesDialog(GoalEditorDirty.question(goalId == null), onKeep = { askDiscard = false }, onDiscard = { askDiscard = false; onDismiss() })
+    }
+
     if (newAreaOpen) {
-        GoalAreaSheet(areaId = null, onDismiss = { newAreaOpen = false }, onMessage = onMessage, onSaved = { id -> draft = draft.copy(areaId = id) })
+        // The new area is its own small job: closing it only closes it (no guard of the goal's).
+        ProvideSheetDiscardGuard(null) {
+            GoalAreaSheet(areaId = null, onDismiss = { newAreaOpen = false }, onMessage = onMessage, onSaved = { id -> draft = draft.copy(areaId = id) })
+        }
         // The goal's sheet stays behind it; nothing more to draw until it closes.
         return
     }
@@ -105,7 +120,7 @@ fun GoalEditorSheets(
     if (remindersOpen) {
         // Opened on its own (the goal menu's or page's Reminders): Save keeps the reminders only. From step 2: Done goes back to it.
         val standalone = startAtReminders && stored != null
-        GoalRemindersSheet(
+        ProvideSheetDiscardGuard(guard) { GoalRemindersSheet(
             goalId = draft.id, goalName = draft.name, reminders = reminders, onReminders = { reminders = it },
             skipWhenDone = skipWhenDone, nudgeWhenBehind = nudgeWhenBehind,
             onRules = { skip, nudge -> skipWhenDone = skip; nudgeWhenBehind = nudge },
@@ -121,15 +136,17 @@ fun GoalEditorSheets(
             },
             onDismiss = onDismiss,
             onBack = if (standalone) null else ({ remindersOpen = false }),
-        )
+        ) }
         return
     }
 
     if (step == 1) {
-        GoalBasicsStep(
-            title = title, draft = draft, onDraft = onDraft, areas = lists.liveAreas,
-            onNewArea = { newAreaOpen = true }, onNext = { step = 2 }, onDismiss = onDismiss,
-        )
+        ProvideSheetDiscardGuard(guard) {
+            GoalBasicsStep(
+                title = title, draft = draft, onDraft = onDraft, areas = lists.liveAreas,
+                onNewArea = { newAreaOpen = true }, onNext = { step = 2 }, onDismiss = onDismiss,
+            )
+        }
         return
     }
 
@@ -139,17 +156,17 @@ fun GoalEditorSheets(
     val labels = remember(allLabelNames, scopeView) { com.accountabilibuddy.shared.tasks.GoalLabelScopes.pickable(allLabelNames, scopeView) }
     val steps by app.steps.state.collectAsStateWithLifecycle()
     if (sourcesOpen) {
-        GoalSourcesSheet(
+        ProvideSheetDiscardGuard(guard) { GoalSourcesSheet(
             current = draft.sources, labels = labels, kind = draft.kind, stepsOn = steps.enabled,
             onAdd = { rule: GoalSourceRule -> draft = draft.copy(sources = draft.sources + rule) },
             onChange = { rule: GoalSourceRule -> draft = draft.copy(sources = draft.sources.map { if (it.id == rule.id) rule else it }) },
             selfId = app.sync.deviceId,
             onDismiss = onDismiss, onBack = { sourcesOpen = false },
-        )
+        ) }
         return
     }
 
-    GoalTargetStep(
+    ProvideSheetDiscardGuard(guard) { GoalTargetStep(
         title = title, draft = draft, onDraft = onDraft, stored = stored, weekly = weekly, labels = labels,
         labelNote = { id -> com.accountabilibuddy.shared.tasks.GoalLabelScopes.hiddenNote(id, allLabelNames, scopeView) { device -> com.accountabilibuddy.companion.ui.tasks.scopeDeviceName(app, device) } },
         allReceived = allReceived, received = received, areaName = lists.liveAreas.firstOrNull { it.id == draft.areaId }?.name,
@@ -167,7 +184,7 @@ fun GoalEditorSheets(
             val error = save(app, draft, stored, weeklyEdited, GoalReminderEdits.withRules(reminders, skipWhenDone, nudgeWhenBehind), onMessage)
             if (error == null) onDismiss() else onMessage(error)
         },
-    )
+    ) }
 }
 
 private fun adjustNote(deepWork: Boolean, hasPc: Boolean = true): String =

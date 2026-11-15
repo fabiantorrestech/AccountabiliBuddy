@@ -23,7 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.tasks.TaskSettingsActions
 import com.accountabilibuddy.companion.tasks.TasksUiPrefs
-import com.accountabilibuddy.companion.ui.LocalGuardsLocked
+import com.accountabilibuddy.companion.ui.LocalGuardsLock
 import com.accountabilibuddy.companion.ui.SettingsCategory
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbDialog
@@ -102,7 +102,7 @@ private fun DuringSessionCard() {
     val context = LocalContext.current
     val prefs = remember { TasksUiPrefs.of(context) }
     val state by prefs.state.collectAsStateWithLifecycle()
-    val locked = LocalGuardsLocked.current
+    val locked = LocalGuardsLock.current != null
     var message by remember { mutableStateOf<String?>(null) }
     AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), verticalSpacing = 0.dp) {
         AbSectionLabel("During a session", Modifier.padding(start = 4.dp, bottom = 4.dp))

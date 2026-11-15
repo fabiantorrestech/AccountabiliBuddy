@@ -11,6 +11,7 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.MainActivity
 import com.accountabilibuddy.companion.R
 import com.accountabilibuddy.companion.goals.GoalDisplayPrefs
+import com.accountabilibuddy.companion.goals.GoalSettingsPrefs
 import com.accountabilibuddy.companion.goals.PhoneDeepWork
 import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalReview
@@ -48,8 +49,9 @@ import java.util.UUID
  * - **Held during a focus session the user started** (and while the phone's guiding is paused): nothing rings; once the session ends the
  *   next refresh rings what is still due (the PC's "wait until the session ends").
  * - A paused goal sends nothing; "Skip when done" is checked when it comes due; the nudge rings once, at 9:00 AM the morning after.
- * - **Privacy (hard rule, R6a):** a goal's name and a reminder's reason are never put in a notification: it says "Goal reminder · 8:00 PM"
- *   and the kind with today's number ("daily habit · not yet · Behind"); a tap opens the goal. Nothing goes to the watch.
+ * - **Privacy (hard rule, R6a; Q549):** a reminder carries the goal's name, the kind and today's number ("Read · daily habit · not yet ·
+ *   Behind"), never a reminder's reason or a note. The notification is private: a secure lock screen shows only the public version,
+ *   "Goal reminder · 8:00 PM", with no name. A tap opens the goal. Nothing goes to the watch.
  * - Tick today (a habit not ticked yet) is a hand entry for today, as the goal menu's; Log opens the goal's page.
  */
 object GoalReminders {
@@ -64,14 +66,15 @@ object GoalReminders {
     /** How long Snooze on a goal reminder lasts. */
     val SNOOZE: Duration = Duration.ofMinutes(10)
 
-    private const val REVIEW_ID = 7000
-    private const val REMINDER_ID_BASE = 7100
+    private const val REVIEW_ID = GoalReminderIds.REVIEW_ID
     private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
     /**
      * Rings what is due, marks what was skipped and sets the alarm for the next one. Called on every refresh ([Refresher]), when the
      * goals change, and when the alarm goes off. [paused]: the phone's guiding is paused (nothing rings).
      */
+    // Synchronized (R6b3 review S2): the Refresher, the goals' change listener and the alarm's receiver all call it, and two at once rang twice.
+    @Synchronized
     fun refresh(context: Context, paused: Boolean) {
         val app = context.applicationContext as CompanionApp
         if (app.goals.status.value != PhoneGoalStatus.Ready) {
@@ -98,7 +101,8 @@ object GoalReminders {
             for (occurrence in step.ring) {
                 val goal = goals.firstOrNull { it.id == occurrence.goalId } ?: continue
                 if (post(context, goal, occurrence, data, weekStart, now, zone, productaBuddy)) {
-                    marks.mark(occurrence.key, GoalReminderMark(GoalReminderMarkKind.Shown, now), now)
+                    // The snooze count stays on the mark (R6b3 review NIT): a second snooze counts as the second.
+                    marks.mark(occurrence.key, GoalReminderMark(GoalReminderMarkKind.Shown, now, snoozeCount = occurrence.snoozeCount), now)
                 }
             }
         }
@@ -126,13 +130,18 @@ object GoalReminders {
         NotificationManagerCompat.from(context).cancel(notificationId)
     }
 
-    /** Snooze on the review's notification: as the card's default snooze (tomorrow; ProductaBuddy for the week). */
+    /**
+     * Snooze on the review's notification: as the card's default snooze, which is Settings › Goals' length (1 or 2 days; ProductaBuddy: the
+     * week). In a focus session nothing is saved, so nothing is cancelled either (R6b3 review NIT).
+     */
     fun snoozeReview(context: Context) {
         val app = context.applicationContext as CompanionApp
-        PhoneGoalReview.snooze(app, GoalReviewSnooze.Tomorrow)
-        NotificationManagerCompat.from(context).cancel(REVIEW_ID)
-        refresh(context, app.pause.isQuiet)
+        val choice = if (GoalSettingsPrefs.review.value.snoozeDays == 2) GoalReviewSnooze.TwoDays else GoalReviewSnooze.Tomorrow
+        if (PhoneGoalReview.snooze(app, choice) == null) refresh(context, app.pause.isQuiet)
     }
+
+    /** The review's notification goes (the card's own snooze, or an answer, makes it stale). */
+    fun cancelReview(context: Context) = NotificationManagerCompat.from(context).cancel(REVIEW_ID)
 
     // The review's notification on its day (and in AccountabiliBuddy mode again when a snooze ends): once per moment, only while the card
     // shows, never during a session; "Remind me once" rings at its snooze's end and then stays quiet. Returns the next moment ahead.
@@ -147,13 +156,18 @@ object GoalReminders {
         val quiet = marks.markOf(PhoneGoalReview.quietKey(moment.week))
         if (quiet != null && ringAt != quiet.snoozedUntil) return null
         if (ringAt > now) return ringAt
+        // The next review moment, for the alarm: a week after this one (the local time stays across a clock change).
+        val nextDue = moment.due.atZoneSameInstant(zone).plusDays(7).toInstant()
+        // S3: a moment the phone slept through (off, or just upgraded) doesn't ring late; the card on Goals is there.
+        if (Duration.between(ringAt, now) > GoalReminderPlan.LOOKBACK) return nextDue
         val key = PhoneGoalReview.ringKey(moment.week, ringAt)
-        if (held || !moment.row.shown || marks.markOf(key) != null || !TimelineNotifier.canPost(context)) return null
+        if (held || !moment.row.shown || marks.markOf(key) != null || !TimelineNotifier.canPost(context)) return if (held) null else nextDue
         val count = if (moment.goals.size == 1) "1 goal" else "${moment.goals.size} goals"
         val builder = NotificationCompat.Builder(context, Channels.GOALS)
             .setSmallIcon(R.drawable.ic_stat_timeline)
+            .setLocalOnly(true)
             .setContentTitle("Weekly goals review")
-            .setContentText("$count · about ${GoalReviewRules.minutesFor(moment.goals.size)} minutes · week of ${GoalReviewRules.weekText(moment.week, compact = true)}")
+            .setContentText("$count · about ${GoalReviewRules.minutesText(moment.goals.size)} · week of ${GoalReviewRules.weekText(moment.week, compact = true)}")
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setSilent(moment.productaBuddy)
@@ -161,11 +175,11 @@ object GoalReminders {
             .setContentIntent(open(context, "goals", REVIEW_ID))
             .setColor(0xFF2A9D8F.toInt())
         if (!moment.productaBuddy) {
-            builder.addAction(0, "Snooze", broadcast(context, ACTION_REVIEW_SNOOZE, REVIEW_ID + 1) {})
+            builder.addAction(0, "Snooze", broadcast(context, ACTION_REVIEW_SNOOZE, GoalReminderIds.REVIEW_SNOOZE_CODE) {})
         }
         runCatching { NotificationManagerCompat.from(context).notify(REVIEW_ID, builder.build()) }
         app.goalReminderMarks.mark(key, GoalReminderMark(GoalReminderMarkKind.Shown, now), now)
-        return null
+        return nextDue
     }
 
     private fun post(
@@ -180,20 +194,24 @@ object GoalReminders {
     ): Boolean {
         val today = now.atZone(zone).toLocalDate()
         val facts = GoalFactsBuilder.build(goal, data, today, weekStart)
-        val id = REMINDER_ID_BASE + (occurrence.key.hashCode() and 0x3FF)
+        val id = GoalReminderIds.notificationId(occurrence.key)
+        fun code(family: GoalReminderIds.Family) = GoalReminderIds.code(occurrence.key, family)
         val title = if (occurrence.nudge) {
             "Goal nudge · behind ${GoalTexts.periodName(goal.target.period)}"
         } else {
             "Goal reminder · ${occurrence.due.atZoneSameInstant(zone).format(CLOCK)}${if (occurrence.snoozeCount > 0) " · snoozed" else ""}"
         }
-        // No goal name and no reason here (hard rule): the kind and today's number say enough; the goal opens on a tap.
-        val text = "${GoalTexts.kindText(goal).replaceFirstChar { it.uppercase() }} · ${GoalNumbers.number(facts)} · ${statusText(facts.status)}"
+        // The goal's name may be here (owner, Q549), never a reason or a note; a secure lock screen shows the public version, without the name.
+        val text = "${goal.name} · ${GoalTexts.kindText(goal)} · ${GoalNumbers.number(facts)} · ${statusText(facts.status)}"
         val public = NotificationCompat.Builder(context, Channels.GOALS)
             .setSmallIcon(R.drawable.ic_stat_timeline)
-            .setContentTitle("Goal reminder")
+            .setLocalOnly(true)
+            .setContentTitle(if (occurrence.nudge) "Goal nudge" else "Goal reminder · ${occurrence.due.atZoneSameInstant(zone).format(CLOCK)}")
             .build()
         val builder = NotificationCompat.Builder(context, Channels.GOALS)
             .setSmallIcon(R.drawable.ic_stat_timeline)
+            // The goal's name is in the text: it never goes to a paired watch (hard rule).
+            .setLocalOnly(true)
             .setContentTitle(title)
             .setContentText(text)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -201,16 +219,18 @@ object GoalReminders {
             .setPublicVersion(public)
             .setAutoCancel(true)
             .setSilent(productaBuddy)
-            .setContentIntent(open(context, "goals/${goal.id}", id))
+            // S2: a second post of the same reminder (a refresh racing another) never makes a second sound.
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open(context, "goals/${goal.id}", code(GoalReminderIds.Family.Open)))
             .setColor(0xFF2A9D8F.toInt())
         when {
             goal.isDeepWork -> Unit
             goal.kind == GoalKind.Habit && !facts.todayState.hit && !facts.isPaused ->
-                builder.addAction(0, "Tick today", broadcast(context, ACTION_TICK, id + 2000) { putExtra(EXTRA_GOAL, goal.id.toString()).putExtra(EXTRA_KEY, occurrence.key).putExtra(EXTRA_ID, id) })
+                builder.addAction(0, "Tick today", broadcast(context, ACTION_TICK, code(GoalReminderIds.Family.Tick)) { putExtra(EXTRA_GOAL, goal.id.toString()).putExtra(EXTRA_KEY, occurrence.key).putExtra(EXTRA_ID, id) })
             goal.kind == GoalKind.Amount || goal.kind == GoalKind.Time ->
-                builder.addAction(0, if (goal.kind == GoalKind.Time) "Add time" else "Log", open(context, "goals/${goal.id}", id + 1000))
+                builder.addAction(0, if (goal.kind == GoalKind.Time) "Add time" else "Log", open(context, "goals/${goal.id}", code(GoalReminderIds.Family.Log)))
         }
-        builder.addAction(0, "Snooze 10 min", broadcast(context, ACTION_SNOOZE, id + 3000) { putExtra(EXTRA_KEY, occurrence.key).putExtra(EXTRA_ID, id) })
+        builder.addAction(0, "Snooze 10 min", broadcast(context, ACTION_SNOOZE, code(GoalReminderIds.Family.Snooze)) { putExtra(EXTRA_KEY, occurrence.key).putExtra(EXTRA_ID, id) })
         return runCatching { NotificationManagerCompat.from(context).notify(id, builder.build()) }.isSuccess
     }
 

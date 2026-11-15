@@ -71,7 +71,10 @@ object PhoneGoalReview {
             // "Remind me once · then quiet": the notification rings at the snooze's end once; after it, none this week.
             app.goalReminderMarks.mark(quietKey(moment.week), GoalReminderMark(GoalReminderMarkKind.Shown, moment.now, until.toInstant()), moment.now)
         }
-        return app.goals.saveReview(record)
+        val error = app.goals.saveReview(record)
+        // The review's notification, if it is still up, is stale now (R6b3 review NIT).
+        if (error == null) com.accountabilibuddy.companion.notify.GoalReminders.cancelReview(app)
+        return error
     }
 
     /**

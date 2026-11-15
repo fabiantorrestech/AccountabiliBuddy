@@ -14,11 +14,14 @@ import com.accountabilibuddy.shared.sync.SyncReceiptParts
 import com.accountabilibuddy.shared.sync.SyncRereadResult
 import com.accountabilibuddy.shared.sync.SyncStalePolicy
 import com.accountabilibuddy.shared.sync.SyncUnreadableFile
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -49,6 +52,7 @@ data class FolderStatus(
  */
 class DriveFolderSource(private val context: Context, private val sync: SyncCoordinator) : RekeySyncMethod, SyncTroubleshootSource {
     private val running = Mutex()
+    private val leaveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _status = MutableStateFlow(FolderStatus())
 
     // Each device's newest file in the folder as last read or written, so a carried file is written only when newer.
@@ -66,6 +70,21 @@ class DriveFolderSource(private val context: Context, private val sync: SyncCoor
     var goalHistory: com.accountabilibuddy.shared.goals.GoalHistorySync? = null
 
     override val method: String = SyncDeviceCard.METHOD_FOLDER
+
+    /**
+     * This phone is leaving the group (call before the group's key is dropped; NG1, as the PC does): the goal history files it put in the
+     * sync folder are deleted, in the background and best effort. The phone's own sync file is left to the usual clean-up of the old group.
+     */
+    fun leaveGroup() {
+        val settings = sync.settings.value
+        val tree = settings.folderUri?.takeIf { settings.folderOn }?.let(Uri::parse) ?: return
+        val history = goalHistory ?: return
+        leaveScope.launch {
+            running.withLock {
+                runCatching { history.leave(FolderGoalHistoryStore(context, tree)) }
+            }
+        }
+    }
 
     /** Starts or stops the 15-minute background sync to match the folder switch. */
     fun schedule() {

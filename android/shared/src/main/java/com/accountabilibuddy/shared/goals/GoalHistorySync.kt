@@ -240,6 +240,36 @@ class GoalHistorySync(
         return run
     }
 
+    /**
+     * This phone is leaving the group (call BEFORE the group's key is dropped; the twin of the PC's `LeaveAsync`): the history files it put in a
+     * store that deletes (the sync folder, Drive) go, with its state of that transport. A file the store won't delete keeps the state, so the
+     * stale-name clean-up of the next key still finds it. Best effort: transport errors are the caller's to catch. Returns how many were deleted.
+     */
+    fun leave(store: GoalHistoryStore): Int = lock.withLock {
+        if (!store.canDelete) return@withLock 0
+        val state = states.value
+        val transport = state.transports[store.transport] ?: return@withLock 0
+        if (transport.ownNames.isEmpty()) return@withLock 0
+
+        val listed = store.list().map { it.name }.toHashSet()
+        var deleted = 0
+        var allGone = true
+        for (name in transport.ownNames.toList()) {
+            // Gone only when it was listed and deleted: a name missing from the listing may be a provider's partial listing (review S4).
+            if (name in listed && store.delete(name)) deleted++ else allGone = false
+        }
+
+        if (allGone) {
+            state.transports.remove(store.transport)
+            lastRun.remove(store.transport)
+            states.save()
+            publish()
+        }
+
+        log("goal history ${store.transport}: left deleted=$deleted")
+        deleted
+    }
+
     // Holds the lock except while [applySynced] runs. True when this device's merged-years marker changed.
     private fun runLocked(store: GoalHistoryStore, run: GoalHistoryRun): Boolean {
         val me = self()

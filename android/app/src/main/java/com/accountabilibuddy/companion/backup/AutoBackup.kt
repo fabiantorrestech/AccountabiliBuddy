@@ -93,7 +93,7 @@ class AutoBackup(private val app: CompanionApp) {
                 prefs.edit().putString(KEY_HASH + kind.written, hash).apply()
                 written++
             }
-            report(if (written == 0) "Nothing changed since the last backup" else "Backed up ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMM d, h:mm a"))} ($why)")
+            report(if (written == 0) "Nothing changed since the last backup" else "Backed up ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMM d, h:mm a", java.util.Locale.US))} ($why)")
         } catch (e: Exception) {
             Log.w("AutoBackup", "backup failed", e)
             report("Backup failed: ${e.message}")

@@ -1597,3 +1597,57 @@ Owner answers applied (they override the plan row): Discard is allowed any time,
 - **For the orchestrator / review:** the C# side must follow `Everywhere` for the two sources before this commits with the fixtures (Q1130): `GoalSources.cs`, `Gs5aGoalsChecks.cs` (its "sources:" check says `PcOnly`), the `hard-rules` wording if any, then regenerate `goals/sources.json`. Nothing else in `src/` is needed: the `gs5a/*` fixtures pass as written.
 - **Q1130 DONE (coordinator's go-ahead):** `GoalSources.cs` says `Everywhere` for the two task sources; `GoalsChecks` (`Program.cs` two `sources/` checks, `Gs5aGoalsChecks.cs` "sources:" check) updated; the "S1 known gap" check is now "S1 closed (GS5b)" (a phone that counts the links shows the PC's 30, without them 0); `goals/sources.json` regenerated into the real fixture folder by GoalsChecks (`goals-ui` is not affected: it holds no availability text); `doc/hard-rules.md` line on the phone's Add-a-source sheet no longer says "Coming soon" for these rows. The Kotlin run against the real fixtures is now 4075/4075.
 - **GS5b fix round (Opus review `gs5b-review.md`):** **S1** the two PC texts fixed (`GoalSourceRowViewModel.cs`: "Counted on every device from its task list."; `GoalSourcesEditorViewModel.cs` tile note "For milestones"). **S2 done** (Q1134): the shutdown's Unfinished step carries the ended session's checklist task id (`ShutdownTaskRow.TaskId`, `AddCarriedAsync(..., originalId)` -> `CarryHeldAsync`), so the carried task keeps goal link, due date, reminders and number; AppChecks `shutdown carry` (linked task kept; a hand-made row stays title-only); the old Lb1b wiring check's string updated. **Q1129 done:** a step made its own task keeps the parent's goal (`forNew`); the PC has no such action. **N1** Unlink is reachable for a link to a deleted goal with no goals left (task menu and select mode; "Its goal is gone · Unlink"). **N2** `setLabelAll` doc comment restored. **N3** Tasks card uses CheckBox / CheckBoxOutlineBlank. **N4** "Open its tasks" is greyed ("Add Milestone tasks as a source first") when the page has no Tasks card. **Q1132** the card says linked tasks don't count until the source is added. **N6** one `gs5a/counting` milestone case with UTC `doneAt` (04:30Z = 11:30 PM the day before), written by `Gs5aGoalsChecks.cs`; the handoff's "15 scenarios" was 14 (x 4 orders = 56). **N5, N7, N8** left (Q1136, Q1135). **Checks (all rebuilt `--no-incremental` / `gradle clean`):** solution build 0 errors; Core **1775/1775**; GoalsChecks **273/273**; full AppChecks **1453/1453**; Kotlin `assembleDebug` green and `:checks:run --offline --no-daemon` **4081/4081**.
+
+### FX-A done
+Phone fix round (branch `ui-round2`, not committed). Build `assembleDebug :checks:run --offline`: green, Kotlin checks **4137/4137** (was 4081 plus FX-A's 54 `fx1a/*` and 2 changed checks). Mutation: `GoalHistorySync.leave` stopped deleting -> 2 fx1a checks failed; restored byte for byte (cmp).
+
+| Item | Status |
+|---|---|
+| 1 finding 1 (swipe loses draft) | fixed: `SheetDiscardGuard` + round-2 `AbSheet`; goal editor flow and Add a task (Q1139) |
+| 1 finding 2 | left (not mine) |
+| 1 finding 3 "About 1 minutes" | fixed (`GoalReviewRules.minutesText`, card and notification) |
+| 1 finding 4 Counts from switch | fixed (check mark + "Always counts while it's the only device") |
+| 1 finding 5 header wrap | fixed (name 2 lines, age phrase non-breaking) |
+| 2 f81bb32b items 2, 5 | already fixed (`weeklyEdited`; `GoalAreaSheet` locked) |
+| 2 pm lowercase | fixed (locale fixed, Q1143) |
+| 2 Today subtitle truncated | fixed (2 lines) |
+| 2 goal menu details | fixed: dividers, accent Show on Today track, header hint; Pause icon skipped (Q1141) |
+| 2 legend / "No counted focus yet" | skipped: pinned (Q1141) |
+| 2 heatmap labels | already follows the Options setting |
+| 2 Q549 | fixed: name in the reminder, private + public version without name (hard-rules already said so) |
+| 2 Q548 | fixed on the phone (PB 9:00 AM next review day); Q1138 |
+| 2 R6b3 S1-S4 | fixed (tomorrow/midnight alarm candidates + next review; synchronized + once-only alert; stale review skipped; chips locked) |
+| 2 NITs | fixed: Settings snooze length, cancel only if saved, disjoint request codes, Shown keeps count, trusted check extended, in-app snooze cancels notification; time-zone re-key skipped (Q1137) |
+| 3 FolderGoalHistoryStore | fixed: tmp + rename, tmp cleaned on failure; leave deletes own files (`GoalHistorySync.leave`) |
+| 4 Q880 | fixed (`BackupFile.seal` clean text) + checks |
+| 5 Q895 | not built |
+
+Files: `android/shared/.../goals/{GoalHistorySync,GoalReminderPlan,GoalReviewRules}.kt`, `android/shared/.../WatchText.kt`, `android/app/.../{sync/GoalHistoryStores,sync/DriveFolderSource,sync/SleepSettingsSync,data/BackupFile,engine/ClockFormat,backup/AutoBackup,stats/StatsFormat,notify/GoalReminders,notify/GoalReminderIds(new),goals/PhoneGoalReview}.kt`, `ui/{CompanionViewModel,PlacementSection,GoalsReviewSetupPage}.kt`, `ui/sheets/{AbSheet,SheetDiscardGuard(new),SheetDiscardRules(new)}.kt`, `ui/goals/{GoalEditorSheets,GoalEditorDirty(new),GoalMenuSheet,GoalPageScreen,ScreenTimeSourceSheet}.kt`, `ui/today/TodayTitleHeader.kt`, `ui/kit/AbSwitch.kt`, `ui/tasks/page/AddTaskSheet.kt`, checks: `Fx1aSelfCheck.kt`(new), `Main.kt`, `build.gradle.kts`, `GoalsUiReviewRemindersCheck.kt`. New files need `git add`.
+
+Hand-test (items you create, delete after): (1) Goals > + > New goal, type a name, swipe the sheet down: "Discard this goal?"; Keep editing returns, Discard closes. Open it, type nothing, swipe: closes. (2) Add a task, type a title, swipe: "Discard this task?". (3) Goal with a Screen time source, only this phone: the "This phone" row shows a check, not a grey switch. (4) A goal named long (30 chars): its page header wraps to 2 lines. (5) Phone set to English (UK): Today "Next up" times read "4:00 PM". (6) Goal menu: no lines, Show on Today track in the accent, subtitle ends "hold a goal or tap ⋮". (7) With a sync folder on: leave the group, the `*.abgh` files this phone put there are gone.
+
+### FX-B done (PC fix round)
+| Item | Status |
+|---|---|
+| Session header "1/3 · 75 min" (Q515/Q518) | already implemented as the rule (`TodaySessionHint`: places used of the cap · open tasks' time limit); the shot's "3/3 · 50 min" is the harness's own sample (3 tasks, cap 3). Nothing to change |
+| Q537 Tasks by Label/Tag at 901 | already fixed (paging of columns; `tasks-label6` / `tasks-tag8` fit PASS at 901 x 567 in all 6 combos) |
+| Q541/Q542 look changes | all views rendered at 901 x 567 (6 combos each) and skimmed (Today session, Tasks, Goals, Paper); fit PASS everywhere; nothing overlapped or clipped. The four `lb1b-*` views could not run (harness fault, Q1149) |
+| Q535 chips under tasks | not built; logged for the owner (Q1146) |
+| Q549 goal names in notifications | `doc/hard-rules.md` updated (two lines); PC code already shows the name (in-app card). Phone side noted (Q1145) |
+| Q548 snooze 9:00 AM | fixed: new `Core/Goals/GoalReviewSnooze.cs`, used by `GoalReviewService.SnoozeAsync`; hard-rules line says so (Q1144) |
+| Paper accent | 6-combo contrast checks PASS in AppChecks; met vs accent pills judged distinguishable (Q1147); title-bar anchors PASS at 1440 x 880 and 901 x 567, no expectation changes needed |
+| Q586 | already fixed (`TaskFieldMerge.cs:327`, `keepTombstones: true`, commit 357f9d59) |
+| Q584 | already fixed (`TaskFieldMerge.cs:109-115`, ordinal `JoinedBases`) |
+| "At most" wording | not fixed (parity). PC: `GoalHeatmapViewModel.Legend` (lines ~294-309) writes "Shade = minutes that day (1h+ counts)" for any Time goal with a day target, ignoring `GoalDirection.AtMost`; the day panel's "In progress · X to go" (`GoalDayPanelViewModel` line ~233, from `GoalCounting` `Short`, line ~540: AtMost gives `value - amount`) is Core parity output. Same texts in `GoalHeatmap.kt`; for the parity task |
+| Q715 | not found as a fix with an owner default (table row 715: "not done, say if wanted"); logged as Q1148, unchanged |
+
+Checks: build 0 errors; Core 1781/1781 (6 new `fxb/snooze` checks); GoalsChecks 273/273; AppChecks 1453/1453 (the r5b2 snooze check now also asserts 9:00 AM for AB and PB); out-of-repo checks rebuilt with `--no-incremental` and run with a temp data folder. Harness: 901 x 567 fit PASS for every view up to `lunch-discarded` plus the lunch and settings views; anchors 276 PASS at both sizes.
+
+Files changed: `src/AccountabiliBuddy.Core/Goals/GoalReviewSnooze.cs` (new, `git add`ed), `src/AccountabiliBuddy.App/Services/Goals/GoalReviewService.cs`, `doc/hard-rules.md`, `HANDOFF-NOTES.md`, `HANDOFF-QUESTIONS.md`. (Out of repo: `tasks-ui-checks/FxbChecks.cs`, `Program.cs`, `AppChecks/Program.cs`.)
+
+Hand-test (a goal you create, delete after): (1) Goals > the weekly review row on its day > Snooze: Settings > Goals > Snooze set to 1 day: the row returns at 9:00 AM tomorrow, not 24 hours later; set to 2 days: 9:00 AM in two days. (2) ProductaBuddy mode: Snooze keeps the row quiet ("Snoozed · start it whenever you like") until the review day's 9:00 AM next week.
+
+### FX-A fix round
+After the Opus review: `assembleDebug :checks:run --offline --no-daemon` green, Kotlin checks **4149/4149** (4137 + 12 new). Fixed: **B1** the review-day chips, `GoalsSettingsPage` (4 places) and `TasksSettingsPage` now read `LocalGuardsLock.current != null` (no other page reads `LocalGuardsLocked` outside a `GuardsScope`; a check scans the whole `ui/` folder); **S1** while dirty, `shouldDismissOnBackPress = false` + `BackHandler`; **S2** `askDiscard` is `remember`, not saved; **S3** `.setLocalOnly(true)` on the goal reminder, its public version and the review (other notifications that carry user text and are NOT local only, not changed: timer names `TimerNotifications`, parked/blocks names `ParkedNotice`/`BlockGuard`, the timeline `TimelineNotifier`; the owner decides), hard-rules wording aligned; **S4** `GoalHistorySync.leave` counts a name as gone only when listed and deleted (check: empty listing keeps everything); **N4** Adjust is in the start draft; **N6** `AddTaskDirty` (tags, label, rules, "only here"); old-format (marked) backup restore check. Q1137, Q1140 updated; Drive leave = parity follow-up. The ui/ scan is a source check, not a behaviour check: a Compose lock test is not possible in the JVM check harness.
+Extra hand tests: predictive back (Android 16, gesture navigation) on a dirty New goal, "Keep editing" leaves the sheet full size; rotate with the question up; during a focus session What's new's review-day chips and Settings > Goals / Tasks are greyed; leave the group with a Drive-provider sync folder.
+Files changed in this round: `ui/sheets/AbSheet.kt`, `ui/goals/GoalEditorSheets.kt`, `ui/tasks/page/AddTaskSheet.kt`, `ui/tasks/page/AddTaskDirty.kt` (new), `ui/GoalsReviewSetupPage.kt`, `ui/settings/{GoalsSettingsPage,TasksSettingsPage}.kt`, `notify/GoalReminders.kt`, `shared/.../goals/GoalHistorySync.kt`, `checks/.../Fx1aSelfCheck.kt`, `checks/build.gradle.kts`, `doc/hard-rules.md`, `HANDOFF-QUESTIONS.md`, `HANDOFF-NOTES.md`.

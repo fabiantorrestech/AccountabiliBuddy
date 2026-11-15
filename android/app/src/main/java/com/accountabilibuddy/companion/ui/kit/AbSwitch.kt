@@ -11,7 +11,7 @@ import com.accountabilibuddy.companion.ui.theme.Ab
  * a session). Drawn only: the row around it carries the click and the semantics ([AbToggleRow] does).
  */
 @Composable
-fun AbSwitch(checked: Boolean, modifier: Modifier = Modifier, enabled: Boolean = true, onCheckedChange: ((Boolean) -> Unit)? = null) {
+fun AbSwitch(checked: Boolean, modifier: Modifier = Modifier, enabled: Boolean = true, accent: Boolean = false, onCheckedChange: ((Boolean) -> Unit)? = null) {
     val colors = Ab.colors
     Switch(
         checked = checked,
@@ -19,9 +19,9 @@ fun AbSwitch(checked: Boolean, modifier: Modifier = Modifier, enabled: Boolean =
         modifier = modifier,
         enabled = enabled,
         colors = SwitchDefaults.colors(
-            checkedTrackColor = colors.ink,
-            checkedThumbColor = colors.bg,
-            checkedBorderColor = colors.ink,
+            checkedTrackColor = if (accent) colors.accent else colors.ink,
+            checkedThumbColor = if (accent) colors.onAccent else colors.bg,
+            checkedBorderColor = if (accent) colors.accent else colors.ink,
             uncheckedTrackColor = colors.surface2,
             uncheckedThumbColor = colors.muted,
             uncheckedBorderColor = colors.line,

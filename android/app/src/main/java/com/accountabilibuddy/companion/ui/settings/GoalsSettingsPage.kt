@@ -27,7 +27,6 @@ import com.accountabilibuddy.companion.goals.GoalHeatmapLabels
 import com.accountabilibuddy.companion.goals.GoalSettingsPrefs
 import com.accountabilibuddy.companion.ui.GuardsRestBanner
 import com.accountabilibuddy.companion.ui.LocalGuardsLock
-import com.accountabilibuddy.companion.ui.LocalGuardsLocked
 import com.accountabilibuddy.companion.ui.goals.GoalAreaSheet
 import com.accountabilibuddy.companion.ui.goals.GoalAreasSheet
 import com.accountabilibuddy.companion.ui.kit.AbCard
@@ -78,7 +77,7 @@ fun GoalsSettingsPage(anchor: String?, onOpenConnections: () -> Unit) {
 private fun ReviewCard() {
     val context = LocalContext.current
     val review by GoalSettingsPrefs.review.collectAsStateWithLifecycle()
-    val locked = LocalGuardsLocked.current
+    val locked = LocalGuardsLock.current != null
     var dayOpen by rememberSaveable { mutableStateOf(false) }
     var timeOpen by rememberSaveable { mutableStateOf(false) }
     val days = listOf<DayOfWeek?>(null) + DayOfWeek.entries.let { listOf(it[6]) + it.take(6) }
@@ -127,7 +126,7 @@ private fun ReviewCard() {
 private fun ReminderDefaultsCard() {
     val context = LocalContext.current
     val defaults by GoalSettingsPrefs.reminders.collectAsStateWithLifecycle()
-    val locked = LocalGuardsLocked.current
+    val locked = LocalGuardsLock.current != null
     AbCard(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), verticalSpacing = 0.dp) {
         AbSectionLabel("Default reminders", Modifier.padding(start = 4.dp, bottom = 4.dp))
         Text(
@@ -153,7 +152,7 @@ private fun ReminderDefaultsCard() {
 private fun ChartsCard() {
     val context = LocalContext.current
     val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
-    val locked = LocalGuardsLocked.current
+    val locked = LocalGuardsLock.current != null
     val starts = listOf(GoalWeekStart.Monday, GoalWeekStart.Sunday, GoalWeekStart.Saturday)
     val labels = GoalHeatmapLabels.entries
     val lines = com.accountabilibuddy.shared.goals.GoalMonthLines.entries
@@ -182,7 +181,7 @@ private fun ChartsCard() {
 private fun AreasAndConnections(onOpenConnections: () -> Unit) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val lists by app.goals.lists.collectAsStateWithLifecycle()
-    val locked = LocalGuardsLocked.current
+    val locked = LocalGuardsLock.current != null
     var areasOpen by rememberSaveable { mutableStateOf(false) }
     var areaSheet by rememberSaveable { mutableStateOf<String?>(null) }
     var note by rememberSaveable { mutableStateOf<String?>(null) }

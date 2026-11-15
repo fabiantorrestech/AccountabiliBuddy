@@ -7,6 +7,7 @@ import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -160,10 +161,11 @@ fun GoalMenuSheet(
         reminderNext = page.reminderNext, linkedTasks = page.linkedTasks, hasTasksCard = page.tasksCard != null, noPc = !com.accountabilibuddy.companion.goals.PhoneDeepWork.hasPc(app.sync.received.value.map { it.file }),
     )
     val heading = items.first()
-    AbSheet(title = heading.title, subtitle = listOfNotNull(page.areaName, GoalTexts.targetLine(goal, today)).joinToString(" · "), onDismiss = onDismiss, height = AbSheetHeight.Tall) {
+    AbSheet(title = heading.title, subtitle = listOfNotNull(page.areaName, GoalTexts.targetLine(goal, today), "hold a goal or tap ⋮").joinToString(" · "), onDismiss = onDismiss, height = AbSheetHeight.Tall) {
         items.drop(1).forEach { item ->
             if (item.id == GoalMenuItemId.Separator) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(Ab.colors.line))
+                // The board draws no lines between the groups (FX-A): a little air only.
+                Spacer(Modifier.height(6.dp))
                 return@forEach
             }
 
@@ -189,7 +191,7 @@ fun GoalMenuSheet(
                 role = if (item.checked != null) Role.Switch else Role.Button,
                 trailing = {
                     when {
-                        item.checked != null -> AbSwitch(item.checked!!, onCheckedChange = { done(app.goals.updateGoal(stored.copy(showOnToday = !stored.showOnToday)), close = false) })
+                        item.checked != null -> AbSwitch(item.checked!!, accent = true, onCheckedChange = { done(app.goals.updateGoal(stored.copy(showOnToday = !stored.showOnToday)), close = false) })
                         item.value != null -> AbSheetValue(item.value, opens = item.opensMore)
                         item.opensMore && item.enabled -> AbSheetValue(null)
                     }

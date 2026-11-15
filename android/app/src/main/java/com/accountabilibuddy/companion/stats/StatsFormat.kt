@@ -98,7 +98,7 @@ object StatsFormat {
     fun hourShort(hour: Int): String = "${if (hour % 12 == 0) 12 else hour % 12}${if (hour < 12) "a" else "p"}"
 
     /** "4:05 PM". */
-    fun time(at: LocalDateTime): String = at.format(DateTimeFormatter.ofPattern("h:mm a", locale))
+    fun time(at: LocalDateTime): String = at.format(DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US))
 
     /** "7:05 AM" for a time of day given as minutes after midnight. */
     fun timeOfDay(minutes: Int): String = LocalDateTime.of(2000, 1, 1, minutes / 60 % 24, minutes % 60).let(::time)

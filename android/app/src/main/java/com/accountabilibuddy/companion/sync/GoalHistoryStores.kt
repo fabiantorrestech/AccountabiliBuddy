@@ -121,13 +121,50 @@ class FolderGoalHistoryStore(private val context: Context, private val tree: Uri
 
     override fun get(name: String): ByteArray? = uris[name]?.let { resolver.openInputStream(it)?.use { stream -> stream.readBytes() } }
 
+    /**
+     * Written to "<name>.tmp" first and renamed over the target, so a reader never sees half a file (the PC's twin writes beside the target and
+     * moves it). The temporary file never stays: it is deleted when the write or the rename fails. A provider that can't rename gets a direct
+     * write instead, as before.
+     */
     override fun put(name: String, bytes: ByteArray) {
-        val target = uris[name]
-            ?: DocumentsContract.createDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)), MIME, name)
+        val folder = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        val temporaryName = name + TEMPORARY_SUFFIX
+        // A leftover of an earlier failed write must not make the provider name this one "x.tmp (1)".
+        uris[temporaryName]?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } }
+        uris.remove(temporaryName)
+        val temporary = DocumentsContract.createDocument(resolver, folder, MIME, temporaryName)
             ?: throw IllegalStateException("the sync folder won't take a file")
-        val out = resolver.openOutputStream(target, "wt") ?: throw IllegalStateException("the sync folder won't take a file")
-        out.use { it.write(bytes) }
-        uris[name] = target
+        try {
+            val out = resolver.openOutputStream(temporary, "wt") ?: throw IllegalStateException("the sync folder won't take a file")
+            out.use { it.write(bytes) }
+            val existing = uris[name]
+            // The name is free only when the old file is gone; a failed delete leaves the old file whole and the pass tries again.
+            if (existing != null) {
+                if (!DocumentsContract.deleteDocument(resolver, existing)) throw IllegalStateException("the sync folder won't replace a file")
+                uris.remove(name)
+            }
+
+            // A provider that can't rename gets the file written in place instead (the old file is already gone, so nothing is lost).
+            val renamed = runCatching { DocumentsContract.renameDocument(resolver, temporary, name) }.getOrNull()
+            if (renamed != null) {
+                uris[name] = renamed
+            } else {
+                val direct = DocumentsContract.createDocument(resolver, folder, MIME, name) ?: throw IllegalStateException("the sync folder won't take a file")
+                try {
+                    resolver.openOutputStream(direct, "wt")?.use { it.write(bytes) } ?: throw IllegalStateException("the sync folder won't take a file")
+                } catch (e: Exception) {
+                    runCatching { DocumentsContract.deleteDocument(resolver, direct) }
+                    throw e
+                }
+
+                uris[name] = direct
+                runCatching { DocumentsContract.deleteDocument(resolver, temporary) }
+            }
+        } catch (e: Exception) {
+            // No half-written leftover in the shared folder.
+            runCatching { DocumentsContract.deleteDocument(resolver, temporary) }
+            throw e
+        }
     }
 
     override fun delete(name: String): Boolean {
@@ -147,5 +184,6 @@ class FolderGoalHistoryStore(private val context: Context, private val tree: Uri
 
     private companion object {
         const val MIME = "application/octet-stream"
+        const val TEMPORARY_SUFFIX = ".tmp"
     }
 }

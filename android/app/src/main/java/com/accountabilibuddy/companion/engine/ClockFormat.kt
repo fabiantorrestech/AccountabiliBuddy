@@ -4,8 +4,11 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** Times as the phone shows them (12- or 24-hour), kept out of the engine's logic. */
-class ClockFormat(val is24Hour: Boolean, locale: Locale = Locale.getDefault()) {
+/**
+ * Times as the phone shows them (12- or 24-hour), kept out of the engine's logic. The 12-hour text is always "4:00 PM" in capitals
+ * (FX-A: a phone set to another English wrote "4:00 pm"), so the default locale is fixed.
+ */
+class ClockFormat(val is24Hour: Boolean, locale: Locale = Locale.US) {
     private val time = DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm a", locale)
 
     fun time(value: LocalDateTime): String = value.format(time)

@@ -2,6 +2,7 @@ package com.accountabilibuddy.companion.data
 
 import com.accountabilibuddy.companion.data.JsonValues.int
 import com.accountabilibuddy.companion.data.JsonValues.string
+import com.accountabilibuddy.shared.goals.GoalJson
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -18,7 +19,8 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * The outer layer of a Windows backup file (*.abbackup), like the Core's BackupEnvelope: readable content, or
  * AES-GCM ciphertext with the key from the password (PBKDF2-SHA256). Backups made "for this computer only" (DPAPI)
- * can't be opened anywhere else.
+ * can't be opened anywhere else. What the phone writes is clean text ([GoalJson.text], Q880): a goal's time value carries an internal mark in
+ * the JSON tree that `toString` would write into the file, where a PC restoring it would not read the goals.
  */
 object BackupFile {
     private const val FORMAT = "accountabilibuddy-backup"
@@ -62,7 +64,7 @@ object BackupFile {
                 put("version", VERSION)
                 put("protection", "None")
                 put("content", content)
-            }.toString()
+            }.let(GoalJson::text)
         }
 
         val random = java.security.SecureRandom()
@@ -73,7 +75,7 @@ object BackupFile {
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, nonce))
         cipher.updateAAD(associatedData)
         // Java puts the tag after the ciphertext; the file keeps them apart, as .NET does.
-        val sealed = cipher.doFinal(content.toString().toByteArray(Charsets.UTF_8))
+        val sealed = cipher.doFinal(GoalJson.text(content).toByteArray(Charsets.UTF_8))
         val data = sealed.copyOfRange(0, sealed.size - TAG_BITS / 8)
         val tag = sealed.copyOfRange(sealed.size - TAG_BITS / 8, sealed.size)
         val base64 = Base64.getEncoder()

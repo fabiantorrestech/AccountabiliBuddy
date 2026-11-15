@@ -108,7 +108,7 @@ object GoalsUiReviewRemindersCheck {
         val ab2 = GoalReviewRules.snoozeUntil(GoalReviewSnooze.TwoDays, false, due, now, zone)
         val pbUntil = GoalReviewRules.snoozeUntil(GoalReviewSnooze.Tomorrow, true, due, now, zone)
         report.check("$name: AB snooze: tomorrow or in 2 days at 9:00 AM ('Thu, Nov 12 · 9:00 AM')", abUntil == at(today.plusDays(1), 9) && ab2 == at(today.plusDays(2), 9) && GoalReviewRules.snoozeLine(abUntil, zone) == "Thu, Nov 12 · 9:00 AM", "$abUntil $ab2")
-        report.check("$name: PB snooze: until next week's review", pbUntil == due.plusDays(7))
+        report.check("$name: PB snooze (Q548): 9:00 AM on next week's review day (Sun Nov 15), not the review's own 6:00 PM", pbUntil == at(LocalDate.of(2026, 11, 15), 9), "$pbUntil")
         val abSnoozed = record0.copy(snoozedUntil = abUntil)
         report.check("$name: AB: snoozed hides the card, then it asks again when the snooze ends",
             !GoalReviewRules.row(true, false, asked, abSnoozed, now, false, day).shown && GoalReviewRules.row(true, false, asked, abSnoozed, abUntil.toInstant().plusSeconds(1), false, day).shown)
@@ -259,5 +259,15 @@ object GoalsUiReviewRemindersCheck {
         val ringing = listOf("notify/GoalReminders.kt", "goals/PhoneGoalReview.kt").map { File(app, it) }
         val decides = ringing.filter { file -> !file.exists() || !file.readText().contains("TrustedTime.now()") || Regex("""(Instant|OffsetDateTime|LocalDate|LocalDateTime)\.now\(""").containsMatchIn(file.readText()) }
         report.check("$name: the phone's ringing and review code takes its time from TrustedTime only", decides.isEmpty(), "not trusted-only: ${decides.map { it.name }}")
+        // FX-A (R6b3 review NIT): the rest of what decides a goal time on the phone reads no wall clock either (the marks, the receiver, the
+        // store, the data, Deep work's weekly wait, the sleep wiring); the alarm's one System.currentTimeMillis() is the distance from trusted time.
+        val others = listOf(
+            "goals/GoalReminderMarksStore.kt", "notify/GoalReminderReceiver.kt", "goals/PhoneGoalStore.kt", "goals/PhoneGoalData.kt",
+            "goals/PhoneDeepWorkWeekly.kt", "goals/PhoneDeepWorkDaily.kt", "goals/PhoneDeepWork.kt", "goals/PhoneGoalDerived.kt", "goals/PhoneGoalsOverview.kt",
+        ).map { File(app, it) }
+        val clockReaders = others.filter { file -> !file.exists() || Regex("""(Instant|OffsetDateTime|LocalDate|LocalDateTime|ZonedDateTime|LocalTime)\.now\(|System\.currentTimeMillis\(""").containsMatchIn(file.readText()) }
+        report.check("$name: the other goal files that decide a time read no wall clock", clockReaders.isEmpty(), "reads a clock or missing: ${clockReaders.map { it.name }}")
+        val alarm = File(app, "notify/GoalReminders.kt").takeIf { it.exists() }?.readText().orEmpty()
+        report.check("$name: the alarm's one wall-clock read is the distance from trusted time", Regex("""System\.currentTimeMillis\(""").findAll(alarm).count() == 1 && alarm.contains("Duration.between(now, next)"))
     }
 }

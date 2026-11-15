@@ -110,11 +110,12 @@ object GoalReviewRules {
         record.copy(decisions = record.decisions.filter { it.goalId != goalId } + GoalReviewDecision(goalId, choice))
 
     /**
-     * When a snooze made at [now] ends: ProductaBuddy keeps it snoozed until next week's review ([due] + 7 days); AccountabiliBuddy until
+     * When a snooze made at [now] ends (owner, Q548; the PC's `GoalReviewSnooze.Until`): always 9:00 AM local, never "now plus a span".
+     * ProductaBuddy keeps it snoozed until 9:00 AM on next week's review day (the day [due] fell on, 7 days later); AccountabiliBuddy until
      * 9:00 AM tomorrow or in 2 days ("Remind me once" is tomorrow).
      */
     fun snoozeUntil(choice: GoalReviewSnooze, productaBuddy: Boolean, due: OffsetDateTime, now: Instant, zone: ZoneId): OffsetDateTime {
-        if (productaBuddy) return due.plusDays(7)
+        if (productaBuddy) return GoalLocalTime.at(due.atZoneSameInstant(zone).toLocalDate().plusDays(7), SNOOZE_TIME, zone)
         val days = if (choice == GoalReviewSnooze.TwoDays) 2L else 1L
         return GoalLocalTime.at(now.atZone(zone).toLocalDate().plusDays(days), SNOOZE_TIME, zone)
     }
@@ -130,6 +131,9 @@ object GoalReviewRules {
 
     /** About half a minute a goal, at least 1 ("About 4 minutes" for 8 goals). */
     fun minutesFor(goalCount: Int): Int = maxOf(1, (goalCount + 1) / 2)
+
+    /** "1 minute", "4 minutes" (FX-A, device finding 3: the card said "About 1 minutes"). */
+    fun minutesText(goalCount: Int): String = minutesFor(goalCount).let { if (it == 1) "1 minute" else "$it minutes" }
 
     /**
      * The entry card now. [ready]: the goals can be used; [sessionRunning]: a focus session the user started runs (never during one);
@@ -147,7 +151,7 @@ object GoalReviewRules {
         if (!ready || sessionRunning || goals.isEmpty() || isComplete(record, goals)) return GoalReviewRowState.HIDDEN
         val count = if (goals.size == 1) "1 goal" else "${goals.size} goals"
         val title = "Weekly goals review · $count"
-        val note = "About ${minutesFor(goals.size)} minutes · ${dayPlural(day)}"
+        val note = "About ${minutesText(goals.size)} · ${dayPlural(day)}"
         val until = record?.snoozedUntil
         if (until != null && until.toInstant() > now) {
             return if (productaBuddy) {

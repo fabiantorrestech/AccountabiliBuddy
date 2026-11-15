@@ -247,7 +247,8 @@ private fun Header(page: PhoneGoalPage?, name: String, icon: String?, tint: andr
             Icon(GoalIcons.of(icon), contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(name, style = Ab.type.head, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // FX-A (device finding 5): a long name takes a second line instead of being cut ("ZZ test screen …").
+            Text(name, style = Ab.type.head, color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(subtitle(page), style = Ab.type.small, color = colors.muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         // Stats for this goal (the PC's Goals header Stats with a goal shown): its days over a range, paused stretches hatched.
@@ -274,7 +275,8 @@ private fun subtitle(page: PhoneGoalPage?) = buildAnnotatedString {
         append(listOfNotNull(area, "amount over time", "target $target").joinToString(" · ") + paused)
     } else {
         withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Ab.colors.ink)) { append(target) }
-        append(listOfNotNull(area, "${facts.age.short} going").joinToString(" · ", prefix = " · ") + paused)
+        // The age phrase never breaks inside ("6 months going" wrapped "going" alone onto a second line).
+        append(listOfNotNull(area, "${facts.age.short} going".replace(' ', ' ')).joinToString(" · ", prefix = " · ") + paused)
     }
 }
 

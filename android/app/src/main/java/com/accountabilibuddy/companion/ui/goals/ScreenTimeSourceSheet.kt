@@ -183,7 +183,7 @@ fun ScreenTimeSourceSheet(rule: GoalSourceRule, creating: Boolean, onSave: (Goal
 
         Head("COUNTS FROM")
         val selected = GoalScreenTimeEditor.selected(edited, self, known)
-        DeviceRow("This phone", Icons.Outlined.PhoneAndroid, lastOne = selected.size == 1 && self in selected, checked = self in selected, enabled = true) {
+        DeviceRow("This phone", Icons.Outlined.PhoneAndroid, lastOne = selected.size == 1 && self in selected, checked = self in selected, enabled = true, alone = others.isEmpty()) {
             edited = GoalScreenTimeEditor.withDevice(edited, self, it, self, known)
         }
         others.forEach { device ->
@@ -223,13 +223,17 @@ private fun ruleSaver(base: GoalSourceRule): Saver<GoalSourceRule, Any> = listSa
 )
 
 @Composable
-private fun DeviceRow(name: String, icon: ImageVector, lastOne: Boolean, checked: Boolean, enabled: Boolean, note: String? = null, onChange: (Boolean) -> Unit) {
+private fun DeviceRow(name: String, icon: ImageVector, lastOne: Boolean, checked: Boolean, enabled: Boolean, note: String? = null, alone: Boolean = false, onChange: (Boolean) -> Unit) {
     // A greyed device that is still ticked can be unticked (never the last one).
     val canTap = (enabled || checked) && !(checked && lastOne)
+    // FX-A (device finding 4): the last counting device can't be switched off, so it shows a check, not a switch whose greyed track reads as "off".
+    val fixed = checked && lastOne
     AbSheetRow(
-        name, onClick = if (canTap && (enabled || checked)) ({ onChange(!checked) }) else null, icon = icon, enabled = enabled || checked,
-        subtitle = note ?: if (checked && lastOne) "At least one device counts" else null,
-        trailing = { AbSwitch(checked, enabled = canTap, onCheckedChange = onChange) },
+        name, onClick = if (canTap && (enabled || checked)) ({ onChange(!checked) }) else null, icon = icon, enabled = enabled || checked || fixed,
+        subtitle = note ?: if (fixed) (if (alone) "Always counts while it's the only device" else "At least one device counts") else null,
+        trailing = {
+            if (fixed) Icon(Icons.Outlined.Check, contentDescription = "Counts", tint = Ab.colors.accent) else AbSwitch(checked, enabled = canTap, onCheckedChange = onChange)
+        },
     )
 }
 

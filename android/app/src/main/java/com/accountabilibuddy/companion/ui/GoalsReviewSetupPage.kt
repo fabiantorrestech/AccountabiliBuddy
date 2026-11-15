@@ -28,17 +28,22 @@ internal fun GoalsReviewSetupPage() {
     val review by GoalSettingsPrefs.review.collectAsStateWithLifecycle()
     val display by GoalDisplayPrefs.display.collectAsStateWithLifecycle()
     val shown = GoalReviewRules.reviewDay(review, display.weekStart)
+    // R6b3 review S4: Settings › Goals' review day rests in a focus session; so do these chips.
+    val locked = LocalGuardsLock.current != null
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Goals: weekly review and reminders", style = MaterialTheme.typography.headlineSmall)
         Text("Once a week a card on Goals asks about each goal, one at a time: keep going, adjust the target, pause it, or decide next week. It suggests one from the numbers it shows (no AI, nothing leaves the phone), and every answer is kept as you go, so you can stop and pick it up later.")
         Text("• Snooze it for a day or two (in ProductaBuddy mode a snooze lasts the week). It never comes during a focus session.")
-        Text("• Goal reminders: Edit goal › Reminders. They ring as notifications, skip a goal that is already done, and never show the goal's name or your reason on the notification.")
+        Text("• Goal reminders: Edit goal › Reminders. They ring as notifications, skip a goal that is already done, and show the goal's name but never your reason (a secure lock screen shows no name).")
         Text("• \"Nudge when the week falls behind\" rings once, the morning after a goal drops below pace (on by default in AccountabiliBuddy mode, off in ProductaBuddy).")
         Text("Review day (now ${GoalReviewRules.dayPlural(shown)} at ${review.time.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US))}; the time is in Settings › Goals):", style = MaterialTheme.typography.titleSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY).forEach { day ->
-                AbChip(GoalReviewRules.dayPlural(day), selected = review.day == day,onClick = { GoalSettingsPrefs.setReview(context, review.copy(day = day)) })
+                AbChip(GoalReviewRules.dayPlural(day), selected = review.day == day, enabled = !locked, onClick = { if (!locked) GoalSettingsPrefs.setReview(context, review.copy(day = day)) })
             }
+        }
+        if (locked) {
+            Text("Resting during a focus session.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(
             "Other days are in Settings › Goals › Weekly review.",

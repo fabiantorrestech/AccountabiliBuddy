@@ -651,6 +651,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
         // The relay's copy of this phone's file goes first, while the group's key is still here (ADR 46).
         relaySource.leaveGroup()
+        // The goal history files this phone put in the sync folder go too (NG1; the PC does the same).
+        folderSource.leaveGroup()
         sync.leave()
         message.value = "Left your device group. What came from your other devices is gone from this phone."
     }

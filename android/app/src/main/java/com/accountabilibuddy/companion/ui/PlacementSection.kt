@@ -151,7 +151,7 @@ internal fun PlacementSetupPage() {
     }
 }
 
-private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)
 
 /** The guard's on/off switch: on at once, off waits 10 minutes and is refused during a focus session. */
 @Composable

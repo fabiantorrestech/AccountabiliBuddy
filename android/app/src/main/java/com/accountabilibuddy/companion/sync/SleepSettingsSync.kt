@@ -161,7 +161,7 @@ class SleepSettingsSync(context: Context, private val store: CompanionStore) {
 
     private companion object {
         val OFF_WAIT: Duration = Duration.ofMinutes(10)
-        val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
+        val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.US)
         const val KEY_EDITED = "editedAt"
         const val KEY_OFF_AT = "pendingOffAt"
     }

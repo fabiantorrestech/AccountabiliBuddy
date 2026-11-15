@@ -101,7 +101,19 @@ object GoalReminderPlan {
         val dueNow = occurrences
             .filter { it.ringAt <= now && Duration.between(it.ringAt, now) <= LOOKBACK }
             .sortedWith(compareBy<GoalReminderOccurrence>({ it.ringAt }, { it.goalId.toString() }, { it.reminderId.toString() }))
-        val nextAt = occurrences.map { it.ringAt }.filter { it > now }.minOrNull()
+        // FX-A (R6b3 review S1): the alarm must also wake for what comes after the last occurrence of today: tomorrow's first reminder and nudge
+        // (the app's refresh is inexact and never wakes the phone), and the next midnight so a day without any is looked at again.
+        val tomorrow = today.plusDays(1)
+        val ahead = mutableListOf<Instant>()
+        val liveReminders = reminders.filter { reminder -> reminder.isLive && byId[reminder.goalId] != null }
+        for (reminder in liveReminders) {
+            if (byId.getValue(reminder.goalId).isPausedOn(tomorrow)) continue
+            GoalReminderTimes.on(reminder, tomorrow, zone)?.let { ahead += it.toInstant() }
+            if (reminder.nudgeWhenBehind) ahead += GoalReminderTimes.nudgeOn(tomorrow, zone).toInstant()
+        }
+
+        if (liveReminders.isNotEmpty()) ahead += GoalLocalTime.at(tomorrow, java.time.LocalTime.MIDNIGHT, zone).toInstant()
+        val nextAt = (occurrences.map { it.ringAt } + ahead).filter { it > now }.minOrNull()
         return if (held) {
             GoalReminderStep(emptyList(), skip, dueNow, nextAt)
         } else {

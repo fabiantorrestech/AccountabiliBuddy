@@ -64,6 +64,16 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             // SYNC1c: what the phone keeps of a received file (pure: the re-read check runs a second pass over it).
             "com/accountabilibuddy/companion/sync/SyncCarry.kt",
             "com/accountabilibuddy/companion/sync/ReceivedDevice.kt",
+            // FX-A (Q880): the phone's backup file writes clean text (no internal time marks); the file and what it needs are pure.
+            "com/accountabilibuddy/companion/data/BackupFile.kt",
+            "com/accountabilibuddy/companion/data/JsonValues.kt",
+            "com/accountabilibuddy/companion/data/ImportException.kt",
+            // FX-A: the editor's unsaved-changes rule, the sheets' refusal rule, the reminders' ids and the 12-hour clock are pure too.
+            "com/accountabilibuddy/companion/ui/goals/GoalEditorDirty.kt",
+            "com/accountabilibuddy/companion/ui/sheets/SheetDiscardRules.kt",
+            "com/accountabilibuddy/companion/notify/GoalReminderIds.kt",
+            "com/accountabilibuddy/companion/engine/ClockFormat.kt",
+            "com/accountabilibuddy/companion/ui/tasks/page/AddTaskDirty.kt",
         )
     }
     into(layout.buildDirectory.dir("sharedSrc"))

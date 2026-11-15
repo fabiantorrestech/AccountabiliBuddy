@@ -64,6 +64,8 @@ import com.accountabilibuddy.companion.ui.kit.AbSwitch
 import com.accountabilibuddy.companion.ui.kit.AbTextField
 import com.accountabilibuddy.companion.ui.sheets.AbSheet
 import com.accountabilibuddy.companion.ui.sheets.AbSheetHeight
+import com.accountabilibuddy.companion.ui.sheets.DiscardChangesDialog
+import com.accountabilibuddy.companion.ui.sheets.SheetDiscardGuard
 import com.accountabilibuddy.companion.ui.tasks.SheetField
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.sync.TaskLabels
@@ -188,10 +190,18 @@ fun AddTaskSheet(
         }
     }
 
+    // FX-A: a swipe down, a tap outside or Back asks "Discard this task?" while the sheet holds something typed.
+    var askDiscard by remember { mutableStateOf(false) }
+    val dirty = AddTaskDirty.isDirty(text.text, step, steps, note, dueOn != null, limit != null, pickedLabel != startLabel, extraTags != listOfNotNull(startTag), rules.isNotEmpty(), tagsHere)
+    if (askDiscard) {
+        DiscardChangesDialog("Discard this task?", onKeep = { askDiscard = false }, onDiscard = { askDiscard = false; onDismiss() })
+    }
+
     AbSheet(
         title = "Add a task",
         subtitle = TaskBins.place(bin),
         onDismiss = onDismiss,
+        discardGuard = SheetDiscardGuard(dirty) { askDiscard = true },
         height = AbSheetHeight.Tall,
         aboveKeyboard = true,
         footer = {

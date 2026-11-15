@@ -260,6 +260,7 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     // SYNC1c (phone sync troubleshooting): the board, the send log, what each part came to, the unreadable list, the stale-file rule, the paced
     // relay re-read, the log and the report with no private text, the conflict picker (phone only; the picker's parity runs in sync1a/keep-both).
     "sync1c" to Sync1cCheck::run,
+    "fx1a-self" to Fx1aSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

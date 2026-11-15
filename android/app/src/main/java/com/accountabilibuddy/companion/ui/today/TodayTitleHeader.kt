@@ -35,7 +35,8 @@ fun TodayTitleHeader(line: String, productaBuddy: Boolean, syncLight: @Composabl
         modifier,
         subtitle = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(line, style = small, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                // FX-A: the sync light and the options take the line's room; a long line ("Thu, Nov 12 · work until 5:00 PM") wraps instead of being cut off.
+                Text(line, style = small, color = colors.muted, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (productaBuddy) {
                     Text("·", style = small, color = colors.muted)
                     Row(
