@@ -1,4 +1,6 @@
+using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services;
+using AccountabiliBuddy.App.Services.Remote;
 using Material.Icons;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,6 +14,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class NoisePlayerViewModel : ObservableObject
 {
     private readonly NoisePlayerService _noise;
+    private NoiseCommandSender? _others;
 
     // True while showing the service's state, so the change isn't sent back to it.
     private bool _showing;
@@ -23,6 +26,59 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
         _noise.Changed += (_, _) => Show();
         _noise.HeadphonesNeeded += (_, _) => HeadphonesNeeded?.Invoke(this, EventArgs.Empty);
         Show();
+    }
+
+    /// <summary>
+    /// ADR 92: the other devices' noise players for the volume popover's rows, and this PC's play and pause for them. Set by the app
+    /// once sync is up; until then there are no rows.
+    /// </summary>
+    public void UseOtherDevices(NoiseCommandSender others)
+    {
+        _others = others;
+        others.Changed += (_, _) => ShowOthers();
+        ShowOthers();
+    }
+
+    /// <summary>The other devices with a noise player (ADR 92), as rows.</summary>
+    public ObservableCollection<NoiseDeviceRowViewModel> OtherDevices { get; } = [];
+
+    /// <summary>Any other device has a noise player: the Devices button shows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OtherDevicesShown))]
+    public partial bool HasOtherDevices { get; set; }
+
+    /// <summary>The rows are open (remembered on this PC); they start hidden behind the Devices button.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OtherDevicesShown), nameof(OtherDevicesTip))]
+    public partial bool ShowsOtherDevices { get; set; }
+
+    public bool OtherDevicesShown => HasOtherDevices && ShowsOtherDevices;
+
+    public string OtherDevicesTip => ShowsOtherDevices ? "Hide other devices" : "Other devices' noise";
+
+    [RelayCommand]
+    private void ToggleOtherDevices() => _noise.SetShowsOtherDevices(!ShowsOtherDevices);
+
+    [RelayCommand]
+    private void ToggleOtherDevice(NoiseDeviceRowViewModel? row)
+    {
+        if (row is not null)
+        {
+            _others?.SetPlaying(row.Id, !row.Playing);
+        }
+    }
+
+    private void ShowOthers()
+    {
+        IReadOnlyList<NoiseDeviceRow> rows = _others?.Others() ?? [];
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        OtherDevices.Clear();
+        foreach (NoiseDeviceRow row in rows)
+        {
+            OtherDevices.Add(new NoiseDeviceRowViewModel(row, now));
+        }
+
+        HasOtherDevices = OtherDevices.Count > 0;
     }
 
     /// <summary>What the title bar's noise control scrolls through its name box when the lock stops or refuses play.</summary>
@@ -166,6 +222,7 @@ public sealed partial class NoisePlayerViewModel : ObservableObject
         IsLocked = _noise.IsLockedToHeadphones;
         Volume = settings.Volume;
         Repeat = settings.Repeat;
+        ShowsOtherDevices = settings.ShowsOtherDevices;
         _showing = false;
     }
 }

@@ -32,6 +32,11 @@
         <Style Selector="Button.noiseIcon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <!-- ADR 92: the Devices button while the other devices' rows show. -->
+        <Style Selector="Button.noiseIcon.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
         <!-- The volume button while its popover is open. -->
         <Style Selector="Button.noiseIcon.open /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
@@ -86,6 +91,40 @@
         </Style>
         <Style Selector="Button.noiseIcon:focus-visible /template/ ContentPresenter#PART_ContentPresenter, Button.noisePlay:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+
+        <!-- ADR 92: the volume popover's "Other devices" rows. A playing device's row is tinted with ▶ in the accent; a tap pauses or plays it. -->
+        <Style Selector="Button.noiseDeviceRow">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.noiseDeviceRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.noiseDeviceRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.noiseDeviceRow.playing /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        </Style>
+        <Style Selector="Button.noiseDeviceRow mi|MaterialIcon.rowIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.noiseDeviceRow.playing mi|MaterialIcon.rowIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="TextBlock.noiseDeviceDetail">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="TextBlock.noiseDeviceDetail.note">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
         </Style>
 
         <!-- The volume popover: 0–100 slider centred under the button, with the % chip (click or a digit to type). -->
@@ -190,16 +229,22 @@
                         <!-- Round 2 (Q278): what only Today's noise card had, now that the card is gone: lock to headphones, repeat the
                              folder, rename the sound (only how it's shown). Under the slider, so the slider stays where it was. -->
                         <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="-14,0,-10,0" />
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="4" Height="38" IsEnabled="{Binding HasFiles}" IsVisible="{Binding !IsRenaming}">
-                            <Button Classes="noiseIcon" Command="{Binding ToggleLockCommand}" ToolTip.Tip="{Binding LockTip}"
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="4" Height="38" IsVisible="{Binding !IsRenaming}">
+                            <!-- ADR 92: the other devices' noise rows, hidden behind this button until it is pressed (remembered). -->
+                            <Button Grid.Column="2" Classes="noiseIcon" HorizontalAlignment="Right" Command="{Binding ToggleOtherDevicesCommand}"
+                                    IsVisible="{Binding HasOtherDevices}" Classes.on="{Binding ShowsOtherDevices}"
+                                    ToolTip.Tip="{Binding OtherDevicesTip}" AutomationProperties.Name="{Binding OtherDevicesTip}" VerticalAlignment="Center">
+                                <mi:MaterialIcon Kind="Devices" Width="15" Height="15" />
+                            </Button>
+                            <Button Classes="noiseIcon" Command="{Binding ToggleLockCommand}" IsEnabled="{Binding HasFiles}" ToolTip.Tip="{Binding LockTip}"
                                     AutomationProperties.Name="{Binding LockTip}" VerticalAlignment="Center">
                                 <mi:MaterialIcon Kind="{Binding LockIcon}" Width="15" Height="15" />
                             </Button>
-                            <ToggleButton Grid.Column="1" Classes="noiseRepeat" IsChecked="{Binding Repeat}" ToolTip.Tip="Repeat the folder"
+                            <ToggleButton Grid.Column="1" Classes="noiseRepeat" IsChecked="{Binding Repeat}" IsEnabled="{Binding HasFiles}" ToolTip.Tip="Repeat the folder"
                                           AutomationProperties.Name="Repeat the folder" VerticalAlignment="Center">
                                 <mi:MaterialIcon Kind="Repeat" Width="15" Height="15" />
                             </ToggleButton>
-                            <Button Grid.Column="3" Classes="noiseIcon" Width="NaN" Padding="8,0" Command="{Binding StartRenameCommand}"
+                            <Button Grid.Column="3" Classes="noiseIcon" Width="NaN" Padding="8,0" Command="{Binding StartRenameCommand}" IsEnabled="{Binding HasFiles}"
                                     ToolTip.Tip="Rename (only how it's shown here)" AutomationProperties.Name="Rename the sound" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal" Spacing="5">
                                     <mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" VerticalAlignment="Center" />
@@ -224,6 +269,31 @@
                                 <mi:MaterialIcon Kind="Close" Width="15" Height="15" />
                             </Button>
                         </Grid>
+                        <StackPanel IsVisible="{Binding OtherDevicesShown}" Spacing="2" Margin="0,0,0,8" MaxWidth="300" HorizontalAlignment="Left">
+                            <Border Height="1" Background="{DynamicResource Ab.Line}" Margin="-14,0,-10,6" />
+                            <TextBlock Text="Other devices" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" Margin="2,0,0,2" />
+                            <ItemsControl x:Name="OtherDevicesList" ItemsSource="{Binding OtherDevices}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:NoiseDeviceRowViewModel">
+                                        <Button Classes="noiseDeviceRow" Classes.playing="{Binding Playing}" Opacity="{Binding RowOpacity}"
+                                                Command="{Binding $parent[ItemsControl].((vm:NoisePlayerViewModel)DataContext).ToggleOtherDeviceCommand}"
+                                                CommandParameter="{Binding}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Tip}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                                <mi:MaterialIcon Classes="rowIcon" Kind="{Binding Icon}" Width="16" Height="16" VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Classes="noiseDeviceDetail" Classes.note="{Binding HasNote}" Text="{Binding Detail}" FontSize="11"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <mi:MaterialIcon Grid.Column="2" Kind="Sync" Width="13" Height="13" VerticalAlignment="Center"
+                                                                 Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding Sending}"
+                                                                 ToolTip.Tip="Waiting for that device" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
                         </StackPanel>
                     </Flyout>
                 </Button.Flyout>

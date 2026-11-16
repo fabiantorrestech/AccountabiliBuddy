@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,7 +29,7 @@ internal fun InfoSheet(title: String, text: String, onDismiss: () -> Unit) {
 @Composable
 internal fun QrSheet(title: String, text: String, links: List<String>, onDismiss: () -> Unit) {
     AbSheet(onDismiss) {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.Start) {
+        Column(Modifier.abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.Start) {
             Text(title, style = Ab.type.head, color = Ab.colors.ink)
             Text(text, style = Ab.type.bodyMedium, color = Ab.colors.muted)
             links.forEachIndexed { index, link ->

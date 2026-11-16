@@ -98,6 +98,7 @@ object SettingsSearch {
         SearchEntry("Light or dark", Appearance, A.LIGHT_DARK, listOf("dark", "light", "sunset", "system", "set time", "night mode", "place")),
         SearchEntry("Colour", Appearance, A.COLOUR, listOf("colour", "color", "quiet", "standard")),
         SearchEntry("Animations", Appearance, A.ANIMATIONS, listOf("animation", "motion", "speed", "fast", "slow")),
+        SearchEntry("Step scrolling", Appearance, A.ANIMATIONS, listOf("e-ink", "eink", "scroll", "step", "refresh", "glide")),
         SearchEntry("Timeline look", Appearance, A.TIMELINE_LOOK, listOf("timeline", "grayscale", "e-ink", "eink", "outlined", "widget")),
         SearchEntry("Today layout", Appearance, A.TODAY_LAYOUT, listOf("today", "arrange", "reorder", "order", "hide", "cards", "more today", "fold", "home", "steps card", "customize")),
 

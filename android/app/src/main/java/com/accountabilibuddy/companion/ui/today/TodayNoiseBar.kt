@@ -1,5 +1,11 @@
 package com.accountabilibuddy.companion.ui.today
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -39,10 +45,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.noise.NoisePlayer
 import com.accountabilibuddy.companion.noise.NoiseSettings
 import com.accountabilibuddy.companion.noise.NoiseState
+import com.accountabilibuddy.companion.ui.NoiseDeviceRows
+import com.accountabilibuddy.companion.ui.NoiseDevicesButton
+import com.accountabilibuddy.companion.ui.UiPrefs
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -110,24 +121,52 @@ fun TodayNoiseBar(state: NoiseState, settings: NoiseSettings, player: NoisePlaye
 }
 
 // The vertical slider, in a pill above the volume button (anchored to it, CN §1 rule 4), with the % on top. A tap outside closes it.
+// ADR 92: when other devices have a noise player, a Devices button under the slider shows their rows in a card to the pill's left
+// (hidden until pressed, then remembered on this phone).
 @Composable
 private fun VolumePopup(volume: Int, player: NoisePlayer, onDismiss: () -> Unit) {
     var level by remember(volume) { mutableIntStateOf(volume) }
-    val lift = with(LocalDensity.current) { 56.dp.roundToPx() }
+    val context = LocalContext.current
+    val app = context.applicationContext as CompanionApp
+    val others by app.pcNoise.others.collectAsState()
+    val devicesOpen by UiPrefs.noiseDevicesOpen.collectAsState()
+    val density = LocalDensity.current
+    val place = remember(density) { VolumePopupPlace(with(density) { 56.dp.roundToPx() }, with(density) { 28.dp.roundToPx() }, with(density) { 8.dp.roundToPx() }) }
     Popup(
-        alignment = Alignment.BottomCenter,
-        offset = IntOffset(0, -lift),
+        popupPositionProvider = place,
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = true),
     ) {
-        // Board B-Phone-Session: a 56 x 190 pill with a hairline, the % on top, an 8 dp track and a 24 dp thumb.
-        Column(
-            Modifier.size(width = 56.dp, height = 190.dp).background(Ab.colors.surface2, CircleShape).border(1.dp, Ab.colors.line, CircleShape)
-                .padding(top = 14.dp, bottom = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("$level%", style = Ab.type.micro.copy(fontSize = 12.5.sp, letterSpacing = 0.sp, fontFeatureSettings = "tnum"), fontWeight = FontWeight.Bold, color = Ab.colors.ink)
-            VerticalVolumeSlider(level, onChange = { level = it }, onDone = { player.setVolume(level) }, modifier = Modifier.padding(top = 6.dp), trackHeight = 138.dp)
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (others.isNotEmpty() && devicesOpen) {
+                Column(
+                    Modifier.width(260.dp).background(Ab.colors.surface2, Ab.shapes.cardShape).border(1.dp, Ab.colors.line, Ab.shapes.cardShape).padding(8.dp),
+                ) {
+                    Text("Other devices", style = Ab.type.small, fontWeight = FontWeight.SemiBold, color = Ab.colors.muted, modifier = Modifier.padding(start = 6.dp, bottom = 4.dp))
+                    NoiseDeviceRows(others, onSetPlaying = app.pcNoise::setPlaying)
+                }
+            }
+            // Board B-Phone-Session: a 56 x 190 pill with a hairline, the % on top, an 8 dp track and a 24 dp thumb (taller by the Devices button).
+            Column(
+                Modifier.size(width = 56.dp, height = if (others.isEmpty()) 190.dp else 236.dp).background(Ab.colors.surface2, CircleShape).border(1.dp, Ab.colors.line, CircleShape)
+                    .padding(top = 14.dp, bottom = if (others.isEmpty()) 12.dp else 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("$level%", style = Ab.type.micro.copy(fontSize = 12.5.sp, letterSpacing = 0.sp, fontFeatureSettings = "tnum"), fontWeight = FontWeight.Bold, color = Ab.colors.ink)
+                VerticalVolumeSlider(level, onChange = { level = it }, onDone = { player.setVolume(level) }, modifier = Modifier.padding(top = 6.dp), trackHeight = 138.dp)
+                if (others.isNotEmpty()) {
+                    NoiseDevicesButton(devicesOpen, onToggle = { UiPrefs.setNoiseDevicesOpen(context, !devicesOpen) }, modifier = Modifier.padding(top = 6.dp))
+                }
+            }
         }
+    }
+}
+
+// Puts the popover above the volume button with the pill centred on it, so the devices card opens to its left; kept inside the window.
+private class VolumePopupPlace(private val lift: Int, private val halfPill: Int, private val margin: Int) : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
+        val x = (anchorBounds.center.x + halfPill - popupContentSize.width).coerceIn(margin, (windowSize.width - popupContentSize.width - margin).coerceAtLeast(margin))
+        val y = (anchorBounds.bottom - lift - popupContentSize.height).coerceAtLeast(margin)
+        return IntOffset(x, y)
     }
 }

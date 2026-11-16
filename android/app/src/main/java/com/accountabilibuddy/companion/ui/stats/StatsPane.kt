@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.Composable
@@ -24,6 +23,7 @@ import com.accountabilibuddy.companion.stats.StatsPeriods
 import com.accountabilibuddy.companion.stats.StatsRange
 import com.accountabilibuddy.companion.stats.StatsView
 import com.accountabilibuddy.companion.stats.StatsViewsState
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 import com.accountabilibuddy.companion.ui.kit.AbPageHeader
 import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import com.accountabilibuddy.companion.ui.kit.AbSegmented
@@ -108,7 +108,7 @@ fun StatsPane(
         )
     }
     val chips = remember(views, shownView) { if (shownView in views.shown) views.shown else views.shown + shownView }
-    LazyColumn(
+    AbLazyColumn(
         modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),

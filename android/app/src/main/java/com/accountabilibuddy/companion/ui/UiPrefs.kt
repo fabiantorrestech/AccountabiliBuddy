@@ -52,6 +52,8 @@ object UiPrefs {
     private val _todaySessionLayout = MutableStateFlow<TodayLayout?>(null)
     private val _moreTodayBar = MutableStateFlow(true)
     private val _stepsMoved = MutableStateFlow(StepsMovedNote.NotChecked)
+    private val _stepScroll = MutableStateFlow(false)
+    private val _noiseDevicesOpen = MutableStateFlow(false)
 
     val barLook: StateFlow<BarLook> = _barLook.asStateFlow()
 
@@ -76,6 +78,15 @@ object UiPrefs {
     /** Whether Today shows the sync light (Settings › Devices & sync). It only hides the light: syncing itself is never touched. */
     val syncLight: StateFlow<SyncLightSetting> = _syncLight.asStateFlow()
     val motion: StateFlow<MotionSpeed> = _motion.asStateFlow()
+
+    /**
+     * Step scrolling (Settings › Appearance › Animations, for e-ink screens): lists jump in steps of about a third of their height
+     * as the finger moves, instead of following it, and never glide after a flick ([stepScroll]). This phone only, never synced.
+     */
+    val stepScroll: StateFlow<Boolean> = _stepScroll.asStateFlow()
+
+    /** Whether the volume popover shows the other devices' noise rows (ADR 92); hidden until opened, then remembered. This phone only. */
+    val noiseDevicesOpen: StateFlow<Boolean> = _noiseDevicesOpen.asStateFlow()
     val themeName: StateFlow<ThemeName> = _themeName.asStateFlow()
     val mode: StateFlow<LightDarkMode> = _mode.asStateFlow()
     val colour: StateFlow<ColourMode> = _colour.asStateFlow()
@@ -98,6 +109,8 @@ object UiPrefs {
             null
         }
         _moreTodayBar.value = prefs.getBoolean("moreTodayBar", true)
+        _stepScroll.value = prefs.getBoolean("stepScroll", false)
+        _noiseDevicesOpen.value = prefs.getBoolean("noiseDevicesOpen", false)
         // Decided once, from the layout this phone saved before Daily steps left Today.
         val moved = StepsMovedNote.fromCode(prefs.getInt("stepsMoved", StepsMovedNote.NotChecked.code))
         _stepsMoved.value = if (moved == StepsMovedNote.NotChecked) {
@@ -173,6 +186,16 @@ object UiPrefs {
     fun setMotion(context: Context, speed: MotionSpeed) {
         _motion.value = speed
         prefs(context).edit().putString("motion", speed.name).apply()
+    }
+
+    fun setStepScroll(context: Context, on: Boolean) {
+        _stepScroll.value = on
+        prefs(context).edit().putBoolean("stepScroll", on).apply()
+    }
+
+    fun setNoiseDevicesOpen(context: Context, open: Boolean) {
+        _noiseDevicesOpen.value = open
+        prefs(context).edit().putBoolean("noiseDevicesOpen", open).apply()
     }
 
     fun setThemeName(context: Context, theme: ThemeName) {

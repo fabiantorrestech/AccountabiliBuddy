@@ -24,7 +24,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.sp
@@ -62,6 +61,7 @@ import com.accountabilibuddy.companion.ui.kit.AbSegmented
 import com.accountabilibuddy.companion.ui.kit.AbSheet
 import com.accountabilibuddy.companion.ui.kit.AbSubpageHeader
 import com.accountabilibuddy.companion.ui.kit.AbTonalButton
+import com.accountabilibuddy.companion.ui.kit.AbToggleRow
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.companion.ui.theme.AbPalettes
 import com.accountabilibuddy.companion.ui.theme.AbShapes
@@ -96,6 +96,7 @@ fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
     val lightAt by UiPrefs.lightAt.collectAsState()
     val place by UiPrefs.place.collectAsState()
     val motion by UiPrefs.motion.collectAsState()
+    val stepScroll by UiPrefs.stepScroll.collectAsState()
     val barLook by UiPrefs.barLook.collectAsState()
     val plan = rememberDarkPlan(mode, darkAt, lightAt, place)
 
@@ -113,7 +114,7 @@ fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
     }
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxSize().abVerticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         AbSubpageHeader(crumb = "Settings", title = "Appearance", onBack = onBack)
@@ -173,6 +174,15 @@ fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
         AbCard(Modifier.bringIntoViewRequester(cards.getValue(SettingsAnchors.ANIMATIONS))) {
             AbSectionLabel("Animations")
             AbSegmented(MotionSpeed.entries.map { it.label }, MotionSpeed.entries.indexOf(motion), { UiPrefs.setMotion(context, MotionSpeed.entries[it]) })
+            if (motion == MotionSpeed.Off) {
+                Text("Nothing moves: no fades, slides, spinners or growing bars.", style = Ab.type.small, color = Ab.colors.muted)
+            }
+            AbToggleRow(
+                "Step scrolling (e-ink)",
+                checked = stepScroll,
+                onCheckedChange = { UiPrefs.setStepScroll(context, it) },
+                subtitle = "Lists jump in steps as you drag instead of gliding, so an e-ink screen redraws less.",
+            )
             AbSectionLabel("Timeline look")
             AbSegmented(
                 listOf("Colour", "Grayscale", "E-ink"), BarLook.entries.indexOf(barLook),
@@ -335,7 +345,7 @@ private fun PlaceSheet(onDismiss: () -> Unit, onPick: (AppearancePlace) -> Unit)
     DisposableEffect(Unit) { onDispose { index.release() } }
 
     AbSheet(onDismiss = onDismiss) {
-        Column(Modifier.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.imePadding().abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Place for sunset", style = Ab.type.section, color = Ab.colors.ink)
             Text(
                 "Used only on this phone to work out sunrise and sunset. It is kept sealed here, never synced or sent, and you can forget it any time.",

@@ -13,7 +13,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
@@ -33,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.outlined.Close
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -146,7 +146,7 @@ private fun TaskDetailSheetBody(
 
     val running = detail.ref.kind == TaskKind.Running
     val body: @Composable ColumnScope.() -> Unit = {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (inline) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AbSectionLabel(detail.label, Modifier.weight(1f))

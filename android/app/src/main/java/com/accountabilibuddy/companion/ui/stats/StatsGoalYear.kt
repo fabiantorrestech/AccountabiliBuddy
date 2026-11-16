@@ -2,7 +2,6 @@ package com.accountabilibuddy.companion.ui.stats
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +22,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.goals.GoalHeatmapLabels
+import com.accountabilibuddy.companion.ui.abHorizontalScroll
 import com.accountabilibuddy.companion.ui.goals.drawMonthStaircase
 import com.accountabilibuddy.companion.ui.goals.lineColor
 import com.accountabilibuddy.shared.goals.GoalMonthLines
@@ -81,7 +81,7 @@ fun StatsGoalYear(
             }
         }
 
-        Box(Modifier.weight(1f).horizontalScroll(scroll)) {
+        Box(Modifier.weight(1f).abHorizontalScroll(scroll)) {
             Canvas(
                 Modifier.width(gridWidth).height(gridHeight).pointerInput(map) {
                     detectTapGestures { at ->

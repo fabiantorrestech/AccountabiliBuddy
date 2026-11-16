@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -98,7 +97,7 @@ private fun RestoreChoicesDialog(file: String, onDismiss: () -> Unit, onRestore:
         onConfirm = { onRestore(chosen + required) },
     ) {
         Column(
-            Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxWidth().heightIn(max = 520.dp).abVerticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text("$about · ${available.size} parts", style = Ab.type.small, color = Ab.colors.muted)

@@ -210,6 +210,8 @@ private val checks: List<FixtureCheck> = listOf(
 private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     // lmp-lock (ADR 73-75): the hold, looser-change wait, capability memory, redirect and signing rules of the phone lock.
     "lmp-lock" to ::lmpLockSelfCheck,
+    // ADR 92: a phone's noise player and its play/pause commands in its file, and who gets play/pause.
+    "noise-remote" to Nr92SelfCheck::run,
     "goals-store" to GoalListRulesCheck::run,
     // Round 2 R6b1: the readings list, the trend and the goal menu order (phone only: no C# twin).
     "goals-ui-page" to GoalsUiPageCheck::run,

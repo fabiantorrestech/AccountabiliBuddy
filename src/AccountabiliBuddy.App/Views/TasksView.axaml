@@ -348,7 +348,8 @@
         <Style Selector="Button.endedSave:pointerover TextBlock">
             <Setter Property="TextDecorations" Value="Underline" />
         </Style>
-        <Style Selector="Button.resetHold">
+        <!-- Only with Animations on (.motionOn on the main window); Off shows the change at once. -->
+        <Style Selector=":is(Window).motionOn Button.resetHold">
             <Setter Property="Transitions">
                 <Transitions>
                     <DoubleTransition Property="Opacity" Duration="0:0:0.15" />

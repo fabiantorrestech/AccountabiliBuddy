@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -18,7 +17,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import com.accountabilibuddy.companion.ui.AbLazyColumn
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import com.accountabilibuddy.companion.ui.shell.LocalExpanded
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -65,11 +65,11 @@ fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier 
         Column(modifier.fillMaxSize()) {
             Box(Modifier.padding(start = 24.dp, end = 24.dp, top = 8.dp)) { header() }
             Row(Modifier.weight(1f).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Column(Modifier.weight(0.85f).verticalScroll(rememberScrollState()).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(0.85f).abVerticalScroll(rememberScrollState()).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     WeekStrip(model.cells, onPick = actions.onPick, onShiftWeek = actions.onShiftWeek)
                     PlanDayDetails(model, actions)
                 }
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+                Column(Modifier.weight(1f).abVerticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
                     if (model.timeline.rows.isEmpty()) emptyText() else PlanTimeline(model.timeline.rows, onEvent = actions.onEvent)
                 }
             }
@@ -78,7 +78,7 @@ fun PlanPane(model: PlanPaneModel, actions: PlanPaneActions, modifier: Modifier 
             }
         }
     } else Column(modifier.fillMaxSize()) {
-        LazyColumn(
+        AbLazyColumn(
             Modifier.weight(1f),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

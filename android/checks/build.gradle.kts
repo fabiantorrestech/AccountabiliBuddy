@@ -103,6 +103,8 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/pause/PauseRules.kt",
             // CP1a: the default device name (the debug build adds " (debug)").
             "com/accountabilibuddy/companion/sync/DefaultDeviceName.kt",
+            // ADR 92: which apps answer a play or pause for their noise player.
+            "com/accountabilibuddy/companion/sync/NoiseVersions.kt",
         )
     }
     into(layout.buildDirectory.dir("sharedSrc"))

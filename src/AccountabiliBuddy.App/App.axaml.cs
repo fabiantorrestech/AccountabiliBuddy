@@ -157,6 +157,7 @@ public partial class App : Application
     private Func<bool> _goalHasAndroidDevice = () => false;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
+    private AccountabiliBuddy.App.Services.Remote.NoiseCommandSender? _noiseSender;
     private AccountabiliBuddy.App.Services.Sync.SyncRemovalService? _syncRemoval;
     private UnlinkedViewModel? _unlinkedViewModel;
 
@@ -875,6 +876,16 @@ public partial class App : Application
         // ADR 36, 42: the noise player in this PC's file for the phone and watch; a change goes out with the next write, and
         // playing or a phone's command speeds the Drive poll up.
         syncCoordinator.Noise = remoteNoise.StateAsync;
+        // ADR 92: the volume popover's "Other devices" rows play or pause another device's noise through this PC's file.
+        _noiseSender = new AccountabiliBuddy.App.Services.Remote.NoiseCommandSender(receivedDevices, syncIdentity, time);
+        syncCoordinator.Actions = () => _noiseSender.Pending;
+        noisePlayer.UseOtherDevices(_noiseSender);
+        _noiseSender.PendingChanged += (_, _) =>
+        {
+            syncCoordinator.NotifyHistoryChanged();
+            _syncDrive?.UpdatePollInterval();
+            _syncRelay?.UpdatePollInterval();
+        };
         remoteNoise.StateChanged += (_, _) =>
         {
             syncCoordinator.NotifyHistoryChanged();
@@ -1015,7 +1026,7 @@ public partial class App : Application
             syncCoordinator, syncSettings, syncIdentity, receivedDevices, _sessions, driveFiles)
         {
             IsSignedIn = () => driveAccount.IsSignedIn,
-            NoiseBusy = () => remoteNoise.WantsFastPoll,
+            NoiseBusy = () => remoteNoise.WantsFastPoll || _noiseSender?.WantsFastPoll == true,
             LunchBusy = lunchListening.IsListening,
             // Every 10 seconds during work parts too, for pickups across PCs (design K).
             InWorkHours = () =>

@@ -9,6 +9,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.NoWindowAnimationWhenOff
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -32,7 +33,10 @@ fun AbDialog(
         textContentColor = colors.ink,
         shape = Ab.shapes.cardShape,
         title = { Text(title, style = Ab.type.section) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content) },
+        text = {
+            NoWindowAnimationWhenOff()
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        },
         confirmButton = {
             if (confirmText != null) TextButton(onClick = onConfirm) { Text(confirmText, color = colors.ink, fontWeight = FontWeight.Bold) }
         },

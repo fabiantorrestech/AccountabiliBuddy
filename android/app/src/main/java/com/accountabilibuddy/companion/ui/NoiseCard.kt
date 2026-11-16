@@ -21,6 +21,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,10 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, compact: Boolean = false) {
     val colors = Ab.colors
     var volume by remember(settings.volume) { mutableFloatStateOf(settings.volume.toFloat()) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val app = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
+    val others by app.pcNoise.others.collectAsState()
+    val devicesOpen by UiPrefs.noiseDevicesOpen.collectAsState()
     AbCard(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), verticalSpacing = 0.dp) {
         val title: @Composable (Modifier) -> Unit = { modifier ->
             if (state.needsHeadphones) {
@@ -114,6 +119,11 @@ fun NoiseCard(state: NoiseState, settings: NoiseSettings, player: NoisePlayer, c
                 colors = SliderDefaults.colors(thumbColor = colors.ink, activeTrackColor = colors.ink, inactiveTrackColor = colors.surface2),
             )
             Text("${volume.toInt()}%", style = Ab.type.small, color = colors.muted, modifier = Modifier.width(40.dp))
+            if (others.isNotEmpty()) NoiseDevicesButton(devicesOpen, onToggle = { UiPrefs.setNoiseDevicesOpen(context, !devicesOpen) })
+        }
+        // ADR 92: the other devices' noise players, hidden behind the Devices button until it is pressed.
+        if (others.isNotEmpty() && devicesOpen) {
+            NoiseDeviceRows(others, onSetPlaying = app.pcNoise::setPlaying, modifier = Modifier.padding(bottom = 6.dp))
         }
     }
 }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -45,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.AppCatalog
 import com.accountabilibuddy.companion.goals.PhoneScreenTime
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 import com.accountabilibuddy.companion.ui.kit.AbChip
 import com.accountabilibuddy.companion.ui.kit.AbOutlinedButton
 import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
@@ -169,7 +169,7 @@ fun ScreenTimeSourceSheet(rule: GoalSourceRule, creating: Boolean, onSave: (Goal
             )
         } else {
             // A fixed height that scrolls on its own, so the page keeps its length however many apps the phone has.
-            LazyColumn(Modifier.fillMaxWidth().height(240.dp)) {
+            AbLazyColumn(Modifier.fillMaxWidth().height(240.dp)) {
                 items(shown, key = { it.first }) { (pkg, name) ->
                     val added = entries.any { it.kind == GoalAppMatchKind.Package && it.text == pkg }
                     AbSheetRow(

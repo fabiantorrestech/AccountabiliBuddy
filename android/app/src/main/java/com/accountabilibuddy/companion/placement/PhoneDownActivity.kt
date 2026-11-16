@@ -10,7 +10,6 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.Lock
@@ -43,6 +41,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.abVerticalScroll
+import com.accountabilibuddy.companion.ui.setAbContent
 import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -95,7 +95,7 @@ class PhoneDownActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val app = application as CompanionApp
         ContextCompat.registerReceiver(this, screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_EXPORTED)
-        setContent {
+        setAbContent {
             CompanionTheme(systemBarIconsFollowTheme = false) {
                 key(generation) {
                     PhoneDownScreen(
@@ -222,7 +222,7 @@ private fun PhoneDownScreen(app: CompanionApp, pocket: Boolean, shown: Boolean, 
         Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding().imePadding(),
     ) {
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp, vertical = 24.dp),
+            Modifier.fillMaxSize().abVerticalScroll(rememberScrollState()).padding(horizontal = 28.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

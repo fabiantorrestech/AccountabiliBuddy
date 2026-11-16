@@ -36,6 +36,7 @@ import com.accountabilibuddy.shared.sync.SyncAction
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.stateIn
@@ -307,6 +308,28 @@ class CompanionApp : Application() {
     lateinit var noise: com.accountabilibuddy.companion.noise.NoisePlayer
         private set
 
+    /** The other devices' noise players and the commands for them (ADR 42, 36, 92). */
+    lateinit var pcNoise: PcNoiseRemote
+
+    /** The noise commands the other devices send this phone (ADR 92). */
+    lateinit var noiseInbox: com.accountabilibuddy.companion.sync.NoiseActionInbox
+
+    // When this phone's player last changed what the other devices see (ADR 92): the "at" of its file's noise, so a file written
+    // again with nothing new stays the same.
+    @Volatile
+    private var ownNoiseShown: Pair<com.accountabilibuddy.shared.sync.SyncNoise, java.time.Instant>? = null
+
+    /** This phone's noise player for its file (ADR 92); null until it is set up or while no sound folder is chosen. */
+    private fun ownNoise(): com.accountabilibuddy.shared.sync.SyncNoise? {
+        if (!::noise.isInitialized) return null
+        val state = noise.state.value
+        if (!state.hasFolder || state.fileCount == 0) return null
+        val now = com.accountabilibuddy.shared.sync.SyncNoise(state.playing, state.title, noise.settings.value.volume / 100.0, noise.lockedOut(), java.time.Instant.EPOCH)
+        val shown = ownNoiseShown
+        val at = if (shown != null && shown.first == now) shown.second else java.time.Instant.now().also { ownNoiseShown = now to it }
+        return now.copy(at = at)
+    }
+
     /** "How your phone locks" (ADR 73): LockMyPhone-Extended or the built-in essentials screen. */
     val lockScreen by lazy { com.accountabilibuddy.companion.essentials.LockScreenChoice(this) }
 
@@ -565,8 +588,17 @@ class CompanionApp : Application() {
                 .collect { runCatching { Refresher.refresh(this@CompanionApp) } }
         }
         planFileSync = DayPlanFileSync(store, actions, pcRemote, sync.received, appScope).also { it.start() }
-        // ADR 42, 36: the watch's Noise page controls a PC's noise player through the same files.
-        val pcNoise = PcNoiseRemote(actions, sync.received, appScope)
+        // ADR 42, 36: the watch's Noise page controls a PC's noise player through the same files; ADR 92: the volume popover's
+        // "Other devices" rows play or pause any other device's player.
+        pcNoise = PcNoiseRemote(actions, sync.received, appScope, selfId = { sync.deviceId })
+        // ADR 92: the noise commands the other devices send this phone, and this phone's player in its file.
+        noiseInbox = com.accountabilibuddy.companion.sync.NoiseActionInbox(
+            this, sync.received, selfId = { sync.deviceId }, selfName = { deviceName },
+            player = { if (::noise.isInitialized) noise else null }, onApplied = { sendSyncFilesSoon() }, scope = appScope,
+        ).also { it.start() }
+        sync.acks = { noiseInbox.acks() }
+        sync.actionResults = { noiseInbox.results() }
+        sync.noise = { ownNoise() }
         actions.onAnswered = { action, result, pc ->
             pcRemote.answered(action, result, pc)
             planFileSync.answered(action, result, pc)
@@ -947,6 +979,16 @@ class CompanionApp : Application() {
         com.accountabilibuddy.companion.noise.HeadphoneWatcher(this, headphones, noise, schedulePermits = ::headphoneScheduleAllowsNow).start()
         com.accountabilibuddy.companion.noise.CallPauseWatcher(this, noise, appScope).start()
         noiseWatch = com.accountabilibuddy.companion.watch.NoiseWatchSync(this, noise, watchBridge.linkSettings, appScope, pcNoise).also { it.start() }
+        // ADR 92: a change the other devices would see (play, pause, another sound, volume, the lock) goes out soon.
+        appScope.launch {
+            kotlinx.coroutines.flow.combine(noise.state, noise.settings) { _, _ -> ownNoise()?.copy(at = java.time.Instant.EPOCH) }
+                .distinctUntilChanged()
+                .drop(1)
+                .collectLatest {
+                    delay(1_000)
+                    sendSyncFilesSoon()
+                }
+        }
         reminderRelay = com.accountabilibuddy.companion.notify.ReminderRelay(this, watchBridge.linkSettings, appScope)
         sync.reminderActions = { reminderRelay.actions.value }
         sync.blockers = { com.accountabilibuddy.companion.blocks.BlockGuard.lastBlockers(this) }
@@ -1084,6 +1126,11 @@ class CompanionApp : Application() {
 
         // PS2b: a session on this phone keeps Drive and the relay at their busy pace, so its file is written at least every 5 minutes (B13).
         if (phoneSession.realSessionRunning()) {
+            return true
+        }
+
+        // ADR 92: while this phone's noise plays (another device may ask it to pause) and for 10 minutes after a noise command arrived.
+        if ((::noise.isInitialized && noise.state.value.playing) || (::noiseInbox.isInitialized && noiseInbox.recentlyCommanded())) {
             return true
         }
 

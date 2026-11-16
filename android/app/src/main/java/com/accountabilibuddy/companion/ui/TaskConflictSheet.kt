@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,7 +60,7 @@ fun TaskConflictSheet(
     val zone = ZoneId.systemDefault()
     val now = OffsetDateTime.now(ZoneOffset.UTC)
     AbSheet(onDismiss) {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(view.head, style = Ab.type.head, color = colors.ink)
             if (view.countText.isNotEmpty()) Text(view.countText, style = Ab.type.small, color = colors.muted)
             Text(view.taskTitle.ifBlank { "(untitled task)" }, style = Ab.type.small, color = colors.muted, maxLines = 2)

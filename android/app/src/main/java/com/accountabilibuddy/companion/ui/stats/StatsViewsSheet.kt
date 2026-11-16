@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -42,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.accountabilibuddy.companion.stats.StatsView
 import com.accountabilibuddy.companion.stats.StatsViewsState
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import com.accountabilibuddy.companion.ui.kit.AbSheet
 import com.accountabilibuddy.companion.ui.kit.AbSegmented
 import com.accountabilibuddy.companion.goals.GoalDisplayPrefs
@@ -85,7 +85,7 @@ fun StatsViewsSheet(state: StatsViewsState, onChange: (StatsViewsState) -> Unit,
             Text("Month lines", style = type.body, color = colors.ink)
             AbSegmented(lines.map { it.label }, lines.indexOf(display.monthLines), { GoalDisplayPrefs.setMonthLines(context, lines[it]) })
         }
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxWidth().abVerticalScroll(rememberScrollState())) {
             working.forEachIndexed { index, view ->
                 // Keyed by the view, so a row that moves while it is dragged keeps its gesture.
                 key(view) {

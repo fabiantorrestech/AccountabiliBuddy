@@ -150,8 +150,8 @@
         <Style Selector="Button.caption.close:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
         </Style>
-        <!-- Busy: the sync icon spins while a sync runs. -->
-        <Style Selector="Button.busy mi|MaterialIcon">
+        <!-- Busy: the sync icon spins while a sync runs (still with Animations Off: .motionOn is set from code). -->
+        <Style Selector=":is(Window).motionOn Button.busy mi|MaterialIcon">
             <Style.Animations>
                 <Animation Duration="0:0:1.1" IterationCount="Infinite">
                     <KeyFrame Cue="0%">

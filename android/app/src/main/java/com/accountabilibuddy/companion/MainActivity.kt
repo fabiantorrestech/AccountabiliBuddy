@@ -11,7 +11,6 @@ import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -22,6 +21,7 @@ import com.accountabilibuddy.companion.health.StepsReader
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.accountabilibuddy.companion.ui.setAbContent
 import kotlinx.coroutines.launch
 import com.accountabilibuddy.companion.notify.TimelineNotifier
 import com.accountabilibuddy.companion.sync.JoinLink
@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        setContent {
+        setAbContent {
             CompanionTheme {
                 MainScreen(
                     viewModel = viewModel,

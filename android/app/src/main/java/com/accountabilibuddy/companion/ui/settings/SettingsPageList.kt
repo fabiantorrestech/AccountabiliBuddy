@@ -2,7 +2,6 @@ package com.accountabilibuddy.companion.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -10,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 
 /** The key of the "Settings rest until ..." banner row a Guards list puts first while a focus session runs. */
 const val REST_BANNER = "rest"
@@ -25,7 +25,7 @@ fun SettingsPageList(rows: List<PageRow>, anchor: String?, modifier: Modifier = 
     @Suppress("NAME_SHADOWING")
     val rows = if (companion) rows.filterNot { it.key in SettingsAnchors.AB_ONLY } else rows
     val state = rememberLazyListState()
-    LazyColumn(modifier, state = state, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    AbLazyColumn(modifier, state = state, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         items(rows, key = { it.key }) { row -> row.content() }
     }
     ScrollToAnchor(state, anchor, rows.map { it.key }, scrollAgain)

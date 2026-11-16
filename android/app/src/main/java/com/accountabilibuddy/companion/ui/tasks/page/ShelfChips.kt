@@ -2,7 +2,6 @@ package com.accountabilibuddy.companion.ui.tasks.page
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -30,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accountabilibuddy.companion.ui.abHorizontalScroll
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.tasks.TaskBin
 import com.accountabilibuddy.shared.tasks.TaskBins
@@ -57,7 +57,7 @@ fun ShelfChips(
 ) {
     val colors = Ab.colors
     Row(
-        modifier.fillMaxWidth().height(ChipRowHeight).horizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+        modifier.fillMaxWidth().height(ChipRowHeight).abHorizontalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {

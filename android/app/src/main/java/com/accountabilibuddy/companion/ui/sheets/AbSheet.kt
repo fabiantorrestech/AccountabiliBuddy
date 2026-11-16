@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.BottomSheetDefaults
@@ -44,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accountabilibuddy.companion.ui.NoWindowAnimationWhenOff
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import kotlinx.coroutines.launch
 import com.accountabilibuddy.companion.ui.theme.Ab
 
@@ -117,6 +118,7 @@ fun AbSheet(
             Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 36.dp, height = 4.dp).background(colors.faint, shapes.pill))
         },
     ) {
+        NoWindowAnimationWhenOff()
         BackHandler(enabled = refusing) { guard?.ask?.invoke() }
         // A sheet that is typed in ([aboveKeyboard]) keeps its height and place: its content and footer make room for the keyboard
         // inside it, following the keyboard as it slides in, so the sheet itself never jumps.
@@ -145,7 +147,7 @@ fun AbSheet(
                 titleAction?.invoke()
             }
             Column(
-                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 8.dp),
+                Modifier.weight(1f).fillMaxWidth().abVerticalScroll(rememberScrollState()).padding(bottom = 8.dp),
                 verticalArrangement = Arrangement.Top,
                 content = content,
             )

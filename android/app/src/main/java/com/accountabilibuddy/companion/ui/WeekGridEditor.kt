@@ -1,6 +1,5 @@
 package com.accountabilibuddy.companion.ui
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,7 +79,7 @@ fun WeekGridEditor(plan: DayPlan, basePlan: DayPlan, onChange: (DayPlan) -> Unit
             )
         }
 
-        Column(Modifier.horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.abHorizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("", Modifier.width(44.dp))
                 for (index in 0 until weekCount) {

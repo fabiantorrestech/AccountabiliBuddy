@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /** The sidebar's width: wide enough for the noise player's controls, slim enough to leave a tablet's pane its room. */
@@ -43,7 +43,7 @@ fun AbSideBar(selected: AppDestination, onSelect: (AppDestination) -> Unit, modi
         // The sidebar scrolls as a whole, so a short window keeps every row and the footer at their size; with room the footer sits at the foot.
         BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().statusBarsPadding().navigationBarsPadding()) {
             Column(
-                Modifier.heightIn(min = maxHeight).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
+                Modifier.heightIn(min = maxHeight).abVerticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

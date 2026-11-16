@@ -396,6 +396,15 @@ class SyncCoordinator(
     /** What the user did here for a PC, waiting for its ack (ADR 26); set by the app. */
     var actions: () -> List<com.accountabilibuddy.shared.sync.SyncAction> = { emptyList() }
 
+    /** The ids of the other devices' actions this phone applied (ADR 92: noise commands sent to it), for its file's "acks". */
+    var acks: () -> List<String> = { emptyList() }
+
+    /** This phone's answers to those actions (ADR 92), for its file's "actionResults". */
+    var actionResults: () -> List<com.accountabilibuddy.shared.sync.SyncActionResult> = { emptyList() }
+
+    /** This phone's noise player (ADR 92); null without a sound folder. */
+    var noise: () -> com.accountabilibuddy.shared.sync.SyncNoise? = { null }
+
     /** The phone's unlock times since a moment (ADR 26 pickups); null without Usage access. */
     var unlocksSince: (Instant) -> List<Instant>? = { null }
 
@@ -1080,6 +1089,9 @@ class SyncCoordinator(
         pickups = runCatching { pickups() }.getOrNull(),
         lunch = lunch(),
         actions = actions().takeIf { it.isNotEmpty() },
+        acks = runCatching { acks() }.getOrNull()?.ifEmpty { null },
+        actionResults = runCatching { actionResults() }.getOrNull()?.ifEmpty { null },
+        noise = runCatching { noise() }.getOrNull(),
         smartBedtime = runCatching { smartBedtime() }.getOrNull(),
         reminderActions = runCatching { reminderActions() }.getOrNull()?.takeIf { it.isNotEmpty() },
         blockers = runCatching { blockers() }.getOrNull(),

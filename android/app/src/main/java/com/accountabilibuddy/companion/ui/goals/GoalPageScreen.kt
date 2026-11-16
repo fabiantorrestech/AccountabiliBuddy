@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui.goals
 
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import com.accountabilibuddy.companion.ui.kit.AbPageHeaderDefaults
 import com.accountabilibuddy.companion.ui.kit.AbOutlinedButton
 import androidx.compose.material.icons.automirrored.outlined.Notes
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.MoreVert
@@ -132,7 +132,7 @@ fun GoalPageScreen(
     LaunchedEffect(status, stored == null) { if (status == PhoneGoalStatus.Ready && stored == null) onBack() }
 
     val tint = GoalIcons.color((page?.goal ?: stored)?.color) ?: Ab.colors.accent
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().abVerticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Header(page, stored?.name.orEmpty(), (page?.goal ?: stored)?.icon, tint, onBack = onBack, onMenu = { menuOpen = true }, onStats = onOpenStats)
         if (page == null) {
             // The numbers are being worked out: the tiles' slot holds its place.

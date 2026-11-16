@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 import com.accountabilibuddy.companion.ui.kit.AbClearButton
 import com.accountabilibuddy.companion.ui.kit.AbChip
 import com.accountabilibuddy.companion.ui.kit.AbChipRow
@@ -101,7 +101,7 @@ fun TasksPane(
     }
 
     Column(modifier.fillMaxSize().imePadding()) {
-        LazyColumn(
+        AbLazyColumn(
             Modifier.weight(1f),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

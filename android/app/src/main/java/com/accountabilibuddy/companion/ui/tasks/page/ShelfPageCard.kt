@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -41,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.tasks.ShelfPage
 import com.accountabilibuddy.shared.tasks.TaskItem
@@ -95,7 +95,7 @@ fun ShelfPageCard(
         } else {
             val shift = if (motionScale > 0f) tween<IntOffset>((180 * motionScale).toInt()) else null
             val fade = if (motionScale > 0f) tween<Float>((300 * motionScale).toInt()) else null
-            LazyColumn(
+            AbLazyColumn(
                 Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { onListBounds(it.boundsInRoot()) },
                 state = listState,
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 84.dp),

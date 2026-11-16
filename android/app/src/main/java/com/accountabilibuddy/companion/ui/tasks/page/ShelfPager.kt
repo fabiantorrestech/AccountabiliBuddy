@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -35,6 +36,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.motionSpec
 import com.accountabilibuddy.shared.tasks.ShelfPage
 import com.accountabilibuddy.shared.tasks.ShelfPaging
 import com.accountabilibuddy.shared.tasks.TasksTabletLayout
@@ -57,7 +59,7 @@ private val ZoneFoot = 12.dp
  * The page changes by a tap on a peek, a tap on a dot, or a swipe of about 40 dp that starts on the card's header or its empty space.
  * A swipe that starts on a row is the row's own and never reaches here (the row takes it first). Past an end with [wrap] off the card
  * gives a small rubber-band bounce. Every change is the same motion: a crossfade with a 14 dp slide in the direction of travel over
- * [PAGE_CHANGE_MS] × [motionScale] (ease-out); with motion off ([motionScale] 0) a plain fade.
+ * [PAGE_CHANGE_MS] × [motionScale] (ease-out); with motion off ([motionScale] 0) at once.
  *
  * While a row is lifted ([dragging]) a labelled drop zone ([DropZone], 58 dp) slides in over each end that has a neighbour, on top
  * of the peek and the card's edge: the card keeps its size, the peeks stay as they are and nothing reflows. The zone the row is
@@ -97,8 +99,11 @@ fun ShelfPager(
         if (to == null) {
             // An end with wrap around off: a small bounce, nothing changes.
             scope.launch {
-                pull.snapTo(-by * slidePx.toFloat())
-                pull.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 500f))
+                // Motion off: no bounce at all (an e-ink screen would redraw for it).
+                if (motionScale > 0f) {
+                    pull.snapTo(-by * slidePx.toFloat())
+                    pull.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 500f))
+                }
             }
             return
         }
@@ -128,15 +133,16 @@ fun ShelfPager(
                                 onDragStart = { total = 0f },
                                 onDragEnd = {
                                     val (toLeft, toRight, _) = state.value
-                                    scope.launch { pull.animateTo(0f, tween(150)) }
+                                    scope.launch { pull.animateTo(0f, motionSpec(motionScale, 150)) }
                                     // A swipe to the left shows the page on the right, like turning a page.
                                     if (abs(total) >= travelPx) if (total < 0) go(toRight, 1) else go(toLeft, -1)
                                 },
-                                onDragCancel = { scope.launch { pull.animateTo(0f, tween(150)) } },
+                                onDragCancel = { scope.launch { pull.animateTo(0f, motionSpec(motionScale, 150)) } },
                             ) { change, amount ->
                                 change.consume()
                                 total += amount
-                                val shown = (total * 0.25f).coerceIn(-slidePx * 2f, slidePx * 2f)
+                                // The page leans after the finger (not with motion off: on e-ink that would redraw at every move).
+                                val shown = if (motionScale > 0f) (total * 0.25f).coerceIn(-slidePx * 2f, slidePx * 2f) else 0f
                                 scope.launch { pull.snapTo(shown) }
                             }
                         },
@@ -147,8 +153,8 @@ fun ShelfPager(
                             val direction = if (step[0] != 0) step[0] else if (targetState > initialState) 1 else -1
                             val time = (PAGE_CHANGE_MS * motionScale).roundToInt()
                             when {
-                                // Motion off: a plain fade.
-                                motionScale <= 0f -> fadeIn(tween(120)) togetherWith fadeOut(tween(120))
+                                // Motion off: the new page shows at once.
+                                motionScale <= 0f -> fadeIn(snap()) togetherWith fadeOut(snap())
                                 else -> (fadeIn(tween(time, easing = LinearOutSlowInEasing)) + slideInHorizontally(tween(time, easing = LinearOutSlowInEasing)) { direction * slidePx }) togetherWith
                                     (fadeOut(tween(time, easing = LinearOutSlowInEasing)) + slideOutHorizontally(tween(time, easing = LinearOutSlowInEasing)) { -direction * slidePx })
                             }.also { step[0] = 0 }
@@ -173,16 +179,16 @@ fun ShelfPager(
     }
 }
 
-// One drop zone sliding in over an end of the pager while a row is lifted (a fade with motion off); kept while it slides out after
-// its neighbour is gone. No zone where the end has no neighbour.
+// One drop zone sliding in over an end of the pager while a row is lifted; kept while it slides out after
+// its neighbour is gone. No zone where the end has no neighbour. With motion off it simply appears and goes.
 @Composable
 private fun EdgeZone(page: ShelfPage?, dragging: Boolean, left: Boolean, hot: Boolean, motionScale: Float, modifier: Modifier) {
     val time = (160 * motionScale).roundToInt()
     val side = if (left) -1 else 1
     AnimatedVisibility(
         visible = dragging && page != null,
-        enter = if (motionScale <= 0f) fadeIn(tween(100)) else slideInHorizontally(tween(time)) { side * it } + fadeIn(tween(time)),
-        exit = if (motionScale <= 0f) fadeOut(tween(100)) else slideOutHorizontally(tween(time)) { side * it } + fadeOut(tween(time)),
+        enter = if (motionScale <= 0f) fadeIn(snap()) else slideInHorizontally(tween(time)) { side * it } + fadeIn(tween(time)),
+        exit = if (motionScale <= 0f) fadeOut(snap()) else slideOutHorizontally(tween(time)) { side * it } + fadeOut(tween(time)),
         modifier = modifier,
     ) {
         val kept = remember { arrayOfNulls<ShelfPage>(1) }

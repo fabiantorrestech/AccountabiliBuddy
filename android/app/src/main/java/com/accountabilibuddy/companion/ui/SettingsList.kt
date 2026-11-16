@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -71,7 +70,7 @@ fun SettingsList(
     val searching = query.isNotBlank()
     val results = remember(query) { SettingsSearch.search(query) }
 
-    LazyColumn(state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    AbLazyColumn(state = listState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         // One item, 12 dp apart: the first row under the title sits where every tab's first row sits (brief §3.1 rule 1).
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

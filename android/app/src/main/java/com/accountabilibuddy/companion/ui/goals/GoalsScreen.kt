@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -47,6 +46,7 @@ import com.accountabilibuddy.companion.goals.GoalDisplayPrefs
 import com.accountabilibuddy.companion.goals.GoalListView
 import com.accountabilibuddy.companion.goals.GoalSettingsPrefs
 import com.accountabilibuddy.companion.goals.PhoneGoalReview
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 import com.accountabilibuddy.companion.ui.LocalGuardsLock
 import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
@@ -145,7 +145,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
     }
 
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(
+        AbLazyColumn(
             Modifier.fillMaxSize(),
             // Room under the last block for the floating +.
             contentPadding = PaddingValues(bottom = 96.dp),
@@ -167,9 +167,9 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
                         )
                     }
                 }
-                return@LazyColumn
+                return@AbLazyColumn
             }
-            val shown = overview ?: return@LazyColumn
+            val shown = overview ?: return@AbLazyColumn
             val layout = GoalListLayout.of(shown, display, selectedArea)
 
             item(key = "chips") {
@@ -306,12 +306,12 @@ private fun GoalBlock(section: GoalListSection, noPcGoal: Boolean, hasPc: Boolea
         if (area != null) {
             GoalAreaHeader(area, section.rows.size, section.collapsed, onToggle = { onToggle(area.id) }, onEdit = { onEditArea(area.id) })
         }
-        // Folding moves the blocks under it, so it eases (150-250 ms); with motion off it only fades (brief §3.12).
-        val reduced = scale <= 0f
+        // Folding moves the blocks under it, so it eases (150-250 ms); with motion off it opens and shuts at once (owner 2026-11-16:
+        // Off stops every animation, for e-ink screens; this replaces brief §3.12's fade).
         AnimatedVisibility(
             visible = !section.collapsed,
-            enter = if (reduced) fadeIn(tween(150)) else fadeIn(motionSpec(scale, 200)) + expandVertically(motionSpec(scale, 200)),
-            exit = if (reduced) fadeOut(tween(150)) else fadeOut(motionSpec(scale, 150)) + shrinkVertically(motionSpec(scale, 200)),
+            enter = fadeIn(motionSpec(scale, 200)) + expandVertically(motionSpec(scale, 200)),
+            exit = fadeOut(motionSpec(scale, 150)) + shrinkVertically(motionSpec(scale, 200)),
         ) {
             Column {
                 if (section.rows.isEmpty()) {

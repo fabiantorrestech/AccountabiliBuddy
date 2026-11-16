@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +27,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.TaskCategoryChoices.Choice
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import com.accountabilibuddy.companion.ui.kit.AbSheet
 import com.accountabilibuddy.companion.ui.theme.Ab
@@ -64,7 +64,7 @@ fun TaskCategoriesSheet(
         if (categories.isEmpty()) {
             Text("No categories yet. Add one below.", style = Ab.type.body, color = colors.muted, modifier = Modifier.padding(16.dp))
         }
-        LazyColumn(Modifier.heightIn(max = 380.dp)) {
+        AbLazyColumn(Modifier.heightIn(max = 380.dp)) {
             items(categories, key = { it.name.lowercase() }) { choice ->
                 Column {
                     CategoryRow(

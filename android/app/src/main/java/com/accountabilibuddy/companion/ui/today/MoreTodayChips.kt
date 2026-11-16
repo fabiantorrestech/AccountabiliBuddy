@@ -1,6 +1,5 @@
 package com.accountabilibuddy.companion.ui.today
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accountabilibuddy.companion.ui.abHorizontalScroll
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -47,7 +47,7 @@ fun MoreTodayChipRow(chips: List<MoreTodayChip>, modifier: Modifier = Modifier, 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("More today", style = Ab.type.micro.copy(fontSize = 12.5.sp, letterSpacing = 0.sp), fontWeight = FontWeight.SemiBold, color = colors.faint, modifier = Modifier.padding(start = edge + 4.dp))
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = edge),
+            Modifier.fillMaxWidth().abHorizontalScroll(rememberScrollState()).padding(horizontal = edge),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             chips.forEach { chip ->

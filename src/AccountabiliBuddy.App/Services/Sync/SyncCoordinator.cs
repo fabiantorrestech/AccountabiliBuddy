@@ -318,6 +318,8 @@ public sealed class SyncCoordinator
                 // ADR 42: always, read-only, for the phone's start picker (the profiles document travels only once edited).
                 ProfileOptions = profiles.Select(profile => new SyncProfileOption(profile.Id, profile.Name)).ToList(),
                 DefaultProfileId = CountUpProfileId?.Invoke(), Noise = noise,
+                // ADR 92: play or pause another device's noise, until that device acks it.
+                Actions = Actions?.Invoke() is { Count: > 0 } ownActions ? ownActions : null,
                 // ADR 48, 50: the shared lists, each with its tombstones; sealed like everything in the file.
                 // ADR 71: a PC that doesn't share its task lists sends none (read by the others as "keeps no shared lists").
                 NextTasks = ShareTaskLists() ? NextTasks?.Invoke() : null,
@@ -468,6 +470,9 @@ public sealed class SyncCoordinator
 
     /// <summary>ADR 36, 42: the noise player's state, null when it has no sound files; set by the app.</summary>
     public Func<Task<SyncNoise?>>? Noise { get; set; }
+
+    /// <summary>ADR 92: this PC's own actions for other devices (play or pause their noise) still waiting; set by the app.</summary>
+    public Func<IReadOnlyList<SyncAction>>? Actions { get; set; }
 
     /// <summary>ADR 29, 42: the daily focus goal in minutes; set by the app.</summary>
     public Func<int?>? GoalMinutes { get; set; }

@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -63,6 +61,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.companion.ui.AbLazyColumn
+import com.accountabilibuddy.companion.ui.abHorizontalScroll
 import com.accountabilibuddy.companion.ui.kit.AbDialog
 import com.accountabilibuddy.companion.ui.kit.AbPageHeader
 import com.accountabilibuddy.companion.ui.kit.AbPageHeaderDefaults
@@ -130,12 +130,12 @@ fun ArchiveScreen(pc: TasksPc?, now: Instant, controller: ShelfController, onBac
         if (searching) {
             SearchField(search) { search = it }
         } else {
-            Row(Modifier.fillMaxWidth().height(48.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().height(48.dp).abHorizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ArchiveFilter.entries.forEach { option -> ShelfChip(option.label, option == chosen) { filter = option.name } }
             }
         }
 
-        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+        AbLazyColumn(Modifier.weight(1f).fillMaxWidth()) {
             if (shown.isEmpty()) {
                 item { EmptyNote(if (search.isBlank()) "Nothing here yet." else "Nothing in the Archive matches that.") }
             }

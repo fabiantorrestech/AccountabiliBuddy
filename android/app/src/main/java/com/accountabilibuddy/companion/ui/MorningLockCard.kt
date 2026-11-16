@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -99,7 +98,7 @@ internal fun MorningWhyDialog(onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text("Why keep the first hour phone-free?") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Most of us reach for the phone first: in a 2013 survey of 7,446 US smartphone owners, 79% checked it within 15 minutes of waking (IDC, sponsored by Facebook; a survey).")
                 Text("In lab studies, phones cost attention. Just seeing a notification made people worse at an ongoing task (Stothart et al., 2015). Having your own phone on the desk lowered working-memory scores compared with leaving it in another room (Ward et al., 2017), though a later study found no such cost (Hartmann, 2020). These are lab experiments.")
                 Text("What isn't proven yet: no study has measured whether using the phone in your first hour makes you more distracted for the rest of the day. The idea rests on the findings above. A phone-free first hour is a cheap way to see the difference for yourself.")

@@ -12,6 +12,7 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="DisplayNames">Names shown instead of file names (key: file name); the files keep theirs.</param>
 /// <param name="LockedToHeadphones">The player's lock: it doesn't play unless headphones are connected, and pauses when the last ones go.</param>
 /// <param name="StopsWhenHeadphonesGo">Pause when any headphones disconnect, locked or not (apart from auto-play's chosen headphones).</param>
+/// <param name="ShowsOtherDevices">The volume popover shows the other devices' noise rows (ADR 92); hidden until opened, then remembered.</param>
 public sealed record NoiseSettings(
     string? Folder,
     int Volume,
@@ -23,7 +24,8 @@ public sealed record NoiseSettings(
     string VolumeDownKey,
     IReadOnlyDictionary<string, string>? DisplayNames = null,
     bool LockedToHeadphones = false,
-    bool StopsWhenHeadphonesGo = false)
+    bool StopsWhenHeadphonesGo = false,
+    bool ShowsOtherDevices = false)
 {
     public static NoiseSettings Default { get; } = new(null, 40, true, null, false, string.Empty, string.Empty, string.Empty);
 

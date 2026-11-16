@@ -60,7 +60,7 @@ data class SyncFile(
     val defaultProfileId: String? = null,
     /** A PC's derived summary of the user's Beeminder goals (ADR 43); null without a token there or from an older app. */
     val beeminder: List<SyncBeeminderGoal>? = null,
-    /** A PC's noise player (ADR 42, 36): what it plays, for the watch's device switcher; null without sound files or from an older app. */
+    /** A device's noise player (ADR 42, 36; phones too, ADR 92): what it plays, for the other devices' lists; null without sound files or from an older app. */
     val noise: SyncNoise? = null,
     /** A phone's placement during a PC focus session (phase 11b): label, times and counts only; null from an older phone or when it has none. */
     val placement: SyncPlacement? = null,
@@ -466,7 +466,10 @@ data class SyncAction(
         /** Change the day plan (ADR 42, 19); taken only within a day. */
         const val DAY_PLAN_EDIT = "dayPlanEdit"
 
-        /** Control a PC's noise player (ADR 42, 36); [text] is `{ "op": "toggle|next|prev|volume", "value": 0.0-1.0? }`; a PC takes it only within 2 minutes. */
+        /**
+         * Control another device's noise player (ADR 42, 36; any device to any device, ADR 92); [text] is
+         * `{ "op": "toggle|next|prev|volume|play|pause", "value": 0.0-1.0? }` ([SyncNoiseOps]); the target takes it only within 2 minutes.
+         */
         const val NOISE = "noise"
 
         /**

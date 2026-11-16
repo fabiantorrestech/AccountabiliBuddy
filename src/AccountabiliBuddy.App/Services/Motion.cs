@@ -4,6 +4,8 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Microsoft.Data.Sqlite;
@@ -12,7 +14,7 @@ namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
 /// The app's animations: pages fade and slide in when their tab opens, cards ease their colour, progress bars glide to
-/// their new value. One speed for all of them (Fast, Normal, Slow) or Off (document "motion"). Use from the UI thread.
+/// their new value. One speed for all of them (Fast, Normal, Slow) or Off, where nothing moves (document "motion"). Use from the UI thread.
 /// </summary>
 public sealed class Motion
 {
@@ -95,14 +97,16 @@ public sealed class Motion
             _styles = null;
         }
 
-        if (!IsOn)
-        {
-            return;
-        }
-
         try
         {
-            AddStyles(app);
+            if (IsOn)
+            {
+                AddStyles(app);
+            }
+            else
+            {
+                AddOffStyles(app);
+            }
         }
         catch (Exception)
         {
@@ -121,6 +125,36 @@ public sealed class Motion
         ];
         app.Styles.Add(_styles);
     }
+
+    /// <summary>
+    /// Motion Off (owner 2026-11-16: nothing moves, for e-ink screens): no transitions anywhere, including the Fluent theme's own
+    /// (scroll bars, toggle switches, buttons), and "working" bars that stand still half full instead of sliding. Styles added to
+    /// App.Styles last beat the theme's; a view's own transitions are switched off by its <see cref="Gate"/> or a class.
+    /// </summary>
+    private void AddOffStyles(Application app)
+    {
+        _styles =
+        [
+            new Style(x => x.Is<Control>()) { Setters = { new Setter(Animatable.TransitionsProperty, null) } },
+            new Style(x => x.OfType<ProgressBar>().Class(":indeterminate"))
+            {
+                Setters = { new Setter(Avalonia.Controls.Primitives.TemplatedControl.TemplateProperty, StillBusyBar()) },
+            },
+        ];
+        app.Styles.Add(_styles);
+    }
+
+    // An indeterminate bar drawn still: its track with the left half filled.
+    private static FuncControlTemplate<ProgressBar> StillBusyBar() => new((bar, _) =>
+    {
+        var fill = new Border { CornerRadius = new CornerRadius(2) };
+        fill.Bind(Border.BackgroundProperty, bar.GetObservable(TemplatedControl.ForegroundProperty));
+        var halves = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*") };
+        halves.Children.Add(fill);
+        var track = new Border { CornerRadius = new CornerRadius(2), MinHeight = 4, Child = halves };
+        track.Bind(Border.BackgroundProperty, bar.GetObservable(TemplatedControl.BackgroundProperty));
+        return track;
+    });
 
     /// <summary>A page coming into view: a short fade and a lift of a few pixels.</summary>
     public async void Enter(Control page)

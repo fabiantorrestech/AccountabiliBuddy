@@ -1,7 +1,7 @@
 package com.accountabilibuddy.companion.ui.tasks.page
 
+import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,7 +23,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accountabilibuddy.companion.ui.theme.Ab
+import kotlinx.coroutines.delay
 
 /**
  * The Tasks page's toast (board Tasks-Phone-Moved; bundle spec §14): the target's icon, the message with its second line, **Undo**
@@ -51,13 +56,23 @@ import com.accountabilibuddy.companion.ui.theme.Ab
 fun TasksToastCard(toast: TasksToast, motionScale: Float, onGo: (() -> Unit)?, onUndo: (() -> Unit)?, onGone: () -> Unit, modifier: Modifier = Modifier) {
     val colors = Ab.colors
     val shape = RoundedCornerShape(18.dp)
-    val left = remember(toast) { Animatable(1f) }
+    var left by remember(toast) { mutableFloatStateOf(1f) }
     val shown = remember(toast) { Animatable(if (motionScale <= 0f) 1f else 0f) }
     LaunchedEffect(toast) {
         shown.animateTo(1f, tween((150 * motionScale).toInt().coerceAtLeast(1)))
     }
+    // Timed by the clock, not by an animation: with animations off (here or in the phone's settings) an animation would end at
+    // once and take the toast with it. With motion on the bar moves every frame; off, once a second, so an e-ink screen
+    // redraws only a few times.
     LaunchedEffect(toast) {
-        left.animateTo(0f, tween(toast.length.millis.toInt(), easing = LinearEasing))
+        val total = toast.length.millis
+        val start = SystemClock.uptimeMillis()
+        while (true) {
+            val elapsed = SystemClock.uptimeMillis() - start
+            left = (1f - elapsed.toFloat() / total).coerceAtLeast(0f)
+            if (elapsed >= total) break
+            if (motionScale <= 0f) delay(minOf(1_000L, total - elapsed)) else withFrameMillis { }
+        }
         onGone()
     }
     Column(
@@ -93,7 +108,7 @@ fun TasksToastCard(toast: TasksToast, motionScale: Float, onGo: (() -> Unit)?, o
             }
         }
         Box(Modifier.fillMaxWidth().height(3.dp).background(colors.bg)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(left.value.coerceIn(0f, 1f)).background(colors.accent))
+            Box(Modifier.fillMaxHeight().fillMaxWidth(left.coerceIn(0f, 1f)).background(colors.accent))
         }
     }
 }

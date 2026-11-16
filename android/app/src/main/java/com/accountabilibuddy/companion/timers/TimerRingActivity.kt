@@ -2,7 +2,6 @@ package com.accountabilibuddy.companion.timers
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.setAbContent
 import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,7 +45,7 @@ class TimerRingActivity : ComponentActivity() {
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         val store = (applicationContext as CompanionApp).timers
-        setContent {
+        setAbContent {
             CompanionTheme(systemBarIconsFollowTheme = false) {
                 val ringing by TimerRinger.ringing.collectAsStateWithLifecycle()
                 LaunchedEffect(ringing.isEmpty()) { if (ringing.isEmpty()) finish() }

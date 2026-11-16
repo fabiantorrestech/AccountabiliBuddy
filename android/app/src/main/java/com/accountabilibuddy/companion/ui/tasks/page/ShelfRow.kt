@@ -1,7 +1,6 @@
 package com.accountabilibuddy.companion.ui.tasks.page
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,6 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accountabilibuddy.companion.ui.LocalMotionScale
+import com.accountabilibuddy.companion.ui.motionSpec
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.tasks.ShelfTitleTap
 import com.accountabilibuddy.shared.tasks.TaskItem
@@ -129,6 +130,7 @@ fun ShelfRow(
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val offset = remember(task.id) { Animatable(0f) }
+    val motionScale = LocalMotionScale.current
     val commitPx = with(density) { SWIPE_COMMIT_DP.dp.toPx() }
     val currentSwipe = rememberUpdatedState(swipe)
     val shape = RoundedCornerShape(14.dp)
@@ -165,10 +167,10 @@ fun ShelfRow(
                         onDragStart = { armed = false; drag = 0f },
                         onDragEnd = {
                             val by = drag
-                            scope.launch { offset.animateTo(0f, tween(170)) }
+                            scope.launch { offset.animateTo(0f, motionSpec(motionScale, 170)) }
                             if (swipes && abs(by) >= commitPx) currentSwipe.value?.let { if (by > 0) it.onRight() else it.onLeft() }
                         },
-                        onDragCancel = { scope.launch { offset.animateTo(0f, tween(170)) } },
+                        onDragCancel = { scope.launch { offset.animateTo(0f, motionSpec(motionScale, 170)) } },
                     ) { change, amount ->
                         change.consume()
                         if (!swipes) return@detectHorizontalDragGestures

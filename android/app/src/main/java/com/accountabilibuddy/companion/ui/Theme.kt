@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.ui
 
 import android.app.Activity
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -84,8 +85,15 @@ fun ThemedContent(
         }
     }
 
+    // E-ink help (Settings › Appearance › Animations): with animations Off or step scrolling on, a list pulled past its end
+    // doesn't stretch and spring back.
+    val stepScroll by UiPrefs.stepScroll.collectAsState()
+    val overscroll = if (motionScale <= 0f || stepScroll) null else LocalOverscrollFactory.current
+
     CompositionLocalProvider(
         LocalMotionScale provides motionScale,
+        LocalStepScroll provides stepScroll,
+        LocalOverscrollFactory provides overscroll,
         LocalAbColors provides colors,
         LocalAbShapes provides shapes,
         LocalAbTypography provides type,

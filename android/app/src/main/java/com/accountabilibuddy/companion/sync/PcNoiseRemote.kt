@@ -4,6 +4,7 @@ import com.accountabilibuddy.shared.NoiseRemote
 import com.accountabilibuddy.shared.sync.SyncAction
 import com.accountabilibuddy.shared.sync.SyncActionResult
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
+import com.accountabilibuddy.shared.sync.SyncNoiseOps
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -24,9 +25,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The watch's Noise page controlling a PC's noise player through the sync files (ADR 42, 36): the PCs whose files carry
- * a noise player, as the watch lists them, and the watch's commands for one of them as "noise" actions in this phone's
- * file ([ActionStore]). The PC answers in its own file, which also carries its new state, so a command shows a few
+ * The other devices' noise players, controlled through the sync files: the watch's Noise page for a PC (ADR 42, 36), and the
+ * volume popover's "Other devices" rows for any PC or phone (ADR 92, [others], [setPlaying]). Commands are "noise" actions in
+ * this phone's file ([ActionStore]). The PC answers in its own file, which also carries its new state, so a command shows a few
  * seconds later (longer when the PC is idle: it polls Drive slowly then). A PC that doesn't answer within 10 minutes is
  * given up on, like a start or end-early request ([PcFileRemote.GIVE_UP_AFTER]).
  */
@@ -34,6 +35,7 @@ class PcNoiseRemote(
     private val actions: ActionStore,
     private val received: StateFlow<List<ReceivedDevice>>,
     private val scope: CoroutineScope,
+    private val selfId: () -> UUID = { UUID(0, 0) },
 ) {
     // The last refusal or answer to show per PC, for a few seconds.
     private val notes = MutableStateFlow<Map<UUID, String>>(emptyMap())
@@ -53,6 +55,44 @@ class PcNoiseRemote(
                 )
             }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Every other device whose file carries a noise player (ADR 92), PCs and phones, by name. A device with a play or pause still
+     * waiting shows the way it was asked to go, with [NoiseDevice.sending] set until it answers.
+     */
+    val others: StateFlow<List<NoiseDevice>> = combine(received, actions.pending, notes) { devices, pending, notes ->
+        val self = selfId()
+        devices
+            .filter { it.file.device.deviceId != self && it.file.noise != null }
+            .sortedWith(compareBy({ it.file.device.name.lowercase() }, { it.file.device.deviceId }))
+            .map { device ->
+                val id = device.file.device.deviceId
+                val noise = device.file.noise!!
+                val waiting = pending.filter { it.kind == SyncAction.NOISE && it.target == id }
+                val asked = waiting.lastOrNull { opOf(it) == SyncNoiseOps.PLAY || opOf(it) == SyncNoiseOps.PAUSE }?.let { opOf(it) == SyncNoiseOps.PLAY }
+                NoiseDevice(
+                    id, device.file.device.name, device.file.device.kind == SyncDeviceCard.KIND_PC, asked ?: noise.playing, noise.name, noise.locked,
+                    sending = waiting.isNotEmpty(), seenAt = device.file.device.writtenAt, note = notes[id],
+                )
+            }
+    }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Asks the device [id] to play or pause its noise (ADR 92), replacing a play or pause for it still waiting. A device too old for
+     * these says so for a few seconds instead.
+     */
+    fun setPlaying(id: UUID, play: Boolean) {
+        val device = received.value.firstOrNull { it.file.device.deviceId == id && it.file.noise != null } ?: return
+        if (!supportsPlayPause(device.file.device)) {
+            say(id, updateText(device.file.device.name))
+            return
+        }
+
+        notes.update { it - id }
+        actions.pending.value.filter { it.kind == SyncAction.NOISE && it.target == id && (opOf(it) == SyncNoiseOps.PLAY || opOf(it) == SyncNoiseOps.PAUSE) }
+            .forEach { actions.remove(it.id) }
+        add(id, request(if (play) SyncNoiseOps.PLAY else SyncNoiseOps.PAUSE))
+    }
 
     /** Passes a watch command for the PC [pcId] (its sync device id) on to it. */
     fun send(pcId: String, command: NoiseRemote.Command) {
@@ -114,9 +154,11 @@ class PcNoiseRemote(
 
     private fun request(op: String): JsonObject = buildJsonObject { put("op", op) }
 
-    private fun isVolume(action: SyncAction): Boolean = runCatching {
-        ((Json.parseToJsonElement(action.text.orEmpty()) as JsonObject)["op"] as? JsonPrimitive)?.content == "volume"
-    }.getOrDefault(false)
+    private fun isVolume(action: SyncAction): Boolean = opOf(action) == SyncNoiseOps.VOLUME
+
+    private fun opOf(action: SyncAction): String? = runCatching {
+        ((Json.parseToJsonElement(action.text.orEmpty()) as JsonObject)["op"] as? JsonPrimitive)?.content
+    }.getOrNull()
 
     private fun say(pcId: UUID, text: String) {
         notes.update { it + (pcId to text) }
@@ -128,10 +170,29 @@ class PcNoiseRemote(
 
     private fun updateText(name: String): String = "Update AccountabiliBuddy on $name"
 
-    private fun nameOf(pcId: UUID): String = received.value.firstOrNull { it.file.device.deviceId == pcId }?.file?.device?.name ?: "The PC"
+    private fun nameOf(pcId: UUID): String = received.value.firstOrNull { it.file.device.deviceId == pcId }?.file?.device?.name ?: "That device"
 
-    private companion object {
-        const val VOLUME_PAUSE_MS = 400L
-        const val NOTE_SHOWN_MS = 8_000L
+    companion object {
+        private const val VOLUME_PAUSE_MS = 400L
+        private const val NOTE_SHOWN_MS = 8_000L
+
+        /** True when the device's app answers play and pause (ADR 92; [NoiseVersions]). */
+        fun supportsPlayPause(card: SyncDeviceCard): Boolean = NoiseVersions.supportsPlayPause(card)
     }
 }
+
+/**
+ * Another device's noise player for the volume popover's "Other devices" rows (ADR 92): [playing] is the way it was last asked to go
+ * while [sending], otherwise what its file says; [seenAt] is when that file was written, so an old one can show as last seen.
+ */
+data class NoiseDevice(
+    val id: UUID,
+    val name: String,
+    val isPc: Boolean,
+    val playing: Boolean,
+    val title: String?,
+    val locked: Boolean,
+    val sending: Boolean,
+    val seenAt: Instant,
+    val note: String?,
+)

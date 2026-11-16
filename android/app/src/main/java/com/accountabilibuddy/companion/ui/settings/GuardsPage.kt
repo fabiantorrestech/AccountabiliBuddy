@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Computer
@@ -35,6 +34,7 @@ import com.accountabilibuddy.companion.pause.PauseState
 import com.accountabilibuddy.companion.pause.PauseStatus
 import com.accountabilibuddy.companion.placement.GuardsLock
 import com.accountabilibuddy.companion.sync.PcState
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import com.accountabilibuddy.companion.ui.rememberTickingNow
 import com.accountabilibuddy.companion.ui.CurboxSetupPage
 import com.accountabilibuddy.companion.ui.EmergencySection
@@ -125,12 +125,12 @@ fun GuardsPage(
                 onOpenLock = { toLock = true; open(GuardsView.Essentials) },
                 onOpenCurbox = { open(GuardsView.CurboxSetup) },
             )
-            GuardsView.Essentials -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            GuardsView.Essentials -> Column(Modifier.fillMaxSize().abVerticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val context = LocalContext.current
                 NeedsLine(listOf(Need("Usage access", remember { PhoneUsageReader(context).hasAccess() }, onAllowUsage)), forWhat = "Essentials")
                 EssentialsSection(scrollToLock = toLock)
             }
-            GuardsView.CurboxSetup -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            GuardsView.CurboxSetup -> Column(Modifier.fillMaxSize().abVerticalScroll(rememberScrollState()).padding(16.dp)) {
                 CurboxSetupPage(onConnectCurbox, onReenableTime)
             }
         }

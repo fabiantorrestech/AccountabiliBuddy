@@ -242,6 +242,16 @@ public sealed class NoisePlayerService : IDisposable
         SetVolume(stepped);
     }
 
+    /// <summary>Shows or hides the other devices' noise rows in the volume popover (ADR 92); remembered on this PC.</summary>
+    public void SetShowsOtherDevices(bool shows)
+    {
+        if (shows != _settings.Current.ShowsOtherDevices)
+        {
+            _settings.SaveSoon(_settings.Current with { ShowsOtherDevices = shows });
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     public void SetRepeat(bool repeat)
     {
         if (_player is not null)

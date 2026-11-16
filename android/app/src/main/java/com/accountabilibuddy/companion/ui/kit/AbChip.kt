@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,6 +23,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.abHorizontalScroll
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -61,7 +61,7 @@ fun AbChipRow(
     content: @Composable RowScope.() -> Unit,
 ) {
     Row(
-        modifier.horizontalScroll(rememberScrollState()).padding(contentPadding),
+        modifier.abHorizontalScroll(rememberScrollState()).padding(contentPadding),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         content = content,

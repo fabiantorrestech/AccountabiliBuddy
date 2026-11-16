@@ -1,6 +1,5 @@
 package com.accountabilibuddy.companion.ui.tasks.page
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +38,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.tasks.TasksUiState
+import com.accountabilibuddy.companion.ui.abHorizontalScroll
 import com.accountabilibuddy.companion.ui.kit.AbOutlinedButton
 import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
 import com.accountabilibuddy.companion.ui.kit.AbSegmented
@@ -143,7 +143,7 @@ fun TasksOptionsSheet(
     ) {
         when (page) {
             OptionsPage.Main -> {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth().abHorizontalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     views.forEach { view -> ShelfChip(TaskViewWords.chip(view), selected = view == active && !changed, height = 34) { applyView(view) } }
                     ShelfChip("+ Save", selected = false, height = 34) { if (changed) page = OptionsPage.CreateView else explain = true }
                 }

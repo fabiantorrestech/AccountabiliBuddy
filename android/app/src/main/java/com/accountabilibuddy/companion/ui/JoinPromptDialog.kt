@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,7 +42,7 @@ internal fun JoinPromptDialog(prompt: JoinPrompt, onContinue: () -> Unit, onCanc
         onDismissRequest = onCancel,
         title = { Text(if (prompt.leavesCurrentGroup) "Leave your current devices group?" else "Join a devices group?") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            Column(Modifier.abVerticalScroll(rememberScrollState())) {
                 if (prompt.leavesCurrentGroup) {
                     Text(
                         "You are in a devices group now. Joining this one leaves it: your other devices stop syncing with " +

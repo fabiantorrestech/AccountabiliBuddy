@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.NoWindowAnimationWhenOff
 import com.accountabilibuddy.companion.ui.theme.Ab
 
 /**
@@ -53,6 +54,7 @@ fun AbSheet(
             Box(Modifier.padding(vertical = 12.dp).size(width = 36.dp, height = 4.dp).background(colors.line, Ab.shapes.pill))
         },
     ) {
+        NoWindowAnimationWhenOff()
         Column(
             modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

@@ -12,7 +12,6 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
+import com.accountabilibuddy.companion.ui.setAbContent
 import com.accountabilibuddy.companion.ui.shell.GuardFrame
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,7 +60,7 @@ class BedtimeAlarmActivity : ComponentActivity() {
         val number = intent.getIntExtra(BedtimeReminders.EXTRA_NUMBER, 0)
         val label = intent.getStringExtra(EXTRA_LABEL) ?: "Bedtime"
         val text = intent.getStringExtra(EXTRA_TEXT).orEmpty()
-        setContent {
+        setAbContent {
             CompanionTheme(systemBarIconsFollowTheme = false) {
                 GuardFrame(Modifier.fillMaxSize().background(Color(0xFF0B1020))) {
                 Column(

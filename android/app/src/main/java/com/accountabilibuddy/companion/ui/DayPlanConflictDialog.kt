@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,7 +47,7 @@ fun DayPlanConflictDialog(conflict: DayPlanConflict, pcName: String?, clock: Clo
         shape = Ab.shapes.cardShape,
         title = { Text("The plan changed in two places", style = Ab.type.section) },
         text = {
-            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.heightIn(max = 460.dp).abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Pick the one to keep; the other is dropped.", style = Ab.type.bodyMedium, color = colors.muted)
                 Side("On ${pcName ?: "the PC"}", conflict.pcEditedAt, clock, conflict.pcChanges, newer = conflict.pcIsNewer)
                 Side("On this phone", conflict.phoneEditedAt, clock, conflict.phoneChanges, newer = !conflict.pcIsNewer)

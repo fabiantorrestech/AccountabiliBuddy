@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -120,7 +119,7 @@ private fun TurnOffDialog(onDismiss: () -> Unit, onPlanOffDays: () -> Unit, onCo
         onConfirm = { onConfirm(length, wait, time) },
         dismissText = "Keep it on",
     ) {
-        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             AbSectionLabel("For how long?")
             AbChoiceRow("The rest of today (back on at midnight)", length == PauseLength.RestOfDay) { length = PauseLength.RestOfDay }
             AbChoiceRow("Until a time tonight", length == PauseLength.UntilTime) { length = PauseLength.UntilTime }

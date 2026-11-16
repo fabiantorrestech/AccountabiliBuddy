@@ -1,7 +1,6 @@
 package com.accountabilibuddy.companion.ui.tasks.page
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +23,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.accountabilibuddy.companion.ui.LocalMotionScale
+import com.accountabilibuddy.companion.ui.motionSpec
 import com.accountabilibuddy.companion.ui.theme.Ab
 import com.accountabilibuddy.shared.tasks.ShelfPaging
 
@@ -47,7 +48,7 @@ fun PageIndicator(titles: List<String>, index: Int, onJump: (Int) -> Unit, modif
             else -> Row(horizontalArrangement = Arrangement.spacedBy(0.dp), verticalAlignment = Alignment.CenterVertically) {
                 titles.forEachIndexed { page, title ->
                     val current = page == index
-                    val width by animateDpAsState(if (current) 18.dp else 6.dp, tween(170), label = "dot")
+                    val width by animateDpAsState(if (current) 18.dp else 6.dp, motionSpec(LocalMotionScale.current, 170), label = "dot")
                     // The dot is 6 dp; its touch target is the 26 dp tall box around it.
                     Box(
                         Modifier.height(26.dp).clickable(role = Role.Tab, onClickLabel = "Show $title") { onJump(page) }.padding(horizontal = 3.dp),

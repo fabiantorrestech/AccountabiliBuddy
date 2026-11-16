@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +28,7 @@ import com.accountabilibuddy.companion.engine.EventCategoryResolver
 import com.accountabilibuddy.companion.engine.EventKeywordRules
 import com.accountabilibuddy.companion.model.CalendarEvent
 import com.accountabilibuddy.companion.model.DayCategory
+import com.accountabilibuddy.companion.ui.abVerticalScroll
 import com.accountabilibuddy.companion.ui.kit.AbChip
 import com.accountabilibuddy.companion.ui.kit.AbChipRow
 import com.accountabilibuddy.companion.ui.kit.AbSheet
@@ -63,7 +63,7 @@ fun EventActionsSheet(event: CalendarEvent, onDismiss: () -> Unit) {
     val current = actions.currentCategory(event)
 
     AbSheet(onDismiss = onDismiss) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxWidth().abVerticalScroll(rememberScrollState())) {
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(event.title, style = Ab.type.bodyMedium, color = colors.ink)
                 Text(whenText(event), style = Ab.type.small, color = colors.muted)

@@ -82,6 +82,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Styles that move only while Animations is on (the sync spin, Tasks' reset fade) look for .motionOn on the window.
+        Classes.Set("motionOn", Services.Motion.Current is not { IsOn: false });
+        Services.Motion.SpeedChanged += (_, _) => Classes.Set("motionOn", Services.Motion.Current is not { IsOn: false });
         // Ctrl+G's prompt opens under the title bar's search.
         _taskShortcuts = new TaskShortcuts(tasks => GoToTaskPopover.ShowAt(SearchButton, tasks.GoToTask));
         // Del's key repeats are ignored until it comes up (seen even when something handled it), or the window loses the keyboard.

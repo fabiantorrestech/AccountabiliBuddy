@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Block
@@ -30,7 +29,6 @@ import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.WarningAmber
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -204,7 +202,7 @@ fun PlanDayScreen(
             AbTextButton("Cancel", onClose)
         }
         Spacer(Modifier.padding(6.dp))
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f).abVerticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (step) {
                 1 -> {
                     Panel {
@@ -258,7 +256,7 @@ fun PlanDayScreen(
                         title = "Back on at",
                         icon = Icons.Outlined.Block,
                         action = {
-                            if (refreshing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Ab.colors.ink)
+                            if (refreshing) BusyRing(Modifier.size(20.dp), strokeWidth = 2.dp, color = Ab.colors.ink)
                             else AbQuietIconButton(Icons.Outlined.Refresh, "Look for new blocks", onClick = { refresh() })
                         },
                     ) {

@@ -3,7 +3,7 @@ using AccountabiliBuddy.Core.Sync;
 namespace AccountabiliBuddy.App.Services.Remote;
 
 /// <summary>
-/// The PC's noise player as a phone (and through it the watch) sees and controls it through the sync files (ADR 42, 36):
+/// The PC's noise player as a phone (and through it the watch), or any other device (ADR 92), sees and controls it through the sync files (ADR 42, 36):
 /// the same buttons the PC's own player has, by the same rules. The headphone lock stays respected (Play while locked
 /// is refused), and noise is allowed during a focus session, since it never weakens enforcement. Also says whether the
 /// sync poll should run at its fast rate for noise: while the player plays, and for 10 minutes after a command, so the
@@ -37,7 +37,7 @@ public sealed class RemoteNoiseControl
     /// <summary>True when the request is one this PC knows (a volume needs a value from 0 to 1).</summary>
     public static bool IsValid(SyncNoiseRequest request) => request.Op switch
     {
-        SyncNoiseRequest.OpToggle or SyncNoiseRequest.OpNext or SyncNoiseRequest.OpPrev => true,
+        SyncNoiseRequest.OpToggle or SyncNoiseRequest.OpNext or SyncNoiseRequest.OpPrev or SyncNoiseRequest.OpPlay or SyncNoiseRequest.OpPause => true,
         SyncNoiseRequest.OpVolume => request.Value is double value && value >= 0 && value <= 1,
         _ => false,
     };
@@ -86,6 +86,27 @@ public sealed class RemoteNoiseControl
                 }
 
                 _noise.TogglePlay();
+                break;
+            case SyncNoiseRequest.OpPlay:
+                // ADR 92: play only if paused, and only where the lock allows it.
+                if (!_noise.IsPlaying)
+                {
+                    if (await _noise.IsPlayBlockedByLockAsync())
+                    {
+                        return $"Connect headphones on {pcName}";
+                    }
+
+                    _noise.TogglePlay();
+                }
+
+                break;
+            case SyncNoiseRequest.OpPause:
+                // ADR 92: pausing is always allowed; nothing to do when already paused.
+                if (_noise.IsPlaying)
+                {
+                    _noise.TogglePlay();
+                }
+
                 break;
             case SyncNoiseRequest.OpNext:
                 _noise.Next();

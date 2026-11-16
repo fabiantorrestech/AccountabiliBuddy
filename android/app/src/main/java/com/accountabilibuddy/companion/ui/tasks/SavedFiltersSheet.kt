@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -20,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.sync.TaskFilterPreset
+import com.accountabilibuddy.companion.ui.AbLazyColumn
 import com.accountabilibuddy.companion.ui.kit.AbQuietIconButton
 import com.accountabilibuddy.companion.ui.kit.AbSheet
 import com.accountabilibuddy.companion.ui.theme.Ab
@@ -58,7 +58,7 @@ fun SavedFiltersSheet(
         if (presets.isEmpty()) {
             Text("Nothing saved yet.", style = Ab.type.body, color = colors.muted, modifier = Modifier.padding(16.dp))
         }
-        LazyColumn(Modifier.heightIn(max = 340.dp)) {
+        AbLazyColumn(Modifier.heightIn(max = 340.dp)) {
             items(presets, key = { it.id }) { preset ->
                 Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(
