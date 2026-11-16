@@ -26,6 +26,7 @@
             <Color x:Key="Ab.RowHoverColor">#FFFFFF</Color>
             <Color x:Key="Ab.AmberInkColor">#7F4F00</Color>
             <Color x:Key="Ab.AmberFillColor">#F8EBCB</Color>
+            <Color x:Key="Ab.AmberFillStrongColor">#F0D9A4</Color>
             <Color x:Key="Ab.AmberLineColor">#E0C27A</Color>
             <Color x:Key="Ab.DragCancelColor">#A93226</Color>
             <Color x:Key="Ab.DragCancelFillColor">#F7E3DE</Color>
@@ -51,6 +52,7 @@
             <SolidColorBrush x:Key="Ab.RowHover" Color="{DynamicResource Ab.RowHoverColor}" />
             <SolidColorBrush x:Key="Ab.AmberInk" Color="{DynamicResource Ab.AmberInkColor}" />
             <SolidColorBrush x:Key="Ab.AmberFill" Color="{DynamicResource Ab.AmberFillColor}" />
+            <SolidColorBrush x:Key="Ab.AmberFillStrong" Color="{DynamicResource Ab.AmberFillStrongColor}" />
             <SolidColorBrush x:Key="Ab.AmberLine" Color="{DynamicResource Ab.AmberLineColor}" />
             <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
             <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />
@@ -96,6 +98,7 @@
             <Color x:Key="Ab.RowHoverColor">#2F2D29</Color>
             <Color x:Key="Ab.AmberInkColor">#E3B862</Color>
             <Color x:Key="Ab.AmberFillColor">#36291A</Color>
+            <Color x:Key="Ab.AmberFillStrongColor">#4A3922</Color>
             <Color x:Key="Ab.AmberLineColor">#6A5530</Color>
             <Color x:Key="Ab.DragCancelColor">#E07F70</Color>
             <Color x:Key="Ab.DragCancelFillColor">#3B201C</Color>
@@ -121,6 +124,7 @@
             <SolidColorBrush x:Key="Ab.RowHover" Color="{DynamicResource Ab.RowHoverColor}" />
             <SolidColorBrush x:Key="Ab.AmberInk" Color="{DynamicResource Ab.AmberInkColor}" />
             <SolidColorBrush x:Key="Ab.AmberFill" Color="{DynamicResource Ab.AmberFillColor}" />
+            <SolidColorBrush x:Key="Ab.AmberFillStrong" Color="{DynamicResource Ab.AmberFillStrongColor}" />
             <SolidColorBrush x:Key="Ab.AmberLine" Color="{DynamicResource Ab.AmberLineColor}" />
             <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
             <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />

@@ -115,9 +115,18 @@ public sealed partial class ShelfViewModel : ObservableObject
         _tidyUp = tidyUp;
         _actions = actions;
         _time = time;
-        _views.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+        _views.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CustomViewName));
+            OnPropertyChanged(nameof(HasCustomView));
+            OnPropertyChanged(nameof(ViewsButtonText));
+            Changed?.Invoke(this, EventArgs.Empty);
+        };
         _tidyUp.Changed += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
         OnPropertyChanged(nameof(HasViews));
+        OnPropertyChanged(nameof(CustomViewName));
+        OnPropertyChanged(nameof(HasCustomView));
+        OnPropertyChanged(nameof(ViewsButtonText));
         OnPropertyChanged(nameof(HasHistory));
         StartTidyCommand.NotifyCanExecuteChanged();
     }
@@ -157,6 +166,19 @@ public sealed partial class ShelfViewModel : ObservableObject
             return _views.DefaultViewId == active.Id ? "★ " + active.Name : active.Name;
         }
     }
+
+    /// <summary>
+    /// The Tasks header's Views button: the name of the view in use when it is not the default one (the button then widens into a tinted
+    /// pill with this name); null on the default view or before the task list exists.
+    /// </summary>
+    public string? CustomViewName =>
+        _views?.Active is TaskView active && active.Id != _views.DefaultViewId ? active.Name : null;
+
+    /// <summary>A view other than the default is in use (<see cref="CustomViewName"/>).</summary>
+    public bool HasCustomView => CustomViewName is not null;
+
+    /// <summary>The Views button's tooltip and name: "Views", or "Views: Spray - Work" while that view is in use.</summary>
+    public string ViewsButtonText => CustomViewName is string name ? "Views: " + name : "Views";
 
     /// <summary>The Options menu's "Sort ›" value ("Your order", "Newest first", …).</summary>
     public string SortText => SortName(_views?.Working.Sort ?? TaskViewConfig.SortDefault);

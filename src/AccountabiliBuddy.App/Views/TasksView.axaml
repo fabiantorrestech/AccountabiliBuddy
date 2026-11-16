@@ -388,9 +388,15 @@
                             </Border>
                         </Panel>
                     </Button>
-                    <Button x:Name="ViewsButton" Classes="abHeaderIcon" Click="OnViewsClick" IsVisible="{Binding Shelf.HasViews}"
-                            ToolTip.Tip="Views" AutomationProperties.Name="Views">
-                        <mi:MaterialIcon Kind="BookmarkOutline" Width="18" Height="18" />
+                    <!-- A view other than the default in use: the button widens into a tinted pill with the view's name; back on the default, the plain icon. -->
+                    <Button x:Name="ViewsButton" Classes="abHeaderIcon" Classes.viewOn="{Binding Shelf.HasCustomView}" Click="OnViewsClick"
+                            IsVisible="{Binding Shelf.HasViews}" ToolTip.Tip="{Binding Shelf.ViewsButtonText}" AutomationProperties.Name="{Binding Shelf.ViewsButtonText}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <mi:MaterialIcon Kind="BookmarkOutline" Width="18" Height="18" IsVisible="{Binding !Shelf.HasCustomView}" />
+                            <mi:MaterialIcon Kind="Bookmark" Width="16" Height="16" IsVisible="{Binding Shelf.HasCustomView}" />
+                            <TextBlock Text="{Binding Shelf.CustomViewName}" IsVisible="{Binding Shelf.HasCustomView}" MaxWidth="140"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="13" />
+                        </StackPanel>
                     </Button>
                     <Button Classes="abHeaderIcon" Command="{Binding Shelf.Panel.ToggleExpandCommand}" ToolTip.Tip="{Binding Shelf.Panel.ExpandTip}"
                             AutomationProperties.Name="{Binding Shelf.Panel.ExpandTip}">

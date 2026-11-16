@@ -406,6 +406,24 @@
     <Style Selector="Button.abHeaderIcon:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
     </Style>
+    <!-- The Tasks header's Views button while a view other than the default is in use: a pill, lightly tinted, with the view's name. -->
+    <Style Selector="Button.abHeaderIcon.viewOn">
+        <Setter Property="Width" Value="NaN" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="CornerRadius" Value="999" />
+    </Style>
+    <Style Selector="Button.abHeaderIcon.viewOn /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.abHeaderIcon.viewOn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.abHeaderIcon.viewOn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+    </Style>
     <!-- The Options (tune) button: bordered, last in the header; it stays pressed-looking while its menu is open. -->
     <Style Selector="Button.abOptions">
         <Setter Property="Width" Value="34" />

@@ -15,8 +15,8 @@ android {
         // Wear OS 3 and newer (every Pixel Watch).
         minSdk = 30
         targetSdk = 36
-        versionCode = 179
-        versionName = "0.1.79"
+        versionCode = 180
+        versionName = "0.1.80"
     }
 
     buildTypes {

@@ -78,6 +78,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.accountabilibuddy.companion.CompanionApp
@@ -113,6 +114,8 @@ import com.accountabilibuddy.shared.tasks.TaskBins
 import com.accountabilibuddy.shared.tasks.TaskItem
 import com.accountabilibuddy.shared.tasks.TaskReminderRings
 import com.accountabilibuddy.shared.tasks.TaskRowText
+import com.accountabilibuddy.shared.tasks.TaskLists
+import com.accountabilibuddy.shared.tasks.TaskView
 import com.accountabilibuddy.shared.tasks.TaskViewConfig
 import com.accountabilibuddy.shared.tasks.TaskViewRules
 import com.accountabilibuddy.shared.tasks.TasksTabletLayout
@@ -521,7 +524,12 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
                 // Select mode's header lies over the page header at its size, so entering it moves nothing.
                 Box(if (selecting) Modifier.alpha(0f).clearAndSetSemantics { } else Modifier) {
                     AbPageHeader("Tasks") {
-                        HeaderIcon(Icons.Outlined.BookmarkBorder, "Saved views", active = false) { options = OptionsPage.Views }
+                        val customView = customViewOf(lists, state.viewId, now)
+                        if (customView != null) {
+                            ViewPill(customView) { options = OptionsPage.Views }
+                        } else {
+                            HeaderIcon(Icons.Outlined.BookmarkBorder, "Saved views", active = false) { options = OptionsPage.Views }
+                        }
                         HeaderIcon(Icons.Outlined.Tune, "Options: view, filter and sort", active = options != null || TaskViewWords.filters(config)) { options = OptionsPage.Main }
                         HeaderIcon(if (searching) Icons.Outlined.Close else Icons.Outlined.Search, if (searching) "Close search" else "Search", active = searching) {
                             if (searching) search = ""
@@ -896,6 +904,31 @@ private fun HeaderIcon(icon: ImageVector, description: String, active: Boolean, 
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = null, tint = colors.ink, modifier = Modifier.size(22.dp))
+    }
+}
+
+// The saved view in use when it is not the default one (the account's default view, else the built-in Default); null on the default.
+// The header's Saved views button then widens into a pill with that view's icon and name, like the PC's Views button.
+private fun customViewOf(lists: TaskLists, viewId: String?, now: OffsetDateTime): TaskView? {
+    val views = lists.views.map { it.view }.filter { it.isLive }.ifEmpty { TaskView.builtIns(now) }
+    val activeId = viewId ?: TaskView.DEFAULT_ID
+    val accountDefault = lists.account?.defaultViewId?.takeIf { id -> views.any { it.id.equals(id, ignoreCase = true) } }
+    if (activeId.equals(TaskView.DEFAULT_ID, ignoreCase = true) || (accountDefault != null && activeId.equals(accountDefault, ignoreCase = true))) return null
+    return views.firstOrNull { it.id.equals(activeId, ignoreCase = true) }
+}
+
+@Composable
+private fun ViewPill(view: TaskView, onClick: () -> Unit) {
+    val colors = Ab.colors
+    val name = TaskViewWords.chip(view)
+    Row(
+        Modifier.height(44.dp).widthIn(max = 160.dp).clip(CircleShape).background(colors.surface2).clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "Saved views: $name" }.padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(ViewIconVectors.of(view.icon), contentDescription = null, tint = colors.ink, modifier = Modifier.size(18.dp))
+        Text(name, style = Ab.type.small, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
