@@ -39,7 +39,8 @@ public static class BeeminderGoalsParser
             int safeDays = Number(item, "safebuf") is double buffer
                 ? (int)Math.Floor(buffer)
                 : (int)Math.Floor((dueAt - now).TotalDays);
-            goals.Add(new BeeminderGoal(title, NeededOf(item), safeDays, dueAt, Text(item, "slug") ?? string.Empty, Text(item, "aggday") ?? string.Empty));
+            goals.Add(new BeeminderGoal(title, NeededOf(item), safeDays, dueAt, Text(item, "slug") ?? string.Empty, Text(item, "aggday") ?? string.Empty,
+                Number(item, "rate"), Text(item, "runits") ?? string.Empty, Text(item, "gunits") ?? string.Empty));
         }
 
         return goals.OrderBy(goal => goal.DueAt).ToList();
@@ -73,11 +74,12 @@ public static class BeeminderGoalsParser
 
         if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out double number))
         {
-            return number;
+            return double.IsFinite(number) ? number : null;
         }
 
         return value.ValueKind == JsonValueKind.String
             && double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed)
+            && double.IsFinite(parsed)
             ? parsed
             : null;
     }

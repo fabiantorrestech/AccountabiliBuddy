@@ -12,8 +12,8 @@ public sealed class BeeminderGoalRowViewModel
         Title = goal.Title;
         Needed = goal.Needed;
         // Red when there's no buffer left or the deadline falls today (the safe days are from the last answer).
-        IsDueToday = goal.SafeDays <= 0 || due.Date <= today;
-        SafeText = IsDueToday ? "Due today" : goal.SafeDays == 1 ? "1 safe day" : $"{goal.SafeDays} safe days";
+        IsDueToday = BeeminderLinkTexts.IsDueToday(goal, now, zone);
+        SafeText = BeeminderLinkTexts.SafeDays(goal, now, zone);
         DueText = due.Date == today ? $"by {due:h:mm tt}"
             : due.Date == today.AddDays(1) ? $"by tomorrow {due:h:mm tt}"
             : due.Date < today ? $"was due {due:ddd h:mm tt}"

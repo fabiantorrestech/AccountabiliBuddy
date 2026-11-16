@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AccountabiliBuddy.App.Services.Beeminder;
 using AccountabiliBuddy.App.Services.Goals;
 using AccountabiliBuddy.Core.Goals;
 using Avalonia.Media;
@@ -81,6 +82,31 @@ public sealed partial class GoalDetailViewModel : ObservableObject
     /// <summary>"Since Mon 5/4/2026 · 191 days (27 weeks)".</summary>
     [ObservableProperty]
     public partial string AgeTip { get; set; } = string.Empty;
+
+    /// <summary>R8.2: the Beeminder chip under the subtitle ("Beeminder · reading · 3 safe days"); null without a read link.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBeeminderChip))]
+    public partial string? BeeminderChip { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsBeeminderDueToday { get; set; }
+
+    /// <summary>R8.2: Beeminder's road as the pace line ("Road · 3 pages a week · +2 within 1 day"); null when the cached answer has none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBeeminderRoad))]
+    public partial string? BeeminderRoad { get; set; }
+
+    public bool HasBeeminderChip => BeeminderChip is not null;
+
+    public bool HasBeeminderRoad => BeeminderRoad is not null;
+
+    /// <summary>Takes the shown goal's Beeminder link (null = none, or Beeminder isn't connected on this PC).</summary>
+    public void SetBeeminder(BeeminderLinkInfo? link)
+    {
+        BeeminderChip = link?.Chip;
+        IsBeeminderDueToday = link?.IsDueToday ?? false;
+        BeeminderRoad = link?.Road;
+    }
 
     [ObservableProperty]
     public partial IReadOnlyList<GoalSourceLine> ProgressLines { get; set; } = [];
@@ -206,6 +232,7 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         _goalId = null;
         _facts = null;
         HasGoal = false;
+        SetBeeminder(null);
         Tiles.Clear();
     }
 

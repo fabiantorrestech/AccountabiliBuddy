@@ -2087,7 +2087,16 @@ public partial class App : Application
             SessionRunning = () => _sessions!.State.IsActive,
             // Opens Beeminder's site in the user's browser: the app itself makes no connection for it.
             OpenInBrowser = address => OpenInBrowser(new Uri(address)),
+            // R8.2: the row / detail chip and the road as the pace line, from the goals list already kept (ADR 43); null without a token.
+            BeeminderLinkFor = key => _beeminder is { HasToken: true } beeminderService
+                ? AccountabiliBuddy.App.Services.Beeminder.BeeminderLinkTexts.For(key, beeminderService.Goals, goalData.Now, goalData.Zone)
+                : null,
         };
+        if (_beeminder is not null)
+        {
+            // A new read (or a removed token) redraws the chips; the page redraws only when it is on screen.
+            _beeminder.Changed += (_, _) => goalsPage.MarkChanged();
+        }
         // ADR 89: a goal source on a label or tag another device keeps to itself still counts; its page says where the label is from, never its name.
         goalsPage.Detail.HiddenLabelNote = labelId => sessionTasks.ScopeSource is { IsActive: true } scoped
             && scoped.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.Id == labelId && label.IsLive && !scoped.LabelShown(label)) is { } hiddenLabel

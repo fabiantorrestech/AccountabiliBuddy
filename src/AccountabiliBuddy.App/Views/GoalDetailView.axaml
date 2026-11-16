@@ -150,6 +150,14 @@
                                     </TextBlock.TextDecorations>
                                 </TextBlock>
                             </WrapPanel>
+                            <!-- R8.2: the Beeminder read link: the chip, then the road as the pace line when the cached goals have it. -->
+                            <WrapPanel x:Name="BeeminderLine" Margin="0,4,0,0" IsVisible="{Binding HasBeeminderChip}">
+                                <Border x:Name="BeeminderChip" Classes="abChip" Classes.amber="{Binding IsBeeminderDueToday}" Margin="0,0,10,0">
+                                    <TextBlock Text="{Binding BeeminderChip}" AutomationProperties.Name="{Binding BeeminderChip}" />
+                                </Border>
+                                <TextBlock x:Name="BeeminderRoadText" Classes="muted" FontSize="13" VerticalAlignment="Center"
+                                           Text="{Binding BeeminderRoad}" IsVisible="{Binding HasBeeminderRoad}" />
+                            </WrapPanel>
                         </StackPanel>
                         <Button Grid.Column="1" VerticalAlignment="Top" Command="{Binding RequestEditCommand}" CommandParameter="{x:Static vm:GoalEditSection.Basics}"
                                 ToolTip.Tip="Edit goal" AutomationProperties.Name="Edit goal">

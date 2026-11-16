@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Beeminder;
 using AccountabiliBuddy.App.Services.Goals;
 using AccountabiliBuddy.Core.Goals;
 using Avalonia.Media;
@@ -89,6 +90,28 @@ public sealed partial class GoalRowViewModel : ObservableObject
     /// <summary>Behind this period (the This week card's "N behind" jumps to the first one).</summary>
     [ObservableProperty]
     public partial bool IsBehind { get; set; }
+
+    /// <summary>R8.2: "Beeminder · 3 safe days" for a goal with a Beeminder read link (the slug is in the tooltip and the detail); null otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBeeminderChip))]
+    public partial string? BeeminderChip { get; set; }
+
+    /// <summary>The chip's full text, "Beeminder · reading · 3 safe days".</summary>
+    [ObservableProperty]
+    public partial string? BeeminderChipTip { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsBeeminderDueToday { get; set; }
+
+    public bool HasBeeminderChip => BeeminderChip is not null;
+
+    /// <summary>Takes the goal's Beeminder link (null = none or Beeminder not connected here).</summary>
+    public void SetBeeminder(BeeminderLinkInfo? link)
+    {
+        BeeminderChip = link?.RowChip;
+        BeeminderChipTip = link?.Chip;
+        IsBeeminderDueToday = link?.IsDueToday ?? false;
+    }
 
     public bool ShowsBar => Visual == GoalRowVisual.Bar;
 

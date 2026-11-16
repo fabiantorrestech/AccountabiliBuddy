@@ -265,6 +265,11 @@
                                                                         </Border>
                                                                         <TextBlock Classes="abSubLine" Margin="6,0,0,0" Text="{Binding PausedSince}" IsVisible="{Binding IsPaused}" />
                                                                     </DockPanel>
+                                                                    <!-- R8.2: the Beeminder read link on its own line (the target line is often long); trimmed to the column, the full text is the tooltip. -->
+                                                                    <Border Classes="abChip" Classes.amber="{Binding IsBeeminderDueToday}" HorizontalAlignment="Left" Margin="0,2,0,0"
+                                                                            IsVisible="{Binding HasBeeminderChip}" ToolTip.Tip="{Binding BeeminderChipTip}">
+                                                                        <TextBlock Text="{Binding BeeminderChip}" TextTrimming="CharacterEllipsis" />
+                                                                    </Border>
                                                                 </StackPanel>
                                                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                                                     <TextBlock Classes="numeral" FontSize="13" Text="{Binding Number}" IsVisible="{Binding ShowsNumber}" VerticalAlignment="Center" />

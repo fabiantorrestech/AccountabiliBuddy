@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Beeminder;
 using AccountabiliBuddy.App.Services.Goals;
 using AccountabiliBuddy.Core.Goals;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -133,6 +134,12 @@ public sealed partial class GoalsViewModel : ObservableObject
     /// <summary>ADR 85, R1: "Running on Pixel · 32 min left" while a session is live on another device (none here); null otherwise. Set by the app.</summary>
     public Func<string?>? RunningElsewhereNote { get; set; }
 
+    /// <summary>
+    /// R8.2: the chip and pace line for a Beeminder link's key (its slug), from the goals list the app already keeps; null while Beeminder isn't
+    /// connected on this PC. Set by the app; nothing is fetched. A goal without a Read link never asks.
+    /// </summary>
+    public Func<string, BeeminderLinkInfo?>? BeeminderLinkFor { get; set; }
+
     /// <summary>Opens an address in the user's own browser (Open in Beeminder; set by the app).</summary>
     public Action<string>? OpenInBrowser { get; set; }
 
@@ -183,12 +190,26 @@ public sealed partial class GoalsViewModel : ObservableObject
         Goal? deepWork = _goals.DeepWork;
         List<Goal> goals = store.Lists.LiveGoals.Select(goal => goal.IsDeepWork && deepWork is not null ? deepWork : goal).ToList();
         _facts = goals.Select(goal => GoalFactsBuilder.Build(goal, data, today, settings.WeekStart)).ToList();
+        var links = new Dictionary<Guid, BeeminderLinkInfo>();
+        foreach (GoalFacts item in _facts)
+        {
+            if (BeeminderLinkOf(item.Goal) is { } link)
+            {
+                links[item.Goal.Id] = link;
+            }
+        }
+
         if (Math.Abs(ListWidth - store.Ui.ListWidth) > 0.5)
         {
             ListWidth = store.Ui.ListWidth;
         }
 
         List.Update(_facts, store.Lists, store.Ui, today, settings.WeekStart);
+        foreach (GoalRowViewModel row in List.Rows.Values)
+        {
+            row.SetBeeminder(links.GetValueOrDefault(row.Id));
+        }
+
         List.ThisWeek.ReviewNote = GoalThisWeekViewModel.ReviewText(settings.ReviewDay, settings.ReviewSettings.TidyUpAfter);
         if (Review is not null)
         {
@@ -204,11 +225,19 @@ public sealed partial class GoalsViewModel : ObservableObject
         if (_facts.FirstOrDefault(item => item.Goal.Id == selected) is GoalFacts shown)
         {
             Detail.Show(shown, data, store.Lists, settings, _goals.DeepWorkSettings, _data.Zone, _isProductaBuddy());
+            Detail.SetBeeminder(links.GetValueOrDefault(shown.Goal.Id));
         }
         else
         {
             Detail.Clear();
         }
+    }
+
+    // R8.2: the goal's Beeminder read link (a switched-on source in direction Read with a goal picked), worded from the cached list.
+    private BeeminderLinkInfo? BeeminderLinkOf(Goal goal)
+    {
+        // The same rule the datapoint reads use (BeeminderEntries.LinksOf: counted sources only, so never Deep work; slug trimmed).
+        return BeeminderEntries.LinksOf([goal]).FirstOrDefault() is { } link ? BeeminderLinkFor?.Invoke(link.Key) : null;
     }
 
     /// <summary>Back / forward (owner 2026-11-14): the goal is still there (false once deleted).</summary>

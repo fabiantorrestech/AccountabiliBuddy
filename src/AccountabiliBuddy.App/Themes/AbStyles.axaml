@@ -510,6 +510,14 @@
         <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
     </Style>
 
+    <!-- A chip that needs a look (R8.2: a Beeminder link with no safe days left). -->
+    <Style Selector="Border.abChip.amber">
+        <Setter Property="Background" Value="{DynamicResource Ab.AmberFill}" />
+    </Style>
+    <Style Selector="Border.abChip.amber > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+    </Style>
+
     <!-- Status (§3.8): amber pills mean late or behind ("Overdue 3 d", "1 behind"). Red is only for destructive actions and the drag
          Cancel zone. -->
     <Style Selector="Border.abPill">
