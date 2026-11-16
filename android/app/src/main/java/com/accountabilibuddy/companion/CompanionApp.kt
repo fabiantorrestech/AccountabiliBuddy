@@ -198,7 +198,7 @@ class CompanionApp : Application() {
 
     // The stretches the devices' sessions counted as focus, for leaving them out of a Work event's Budget credit (an open session runs to now).
     private fun countedFocusWindows(now: java.time.Instant, zone: java.time.ZoneId): List<com.accountabilibuddy.companion.model.LocalWindow> =
-        sync.allReceived.value.flatMap { it.file.sessions }
+        focusDevices().flatMap { com.accountabilibuddy.shared.sync.GroupSessions.closeOpenPieces(it.file, it.receivedAt, now).sessions }
             .filter { !it.added }
             .map { com.accountabilibuddy.companion.model.LocalWindow(java.time.LocalDateTime.ofInstant(it.start, zone), java.time.LocalDateTime.ofInstant(it.end ?: now, zone)) }
             .filter { it.end.isAfter(it.start) }
@@ -217,6 +217,65 @@ class CompanionApp : Application() {
         appScope.launch { runCatching { driveSource.syncNow() } }
         relaySoon()
     }
+
+    /**
+     * PS2b (B13): this phone's file is written now by every way that is on: the sync folder, Drive and the relay (each does nothing while its switch is off;
+     * the write gate still skips a file that did not change inside its heartbeat, which is 2 minutes while a phone session runs).
+     */
+    fun sendOwnFileNow() {
+        synchronized(ownFileLock) {
+            ownFilePending = true
+            if (ownFileJob != null) return
+            ownFileJob = appScope.launch {
+                // Debounced (Q1183): a burst of state changes is one round of passes, and a change that comes during the passes gets one more round.
+                while (true) {
+                    kotlinx.coroutines.delay(OWN_FILE_DEBOUNCE_MS)
+                    synchronized(ownFileLock) {
+                        if (!ownFilePending) {
+                            ownFileJob = null
+                            return@launch
+                        }
+                        ownFilePending = false
+                    }
+                    runOwnFilePasses()
+                }
+            }
+        }
+    }
+
+    /**
+     * The heartbeat alarm's receiver (S3): the passes run NOW, all three at once, and this returns when they are done or after [timeoutMs], so the receiver
+     * can keep the phone awake (`goAsync`) until the file is out. Anything asked for meanwhile is covered by these passes.
+     */
+    suspend fun sendOwnFileAndWait(timeoutMs: Long) {
+        synchronized(ownFileLock) { ownFilePending = false }
+        // The passes block on sockets and files that cancellation can't interrupt: the wait is a timed join on their own thread, so the receiver is held for
+        // [timeoutMs] at most (V-S1); the passes go on after it.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.accountabilibuddy.companion.session.PhoneSessionBoundedWait.run(timeoutMs) { kotlinx.coroutines.runBlocking { runOwnFilePasses() } }
+        }
+    }
+
+    private suspend fun runOwnFilePasses() = kotlinx.coroutines.coroutineScope {
+        launch { runCatching { folderSource.syncNow() } }
+        launch { runCatching { driveSource.syncNow() } }
+        launch { runCatching { relaySource.syncNow() } }
+    }
+
+    private val ownFileLock = Any()
+    private val OWN_FILE_DEBOUNCE_MS = 1_500L
+    private var ownFilePending = false
+    private var ownFileJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * PS2b: every device's counted sessions and this phone's own phone sessions, for everything that counts focus (Today, Stats, goals, the focus day, the
+     * watch's total, the Work-event credit). Device lists, receipts and removal keep to [SyncCoordinator.allReceived]; `allReceived` is read only through
+     * here or in a list, and a check scans for any other use.
+     */
+    fun focusDevices(all: List<com.accountabilibuddy.companion.sync.ReceivedDevice> = sync.allReceived.value): List<com.accountabilibuddy.companion.sync.ReceivedDevice> =
+        com.accountabilibuddy.companion.session.PhoneSessionFiles.focusFiles(
+            all, com.accountabilibuddy.companion.session.PhoneSessionFiles.ownDevice(phoneSession.controller.syncInput(), sync.deviceId, deviceName, appVersion()),
+        )
 
     private var driveCarry: kotlinx.coroutines.Job? = null
 
@@ -307,6 +366,7 @@ class CompanionApp : Application() {
         com.accountabilibuddy.companion.sync.SyncTroubleshoot(
             sync, { listOf(folderSource, driveSource, relaySource) }, goalHistory,
             { com.accountabilibuddy.companion.guidance.TrustedTime.now() }, { java.time.ZoneId.systemDefault() }, appVersion(),
+            notes = { phoneSession.troubleshootLines() },
         )
     }
 
@@ -513,7 +573,7 @@ class CompanionApp : Application() {
         // ADR 40: the PC's settings (profiles, day plan, sleep, day bar, events) from its sync file.
         appScope.launch { sync.received.collect { devices -> applyPcFileSettings(devices.map { it.file }) } }
         watchBridge = WatchBridge(
-            this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received, sync.allReceived,
+            this, store, WatchLinkStore(File(filesDir, "companion/watch.json")), appScope, sync.received, sync.allReceived, focusOf = { focusDevices(it) },
             pickedPc = { pcRemote.chosenPcId.value },
             // The watch's Lunch page: today's lunch and the length setting.
             lunch = { lunch.forWatch(store.state.value.document.dayPlan, com.accountabilibuddy.companion.guidance.TrustedTime.now(), lunchDiscardAllowed()) },
@@ -717,7 +777,9 @@ class CompanionApp : Application() {
                 ?.filterNot { unlock -> !phoneDown.shownFor(unlock) && reader.appAfter(unlock)?.let { (app, screen) -> allowed.isAllowed(app, screen) } == true }
         }
         // Phase 11b: where the phone is during a PC session (label, times and counts only).
-        sync.inFocusSession = { placementStore.load()?.active == true }
+        // PS2b: a session on this phone keeps the file rewritten every 2 minutes too (B13), and its sessions, `running` and stamp come from the session's own clock (B4).
+        sync.inFocusSession = { placementStore.load()?.active == true || phoneSession.realSessionRunning() }
+        sync.ownSessions = { phoneSession.syncPart(com.accountabilibuddy.companion.guidance.TrustedTime.now()) }
         sync.placement = {
             // Guard off: no placement in the file, so the PC sees unknown and never nags.
             val now = java.time.Instant.now()
@@ -910,6 +972,7 @@ class CompanionApp : Application() {
         refreshOnScreenOn()
         // Timers and alarms set again at every start: a force stop or a battery manager drops the app's alarms.
         runCatching { com.accountabilibuddy.companion.timers.TimerScheduler.restore(this) }
+        phoneSession.onSyncWrite = ::sendOwnFileNow
         // ADR 85: a phone session that was running when the process died (or the phone went off) is looked at now: the gap, the alarms, the lunch.
         runCatching { phoneSession.start() }
     }
@@ -1007,6 +1070,11 @@ class CompanionApp : Application() {
     // start, end early or plan edit is awaited (ADR 42).
     private fun driveBusy(): Boolean {
         if (com.accountabilibuddy.companion.notify.PinnedTimelineService.isRunning) {
+            return true
+        }
+
+        // PS2b: a session on this phone keeps Drive and the relay at their busy pace, so its file is written at least every 5 minutes (B13).
+        if (phoneSession.realSessionRunning()) {
             return true
         }
 

@@ -12,6 +12,7 @@ import com.accountabilibuddy.companion.engine.HeaderInput
 import com.accountabilibuddy.companion.engine.HeaderText
 import com.accountabilibuddy.companion.model.LocalWindow
 import com.accountabilibuddy.companion.sync.PcFileControl
+import com.accountabilibuddy.companion.sync.arrivalOf
 import com.accountabilibuddy.companion.usage.PhoneUsageReader
 import com.accountabilibuddy.companion.watch.PhoneSnapshot
 import com.accountabilibuddy.shared.SnapshotBuilder
@@ -76,7 +77,9 @@ object HeaderSource {
         val state = app.store.state.value
         val zone = ZoneId.systemDefault()
         val received = app.sync.received.value.map { it.file.device.name to it.file }
-        val totals = app.sync.allReceived.value.map { it.file.device.name to it.file }
+        // PS2b: this phone's own phone sessions count too (device lists stay on allReceived).
+        val counted = app.focusDevices()
+        val totals = counted.map { it.file.device.name to it.file }
         if (totals.isEmpty()) {
             return null
         }
@@ -84,7 +87,7 @@ object HeaderSource {
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
                 state, linked = true, PcFileControl.target(app.sync.received.value, app.pcRemote.chosenPcId.value)?.file?.device?.name, now.atZone(zone).toInstant(), zone,
-                received = received, totals = totals, plan = app.effectivePlan(state),
+                received = received, totals = totals, plan = app.effectivePlan(state), receivedAtOf = counted.arrivalOf(),
             ),
         )
     }

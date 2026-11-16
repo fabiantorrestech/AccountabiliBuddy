@@ -17,6 +17,7 @@ import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalReview
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
 import com.accountabilibuddy.companion.guidance.TrustedTime
+import com.accountabilibuddy.companion.sync.arrivalOf
 import com.accountabilibuddy.companion.ui.shell.AppNav
 import com.accountabilibuddy.shared.goals.Goal
 import com.accountabilibuddy.shared.goals.GoalFactsBuilder
@@ -88,9 +89,11 @@ object GoalReminders {
         val pcDaily = PhoneDeepWork.dailyMinutes(app.sync.received.value.map { it.file })
         val weekly = app.goals.deepWork.current()
         val goals = lists.liveGoals.map { PhoneDeepWork.view(it, pcDaily, weekly) }
+        // PS2b: this phone's own phone sessions count too.
+        val counted = app.focusDevices()
         val data = runCatching {
-            PhoneGoalData.build(app.sync.allReceived.value.map { it.file }, goals, lists.liveEntries, app.steps.state.value, now, zone, PhoneGoalData.slept(app), taskLinks = PhoneGoalData.taskLinks(app),
-                receivedAtOf = { file -> app.sync.allReceived.value.firstOrNull { it.file === file }?.receivedAt ?: file.device.writtenAt })
+            PhoneGoalData.build(counted.map { it.file }, goals, lists.liveEntries, app.steps.state.value, now, zone, PhoneGoalData.slept(app), taskLinks = PhoneGoalData.taskLinks(app),
+                receivedAtOf = counted.arrivalOf())
         }.getOrNull()
         val weekStart = GoalDisplayPrefs.display.value.weekStart
         val held = paused || PhoneGoalReview.sessionRunning(app, now)

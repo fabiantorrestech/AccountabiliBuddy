@@ -34,9 +34,10 @@ object SessionPieces {
      * @param records The phone's session records, any order.
      * @param oldestSessionStart The start of the oldest record the phone still keeps, of any kind; null for none. When it is not older than
      * the 14 days the file speaks for all a receiver keeps, so receivers drop what was deleted.
+     * @param span How far back the counted sessions go: the file's 14 days by default; the phone's own counting reads its whole 90-day log ([KEPT_FOR]).
      */
-    fun build(records: List<PhoneSessionRecord>, now: Instant, zone: ZoneId, oldestSessionStart: Instant?): Built {
-        val from = now.minus(FILE_SPAN).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant()
+    fun build(records: List<PhoneSessionRecord>, now: Instant, zone: ZoneId, oldestSessionStart: Instant?, span: Duration = FILE_SPAN): Built {
+        val from = now.minus(span).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant()
         val coversFrom = if (oldestSessionStart != null && oldestSessionStart.isBefore(from)) from else now.minus(KEPT_FOR)
         val real = records.filter { !it.isTest }
         val newest = real.maxByOrNull { it.startedAt }

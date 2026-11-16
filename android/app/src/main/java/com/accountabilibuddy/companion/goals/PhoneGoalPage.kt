@@ -66,11 +66,13 @@ data class PhoneGoalPage(
             slept: List<GoalWindow> = emptyList(),
             hiddenNote: (UUID) -> String? = { null },
             taskLinks: List<GoalTaskLink> = emptyList(),
+            /** When each device's file arrived here (PS2b): a phone's open session is judged by it, a stamp ahead of it is not believed. */
+            receivedAtOf: (SyncFile) -> Instant = { it.device.writtenAt },
         ): PhoneGoalPage? {
             val stored = lists.liveGoals.firstOrNull { it.id == goalId } ?: return null
             val goal = PhoneDeepWork.view(stored, PhoneDeepWork.dailyMinutes(goalFiles), weekly)
             val today = now.atZone(zone).toLocalDate()
-            val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone, slept, taskLinks = taskLinks)
+            val data = PhoneGoalData.build(files, listOf(goal), lists.liveEntries, steps, now, zone, slept, taskLinks = taskLinks, receivedAtOf = receivedAtOf)
             val facts = GoalFactsBuilder.build(goal, data, today, display.weekStart)
             val byId = labels.associateBy { GoalLabelId.idFor(it) }
             val labelName: (UUID) -> String? = { byId[it] }

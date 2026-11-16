@@ -198,6 +198,9 @@ private val checks: List<FixtureCheck> = listOf(
     Ps1Check("checklist-ops", Ps1Cases::checklistOps),
     Ps1Check("merge", Ps1Cases::merge),
     Ps1Check("overlap", Ps1Cases::overlap),
+    // PS2b: the same fixtures through what the phone WRITES in its file (every `pieces` case end to end, the stamp, `running`) and through how it COUNTS its own sessions.
+    Ps2bCheck("pieces", Ps2bCases::pieces),
+    Ps2bCheck("overlap", Ps2bCases::overlap),
 )
 
 /**
@@ -278,6 +281,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "ps1-self" to Ps1SelfCheck::run,
     // PS2a: the phone session's runtime (clock, sealed codec and store, controller, lunch observer, the phone off, source scans), on the JVM with fakes.
     "ps2a-self" to Ps2aSelfCheck::run,
+    // PS2b: the file's session part (B4 stamp, B5, V-N1, R14, B11), the phone's own sessions counted with the others, the 5-minute write (B13), the allReceived classification.
+    "ps2b-self" to Ps2bSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

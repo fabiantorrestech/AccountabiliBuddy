@@ -52,6 +52,7 @@ import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
 import com.accountabilibuddy.companion.goals.PhoneGoalsOverview
 import com.accountabilibuddy.companion.sync.ReceivedDevice
+import com.accountabilibuddy.companion.sync.arrivalOf
 import com.accountabilibuddy.companion.ui.LocalMotionScale
 import com.accountabilibuddy.companion.ui.kit.AbCard
 import com.accountabilibuddy.companion.ui.kit.AbSegmentedCompact
@@ -121,7 +122,7 @@ fun GoalsScreen(allReceived: List<ReceivedDevice>, received: List<ReceivedDevice
         }
         value = withContext(Dispatchers.Default) {
             runCatching {
-                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), PhoneGoalData.slept(app), taskLinks)
+                PhoneGoalsOverview.build(lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(), app.goals.deepWork.current(), PhoneGoalData.slept(app), taskLinks, receivedAtOf = allReceived.arrivalOf())
             }.getOrNull()
         }
     }

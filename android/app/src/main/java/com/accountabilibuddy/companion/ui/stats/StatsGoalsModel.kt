@@ -13,6 +13,7 @@ import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
 import com.accountabilibuddy.companion.goals.PhoneGoalsOverview
 import com.accountabilibuddy.companion.sync.ReceivedDevice
+import com.accountabilibuddy.companion.sync.arrivalOf
 import com.accountabilibuddy.shared.goals.GoalFacts
 import com.accountabilibuddy.shared.goals.GoalWeekStart
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +87,7 @@ fun rememberStatsGoals(allReceived: List<ReceivedDevice>, received: List<Receive
                 PhoneGoalsOverview.build(
                     lists, display, allReceived.map { it.file }, received.map { it.file }, steps, Instant.now(), ZoneId.systemDefault(),
                     app.goals.deepWork.current(), PhoneGoalData.slept(app), taskLinks,
+                    receivedAtOf = allReceived.arrivalOf(),
                 )
             }.getOrNull()
         }

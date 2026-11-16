@@ -33,5 +33,23 @@ object SyncFileStrip {
     }
 
     /** This phone's own file as QR codes carry it: no shared lists, past keys, categories, steps, task parts or receipts (ADR 86: the codes' room goes to sessions). */
-    fun forQr(file: SyncFile): SyncFile = file.copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null, taskParts = null, goalParts = null, goalYearsMerged = null, receipts = null, sessionNotes = null)
+    fun forQr(file: SyncFile, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): SyncFile = todaysSessionsOnly(stripped(file), zone)
+
+    /**
+     * Only today's sessions go into QR codes (the PC's `SyncFileBuilder.ForQr`): the ones that end after the start of the day the file was written, the open one
+     * ending when the file was written; `coversFrom` rises to the newest end left out (the file then speaks for what it carries, and the receiver keeps its older
+     * copies); the drift follows what the file speaks for. The PC's further trimming to the codes' room is not ported.
+     */
+    private fun todaysSessionsOnly(file: SyncFile, zone: java.time.ZoneId): SyncFile {
+        val writtenAt = file.device.writtenAt
+        val todayStart = writtenAt.atZone(zone).toLocalDate().atStartOfDay(zone).toInstant()
+        fun end(session: SyncSession) = session.end ?: writtenAt
+        val kept = file.sessions.filter { end(it).isAfter(todayStart) }.sortedBy { it.start }
+        val leftOutEnds = file.sessions.filter { !end(it).isAfter(todayStart) }.map(::end)
+        val coversFrom = (listOf(SyncMerge.coveredFrom(file)) + leftOutEnds).max()
+        val driftFrom = if (kept.isNotEmpty() && kept[0].start.isBefore(coversFrom)) kept[0].start else coversFrom
+        return file.copy(sessions = kept, coversFrom = coversFrom, drift = file.drift.filter { it.end.isAfter(driftFrom) }.sortedBy { it.start })
+    }
+
+    private fun stripped(file: SyncFile): SyncFile = file.copy(nextTasks = null, parked = null, later = null, pastKeys = null, categories = null, steps = null, taskParts = null, goalParts = null, goalYearsMerged = null, receipts = null, sessionNotes = null)
 }

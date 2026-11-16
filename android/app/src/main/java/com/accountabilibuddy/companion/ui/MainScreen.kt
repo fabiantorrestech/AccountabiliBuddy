@@ -89,7 +89,7 @@ fun MainScreen(
     val detectedWatches by viewModel.detectedWatches.collectAsStateWithLifecycle()
     val joinOffer by viewModel.joinOffer.collectAsStateWithLifecycle()
     val syncReceived by viewModel.syncReceived.collectAsStateWithLifecycle()
-    val syncAllReceived by viewModel.syncAllReceived.collectAsStateWithLifecycle()
+    val syncAllReceived by viewModel.syncFocusReceived.collectAsStateWithLifecycle()
     val syncKey by viewModel.syncKey.collectAsStateWithLifecycle()
     val syncSettings by viewModel.syncSettings.collectAsStateWithLifecycle()
     // ADR 54, 55: a phone that was removed from its group, the removed devices kept, and the remove and restore dialogs.

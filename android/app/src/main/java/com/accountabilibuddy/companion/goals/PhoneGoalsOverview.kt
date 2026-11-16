@@ -48,6 +48,8 @@ data class PhoneGoalsOverview(
             weekly: GoalDeepWorkWeekly = GoalDeepWorkWeekly(),
             slept: List<GoalWindow> = emptyList(),
             taskLinks: List<com.accountabilibuddy.shared.goals.GoalTaskLink> = emptyList(),
+            /** When each device's file arrived here (PS2b): a phone's open session is judged by it, a stamp ahead of it is not believed. */
+            receivedAtOf: (SyncFile) -> Instant = { it.device.writtenAt },
         ): PhoneGoalsOverview {
             val today = now.atZone(zone).toLocalDate()
             val pcDaily = PhoneDeepWork.dailyMinutes(goalFiles)
@@ -56,7 +58,7 @@ data class PhoneGoalsOverview(
             val goals = lists.liveGoals
                 .map { PhoneDeepWork.view(it, pcDaily, weekly) }
                 .sortedWith(compareBy({ areaOrder[it.areaId] ?: Int.MAX_VALUE }, { it.position }))
-            val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone, slept, taskLinks = taskLinks)
+            val data = PhoneGoalData.build(files, goals, lists.liveEntries, steps, now, zone, slept, taskLinks = taskLinks, receivedAtOf = receivedAtOf)
             val facts = goals.map { GoalFactsBuilder.build(it, data, today, display.weekStart) }
             return PhoneGoalsOverview(today, areas, facts, GoalWeekSummary.of(facts, today, display.weekStart), pcDaily, data, PhoneDeepWork.hasPc(goalFiles))
         }

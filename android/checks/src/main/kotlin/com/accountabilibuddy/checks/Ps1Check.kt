@@ -274,7 +274,7 @@ object Ps1Cases {
     // ------------------------------------------------------------------------------------------------------ helpers
 
     /** The case's files with the time each arrived (the parallel `receivedAt` array); a case without it reads each stamp as its arrival. */
-    private fun received(case: FixtureCase, now: Instant): List<ReceivedSyncFile> {
+    internal fun received(case: FixtureCase, now: Instant): List<ReceivedSyncFile> {
         val files = case.input.getValue("files").jsonArray.map { readFile(it.jsonObject) }
         val arrivals = case.input["receivedAt"]?.jsonArray?.map { time(it.jsonPrimitive.content) }
         check(arrivals == null || arrivals.size == files.size) { "receivedAt has ${arrivals?.size} entries for ${files.size} files" }
@@ -283,10 +283,10 @@ object Ps1Cases {
 
     private fun readFile(json: JsonObject): SyncFile = SyncFileJson.read(json) ?: error("a fixture file the phone cannot read")
 
-    private fun card(writtenAt: Instant, id: UUID = deviceA) =
+    internal fun card(writtenAt: Instant, id: UUID = deviceA) =
         SyncDeviceCard(id, "Pixel", SyncDeviceCard.KIND_PHONE, "0.1.78", writtenAt, listOf(SyncDeviceCard.METHOD_RELAY), false, emptyMap())
 
-    private fun record(index: Int, json: JsonObject): PhoneSessionRecord {
+    internal fun record(index: Int, json: JsonObject): PhoneSessionRecord {
         val kinds = mapOf("StepAway" to PhoneAwayKind.STEP_AWAY, "Paused" to PhoneAwayKind.PAUSED, "Lunch" to PhoneAwayKind.LUNCH, "DeviceOff" to PhoneAwayKind.DEVICE_OFF)
         val start = time(json.getValue("startedAt").jsonPrimitive.content)
         val tasks = (json["tasks"] as? JsonArray)?.let { SessionTaskItem.read(it) }.orEmpty()
@@ -312,10 +312,10 @@ object Ps1Cases {
 
     private fun doneAt(element: JsonElement?): Instant? = (element as? JsonPrimitive)?.takeIf { it !is JsonNull }?.let { time(it.content) }
 
-    private fun time(text: String): Instant = OffsetDateTime.parse(text).toInstant()
+    internal fun time(text: String): Instant = OffsetDateTime.parse(text).toInstant()
 
     /** Null when [expected] and [actual] are the same JSON once times are instants and the ignored keys are gone, else a short description. */
-    private fun differs(what: String, expected: JsonElement, actual: JsonElement): String? {
+    internal fun differs(what: String, expected: JsonElement, actual: JsonElement): String? {
         val want = normal(expected)
         val got = normal(actual)
         return if (want == got) null else "$what differs: C# $want vs kotlin $got"

@@ -24,3 +24,9 @@ class ReceivedDevice(val file: SyncFile, val receivedAt: Instant, val method: St
     /** Whether [sealed] can be handed to the other devices; false after a new key (ADR 54), until the device's next file. */
     val carryable: Boolean get() = sealed.isNotEmpty()
 }
+
+/**
+ * The arrival time of each device's file in this list, for a reader that judges another device's open session (PS1a heardAt, B4): a file that is not in the
+ * list is taken at its stamp. Every reader of the counted focus passes it.
+ */
+fun List<ReceivedDevice>.arrivalOf(): (SyncFile) -> Instant = { file -> firstOrNull { it.file === file }?.receivedAt ?: file.device.writtenAt }

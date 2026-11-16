@@ -35,6 +35,8 @@ object PhoneSnapshot {
         totals: List<Pair<String, SyncFile>> = received,
         /** The plan the guards read (ADR 58: calendar events over the stored plan); the parts the watch shows follow it. Planned minutes stay on the stored plan. */
         plan: DayPlan = state.document.dayPlan,
+        /** When each device's file arrived here (PS2b): a phone's open session is judged by it, a stamp ahead of it is not believed. */
+        receivedAtOf: (SyncFile) -> Instant = { it.device.writtenAt },
     ): SnapshotInput {
         val today = now.atZone(zone).toLocalDate()
         val fileRunning = runningFromFiles(received, now)
@@ -47,7 +49,7 @@ object PhoneSnapshot {
             // ADR 65: work a PC ended early, for the watch to draw lighter.
             endedParts = endedTodayParts(plan, today, zone, state.sleep),
             // The parts and planned minutes come from the imported plan (ADR 42).
-            focusDay = FocusDayCombine.combine(totals, today, zone, now, planParts = { date -> todayParts(state.document.dayPlan, date, zone, state.sleep) }),
+            focusDay = FocusDayCombine.combine(totals, today, zone, now, receivedAtOf = receivedAtOf, planParts = { date -> todayParts(state.document.dayPlan, date, zone, state.sleep) }),
             sources = received.map { (name, file) -> DataSource(name, file.device.writtenAt) },
             running = fileRunning?.first,
             runningAt = fileRunning?.second,

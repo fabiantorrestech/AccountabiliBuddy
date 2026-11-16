@@ -14,6 +14,8 @@ import com.accountabilibuddy.shared.session.PhoneEndSettings
 import com.accountabilibuddy.shared.session.PhoneSessionEndKind
 import com.accountabilibuddy.shared.session.PhoneSessionMode
 import com.accountabilibuddy.shared.session.PhoneSessionRecord
+import com.accountabilibuddy.shared.session.PhoneSessionSyncPart
+import com.accountabilibuddy.shared.session.PhoneSessionSyncWriter
 import com.accountabilibuddy.shared.sync.GroupSessions
 import com.accountabilibuddy.shared.sync.ReceivedSyncFile
 import kotlinx.coroutines.CoroutineScope
@@ -33,15 +35,15 @@ import java.util.UUID
  * with the process ([start]), so a boot, an update or Android killing the app all end in the same place: the saved session is looked at, the
  * gap with the phone off is judged, the alarms are set again. No UI of its own.
  *
- * The parts other tasks fill in are hooks here, do nothing until they are set: [onSyncWrite] (PS2b: this phone's file with `running` and
- * `sessions`), [onEnforceUntil] and [onRelease] (PS2c: LockMyPhone, Curbox).
+ * The parts other tasks fill in are hooks here, do nothing until they are set: [onSyncWrite] (PS2b: the app writes this phone's file now; the file's
+ * session part is [syncPart]), [onEnforceUntil] and [onRelease] (PS2c: LockMyPhone, Curbox).
  */
 class PhoneSessionRuntime(private val app: CompanionApp) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val alarm = PhoneSessionAlarm(app)
     private val _running = MutableStateFlow<PhoneSessionRecord?>(null)
 
-    /** PS2b: write this phone's sync file now (never called for a test session). */
+    /** PS2b: write this phone's sync file now, by every way that is on (never called for a test session). */
     @Volatile
     var onSyncWrite: (() -> Unit)? = null
 
@@ -130,6 +132,27 @@ class PhoneSessionRuntime(private val app: CompanionApp) {
         // A lunch started or ended on any device (here, or from a received file) pauses or resumes the session's countdown.
         scope.launch { app.lunch.lunch.collect { runCatching { controller.observeLunch() } } }
     }
+
+    /**
+     * PS2b: the session part of this phone's sync file: `running`, the counted sessions as pieces, `coversFrom` and the file's own time, all from the session's
+     * trusted clock (B4). [fallbackNow] is the phone's trusted time, used only when the session clock can't stamp a file yet (see [PhoneSessionSyncWriter]).
+     */
+    fun syncPart(fallbackNow: Instant): PhoneSessionSyncPart = PhoneSessionSyncWriter.forFile(controller.syncInput(), fallbackNow)
+
+    /**
+     * Troubleshoot's report lines about this phone's sessions (PS2b, Q1181): plain words, no times and no text. A phone session whose times could not be checked
+     * before the network time arrived is not sent until it is corrected; one that can't be corrected any more stays on this phone.
+     */
+    fun troubleshootLines(): List<String> {
+        val status = controller.sendStatus()
+        return buildList {
+            if (status.waiting) add("This phone's sessions wait for network time before they're sent.")
+            if (status.lost) add("Some of this phone's sessions can't be sent: their time couldn't be checked. They stay on this phone.")
+        }
+    }
+
+    /** PS2b: a real session (never a test one) is running: the sync passes run at their busy pace and the file is rewritten at least every 2 minutes (B13). */
+    fun realSessionRunning(): Boolean = _running.value?.let { it.isRunning && !it.isTest } == true
 
     /** Every redraw of the notification: the network time may have arrived, a lunch may be over, the end may have come, the heartbeat is saved. */
     fun refresh() {

@@ -47,16 +47,16 @@ import javax.crypto.spec.SecretKeySpec
  * (R13, B3a to B3c, Q1163b, V-B1), plus source scans for trusted time and the wiring. Each line names the rule it pins.
  */
 object Ps2aSelfCheck {
-    private val zone: ZoneId = ZoneOffset.ofHours(-5)
-    private val t0: Instant = Instant.parse("2026-11-16T17:00:00Z") // 12:00 local
-    private fun at(minutes: Long): Instant = t0.plusSeconds(minutes * 60)
-    private val min = 60_000L
+    internal val zone: ZoneId = ZoneOffset.ofHours(-5)
+    internal val t0: Instant = Instant.parse("2026-11-16T17:00:00Z") // 12:00 local
+    internal fun at(minutes: Long): Instant = t0.plusSeconds(minutes * 60)
+    internal val min = 60_000L
     private const val GUID_A = "aaaaaaaa-0000-0000-0000-000000000001"
     private const val GUID_B = "aaaaaaaa-0000-0000-0000-000000000002"
     private const val SECRET_TITLE = "Secret task title xyzzy"
     private const val SECRET_REASON = "my private reason text plugh"
 
-    private fun task(id: String, title: String = "Task $id", doneAt: Instant? = null) = SessionTaskItem(id, title, doneAt, emptyList())
+    internal fun task(id: String, title: String = "Task $id", doneAt: Instant? = null) = SessionTaskItem(id, title, doneAt, emptyList())
 
     fun run(report: CheckReport) {
         clock(report)
@@ -80,7 +80,7 @@ object Ps2aSelfCheck {
     // --- Fakes ------------------------------------------------------------------------------------------------------------------
 
     /** The device: an elapsed clock and a trusted reading. [advance] lets real time pass on both; moving [wall] alone moves the phone's clock. */
-    private class FakeSource(var elapsed: Long = 5_000_000L, var boot: Int = 7, var wall: Instant = t0, var network: Boolean = true, var canCome: Boolean = true) : PhoneClockSource {
+    internal class FakeSource(var elapsed: Long = 5_000_000L, var boot: Int = 7, var wall: Instant = t0, var network: Boolean = true, var canCome: Boolean = true) : PhoneClockSource {
         override fun elapsedRealtimeMs(): Long = elapsed
         override fun bootCount(): Int = boot
         override fun trustedReading(): PhoneTimeReading = PhoneTimeReading(wall, network)
@@ -99,7 +99,7 @@ object Ps2aSelfCheck {
         }
     }
 
-    private class AesSealer(private val key: ByteArray = ByteArray(16) { it.toByte() }) : PhoneSessionSealer {
+    internal class AesSealer(private val key: ByteArray = ByteArray(16) { it.toByte() }) : PhoneSessionSealer {
         override fun seal(text: String): String {
             val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
@@ -115,7 +115,7 @@ object Ps2aSelfCheck {
         }.getOrNull()
     }
 
-    private class FakePorts(val dir: File, override val clockSource: FakeSource, sealer: PhoneSessionSealer = AesSealer(), storeDir: File = dir) : PhoneSessionPorts {
+    internal class FakePorts(val dir: File, override val clockSource: FakeSource, sealer: PhoneSessionSealer = AesSealer(), storeDir: File = dir) : PhoneSessionPorts {
         override val store = PhoneSessionStore(File(storeDir, "session/${PhoneSessionStore.SESSIONS_FILE}"), File(storeDir, "session/${PhoneSessionStore.REASONS_FILE}"), sealer)
         var mode = PhoneSessionMode.ACCOUNTABILI_BUDDY
         var settings = PhoneEndSettings.DEFAULT
@@ -126,6 +126,8 @@ object Ps2aSelfCheck {
         val enforce = mutableListOf<Pair<PhoneSessionRecord, Instant?>>()
         val released = mutableListOf<PhoneSessionEndKind>()
         var syncWrites = 0
+        /** The elapsed clock (ms) at each request for the sync file (PS2b: the 5-minute rewrite, B13). */
+        val syncWriteAt = mutableListOf<Long>()
         var logSizeAtLastSyncWrite = -1
         var runningAtLastSyncWrite: PhoneSessionRecord? = null
         var changes = 0
@@ -146,6 +148,7 @@ object Ps2aSelfCheck {
 
         override fun requestSyncWrite() {
             syncWrites++
+            syncWriteAt += clockSource.elapsed
             // What the sync file would be written from: the SAVED store (the effect must come after the save).
             val saved = (store.read() as? PhoneSessionRead.Readable)?.data
             logSizeAtLastSyncWrite = saved?.log?.size ?: -1
@@ -166,7 +169,7 @@ object Ps2aSelfCheck {
     }
 
     /** One phone: files in a temp folder, a device, and a controller that can be thrown away and made again (the process dying). */
-    private class World(val source: FakeSource = FakeSource()) {
+    internal class World(val source: FakeSource = FakeSource()) {
         val dir: File = Files.createTempDirectory("ps2a").toFile()
         val ports = FakePorts(dir, source)
         var controller = PhoneSessionController(ports).also { ports.controller = it }
@@ -811,11 +814,11 @@ object Ps2aSelfCheck {
         // S7: the waking heartbeat alarm runs while a session does, and a gap with no shutdown heard only ever pauses.
         val hb = World()
         hb.controller.start("p", "x", 60)
-        report.check("ps2a/heartbeat (S7): a waking heartbeat alarm is set at the start, every 15 minutes", hb.ports.alarms[PhoneAlarmKind.HEARTBEAT] == 15 * min)
+        report.check("ps2a/heartbeat (S7, PS2b): a waking heartbeat alarm is set at the start, every 5 minutes (B13's write rides on it)", hb.ports.alarms[PhoneAlarmKind.HEARTBEAT] == 5 * min)
         hb.ports.alarms[PhoneAlarmKind.HEARTBEAT] = null
         hb.source.advance(2 * min)
         hb.controller.refresh()
-        report.check("ps2a/heartbeat (S7): and set again at every refresh (it fires inexactly, once)", hb.ports.alarms[PhoneAlarmKind.HEARTBEAT] == 15 * min)
+        report.check("ps2a/heartbeat (S7, PS2b S3): and set again at every refresh, 5 minutes after the LAST ask for the file (3 minutes from now), not 5 minutes from the refresh", hb.ports.alarms[PhoneAlarmKind.HEARTBEAT] == 3 * min)
         hb.source.advance(61 * min)
         hb.controller.tick()
         report.check("ps2a/heartbeat (S7): the end cancels it", hb.controller.running == null && hb.ports.alarms[PhoneAlarmKind.HEARTBEAT] == null)
@@ -1046,6 +1049,6 @@ object Ps2aSelfCheck {
         val controller = Sync1cCheck.appSource("session/PhoneSessionController.kt")?.let(Sync1cCheck::code)
         report.check("ps2a/sources (V-B1, B1, S1): the controller passes the trust of its clock, whether trust can come and the saved zone to the off gap", controller != null && controller.contains("applyOffGap(record, decision, now, canBeat())") && controller.contains("PhoneSessionOffGap.decide(record, now, rebooted || record.offAt != null, trusted, canCome, zone())"))
         report.check("ps2a/sources: the checkpoint is written before the start's effects (a session that can't be kept is not started)", controller != null &&
-            controller.indexOf("if (!ports.store.write(staged)) return PhoneSessionStart.StoreFailed") in 0 until controller.indexOf("dispatch(done.record, done.effects, now)"))
+            controller.indexOf("if (storeLocked || !ports.store.write(staged)) return PhoneSessionStart.StoreFailed") in 0 until controller.indexOf("dispatch(done.record, done.effects, now)"))
     }
 }

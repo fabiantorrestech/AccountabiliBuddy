@@ -35,6 +35,8 @@ class SyncTroubleshoot(
     private val now: () -> Instant,
     private val zone: () -> ZoneId,
     private val appVersion: String,
+    /** Extra lines for the diagnostics report (counts and plain words only), e.g. "this phone's sessions wait for network time" (PS2b). */
+    private val notes: () -> List<String> = { emptyList() },
 ) {
     private val _busy = MutableStateFlow(false)
 
@@ -278,7 +280,7 @@ class SyncTroubleshoot(
     fun report(): String {
         val ordinals = SyncBoardBuilder.ordinals(sync.received.value.map { it.file.device })
         return SyncDiagnosticsReport.build(
-            utc(now()), zone(), appVersion, board(), sync.unreadable?.all().orEmpty(), ordinals, sync.syncLogger?.lines().orEmpty(),
+            utc(now()), zone(), appVersion, board(), sync.unreadable?.all().orEmpty(), ordinals, sync.syncLogger?.lines().orEmpty() + runCatching { notes() }.getOrDefault(emptyList()),
         )
     }
 

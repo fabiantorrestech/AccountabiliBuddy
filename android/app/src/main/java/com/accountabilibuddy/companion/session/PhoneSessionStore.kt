@@ -17,7 +17,7 @@ import java.time.Instant
  * "Can't open" is not "empty" (B5): [read] says [PhoneSessionRead.Unreadable] for a file that exists but can't be opened or read, so the
  * caller never writes a file that tells receivers the phone has no history.
  */
-class PhoneSessionStore(private val sessionsFile: File, private val reasonsFile: File, private val sealer: PhoneSessionSealer) {
+open class PhoneSessionStore(private val sessionsFile: File, private val reasonsFile: File, private val sealer: PhoneSessionSealer) {
     @Synchronized
     fun read(): PhoneSessionRead {
         if (!sessionsFile.exists()) return PhoneSessionRead.Missing
@@ -34,12 +34,18 @@ class PhoneSessionStore(private val sessionsFile: File, private val reasonsFile:
      * overwritten, and the file that is unreadable NOW is always the one copied (S5). True when this file was copied.
      */
     @Synchronized
-    fun setAsideUnreadable(): Boolean = runCatching {
+    open fun setAsideUnreadable(): Boolean = runCatching {
         var aside = File(sessionsFile.parentFile, sessionsFile.name + UNREADABLE_SUFFIX)
         var n = 0
         while (aside.exists()) aside = File(sessionsFile.parentFile, sessionsFile.name + UNREADABLE_SUFFIX + "." + (++n))
         sessionsFile.copyTo(aside)
         aside.exists()
+    }.getOrDefault(false)
+
+    /** A copy of an unreadable log was set aside earlier (PS2b review B1): a missing log next to one is a LOST log, never an empty phone. */
+    @Synchronized
+    fun hasAsideCopy(): Boolean = runCatching {
+        sessionsFile.parentFile?.listFiles { f -> f.name.startsWith(sessionsFile.name + UNREADABLE_SUFFIX) }.orEmpty().isNotEmpty()
     }.getOrDefault(false)
 
     /** The kept reasons, newest last; an unreadable file reads as none (a reason stays on this phone only). */

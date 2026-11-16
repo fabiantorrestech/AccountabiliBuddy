@@ -14,6 +14,7 @@ import com.accountabilibuddy.companion.goals.PhoneGoalData
 import com.accountabilibuddy.companion.goals.PhoneGoalPage
 import com.accountabilibuddy.companion.goals.PhoneGoalStatus
 import com.accountabilibuddy.companion.sync.ReceivedDevice
+import com.accountabilibuddy.companion.sync.arrivalOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -60,6 +61,7 @@ fun rememberGoalPage(goalId: UUID, allReceived: List<ReceivedDevice>, received: 
                     app.goals.deepWork.current(), PhoneGoalData.slept(app),
                     hiddenNote = { id -> GoalLabelScopes.hiddenNote(id, names, scopeView) { device -> scopeDeviceName(app, device) } },
                     taskLinks = taskLinks,
+                    receivedAtOf = allReceived.arrivalOf(),
                 )
             }.getOrNull()
         }

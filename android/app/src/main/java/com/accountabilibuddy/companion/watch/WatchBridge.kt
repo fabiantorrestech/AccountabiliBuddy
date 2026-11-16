@@ -7,6 +7,7 @@ import android.os.SystemClock
 import com.accountabilibuddy.companion.data.CompanionStore
 import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.sync.ReceivedDevice
+import com.accountabilibuddy.companion.sync.arrivalOf
 import com.accountabilibuddy.shared.SnapshotBuilder
 import com.accountabilibuddy.shared.WatchLinkSettings
 import com.accountabilibuddy.shared.WatchNode
@@ -46,6 +47,8 @@ class WatchBridge(
     private val received: StateFlow<List<ReceivedDevice>> = MutableStateFlow(emptyList()),
     /** Every device held, removed ones included: today's focus total counts their sessions as history (ADR 54). */
     private val allReceived: StateFlow<List<ReceivedDevice>> = received,
+    /** Every device's counted sessions, this phone's own phone sessions among them (PS2b): what today's focus total reads. Device lists stay on [allReceived]. */
+    private val focusOf: (List<ReceivedDevice>) -> List<ReceivedDevice> = { it },
     /** Today's lunch for the watch's Lunch page, and what changes it (lunch started or changed, the length setting). */
     private val lunch: () -> com.accountabilibuddy.shared.WatchLunch? = { null },
     /** The plan the guards read (ADR 58): calendar events over the stored plan. */
@@ -245,11 +248,13 @@ class WatchBridge(
 
         val settings = links.settings.value
         val pcFiles = received.value.map { it.file.device.name to it.file }
-        val totals = allReceived.value.map { it.file.device.name to it.file }
+        val counted = focusOf(allReceived.value)
+        val totals = counted.map { it.file.device.name to it.file }
         return SnapshotBuilder.build(
             PhoneSnapshot.input(
                 store.state.value, linked = true, PcFileControl.target(received.value, pickedPc())?.file?.device?.name, Instant.now(),
                 ZoneId.systemDefault(), relayAllowed = settings.relayOn, received = pcFiles, totals = totals, plan = effectivePlan(store.state.value),
+                receivedAtOf = counted.arrivalOf(),
             ).copy(lunch = lunch()),
         )
     }

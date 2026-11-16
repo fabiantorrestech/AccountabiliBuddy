@@ -75,7 +75,7 @@ data class DevicesState(
     val joined: Boolean,
     val settings: PhoneSyncSettings,
     val received: List<ReceivedDevice>,
-    /** Every device held, a kept removed one included (ADR 54): the day's combined focus counts their sessions as history. */
+    /** Every device held, a kept removed one included (ADR 54), and this phone's own phone sessions (PS2b): the day's combined focus counts them all. */
     val allReceived: List<ReceivedDevice> = received,
     /** The sync folder's last result (ADR 22, way B). */
     val folder: FolderStatus = FolderStatus(),

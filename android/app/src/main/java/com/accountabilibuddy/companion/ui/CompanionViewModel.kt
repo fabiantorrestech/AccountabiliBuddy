@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -367,7 +368,28 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** The Devices tab (ADR 22): the other devices' parts, the group's key and the phone's method switches. */
     val syncReceived = sync.received
-    val syncAllReceived = sync.allReceived
+
+    /**
+     * Every device held, a kept removed one included, AND this phone's own phone sessions (PS2b): what Today, Goals, Stats and the Devices day line count focus
+     * from. Recomputed every 30 seconds while a session runs on this phone, so its open piece grows; with none it follows the received files and the log only.
+     * (This replaces the old `syncAllReceived`: nothing that counts focus may read `sync.allReceived` directly.)
+     */
+    val syncFocusReceived: StateFlow<List<ReceivedDevice>> = run {
+        val app = application as CompanionApp
+        val ticks = flow {
+            var n = 0L
+            while (true) {
+                emit(n++)
+                delay(FOCUS_TICK_MS)
+            }
+        }
+        combine(sync.allReceived, app.phoneSession.running, ticks) { all, running, tick -> Triple(all, running, if (running?.isRunning == true) tick else 0L) }
+            .distinctUntilChanged()
+            .map { (all, _, _) -> app.focusDevices(all) }
+            // Off the main thread (S4): it takes the controller's lock and cuts the 90-day log.
+            .flowOn(Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, sync.allReceived.value)
+    }
     val syncKey = sync.key
     val syncSettings = sync.settings
 
@@ -993,5 +1015,8 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
         // How often the focus-session lock is looked at again for the screens that show it.
         const val LOCK_RECHECK_MS = 15_000L
         const val GUARDS_RECHECK_MS = 5_000L
+
+        // How often the counted focus is built again while a session runs on this phone (its open piece grows).
+        const val FOCUS_TICK_MS = 30_000L
     }
 }

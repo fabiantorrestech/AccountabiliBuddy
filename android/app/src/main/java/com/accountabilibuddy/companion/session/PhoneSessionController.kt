@@ -13,10 +13,15 @@ import com.accountabilibuddy.shared.session.PhoneSessionRecord
 import com.accountabilibuddy.shared.session.PhoneSessionRefusal
 import com.accountabilibuddy.shared.session.PhoneSessionResult
 import com.accountabilibuddy.shared.session.PhoneSessionStoreData
+import com.accountabilibuddy.shared.session.PhoneSessionSyncInput
+import com.accountabilibuddy.shared.session.PhoneSessionUncheckedEnd
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+
+/** What Troubleshoot says (V-N3, see [PhoneSessionController.sendStatus]). */
+data class PhoneSessionSendStatus(val waiting: Boolean, val lost: Boolean)
 
 /**
  * The only writer of a phone session (ADR 85, PS2a): it applies the pure [PhoneSessionEngine] to the saved record on the session's own
@@ -44,25 +49,52 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
 
     private val lastAlarm = mutableMapOf<PhoneAlarmKind, Instant?>()
 
+    // The log could not be opened AND could not be set aside (V-N1): the original is left alone, nothing is ever written over it; this process runs on memory only.
+    private var storeLocked = false
+
+    // PS2b: when the sync file was last asked for (session clock; the 5-minute rewrite, B13). Not saved: a restart asks for a write again.
+    private var lastSyncWrite: Instant? = null
+
     init {
         when (val read = ports.store.read()) {
             PhoneSessionRead.Missing -> {
-                data = PhoneSessionStoreData()
                 clock = PhoneSessionClock(ports.clockSource)
+                if (ports.store.hasAsideCopy()) {
+                    // A log that is gone next to a copy of an unreadable one is a LOST log, not a new phone (PS2b review B1: a failed write after the copy was set aside).
+                    data = startAgain()
+                } else {
+                    data = PhoneSessionStoreData()
+                }
             }
             is PhoneSessionRead.Readable -> {
                 data = read.data
                 clock = PhoneSessionClock(ports.clockSource, read.data.checkpoint?.anchor)
+                // "History unknown" is saved (B1): a restart after an unreadable log is still an unreadable log until a trusted history start is known.
+                logUnreadable = read.data.historyUnknown && read.data.historyStartsAt == null
             }
             PhoneSessionRead.Unreadable -> {
                 // Not empty (B5): a copy is kept aside under its own name, and a log that starts again says from when, so the sync file never claims
-                // a history it lost. The marker is a time, so it is stored only from a trusted clock (N2); until then the log stays "unreadable".
+                // a history it lost.
                 clock = PhoneSessionClock(ports.clockSource)
-                val fresh = PhoneSessionStoreData(historyStartsAt = clock.now().takeIf { clock.isTrusted })
-                data = fresh
-                logUnreadable = !(ports.store.setAsideUnreadable() && ports.store.write(fresh) && fresh.historyStartsAt != null)
+                val asideKept = ports.store.setAsideUnreadable()
+                // A copy that could not be kept means the original is NOT replaced (V-N1): the next start reads it again, and this one stays silent and unsaved.
+                data = startAgain(keepOriginal = !asideKept)
             }
         }
+    }
+
+    // A log that could not be read starts again (B1): the history starts at once where no network time can ever come (below Android 13) or the clock is
+    // checked; else "history unknown" is SAVED with it, so a restart can't turn it into an empty log that erases what receivers hold.
+    private fun startAgain(keepOriginal: Boolean = false): PhoneSessionStoreData {
+        val start = clock.now().takeIf { canBeat() }
+        val fresh = PhoneSessionStoreData(historyStartsAt = start, historyUnknown = start == null)
+        if (keepOriginal) {
+            storeLocked = true
+            logUnreadable = true
+        } else {
+            logUnreadable = !(ports.store.write(fresh) && start != null)
+        }
+        return fresh
     }
 
     // --- What the app reads -----------------------------------------------------------------------------------------------------
@@ -82,8 +114,51 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
     @get:Synchronized
     val historyStartsAt: Instant? get() = data.historyStartsAt
 
+    /**
+     * What Troubleshoot says about this phone's sessions (V-N3): [waiting] = some will be sent once the network time corrects them (a running session or a
+     * record of this boot, or the clock can't stamp yet); [lost] = some never will (their times were written in an earlier boot): they stay on this phone.
+     */
+    @Synchronized
+    fun sendStatus(): PhoneSessionSendStatus {
+        ensureStarted()
+        val boot = ports.clockSource.bootCount()
+        val checkpoint = data.checkpoint
+        val canCome = clock.trustCanCome
+        val runningUnchecked = canCome && checkpoint?.startUntrusted == true
+        val runningLost = runningUnchecked && checkpoint?.startBoot != checkpoint?.anchor?.bootCount
+        val marksLost = data.uncheckedEnded.count { mark -> mark.anchor.let { it == null || it.bootCount != boot } }
+        val marksWaiting = data.uncheckedEnded.size - marksLost
+        val waiting = (runningUnchecked && !runningLost) || marksWaiting > 0 || (!canBeat() && running != null)
+        return PhoneSessionSendStatus(waiting, runningLost || marksLost > 0)
+    }
+
     /** The session time now (R12). */
     fun now(): Instant = clock.now()
+
+    /**
+     * Everything this phone's sync file and its own counting are made from, taken at one moment (PS2b). Only a clock that may stamp a file counts as
+     * stamping: network-backed, or on a phone that can never get network time (below Android 13: nothing is "unchecked" there, plan risk 8). A session or a
+     * log record written on an unchecked clock (Android 13 and later, before the network time) is marked, and the file leaves it out until corrected (V-N1).
+     */
+    @Synchronized
+    fun syncInput(): PhoneSessionSyncInput {
+        ensureStarted()
+        // The network time may have arrived since the last refresh: the file must not stay silent a few minutes longer (N4).
+        if (running == null) clock.upgradeIfTrusted()
+        correctMarked()
+        val canCome = clock.trustCanCome
+        return PhoneSessionSyncInput(
+            running = running,
+            log = data.log,
+            logUnreadable = logUnreadable,
+            historyStartsAt = data.historyStartsAt,
+            runningUnchecked = canCome && data.checkpoint?.startUntrusted == true,
+            uncheckedEnded = data.uncheckedEnded.map { it.id }.toSet(),
+            sessionNow = clock.now(),
+            stampable = canBeat(),
+            zone = zone(),
+        )
+    }
 
     // --- Start ------------------------------------------------------------------------------------------------------------------
 
@@ -105,10 +180,10 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
             is PhoneSessionResult.Done -> result
         }
         val staged = data.copy(
-            checkpoint = PhoneSessionCheckpoint(done.record, clock.anchor, ports.zone().id, startUntrusted = !clock.isTrusted),
+            checkpoint = PhoneSessionCheckpoint(done.record, clock.anchor, ports.zone().id, startUntrusted = !clock.isTrusted, startBoot = clock.anchor.bootCount),
             notice = null,
         )
-        if (!ports.store.write(staged)) return PhoneSessionStart.StoreFailed
+        if (storeLocked || !ports.store.write(staged)) return PhoneSessionStart.StoreFailed
         data = staged
         dispatch(done.record, done.effects, now)
         // A lunch already running at the start pauses it at once (the session starts inside it).
@@ -180,6 +255,7 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         ensureStarted()
         // The network time arriving anchors the clock again (and, with a session running, corrects what was written on the old anchor, B2).
         if (running == null) clock.upgradeIfTrusted() else upgradeAndCorrect()
+        correctMarked()
         markHistoryWhenTrusted()
         val record = running ?: return
         if (running?.offAt != null) settleOffGap(rebooted = false)
@@ -189,10 +265,14 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         if (Duration.between(current.heartbeatAt, clock.now()) >= HEARTBEAT_EVERY_SAVE && canBeat()) {
             transitionRaw { r, now -> PhoneSessionEngine.heartbeat(r, now, true) }
         }
-        // The waking heartbeat alarm is set again (inexact, about every 15 minutes: the phone asleep still beats, and a killed process starts again, S7).
+        // B13: while a real session runs the sync file is asked for at least every few minutes, whichever way it syncs (the relay pushes, Drive and the folder
+        // write what the ask gives them), so receivers keep a running session live (R2: 15 minutes) however their timers run.
+        if (!current.isTest && current.isRunning && syncWriteDue()) requestWrite()
+        // The waking heartbeat alarm is set for 5 minutes after the LAST ask, not after this refresh (S3: a refresh that wrote nothing must not push it back; inexact:
+        // the phone asleep still beats, a killed process starts again, S7, and B13's write rides on it).
         if (running != null && record.isRunning) {
             heartbeatAlarmOn = true
-            ports.scheduleAlarm(PhoneAlarmKind.HEARTBEAT, HEARTBEAT_ALARM_EVERY.toMillis())
+            ports.scheduleAlarm(PhoneAlarmKind.HEARTBEAT, nextHeartbeatInMs())
         }
     }
 
@@ -267,8 +347,8 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
     private fun zone(): ZoneId = data.checkpoint?.zoneId?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ports.zone()
 
     private fun markHistoryWhenTrusted() {
-        if (!logUnreadable || data.historyStartsAt != null || !clock.isTrusted) return
-        data = data.copy(historyStartsAt = clock.now())
+        if (!logUnreadable || data.historyStartsAt != null || !canBeat()) return
+        data = data.copy(historyStartsAt = clock.now(), historyUnknown = false)
         persist()
         logUnreadable = false
     }
@@ -282,15 +362,58 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         val correction = clock.upgradeIfTrusted() ?: return
         val checkpoint = data.checkpoint ?: return
         val record = checkpoint.record
+        // The start's times move only when they were written on THIS boot's anchor; a start from an earlier boot can't be corrected (Q1181): it stays unchecked and out of the file.
+        val startOnThisBoot = checkpoint.startUntrusted && checkpoint.startBoot == checkpoint.anchor.bootCount
         val moved = when {
-            checkpoint.startUntrusted -> record.shifted(correction)
+            startOnThisBoot -> record.shifted(correction)
             checkpoint.endUntrusted -> record.endShifted(correction)
             else -> record
         }
-        data = data.copy(checkpoint = checkpoint.copy(record = moved, anchor = clock.anchor, startUntrusted = false, endUntrusted = false))
+        data = data.copy(checkpoint = checkpoint.copy(record = moved, anchor = clock.anchor, startUntrusted = checkpoint.startUntrusted && !startOnThisBoot, endUntrusted = false))
         persist()
         syncAlarms(moved, force = true)
         if (moved != record) ports.changed()
+        // The session's times are checked now: the file may say it (V-N1).
+        if (startOnThisBoot && !record.isTest) requestWrite()
+    }
+
+    /**
+     * The clock is checked: each marked ended session whose anchor is from THIS boot moves by its OWN correction (the trusted time now minus what its anchor said now
+     * was), even after the process died in between (the anchor is saved with the mark, Q1181). One from an earlier boot stays marked and out of the file.
+     */
+    private fun correctMarked() {
+        if (data.uncheckedEnded.isEmpty() || !clock.isTrusted) return
+        val boot = ports.clockSource.bootCount()
+        val elapsed = ports.clockSource.elapsedRealtimeMs()
+        val trustedNow = clock.now()
+        val fixes = data.uncheckedEnded.mapNotNull { mark ->
+            val anchor = mark.anchor ?: return@mapNotNull null
+            if (anchor.networkBacked || anchor.bootCount != boot || elapsed < anchor.elapsedMs) null else mark.id to Duration.between(anchor.at(elapsed), trustedNow)
+        }.toMap()
+        if (fixes.isEmpty()) return
+        data = data.withCorrected(fixes)
+        persist()
+        requestWrite()
+        ports.changed()
+    }
+
+    // The sync file is asked for (PS2b): after every state change the engine reports (dispatch), and at least every SYNC_WRITE_EVERY while a session runs.
+    private fun requestWrite() {
+        lastSyncWrite = clock.now()
+        ports.requestSyncWrite()
+    }
+
+    // The heartbeat alarm falls SYNC-gap after the last ask (never sooner than a minute from now), so a refresh that asked for nothing does not move it (S3).
+    private fun nextHeartbeatInMs(): Long {
+        val last = lastSyncWrite ?: return HEARTBEAT_ALARM_EVERY.toMillis()
+        val wait = Duration.between(clock.now(), last.plus(HEARTBEAT_ALARM_EVERY))
+        return maxOf(wait, HEARTBEAT_ALARM_MIN).coerceAtMost(HEARTBEAT_ALARM_EVERY).toMillis()
+    }
+
+    private fun syncWriteDue(): Boolean {
+        val last = lastSyncWrite ?: return true
+        val since = Duration.between(last, clock.now())
+        return since.isNegative || since >= SYNC_WRITE_EVERY
     }
 
     private fun settleOffGap(rebooted: Boolean, storedTrusted: Boolean = true) {
@@ -302,7 +425,8 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         val decision = PhoneSessionOffGap.decide(record, now, rebooted || record.offAt != null, trusted, canCome, zone())
         val result = PhoneSessionEngine.applyOffGap(record, decision, now, canBeat())
         apply(record, result, now)
-        if (clock.isTrusted) data.checkpoint?.takeIf { it.startUntrusted }?.let { data = data.copy(checkpoint = it.copy(startUntrusted = false)); persist() }
+        // Cleared only for a start written on this boot's anchor (Q1181): one from an earlier boot stays unchecked.
+        if (clock.isTrusted) data.checkpoint?.takeIf { it.startUntrusted && it.startBoot == clock.anchor.bootCount }?.let { data = data.copy(checkpoint = it.copy(startUntrusted = false)); persist() }
     }
 
     private fun dropEnd() {
@@ -366,13 +490,24 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
                     else -> previous?.endUntrusted == true
                 }
                 data.copy(
-                    checkpoint = PhoneSessionCheckpoint(next, clock.anchor, previous?.zoneId, previous?.startUntrusted == true, endUntrusted),
+                    checkpoint = PhoneSessionCheckpoint(next, clock.anchor, previous?.zoneId, previous?.startUntrusted == true, endUntrusted, previous?.startBoot ?: -1),
                     notice = notice ?: data.notice,
                 )
             }
             next.isTest -> data.copy(checkpoint = null, notice = notice ?: data.notice)
-            // The 90-day log is pruned only on a trusted clock (S6).
-            else -> data.withEnded(next, now, prune = mayPrune(), capAtNewest = capPrune()).copy(notice = notice ?: data.notice)
+            // The 90-day log is pruned only on a trusted clock (S6). A session that STARTED on an unchecked clock (Android 13 and later, before the network time)
+            // is marked with the anchor its times were written on: it counts here, the sync file leaves it out until the network time corrects it (V-N1, Q1181).
+            // One that started on a checked clock is never marked, even if it ended in a hold: its focus pieces are all trusted (S1).
+            else -> {
+                val startedUnchecked = clock.trustCanCome && previous?.startUntrusted == true
+                var ended = data.withEnded(next, now, prune = mayPrune(), capAtNewest = capPrune()).copy(notice = notice ?: data.notice)
+                if (startedUnchecked && ended.log.any { it.id == next.id }) {
+                    // Correctable only when the start's anchor is this boot's (the checkpoint's anchor was taken at the start or later, so compare its boot with the start's).
+                    val anchor = previous?.anchor?.takeIf { previous.startBoot == it.bootCount }
+                    ended = ended.withUncheckedEnd(PhoneSessionUncheckedEnd(next.id, anchor))
+                }
+                ended
+            }
         }
         persist()
         // Saved first: what the effects ask (the sync file, the enforcement) reads the saved session.
@@ -382,7 +517,7 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
     }
 
     private fun persist() {
-        ports.store.write(data)
+        if (!storeLocked) ports.store.write(data)
     }
 
     private fun dispatch(record: PhoneSessionRecord, effects: List<PhoneSessionEffect>, now: Instant) {
@@ -390,7 +525,7 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         for (effect in effects) {
             when (effect) {
                 PhoneSessionEffect.Persist, is PhoneSessionEffect.ScheduleEndAlarm, is PhoneSessionEffect.ScheduleArmedAlarm, is PhoneSessionEffect.OffGapNotice -> Unit
-                PhoneSessionEffect.WriteSyncFile -> ports.requestSyncWrite()
+                PhoneSessionEffect.WriteSyncFile -> requestWrite()
                 is PhoneSessionEffect.EnforceUntil -> ports.enforceUntil(record, effect.endsAt)
                 is PhoneSessionEffect.ReleaseEnforcement -> ports.releaseEnforcement(record, effect.kind)
                 is PhoneSessionEffect.SaveReason -> ports.store.addReason(PhoneSessionReason(record.id, now, effect.reason), now, prune = mayPrune(), capAtNewest = capPrune())
@@ -426,7 +561,13 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         /** The heartbeat is saved at most this often by a refresh (N3: each save seals the whole 90-day log again). */
         val HEARTBEAT_EVERY_SAVE: Duration = Duration.ofSeconds(60)
 
-        /** The waking heartbeat alarm's period (S7). */
-        val HEARTBEAT_ALARM_EVERY: Duration = Duration.ofMinutes(15)
+        /** The waking heartbeat alarm's period (S7; 5 minutes since PS2b, so B13's 5-minute sync write also happens while the phone sleeps; Doze may stretch it). */
+        val HEARTBEAT_ALARM_EVERY: Duration = Duration.ofMinutes(5)
+
+        /** The heartbeat alarm is never set sooner than this from now (a refresh right after an ask must not make it fire at once). */
+        val HEARTBEAT_ALARM_MIN: Duration = Duration.ofMinutes(1)
+
+        /** B13: the sync file is asked for again when this long has passed since it was last asked for, while a real session runs (a refresh within a minute of the 5 is early enough). */
+        val SYNC_WRITE_EVERY: Duration = Duration.ofMinutes(4)
     }
 }

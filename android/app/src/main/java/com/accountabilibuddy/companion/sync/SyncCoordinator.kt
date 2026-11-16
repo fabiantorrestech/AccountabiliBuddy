@@ -405,8 +405,18 @@ class SyncCoordinator(
     /** Where the phone is during a PC session (phase 11b): label, times and counts; null when there's none. */
     var placement: () -> com.accountabilibuddy.shared.sync.SyncPlacement? = { null }
 
-    /** True while a PC focus session runs (phase 11b), so the phone's file is rewritten every 2 minutes for the placement; set by the app. */
+    /**
+     * True while a PC focus session runs (phase 11b) or a session runs on this phone (PS2b, B13), so the phone's file is rewritten every 2 minutes (the PC reads the
+     * placement from it, and keeps this phone's running session live by it); set by the app.
+     */
     var inFocusSession: () -> Boolean = { false }
+
+    /**
+     * PS2b (ADR 85): what this phone's file says about its own phone sessions: the `running` card, the counted sessions of the last 14 days as pieces, the time
+     * the file speaks from and the file's own time from the session's trusted clock (B4). Set by the app; null (or no hook, as in a check) leaves the file
+     * as it was: no sessions, no `running`, no `coversFrom`.
+     */
+    var ownSessions: () -> com.accountabilibuddy.shared.session.PhoneSessionSyncPart? = { null }
 
     /** The pickups during the other devices' counted sessions of the last 14 days; null without Usage access. */
     fun pickups(): List<SyncPickup>? {
@@ -1055,13 +1065,18 @@ class SyncCoordinator(
     }
 
     /** This phone's own file: its card and, for each device, the newest file it holds (nothing else). */
-    fun ownFile(): SyncFile = SyncFile(
+    fun ownFile(): SyncFile = ownFileWith(runCatching { ownSessions() }.getOrNull())
+
+    // The session part is taken once, so the card's time, the sessions and `coversFrom` come from one moment of the phone session (PS2b).
+    private fun ownFileWith(sessions: com.accountabilibuddy.shared.session.PhoneSessionSyncPart?): SyncFile = SyncFile(
         SyncFile.CURRENT_FORMAT_VERSION,
         SyncDeviceCard(
-            identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, now(), methods(), false, SyncCarry.seen(store.active.value), companions(),
+            identity.deviceId, deviceName, SyncDeviceCard.KIND_PHONE, appVersion, sessions?.writtenAt ?: now(), methods(), false, SyncCarry.seen(store.active.value), companions(),
             nextAlarm().takeIf { settingsStore.settings.value.alarmOn }, identity.deviceKey.publicKeyBase64,
         ),
-        emptyList(), emptyList(), null, listOfNotNull(runCatching { sleepDocument() }.getOrNull()),
+        sessions?.sessions.orEmpty(), emptyList(), null, listOfNotNull(runCatching { sleepDocument() }.getOrNull()),
+        coversFrom = sessions?.coversFrom,
+        running = sessions?.running,
         pickups = runCatching { pickups() }.getOrNull(),
         lunch = lunch(),
         actions = actions().takeIf { it.isNotEmpty() },

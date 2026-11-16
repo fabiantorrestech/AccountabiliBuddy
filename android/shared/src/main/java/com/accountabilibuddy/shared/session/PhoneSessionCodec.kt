@@ -28,6 +28,13 @@ object PhoneSessionCodec {
         put("log", JsonArray(data.log.map(::record)))
         data.notice?.let { put("notice", notice(it)) }
         data.historyStartsAt?.let { put("historyStartsAt", it.toString()) }
+        if (data.uncheckedEnded.isNotEmpty()) put("uncheckedEnded", JsonArray(data.uncheckedEnded.map { mark ->
+            buildJsonObject {
+                put("id", mark.id)
+                mark.anchor?.let { put("anchor", anchor(it)) }
+            }
+        }))
+        if (data.historyUnknown) put("historyUnknown", true)
     }.toString()
 
     /** The store data, or null when [text] can't be read (damaged, or written by a newer version). */
@@ -39,6 +46,10 @@ object PhoneSessionCodec {
             log = (root["log"] as? JsonArray).orEmpty().map { readRecord(it as JsonObject) },
             notice = (root["notice"] as? JsonObject)?.let(::readNotice),
             historyStartsAt = root.instant("historyStartsAt"),
+            uncheckedEnded = (root["uncheckedEnded"] as? JsonArray).orEmpty().mapNotNull { item ->
+                (item as? JsonObject)?.let { PhoneSessionUncheckedEnd(it.text("id")!!, (it["anchor"] as? JsonObject)?.let(::readAnchor)) }
+            },
+            historyUnknown = root.flag("historyUnknown"),
         )
     }.getOrNull()
 
@@ -69,13 +80,23 @@ object PhoneSessionCodec {
         value.zoneId?.let { put("zone", it) }
         put("startUntrusted", value.startUntrusted)
         put("endUntrusted", value.endUntrusted)
-        put("anchor", buildJsonObject {
-            put("wall", value.anchor.wall.toString())
-            put("elapsedMs", value.anchor.elapsedMs)
-            put("bootCount", value.anchor.bootCount)
-            put("networkBacked", value.anchor.networkBacked)
-        })
+        put("startBoot", value.startBoot)
+        put("anchor", anchor(value.anchor))
     }
+
+    private fun anchor(value: PhoneSessionAnchor): JsonObject = buildJsonObject {
+        put("wall", value.wall.toString())
+        put("elapsedMs", value.elapsedMs)
+        put("bootCount", value.bootCount)
+        put("networkBacked", value.networkBacked)
+    }
+
+    private fun readAnchor(anchor: JsonObject) = PhoneSessionAnchor(
+        anchor.instant("wall")!!,
+        (anchor["elapsedMs"] as JsonPrimitive).longOrNull!!,
+        (anchor["bootCount"] as JsonPrimitive).intOrNull!!,
+        (anchor["networkBacked"] as JsonPrimitive).booleanOrNull!!,
+    )
 
     private fun notice(value: PhoneSessionNotice): JsonObject = buildJsonObject {
         put("sessionId", value.sessionId)
@@ -127,18 +148,13 @@ object PhoneSessionCodec {
     // --- reading ----------------------------------------------------------------------------------------------------------------
 
     private fun readCheckpoint(json: JsonObject): PhoneSessionCheckpoint {
-        val anchor = json["anchor"] as JsonObject
         return PhoneSessionCheckpoint(
             readRecord(json["record"] as JsonObject),
-            PhoneSessionAnchor(
-                anchor.instant("wall")!!,
-                (anchor["elapsedMs"] as JsonPrimitive).longOrNull!!,
-                (anchor["bootCount"] as JsonPrimitive).intOrNull!!,
-                (anchor["networkBacked"] as JsonPrimitive).booleanOrNull!!,
-            ),
+            readAnchor(json["anchor"] as JsonObject),
             json.text("zone"),
             json.flag("startUntrusted"),
             json.flag("endUntrusted"),
+            (json["startBoot"] as? JsonPrimitive)?.intOrNull ?: -1,
         )
     }
 

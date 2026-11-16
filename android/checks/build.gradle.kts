@@ -88,6 +88,10 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/session/PhoneSessionSealer.kt",
             "com/accountabilibuddy/companion/session/PhoneSessionStart.kt",
             "com/accountabilibuddy/companion/session/PhoneSessionStore.kt",
+            // PS2b: this phone's own sessions as a device (counting), and the write gate that keeps the file rewritten every 2 minutes during a session.
+            "com/accountabilibuddy/companion/session/PhoneSessionFiles.kt",
+            "com/accountabilibuddy/companion/session/PhoneSessionBoundedWait.kt",
+            "com/accountabilibuddy/companion/sync/OwnFileWriteGate.kt",
             // lmp-lock (ADR 73-75): the pure rules of the phone LockMyPhone-Extended lock (checked by LmpLockSelfCheck).
             "com/accountabilibuddy/companion/essentials/LooserChangeRules.kt",
             "com/accountabilibuddy/companion/essentials/HoldRules.kt",

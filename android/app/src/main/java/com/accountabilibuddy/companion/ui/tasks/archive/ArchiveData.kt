@@ -24,7 +24,7 @@ class ArchiveData(val rows: ArchiveRows, val items: List<ArchiveItem>)
 /**
  * Builds the Archive from what this phone holds (AR1c): the one task list, the other PCs' histories and the settle records and tasks kept here
  * ([com.accountabilibuddy.companion.sync.SharedListsStore.archive]), the come-backs, every device's notes, and the device names for "from <device>".
- * The phone has no history of its own (it writes no sessions), so [ArchiveInput.own] is empty. Rebuilt when any of them changes and each minute.
+ * The phone keeps no task history of its own (its phone sessions are not task history), so [ArchiveInput.own] is empty. Rebuilt when any of them changes and each minute.
  */
 @Composable
 fun rememberArchiveData(app: CompanionApp, pc: TasksPc?, now: Instant, zone: ZoneId): ArchiveData {
