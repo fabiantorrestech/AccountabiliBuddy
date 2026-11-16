@@ -49,7 +49,7 @@ class LockScreenChoice(context: Context) {
         return prefs.getLong(KEY_BUILT_IN_AT, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
     }
 
-    /** True while a session runs: the choice can't be loosened then. */
+    /** True while any session runs, the phone's own one too in either mode: a looser change is refused and a waiting one is cancelled then (R11, PS6a review S5). */
     fun locked(now: Instant = TrustedTime.now()): Boolean = EssentialsLaunch.runningSessionStart(app, now) != null
 
     /** LockMyPhone-Extended: applies at once and cancels a pending switch. */

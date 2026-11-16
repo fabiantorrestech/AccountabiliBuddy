@@ -196,6 +196,8 @@
             android:taskAffinity="${applicationId}.bedtime" />
 
         <receiver android:name=".notify.BedtimeReminderReceiver" android:exported="false" />
+        <!-- The night after a session on this phone: Snooze and Cancel of "Night routine starts in 5 minutes". -->
+        <receiver android:name=".essentials.NightHandoverReceiver" android:exported="false" />
         <!-- Goal reminders' alarm and their notifications' actions (round 2 R6b3); no permission of its own. -->
         <receiver android:name=".notify.GoalReminderReceiver" android:exported="false" />
 

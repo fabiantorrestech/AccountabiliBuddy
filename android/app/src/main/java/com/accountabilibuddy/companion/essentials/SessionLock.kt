@@ -67,7 +67,9 @@ object SessionLock {
 
         val session = EssentialsLaunch.runningSessionStart(app, now)
         val free = freeReason(context, now)
-        if (session == null || !guarded || !app.essentials.onUnlockInSession || free != null) {
+        // PS6a: the profile is the own session's, else the global one; a ProductaBuddy own session whose profile names none holds nothing (B7b).
+        val profile = EssentialsLaunch.lmpProfile(app, now)
+        if (session == null || !guarded || !EssentialsLaunch.essentialsOnUnlock(app, now) || profile == null || free != null) {
             heldFor?.let {
                 Log.i(TAG, "releasing '$it' (${free ?: if (session == null) "no session" else "off"})")
                 release(context, it)
@@ -83,7 +85,6 @@ object SessionLock {
         }
 
         val holdId = session.first.toString()
-        val profile = app.essentials.hardcoreProfile
         val untilMs = session.second?.toEpochMilli() ?: now.plus(LEASE).toEpochMilli()
         val heldUntil = prefs.getLong(KEY_HELD_UNTIL, 0L)
         if (heldFor != null && heldFor != holdId) release(context, heldFor)

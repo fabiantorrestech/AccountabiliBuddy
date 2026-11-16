@@ -100,6 +100,8 @@ fun TodayPane(
     val wide = LocalExpanded.current
     val todayGoals by com.accountabilibuddy.companion.ui.today.rememberTodayGoals(allReceived, received, inSession = session != null)
     val dayBarOnTop = wide && layout.placementOf(TodayItem.DayBar) != TodayPlacement.Hidden
+    // The night waits 5 minutes after a session on this phone ended: its card rides with the banner of every Today head.
+    val shownBanner: @Composable () -> Unit = { banner(); NightHandoverCard() }
     val parts = TodayItemContext(
         inSession = session != null, state = state, model = model, info = info, clock = clock, pc = pc, comebacks = comebacks,
         phoneUsage = phoneUsage, hasTimer = hasTimer, lunchChip = chip, lunch = lunch, guardsLock = guardsLock, guardOn = guardOn,
@@ -112,9 +114,9 @@ fun TodayPane(
     val showTasks = layout.placementOf(TodayItem.ThisSession) != TodayPlacement.Hidden
     val body: TodaySink.() -> Unit = {
         if (session == null) {
-            idleHead(info, model, pc, clock, guardsLock, syncLight, banner, actions, onStart = { starting = true }, showCard = showCard)
+            idleHead(info, model, pc, clock, guardsLock, syncLight, shownBanner, actions, onStart = { starting = true }, showCard = showCard)
         } else {
-            sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, banner, showCard = showCard, showTasks = showTasks)
+            sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, shownBanner, showCard = showCard, showTasks = showTasks)
         }
         // The arrangeable parts (Settings › Appearance › Today layout): the person's order and places. With nothing chosen
         // this is how Today was always drawn. The head above, and the safety parts the layout can't hide, always show.
@@ -131,7 +133,7 @@ fun TodayPane(
         // Round 2 (brief §4.1): the phone's own Today, with the session card, This session, More today chips and the thumb zone.
         PhoneToday(
             state = state, model = model, clock = clock, pc = pc, info = info, parts = parts, layout = layout, guardsLock = guardsLock,
-            stepAway = stepAway, actions = actions, syncLight = syncLight, banner = banner, onStart = { starting = true },
+            stepAway = stepAway, actions = actions, syncLight = syncLight, banner = shownBanner, onStart = { starting = true },
         )
     } else {
         Column(Modifier.fillMaxSize()) {

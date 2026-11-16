@@ -46,6 +46,10 @@ object Refresher {
     // Tonight's bedtime, when a LockMyPhone-Extended profile is set for the night: the refresher runs then to start it.
     private var bedtimeAt: java.time.Instant? = null
 
+    /** When the night starts after a session handed it over (set by NightHandover); the refresh runs then. */
+    @Volatile
+    internal var handoverAt: java.time.Instant? = null
+
     fun start(context: Context) {
         Channels.create(context)
         schedule(context)
@@ -121,23 +125,27 @@ object Refresher {
             // for the chosen profile. ADR 68: sessions keep their lock in ProductaBuddy, so only the pause stops it.
             val sessionRunning = if (app.guidance.isCompanion && !app.pause.isQuiet) HeaderSource.focus(app, now)?.running else running
             val testRunning = !app.pause.isQuiet && app.testSession.running() != null
-            val guarded = sessionRunning != null || testRunning
+            // PS6a: the phone's own session guards too (what it locks is decided mode-aware in EssentialsLaunch).
+            val ownRunning = !app.pause.isQuiet && com.accountabilibuddy.companion.essentials.EssentialsLaunch.ownRunning(app, com.accountabilibuddy.companion.guidance.TrustedTime.now())
+            val guarded = sessionRunning != null || testRunning || ownRunning
             if (com.accountabilibuddy.companion.essentials.SessionLock.holdCapable(context) || com.accountabilibuddy.companion.essentials.SessionLock.holding(context)) {
                 // ADR 73: the session's hold (lunch, breaks, emergency and work use free the phone; it comes back after).
                 com.accountabilibuddy.companion.essentials.SessionLock.reconcile(context, sessionGuarded = guarded)
             } else {
                 if (guarded) com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartHardcore(context)
                 // Lunch lifts the session's LockMyPhone-Extended lock and brings it back after.
-                runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(context) }
+                runCatching { com.accountabilibuddy.companion.essentials.LunchLockLift.check(context, com.accountabilibuddy.companion.guidance.TrustedTime.now()) }
             }
             // The night's lock: LockMyPhone-Extended's profile from bedtime until the wake time.
             // ADR 68/75: in ProductaBuddy only when the night was chosen there (a session's lock above still runs).
+            // PS6a (owner design 2026-11-15): a session takes over the night; the reminder, the 5-minute notice and the start are decided here.
+            runCatching { com.accountabilibuddy.companion.essentials.NightHandover.check(context, com.accountabilibuddy.companion.guidance.TrustedTime.now()) }
             com.accountabilibuddy.companion.essentials.EssentialsLaunch.maybeStartBedtimeHardcore(context)
             bedtimeAt = if (!app.bedtimeEssentials.onUnlockInSession) null else {
                 com.accountabilibuddy.companion.essentials.BedtimeNight.nextStart(app)?.atZone(java.time.ZoneId.systemDefault())?.toInstant()
             }
             // Curbox hard mode: a focus group that can't be exited, for each session on another device.
-            runCatching { com.accountabilibuddy.companion.curbox.CurboxHardMode.check(context) }
+            runCatching { com.accountabilibuddy.companion.curbox.CurboxHardMode.check(context, com.accountabilibuddy.companion.guidance.TrustedTime.now()) }
             val pickups = running?.let { app.sync.unlocksSince(it.startedAt)?.size }
             ParkedNotice.check(context, running, pickups, clock)
             // Phase 11b: the placement detector follows the session (starts, breaks, ends).
@@ -182,9 +190,10 @@ object Refresher {
         // ADR 68: a switch to ProductaBuddy applies on time, not at the next ordinary refresh.
         val untilGuidance = (context.applicationContext as CompanionApp).guidance.state.value.pending?.applyAt
             ?.let { java.time.Duration.between(com.accountabilibuddy.companion.guidance.TrustedTime.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
+        val untilHandover = handoverAt?.let { java.time.Duration.between(com.accountabilibuddy.companion.guidance.TrustedTime.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilPlanEdge = planEdgeAt?.let { java.time.Duration.between(java.time.Instant.now(), it).toMillis() + COUNTDOWN_GRACE_MS }
         val untilMinute = if (minutely) 60_000L - System.currentTimeMillis() % 60_000L + 500L else null
-        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilPauseEnd, untilEmergencyEnd, untilGuidance, untilPlanEdge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
+        val delay = listOfNotNull(untilCountdownEnd, untilNudge, untilBedtime, untilTestEnd, untilWorkUse, untilLunchEnd, untilPauseEnd, untilEmergencyEnd, untilGuidance, untilHandover, untilPlanEdge, untilMinute).filter { it in 1 until INTERVAL_MS }.minOrNull() ?: INTERVAL_MS
         alarms.set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + delay, intent)
     }
 }

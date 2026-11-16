@@ -92,7 +92,7 @@ object LunchLockLift {
 
     /** Lunch started or ended (or a refresh): lifts the session's lock once per lunch, asks for it again after. */
     @Synchronized
-    fun check(context: Context, now: Instant = Instant.now()) {
+    fun check(context: Context, now: Instant = TrustedTime.now()) {
         val app = context.applicationContext as CompanionApp
         val prefs = prefs(context)
         val lifted = prefs.getString(KEY_LIFTED_FOR, null)
@@ -113,7 +113,8 @@ object LunchLockLift {
             if (stop(context)) prefs.edit().remove(KEY_NOTE).apply() else prefs.edit().putString(KEY_NOTE, NOTE_FAILED).apply()
         } else if (!onLunch && lifted == start) {
             prefs.edit().remove(KEY_LIFTED_FOR).apply()
-            val profile = app.essentials.hardcoreProfile
+            // PS6a: the own session's profile, else the global one (none in ProductaBuddy without a profile).
+            val profile = EssentialsLaunch.lmpProfile(app, now)
             if (profile != null && app.essentials.useLockMyPhone && !EssentialsLaunch.sessionOnBreak(app, now)) {
                 EssentialsLaunch.sendSessionLock(context, profile, session.second, now)
                 Log.i(TAG, "lunch over: asked LockMyPhone-Extended for '$profile' again until ${session.second}")
@@ -122,7 +123,7 @@ object LunchLockLift {
     }
 
     /** "Test stop": ends a test lock started here; returns the note to show (also when nothing was sent, and why). */
-    fun testStop(context: Context, now: Instant = Instant.now()): String {
+    fun testStop(context: Context, now: Instant = TrustedTime.now()): String {
         if (!hasToken(context)) return "Paste the token first."
         if (!EssentialsLaunch.testLockMayRun(context, now)) return "No test lock is running: start \"Try LockMyPhone-Extended's lock for 1 minute\" first."
         return if (stop(context)) "Asked LockMyPhone-Extended to stop the test lock. If it keeps running, check the token." else NOTE_FAILED

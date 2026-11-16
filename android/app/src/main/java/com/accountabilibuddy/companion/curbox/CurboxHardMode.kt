@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
+import com.accountabilibuddy.companion.guidance.TrustedTime
 import java.time.Duration
 import java.time.Instant
 
@@ -34,7 +35,7 @@ object CurboxHardMode {
     fun setGroup(context: Context, id: String?) = prefs(context).edit().putString(KEY_GROUP, id).apply()
 
     /** On each refresh: start for a new session, end when it ended early or emergency time began. */
-    suspend fun check(context: Context, now: Instant = Instant.now()) {
+    suspend fun check(context: Context, now: Instant = TrustedTime.now()) {
         val app = context.applicationContext as CompanionApp
         val prefs = prefs(context)
         val startedFor = prefs.getString(KEY_STARTED_FOR, null)
@@ -49,11 +50,15 @@ object CurboxHardMode {
         if (ours && (running == null || running.first.toString() != startedFor || app.emergency.isActive(now))) {
             if (curbox.stopFocus()) Log.i(TAG, "stopped (session over or emergency time)")
             prefs.edit().remove(KEY_STARTED_FOR).remove(KEY_ENDS_AT).apply()
-            return
+            // S3: the own session's key moves at every Resume, lunch end and phone-off gap: the same check starts the group again
+            // (below) instead of leaving Curbox off until the next refresh.
+            if (running == null || app.emergency.isActive(now)) return
         }
 
-        val group = group(context)
-        if (!enabled(context) || group == null || running == null || app.emergency.isActive(now) ||
+        // PS6a: the phone's own session starts its profile's group, else the global one when hard mode is ON (S1); in ProductaBuddy it never falls
+        // back to the global one unless a session on another device runs too (B1).
+        val group = EssentialsLaunch.curboxGroup(app, group(context).takeIf { enabled(context) }, now)
+        if (group == null || running == null || app.emergency.isActive(now) ||
             (running.first.toString() == startedFor && (ours || running.second == null || app.lunch.isOnLunch(now) || EssentialsLaunch.sessionOnBreak(app, now)))
         ) {
             return

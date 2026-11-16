@@ -173,7 +173,7 @@ class EssentialsActivity : ComponentActivity() {
                 override fun run() {
                     val app = application as CompanionApp
                     // The session ended, or the screen is back: stop.
-                    if (EssentialsLaunch.runningSessionStart(app, Instant.now()) == null || app.essentialsOnScreen) return
+                    if (EssentialsLaunch.runningSessionStart(app, com.accountabilibuddy.companion.guidance.TrustedTime.now()) == null || app.essentialsOnScreen) return
                     if (shouldReopen()) Takeover.startFromBackground(this@EssentialsActivity, reopenIntent)
                     else reopenHandler.postDelayed(this, REOPEN_DELAY_MS)
                 }
@@ -186,7 +186,7 @@ class EssentialsActivity : ComponentActivity() {
 
     private fun shouldReopen(): Boolean {
         val app = application as CompanionApp
-        val now = Instant.now()
+        val now = com.accountabilibuddy.companion.guidance.TrustedTime.now()
         // Lunch is a break from the session: the screen doesn't come back during it.
         val running = EssentialsLaunch.runningSessionStart(app, now) != null && !app.lunch.isOnLunch(now)
         // Phone locked or screen off, an emergency, a call (ringing too), or an allowed app in front: leave it alone.

@@ -7,6 +7,8 @@ import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.sync.PcFileControl
 import com.accountabilibuddy.companion.nudge.Takeover
 import com.accountabilibuddy.companion.placement.PhoneDownLaunch
+import com.accountabilibuddy.shared.session.OwnSessionEnforcement
+import com.accountabilibuddy.shared.session.PhoneSessionMode
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.companion.guidance.TrustedTime
 import java.time.Duration
@@ -49,12 +51,15 @@ object EssentialsLaunch {
             return
         }
         // Lunch is a break from the session: no essentials screen (and no lock) until it ends.
+        // Owner design (2026-11-15): a session on this phone takes over the night, in either mode, as one on another device does; the night
+        // comes back 5 minutes after it ends ([NightHandover]: a reminder at night start, then a card with Snooze and Cancel).
+        NightHandover.check(context, now)
         val session = runningSessionStart(app, now) != null && !app.lunch.isOnLunch(now)
         // A session on another device wins over the night. ADR 68/75: ProductaBuddy keeps no night unless it was chosen.
-        val night = if (runningSessionStart(app, now) != null || !nightAllowed(app)) null else BedtimeNight.current(app)
+        val night = if (nightSessionRunning(app, now) || !nightAllowed(app) || NightHandover.holds(app, now)) null else BedtimeNight.current(app, NightHandover.local(now))
         Log.d(TAG, "unlock: session $session, night $night")
         when {
-            session && app.essentials.onUnlockInSession -> showEssentials(context, now, fromUnlock = true)
+            session && essentialsOnUnlock(app, now) -> showEssentials(context, now, fromUnlock = true)
             // The night: LockMyPhone-Extended's lock or the bedtime screen, never both (ADR 73).
             night != null && app.bedtimeEssentials.onUnlockInSession ->
                 if (app.lockScreen.usesLockMyPhone(now)) maybeStartBedtimeHardcore(context, now)
@@ -118,8 +123,8 @@ object EssentialsLaunch {
         // ADR 68/75: in ProductaBuddy only when the night was chosen there.
         if (!nightAllowed(app)) return
         val profile = app.bedtimeEssentials.hardcoreProfile
-        if (runningSessionStart(app, now) != null) return
-        val night = BedtimeNight.current(app) ?: return
+        if (nightSessionRunning(app, now) || NightHandover.holds(app, now)) return
+        val night = BedtimeNight.current(app, NightHandover.local(now)) ?: return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getString(KEY_BEDTIME_FOR, null) == night.start.toString()) {
             return
@@ -134,12 +139,17 @@ object EssentialsLaunch {
         Log.i(TAG, "bedtime: asked LockMyPhone-Extended for '$profile' until ${night.end}")
     }
 
+    /** The night's lock is asked for again (the once-per-night guard is cleared): the night starts after a session handed it over ([NightHandover]). */
+    internal fun forgetNightLock(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_BEDTIME_FOR).apply()
+    }
+
     /** A session started on another device: asks LockMyPhone-Extended to start the hardcore profile, once per session. */
     fun maybeStartHardcore(context: Context, now: Instant = TrustedTime.now()) {
         val app = context.applicationContext as CompanionApp
-        if (!app.essentials.useLockMyPhone || !app.essentials.onUnlockInSession) return
-        val profile = app.essentials.hardcoreProfile
+        if (!app.essentials.useLockMyPhone || !essentialsOnUnlock(app, now)) return
         val (start, endsAt) = runningSessionStart(app, now) ?: return
+        val profile = lmpProfile(app, now) ?: return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getString(KEY_HARDCORE_FOR, null) == start.toString()) {
             return
@@ -163,8 +173,8 @@ object EssentialsLaunch {
     private fun startLockMyPhoneForSession(context: Context, now: Instant): Boolean {
         val app = context.applicationContext as CompanionApp
         if (!app.essentials.useLockMyPhone || !lockMyPhoneInstalled(context)) return false
-        val profile = app.essentials.hardcoreProfile
         val (start, endsAt) = runningSessionStart(app, now) ?: return false
+        val profile = lmpProfile(app, now) ?: return false
         // During a lunch the lock is lifted on purpose: unlocking does not bring it back (nor the in-app screen).
         if (LunchLockLift.liftingNow(context, now)) return true
         if (!sendSessionLock(context, profile, endsAt, now)) return false
@@ -204,12 +214,58 @@ object EssentialsLaunch {
     /** Whole minutes in [left], rounded up. */
     internal fun ceilMinutes(left: Duration): Long = (left.seconds + 59) / 60
 
-    // A session on another device (it always wins), else the phone's test session (Today → More options).
+    // PS6a (ADR 85): the phone's own session first, then a session on another device, else the phone's test session (Today → More options).
+    // Offline double start: the phone's own wins. [realSessionStart] stays PC-only (Phone down and the end cost use it).
     internal fun runningSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? =
-        realSessionStart(app, now) ?: app.testSession.running(now)
+        OwnSessionEnforcement.runningStart(ownSessionStart(app, now), realSessionStart(app, now), app.testSession.running(now))
 
-    /** True when the PC's running session is on a break right now (the lock isn't re-asked for then). */
+    /**
+     * The phone's own running session (start, end), or null. Read from the store's flag, never compared with a clock (B1): [now] only
+     * moves a paused timer's end. A test record is the test session's, not this one.
+     */
+    internal fun ownSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? =
+        app.phoneSession.running.value?.takeIf { it.isRunning && !it.isTest }?.let { it.phaseStartedAt to it.effectiveEnd(now) }
+
+    /** What the own session's profile turns on. Phone session profiles are PS3b/PS6b: none exist yet, so none turns anything on. */
+    internal fun ownProfile(app: CompanionApp): OwnSessionEnforcement.Profile = OwnSessionEnforcement.Profile.NONE
+
+    internal fun mode(app: CompanionApp): PhoneSessionMode =
+        if (app.guidance.isCompanion) PhoneSessionMode.PRODUCTA_BUDDY else PhoneSessionMode.ACCOUNTABILI_BUDDY
+
+    /**
+     * True while a REAL session (the phone's own, or one on a PC) runs: the only sessions that hold the night and hand it over. The test session
+     * never delays the night (owner, 2026-11-15).
+     */
+    internal fun nightSessionRunning(app: CompanionApp, now: Instant): Boolean = ownRunning(app, now) || realSessionStart(app, now) != null
+
+    /** True while the phone's own session runs (the PC's break never loosens it). */
+    internal fun ownRunning(app: CompanionApp, now: Instant): Boolean = ownSessionStart(app, now) != null
+
+    /**
+     * Whether the Essentials screen (or the lock in its place) comes up in the running session. A session on another device keeps
+     * the global switch in both modes (ADR 68); the phone's own session in ProductaBuddy only when its profile turns it on (B7b).
+     */
+    internal fun essentialsOnUnlock(app: CompanionApp, now: Instant = TrustedTime.now()): Boolean =
+        if (ownRunning(app, now)) OwnSessionEnforcement.essentialsOnUnlock(mode(app), ownProfile(app), app.essentials.onUnlockInSession, otherSessionRunning(app, now))
+        else app.essentials.onUnlockInSession
+
+    /** The LockMyPhone profile the running session asks for; null when none (ProductaBuddy's own session without a profile one). */
+    internal fun lmpProfile(app: CompanionApp, now: Instant = TrustedTime.now()): String? =
+        if (ownRunning(app, now)) OwnSessionEnforcement.lmpProfile(mode(app), ownProfile(app), app.essentials.hardcoreProfile, otherSessionRunning(app, now))
+        else app.essentials.hardcoreProfile
+
+    /** The Curbox focus group the running session starts ([globalGroup]: the global hard-mode group, null when hard mode is off); null: none. */
+    internal fun curboxGroup(app: CompanionApp, globalGroup: String?, now: Instant = TrustedTime.now()): String? =
+        if (ownRunning(app, now)) OwnSessionEnforcement.curboxGroup(mode(app), ownProfile(app), globalGroup, otherSessionRunning(app, now)) else globalGroup
+
+    /** True while a session on another device (a PC's) or the phone's test session runs: the global locks then stay whatever the own session says (review B1). */
+    internal fun otherSessionRunning(app: CompanionApp, now: Instant): Boolean = realSessionStart(app, now) != null || app.testSession.running(now) != null
+
+    /** True when the PC's running session is on a break right now (the lock isn't re-asked for then); never while the phone's own session runs (B7c). */
     internal fun sessionOnBreak(app: CompanionApp, now: Instant): Boolean =
+        OwnSessionEnforcement.onBreak(ownRunning(app, now), pcOnBreak(app, now))
+
+    private fun pcOnBreak(app: CompanionApp, now: Instant): Boolean =
         app.sync.received.value
             .filter { it.file.device.kind == SyncDeviceCard.KIND_PC }
             .filter { PcFileControl.guardsHold(it.file, now) }
