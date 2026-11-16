@@ -33,7 +33,8 @@ namespace AccountabiliBuddy.Core.Goals;
 /// values (only with a switched-on calendar rule) the highest, minus what this device's own calendar windows already added. The #tag and
 /// calendar values add to the time sources' minutes of Time goals and habits. <b>Steps</b>: the highest of every device's Health Connect value
 /// and the phone's synced daily count (<see cref="GoalSourceData.Steps"/>, counted as a device of its own), so a real 0 from one device never
-/// hides another's count. <b>Screen time without a device</b>: entries written before devices were recorded count as one device, unless the
+/// hides another's count; a steps rule that picks Watch or Phone (<see cref="GoalSourceRule.StepsFrom"/>, ADR 91) counts, day by day, the entries that
+/// carry a matching class word (<see cref="GoalEntry.StepsFrom"/>) once the day has one, else the day's plain entries, and never the synced total. <b>Screen time without a device</b>: entries written before devices were recorded count as one device, unless the
 /// day also has a counted device's derived screen-time entry; then only the derived ones count (a device writes screen time one way or the
 /// other, never both for one day, except across the upgrade). A hand entry still wins wherever it did.</para>
 /// The built-in Deep work goal (<see cref="Goal.IsDeepWork"/>) counts all focus and nothing else, whatever its stored record says
@@ -125,7 +126,17 @@ public static class GoalCounting
         }
 
         List<GoalEntry> entries = data.Entries.Where(entry => entry is not null && entry.GoalId == goal.Id && entry.IsLive).ToList();
-        if (data.Steps is not { } steps || !GoalSources.CountedFor(goal).Any(rule => rule.Automatic && rule.Type == GoalSourceType.HealthSteps))
+        List<GoalSourceRule> stepsRules = GoalSources.CountedFor(goal).Where(rule => rule.Automatic && rule.Type == GoalSourceType.HealthSteps).ToList();
+
+        // ADR 91: a goal whose steps source picks Watch or Phone counts, day by day, only the Health Connect entries that carry a matching class
+        // word once the day has one (see ForClass); nothing here depends on today's date.
+        if (stepsRules.FirstOrDefault(rule => rule.StepsFrom is not null)?.StepsFrom is GoalStepsFrom chosen)
+        {
+            entries = ForClass(entries, chosen);
+        }
+
+        // The phone's synced total is the all-steps count: it counts only while every steps source of the goal counts all steps.
+        if (data.Steps is not { } steps || stepsRules.Count == 0 || stepsRules.Any(rule => rule.StepsFrom is not null))
         {
             return entries;
         }
@@ -137,6 +148,23 @@ public static class GoalCounting
         }
 
         return entries;
+    }
+
+    /// <summary>
+    /// ADR 91 (owner N5, plan check B1, review BLOCKER-1 and SHOULD-5): the entries of a goal whose steps rule picks <paramref name="chosen"/>.
+    /// Per day: when the day has a Health Connect entry with a matching class word, only matching Health Connect entries count; otherwise the
+    /// day's word-less ("all") entries count and entries with another word don't. A Phone rule matches <c>Phone</c>; a Watch rule matches
+    /// <c>Watch</c> and <c>Phone</c> (a Phone word under a Watch goal is the fallback day). No date other than the entry's own day takes part,
+    /// so history never changes as days age: once the main phone wrote the class value for a day, no older "all" entry can beat it, and days the
+    /// phone never recounted keep their values. Every other entry (hand, other sources) counts.
+    /// </summary>
+    private static List<GoalEntry> ForClass(List<GoalEntry> entries, GoalStepsFrom chosen)
+    {
+        bool Matches(GoalEntry entry) => entry.StepsFrom is GoalStepsFrom word && (chosen == GoalStepsFrom.Watch || word == GoalStepsFrom.Phone);
+        HashSet<DateOnly> daysWithClass = entries.Where(entry => entry.Source == GoalEntrySource.HealthConnect && Matches(entry)).Select(entry => entry.Day).ToHashSet();
+        return entries.Where(entry =>
+            entry.Source != GoalEntrySource.HealthConnect
+            || (daysWithClass.Contains(entry.Day) ? Matches(entry) : entry.StepsFrom is null)).ToList();
     }
 
     private static HashSet<GoalEntrySource> ReadableSources(Goal goal)

@@ -127,7 +127,22 @@ namespace AccountabiliBuddy.Core.Sync;
 /// "only on" list rides in <see cref="Labels"/>. Ids and the tag names the tasks already carry; sealed files between the user's own devices under
 /// "Sync task lists" only, never in a QR file, never in the copy a receiver keeps of the file, never logged. Null from an app that predates it
 /// (which shows every tag), in a QR file and while task lists aren't shared; a file without it leaves the receiver's scopes alone. Read leniently
-/// and cleaned (<see cref="Tasks.TaskScopes.Clean"/>). Appended last. Receipts count it with the "tasks" part.
+/// and cleaned (<see cref="Tasks.TaskScopes.Clean"/>). Appended after the receipts' parts. Receipts count it with the "tasks" part.
+/// </param>
+/// <param name="DeviceRoles">
+/// ADR 90: each Android device's role (main phone, tablet, other), one entry per device with a time and the device that set it
+/// (<see cref="SyncDeviceRole"/>), merged by <see cref="SyncDeviceRoles"/> (newest wins). Ids, role words and times only; every device, the PC
+/// too, carries the whole merged list, and the copy a receiver keeps may hold it. Null from an app that predates it (which treats every Android
+/// device as "the phone") and while no role was ever set; a file without it leaves the receiver's roles alone. Read leniently
+/// (<see cref="SyncLenientListConverter{T}"/>). It stays in a QR file, so a QR-only phone learns its role from the PC. Appended after
+/// <see cref="TagScopes"/>. Receipts count it with the "settings" part.
+/// </param>
+/// <param name="StepsTracking">
+/// ADR 91: the synced "Track daily steps" switch (<see cref="SyncStepsTracking"/>): on or off, a time and the device that chose it, merged by
+/// <see cref="SyncStepsTracking.Merge"/> (newest wins). Written by Android devices only; the PC ignores it. Null from an app that predates it, from
+/// a device whose switch was never chosen and was not on at the upgrade, and in a QR file; a file without it leaves the receiver's switch alone.
+/// Read leniently (<see cref="SyncLenientObjectConverter{T}"/>). It rides the ADR 61 row that covers <see cref="Steps"/>: withheld there, it
+/// neither goes nor is taken. Appended after <see cref="DeviceRoles"/>. Receipts count it with the "steps" part.
 /// </param>
 public sealed record SyncFile(
     int FormatVersion,
@@ -184,7 +199,9 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncGoalYearMerged>))] IReadOnlyList<SyncGoalYearMerged>? GoalYearsMerged = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncReceipt>))] IReadOnlyList<SyncReceipt>? Receipts = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncSessionNote>))] IReadOnlyList<SyncSessionNote>? SessionNotes = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTagScope>))] IReadOnlyList<SyncTagScope>? TagScopes = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTagScope>))] IReadOnlyList<SyncTagScope>? TagScopes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncDeviceRole>))] IReadOnlyList<SyncDeviceRole>? DeviceRoles = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientObjectConverter<SyncStepsTracking>))] SyncStepsTracking? StepsTracking = null)
 {
     public const int CurrentFormatVersion = 1;
 }

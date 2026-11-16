@@ -8,4 +8,5 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Source">A device-measured source (<see cref="GoalDerivedWriter.IsDerived"/>).</param>
 /// <param name="Day">The day on this device's calendar; never re-bucketed by a receiver.</param>
 /// <param name="Value">In the goal's unit (minutes, steps, lb or kg, hours of sleep).</param>
-public sealed record GoalDerivedReading(Guid GoalId, GoalEntrySource Source, DateOnly Day, double Value);
+/// <param name="StepsFrom">A Health Connect steps reading only (ADR 91): the class of steps the value is, or null for all. Written into the entry (<see cref="GoalEntry.StepsFrom"/>); a change of it rewrites the entry like a change of the value.</param>
+public sealed record GoalDerivedReading(Guid GoalId, GoalEntrySource Source, DateOnly Day, double Value, GoalStepsFrom? StepsFrom = null);

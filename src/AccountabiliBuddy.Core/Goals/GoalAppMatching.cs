@@ -71,6 +71,66 @@ public static class GoalAppMatching
         return rule.CreatedOn is null || rule.CreatedOn == deviceId;
     }
 
+    /// <summary>
+    /// ST4: whether <paramref name="match"/> counts on <paramref name="deviceId"/>: the rule counts there (<see cref="CountsOn(GoalSourceRule, Guid)"/>)
+    /// and the entry lists that device or lists none (<see cref="GoalAppMatch.Devices"/> null; an empty list counts nowhere).
+    /// </summary>
+    public static bool CountsOn(GoalSourceRule rule, GoalAppMatch match, Guid deviceId)
+    {
+        return CountsOn(rule, deviceId) && (match.Devices is null || match.Devices.Contains(deviceId));
+    }
+
+    /// <summary>
+    /// ST4: the minutes of the <paramref name="rows"/> that the entries of <paramref name="rule"/> counting on <paramref name="deviceId"/> match
+    /// (the entries are filtered first, then a row counts once however many of them hit it). 0 when the rule doesn't count on the device.
+    /// </summary>
+    public static double MinutesFor(GoalSourceRule rule, IEnumerable<GoalAppRow> rows, GoalAppPlatform platform, Guid deviceId)
+    {
+        if (rule.Apps is not { Count: > 0 } apps)
+        {
+            return 0;
+        }
+
+        List<GoalAppMatch> counted = apps.Where(match => CountsOn(rule, match, deviceId)).ToList();
+        return counted.Count == 0 ? 0 : rows.Where(row => counted.Any(match => Matches(match, row, platform))).Sum(row => row.Minutes);
+    }
+
+    /// <summary>
+    /// ST4, plan check B7: the entries with one entry per kind and text (compared as <c>GoalUnknowns</c> keys an entry: the kind, then the
+    /// exact text). The first twin keeps its place and its unknown fields; the twins' device lists are joined (in the order met, no repeats),
+    /// and a twin with no list (every device) makes the entry count everywhere. The same list is returned when there is nothing to merge.
+    /// </summary>
+    public static IReadOnlyList<GoalAppMatch> OneEntryPerKindAndText(IReadOnlyList<GoalAppMatch> entries)
+    {
+        if (entries.Select(entry => (entry.Kind, entry.Text)).Distinct().Count() == entries.Count)
+        {
+            return entries;
+        }
+
+        var merged = new List<GoalAppMatch>();
+        foreach (GoalAppMatch entry in entries)
+        {
+            int at = merged.FindIndex(held => held.Kind == entry.Kind && held.Text == entry.Text);
+            if (at < 0)
+            {
+                merged.Add(entry);
+                continue;
+            }
+
+            GoalAppMatch first = merged[at];
+            IReadOnlyList<Guid>? devices = first.Devices is null || entry.Devices is null ? null : first.Devices.Concat(entry.Devices).Distinct().ToList();
+            merged[at] = first with { Devices = devices };
+        }
+
+        return merged;
+    }
+
+    /// <summary>ST4: whether <paramref name="match"/> names devices and none of them is among <paramref name="countedDevices"/> (the editor warns "Counts on none of the ticked devices").</summary>
+    public static bool CountsNowhere(GoalAppMatch match, IReadOnlyCollection<Guid> countedDevices)
+    {
+        return match.Devices is { } devices && !devices.Any(countedDevices.Contains);
+    }
+
     private static string WithoutExe(string text)
     {
         return text.EndsWith(ExeSuffix, StringComparison.OrdinalIgnoreCase) ? text[..^ExeSuffix.Length] : text;

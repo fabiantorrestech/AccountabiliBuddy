@@ -105,11 +105,11 @@ public static class GoalDerivedWriter
                 }
 
                 DateTimeOffset at = SharedListMerge.NextStamp(now, before);
-                changes[id] = new GoalEntry(id, reading.GoalId, reading.Day, null, reading.Value, reading.Source, at, before?.Position ?? 0, null, deviceId);
+                changes[id] = new GoalEntry(id, reading.GoalId, reading.Day, null, reading.Value, reading.Source, at, before?.Position ?? 0, null, deviceId, reading.StepsFrom);
             }
-            else if (before.Value != reading.Value)
+            else if (before.Value != reading.Value || before.StepsFrom != reading.StepsFrom)
             {
-                changes[id] = before with { Value = reading.Value, EditedAt = SharedListMerge.NextStamp(now, before) };
+                changes[id] = before with { Value = reading.Value, StepsFrom = reading.StepsFrom, EditedAt = SharedListMerge.NextStamp(now, before) };
             }
         }
 

@@ -21,6 +21,7 @@ namespace AccountabiliBuddy.Core.Goals;
 /// <param name="Devices">ScreenTime: the device ids allowed to count; null = only <paramref name="CreatedOn"/>. Greyed in the editor until ADR 79 is accepted.</param>
 /// <param name="AllDevices">ScreenTime: every device counts (then <paramref name="Devices"/> is ignored).</param>
 /// <param name="CreatedOn">The device that created the rule, stamped by the editor; what "this device only" means once the rule travels. Null on rules written before.</param>
+/// <param name="StepsFrom">HealthSteps: which steps count (ADR 91); null = all, the whole-phone total, and then not written. A field, never a new source type, so an older app still shows the source.</param>
 /// <param name="Automatic">
 /// Whether the source ticks and logs by itself (brief §5.10: on by default in AccountabiliBuddy mode, the user's choice per
 /// source in ProductaBuddy mode). Off: it is listed but counts nothing.
@@ -40,7 +41,8 @@ public sealed record GoalSourceRule(
     IReadOnlyList<GoalAppMatch>? Apps = null,
     IReadOnlyList<Guid>? Devices = null,
     bool AllDevices = false,
-    Guid? CreatedOn = null)
+    Guid? CreatedOn = null,
+    GoalStepsFrom? StepsFrom = null)
 {
     /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
     [JsonExtensionData]
@@ -72,6 +74,9 @@ public sealed record GoalSourceRule(
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Guid? CreatedOn { get; init; } = CreatedOn;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GoalStepsFrom? StepsFrom { get; init; } = StepsFrom;
 
     /// <summary>Whether the rule counts time (focus or calendar windows) rather than readings or ticks.</summary>
     [JsonIgnore]

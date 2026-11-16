@@ -33,6 +33,12 @@ namespace AccountabiliBuddy.Core.Goals;
 /// removes it (<see cref="GoalDerivedWriter"/>). Null for a hand entry and for an entry written before devices were recorded. Written
 /// only when set (JSON <c>deviceId</c>).
 /// </param>
+/// <param name="StepsFrom">
+/// A steps goal's Health Connect entry only (ADR 91): which kind of steps the value is, <see cref="GoalStepsFrom.Watch"/> or
+/// <see cref="GoalStepsFrom.Phone"/> (the one actually used: a Watch goal on a day with no watch steps holds Phone). Null for "all", and then
+/// not written. A goal whose steps rule picks Watch or Phone counts only entries that carry one (<see cref="GoalCounting"/>). One class word
+/// in the sealed entry, never an app or package name.
+/// </param>
 public sealed record GoalEntry(
     Guid Id,
     Guid GoalId,
@@ -43,7 +49,8 @@ public sealed record GoalEntry(
     DateTimeOffset EditedAt,
     double Position = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DeviceId = null) : ISharedItem
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? DeviceId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GoalStepsFrom? StepsFrom = null) : ISharedItem
 {
     /// <summary>Fields written by a newer app, kept and written back unchanged (ADR 79 forward compatibility); null when there are none.</summary>
     [JsonExtensionData]
