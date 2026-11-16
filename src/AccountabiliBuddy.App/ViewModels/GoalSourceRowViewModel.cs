@@ -14,7 +14,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// their synced day values count here once the phone sends them, and a Beeminder link on a PC without a token says its values come
 /// from the PC that reads Beeminder. Screen time (ST2) is measured on this PC too: it lists the apps and sites that count (a kind chip each,
 /// guessed as you type), a pick list of what this PC saw in the last 30 days, and the devices that count (this PC, then the group's others).
-/// Deep work's one row is locked.
+/// Deep work's one row is locked. SR1-P2: the steps row says which steps count (All, Watch, Phone; ADR 91) and shares that choice with the two
+/// steps tiles; a screen-time entry has its own devices chip (ST4), a line per ticked device shows what counts there, and the pick lists are this
+/// PC's own history and the entries already in the goals.
 /// <see cref="ToRule"/> gives the stored rule back.
 /// </summary>
 public sealed partial class GoalSourceRowViewModel : ObservableObject
@@ -25,9 +27,13 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     private readonly bool _beeminderConnected;
     private readonly bool _groupHasPhone;
     private readonly bool _inSyncGroup;
+    private readonly bool _hasAndroidDevice;
     private GoalScreenTimeSeen _seen = GoalScreenTimeSeen.Empty;
     private readonly Guid _selfDeviceId;
     private bool _devicesTouched;
+    private GoalStepsFrom? _stepsFrom;
+    private readonly string? _mainPhoneName;
+    private readonly IReadOnlyList<GoalAppMatch> _fromGoals;
 
     public GoalSourceRowViewModel(GoalSourceRule rule, GoalEditorLookups lookups, bool locked, Action<GoalSourceRowViewModel> remove, Action changed)
     {
@@ -37,6 +43,10 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         _beeminderConnected = lookups.BeeminderConnected;
         _groupHasPhone = lookups.GroupHasPhone;
         _inSyncGroup = lookups.InSyncGroup;
+        _hasAndroidDevice = lookups.HasAndroidDevice;
+        _stepsFrom = rule.StepsFrom;
+        _mainPhoneName = lookups.MainPhoneName;
+        _fromGoals = lookups.FromGoals ?? [];
         IsLocked = locked;
         Labels = lookups.Labels;
         // A label another device keeps to itself (ADR 89) still counts: the row keeps it, says where it is from and never shows its name.
@@ -71,7 +81,13 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
             }
 
             BuildDevices(rule, lookups);
+            foreach (GoalAppEntryViewModel entry in Entries)
+            {
+                entry.RefreshDevices(notify: false); // the devices exist now (the entries were made first)
+            }
+
             RefreshPicks();
+            RebuildSections();
         }
 
         ScreenAtMost = rule.ScreenDirection != GoalDirection.AtLeast;
@@ -123,7 +139,12 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         GoalSourceType.FocusLabel => "Focus time on a label",
         GoalSourceType.FocusTag => "Focus time on a #tag",
         GoalSourceType.Hand => "Tick by hand",
-        GoalSourceType.HealthSteps => "Health Connect · steps",
+        GoalSourceType.HealthSteps => _stepsFrom switch
+        {
+            GoalStepsFrom.Watch => "Pixel Watch · steps (your phone's on days without watch steps)",
+            GoalStepsFrom.Phone => "This phone · steps",
+            _ => "Health Connect · steps",
+        },
         GoalSourceType.HealthSleep => "Health Connect · sleep",
         GoalSourceType.ScreenTime => "Screen time",
         GoalSourceType.CalendarCategory => "Google Calendar",
@@ -136,6 +157,9 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     public string Detail => _rule.Type switch
     {
         // NG1: a source already chosen stays; with no phone in the group it says nothing arrives for it now.
+        // SR1-P2 (plan check S7): Android devices are in the group but none counts (no main phone, none without a role): say what to do.
+        GoalSourceType.HealthSteps or GoalSourceType.HealthSleep when !_groupHasPhone && _hasAndroidDevice
+            => DetailOfType + (_rule.Type == GoalSourceType.HealthSteps ? " Set a main phone to count steps." : " Set a main phone to count sleep."),
         GoalSourceType.HealthSteps or GoalSourceType.HealthSleep when !_groupHasPhone
             => DetailOfType + (_inSyncGroup ? " No phone is in your group now, so nothing arrives until one joins." : " Not in a sync group, so nothing arrives from a phone."),
         _ => DetailOfType,
@@ -147,7 +171,7 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         GoalSourceType.FocusLabel => "Sessions with a task carrying this label.",
         GoalSourceType.FocusTag => "Sessions with a task carrying this #tag. Counted on this PC (the phone shows it as measured on your PC).",
         GoalSourceType.Hand => "Here or on Today.",
-        GoalSourceType.HealthSteps => "Measured on your phone (Health Connect, Pixel Watch through it). Daily steps already reach this PC.",
+        GoalSourceType.HealthSteps => StepsDetail,
         GoalSourceType.HealthSleep => "Measured on your phone (Health Connect). Its daily values count here once your phone syncs them.",
         GoalSourceType.ScreenTime => "Time in these apps and sites. This PC counts them from its own activity history; the devices you tick add theirs.",
         GoalSourceType.CalendarCategory => "Time in events of this day plan category. This PC only; it never counts as focus or for a guard.",
@@ -157,6 +181,80 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         GoalSourceType.Beeminder => SelectedBeeminder?.Note is string note ? $"Counts its daily values on this PC · {note}" : "Counts its daily values on this PC",
         _ => string.Empty,
     };
+
+    // ADR 91: what each choice counts; the phone that reads is the main phone when one is set (ADR 90).
+    private string StepsDetail
+    {
+        get
+        {
+            string where = _mainPhoneName is { } name ? $" Counted on {name}, your main phone." : string.Empty;
+            return _stepsFrom switch
+            {
+                GoalStepsFrom.Watch => "Steps your watch recorded; on a day it recorded none, your phone's, and the day says which." + where,
+                GoalStepsFrom.Phone => "Only the steps your phone itself recorded." + where,
+                _ => "Measured on your phone (Health Connect, Pixel Watch through it). Daily steps already reach this PC." + where,
+            };
+        }
+    }
+
+    public bool ShowsSteps => _rule.Type == GoalSourceType.HealthSteps;
+
+    /// <summary>Which steps count (null = all); the steps tiles read it and <see cref="SetStepsFrom"/> changes it.</summary>
+    public GoalStepsFrom? StepsFrom => _stepsFrom;
+
+    /// <summary>The "All" end of the segmented control (B10 of the SR1 plan check): all of Health Connect's steps.</summary>
+    public bool StepsAll
+    {
+        get => _stepsFrom is null;
+        set
+        {
+            if (value)
+            {
+                SetStepsFrom(null);
+            }
+        }
+    }
+
+    public bool StepsWatch
+    {
+        get => _stepsFrom == GoalStepsFrom.Watch;
+        set
+        {
+            if (value)
+            {
+                SetStepsFrom(GoalStepsFrom.Watch);
+            }
+        }
+    }
+
+    public bool StepsPhone
+    {
+        get => _stepsFrom == GoalStepsFrom.Phone;
+        set
+        {
+            if (value)
+            {
+                SetStepsFrom(GoalStepsFrom.Phone);
+            }
+        }
+    }
+
+    /// <summary>Changes which steps count (a tile or the segmented control); the goal's Sources part is stamped once when the goal is saved.</summary>
+    public void SetStepsFrom(GoalStepsFrom? stepsFrom)
+    {
+        if (IsLocked || !ShowsSteps || _stepsFrom == stepsFrom)
+        {
+            return;
+        }
+
+        _stepsFrom = stepsFrom;
+        OnPropertyChanged(nameof(StepsAll));
+        OnPropertyChanged(nameof(StepsWatch));
+        OnPropertyChanged(nameof(StepsPhone));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(Detail));
+        _changed();
+    }
 
     public MaterialIconKind Icon => GoalSourceIcons.Of(_rule.Type);
 
@@ -206,6 +304,16 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     /// <summary>The devices whose minutes count: this PC first, then the group's others.</summary>
     public ObservableCollection<GoalDeviceOptionViewModel> Devices { get; } = [];
 
+    /// <summary>ST4 "From your goals": entries already in goals (not listed here yet), narrowed by the typed text: a tap adds one.</summary>
+    public ObservableCollection<GoalSeenPickViewModel> GoalPicks { get; } = [];
+
+    public bool HasNoGoalPicks => GoalPicks.Count == 0;
+
+    /// <summary>ST4: a line for each ticked device with the entries that count there (shown with two or more devices ticked).</summary>
+    public ObservableCollection<GoalDeviceSectionViewModel> Sections { get; } = [];
+
+    public bool ShowsSections => Sections.Count >= 2;
+
     public bool HasNoPicks => Picks.Count == 0;
 
     /// <summary>Why the pick list is empty.</summary>
@@ -251,7 +359,9 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
             LabelId = ShowsLabel && SelectedLabel is GoalChoice label && Guid.TryParse(label.Key, out Guid labelId) ? labelId : null,
             Tag = ShowsTag ? Tag.Trim().TrimStart('#') : null,
             CalendarCategoryId = ShowsCategory && SelectedCategory is GoalChoice category && Guid.TryParse(category.Key, out Guid categoryId) ? categoryId : null,
-            Apps = ShowsApp ? Entries.Select(entry => entry.ToMatch()).ToList() : _rule.Apps,
+            // B7 of the plan check: one entry per kind and text; a duplicate's device list joins the first.
+            Apps = ShowsApp ? GoalAppMatching.OneEntryPerKindAndText(Entries.Select(entry => entry.ToMatch()).ToList()) : _rule.Apps,
+            StepsFrom = ShowsSteps ? _stepsFrom : _rule.StepsFrom,
             ScreenDirection = ShowsApp ? (ScreenAtMost ? GoalDirection.AtMost : GoalDirection.AtLeast) : null,
             BeeminderSlug = ShowsBeeminder ? SelectedBeeminder?.Key : null,
             BeeminderDirection = ShowsBeeminder ? GoalBeeminderDirection.Read : null,
@@ -304,13 +414,39 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         {
             Entries.Remove(entry);
             EntriesChanged();
-        }, EntriesChanged);
+        }, EntriesChanged, TickedDevices);
     }
+
+    // The devices the source counts from now, for each entry's chip.
+    private IReadOnlyList<GoalDeviceOptionViewModel> TickedDevices() => Devices.Where(device => device.IsChecked).ToList();
 
     private void EntriesChanged()
     {
         RefreshPicks();
+        RebuildSections();
         Edited();
+    }
+
+    // One line per ticked device: the entries that count there (their own list, and the kind: programs and sites on a PC, phone apps elsewhere).
+    private void RebuildSections()
+    {
+        Sections.Clear();
+        List<GoalDeviceOptionViewModel> ticked = TickedDevices().ToList();
+        if (ticked.Count >= 2)
+        {
+            foreach (GoalDeviceOptionViewModel device in ticked)
+            {
+                List<string> counted = Entries
+                    .Where(entry => entry.CountsOn(device.Id) && (entry.SelectedKind.Kind == GoalAppMatchKind.Name || (entry.SelectedKind.Kind == GoalAppMatchKind.Package) != device.IsPc))
+                    .Select(entry => entry.Text)
+                    .ToList();
+                Sections.Add(new GoalDeviceSectionViewModel(
+                    device.Name.EndsWith(" (this PC)", StringComparison.Ordinal) ? device.Name[..^10] : device.Name, device.Icon,
+                    counted.Count == 0 ? "Nothing counts here" : string.Join(", ", counted), counted.Count == 0));
+            }
+        }
+
+        OnPropertyChanged(nameof(ShowsSections));
     }
 
     /// <summary>Adds the Add box's text as an entry of its guessed kind (adding the same thing twice is ignored); nothing when the box is empty.</summary>
@@ -358,13 +494,31 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasNoPicks));
         OnPropertyChanged(nameof(NoPicksText));
+
+        // "From your goals": the goals' entries that this PC's list doesn't already offer or this source doesn't already hold.
+        GoalPicks.Clear();
+        foreach (GoalAppMatch match in _fromGoals)
+        {
+            bool listed = Entries.Any(entry => Same(entry.ToMatch(), match)) || _seen.Items.Any(item => Same(item.Match, match));
+            if (!listed && (typed.Length == 0 || match.Text.Contains(typed, StringComparison.OrdinalIgnoreCase)))
+            {
+                GoalScreenTimeSeenItem item = new(match, match.Text, match.Kind == GoalAppMatchKind.Website, 0);
+                GoalPicks.Add(new GoalSeenPickViewModel(item, picked =>
+                {
+                    AddMatch(picked.Match);
+                    AddText = string.Empty;
+                }));
+            }
+        }
+
+        OnPropertyChanged(nameof(HasNoGoalPicks));
     }
 
     // This PC first (ticked when the rule counts it), then the group's other devices. Other devices need goals sync (ADR 79); without it they are greyed.
     private void BuildDevices(GoalSourceRule rule, GoalEditorLookups lookups)
     {
         Devices.Add(new GoalDeviceOptionViewModel(
-            lookups.SelfDeviceId, lookups.SelfDeviceName + " (this PC)", MaterialIconKind.Laptop, GoalAppMatching.CountsOn(rule, lookups.SelfDeviceId), true, null, DevicesChanged));
+            lookups.SelfDeviceId, lookups.SelfDeviceName + " (this PC)", MaterialIconKind.Laptop, GoalAppMatching.CountsOn(rule, lookups.SelfDeviceId), true, null, DevicesChanged, isPc: true));
         foreach (GoalChoice other in lookups.OtherDevices ?? [])
         {
             if (!Guid.TryParse(other.Key, out Guid id))
@@ -374,13 +528,19 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
 
             string? note = lookups.GoalsSyncOn ? null : "Needs goals sync: turn on Sync task lists";
             Devices.Add(new GoalDeviceOptionViewModel(
-                id, other.Text, other.Icon ?? MaterialIconKind.Devices, GoalAppMatching.CountsOn(rule, id), lookups.GoalsSyncOn, note, DevicesChanged));
+                id, other.Text, other.Icon ?? MaterialIconKind.Devices, GoalAppMatching.CountsOn(rule, id), lookups.GoalsSyncOn, note, DevicesChanged, isPc: other.IsPc));
         }
     }
 
     private void DevicesChanged()
     {
         _devicesTouched = true;
+        foreach (GoalAppEntryViewModel entry in Entries)
+        {
+            entry.RefreshDevices();
+        }
+
+        RebuildSections();
         Edited();
     }
 

@@ -17,8 +17,14 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
 
     /// <param name="type">The source it adds; null for a placeholder with no source type yet.</param>
     /// <param name="add">Adds the source; null for a "Coming soon" tile (inert).</param>
-    public GoalSourceTileViewModel(string key, string title, string text, MaterialIconKind icon, GoalSourceType? type, Action<GoalSourceTileViewModel>? add, string? note = null)
+    /// <param name="isStepsTile">SR1-P2 (ADR 91): one of the two steps tiles (Health Connect, Pixel Watch). They share one steps source per goal; the tile whose
+    /// <paramref name="stepsFrom"/> the source counts is "Selected", the other says "Use this" and switches it.</param>
+    /// <param name="stepsFrom">What the tile sets on the steps source: null = all (Health Connect), <see cref="GoalStepsFrom.Watch"/> (Pixel Watch).</param>
+    public GoalSourceTileViewModel(string key, string title, string text, MaterialIconKind icon, GoalSourceType? type, Action<GoalSourceTileViewModel>? add, string? note = null,
+        bool isStepsTile = false, GoalStepsFrom? stepsFrom = null)
     {
+        IsStepsTile = isStepsTile;
+        StepsFrom = stepsFrom;
         Key = key;
         Title = title;
         Text = text;
@@ -29,6 +35,12 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
     }
 
     public string Key { get; }
+
+    /// <summary>One of the two steps tiles (B10 of the SR1 plan check).</summary>
+    public bool IsStepsTile { get; }
+
+    /// <summary>What a tap sets on the goal's steps source (null = all); only for a steps tile.</summary>
+    public GoalStepsFrom? StepsFrom { get; }
 
     public string Title { get; }
 
@@ -46,12 +58,17 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
     /// <summary>Greyed, "Coming soon…", not clickable.</summary>
     public bool IsComingSoon => _add is null;
 
-    public string Tooltip => IsComingSoon ? "Not available yet" : Unavailable ?? $"Add {Title}";
+    public string Tooltip => IsComingSoon ? "Not available yet" : Unavailable ?? (IsStepsTile && IsAdded ? (IsSelected ? $"{Title} is selected" : $"Count steps from {Title}") : $"Add {Title}");
 
     /// <summary>Already counting (a source that can only be added once: Tick by hand, steps); the tile says "Added".</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AddCommand))]
     public partial bool IsAdded { get; set; }
+
+    /// <summary>A steps tile only: the goal's steps source counts what this tile stands for (a tap on it does nothing).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddCommand))]
+    public partial bool IsSelected { get; set; }
 
     /// <summary>Deep work: every tile is locked (its sources stay all counted focus).</summary>
     [ObservableProperty]
@@ -63,9 +80,13 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(AddCommand))]
     public partial string? Unavailable { get; set; }
 
-    public bool CanAdd => !IsComingSoon && !IsAdded && !IsLocked && Unavailable is null;
+    // A steps tile stays tappable while another way of counting is selected (it switches the one source); every other tile can't be added twice.
+    public bool CanAdd => !IsComingSoon && !(IsStepsTile ? IsAdded && IsSelected : IsAdded) && !IsLocked && Unavailable is null;
 
-    public string ButtonText => IsComingSoon ? "Coming soon…" : IsAdded ? "Added" : Unavailable is not null ? "Milestones only" : "Add";
+    // B10: "Add" with no steps source, then "Selected" / "Use this"; never "Added" on a steps tile.
+    public string ButtonText => IsComingSoon ? "Coming soon…"
+        : IsStepsTile && IsAdded ? (IsSelected ? "Selected" : "Use this")
+        : IsAdded ? "Added" : Unavailable is not null ? "Milestones only" : "Add";
 
     [RelayCommand(CanExecute = nameof(CanAdd))]
     private void Add()
@@ -80,6 +101,14 @@ public sealed partial class GoalSourceTileViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanAdd));
         OnPropertyChanged(nameof(ButtonText));
+        OnPropertyChanged(nameof(Tooltip));
+    }
+
+    partial void OnIsSelectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanAdd));
+        OnPropertyChanged(nameof(ButtonText));
+        OnPropertyChanged(nameof(Tooltip));
     }
 
     partial void OnIsLockedChanged(bool value) => OnPropertyChanged(nameof(CanAdd));

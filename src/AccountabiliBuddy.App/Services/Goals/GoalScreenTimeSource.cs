@@ -19,7 +19,7 @@ namespace AccountabiliBuddy.App.Services.Goals;
 /// <item>Time is the log's: summed per monitor, as History shows it (two monitors both showing a matching app count twice; Q1117).</item>
 /// <item>Names, titles and sites stay in memory on this PC. Only the whole minutes of a day leave it, and only as a derived goal entry
 /// (<see cref="GoalDerivedValuesService"/>). Nothing here logs; there is no new connection.</item>
-/// <item>The goal's rule decides whether this PC counts it (<see cref="GoalAppMatching.CountsOn"/>).</item>
+/// <item>The goal's rule decides whether this PC counts it, and each entry of it may name devices (ST4): <see cref="GoalAppMatching.CountsOn(GoalSourceRule, GoalAppMatch, Guid)"/>.</item>
 /// </list>
 /// Use from the UI thread only; the reads run on the thread pool.
 /// </summary>
@@ -69,7 +69,7 @@ public sealed class GoalScreenTimeSource
         }
 
         return GoalSources.CountedFor(goal)
-            .Where(rule => rule.Automatic && rule.Type == GoalSourceType.ScreenTime && rule.Apps is { Count: > 0 } && GoalAppMatching.CountsOn(rule, device))
+            .Where(rule => rule.Automatic && rule.Type == GoalSourceType.ScreenTime && rule.Apps is { Count: > 0 } apps && apps.Any(match => GoalAppMatching.CountsOn(rule, match, device)))
             .ToList();
     }
 
@@ -192,7 +192,8 @@ public sealed class GoalScreenTimeSource
         }
 
         // The entries of every counted rule together, so a row that two of them match still counts once.
-        List<GoalAppMatch> apps = rules.SelectMany(rule => rule.Apps ?? []).ToList();
+        // ST4: only the entries that count on this device (the rule counts here and the entry lists this device or none).
+        List<GoalAppMatch> apps = rules.SelectMany(rule => (rule.Apps ?? []).Where(match => GoalAppMatching.CountsOn(rule, match, device))).ToList();
         string entries = string.Join('\n', apps.Select(match => (int)match.Kind + ":" + match.Text).Order(StringComparer.OrdinalIgnoreCase));
         DateOnly closedBefore = today.AddDays(-1);
         var readings = new List<GoalDerivedReading>();

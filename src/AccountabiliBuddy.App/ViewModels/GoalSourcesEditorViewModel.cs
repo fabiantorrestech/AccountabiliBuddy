@@ -92,8 +92,11 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         _ => $"{Rows.Count} sources",
     };
 
-    /// <summary>Adds a source of <paramref name="type"/> (as its tile does); false when this goal can't take it.</summary>
-    public bool Add(GoalSourceType type)
+    /// <summary>
+    /// Adds a source of <paramref name="type"/> (as its tile does); false when this goal can't take it. <paramref name="stepsFrom"/> is what a new steps
+    /// source counts (SR1-P2: null = all, the Health Connect tile; Watch = the Pixel Watch tile).
+    /// </summary>
+    public bool Add(GoalSourceType type, GoalStepsFrom? stepsFrom = null)
     {
         if (_deepWork || type == GoalSourceType.FocusAll || GoalSources.AvailabilityOf(type) == GoalSourceAvailability.ComingSoon)
         {
@@ -112,9 +115,32 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
 
         // A screen-time source remembers the device that made it (the default of its device list, ST2).
         Guid? self = _lookups.SelfDeviceId == Guid.Empty ? null : _lookups.SelfDeviceId;
-        Rows.Add(NewRow(new GoalSourceRule(Guid.NewGuid(), type) { CreatedOn = type == GoalSourceType.ScreenTime ? self : null }));
+        Rows.Add(NewRow(new GoalSourceRule(Guid.NewGuid(), type)
+        {
+            CreatedOn = type == GoalSourceType.ScreenTime ? self : null,
+            StepsFrom = type == GoalSourceType.HealthSteps ? stepsFrom : null,
+        }));
         Refresh();
         return true;
+    }
+
+    /// <summary>
+    /// SR1-P2, B10 of the plan check: a steps tile was tapped. With no steps source it adds one that counts what the tile stands for; with one it
+    /// changes that one source (never a second), so the goal's Sources part is stamped once when saved. Tapping the selected tile does nothing.
+    /// </summary>
+    private void UseSteps(GoalStepsFrom? stepsFrom)
+    {
+        if (Rows.FirstOrDefault(row => row.Type == GoalSourceType.HealthSteps) is { } existing)
+        {
+            if (!_deepWork)
+            {
+                existing.SetStepsFrom(stepsFrom);
+            }
+
+            return;
+        }
+
+        Add(GoalSourceType.HealthSteps, stepsFrom);
     }
 
     private GoalSourceRowViewModel NewRow(GoalSourceRule rule)
@@ -136,6 +162,12 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
             tile.IsLocked = _deepWork;
             tile.Unavailable = tile.Type == GoalSourceType.MilestoneTasks && _kind != GoalKind.Milestone ? "Milestone tasks only count on a milestone goal" : null;
             tile.IsAdded = tile.Type is GoalSourceType type && IsSingle(type) && Rows.Any(row => row.Type == type);
+            if (tile.IsStepsTile)
+            {
+                // B10: Health Connect (all) is selected for "all" and for "phone"; Pixel Watch for "watch".
+                GoalStepsFrom? chosen = Rows.FirstOrDefault(row => row.Type == GoalSourceType.HealthSteps)?.StepsFrom;
+                tile.IsSelected = tile.IsAdded && (chosen == GoalStepsFrom.Watch) == (tile.StepsFrom == GoalStepsFrom.Watch);
+            }
         }
 
         OnPropertyChanged(nameof(IsEmpty));
@@ -158,6 +190,13 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
             Tiles.Add(new GoalSourceTileViewModel(key, title, text, icon, type, tile => Add(type), note));
         }
 
+        // SR1-P2: the two steps tiles are two ways of counting the one steps source (ADR 91).
+        void Steps(string key, string title, string text, MaterialIconKind icon, GoalStepsFrom? stepsFrom)
+        {
+            Tiles.Add(new GoalSourceTileViewModel(key, title, text, icon, GoalSourceType.HealthSteps, tile => UseSteps(tile.StepsFrom), "Measured on your phone",
+                isStepsTile: true, stepsFrom: stepsFrom));
+        }
+
         Available("focusLabel", "Focus time · label", "Focus in AccountabiliBuddy on tasks with a label", MaterialIconKind.TimerOutline, GoalSourceType.FocusLabel);
         Available("focusTag", "Focus time · #tag", "Focus on tasks with a #tag", MaterialIconKind.Pound, GoalSourceType.FocusTag, "Counted on this PC");
         Available("goalField", "A task carries this goal", "Focus in sessions that hold a task linked to this goal", MaterialIconKind.LinkVariant, GoalSourceType.GoalField, "Link tasks from their menu");
@@ -167,8 +206,8 @@ public sealed partial class GoalSourcesEditorViewModel : ObservableObject
         // NG1: sources measured only on a phone are offered when a phone is in the group. Screen time (ST2) is measured on this PC too, so it is always offered.
         if (_lookups.GroupHasPhone)
         {
-            Available("healthConnect", "Health Connect", "Steps from your phone and apps that write to it", MaterialIconKind.HeartPulse, GoalSourceType.HealthSteps, "Measured on your phone");
-            Available("pixelWatch", "Pixel Watch", "Steps from the watch, through Health Connect", MaterialIconKind.WatchVariant, GoalSourceType.HealthSteps, "Measured on your phone");
+            Steps("healthConnect", "Health Connect", "Steps from your phone and apps that write to it", MaterialIconKind.HeartPulse, null);
+            Steps("pixelWatch", "Pixel Watch", "Steps from the watch, through Health Connect (your phone's on days without)", MaterialIconKind.WatchVariant, GoalStepsFrom.Watch);
         }
 
         Available("screenTime", "Screen time", "Time in apps and sites on this PC, and on the devices you pick", MaterialIconKind.Monitor, GoalSourceType.ScreenTime, "This PC and your other devices");

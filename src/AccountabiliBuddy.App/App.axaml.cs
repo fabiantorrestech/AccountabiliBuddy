@@ -153,6 +153,8 @@ public partial class App : Application
     private Func<(Guid Id, string Name)> _goalSelfDevice = () => (Guid.Empty, "This PC");
     private Func<IReadOnlyList<GoalChoice>> _goalOtherDevices = () => [];
     private Func<bool> _goalsSyncOn = () => false;
+    private Func<string?> _goalMainPhoneName = () => null;
+    private Func<bool> _goalHasAndroidDevice = () => false;
     private AccountabiliBuddy.App.Services.Sync.SyncDriveService? _syncDrive;
     private AccountabiliBuddy.App.Services.Sync.SyncRelayService? _syncRelay;
     private AccountabiliBuddy.App.Services.Sync.SyncRemovalService? _syncRemoval;
@@ -1612,9 +1614,17 @@ public partial class App : Application
             .Where(device => device.File.Device.Kind != AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindWatch)
             .Select(device => new GoalChoice(
                 device.File.Device.DeviceId.ToString(), receivedDevices.LabelOf(device.File.Device),
-                device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone ? PhoneIcon(device.File.Device.DeviceId) : Material.Icons.MaterialIconKind.Laptop))
+                device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone ? PhoneIcon(device.File.Device.DeviceId) : Material.Icons.MaterialIconKind.Laptop,
+                IsPc: device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPc))
             .ToList();
         _goalsSyncOn = () => syncIdentity.Key is not null && syncSettings.Current.ShareTaskLists;
+        _goalHasAndroidDevice = () => syncIdentity.Key is not null && receivedDevices.Active.Count(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone) > 0; // not "any phone" (dr1p1 scan): every Android device, whatever its role
+        // SR1-P2 (ADR 90): the steps row names the main phone when one is set (the roles in use here).
+        _goalMainPhoneName = () => receivedDevices.Active
+            .Where(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone
+                && deviceRoles?.KindOf(device.File.Device.DeviceId) == AccountabiliBuddy.Core.Sync.SyncDeviceRoleKind.Main)
+            .Select(device => receivedDevices.LabelOf(device.File.Device))
+            .FirstOrDefault();
         dailySteps.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
         // ADR 79 (GS3b): the derived day values this PC measures (#tag extras, calendar) go into its own goal entries, marked with its id,
         // for the other devices; at most every five minutes, and only when a value changed.
@@ -4162,9 +4172,11 @@ public partial class App : Application
         Func<AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSeen> readSeen = () =>
             seen ??= data.ScreenTime?.ReadSeen() ?? AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSeen.Empty;
         (Guid selfDeviceId, string selfDeviceName) = _goalSelfDevice();
+        // ST4: the screen-time entries already in the goals (they travel sealed already; nothing new is read or sent).
+        IReadOnlyList<AccountabiliBuddy.Core.Goals.GoalAppMatch> fromGoals = AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSuggestions.EntriesOf(goals.Lists.LiveGoals);
         var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote, hiddenTagNote,
             GroupHasPhone: _groupHasPhone(), InSyncGroup: _inSyncGroup(), ReadSeen: readSeen, SelfDeviceId: selfDeviceId, SelfDeviceName: selfDeviceName,
-            OtherDevices: _goalOtherDevices(), GoalsSyncOn: _goalsSyncOn());
+            OtherDevices: _goalOtherDevices(), GoalsSyncOn: _goalsSyncOn(), MainPhoneName: _goalMainPhoneName(), FromGoals: fromGoals, HasAndroidDevice: _goalHasAndroidDevice());
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
         if (suggested is not null)
         {

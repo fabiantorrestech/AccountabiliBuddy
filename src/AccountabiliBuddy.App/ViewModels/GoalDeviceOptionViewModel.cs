@@ -8,8 +8,9 @@ public sealed partial class GoalDeviceOptionViewModel : ObservableObject
 {
     private readonly Action? _changed;
 
-    public GoalDeviceOptionViewModel(Guid id, string name, MaterialIconKind icon, bool isChecked, bool isEnabled, string? note, Action changed)
+    public GoalDeviceOptionViewModel(Guid id, string name, MaterialIconKind icon, bool isChecked, bool isEnabled, string? note, Action changed, bool isPc = false)
     {
+        IsPc = isPc;
         Id = id;
         Name = name;
         Icon = icon;
@@ -20,6 +21,9 @@ public sealed partial class GoalDeviceOptionViewModel : ObservableObject
     }
 
     public Guid Id { get; }
+
+    /// <summary>A PC (counts programs and sites); any other device counts phone apps (ST4 sections).</summary>
+    public bool IsPc { get; }
 
     public string Name { get; }
 

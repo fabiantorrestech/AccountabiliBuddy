@@ -8,7 +8,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <see cref="Key"/> is what is stored (an icon name, "#RRGGBB", an id as text, a slug); <see cref="Text"/> is what is shown.
 /// </summary>
 /// <param name="Note">A muted second line ("lb · 3 safe days").</param>
-public sealed record GoalChoice(string Key, string Text, MaterialIconKind? Icon = null, IBrush? Brush = null, string? Note = null)
+/// <param name="IsPc">A device choice only (ST4): the device is a PC (it counts programs and sites), by the device card's kind, not by its icon.</param>
+public sealed record GoalChoice(string Key, string Text, MaterialIconKind? Icon = null, IBrush? Brush = null, string? Note = null, bool IsPc = false)
 {
     public bool HasIcon => Icon is not null;
 

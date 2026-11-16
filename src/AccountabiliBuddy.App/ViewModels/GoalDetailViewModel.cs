@@ -235,7 +235,28 @@ public sealed partial class GoalDetailViewModel : ObservableObject
         DateOnly shown = day is DateOnly picked && picked <= facts.Today ? picked : facts.Today;
         Heatmap.SelectedDay = shown == facts.Today ? null : shown;
         GoalDayState state = Heatmap.States.TryGetValue(shown, out GoalDayState? held) ? held : GoalCounting.Day(facts.Goal, data, shown, facts.Today);
-        DayPanel.Show(facts.Goal, state, facts.Today);
+        DayPanel.Show(facts.Goal, state, facts.Today, StepsWordOf(facts.Goal, data, shown));
+    }
+
+    /// <summary>
+    /// ADR 91 (plan check B1): which steps the day's value is, when the goal's steps source picks Watch or Phone: the class word on the day's Health Connect
+    /// entry that counts (the highest of them), or null (no entry with a word: the day says "from Health Connect").
+    /// </summary>
+    public static GoalStepsFrom? StepsWordOf(Goal goal, GoalSourceData data, DateOnly day)
+    {
+        GoalStepsFrom? chosen = GoalSources.CountedFor(goal).FirstOrDefault(rule => rule.Automatic && rule.Type == GoalSourceType.HealthSteps && rule.StepsFrom is not null)?.StepsFrom;
+        if (chosen is not GoalStepsFrom picked)
+        {
+            return null;
+        }
+
+        // The same match as the counting: a Phone goal counts Phone words, a Watch goal Watch words and (on a day with no watch steps) Phone words.
+        return data.Entries
+            .Where(entry => entry is not null && entry.GoalId == goal.Id && entry.IsLive && entry.Day == day && entry.Source == GoalEntrySource.HealthConnect
+                && entry.StepsFrom is GoalStepsFrom word && (picked == GoalStepsFrom.Watch || word == GoalStepsFrom.Phone))
+            .OrderByDescending(entry => entry.Value)
+            .Select(entry => entry.StepsFrom)
+            .FirstOrDefault();
     }
 
     private void BuildTiles(GoalFacts facts, GoalSourceData data, GoalPageSettings settings, DeepWorkGoalSettings deepWork, TimeZoneInfo zone)
@@ -498,7 +519,12 @@ public sealed partial class GoalDetailViewModel : ObservableObject
                     ? $"Focus time on tasks with its tag · {tagNote}"
                     : $"Focus time on tasks tagged #{rule.Tag?.TrimStart('#')}",
                 GoalSourceType.CalendarCategory => "Time in a calendar category (this PC)",
-                GoalSourceType.HealthSteps => "Daily steps from your phone",
+                GoalSourceType.HealthSteps => rule.StepsFrom switch
+                {
+                    GoalStepsFrom.Watch => "Daily steps from your watch (your phone's on days without)",
+                    GoalStepsFrom.Phone => "Daily steps from your phone itself",
+                    _ => "Daily steps from your phone",
+                },
                 GoalSourceType.HealthWeight => "Weight from Health Connect",
                 GoalSourceType.HealthSleep => "Sleep from Health Connect",
                 GoalSourceType.ScreenTime => "Screen time",

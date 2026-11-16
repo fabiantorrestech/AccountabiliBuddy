@@ -20,6 +20,7 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
     private readonly Func<Guid, string?> _labelName;
     private Goal? _goal;
     private DateOnly _today;
+    private GoalStepsFrom? _stepsWord;
 
     /// <param name="save">Saves a hand entry (GoalsService.SaveEntryAsync).</param>
     /// <param name="labelName">A task label's name by id (the source line), or null.</param>
@@ -99,8 +100,11 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
     /// <summary>"Back to today" was pressed (the page puts the panel back on today).</summary>
     public event EventHandler? BackToTodayRequested;
 
-    /// <summary>Shows <paramref name="state"/> of <paramref name="goal"/>.</summary>
-    public void Show(Goal goal, GoalDayState state, DateOnly today)
+    /// <summary>
+    /// Shows <paramref name="state"/> of <paramref name="goal"/>. <paramref name="stepsWord"/> (ADR 91): which steps a Watch or Phone steps goal's value for the day
+    /// is (the class word on its entry), so the source line says "from your watch" or "from your phone (no watch steps that day)".
+    /// </summary>
+    public void Show(Goal goal, GoalDayState state, DateOnly today, GoalStepsFrom? stepsWord = null)
     {
         bool sameDay = _goal?.Id == goal.Id && Day == state.Day;
         _goal = goal;
@@ -137,6 +141,7 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
         }
 
         (Status, IsTeal, IsAmber, IsGrey) = StatusOf(goal, state, threshold);
+        _stepsWord = stepsWord;
         Source = SourceLine(goal, state);
         bool deepWork = goal.IsDeepWork;
         CanTick = !deepWork && goal.Kind == GoalKind.Habit && state.Status is not (GoalDayStatus.Paused or GoalDayStatus.NotDue);
@@ -240,6 +245,18 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
         };
     }
 
+    // The class the day's entry says it used (ADR 91): a Watch goal's day that held only phone steps says so.
+    private string StepsWordText(Goal goal)
+    {
+        bool watchGoal = GoalSources.CountedFor(goal).Any(rule => rule.Type == GoalSourceType.HealthSteps && rule.StepsFrom == GoalStepsFrom.Watch);
+        return _stepsWord switch
+        {
+            GoalStepsFrom.Watch => "from your watch",
+            GoalStepsFrom.Phone when watchGoal => "from your phone (no watch steps that day)",
+            _ => "from your phone",
+        };
+    }
+
     private string SourceLine(Goal goal, GoalDayState state)
     {
         string soFar = state.Day == _today ? " so far" : string.Empty;
@@ -272,6 +289,9 @@ public sealed partial class GoalDayPanelViewModel : ObservableObject
                     break;
                 case GoalSourceType.CalendarCategory:
                     parts.Add("time from your calendar");
+                    break;
+                case GoalSourceType.HealthSteps when _stepsWord is not null:
+                    parts.Add(StepsWordText(goal));
                     break;
                 case GoalSourceType.HealthSteps or GoalSourceType.HealthWeight or GoalSourceType.HealthSleep:
                     parts.Add("from Health Connect");

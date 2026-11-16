@@ -167,6 +167,16 @@ public static class GoalCounting
             || (daysWithClass.Contains(entry.Day) ? Matches(entry) : entry.StepsFrom is null)).ToList();
     }
 
+    /// <summary>
+    /// ST4 (Q1201): whether a stored screen-time entry of <paramref name="device"/> counts for <paramref name="rule"/>: the rule counts on the device and, when the
+    /// rule lists entries, at least one of them counts there (<see cref="GoalAppMatching.CountsOn(GoalSourceRule, GoalAppMatch, Guid)"/>). Minutes a device
+    /// recorded before every entry was limited to other devices stop counting. A rule with no entries (older than entry lists) decides by the rule alone.
+    /// </summary>
+    private static bool CountsOnDevice(GoalSourceRule rule, Guid device)
+    {
+        return GoalAppMatching.CountsOn(rule, device) && (rule.Apps is not { Count: > 0 } apps || apps.Any(match => GoalAppMatching.CountsOn(rule, match, device)));
+    }
+
     private static HashSet<GoalEntrySource> ReadableSources(Goal goal)
     {
         return GoalSources.CountedFor(goal)
@@ -239,7 +249,7 @@ public static class GoalCounting
         if (source == GoalEntrySource.ScreenTime)
         {
             List<GoalSourceRule> screen = GoalSources.CountedFor(goal).Where(rule => rule.Automatic && rule.Type == GoalSourceType.ScreenTime).ToList();
-            perDevice = perDevice.Where(entry => entry.DeviceId is not Guid device || screen.Any(rule => GoalAppMatching.CountsOn(rule, device))).ToList();
+            perDevice = perDevice.Where(entry => entry.DeviceId is not Guid device || screen.Any(rule => CountsOnDevice(rule, device))).ToList();
 
             // A counted device's derived value and an older app's no-device value for the same day: only the derived count (see above).
             if (perDevice.Any(entry => entry.DeviceId is not null))

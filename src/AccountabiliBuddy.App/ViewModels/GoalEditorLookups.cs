@@ -22,6 +22,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="SelfDeviceName">ST2: this PC's name in the "Counts from" list.</param>
 /// <param name="OtherDevices">ST2: the other devices of the sync group that run AccountabiliBuddy (watches left out): key = the device id as text, text = its name, icon = PC or phone.</param>
 /// <param name="GoalsSyncOn">ST2: other devices' day values reach this PC (goals sync, ADR 79, follows "Sync task lists with my other devices"); with it off the other devices are listed but greyed.</param>
+/// <param name="MainPhoneName">SR1-P2 (ADR 90): the name of the main phone when one is set (the steps row says its steps are read there); null when none is.</param>
+/// <param name="FromGoals">SR1-P2 (ST4): the screen-time entries already in the goals (any goal's rules; they already travel sealed to the user's own devices), offered as "From your goals"; null for none.</param>
+/// <param name="HasAndroidDevice">SR1-P2 (ADR 90): an Android device is in the group (whatever its role); with <paramref name="GroupHasPhone"/> false, the steps row says "Set a main phone to count steps."</param>
 /// <param name="IsProductaBuddy">ProductaBuddy mode (ADR 68): the PB badge, per-mode defaults, lowering Deep work at once.</param>
 public sealed record GoalEditorLookups(
     IReadOnlyList<GoalChoice> Labels,
@@ -40,7 +43,10 @@ public sealed record GoalEditorLookups(
     Guid SelfDeviceId = default,
     string SelfDeviceName = "This PC",
     IReadOnlyList<GoalChoice>? OtherDevices = null,
-    bool GoalsSyncOn = true)
+    bool GoalsSyncOn = true,
+    string? MainPhoneName = null,
+    IReadOnlyList<Core.Goals.GoalAppMatch>? FromGoals = null,
+    bool HasAndroidDevice = false)
 {
     public static GoalEditorLookups Empty { get; } = new([], [], false, [], false);
 }

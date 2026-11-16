@@ -394,6 +394,15 @@
                                                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
                                                     <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Detail}" TextWrapping="Wrap" />
                                                 </StackPanel>
+                                                <!-- SR1-P2 (ADR 91): which steps count; the two steps tiles below pick the same thing. -->
+                                                <StackPanel Orientation="Horizontal" Spacing="0" IsVisible="{Binding ShowsSteps}" HorizontalAlignment="Left">
+                                                    <RadioButton GroupName="stepsFrom" Theme="{StaticResource {x:Type ToggleButton}}" Content="All" IsChecked="{Binding StepsAll}" IsEnabled="{Binding IsEditable}"
+                                                                 CornerRadius="14,0,0,14" AutomationProperties.Name="Count all steps" />
+                                                    <RadioButton GroupName="stepsFrom" Theme="{StaticResource {x:Type ToggleButton}}" Content="Watch" IsChecked="{Binding StepsWatch}" IsEnabled="{Binding IsEditable}"
+                                                                 CornerRadius="0" AutomationProperties.Name="Count watch steps" />
+                                                    <RadioButton GroupName="stepsFrom" Theme="{StaticResource {x:Type ToggleButton}}" Content="Phone" IsChecked="{Binding StepsPhone}" IsEnabled="{Binding IsEditable}"
+                                                                 CornerRadius="0,14,14,0" AutomationProperties.Name="Count phone steps" />
+                                                </StackPanel>
                                                 <ComboBox ItemsSource="{Binding Labels}" SelectedItem="{Binding SelectedLabel}" IsVisible="{Binding ShowsLabel}" MinWidth="220"
                                                           PlaceholderText="Pick a label" AutomationProperties.Name="Label">
                                                     <ComboBox.ItemTemplate>
@@ -428,12 +437,44 @@
                                                             <DataTemplate x:DataType="vm:GoalAppEntryViewModel">
                                                                 <Grid ColumnDefinitions="132,*,Auto" ColumnSpacing="8" Margin="0,0,0,4">
                                                                     <ComboBox ItemsSource="{Binding Kinds}" SelectedItem="{Binding SelectedKind}" Width="132" MinHeight="30" Padding="10,3"
-                                                                              VerticalAlignment="Center" AutomationProperties.Name="Kind of this app or site" />
-                                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis" />
+                                                                              VerticalAlignment="Top" AutomationProperties.Name="Kind of this app or site" />
+                                                                    <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                                                        <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis" Margin="0,5,0,0" />
                                                                         <TextBlock Classes="muted" FontSize="11.5" Text="{Binding Note}" IsVisible="{Binding HasNote}" TextWrapping="Wrap" />
+                                                                        <!-- ST4: this entry's own devices, among the ticked ones; the boxes open inline. -->
+                                                                        <ToggleButton Classes="seenPick" IsChecked="{Binding DevicesOpen}" IsVisible="{Binding ShowsDevices}" HorizontalAlignment="Left" Margin="0,3,0,0"
+                                                                                      AutomationProperties.Name="Devices this entry counts on">
+                                                                            <!-- A Grid, not a StackPanel: the text column takes what is left of the entry's column and trims (a long list of device names can't clip the chevron). -->
+                                                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6">
+                                                                                <mi:MaterialIcon Kind="Devices" Width="14" Height="14" VerticalAlignment="Center" />
+                                                                                <TextBlock Grid.Column="1" Text="{Binding DevicesText}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                                                           ToolTip.Tip="{Binding DevicesText}" />
+                                                                                <mi:MaterialIcon Grid.Column="2" Kind="ChevronDown" Width="14" Height="14" VerticalAlignment="Center" />
+                                                                            </Grid>
+                                                                        </ToggleButton>
+                                                                        <WrapPanel IsVisible="{Binding DevicesOpen}" Margin="0,3,0,0" ItemSpacing="12" LineSpacing="2">
+                                                                            <CheckBox IsChecked="{Binding AllTicked}" Content="All ticked devices" />
+                                                                            <ItemsControl ItemsSource="{Binding DeviceChoices}">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <WrapPanel ItemSpacing="12" LineSpacing="2" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate x:DataType="vm:GoalEntryDeviceChoiceViewModel">
+                                                                                        <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Name, StringFormat='Counts on {0}'}">
+                                                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                                                <mi:MaterialIcon Kind="{Binding Icon}" Width="14" Height="14" />
+                                                                                                <TextBlock Text="{Binding Name}" FontSize="12.5" />
+                                                                                            </StackPanel>
+                                                                                        </CheckBox>
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                        </WrapPanel>
+                                                                        <TextBlock FontSize="11.5" Foreground="{DynamicResource Ab.AmberInk}" Text="{Binding NowhereText}" IsVisible="{Binding CountsNowhere}" TextWrapping="Wrap" />
                                                                     </StackPanel>
-                                                                    <Button Grid.Column="2" Classes="abHeaderIcon" Command="{Binding RemoveCommand}" VerticalAlignment="Center"
+                                                                    <Button Grid.Column="2" Classes="abHeaderIcon" Command="{Binding RemoveCommand}" VerticalAlignment="Top"
                                                                             ToolTip.Tip="Remove this app or site" AutomationProperties.Name="Remove this app or site">
                                                                         <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
                                                                     </Button>
@@ -452,8 +493,10 @@
                                                     </Grid>
                                                     <TextBlock Classes="muted" FontSize="12" Text="{Binding GuessText}" IsVisible="{Binding GuessText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                                     <!-- The pick list reads only this PC's own history (30 days); fixed height, scrolls. -->
-                                                    <TextBlock Classes="capsHead" Text="SEEN ON THIS PC · LAST 30 DAYS" />
-                                                    <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="10" Padding="8,6">
+                                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto" RowSpacing="2">
+                                                    <TextBlock Classes="capsHead" Text="SEEN ON THIS PC · 30 DAYS" />
+                                                    <TextBlock Grid.Column="1" Classes="capsHead" Text="FROM YOUR GOALS" />
+                                                    <Border Grid.Row="1" Background="{DynamicResource Ab.Surface2}" CornerRadius="10" Padding="8,6">
                                                         <Panel>
                                                             <ScrollViewer Height="84" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !HasNoPicks}">
                                                                 <ItemsControl ItemsSource="{Binding Picks}">
@@ -475,9 +518,36 @@
                                                                     </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>
                                                             </ScrollViewer>
-                                                            <TextBlock Classes="muted" FontSize="12" Text="{Binding NoPicksText}" IsVisible="{Binding HasNoPicks}" VerticalAlignment="Center" />
+                                                            <TextBlock Classes="muted" FontSize="12" Text="{Binding NoPicksText}" IsVisible="{Binding HasNoPicks}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                         </Panel>
                                                     </Border>
+                                                    <!-- ST4: entries goals already list (they travel sealed already): how an app id or site for another device is picked here. -->
+                                                    <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource Ab.Surface2}" CornerRadius="10" Padding="8,6">
+                                                        <Panel>
+                                                            <ScrollViewer Height="84" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !HasNoGoalPicks}">
+                                                                <ItemsControl ItemsSource="{Binding GoalPicks}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="vm:GoalSeenPickViewModel">
+                                                                            <Button Classes="seenPick" Command="{Binding AddCommand}" ToolTip.Tip="{Binding Tooltip}"
+                                                                                    AutomationProperties.Name="{Binding Name, StringFormat='Add {0} from your goals'}">
+                                                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                                    <mi:MaterialIcon Kind="{Binding Icon}" Width="14" Height="14" />
+                                                                                    <TextBlock Text="{Binding Name}" FontSize="12.5" MaxWidth="150" TextTrimming="CharacterEllipsis" />
+                                                                                </StackPanel>
+                                                                            </Button>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </ScrollViewer>
+                                                            <TextBlock Classes="muted" FontSize="12" Text="No other goal lists an app or site yet." IsVisible="{Binding HasNoGoalPicks}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                        </Panel>
+                                                    </Border>
+                                                    </Grid>
                                                     <!-- The devices whose minutes count: this PC, then the group's others (greyed without goals sync). -->
                                                     <TextBlock Classes="capsHead" Text="COUNTS FROM" />
                                                     <ItemsControl ItemsSource="{Binding Devices}">
@@ -497,6 +567,21 @@
                                                                     </CheckBox>
                                                                     <TextBlock Classes="muted" FontSize="11.5" Text="{Binding Note}" IsVisible="{Binding HasNote}" VerticalAlignment="Center" />
                                                                 </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <!-- ST4: what each ticked device counts (with two or more ticked). -->
+                                                    <ItemsControl ItemsSource="{Binding Sections}" IsVisible="{Binding ShowsSections}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:GoalDeviceSectionViewModel">
+                                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,0,0,2">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="6" MinWidth="120">
+                                                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="14" Height="14" VerticalAlignment="Center" />
+                                                                        <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                                                                    </StackPanel>
+                                                                    <TextBlock Grid.Column="1" FontSize="12.5" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding !IsEmpty}" />
+                                                                    <TextBlock Grid.Column="1" FontSize="12.5" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsEmpty}" Foreground="{DynamicResource Ab.AmberInk}" />
+                                                                </Grid>
                                                             </DataTemplate>
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
