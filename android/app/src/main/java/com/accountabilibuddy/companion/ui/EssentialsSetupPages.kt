@@ -33,7 +33,7 @@ internal fun LockChoiceSetupPage() {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        GuardsScope { LockChoiceCard() }
+        GuardsScope(com.accountabilibuddy.shared.session.PhoneLockArea.GUARDS_LMP_ESSENTIALS) { LockChoiceCard() }
     }
 }
 

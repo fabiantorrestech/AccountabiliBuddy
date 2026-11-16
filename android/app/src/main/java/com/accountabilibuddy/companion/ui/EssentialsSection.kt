@@ -77,7 +77,7 @@ import java.util.UUID
  */
 @Composable
 internal fun EssentialsSection(kind: EssentialsKind = EssentialsKind.Focus, startOpen: Boolean = false, scrollToLock: Boolean = false) =
-    GuardsScope { EssentialsSectionBody(kind, startOpen, scrollToLock) }
+    GuardsScope(com.accountabilibuddy.shared.session.PhoneLockArea.GUARDS_LMP_ESSENTIALS) { EssentialsSectionBody(kind, startOpen, scrollToLock) }
 
 @Composable
 private fun EssentialsSectionBody(kind: EssentialsKind, startOpen: Boolean, scrollToLock: Boolean) {

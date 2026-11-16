@@ -111,6 +111,9 @@ class CompanionApp : Application() {
     /** Phone-run focus sessions (ADR 85, PS2a): the sealed store, the session's own trusted clock, the alarms, the controller that is their only writer. */
     val phoneSession by lazy { com.accountabilibuddy.companion.session.PhoneSessionRuntime(this) }
 
+    /** The phone session profiles (PS2c reads them: lock scope, essentials hook, Curbox; PS3b edits them). Phone-local, never synced. */
+    val phoneSessionProfiles by lazy { com.accountabilibuddy.companion.session.PhoneSessionProfiles(this) }
+
     /** Today's flexible lunch, the same on every device (schema v8). */
     val lunch by lazy { com.accountabilibuddy.companion.lunch.LunchStore(this) }
 
@@ -133,7 +136,7 @@ class CompanionApp : Application() {
             classifications = eventClassifications,
             firstKnown = com.accountabilibuddy.companion.calendar.FirstKnownStore(File(filesDir, "companion/calendar-first-known.json")),
             reader = com.accountabilibuddy.companion.calendar.PhoneCalendarReader(this),
-            sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null },
+            sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.locking(this, now, com.accountabilibuddy.shared.session.PhoneLockArea.OTHER_SETTINGS) != null },
             pcFiles = { pcFiles.filesOf(sync.received.value) },
             countedFocus = { now, zone -> countedFocusWindows(now, zone) },
             onOwnEventsChanged = { appScope.launch { Refresher.refresh(this@CompanionApp) } },
@@ -895,15 +898,21 @@ class CompanionApp : Application() {
         watchSyncOff()
         // No escape hatches (ADR 54): removing devices, leaving and erasing a removed device's data wait for a PC focus session to end.
         sync.removalLockedReason = {
-            // ignoreOff: a PC off for 10 minutes mid-session frees the guards (ADR 60) but not these locks, since the session resumes.
-            if (com.accountabilibuddy.companion.placement.PlacementSession.current(this, java.time.Instant.now(), ignoreOff = true) != null) {
+            // The locks hold while a PC is off for 10 minutes mid-session (ADR 60 frees the guards, not these locks: the session resumes). Device removal and
+            // leaving or changing the group are two areas of the lock seam (PS2c): a phone session in AccountabiliBuddy locks both, in ProductaBuddy neither.
+            val trusted = com.accountabilibuddy.companion.guidance.TrustedTime.now()
+            val lockSeam = com.accountabilibuddy.companion.placement.PlacementSession
+            if (lockSeam.locking(this, trusted, com.accountabilibuddy.shared.session.PhoneLockArea.REMOVAL) != null ||
+                lockSeam.locking(this, trusted, com.accountabilibuddy.shared.session.PhoneLockArea.SYNC) != null
+            ) {
                 "This is locked while a focus session is running."
             } else {
                 null
             }
         }
-        // The guard settings rest during a focus session: a "turn off" whose wait runs out then waits for the session to end.
-        pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.current(this, now, ignoreOff = true) != null }
+        // The guard settings rest during a focus session: a "turn off" whose wait runs out then waits for the session to end. The phone's own session
+        // counts in either mode (PS2c, plan check S4/S8): a pause that dropped its hold, or a mode switch that dropped its locks, would be an escape.
+        pause.sessionRunning = { now -> com.accountabilibuddy.companion.placement.PlacementSession.anyRunning(this, now) }
         // ADR 68: the same for a switch to ProductaBuddy. The chosen mode goes out in this phone's file at once; another device's newer one
         // is taken (ProductaBuddy after this phone's own wait).
         guidance.sessionRunning = pause.sessionRunning

@@ -2,6 +2,9 @@ package com.accountabilibuddy.companion.guidance
 
 import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.essentials.EssentialsLaunch
+import com.accountabilibuddy.companion.placement.PlacementSession
+import com.accountabilibuddy.shared.session.EndCostTerms
+import com.accountabilibuddy.shared.session.SessionEndCostRules
 import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.shared.sync.SyncDocument
 import com.accountabilibuddy.shared.sync.SyncFile
@@ -17,6 +20,9 @@ import java.time.Instant
  * wait and reason length (Settings › Ending a focus session early, read from the newest PC's profiles document), or nothing extra
  * when the session ends on command (no set end, a break, the phone's test session), as ending it does.
  *
+ * PS2c (PS6a review S4): the phone's own session is NOT free in AccountabiliBuddy while it has a set end: it costs what ending it costs ([SessionEndCostRules.own]:
+ * the phone's own wait and reason setting); ProductaBuddy and a session with no set end are free, as ending them is. With a PC session running too, the stricter.
+ *
  * @property hasSetEnd False for a session with no set end: "after this session ends" means when it is ended by hand.
  */
 data class SessionEndCost(val waitSeconds: Int, val minReasonLength: Int, val free: Boolean, val hasSetEnd: Boolean) {
@@ -27,12 +33,18 @@ data class SessionEndCost(val waitSeconds: Int, val minReasonLength: Int, val fr
 
         /** The running session's cost; null when no session runs. */
         fun now(app: CompanionApp, now: Instant = TrustedTime.now()): SessionEndCost? {
-            val running = EssentialsLaunch.runningSessionStart(app, now) ?: return null
-            val isPcSession = EssentialsLaunch.realSessionStart(app, now) != null
-            val hasSetEnd = running.second != null
+            val own = PlacementSession.ownRecord(app)?.let { SessionEndCostRules.own(EssentialsLaunch.mode(app), it, app.phoneSession.endSettings()) }
+            val other = EssentialsLaunch.realSessionStart(app, now)?.let { pc -> pcCost(app, now, hasSetEnd = pc.second != null, isPcSession = true) }
+                ?: app.testSession.running(now)?.let { test -> pcCost(app, now, hasSetEnd = test.second != null, isPcSession = false) }
+            val cost = SessionEndCostRules.stricter(own, other) ?: return null
+            return SessionEndCost(cost.waitSeconds, cost.minReasonLength, cost.free, cost.hasSetEnd)
+        }
+
+        // A PC session's cost (the PC's end-early rules); the phone's test session ends on command, so it is free.
+        private fun pcCost(app: CompanionApp, now: Instant, hasSetEnd: Boolean, isPcSession: Boolean): EndCostTerms {
             val free = !isPcSession || !hasSetEnd || EssentialsLaunch.sessionOnBreak(app, now)
             val (wait, minReason) = pcRules(app.sync.received.value.map { it.file })
-            return SessionEndCost(wait, minReason, free, hasSetEnd)
+            return EndCostTerms(wait, minReason, free, hasSetEnd)
         }
 
         /** The newest PC profiles document's end-early rules: its "bypass" {waitDuration: "hh:mm:ss", minReasonLength}. */

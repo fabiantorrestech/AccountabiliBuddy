@@ -1,6 +1,7 @@
 package com.accountabilibuddy.companion.placement
 
 import com.accountabilibuddy.companion.CompanionApp
+import com.accountabilibuddy.shared.session.PhoneLockArea
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -25,7 +26,16 @@ data class GuardsLock(val until: Instant?, val test: Boolean = false) {
     companion object {
         private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
-        /** The lock at [now]: set while the session the phone tracks runs ([PlacementSession.current], the check the removal lock uses); it does not follow ADR 60's 10-minute release. */
-        fun at(app: CompanionApp, now: Instant): GuardsLock? = PlacementSession.current(app, now, ignoreOff = true)?.let { GuardsLock(it.endsAt, test = it.test) }
+        /**
+         * The lock at [now] for [area]: set while a session that locks that area runs ([PlacementSession.locking], the check the removal lock uses); it does not
+         * follow ADR 60's 10-minute release. A session on another device or the test session locks every area; the phone's own session locks its scope by mode
+         * (AccountabiliBuddy everything, ProductaBuddy only the enforcement its profile turns on), so a ProductaBuddy phone session leaves the plain settings open.
+         * The default area stands for "the Settings pages": what a lock written before phone sessions meant.
+         */
+        fun at(app: CompanionApp, now: Instant, area: PhoneLockArea = PhoneLockArea.OTHER_SETTINGS): GuardsLock? =
+            PlacementSession.locking(app, now, area)?.let { GuardsLock(it.endsAt, test = it.test) }
+
+        /** Every area locked at [now] (for the guard sections whose rows lock by area: LockMyPhone and Essentials, Curbox). */
+        fun areasAt(app: CompanionApp, now: Instant): Set<PhoneLockArea> = PlacementSession.lockedAreas(app, now)
     }
 }

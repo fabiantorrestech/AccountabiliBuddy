@@ -15,6 +15,7 @@ import com.accountabilibuddy.shared.session.PhoneSessionResult
 import com.accountabilibuddy.shared.session.PhoneSessionStoreData
 import com.accountabilibuddy.shared.session.PhoneSessionSyncInput
 import com.accountabilibuddy.shared.session.PhoneSessionUncheckedEnd
+import com.accountabilibuddy.shared.session.PhoneSessionUsageSummary
 import com.accountabilibuddy.shared.sync.SessionTaskItem
 import java.time.Duration
 import java.time.Instant
@@ -238,6 +239,20 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
         data = data.copy(notice = null)
         persist()
         ports.changed()
+    }
+
+    /**
+     * PS2c: the pickups and distraction of the ended session [id] join its log entry. Set once (a second call changes nothing), only for a session in the log;
+     * phone-local: the sync writer never reads it (R14). The reading itself (Usage access) happens outside this lock; this only saves it.
+     */
+    @Synchronized
+    fun recordUsage(id: String, usage: PhoneSessionUsageSummary): Boolean {
+        ensureStarted()
+        val entry = data.log.firstOrNull { it.id == id } ?: return false
+        if (entry.usage != null) return false
+        data = data.copy(log = data.log.map { if (it.id == id) it.copy(usage = usage) else it })
+        persist()
+        return true
     }
 
     // --- The clock's moments ----------------------------------------------------------------------------------------------------

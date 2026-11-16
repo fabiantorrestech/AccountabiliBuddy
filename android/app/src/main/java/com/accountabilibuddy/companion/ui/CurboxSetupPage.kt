@@ -39,7 +39,7 @@ import com.accountabilibuddy.shared.sync.SyncBlocker
  */
 @Composable
 internal fun CurboxSetupPage(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.time.LocalTime) -> String?) =
-    GuardsScope { CurboxSetupBody(onConnectCurbox, onReenableTime) }
+    GuardsScope(com.accountabilibuddy.shared.session.PhoneLockArea.CURBOX_ROWS) { CurboxSetupBody(onConnectCurbox, onReenableTime) }
 
 @Composable
 private fun CurboxSetupBody(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.time.LocalTime) -> String?) {

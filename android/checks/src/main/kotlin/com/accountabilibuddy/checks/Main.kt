@@ -285,6 +285,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "ps2b-self" to Ps2bSelfCheck::run,
     // PS6a: the essentials hook for the phone's own session (order, PB turns on no global lock, AB does, on-a-break false, lunch lift on trusted time).
     "ps6a-self" to Ps6aSelfCheck::run,
+    // PS2c: the lock seam by area and mode (B1, B9, R11), the mode switch and pause gates (S4/S8), the end cost, the profile, the Curbox blocks, pickups and distraction.
+    "ps2c-self" to Ps2cSelfCheck::run,
     // CP1a: AB debug build next to the release build (default device name; scans of build files, manifests, strings, adb lines).
     "cp1a-self" to Cp1aSelfCheck::run,
 )

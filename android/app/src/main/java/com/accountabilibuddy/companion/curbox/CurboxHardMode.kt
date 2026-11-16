@@ -37,6 +37,8 @@ object CurboxHardMode {
     /** On each refresh: start for a new session, end when it ended early or emergency time began. */
     suspend fun check(context: Context, now: Instant = TrustedTime.now()) {
         val app = context.applicationContext as CompanionApp
+        // PS2c: the Curbox blocks the own session's profile turns on (on while it runs, back off at its end); its own memory, its own early return.
+        runCatching { CurboxSessionBlocks.check(context, now) }
         val prefs = prefs(context)
         val startedFor = prefs.getString(KEY_STARTED_FOR, null)
         val endsAt = prefs.getLong(KEY_ENDS_AT, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)

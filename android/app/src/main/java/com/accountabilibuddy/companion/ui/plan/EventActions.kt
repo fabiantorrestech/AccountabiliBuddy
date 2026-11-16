@@ -106,7 +106,7 @@ class EventActions(private val app: CompanionApp) {
 
     private fun sentToPc(problem: String?): String = problem ?: "Sent to ${app.pcRemote.target()?.file?.device?.name ?: "the PC"}. It shows here after its next sync."
 
-    private fun sessionRunning(now: Instant): Boolean = PlacementSession.current(app, now, ignoreOff = true) != null
+    private fun sessionRunning(now: Instant): Boolean = PlacementSession.locking(app, now, com.accountabilibuddy.shared.session.PhoneLockArea.PLAN) != null
 
     private companion object {
         const val LOCKED = "Locked during a focus session."

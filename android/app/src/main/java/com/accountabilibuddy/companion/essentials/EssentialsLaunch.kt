@@ -226,8 +226,12 @@ object EssentialsLaunch {
     internal fun ownSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? =
         app.phoneSession.running.value?.takeIf { it.isRunning && !it.isTest }?.let { it.phaseStartedAt to it.effectiveEnd(now) }
 
-    /** What the own session's profile turns on. Phone session profiles are PS3b/PS6b: none exist yet, so none turns anything on. */
-    internal fun ownProfile(app: CompanionApp): OwnSessionEnforcement.Profile = OwnSessionEnforcement.Profile.NONE
+    /**
+     * What the own session's profile turns on: the profile the session started with (the record's `profileId`, PS6a review N6), read from the phone session
+     * profiles (PS2c). No profile found, or no own session: nothing (a plain timer).
+     */
+    internal fun ownProfile(app: CompanionApp): OwnSessionEnforcement.Profile =
+        app.phoneSession.running.value?.takeIf { it.isRunning && !it.isTest }?.let(app.phoneSessionProfiles::enforcementOf) ?: OwnSessionEnforcement.Profile.NONE
 
     internal fun mode(app: CompanionApp): PhoneSessionMode =
         if (app.guidance.isCompanion) PhoneSessionMode.PRODUCTA_BUDDY else PhoneSessionMode.ACCOUNTABILI_BUDDY

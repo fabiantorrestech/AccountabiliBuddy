@@ -66,14 +66,7 @@ class PhoneSessionRuntime(private val app: CompanionApp) {
         override fun mode(): PhoneSessionMode =
             if (app.guidance.isCompanion) PhoneSessionMode.PRODUCTA_BUDDY else PhoneSessionMode.ACCOUNTABILI_BUDDY
 
-        // The phone's own "Ending a phone session early" setting is PS3b's; until it writes these keys the defaults (60 s, 15 characters) stand.
-        override fun endSettings(): PhoneEndSettings {
-            val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            return PhoneEndSettings(
-                prefs.getInt(KEY_WAIT_SECONDS, PhoneEndSettings.DEFAULT.waitSeconds).coerceAtLeast(0),
-                prefs.getInt(KEY_MIN_REASON, PhoneEndSettings.DEFAULT.minReasonLength).coerceAtLeast(0),
-            )
-        }
+        override fun endSettings(): PhoneEndSettings = this@PhoneSessionRuntime.endSettings()
 
         override fun zone(): ZoneId = ZoneId.systemDefault()
 
@@ -101,12 +94,32 @@ class PhoneSessionRuntime(private val app: CompanionApp) {
 
         override fun releaseEnforcement(record: PhoneSessionRecord, kind: PhoneSessionEndKind) {
             onRelease?.invoke(record, kind)
+            // PS2c: the pickups and distraction of a real session join its log entry (off this thread: the hooks run under the controller's lock, N4).
+            if (!record.isTest) recordUsageLater(record)
         }
 
         override fun changed() {
             _running.value = controller.running
             scope.launch { runCatching { Refresher.refresh(app) } }
         }
+    }
+
+    /**
+     * The phone's own "Ending a phone session early" setting (what ending a timed AccountabiliBuddy phone session takes). It is PS3b's to write; until it writes
+     * these keys the defaults (60 s, 15 characters) stand. The mode switch's "now" costs the same (PS2c, [com.accountabilibuddy.companion.guidance.SessionEndCost]).
+     */
+    fun endSettings(): PhoneEndSettings {
+        val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return PhoneEndSettings(
+            prefs.getInt(KEY_WAIT_SECONDS, PhoneEndSettings.DEFAULT.waitSeconds).coerceAtLeast(0),
+            prefs.getInt(KEY_MIN_REASON, PhoneEndSettings.DEFAULT.minReasonLength).coerceAtLeast(0),
+        )
+    }
+
+    // The usage events are read off the controller's lock and off the main thread, then saved with the log entry (set once).
+    private fun recordUsageLater(record: PhoneSessionRecord) {
+        val end = record.endedAt ?: return
+        scope.launch { runCatching { controller.recordUsage(record.id, PhoneSessionUsage.read(app, record, end)) } }
     }
 
     /** The only writer of a phone session. */

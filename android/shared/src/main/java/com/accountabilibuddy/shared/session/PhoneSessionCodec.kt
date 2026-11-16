@@ -143,6 +143,13 @@ object PhoneSessionCodec {
         r.endedAt?.let { put("endedAt", it.toString()) }
         r.endKind?.let { put("endKind", it.name) }
         r.heldAway?.let { put("heldAway", it.name) }
+        r.usage?.let { u ->
+            put("usage", buildJsonObject {
+                u.pickups?.let { put("pickups", it) }
+                u.longestStretchSeconds?.let { put("longestStretchSeconds", it) }
+                u.distractionMinutes?.let { put("distractionMinutes", it) }
+            })
+        }
     }
 
     // --- reading ----------------------------------------------------------------------------------------------------------------
@@ -193,6 +200,13 @@ object PhoneSessionCodec {
             endedAt = json.instant("endedAt"),
             endKind = json.text("endKind")?.let { PhoneSessionEndKind.valueOf(it) },
             heldAway = json.text("heldAway")?.let { PhoneAwayKind.valueOf(it) },
+            usage = (json["usage"] as? JsonObject)?.let { u ->
+                PhoneSessionUsageSummary(
+                    (u["pickups"] as? JsonPrimitive)?.intOrNull,
+                    (u["longestStretchSeconds"] as? JsonPrimitive)?.longOrNull,
+                    (u["distractionMinutes"] as? JsonPrimitive)?.intOrNull,
+                )
+            },
         )
     }
 

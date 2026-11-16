@@ -12,12 +12,11 @@ package com.accountabilibuddy.shared.session
  */
 object OwnSessionEnforcement {
     /**
-     * What a session profile turns on for the essentials hook. Phone session profiles arrive with PS3b/PS6b; until then [NONE] stands for
-     * every own session (a plain timer): AccountabiliBuddy still falls back to the global settings, ProductaBuddy locks nothing.
+     * What a session profile turns on for the essentials hook. Phone session profiles are read by PS2c (the editor is PS3b); [NONE] stands for a plain timer (no profile found): AccountabiliBuddy still falls back to the global settings, ProductaBuddy locks nothing.
      */
-    data class Profile(val lmpProfile: String?, val essentialsOnUnlock: Boolean, val curboxFocusGroup: String?) {
-        /** The same two flags [PhoneSessionLocks] reads: LockMyPhone or Essentials, and Curbox. */
-        val use: PhoneSessionProfileUse get() = PhoneSessionProfileUse(lmpProfile != null || essentialsOnUnlock, curboxFocusGroup != null)
+    data class Profile(val lmpProfile: String?, val essentialsOnUnlock: Boolean, val curboxFocusGroup: String?, val curboxBlocks: Boolean = false) {
+        /** The same two flags [PhoneSessionLocks] reads: LockMyPhone or Essentials, and Curbox (a focus group or blocks). */
+        val use: PhoneSessionProfileUse get() = PhoneSessionProfileUse(lmpProfile != null || essentialsOnUnlock, curboxFocusGroup != null || curboxBlocks)
 
         companion object {
             val NONE = Profile(lmpProfile = null, essentialsOnUnlock = false, curboxFocusGroup = null)

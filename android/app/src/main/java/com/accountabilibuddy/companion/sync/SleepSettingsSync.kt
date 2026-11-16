@@ -59,7 +59,7 @@ class SleepSettingsSync(context: Context, private val store: CompanionStore) {
     val offWait: Duration get() = OFF_WAIT
 
     /** True while a PC focus session runs: sleep mode can't be turned off then. */
-    fun locked(now: Instant = Instant.now()): Boolean = PlacementSession.current(app, now, ignoreOff = true) != null
+    fun locked(now: Instant = Instant.now()): Boolean = PlacementSession.locking(app, now, com.accountabilibuddy.shared.session.PhoneLockArea.OTHER_SETTINGS) != null
 
     /**
      * The user changed the sleep settings on this phone: save them and stamp the edit. Turning sleep mode off is held

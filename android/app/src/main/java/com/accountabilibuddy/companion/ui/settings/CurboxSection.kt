@@ -29,7 +29,7 @@ import java.time.LocalTime
  */
 @Composable
 internal fun CurboxSection(curbox: CurboxStatus, onConnect: () -> Unit, onReenableTime: (Boolean, LocalTime) -> String?, onOpenSetup: () -> Unit) =
-    GuardsScope { CurboxSectionBody(curbox, onConnect, onReenableTime, onOpenSetup) }
+    GuardsScope(com.accountabilibuddy.shared.session.PhoneLockArea.CURBOX_ROWS) { CurboxSectionBody(curbox, onConnect, onReenableTime, onOpenSetup) }
 
 @Composable
 private fun CurboxSectionBody(curbox: CurboxStatus, onConnect: () -> Unit, onReenableTime: (Boolean, LocalTime) -> String?, onOpenSetup: () -> Unit) {

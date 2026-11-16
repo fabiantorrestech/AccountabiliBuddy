@@ -99,6 +99,7 @@ fun MainScreen(
     val removalLocked by viewModel.removalLocked.collectAsStateWithLifecycle()
     // The guard settings are view-only while a focus session runs; null otherwise. Looked at again every few seconds.
     val guardsLock by viewModel.guardsLock.collectAsStateWithLifecycle()
+    val guardsAreas by viewModel.guardsAreas.collectAsStateWithLifecycle()
     val removeState by viewModel.removeDevice.state.collectAsStateWithLifecycle()
     val syncOffPending by viewModel.syncOffPending.collectAsStateWithLifecycle()
     val restoreState by viewModel.restoreBackup.state.collectAsStateWithLifecycle()
@@ -216,7 +217,7 @@ fun MainScreen(
     val noiseInSidebar = noiseState.hasFolder && todayLayoutPref != null &&
         todayLayoutPref.placementOf(com.accountabilibuddy.companion.today.TodayItem.Noise) != com.accountabilibuddy.companion.today.TodayPlacement.Hidden
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalGuardsLock provides guardsLock, LocalExpanded provides wide) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalGuardsLock provides guardsLock, LocalGuardsAreas provides guardsAreas, LocalExpanded provides wide) {
     AppScaffold(
         nav = nav,
         layout = navLayout,

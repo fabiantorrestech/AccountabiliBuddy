@@ -17,6 +17,7 @@ import com.accountabilibuddy.companion.ui.kit.AbTextButton
 import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.kit.AbValueButton
 import com.accountabilibuddy.companion.ui.theme.Ab
+import com.accountabilibuddy.shared.session.PhoneLockArea
 
 /**
  * The guard lock as the screens see it: set while a focus session runs (see [GuardsLock]), null otherwise. The shell provides it
@@ -28,12 +29,21 @@ val LocalGuardsLock = staticCompositionLocalOf<GuardsLock?> { null }
 val LocalGuardsLocked = staticCompositionLocalOf { false }
 
 /**
+ * Every area of the lock seam that is locked now (PS2c). [LocalGuardsLock] says "the Settings rest" (a session on another device, or an AccountabiliBuddy phone
+ * session); this also holds what a ProductaBuddy phone session locks: only the enforcement its profile turns on (LockMyPhone and Essentials rows, Curbox rows).
+ */
+val LocalGuardsAreas = staticCompositionLocalOf<Set<PhoneLockArea>> { emptySet() }
+
+/**
  * Wraps a guard section (Essentials, emergency time, placement, the phone guard switch, Curbox): while the lock is on, everything in
  * it that changes a setting is disabled. Wherever the section is shown (Guards, Sleep, Connections, the setup pages) it locks the same.
+ * A section that is one area of the lock seam passes it as [area] ([PhoneLockArea.GUARDS_LMP_ESSENTIALS], [PhoneLockArea.CURBOX_ROWS]): it then also locks
+ * while only that area is locked (a ProductaBuddy phone session whose profile turns that enforcement on).
  */
 @Composable
-fun GuardsScope(content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalGuardsLocked provides (LocalGuardsLock.current != null), content = content)
+fun GuardsScope(area: PhoneLockArea? = null, content: @Composable () -> Unit) {
+    val locked = LocalGuardsLock.current != null || (area != null && area in LocalGuardsAreas.current)
+    CompositionLocalProvider(LocalGuardsLocked provides locked, content = content)
 }
 
 /** The banner on the Settings list and the Guards page while the lock is on: a lock, "Settings rest until **2:20 PM**." */

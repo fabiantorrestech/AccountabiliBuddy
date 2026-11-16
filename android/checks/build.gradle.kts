@@ -98,6 +98,9 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/essentials/CapabilityMemory.kt",
             "com/accountabilibuddy/companion/essentials/RedirectRules.kt",
             "com/accountabilibuddy/companion/essentials/SigningCertificates.kt",
+            // PS2c: the mode switch's and the pause's waiting rules (a pending switch or pause does not apply while a phone session runs).
+            "com/accountabilibuddy/companion/guidance/GuidanceRules.kt",
+            "com/accountabilibuddy/companion/pause/PauseRules.kt",
             // CP1a: the default device name (the debug build adds " (debug)").
             "com/accountabilibuddy/companion/sync/DefaultDeviceName.kt",
         )

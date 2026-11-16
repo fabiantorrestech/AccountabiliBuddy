@@ -61,6 +61,28 @@ object PhoneSessionLocks {
 
     /** When a PC session and the phone's own session both run (an offline double start) the lock is the stricter of the two. */
     fun stricter(a: Set<PhoneLockArea>, b: Set<PhoneLockArea>): Set<PhoneLockArea> = a + b
+
+    /**
+     * What is locked right now (PS2c, plan check B9): a session on another device (a PC's, or the phone's test session) locks everything, as it always
+     * has (ADR 68 keeps its no-escape-hatch locks in both modes); the phone's own session adds its [own] scope. Both: the stricter.
+     */
+    fun locked(otherSessionRunning: Boolean, own: Set<PhoneLockArea>): Set<PhoneLockArea> =
+        if (otherSessionRunning) stricter(PhoneLockArea.values().toSet(), own) else own
+
+    /**
+     * Any session runs: another device's, the test session, or the phone's own in EITHER mode. The mode switch's and the pause master switch's gate (plan check
+     * S4/S8): a pending ProductaBuddy switch or a pause waits while one does, so neither can drop an AccountabiliBuddy phone session's locks.
+     */
+    fun anyRunning(otherSessionRunning: Boolean, ownRunning: Boolean): Boolean = otherSessionRunning || ownRunning
+
+    /** [area] is locked now (see [locked]). */
+    fun locks(area: PhoneLockArea, otherSessionRunning: Boolean, own: Set<PhoneLockArea>): Boolean = area in locked(otherSessionRunning, own)
+
+    /**
+     * When a lock ends: the later of two ends, where null (no set end) is the latest. Both sessions locking means the lock stays until the second
+     * one is over.
+     */
+    fun laterEnd(a: java.time.Instant?, b: java.time.Instant?): java.time.Instant? = if (a == null || b == null) null else maxOf(a, b)
 }
 
 /**

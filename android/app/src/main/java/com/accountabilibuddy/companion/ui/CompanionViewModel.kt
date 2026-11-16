@@ -512,11 +512,22 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
      * seconds, so a guard page that is open unlocks by itself when the session ends.
      */
     val guardsLock: StateFlow<com.accountabilibuddy.companion.placement.GuardsLock?> =
-        combine(sync.received, getApplication<CompanionApp>().testSession.window, flow { while (true) { emit(Unit); delay(GUARDS_RECHECK_MS) } }) { _, _, _ ->
-            com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), java.time.Instant.now())
+        combine(sync.received, getApplication<CompanionApp>().testSession.window, getApplication<CompanionApp>().phoneSession.running, flow { while (true) { emit(Unit); delay(GUARDS_RECHECK_MS) } }) { _, _, _, _ ->
+            com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), com.accountabilibuddy.companion.guidance.TrustedTime.now())
         }
             .distinctUntilChanged()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), java.time.Instant.now()))
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), com.accountabilibuddy.companion.guidance.TrustedTime.now()))
+
+    /**
+     * The areas of the lock seam locked now (PS2c): what [guardsLock] does not say. A ProductaBuddy phone session locks only the enforcement its profile turns on,
+     * so the plain Settings stay open and [guardsLock] stays null while its LockMyPhone, Essentials or Curbox rows lock through this.
+     */
+    val guardsAreas: StateFlow<Set<com.accountabilibuddy.shared.session.PhoneLockArea>> =
+        combine(sync.received, getApplication<CompanionApp>().testSession.window, getApplication<CompanionApp>().phoneSession.running, flow { while (true) { emit(Unit); delay(GUARDS_RECHECK_MS) } }) { _, _, _, _ ->
+            com.accountabilibuddy.companion.placement.GuardsLock.areasAt(getApplication(), com.accountabilibuddy.companion.guidance.TrustedTime.now())
+        }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.accountabilibuddy.companion.placement.GuardsLock.areasAt(getApplication(), com.accountabilibuddy.companion.guidance.TrustedTime.now()))
 
     fun openRemoveDevice(deviceId: java.util.UUID) = removeDevice.open(deviceId)
 
@@ -748,7 +759,7 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
      * included. Every way into a plan change asks this first, so no route gets around it.
      */
     fun planLockedReason(): String? =
-        com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), Instant.now())?.planSentence()
+        com.accountabilibuddy.companion.placement.GuardsLock.at(getApplication(), com.accountabilibuddy.companion.guidance.TrustedTime.now(), com.accountabilibuddy.shared.session.PhoneLockArea.PLAN)?.planSentence()
 
     /** "Change a day" (ADR 37): opens it unless the plan rests. Null when it opened, otherwise why not. */
     fun openPlanDay(): String? {
