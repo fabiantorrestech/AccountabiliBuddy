@@ -359,7 +359,7 @@ fun MainScreen(
                     )
                     TodayPane(
                         state = state, model = model, clock = viewModel.clock,
-                        pc = todayPc,
+                        pcFiles = todayPc,
                         comebacks = comebacks,
                         phoneUsage = phoneUsage,
                         guardsLock = guardsLock,
@@ -374,7 +374,7 @@ fun MainScreen(
                         } else {
                             null
                         },
-                        actions = TodayActions(
+                        fileActions = TodayActions(
                             onStartOnPc = viewModel::startOnPc,
                             onEndEarly = { viewModel.beginEndEarly(todayPc.pcId) },
                             onCancelWaiting = { viewModel.cancelPcWaiting(todayPc.pcId) },
@@ -430,18 +430,27 @@ fun MainScreen(
                 AppDestination.Goals -> {
                     // A goal's page is the Goals place with the goal's id as its detail (back goes to the list).
                     val openGoal = shown.detail?.let { runCatching { java.util.UUID.fromString(it) }.getOrNull() }
-                    // The goal menu's "Start a session…": the start Today's Start button uses, on the controlled PC, in the same cases.
-                    val goalSession = com.accountabilibuddy.companion.ui.goals.GoalSessionStart(
-                        pcName = pcName?.takeIf { it.isNotBlank() } ?: "your PC",
-                        pcState = pcState,
-                        blocked = com.accountabilibuddy.companion.ui.goals.GoalSessionStart.blockedReason(
-                            pcName = pcName, pcState = pcState,
-                            updateNeeded = controlPc?.let { PcFileControl.updateNeeded(it.file.device) },
-                            waiting = pcWaiting != null,
-                            settingsRest = guardsLock?.let { !it.test } == true,
-                        ),
-                        onStart = viewModel::startOnPc,
+                    // The goal menu's "Start a session…" opens the Start sheet Today's Start button opens (PS3a, R16): the same R1 rule, the same two targets.
+                    val goalApp = context.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                    val goalOwn by goalApp.phoneSession.running.collectAsStateWithLifecycle()
+                    val goalLive = com.accountabilibuddy.companion.ui.today.rememberGroupLive(syncReceived)
+                    var goalStartOpen by remember { mutableStateOf(false) }
+                    val goalPc = TodayPc(
+                        name = pcName, pcId = controlPc?.file?.device?.deviceId, state = pcState, awaySince = null,
+                        updateNeeded = controlPc?.let { PcFileControl.updateNeeded(it.file.device) },
+                        waiting = pcWaiting?.takeIf { it.target == controlPc?.file?.device?.deviceId }, tasks = null,
                     )
+                    val goalBlock = com.accountabilibuddy.shared.session.PhoneStartRules.block(
+                        ownRunning = goalOwn?.let { it.isRunning && !it.isTest } == true, live = goalLive.live, now = goalLive.now,
+                        waitingFor = goalPc.waiting?.let { goalPc.startName }, settingsRest = guardsLock?.let { !it.test } == true,
+                    )
+                    val goalSession = com.accountabilibuddy.companion.ui.goals.GoalSessionStart(blocked = goalBlock?.text, onOpenSheet = { goalStartOpen = true })
+                    if (goalStartOpen && goalBlock == null) {
+                        com.accountabilibuddy.companion.ui.today.StartSessionSheetHost(
+                            pc = goalPc, received = syncReceived, clock = viewModel.clock, staleLine = null,
+                            onStartOnPc = viewModel::startOnPc, onMessage = { viewModel.message.value = it }, onDismiss = { goalStartOpen = false },
+                        )
+                    }
                     if (openGoal != null) {
                         com.accountabilibuddy.companion.ui.goals.GoalPageScreen(
                             goalId = openGoal, allReceived = syncAllReceived, received = syncReceived,

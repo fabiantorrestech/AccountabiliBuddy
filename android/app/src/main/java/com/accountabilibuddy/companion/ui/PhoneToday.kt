@@ -42,6 +42,11 @@ import com.accountabilibuddy.companion.ui.today.CurrentItem
 import com.accountabilibuddy.companion.ui.today.MoreTodayChip
 import com.accountabilibuddy.companion.ui.today.MoreTodayChipRow
 import com.accountabilibuddy.companion.ui.today.NoisePickerSheet
+import com.accountabilibuddy.companion.ui.today.OwnSessionMenuSheet
+import com.accountabilibuddy.companion.ui.today.OwnSessionUi
+import com.accountabilibuddy.companion.ui.today.RunningElsewhereBar
+import com.accountabilibuddy.shared.session.StartBlock
+import com.accountabilibuddy.shared.sync.SyncDeviceCard
 import com.accountabilibuddy.companion.ui.today.SessionActionBar
 import com.accountabilibuddy.companion.ui.today.StepsMovedCard
 import com.accountabilibuddy.companion.ui.today.SessionCard
@@ -80,6 +85,12 @@ internal fun PhoneToday(
     syncLight: @Composable () -> Unit,
     banner: @Composable () -> Unit,
     onStart: () -> Unit,
+    /** Why Start isn't offered (R1, B15, ADR 60); null when it is (PS3a). */
+    block: StartBlock? = null,
+    /** R3: "Pixel's session last heard from 2:05 PM", the muted line Start comes back with. */
+    staleLine: String? = null,
+    /** The phone's own session, when one runs: its card, tasks and menu are the PC's shapes ([OwnSessionView]), these are what differs. */
+    own: OwnSessionUi? = null,
 ) {
     val app = LocalContext.current.applicationContext as CompanionApp
     val noiseState by app.noise.state.collectAsState()
@@ -131,7 +142,7 @@ internal fun PhoneToday(
     val showNoiseBar = noiseState.hasFolder && layout.placementOf(TodayItem.Noise) == TodayPlacement.Above
 
     val running = pc.tasks
-    val ticker = running?.let { rememberTaskTicker(it) }
+    val ticker = own?.ticker ?: running?.let { rememberTaskTicker(it) }
     val current = if (session != null && !session.isPlanning && !session.isBreak) CurrentItem.of(running) else null
     val currentId = current?.item?.id
     val canDone = ticker != null && ticker.canTick && currentId != null && !ticker.sending(currentId)
@@ -156,13 +167,15 @@ internal fun PhoneToday(
             // and stepping away are in the action bar below, which is not a part.
             val sink = asTodaySink()
             if (TodayItem.SessionCard !in above) sessionNotes(session, pc, clock, actions, cardShown = false)
+            // R3: a quiet phone session; Start is back, with when it was last heard from.
+            if (session == null && staleLine != null) item(key = "stale-elsewhere") { MutedLine(staleLine) }
             above.forEach { part ->
                 when (part) {
                     TodayItem.SessionCard -> {
                         if (session == null) {
                             item(key = "hero") {
                                 Column(Modifier.fillMaxWidth()) {
-                                    IdleHero(info, model.statusText, pc, clock, locked, onStart, actions.onCancelWaiting, compact = true, showStart = false)
+                                    IdleHero(info, model.statusText, pc, clock, locked, onStart, actions.onCancelWaiting, compact = true, showStart = false, block = block)
                                 }
                             }
                         } else {
@@ -171,7 +184,7 @@ internal fun PhoneToday(
                         sessionNotes(session, pc, clock, actions, cardShown = true)
                     }
                     TodayItem.ThisSession -> {
-                        if (session != null && !session.isPlanning && !session.isBreak && pc.tasks != null && pc.tasks.tasks.isNotEmpty()) item(key = "this-session") { ThisSessionCard(pc.tasks) }
+                        if (session != null && !session.isPlanning && !session.isBreak && pc.tasks != null && pc.tasks.tasks.isNotEmpty()) item(key = "this-session") { ThisSessionCard(pc.tasks, own?.ticker) }
                         // Round 2 R7.3: today's task sections from the one task list (This session before a session, Queued, Finished today).
                         if (app.taskModel.isActive && com.accountabilibuddy.companion.ui.today.hasTodayTasks(taskLists, session != null)) {
                             item(key = "today-tasks") { com.accountabilibuddy.companion.ui.today.TodayTaskSections(inSession = session != null, onMessage = actions.onMessage) }
@@ -192,8 +205,11 @@ internal fun PhoneToday(
                     onMore = { sessionMenu = true },
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp),
                 )
-            } else if (canStartHere(pc, locked)) {
-                StartActionBar(pc.startName, onStart, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp))
+            } else if (canStartHere(block)) {
+                StartActionBar(onStart, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp))
+            } else if (block is StartBlock.RunningElsewhere) {
+                // R1, R2: in the place of Start, so nothing moves; only that device can end it (R6).
+                RunningElsewhereBar(block.text, block.live.kind == SyncDeviceCard.KIND_PHONE, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 10.dp))
             }
             if (showNoiseBar) {
                 HorizontalDivider(color = Ab.colors.line, thickness = 1.dp)
@@ -226,7 +242,9 @@ internal fun PhoneToday(
             }
         }
     }
-    if (sessionMenu && session != null) {
+    if (sessionMenu && session != null && own != null && stepAway != null) {
+        OwnSessionMenuSheet(own.record, clock, stepAway, own.onMessage, onEnd = own.onEnd, onDismiss = { sessionMenu = false })
+    } else if (sessionMenu && session != null) {
         SessionMenuSheet(
             state = session, pcName = pc.name, clock = clock, awaySince = pc.awaySince, stepAway = stepAway,
             endBlocked = pc.updateNeeded ?: pc.waiting?.let { "Waiting for ${pc.name ?: "the PC"}'s answer" },

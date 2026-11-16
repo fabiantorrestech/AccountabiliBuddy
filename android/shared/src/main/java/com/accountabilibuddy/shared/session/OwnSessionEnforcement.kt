@@ -23,6 +23,13 @@ object OwnSessionEnforcement {
         }
     }
 
+    /**
+     * The key of the phone's own session in every lock decision (PS6a review S3, Q1199): when the SESSION started, which never moves. [PhoneSessionRecord.phaseStartedAt]
+     * moves later at each Resume, lunch end and phone-off gap, which made Curbox stop and start its group again, the hold release and hold again, and kept
+     * the lunch lift's re-lock from ever matching.
+     */
+    fun keyOf(record: PhoneSessionRecord): java.time.Instant = record.startedAt
+
     /** The running session the lock code follows: own first, then a PC's, then the test session (offline double start: the phone's own wins). */
     fun <T : Any> runningStart(own: T?, pc: T?, test: T?): T? = own ?: pc ?: test
 

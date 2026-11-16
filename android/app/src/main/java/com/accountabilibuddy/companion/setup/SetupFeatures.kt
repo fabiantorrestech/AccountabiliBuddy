@@ -37,10 +37,20 @@ object SetupFeatures {
     const val TASK_RING_DEVICES = "tasks.ringDevices"
     const val SCREEN_TIME_GOALS = "goals.screenTime"
     const val ESSENTIALS_LOCK = "essentials.lock"
+    const val PHONE_SESSIONS = "session.onPhone"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            PHONE_SESSIONS, "0.1.80", "Focus sessions on this phone: start with or without a PC, with app locks from a session profile",
+            relevant = { true },
+            // Set up once seen in the assistant, a session profile was made, or a session on this phone was ever started (the last profile used is remembered for good).
+            setUp = {
+                val app = it.applicationContext as com.accountabilibuddy.companion.CompanionApp
+                done(it, PHONE_SESSIONS) || app.phoneSessionProfiles.all().isNotEmpty() || app.phoneSession.starter.lastProfileId() != null
+            },
+        ),
         SetupFeature(
             ESSENTIALS_LOCK, "0.1.79", "How your phone locks (LockMyPhone-Extended or the built-in screen), when it engages, starter apps and the morning lock",
             relevant = { true },

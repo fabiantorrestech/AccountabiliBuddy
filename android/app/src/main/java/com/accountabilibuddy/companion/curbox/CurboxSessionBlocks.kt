@@ -22,7 +22,8 @@ object CurboxSessionBlocks {
     suspend fun check(context: Context, now: Instant) {
         val app = context.applicationContext as CompanionApp
         val record = PlacementSession.ownRecord(app)
-        val wanted = record?.let { app.phoneSessionProfiles.byId(it.profileId)?.curboxBlocks }.orEmpty()
+        // The blocks the session's profile had when it started (the copy in the record, never the live profile).
+        val wanted = record?.snapshot?.curboxBlocks.orEmpty()
         val running = record != null && !app.emergency.isActive(now)
         val memory = load(context)
         // Nothing wanted and nothing remembered: Curbox is not even asked.

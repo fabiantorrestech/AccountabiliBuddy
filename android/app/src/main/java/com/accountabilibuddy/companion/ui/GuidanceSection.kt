@@ -145,12 +145,14 @@ fun GuidanceSection(inSettings: Boolean = false) {
 private fun DuringSessionDialog(cost: SessionEndCost, onAfter: () -> Unit, onNow: () -> Unit, onCancel: () -> Unit) {
     var nowChosen by remember { mutableStateOf(false) }
     val nowCost = if (cost.free) "nothing extra" else "a ${cost.waitSeconds} s wait and a reason"
+    // PS2c review N4: a session on THIS phone does not keep its locks either way: switching now leaves ProductaBuddy's rules (the profile's own locks only, End free).
+    val phoneSession = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).phoneSession.realSessionRunning()
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text("Switch to ${AppBrand.COMPANION} during this session?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Note("The session keeps its locks either way; what changes is that nothing else nudges or locks.")
+                Note(com.accountabilibuddy.shared.session.PhoneSessionTexts.modeSwitchLocksLine(phoneSession))
                 AbChoiceRow("After this session ends (10 minutes from now at the earliest)", selected = !nowChosen) { nowChosen = false }
                 if (!cost.hasSetEnd) {
                     Note(

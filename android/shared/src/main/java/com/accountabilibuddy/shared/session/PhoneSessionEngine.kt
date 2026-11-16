@@ -34,6 +34,7 @@ object PhoneSessionEngine {
         now: Instant,
         tasks: List<SessionTaskItem> = emptyList(),
         isTest: Boolean = false,
+        snapshot: PhoneSessionProfileSnapshot = PhoneSessionProfileSnapshot.NONE,
     ): PhoneSessionResult {
         if (lengthMinutes != null && (lengthMinutes < 1 || lengthMinutes > MAX_MINUTES)) {
             return PhoneSessionResult.Refused(PhoneSessionRefusal.BAD_LENGTH)
@@ -49,6 +50,7 @@ object PhoneSessionEngine {
             phaseEndsAt = end,
             isTest = isTest,
             checklist = PhoneSessionChecklist(tasks).started(now),
+            snapshot = snapshot,
         )
         return PhoneSessionResult.Done(record, changed(record) + listOf(PhoneSessionEffect.ScheduleEndAlarm(end), PhoneSessionEffect.EnforceUntil(end)))
     }

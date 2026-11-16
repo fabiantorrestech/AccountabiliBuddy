@@ -7,6 +7,7 @@ import com.accountabilibuddy.shared.session.PhoneSessionEffect
 import com.accountabilibuddy.shared.session.PhoneSessionEngine
 import com.accountabilibuddy.shared.session.PhoneSessionNotice
 import com.accountabilibuddy.shared.session.PhoneSessionOffGap
+import com.accountabilibuddy.shared.session.PhoneSessionProfileSnapshot
 import com.accountabilibuddy.shared.session.PhoneSessionRead
 import com.accountabilibuddy.shared.session.PhoneSessionReason
 import com.accountabilibuddy.shared.session.PhoneSessionRecord
@@ -166,17 +167,25 @@ class PhoneSessionController(private val ports: PhoneSessionPorts) {
     /**
      * Starts a phone session of [lengthMinutes] (null: no set end) on the profile [profileId]/[profileName]. [tasks] is This session's list
      * (GUID ids) at the start. A new anchor is taken at the start (R12). R1: refused while another device of the group is live (a test session
-     * is never blocked, and is never counted or synced). It is saved before anything else happens: a session that could not be saved is not started.
+     * is never blocked, and is never counted or synced). [snapshot] is what the profile turns on, copied into the record at the start (PS2c review S3): the enforcement
+     * readers use it, never the live profile store. It is saved before anything else happens: a session that could not be saved is not started.
      * A start on an anchor that is not network-backed is marked, so the network time arriving moves every time of the record (B2).
      */
     @Synchronized
-    fun start(profileId: String, profileName: String, lengthMinutes: Int?, tasks: List<SessionTaskItem> = emptyList(), isTest: Boolean = false): PhoneSessionStart {
+    fun start(
+        profileId: String,
+        profileName: String,
+        lengthMinutes: Int?,
+        tasks: List<SessionTaskItem> = emptyList(),
+        isTest: Boolean = false,
+        snapshot: PhoneSessionProfileSnapshot = PhoneSessionProfileSnapshot.NONE,
+    ): PhoneSessionStart {
         ensureStarted()
         if (running != null) return PhoneSessionStart.AlreadyRunning
         clock.reanchor()
         val now = clock.now()
         if (!isTest && ports.liveElsewhere(now)) return PhoneSessionStart.LiveElsewhere
-        val done = when (val result = PhoneSessionEngine.start(ports.newId(), profileId, profileName, lengthMinutes, now, tasks, isTest)) {
+        val done = when (val result = PhoneSessionEngine.start(ports.newId(), profileId, profileName, lengthMinutes, now, tasks, isTest, snapshot)) {
             is PhoneSessionResult.Refused -> return PhoneSessionStart.Refused(result.reason)
             is PhoneSessionResult.Done -> result
         }

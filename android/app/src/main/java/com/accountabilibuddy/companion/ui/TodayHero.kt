@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.accountabilibuddy.companion.CompanionApp
 import com.accountabilibuddy.companion.engine.ClockFormat
 import com.accountabilibuddy.companion.engine.TodayInfo
 import com.accountabilibuddy.companion.sync.PcState
@@ -44,6 +46,7 @@ import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
 import com.accountabilibuddy.companion.ui.kit.AbTimerText
 import com.accountabilibuddy.companion.ui.kit.AbTonalButton
 import com.accountabilibuddy.companion.ui.theme.Ab
+import com.accountabilibuddy.shared.session.StartBlock
 import com.accountabilibuddy.shared.sync.SyncAction
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -57,18 +60,26 @@ import java.time.ZoneId
  */
 @Composable
 fun rememberTickingNow(): State<Instant> {
-    val now = remember { mutableStateOf(Instant.now()) }
+    val app = LocalContext.current.applicationContext as CompanionApp
+    val now = remember { mutableStateOf(displayNow(app)) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
-                now.value = Instant.now()
+                now.value = displayNow(app)
                 delay(1000 - System.currentTimeMillis() % 1000)
             }
         }
     }
     return now
 }
+
+/**
+ * The time Today counts a session with. While the phone's OWN session runs it is the session's own clock (R12, PS3a): moving the phone's clock changes
+ * nothing on the card, the menu or the End sheet. Otherwise it is the phone's clock, as for a PC's session (its times are absolute).
+ */
+fun displayNow(app: CompanionApp): Instant =
+    if (app.phoneSession.realSessionRunning()) app.phoneSession.controller.now() else Instant.now()
 
 /**
  * Idle (board 5a): "Nothing running." in ink, what comes next in muted text, and the one way to start a session. [compact] (the
@@ -86,6 +97,8 @@ fun IdleHero(
     onCancelWaiting: () -> Unit,
     compact: Boolean = false,
     showStart: Boolean = true,
+    /** Why Start isn't offered (R1, B15, ADR 60), or null when it is (PS3a). */
+    block: StartBlock? = null,
 ) {
     // While the settings rest for a PC session this screen cannot see (its file is out of date), "Nothing running." would be untrue.
     val headline = if (locked) "Session running." else info?.headline ?: TodayInfo.NOTHING_RUNNING
@@ -105,23 +118,26 @@ fun IdleHero(
             Text(next, style = Ab.type.title, color = Ab.colors.muted)
         }
     }
-    val startHere = canStartHere(pc, locked)
+    val startHere = canStartHere(block)
     if (startHere && !showStart) return
     Column(Modifier.padding(top = if (compact) 8.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
-            !pc.hasPc -> MutedLine("Phone sessions are coming.")
-            pc.updateNeeded != null -> MutedLine(pc.updateNeeded)
-            pc.waiting != null -> WaitingLine(pc, clock, onCancelWaiting)
-            // The settings rest for a PC session whose file is out of date (not the phone's own test session: a real session comes
-            // first, so Start stays).
-            locked -> MutedLine("Start comes back when the session ends or the PC syncs.")
-            else -> AbPrimaryButton("Start on ${pc.startName}", onClick = onStart, modifier = Modifier.fillMaxWidth())
+            // B15: a start request waits for the PC's answer: its line and its Cancel; "On this phone" waits with it.
+            block is StartBlock.WaitingForPc && pc.waiting != null -> WaitingLine(pc, clock, onCancelWaiting)
+            // R1: a live session on another device; the thumb zone's bar says it too. The settings rest for a PC session whose file is out of date.
+            // (On the phone's Today the thumb zone's bar says it, so the line is left to the tablet's card.)
+            block is StartBlock.RunningElsewhere -> if (!compact) MutedLine(block.text)
+            block is StartBlock.SettingsRest || locked -> MutedLine("Start comes back when the session ends or the PC syncs.")
+            else -> AbPrimaryButton("Start", onClick = onStart, modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
-/** True when a session can be started on [pc] from this phone now (the Start button shows). */
-fun canStartHere(pc: TodayPc, locked: Boolean): Boolean = pc.hasPc && pc.updateNeeded == null && pc.waiting == null && !locked
+/**
+ * True when a session can be started from this phone now (Start shows and opens the Start sheet, PS3a): nothing blocks it ([PhoneStartRules.block]). A phone with
+ * no PC can start on itself (R15), so a missing or too old PC no longer takes Start away.
+ */
+fun canStartHere(block: StartBlock?): Boolean = block == null
 
 /**
  * A running session (boards 5b, 6a): the timer at 72 sp, the task and when it ends. Only [SessionTimer] redraws each second.

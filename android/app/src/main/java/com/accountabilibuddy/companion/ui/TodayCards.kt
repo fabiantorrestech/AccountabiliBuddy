@@ -276,7 +276,7 @@ private fun SmallCard(icon: ImageVector, title: String, subtitle: String, modifi
 @Composable
 fun SessionActions(away: StepAwayState?, canEndEarly: Boolean, onEndEarly: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        AbTonalButton(if (away?.away == true) "I'm back" else "Step away", onClick = { away?.toggle?.invoke() }, enabled = away != null && !away.sending, modifier = Modifier.weight(1f))
+        AbTonalButton(if (away?.away == true) "I'm back" else "Step away", onClick = { away?.toggle?.invoke() }, enabled = away != null && away.enabled, modifier = Modifier.weight(1f))
         AbTonalButton("End early…", onClick = onEndEarly, enabled = canEndEarly, modifier = Modifier.weight(1f))
     }
 }

@@ -23,6 +23,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Text
 import com.accountabilibuddy.companion.CompanionApp
+import androidx.compose.runtime.LaunchedEffect
+import com.accountabilibuddy.companion.ui.today.EndPhoneSessionSheet
+import com.accountabilibuddy.companion.ui.today.OwnSessionUi
+import com.accountabilibuddy.companion.ui.today.OwnSessionView
+import com.accountabilibuddy.companion.ui.today.StartSessionSheetHost
+import com.accountabilibuddy.companion.ui.today.rememberGroupLive
+import com.accountabilibuddy.companion.ui.today.rememberOwnStepAway
+import com.accountabilibuddy.companion.ui.today.rememberOwnTicker
+import com.accountabilibuddy.shared.session.PhoneStartRules
+import java.time.LocalDateTime
+import java.time.ZoneId
 import com.accountabilibuddy.companion.nudge.NudgeStore
 import com.accountabilibuddy.companion.placement.PlacementSession
 import com.accountabilibuddy.companion.today.TodayPlacement
@@ -55,7 +66,8 @@ fun TodayPane(
     state: CompanionState,
     model: DayBarModel,
     clock: ClockFormat,
-    pc: TodayPc,
+    /** The PC Today is about, from the files (ADR 42); the phone's own session, when one runs, takes its place below (PS3a). */
+    pcFiles: TodayPc,
     comebacks: OpenComebacks?,
     phoneUsage: PhoneUsage?,
     /** Set while a focus session runs on this phone's view of things; the banner says the settings rest. */
@@ -66,7 +78,7 @@ fun TodayPane(
     beeminder: BeeminderGoals?,
     /** The noise player, when a sound folder is set; null hides it. */
     noiseCard: (@Composable () -> Unit)?,
-    actions: TodayActions,
+    fileActions: TodayActions,
     /** The sync light and its refresh, at the end of the header line. */
     syncLight: @Composable () -> Unit,
     /** Quiet cards above the hero (the "New since your last version" card); empty when there is nothing to say. */
@@ -79,11 +91,30 @@ fun TodayPane(
     var expanded by rememberSaveable { mutableStateOf(!state.hasImport) }
     val context = LocalContext.current
     val app = context.applicationContext as CompanionApp
+    // PS3a: the phone's own session (ADR 85) is read like a PC's: its record as the PC-shaped state the cards read, its own ticks and menu below.
+    val ownRecord by app.phoneSession.running.collectAsState()
+    val ownSession = ownRecord?.takeIf { it.isRunning && !it.isTest }
+    val pc = if (ownSession != null) OwnSessionView.todayPc(ownSession) else pcFiles
+    var starting by remember { mutableStateOf(false) }
+    var ending by remember { mutableStateOf(false) }
+    val actions = if (ownSession != null) fileActions.withEndEarly { ending = true } else fileActions
     val showWorkUse = remember(model, pc) { PlacementSession.current(app, Instant.now())?.takeUnless { it.onBreak } != null }
     val showDayOff = remember(model) { NudgeStore(context).load().dayOff == LocalDate.now() }
-    var starting by remember { mutableStateOf(false) }
     val session = pc.state?.takeIf { it.isActive }
-    val stepAway = if (session != null) rememberStepAway(pc, clock) else null
+    val stepAway = when {
+        ownSession != null -> rememberOwnStepAway(ownSession, clock, actions.onMessage)
+        session != null -> rememberStepAway(pc, clock)
+        else -> null
+    }
+    val ownUi = ownSession?.let { OwnSessionUi(it, rememberOwnTicker(it, actions.onMessage), actions.onMessage) { ending = true } }
+    // R1, R2, R3: a live session on another device blocks Start and says so; a quiet phone session lets Start back with its "last heard" line.
+    val group = rememberGroupLive(received)
+    val block = PhoneStartRules.block(
+        ownRunning = ownSession != null, live = group.live, now = group.now, waitingFor = pc.waiting?.let { pc.startName },
+        settingsRest = guardsLock != null && !guardsLock.test,
+    )
+    val staleLine = group.stale?.takeIf { group.live == null }?.let { stale -> PhoneStartRules.staleText(stale) { clock.time(LocalDateTime.ofInstant(it, ZoneId.systemDefault())) } }
+    LaunchedEffect(block != null) { if (block != null) starting = false }
     val hasTimer = rememberHasTimerOrAlarm()
     val chip = lunchChipKind(lunch)
     val idleLayout by UiPrefs.todayLayout.collectAsState()
@@ -114,7 +145,7 @@ fun TodayPane(
     val showTasks = layout.placementOf(TodayItem.ThisSession) != TodayPlacement.Hidden
     val body: TodaySink.() -> Unit = {
         if (session == null) {
-            idleHead(info, model, pc, clock, guardsLock, syncLight, shownBanner, actions, onStart = { starting = true }, showCard = showCard)
+            idleHead(info, model, pc, clock, guardsLock, syncLight, shownBanner, actions, onStart = { starting = true }, showCard = showCard, block = block)
         } else {
             sessionHead(model, clock, pc, session, stepAway?.text, actions, syncLight, shownBanner, showCard = showCard, showTasks = showTasks)
         }
@@ -134,15 +165,16 @@ fun TodayPane(
         PhoneToday(
             state = state, model = model, clock = clock, pc = pc, info = info, parts = parts, layout = layout, guardsLock = guardsLock,
             stepAway = stepAway, actions = actions, syncLight = syncLight, banner = shownBanner, onStart = { starting = true },
+            block = block, staleLine = staleLine, own = ownUi,
         )
     } else {
         Column(Modifier.fillMaxSize()) {
             WideToday(TodayBlocks().apply(body).blocks, Modifier.weight(1f))
-            if (session == null && !showCard && canStartHere(pc, guardsLock != null && !guardsLock.test)) {
+            if (session == null && !showCard && canStartHere(block)) {
                 // The card carried Start; hidden, Start is the bar at the foot, as wide as a phone's.
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     com.accountabilibuddy.companion.ui.today.StartActionBar(
-                        pc.startName, onStart = { starting = true },
+                        onStart = { starting = true },
                         modifier = Modifier.widthIn(max = 560.dp).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
                     )
                 }
@@ -159,16 +191,16 @@ fun TodayPane(
         }
     }
 
-    val pcState = pc.state
-    if (starting && pcState != null && pc.hasPc) {
-        StartOnPcDialog(
-            pcState, pc.startName,
-            onStart = { profileId, minutes, countUp ->
-                starting = false
-                actions.onStartOnPc(profileId, minutes, countUp)
-            },
-            onCancel = { starting = false },
+    // Start (PS3a): the sheet with "On <PC>" / "On this phone" (R16); only while R1 allows a start.
+    if (starting && block == null && ownSession == null) {
+        StartSessionSheetHost(
+            pc = pc, received = received, clock = clock, staleLine = staleLine,
+            onStartOnPc = actions.onStartOnPc, onMessage = actions.onMessage, onDismiss = { starting = false },
         )
+    }
+    // End (PS3a): the wait and the reason of AccountabiliBuddy, or End now (R8, R9).
+    if (ending && ownSession != null) {
+        EndPhoneSessionSheet(clock = clock, onMessage = actions.onMessage, onDismiss = { ending = false })
     }
 }
 
@@ -186,6 +218,7 @@ private fun TodaySink.idleHead(
     actions: TodayActions,
     onStart: () -> Unit,
     showCard: Boolean = true,
+    block: com.accountabilibuddy.shared.session.StartBlock? = null,
 ) {
     item(key = "header") {
         Column {
@@ -196,7 +229,7 @@ private fun TodaySink.idleHead(
     if (showCard) {
         item(key = "hero") {
             Column(Modifier.fillMaxWidth()) {
-                IdleHero(info, model.statusText, pc, clock, locked = guardsLock != null && !guardsLock.test, onStart, actions.onCancelWaiting)
+                IdleHero(info, model.statusText, pc, clock, locked = guardsLock != null && !guardsLock.test, onStart, actions.onCancelWaiting, block = block)
             }
         }
     } else {

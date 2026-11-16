@@ -424,6 +424,8 @@ class ShelfController(private val app: CompanionApp, private val sessionFull: ((
 
     private fun undoOf(result: ShelfChange, fields: List<TaskField>): () -> Unit = {
         change { lists, self, now -> ShelfEdits.restore(lists, result.before, fields, self, now) }
+        // PS3a (B6): a task an Undo put back in This session gives its drop back to a running phone session (nothing without one).
+        app.phoneSession.tasks.undone()
     }
 
     // The toast of a move to a bin: the board's two lines, Undo, and the tap that goes there (a Shelf bin's page, or Today).

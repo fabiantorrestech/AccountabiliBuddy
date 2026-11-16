@@ -1,6 +1,5 @@
 package com.accountabilibuddy.companion.ui.goals
 
-import com.accountabilibuddy.companion.ui.StartOnPcDialog
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.PauseCircle
@@ -76,7 +75,7 @@ fun GoalMenuSheet(
     onDismiss: () -> Unit,
     onDeleted: () -> Unit = {},
     onEdit: () -> Unit = {},
-    /** What "Start a session…" starts with; null greys the row ("Link a PC…"). */
+    /** What "Start a session…" opens (the Start sheet, PS3a); null greys the row. */
     start: GoalSessionStart? = null,
     /** Reminders: the caller closes this menu and opens Edit goal's Reminders page (round 2 R6b3). */
     onReminders: () -> Unit = {},
@@ -87,8 +86,6 @@ fun GoalMenuSheet(
     val page = rememberGoalPage(goalId, allReceived, received).value
     val lists by app.goals.lists.collectAsStateWithLifecycle()
     var inAreas by rememberSaveable { mutableStateOf(false) }
-    var inPresets by rememberSaveable { mutableStateOf(false) }
-    var customStart by rememberSaveable { mutableStateOf(false) }
     var valueDialog by rememberSaveable { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
     val stored = lists.liveGoals.firstOrNull { it.id == goalId }
@@ -124,40 +121,9 @@ fun GoalMenuSheet(
         return
     }
 
-    // Start a session… › the presets that count toward this goal (brief §4.3, change note §4a): the PC's default first (✓), its
-    // focus profiles, then Custom… (Today's own Start dialog). Each is the start Today's Start button sends, nothing else.
-    val pcState = start?.pcState
-    if (inPresets && start != null && start.blocked == null && pcState != null) {
-        AbSheet(
-            title = "Start a session", subtitle = "Counts toward ${goal.name} · on ${start.pcName}",
-            onDismiss = onDismiss, height = AbSheetHeight.Tall, onBack = { inPresets = false },
-        ) {
-            AbSheetRow(
-                "Default", onClick = { start.onStart(null, null, false); onDismiss() }, icon = Icons.Outlined.PlayArrow,
-                subtitle = "${start.pcName}'s default profile, for the length it remembers", role = Role.RadioButton, trailing = { AbSheetCheck(true) },
-            )
-            start.profiles.forEach { profile ->
-                AbSheetRow(
-                    profile.name, onClick = { start.onStart(profile.id, GoalSessionStart.PRESET_MINUTES, false); onDismiss() }, icon = Icons.Outlined.PlayArrow,
-                    trailing = { AbSheetValue("${GoalSessionStart.PRESET_MINUTES} min", opens = false) },
-                )
-            }
-            Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(Ab.colors.line))
-            AbSheetRow("Custom…", onClick = { customStart = true }, icon = Icons.Outlined.Tune, subtitle = "Pick the profile and the length", trailing = { AbSheetValue(null) })
-        }
-        if (customStart) {
-            StartOnPcDialog(
-                pcState, start.pcName,
-                onStart = { profileId, minutes, countUp -> customStart = false; start.onStart(profileId, minutes, countUp); onDismiss() },
-                onCancel = { customStart = false },
-            )
-        }
-        return
-    }
-
     val items = GoalMenuPlan.of(
         goal, page.facts.todayState, page.facts.isPaused, page.reminderCount, page.areaName,
-        startValue = "Default", startBlocked = if (start == null) GoalSessionStart.NO_PC_TEXT else start.blocked,
+        startValue = null, startBlocked = start?.blocked ?: "A session can't be started from here",
         reminderNext = page.reminderNext, linkedTasks = page.linkedTasks, hasTasksCard = page.tasksCard != null, noPc = !com.accountabilibuddy.companion.goals.PhoneDeepWork.hasPc(app.sync.received.value.map { it.file }),
     )
     val heading = items.first()
@@ -172,7 +138,7 @@ fun GoalMenuSheet(
             AbSheetRow(
                 item.title,
                 onClick = when (item.id) {
-                    GoalMenuItemId.StartSession -> ({ inPresets = true })
+                    GoalMenuItemId.StartSession -> ({ start?.onOpenSheet?.invoke(); onDismiss() })
                     GoalMenuItemId.Reminders -> onReminders
                     GoalMenuItemId.EditGoal -> onEdit
                     GoalMenuItemId.OpenTasks -> onOpenTasks

@@ -35,7 +35,10 @@ data class PhoneSessionProfile(
 ) {
     /** The enforcement the essentials hook reads (the Essentials screen has no switch of its own on a profile: a LockMyPhone profile is the lock). */
     val enforcement: OwnSessionEnforcement.Profile
-        get() = OwnSessionEnforcement.Profile(lmpProfile, essentialsOnUnlock = false, curboxFocusGroup = curboxFocusGroup, curboxBlocks = curboxBlocks.isNotEmpty())
+        get() = snapshot().enforcement
+
+    /** The copy a session takes of this profile when it starts (PS3a, PS2c review S3): what the session turns on, frozen for its whole run. */
+    fun snapshot(): PhoneSessionProfileSnapshot = PhoneSessionProfileSnapshot(lmpProfile, curboxFocusGroup, curboxBlocks, distractingApps)
 
     /** What the profile turns on, for the ProductaBuddy lock scope (R11). A plain timer profile turns on nothing. */
     val use: PhoneSessionProfileUse get() = enforcement.use

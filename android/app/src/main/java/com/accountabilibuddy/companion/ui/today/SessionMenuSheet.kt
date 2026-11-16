@@ -58,7 +58,7 @@ fun SessionMenuSheet(
             title = if (away) "I'm back" else "Step away",
             subtitle = stepAway?.text ?: if (away) "Back to the session on $pc" else "Logged as away",
             icon = Icons.AutoMirrored.Outlined.DirectionsWalk,
-            enabled = stepAway != null && !stepAway.sending,
+            enabled = stepAway != null && stepAway.enabled,
             onClick = {
                 // The session card then says "Stepping away · sending…" until the PC's file shows it (a PC writes no answer for these).
                 stepAway?.toggle?.invoke()
@@ -105,7 +105,7 @@ fun SessionMenuSheet(
 // "32m left · ends 1:23 PM · Deep work · on Work PC", redrawn each second in the sheet only. Where the session runs is said here
 // (it left Today's date line, which stays "Wed, Nov 11 · PB" as the boards draw it).
 @Composable
-private fun sessionSubtitle(state: PcState, clock: ClockFormat, awaySince: Instant?, pcName: String?): String {
+internal fun sessionSubtitle(state: PcState, clock: ClockFormat, awaySince: Instant?, pcName: String?): String {
     val ticking by rememberTickingNow()
     val now = awaySince?.takeIf { it.isBefore(ticking) } ?: ticking
     val end = state.phaseEndsAt?.toInstant()

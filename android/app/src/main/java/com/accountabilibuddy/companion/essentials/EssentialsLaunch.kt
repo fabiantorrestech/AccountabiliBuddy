@@ -221,10 +221,23 @@ object EssentialsLaunch {
 
     /**
      * The phone's own running session (start, end), or null. Read from the store's flag, never compared with a clock (B1): [now] only
-     * moves a paused timer's end. A test record is the test session's, not this one.
+     * moves a paused timer's end. A test record is the test session's, not this one. The start is the session's own start ([OwnSessionEnforcement.keyOf]),
+     * the key every lock decision uses: it does not move at a Resume, a lunch end or a phone-off gap (PS6a review S3, Q1199).
      */
     internal fun ownSessionStart(app: CompanionApp, now: Instant): Pair<Instant, Instant?>? =
-        app.phoneSession.running.value?.takeIf { it.isRunning && !it.isTest }?.let { it.phaseStartedAt to it.effectiveEnd(now) }
+        app.phoneSession.running.value?.takeIf { it.isRunning && !it.isTest }?.let { OwnSessionEnforcement.keyOf(it) to it.effectiveEnd(now) }
+
+    /**
+     * PS3a (Q1193): when the lock of an installed LockMyPhone-Extended WITHOUT the hold stays on although the own session [record] ends first: the older START_LOCK path
+     * can't be stopped without the Intent-API token that only [LunchLockLift] holds. The time is the session's end, as the lock was asked for it; null when this does not
+     * apply (no LockMyPhone-Extended, one with the hold, no lock asked for this session, or no set end). The End sheet says it and offers the update.
+     */
+    internal fun lockOutlivesSession(context: Context, record: com.accountabilibuddy.shared.session.PhoneSessionRecord, now: Instant): Instant? {
+        if (!lockMyPhoneInstalled(context) || SessionLock.holdCapable(context)) return null
+        val askedFor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SESSION_LOCK_FOR, null)
+        if (askedFor != OwnSessionEnforcement.keyOf(record).toString()) return null
+        return record.effectiveEnd(now)
+    }
 
     /**
      * What the own session's profile turns on: the profile the session started with (the record's `profileId`, PS6a review N6), read from the phone session

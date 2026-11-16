@@ -21,7 +21,7 @@ object PhoneSessionUsage {
     fun read(app: CompanionApp, record: PhoneSessionRecord, end: Instant): PhoneSessionUsageSummary {
         val reader = PhoneUsageReader(app)
         val unlocks = reader.unlocks(record.startedAt, end)
-        val apps = app.phoneSessionProfiles.byId(record.profileId)?.distractingApps.orEmpty().toSet()
+        val apps = record.snapshot.distractingApps.toSet()
         val distraction = if (unlocks == null || apps.isEmpty()) null else distractionSeconds(reader, record, end, apps)
         return PhoneSessionUsageRules.summarize(record, end, unlocks, distraction)
     }

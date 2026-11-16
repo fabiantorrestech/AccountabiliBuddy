@@ -128,6 +128,12 @@ class PhoneSessionRuntime(private val app: CompanionApp) {
     /** The running session (a test one too), null when none; follows every change. */
     val running: StateFlow<PhoneSessionRecord?> = _running.asStateFlow()
 
+    /** PS3a: This session's tasks, followed while a real session runs (B6: "All tasks done" counts what was dropped). */
+    val tasks = PhoneSessionTasks(app)
+
+    /** PS3a: starts a session on this phone from the Start sheet. */
+    val starter = PhoneSessionStarter(app)
+
     private val shutdown = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             runCatching { controller.onShutdown() }
@@ -144,6 +150,8 @@ class PhoneSessionRuntime(private val app: CompanionApp) {
         runCatching { ContextCompat.registerReceiver(app, shutdown, IntentFilter(Intent.ACTION_SHUTDOWN), ContextCompat.RECEIVER_NOT_EXPORTED) }
         // A lunch started or ended on any device (here, or from a received file) pauses or resumes the session's countdown.
         scope.launch { app.lunch.lunch.collect { runCatching { controller.observeLunch() } } }
+        // The task list's ticks, removals and moves reach the checklist (PS3a, B6, Q1171).
+        tasks.start(scope)
     }
 
     /**

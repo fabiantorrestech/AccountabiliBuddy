@@ -143,6 +143,7 @@ object PhoneSessionCodec {
         r.endedAt?.let { put("endedAt", it.toString()) }
         r.endKind?.let { put("endKind", it.name) }
         r.heldAway?.let { put("heldAway", it.name) }
+        put("snapshot", snapshotJson(r.snapshot))
         r.usage?.let { u ->
             put("usage", buildJsonObject {
                 u.pickups?.let { put("pickups", it) }
@@ -200,6 +201,7 @@ object PhoneSessionCodec {
             endedAt = json.instant("endedAt"),
             endKind = json.text("endKind")?.let { PhoneSessionEndKind.valueOf(it) },
             heldAway = json.text("heldAway")?.let { PhoneAwayKind.valueOf(it) },
+            snapshot = (json["snapshot"] as? JsonObject)?.let(::readSnapshot) ?: PhoneSessionProfileSnapshot.NONE,
             usage = (json["usage"] as? JsonObject)?.let { u ->
                 PhoneSessionUsageSummary(
                     (u["pickups"] as? JsonPrimitive)?.intOrNull,
@@ -209,6 +211,24 @@ object PhoneSessionCodec {
             },
         )
     }
+
+    // The profile a session started with (S3): the lock's profile and groups and the distraction apps, sealed with the record, never in the sync file.
+    private fun snapshotJson(s: PhoneSessionProfileSnapshot): JsonObject = buildJsonObject {
+        s.lmpProfile?.let { put("lmpProfile", it) }
+        s.curboxFocusGroup?.let { put("curboxFocusGroup", it) }
+        put("curboxBlocks", JsonArray(s.curboxBlocks.map { JsonArray(listOf(JsonPrimitive(it.kind), JsonPrimitive(it.id))) }))
+        put("distractingApps", JsonArray(s.distractingApps.map { JsonPrimitive(it) }))
+    }
+
+    private fun readSnapshot(json: JsonObject) = PhoneSessionProfileSnapshot(
+        lmpProfile = json.text("lmpProfile"),
+        curboxFocusGroup = json.text("curboxFocusGroup"),
+        curboxBlocks = (json["curboxBlocks"] as? JsonArray).orEmpty().map { pair ->
+            val items = pair as JsonArray
+            CurboxBlockRef((items[0] as JsonPrimitive).content, (items[1] as JsonPrimitive).content)
+        },
+        distractingApps = (json["distractingApps"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull },
+    )
 
     private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.contentOrNull
 

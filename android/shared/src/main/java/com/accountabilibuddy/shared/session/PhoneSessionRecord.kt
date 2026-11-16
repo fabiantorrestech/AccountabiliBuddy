@@ -17,6 +17,7 @@ import java.time.Instant
  * @property heartbeatAt The last trusted time the session was seen alive (R13).
  * @property offAt When the phone said it was going off (`ACTION_SHUTDOWN`), else null.
  * @property heldAway The kind of stretch an untrusted-clock hold interrupted at the phone's start (the hold's DeviceOff stretch is open); it is opened again when the hold ends.
+ * @property snapshot What the session's profile turned on, copied at the start (PS2c review S3): the one thing the enforcement readers consult.
  * @property usage Pickups and distraction inside focus (PS2c): set once, when the session has ended; phone-local, never in the sync file (R14).
  * @property endedAt Null while it runs. A record with an end is history: no transition touches it.
  */
@@ -40,6 +41,7 @@ data class PhoneSessionRecord(
     val endKind: PhoneSessionEndKind? = null,
     val heldAway: PhoneAwayKind? = null,
     val usage: PhoneSessionUsageSummary? = null,
+    val snapshot: PhoneSessionProfileSnapshot = PhoneSessionProfileSnapshot.NONE,
 ) {
     /**
      * True while the store says it runs. Never a comparison with a caller's clock (B1): a phone clock moved past the set end must not

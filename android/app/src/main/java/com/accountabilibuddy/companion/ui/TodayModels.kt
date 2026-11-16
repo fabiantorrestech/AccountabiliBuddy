@@ -52,6 +52,11 @@ class TodayActions(
     val onMessage: (String) -> Unit = {},
 )
 
+/** The same buttons with End early… opening the End sheet of the phone's own session (PS3a): nothing is asked of a PC for a session on this phone. */
+fun TodayActions.withEndEarly(onEndEarly: () -> Unit): TodayActions = TodayActions(
+    onStartOnPc, onEndEarly, onCancelWaiting, onImport, onOpenDevices, onOpenTasks, onAllowUsage, onOpenNoiseSettings, onOpenGoals, onOpenGoal, onMessage,
+)
+
 /** Today's lunch: what the plan says, whether it was taken, and what the buttons do. */
 class TodayLunch(
     val workday: Boolean,

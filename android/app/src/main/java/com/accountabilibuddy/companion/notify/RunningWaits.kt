@@ -10,7 +10,7 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Every wait running in the background that the phone can show (ADR 66): its own armed end of a PC session, and each PC's armed
+ * Every wait running in the background that the phone can show (ADR 66): its own armed end of a PC session, its own session's armed end (PS3a), and each PC's armed
  * ends from that PC's sync file. The pinned notification's header counts the first one down with Cancel, and Today lists them all.
  */
 object RunningWaits {
@@ -18,6 +18,7 @@ object RunningWaits {
     data class Wait(val key: String, val label: String, val readyAt: Instant, val pcId: UUID?, val armedId: String?, val cancelling: Boolean)
 
     private const val KEY_PHONE = "phone"
+    private const val KEY_OWN = "own"
     private const val SEND_REQUEST = 61
     private const val CANCEL_REQUEST_BASE = 62
 
@@ -28,6 +29,12 @@ object RunningWaits {
 
     private fun collect(app: CompanionApp, now: Instant): List<Wait> {
         val waits = mutableListOf<Wait>()
+        // PS3a (R8): the phone's OWN session's armed end (a confirmed End during the wait). Its time is on the session's clock: the countdown is what is left on it,
+        // read against the phone's clock now, so moving the phone's clock changes neither the wait nor what it says.
+        app.phoneSession.running.value?.takeIf { it.isRunning && !it.isTest }?.armedEnd?.let { armed ->
+            val left = java.time.Duration.between(app.phoneSession.controller.now(), armed.readyAt)
+            if (!left.isNegative && !left.isZero) waits += Wait(KEY_OWN, "This phone's session ends", now.plus(left), null, null, cancelling = false)
+        }
         app.pcRemote.armed.value?.takeIf { it.sendAt.isAfter(now) }?.let { armed ->
             waits += Wait(KEY_PHONE, "${armed.pcName}'s session ends", armed.sendAt, null, null, cancelling = false)
         }
@@ -44,6 +51,11 @@ object RunningWaits {
 
     /** Cancels [key]: the phone's own at once; a PC's by a cancel action in this phone's file. */
     fun cancel(app: CompanionApp, key: String) {
+        if (key == KEY_OWN) {
+            // Free, at once (R8: Cancel is free).
+            app.phoneSession.controller.cancelEnd()
+            return
+        }
         if (key == KEY_PHONE) {
             app.pcRemote.cancelArmed()
             return

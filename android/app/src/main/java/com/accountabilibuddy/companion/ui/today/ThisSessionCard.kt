@@ -56,14 +56,15 @@ import com.accountabilibuddy.shared.sync.SessionTaskItem
  * Reminders due today to show, so those parts of the board are not drawn (HANDOFF-QUESTIONS Round 2).
  */
 @Composable
-fun ThisSessionCard(sent: RunningTasks) {
+fun ThisSessionCard(sent: RunningTasks, ownTicker: TaskTicker? = null) {
     // ADR 89: a PC's task may carry a label another device keeps to itself; this phone shows it as no label (ids stay, so ticks still work).
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp
     val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
     val running = androidx.compose.runtime.remember(sent, scopeView) {
         sent.copy(tasks = com.accountabilibuddy.shared.tasks.OldPaneScopes.checklist(sent.tasks, scopeView))
     }
-    val ticker = rememberTaskTicker(running)
+    // The phone's own session ticks through the shared task model (PS3a); a PC's through the sync actions, as always.
+    val ticker = ownTicker ?: rememberTaskTicker(running)
     val current = CurrentItem.of(running)
     val others = SessionTaskItem.openInShownOrder(running.tasks).filter { it !== current?.task }
     val finished = running.tasks.filter { it.isDone }

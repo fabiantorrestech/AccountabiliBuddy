@@ -18,7 +18,10 @@ import java.time.ZoneId
  * when there is nothing to say), and [toggle] sends the other one. The PC applies it within 10 minutes of the tap, or not at all; it
  * never shortens a wait or unlocks anything.
  */
-class StepAwayState(val away: Boolean, val sending: Boolean, val text: String?, val toggle: () -> Unit)
+class StepAwayState(val away: Boolean, val sending: Boolean, val text: String?, val blocked: Boolean = false, val toggle: () -> Unit) {
+    /** The button can be pressed: nothing is on its way, and the session is not in a stretch (Pause timer, lunch) a Step away can't start in (the phone's own session). */
+    val enabled: Boolean get() = !sending && !blocked
+}
 
 /** The step-away state of [pc]'s running session, or null with no PC to send it to. */
 @Composable

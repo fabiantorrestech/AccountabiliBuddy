@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -66,7 +67,9 @@ fun PauseSection(state: PauseState, now: Instant, clock: ClockFormat, actions: P
 @Composable
 private fun PauseSectionBody(state: PauseState, now: Instant, clock: ClockFormat, actions: PauseActions) {
     val zone = ZoneId.systemDefault()
-    val resting = LocalGuardsLock.current != null
+    // A session on this phone makes a "turn off" request wait in ProductaBuddy too, though that mode's guards lock leaves this page open (PS2c Q1207).
+    val ownSession by (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.accountabilibuddy.companion.CompanionApp).phoneSession.running.collectAsState()
+    val resting = LocalGuardsLock.current != null || ownSession?.let { it.isRunning && !it.isTest } == true
     // Shown as it is now, also once the wait ended before the next refresh applied it (not during a session: it waits).
     val status = PauseRules.status(PauseRules.advance(state, now, zone, sessionRunning = resting), now, zone)
     var choosing by remember { mutableStateOf(false) }

@@ -28,13 +28,24 @@ class PhoneSessionProfiles(private val app: CompanionApp) {
     }
 
     /**
-     * What [record]'s profile turns on (N6 of the PS6a review): the profile the session STARTED with, found by the record's id. The profiles are locked while
-     * the session runs, so the saved one is the one it started with; a profile that is gone turns nothing on.
+     * What the Start sheet offers: the saved profiles, the built-in "Focus" (a plain timer that turns nothing on) first. A saved profile can never be mistaken
+     * for it (its id is not a profile's id).
      */
-    fun enforcementOf(record: PhoneSessionRecord): OwnSessionEnforcement.Profile = byId(record.profileId)?.enforcement ?: OwnSessionEnforcement.Profile.NONE
+    fun choices(): List<PhoneSessionProfile> = listOf(BUILT_IN) + all()
 
-    private companion object {
-        const val PREFS = "phoneSessionProfiles"
-        const val KEY = "profiles"
+    /**
+     * What [record]'s profile turns on (PS2c review S3, PS6a review N6): the copy the session took of its profile when it STARTED ([PhoneSessionRecord.snapshot]).
+     * Never a look-up in the live store: no writer of the profiles can change a running session's locks.
+     */
+    fun enforcementOf(record: PhoneSessionRecord): OwnSessionEnforcement.Profile = record.snapshot.enforcement
+
+    companion object {
+        private const val PREFS = "phoneSessionProfiles"
+        private const val KEY = "profiles"
+
+        /** The built-in profile: a plain timer with This session's tasks. It is never saved; AccountabiliBuddy still adds the global locks to it (plan check B7b). */
+        const val BUILT_IN_ID = "builtin-focus"
+
+        val BUILT_IN = PhoneSessionProfile(id = BUILT_IN_ID, name = "Focus")
     }
 }

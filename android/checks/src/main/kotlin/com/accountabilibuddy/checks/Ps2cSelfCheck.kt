@@ -325,8 +325,9 @@ object Ps2cSelfCheck {
             vm != null && vm.contains("getApplication<CompanionApp>().phoneSession.running") && !vm.substringAfter("val guardsLock").substringBefore("fun openRemoveDevice").contains("Instant.now()"))
 
         // Enforcement: profile, Curbox.
-        report.check("ps2c/sources (N6): the essentials hook reads the profile the session started with (the record's profile id) through the profiles store, and nothing when none is found",
-            launch != null && launch.contains("?.let(app.phoneSessionProfiles::enforcementOf) ?: OwnSessionEnforcement.Profile.NONE") && profiles != null && profiles.contains("byId(record.profileId)?.enforcement ?: OwnSessionEnforcement.Profile.NONE"))
+        // PS3a (PS2c review S3): the session's profile is copied into its record at the start; the hook reads that copy (no store look-up), and nothing when there is none.
+        report.check("ps2c/sources (N6, S3): the essentials hook reads what the session's profile turned on when it started (the record's copy), and nothing when there is none",
+            launch != null && launch.contains("?.let(app.phoneSessionProfiles::enforcementOf) ?: OwnSessionEnforcement.Profile.NONE") && profiles != null && profiles.contains("record.snapshot.enforcement") && !profiles.contains("byId(record.profileId)"))
         report.check("ps2c/sources (R11): a profile can't be changed while a real phone session runs", profiles != null && profiles.contains("if (app.phoneSession.realSessionRunning()) return false"))
         report.check("ps2c/sources: Curbox hard mode asks for the profile's blocks first, in its own guarded call", curbox != null && curbox.contains("runCatching { CurboxSessionBlocks.check(context, now) }"))
         report.check("ps2c/sources: the blocks follow the own session and emergency time, ask Curbox only when something is wanted or remembered, and use the pure rule",
