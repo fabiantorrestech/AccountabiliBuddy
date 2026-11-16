@@ -77,7 +77,7 @@ public sealed class SyncTroubleshootService
             return new SyncBoard([], null);
         }
 
-        return SyncBoardBuilder.Build(_time.GetUtcNow(), _identity.DeviceId, _coordinator.OwnMethods(), _received.Active, receipts.Value, sent, ExpectedInterval, Ordinals());
+        return SyncBoardBuilder.Build(_time.GetUtcNow(), _identity.DeviceId, _coordinator.OwnMethods(), _received.Active, receipts.Value, sent, ExpectedInterval, Ordinals(), _coordinator.DeviceRoles is { } roles ? roles.LabelOf : null);
     }
 
     /// <summary>

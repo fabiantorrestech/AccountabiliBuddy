@@ -24,9 +24,10 @@ public static class SyncBoardBuilder
     /// <param name="sent">The send log.</param>
     /// <param name="interval">The method's real expected write interval (null: used by hand, never quiet).</param>
     /// <param name="sharedOrdinals">The numbering the report and the lists use (every device this PC holds a file of); null numbers just <paramref name="devices"/>.</param>
+    /// <param name="roleLabelOf">An Android device's role in use ("Main phone", "Tablet", "Other device"; ADR 90), for its detail line; null shows "Phone". The stable names (<see cref="Ordinals"/>) stay as they are.</param>
     public static SyncBoard Build(
         DateTimeOffset now, Guid self, IReadOnlyCollection<string> ownMethods, IReadOnlyList<ReceivedDevice> devices, SyncReceiptsLocal local, SyncSendLog sent,
-        Func<string, TimeSpan?> interval, IReadOnlyDictionary<Guid, string>? sharedOrdinals = null)
+        Func<string, TimeSpan?> interval, IReadOnlyDictionary<Guid, string>? sharedOrdinals = null, Func<Guid, string?>? roleLabelOf = null)
     {
         IReadOnlyDictionary<Guid, string> ordinals = sharedOrdinals ?? Ordinals(devices.Select(device => device.File.Device));
         var methods = new List<SyncBoardMethod>();
@@ -35,7 +36,7 @@ public static class SyncBoardBuilder
             var rows = new List<SyncBoardDevice>();
             foreach (ReceivedDevice device in devices.OrderBy(device => ordinals[device.File.Device.DeviceId], StringComparer.Ordinal))
             {
-                rows.Add(Row(now, self, method, device, ordinals, local, sent, interval));
+                rows.Add(Row(now, self, method, device, ordinals, local, sent, interval, roleLabelOf));
             }
 
             methods.Add(new SyncBoardMethod(method, TitleOf(method), rows));
@@ -80,7 +81,7 @@ public static class SyncBoardBuilder
 
     private static SyncBoardDevice Row(
         DateTimeOffset now, Guid self, string method, ReceivedDevice device, IReadOnlyDictionary<Guid, string> ordinals, SyncReceiptsLocal local, SyncSendLog sent,
-        Func<string, TimeSpan?> interval)
+        Func<string, TimeSpan?> interval, Func<Guid, string?>? roleLabelOf)
     {
         SyncFile file = device.File;
         SyncDeviceCard card = file.Device;
@@ -99,6 +100,7 @@ public static class SyncBoardBuilder
         List<string> refusedHere = ShownParts
             .Where(code => theirs?.Parts is { } held && held.TryGetValue(code, out SyncPartReceipt? state) && state.State == SyncReceiptParts.Refused)
             .ToList();
-        return new SyncBoardDevice(card.DeviceId, card.Name, ordinals[card.DeviceId], card.Kind, card.AppVersion, dot, confirmed, card.WrittenAt, parts, refusedHere);
+        return new SyncBoardDevice(card.DeviceId, card.Name, ordinals[card.DeviceId], card.Kind, card.AppVersion, dot, confirmed, card.WrittenAt, parts, refusedHere,
+            card.Kind == SyncDeviceCard.KindPhone ? roleLabelOf?.Invoke(card.DeviceId) : null);
     }
 }

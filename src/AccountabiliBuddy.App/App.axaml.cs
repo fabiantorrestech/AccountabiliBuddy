@@ -789,23 +789,29 @@ public partial class App : Application
         // The daily steps a paired phone read from Health Connect, from its sync file: this PC never reads Health Connect.
         var dailySteps = new AccountabiliBuddy.App.Services.DailyStepsService(documents, time);
         dailySteps.LoadBlocking();
+        // ADR 90: "the phone" is the main phone when one is set, else every Android device with no role (the roles APPLIED here, so a list that is
+        // still waiting changes nothing). Set once the roles service exists (just after the sync coordinator); until then every phone, as before roles.
+        AccountabiliBuddy.App.Services.Sync.DeviceRolesService? deviceRoles = null;
+        IReadOnlyList<AccountabiliBuddy.App.Services.Sync.ReceivedDevice> ThePhones() => deviceRoles?.ThePhones(receivedDevices.Active) ?? receivedDevices.Active;
         // A paired phone's next alarm (ADR 23): the newest phone file's, while it's still ahead.
         void FollowPhoneAlarm()
         {
-            dailySteps.Follow(receivedDevices.Active);
-            sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(receivedDevices.Active, time));
+            IReadOnlyList<AccountabiliBuddy.App.Services.Sync.ReceivedDevice> phones = ThePhones();
+            dailySteps.Follow(phones);
+            sleepSettings.SetPhoneAlarm(AccountabiliBuddy.App.Services.Sync.PhoneAlarm.Of(phones, time));
             // ADR 34: the phone's smart bedtime, from the same files.
-            sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(receivedDevices.Active));
+            sleepSettings.SetPhoneBedtime(AccountabiliBuddy.App.Services.Sync.PhoneBedtime.Of(phones));
             // ADR 40: the phone's estimated wake per kind of morning, for mornings with no alarm known.
-            sleepSettings.SetPhoneWake(AccountabiliBuddy.App.Services.Sync.PhoneWake.Of(receivedDevices.Active));
+            sleepSettings.SetPhoneWake(AccountabiliBuddy.App.Services.Sync.PhoneWake.Of(phones));
         }
 
         receivedDevices.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(FollowPhoneAlarm);
         FollowPhoneAlarm();
         var syncIdentity = new AccountabiliBuddy.App.Services.Sync.SyncIdentityService(documents, dataProtector, receivedDevices);
         _inSyncGroup = () => syncIdentity.Key is not null;
+        // NG1, ADR 90: a device that counts steps (the main phone, or one with no role) is in the group.
         _groupHasPhone = () => syncIdentity.Key is not null
-            && receivedDevices.Active.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone);
+            && ThePhones().Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone);
         // The phone's pickups during this PC's sessions (ADR 26), from its sync file.
         _phonePickups = new AccountabiliBuddy.App.Services.Sync.PhonePickups(receivedDevices, syncIdentity, time);
         syncIdentity.LoadBlocking();
@@ -1035,6 +1041,40 @@ public partial class App : Application
         };
         _syncRemoval.LoadBlocking();
         syncCoordinator.Removal = _syncRemoval;
+        // Android device roles (ADR 90): the merged list travels in the sync file; a change waits for this PC's own upload to Google Drive (or the
+        // methods it has), and a change of "the phone" also for the looser-change delay (AccountabiliBuddy mode), never during a session.
+        var roles = new AccountabiliBuddy.App.Services.Sync.DeviceRolesService(documents)
+        {
+            Now = () => _sessions!.Now,
+            SelfId = () => syncIdentity.DeviceId,
+            Active = () => receivedDevices.Active,
+            InGroup = () => syncIdentity.Key is not null,
+            RemovedIds = () => _syncRemoval!.Removed.Select(removed => removed.DeviceId).ToHashSet(),
+            EditLockedReason = () => _sessions!.IsEnforcing || sessionsElsewhere.Live is not null ? AccountabiliBuddy.App.Services.Sync.DeviceRolesService.LockedReason : null,
+            SessionActive = () => _sessions!.State.IsActive || sessionsElsewhere.Live is not null,
+            IsCompanion = () => guidance.IsCompanion,
+            LooserWait = () => _configuration!.Current.Locks.LooseningDelay,
+            NewestPuts = syncSendLog.NewestPutByMethod,
+            Methods = syncCoordinator.OwnMethods,
+            Zone = () => time.LocalTimeZone,
+        };
+        roles.LoadBlocking();
+        deviceRoles = roles;
+        syncCoordinator.DeviceRoles = roles;
+        roles.Changed += (_, _) => Dispatcher.UIThread.Post(FollowPhoneAlarm);
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = roles.TickAsync());
+        _syncRemoval.Changed += (_, _) => Dispatcher.UIThread.Post(() => _ = roles.TickAsync());
+        _sessions.Ticked += (_, _) => _ = roles.TickAsync();
+        _sessions.StateChanged += (_, _) => _ = roles.TickAsync();
+        // The roles are the old group's once this PC has left it.
+        syncIdentity.Changed += (_, _) =>
+        {
+            if (syncIdentity.Key is null)
+            {
+                _ = roles.ForgetAsync();
+            }
+        };
+        FollowPhoneAlarm();
         // Backups of a removed device and restoring them (ADR 55); History, Stats and the day bar label removed devices.
         var deviceBackups = new AccountabiliBuddy.App.Services.Sync.DeviceBackupService(driveFiles, syncIdentity, syncSettings, () => driveAccount.IsSignedIn);
         // The group's past keys (ADR 56): kept on every key switch, shared in the sealed sync files, used only to open backups.
@@ -1161,6 +1201,7 @@ public partial class App : Application
             SkipFeature = id => _setupFeatures?.SkipAsync(id) ?? Task.CompletedTask,
             Goals = _goals is { Store.IsReady: true } ? _goals : null,
             TodayLayout = _todayLayout,
+            DeviceRoles = deviceRoles,
             StepsMoved = _stepsMovedCard,
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
@@ -1216,6 +1257,7 @@ public partial class App : Application
         receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(() => syncReceipts.Check());
         var devices = new DevicesViewModel(syncIdentity, syncSettings, receivedDevices, syncCoordinator, _sessions, time)
         {
+            DeviceRoles = roles,
             SyncLightSetting = syncLightSetting,
             Batteries = batteryVisibility,
             Removal = _syncRemoval,
@@ -1550,12 +1592,27 @@ public partial class App : Application
             goalScreenTime.NamesChanged();
             goalData.Recompute();
         });
+        // ADR 90: an Android device's icon follows its role (a phone, a tablet, another device), as in the Devices list.
+        Material.Icons.MaterialIconKind PhoneIcon(Guid id) => deviceRoles?.KindOf(id) switch
+        {
+            AccountabiliBuddy.Core.Sync.SyncDeviceRoleKind.Tablet => Material.Icons.MaterialIconKind.Tablet,
+            AccountabiliBuddy.Core.Sync.SyncDeviceRoleKind.Other => Material.Icons.MaterialIconKind.Devices,
+            _ => Material.Icons.MaterialIconKind.Cellphone,
+        };
+        string ConflictKindOf(AccountabiliBuddy.Core.Sync.SyncDeviceCard card) => card.Kind != AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone
+            ? card.Kind
+            : deviceRoles?.KindOf(card.DeviceId) switch
+            {
+                AccountabiliBuddy.Core.Sync.SyncDeviceRoleKind.Tablet => ConflictDialogViewModel.KindTablet,
+                AccountabiliBuddy.Core.Sync.SyncDeviceRoleKind.Other => ConflictDialogViewModel.KindOtherDevice,
+                _ => card.Kind,
+            };
         _goalSelfDevice = () => (selfId() ?? Guid.Empty, syncIdentity.DeviceName);
         _goalOtherDevices = () => receivedDevices.Active
             .Where(device => device.File.Device.Kind != AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindWatch)
             .Select(device => new GoalChoice(
                 device.File.Device.DeviceId.ToString(), receivedDevices.LabelOf(device.File.Device),
-                device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone ? Material.Icons.MaterialIconKind.Cellphone : Material.Icons.MaterialIconKind.Laptop))
+                device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone ? PhoneIcon(device.File.Device.DeviceId) : Material.Icons.MaterialIconKind.Laptop))
             .ToList();
         _goalsSyncOn = () => syncIdentity.Key is not null && syncSettings.Current.ShareTaskLists;
         dailySteps.Changed += (_, _) => Dispatcher.UIThread.Post(goalData.Recompute);
@@ -1866,7 +1923,11 @@ public partial class App : Application
             historyViewModel, activityLog, _recorder,
             async (from, to) => sessionGaps.Apply(SessionHistoryBuilder.Build(await activityLog.GetSessionEventsAsync(from, to))),
             receivedDevices, omittedSessions, deletedUsage, displayNames, goal, _configuration, sleepSettings, _phonePickups!, dailySteps, privacy, documents, time,
-            () => _sessions!.State.IsRealSession, shutdownReviews);
+            () => _sessions!.State.IsRealSession, shutdownReviews)
+        {
+            PhonesOf = devices => deviceRoles?.ThePhones(devices) ?? devices,
+        };
+        roles.Changed += (_, _) => Dispatcher.UIThread.Post(statsViewModel.RolesChanged);
         // The shutdown routine's review step: today's focus against the goal and the time off track (history on only), the same numbers as Stats.
         _shutdown.FocusFor = date =>
         {
@@ -1949,7 +2010,7 @@ public partial class App : Application
                 PcAlarmWarning = () => _pcAlarm!.WakeProblem(),
                 Reminders = new BedtimeRemindersViewModel(sleepSettings, () => _bedtimeReminder!.DeviceId()),
                 // ADR 35: only a linked phone measures sleep.
-                HasLinkedPhone = () => receivedDevices.Active.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
+                HasLinkedPhone = () => ThePhones().Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
             },
             activityViewModel,
             Environment.GetEnvironmentVariable(DevToolsVariable) == "1",
@@ -1971,7 +2032,7 @@ public partial class App : Application
                     .ToList(),
                 // "Changed on both devices" names the device each version came from.
                 DeviceOf = deviceId => receivedDevices.Active.FirstOrDefault(device => device.File.Device.DeviceId == deviceId) is { } known
-                    ? (receivedDevices.LabelOf(known.File.Device), known.File.Device.Kind)
+                    ? (receivedDevices.LabelOf(known.File.Device), ConflictKindOf(known.File.Device))
                     : null,
             },
             Plan = planViewModel,
@@ -2520,7 +2581,7 @@ public partial class App : Application
         // The migration assistant: features added since the last version that aren't set up yet.
         var setupFeatures = new AccountabiliBuddy.App.Services.Setup.SetupFeaturesService(
             documents, () => AccountabiliBuddy.App.Services.Setup.SetupFeatures.All(coldTurkeyKeys, _coldTurkey!, syncSettings, _configuration, _startNudge!, dpAssistant, appTheme, sessionTasks, planHelperDismissals, overlaySettings, calendarOverlay, quitGuard, _shutdown!, _guidance!,
-                taskStore, taskAccount, _taskCalendarExport, _taskReminderSettings, () => _taskReminderAlerts?.HasPhones == true, _goals, todayLayout), BackupService.AppVersion);
+                taskStore, taskAccount, _taskCalendarExport, _taskReminderSettings, () => _taskReminderAlerts?.HasPhones == true, _goals, todayLayout, deviceRoles), BackupService.AppVersion);
         setupFeatures.LoadBlocking();
         _setupFeatures = setupFeatures;
         coldTurkeyKeys.Changed += (_, _) => setupFeatures.Refresh();
@@ -2530,6 +2591,10 @@ public partial class App : Application
         quitGuard.Changed += (_, _) => setupFeatures.Refresh();
         _guidance!.Changed += (_, _) => setupFeatures.Refresh();
         _coldTurkey!.Changed += (_, _) => setupFeatures.Refresh();
+        // SR1-P1: the roles entry follows the roles (a pick, a received list, a device joining or leaving).
+        deviceRoles!.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
+        deviceRoles.HeldChanged += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
+        receivedDevices.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         // TD1: the Today entry is set up once the one-time steps card is dealt with.
         todayLayout.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         // Round 2 R5: the Goals entry is set up once the weekly review's day is chosen (Settings › Goals or the assistant).
@@ -2640,7 +2705,7 @@ public partial class App : Application
                 GoalLowerWaits = goalLowerWaits,
                 SetDailyGoal = minutes => SetDailyGoalAsync(goal, minutes),
                 WorkHoursGuardOn = () => _workHours?.Settings.On == true,
-                HasLinkedPhone = () => receivedDevices.Active.Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
+                HasLinkedPhone = () => ThePhones().Any(device => device.File.Device.Kind == AccountabiliBuddy.Core.Sync.SyncDeviceCard.KindPhone),
                 RefreshProgress = () => _deepWork?.CheckNow(),
             };
             dpAssistantWindow = new DpAssistantWindow { DataContext = viewModel };
@@ -2672,7 +2737,7 @@ public partial class App : Application
             troubleshootService, syncCoordinator, receivedDevices, _sessions, time,
             new AccountabiliBuddy.App.Services.Sync.TaskConflictSource(
                 taskStore, () => _taskActions, deviceId => receivedDevices.Active.FirstOrDefault(device => device.File.Device.DeviceId == deviceId) is { } known
-                    ? (receivedDevices.LabelOf(known.File.Device), known.File.Device.Kind)
+                    ? (receivedDevices.LabelOf(known.File.Device), ConflictKindOf(known.File.Device))
                     : null, selfId, time))
         {
             Receipts = new SyncReceiptsViewModel(syncReceipts),

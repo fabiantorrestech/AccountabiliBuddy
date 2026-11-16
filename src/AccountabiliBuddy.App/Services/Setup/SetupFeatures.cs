@@ -19,8 +19,17 @@ public static class SetupFeatures
         SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard,
         ShutdownService shutdown, GuidanceModeService guidance, Tasks.TaskStore taskStore, Tasks.TaskAccountSettingsService taskAccount,
         Tasks.TaskCalendarExportService? taskExport, Tasks.TaskReminderSettingsService? taskReminderSettings, Func<bool> hasPhones,
-        Goals.GoalsService? goals = null, Today.TodayLayoutService? todayLayout = null) => new[]
+        Goals.GoalsService? goals = null, Today.TodayLayoutService? todayLayout = null, Sync.DeviceRolesService? deviceRoles = null) => new[]
     {
+        // SR1-P1 (ADR 90): which Android device is the main phone, a tablet or another device. Offered only when the group has two or more Android
+        // devices; set up once every one of them has a role (a change that still waits counts).
+        new SetupFeature(
+            "devices.roles", "0.1.137",
+            "Android devices: which is your main phone",
+            "Tell AB which Android device is your main phone, which is a tablet and which is something else. Only the main phone counts your steps and sleep and feeds this PC's alarm, bedtime and wake estimate. A role never changes a device's own guards.",
+            IsRelevant: () => deviceRoles is { AndroidCount: >= 2 },
+            IsSetUp: () => deviceRoles is null || deviceRoles.IsSetUp,
+            Step: ViewModels.AssistantStep.DeviceRoles),
         // TD1: Today's parts can all be hidden, More today has a Show / Hide choice, steps moved to Goals. Set up once the one-time steps
         // card has been dealt with (a goal added, dismissed, or it never applied); the page explains the rest.
         new SetupFeature(

@@ -75,6 +75,7 @@ public static class AssistantFlow
             .Where(step => step is not (AssistantStep.TasksRedesign or AssistantStep.TaskViewChooser or AssistantStep.TaskRingDevices or AssistantStep.TaskCalendarExport))
             .Where(step => step != AssistantStep.GoalsIntro)
             .Where(step => step != AssistantStep.TodayChoices)
+            .Where(step => step != AssistantStep.DeviceRoles)
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
             .Where(step => step != AssistantStep.Restore || hasRestore)

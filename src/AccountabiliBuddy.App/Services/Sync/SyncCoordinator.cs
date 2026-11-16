@@ -133,6 +133,25 @@ public sealed class SyncCoordinator
     /// </summary>
     public SyncReceiptsStore? Receipts { get; set; }
 
+    /// <summary>
+    /// The Android device roles (ADR 90): this PC's merged list goes in its file and a received file's list is taken in; a change applies by the
+    /// service's rules. Set by the app. A change of the merged list writes this PC's file again.
+    /// </summary>
+    public DeviceRolesService? DeviceRoles
+    {
+        get => _deviceRoles;
+        set
+        {
+            _deviceRoles = value;
+            if (value is not null)
+            {
+                value.HeldChanged += (_, _) => RaiseOwnDataChanged();
+            }
+        }
+    }
+
+    private DeviceRolesService? _deviceRoles;
+
     /// <summary>This PC's own puts per method, times only (SYNC1b); set by the app.</summary>
     public SyncSendLog? SendLog { get; set; }
 
@@ -315,7 +334,9 @@ public sealed class SyncCoordinator
                 // ADR 68: the guidance mode this PC chose, mode and time only; null for a default nobody chose.
                 Guidance = Guidance?.Invoke(),
                 // ADR 86: what this PC holds and applied of the other devices' files; none while it is alone in its group (works alone).
-                Receipts = Receipts?.ForFile(_identity.DeviceId, _received.Active.Select(device => device.File.Device.DeviceId).ToHashSet()) };
+                Receipts = Receipts?.ForFile(_identity.DeviceId, _received.Active.Select(device => device.File.Device.DeviceId).ToHashSet()),
+                // ADR 90: the merged Android device roles (ids, role words, times), with a change this PC asked for that it has not applied yet.
+                DeviceRoles = DeviceRoles?.ForSync() };
         // ADR 72: the task history, settle records, Auto-saved list and handovers, while task lists are shared (ADR 71).
         SyncFile decorated = ShareTaskLists() && DecorateTaskLists is { } decorate ? decorate(built) : built;
         // ADR 76: the one task list's parts, and the old fields rebuilt from it for older apps (they replace the lists' own).
@@ -574,9 +595,15 @@ public sealed class SyncCoordinator
             ["actions"] = file.Actions is null ? SyncReceiptParts.Absent : SyncReceiptParts.Taken,
         };
         outcome["dayPlan"] = file.DayPlan is SyncDayPlan plan ? await Guarded(() => ConsiderPlanAsync(plan, sender.DeviceId, sender.Name, sender.WrittenAt)) : SyncReceiptParts.Absent;
-        outcome["settings"] = file.Documents.Count == 0
+        // ADR 90: the device roles count with the settings part. They merge at once and apply by their own rules (DeviceRolesService), so
+        // a list that waits is still "taken".
+        outcome["settings"] = file.Documents.Count == 0 && file.DeviceRoles is null
             ? SyncReceiptParts.Absent
-            : await Guarded(async () => await ReceiveDocumentsAsync(file.Documents) ? SyncReceiptParts.Held : SyncReceiptParts.Taken);
+            : await Guarded(async () =>
+            {
+                DeviceRoles?.Receive(file.DeviceRoles);
+                return file.Documents.Count > 0 && await ReceiveDocumentsAsync(file.Documents) ? SyncReceiptParts.Held : SyncReceiptParts.Taken;
+            });
         foreach ((string code, string state) in await ReceiveSharedListsAsync(file))
         {
             outcome[code] = state;

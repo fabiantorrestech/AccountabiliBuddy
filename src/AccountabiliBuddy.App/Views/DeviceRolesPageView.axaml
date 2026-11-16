@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.DeviceRolesPageView"
+             x:DataType="vm:SetupAssistantViewModel">
+    <!-- ADR 90: what each Android device is. The setup assistant's page for groups with two or more Android devices (one row for each, one ComboBox
+         with the three roles); a pick goes through the same wait as Settings › Devices & sync. -->
+    <StackPanel Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+        <TextBlock Classes="body" TextWrapping="Wrap"
+                   Text="You have more than one Android device. Tell AB which is your main phone: only it counts your steps and sleep, and only it feeds this PC's alarm, bedtime and wake estimate. A second phone is Other device." />
+        <ItemsControl ItemsSource="{Binding RoleRows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeviceRolePageRowViewModel">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14" Margin="0,6">
+                        <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" VerticalAlignment="Top" />
+                        <StackPanel Grid.Column="1" Spacing="2">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding Status}" IsVisible="{Binding HasStatus}" TextWrapping="Wrap"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="2" ItemsSource="{Binding Choices}" SelectedIndex="{Binding SelectedIndex}" PlaceholderText="Choose a role" MinWidth="170"
+                                  AutomationProperties.Name="{Binding Name}" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding RoleNotice}" IsVisible="{Binding HasRoleNotice}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Classes="muted" TextWrapping="Wrap"
+                   Text="A pick is sent at once and applies after this PC's change has reached Google Drive. Moving the phone this PC follows may wait your looser-change delay (AccountabiliBuddy mode; ProductaBuddy applies it at once), never during a session. A role never turns a device's own guards on or off. The same choices are in Settings › Devices &amp; sync." />
+    </StackPanel>
+</UserControl>

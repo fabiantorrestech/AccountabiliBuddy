@@ -19,6 +19,12 @@ public sealed partial class ConflictDialogViewModel : ObservableObject
 {
     public const string Foot = "Steps, tags and reminders changed on only one device are kept either way.";
 
+    /// <summary>The kind word the app passes for an Android device whose role is Tablet (ADR 90): the dialog shows the tablet icon.</summary>
+    public const string KindTablet = "tablet";
+
+    /// <summary>The kind word the app passes for an Android device whose role is Other device (ADR 90).</summary>
+    public const string KindOtherDevice = "other";
+
     private readonly TaskStore _store;
     private readonly TaskActionsService _actions;
     private readonly Func<Guid, (string Name, string Kind)?> _deviceOf;
@@ -177,6 +183,8 @@ public sealed partial class ConflictDialogViewModel : ObservableObject
         MaterialIconKind icon = device.Kind switch
         {
             SyncDeviceCard.KindPhone => MaterialIconKind.Cellphone,
+            KindTablet => MaterialIconKind.Tablet,
+            KindOtherDevice => MaterialIconKind.Devices,
             SyncDeviceCard.KindWatch => MaterialIconKind.WatchVariant,
             _ => MaterialIconKind.Laptop,
         };

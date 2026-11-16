@@ -74,6 +74,17 @@ public sealed class SyncSendLog
     /// <summary>The newest <c>WrittenAt</c> of any put; null when nothing was put yet.</summary>
     public DateTimeOffset? Newest => _entries.Values.SelectMany(list => list).Select(entry => (DateTimeOffset?)entry.WrittenAt).Max();
 
+    /// <summary>
+    /// Per method, the newest <c>WrittenAt</c> among this PC's own puts that reached it (a method with no put is absent). The Drive gate of a role
+    /// change reads it (ADR 90, <see cref="SyncDeviceRoleGate"/>): the log of this PC's own uploads, never other devices' receipts.
+    /// </summary>
+    public IReadOnlyDictionary<string, DateTimeOffset> NewestPutByMethod()
+    {
+        return _entries
+            .Where(pair => pair.Value.Count > 0)
+            .ToDictionary(pair => pair.Key, pair => pair.Value.Max(entry => entry.WrittenAt));
+    }
+
     /// <summary>When this PC's newest put on <paramref name="method"/> reached it; null when nothing was put there.</summary>
     public DateTimeOffset? LastReached(string method) => _entries.TryGetValue(method, out List<SyncSendEntry>? list) && list.Count > 0 ? list.Max(entry => entry.ReachedAt) : null;
 

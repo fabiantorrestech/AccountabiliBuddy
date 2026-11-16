@@ -96,6 +96,22 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         }
     }
 
+    private readonly DeviceRolesService? _roles;
+
+    /// <summary>The Android device roles (ADR 90): each Android device's row says its role and has a "Role" menu; set by the app.</summary>
+    public DeviceRolesService? DeviceRoles
+    {
+        get => _roles;
+        init
+        {
+            _roles = value;
+            if (value is not null)
+            {
+                value.Changed += (_, _) => Dispatcher.UIThread.Post(Refresh);
+            }
+        }
+    }
+
     /// <summary>The group's past keys (ADR 56); "Leave group" clears them. Set by the app.</summary>
     public PastKeysService? PastKeys { get; init; }
 
@@ -512,7 +528,10 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
                 DeviceKey: card.DeviceId.ToString(),
                 RemoveCommand: _removal is null ? null : new RelayCommand(() => RequestRemove(card.DeviceId)),
                 RemoveEnabled: removeBlocked is null,
-                RemoveHint: removeBlocked));
+                RemoveHint: removeBlocked,
+                RoleLabel: card.Kind == SyncDeviceCard.KindPhone ? _roles?.LabelOf(card.DeviceId) : null,
+                ChosenRoleLabel: ChosenRoleLabel(card),
+                Roles: RolesOf(card, now)));
             foreach (SyncCompanion companion in card.Companions ?? [])
             {
                 Rows.Add(CompanionRow(companion, card.Name, now));
@@ -523,6 +542,45 @@ public sealed partial class DevicesViewModel : ObservableObject, IDisposable
         RefreshBatteryRows();
         RowsRefreshed?.Invoke(this, EventArgs.Empty);
         _ = UpdateTodayAsync(now);
+    }
+
+    // ADR 90: the role the merged list says, while a change of it waits (the row reads "tablet → main phone").
+    private string? ChosenRoleLabel(SyncDeviceCard card)
+    {
+        if (_roles is null || card.Kind != SyncDeviceCard.KindPhone || _roles.Pending is null)
+        {
+            return null;
+        }
+
+        SyncDeviceRoleKind chosen = _roles.ChosenKindOf(card.DeviceId);
+        return chosen == _roles.KindOf(card.DeviceId) ? null : DeviceRolesService.LabelOf(chosen);
+    }
+
+    // ADR 90: an Android device's "Role" menu and the status of a change waiting for it. Refused with the reason during a session.
+    private DeviceRoleMenu? RolesOf(SyncDeviceCard card, DateTimeOffset now)
+    {
+        if (_roles is null || card.Kind != SyncDeviceCard.KindPhone)
+        {
+            return null;
+        }
+
+        string? locked = _roles.EditLockedReason();
+        SyncDeviceRoleKind chosen = _roles.ChosenKindOf(card.DeviceId);
+        DeviceRoleChoice Choice(string words, SyncDeviceRoleKind kind)
+        {
+            return new DeviceRoleChoice(
+                locked is null ? words : $"{words} ({locked})",
+                chosen == kind,
+                new AsyncRelayCommand(async () => Message = await _roles.SetRoleAsync(card.DeviceId, DeviceRolesService.WordOf(kind))),
+                locked is null);
+        }
+
+        return new DeviceRoleMenu(
+            Choice("Main phone", SyncDeviceRoleKind.Main),
+            Choice("Tablet", SyncDeviceRoleKind.Tablet),
+            Choice("Other device", SyncDeviceRoleKind.Other),
+            _roles.StatusOf(card.DeviceId) ?? DeviceRolesService.QuietMainText(_roles.KindOf(card.DeviceId), now - card.WrittenAt),
+            _roles.CanCancel && _roles.StatusOf(card.DeviceId) is not null ? new AsyncRelayCommand(_roles.CancelAsync) : null);
     }
 
     // "Remove this device…" on a row: refused with the reason during a focus session you started.

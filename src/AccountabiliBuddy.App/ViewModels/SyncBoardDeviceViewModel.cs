@@ -15,7 +15,7 @@ public sealed partial class SyncBoardDeviceViewModel : ObservableObject
         string kind = device.Kind switch
         {
             "pc" => "PC",
-            "phone" => "Phone",
+            "phone" => device.RoleLabel ?? "Phone",
             "watch" => "Watch",
             _ => "Device",
         };

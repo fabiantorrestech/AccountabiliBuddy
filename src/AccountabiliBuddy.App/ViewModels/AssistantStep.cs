@@ -86,6 +86,12 @@ public enum AssistantStep
     TodayChoices,
 
     /// <summary>
+    /// ADR 90: what each Android device is (main phone, tablet, other device), for a group with two or more of them (only as a new feature). A
+    /// pick waits for this PC's upload to Google Drive, and the looser-change delay when it moves "the phone".
+    /// </summary>
+    DeviceRoles,
+
+    /// <summary>
     /// ADR 68: AccountabiliBuddy or ProductaBuddy, in the first run (ProductaBuddy preselected on a fresh install), as the full
     /// setup's last page, and as a new feature for upgraded installs.
     /// </summary>

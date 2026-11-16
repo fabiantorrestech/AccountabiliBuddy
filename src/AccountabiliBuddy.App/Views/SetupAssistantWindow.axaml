@@ -508,6 +508,9 @@
                     <TextBlock Classes="muted" TextWrapping="Wrap" Text="Settings › Today has all of it." />
                 </StackPanel>
 
+                <!-- ADR 90: what each Android device is -->
+                <views:DeviceRolesPageView IsVisible="{Binding IsDeviceRoles}" />
+
                 <!-- Where the account's Tasks view comes from (owner, 2026-11-11) -->
                 <StackPanel IsVisible="{Binding IsTaskViewChooser}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <views:TaskViewChooserView DataContext="{Binding TaskViewChooser}" />

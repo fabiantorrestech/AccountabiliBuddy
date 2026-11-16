@@ -13,13 +13,27 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="RemoveEnabled">The command can run now (not during a focus session you started).</param>
 /// <param name="RemoveHint">Why it can not run, shown as the menu item's tooltip.</param>
 /// <param name="DeviceKey">Its id for the battery settings: the sync device id, "this-pc" for this PC, "companion:" and the name for a phone's linked watch.</param>
+/// <param name="RoleLabel">An Android device's role in use ("Main phone", "Tablet", "Other device"; ADR 90), or null for one with none (then "phone"). Shown in the subtitle, so the row has no new column.</param>
+/// <param name="ChosenRoleLabel">The role the merged list says while a change waits ("Main phone", …), else null; the subtitle reads "tablet → main phone".</param>
+/// <param name="Roles">The "Role" menu and the status line of a waiting change; null for rows with no role (this PC, a PC, a watch).</param>
 public sealed record DeviceRowViewModel(
     string Name, string Kind, string MethodsText, string LastText, DeviceSyncState State, string StateText, bool Indented = false,
     TimeSpan? Age = null, string AppVersion = "", string? DeviceKey = null,
-    System.Windows.Input.ICommand? RemoveCommand = null, bool RemoveEnabled = false, string? RemoveHint = null)
+    System.Windows.Input.ICommand? RemoveCommand = null, bool RemoveEnabled = false, string? RemoveHint = null,
+    string? RoleLabel = null, string? ChosenRoleLabel = null, DeviceRoleMenu? Roles = null)
 {
     /// <summary>The row has a ⋯ menu with "Remove this device…" (another device that is still in the group; ADR 54).</summary>
     public bool HasMenu => RemoveCommand is not null;
+
+    /// <summary>The row's menu has the "Role" items (an Android device).</summary>
+    public bool HasRoles => Roles is not null;
+
+    /// <summary>The status line of a waiting role change; one line under the subtitle.</summary>
+    public string? RoleStatus => Roles?.Status;
+
+    public bool HasRoleStatus => Roles?.HasStatus == true;
+
+    public bool CanCancelRole => Roles?.CanCancel == true;
 
     /// <summary>The menu item's text; when it is disabled the reason is part of it (a tooltip never shows on a disabled item).</summary>
     public string RemoveHeader => RemoveEnabled || RemoveHint is null ? "Remove this device…" : $"Remove this device… ({RemoveHint})";
@@ -43,6 +57,8 @@ public sealed record DeviceRowViewModel(
     /// <summary>The kind of device as a Material glyph: a PC, a phone or a watch (the sync data has no tablet kind).</summary>
     public MaterialIconKind IconKind => Kind switch
     {
+        "Phone" when RoleLabel == "Tablet" => MaterialIconKind.Tablet,
+        "Phone" when RoleLabel == "Other device" => MaterialIconKind.Devices,
         "Phone" => MaterialIconKind.Cellphone,
         "Watch" => MaterialIconKind.Watch,
         _ => MaterialIconKind.Laptop,
@@ -58,11 +74,18 @@ public sealed record DeviceRowViewModel(
             {
                 "This PC" => "this PC",
                 "PC" => "PC",
-                "Phone" => "phone",
+                "Phone" => PhoneWords(),
                 _ => "watch",
             };
             return $"{version} · {kind} · {MethodsText}";
         }
+    }
+
+    // ADR 90: an Android device says its role ("main phone", "tablet", "other device") where it said "phone"; a waiting change reads "tablet → main phone".
+    private string PhoneWords()
+    {
+        string now = RoleLabel is null ? "phone" : RoleLabel.ToLowerInvariant();
+        return ChosenRoleLabel is null ? now : $"{now} → {ChosenRoleLabel.ToLowerInvariant()}";
     }
 
     /// <summary>The right-hand time: "Now" for this PC, else how long ago its data came ("1 min ago", "3 h ago"), or why there is none.</summary>

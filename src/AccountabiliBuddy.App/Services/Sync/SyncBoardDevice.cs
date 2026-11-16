@@ -12,7 +12,8 @@ namespace AccountabiliBuddy.App.Services.Sync;
 /// <param name="ConfirmedFile">The time of this PC's file it last confirmed by this method; null when none.</param>
 /// <param name="LastFileAt">When its newest file was written (any method); null when none was read.</param>
 /// <param name="Parts">The items its last receipt covers, each with a dot (the same under every method).</param>
+/// <param name="RoleLabel">An Android device's role in use ("Main phone", "Tablet", "Other device"; ADR 90) for its detail line; null for one with none and for other kinds.</param>
 /// <param name="RefusedHere">Part codes this PC itself refused from the device's newest file it accepted ("Couldn't apply Day plan from ...").</param>
 public sealed record SyncBoardDevice(
     Guid Id, string Name, string Ordinal, string Kind, string AppVersion, SyncDot Dot, DateTimeOffset? ConfirmedFile, DateTimeOffset? LastFileAt,
-    IReadOnlyList<SyncBoardPart> Parts, IReadOnlyList<string>? RefusedHere = null);
+    IReadOnlyList<SyncBoardPart> Parts, IReadOnlyList<string>? RefusedHere = null, string? RoleLabel = null);

@@ -50,6 +50,13 @@
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                         <TextBlock Classes="sTitle" Text="{Binding Name}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                         <TextBlock Classes="sHint" Text="{Binding DetailText}" />
+                                        <!-- ADR 90: a waiting role change. One line under the subtitle, so the row gets no new column. -->
+                                        <WrapPanel Orientation="Horizontal" IsVisible="{Binding HasRoleStatus}">
+                                            <TextBlock Classes="sHint" Foreground="{DynamicResource Ab.InfoInk}" Text="{Binding RoleStatus}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                       Margin="0,0,8,0" AutomationProperties.LiveSetting="Polite" />
+                                            <Button Classes="quiet" Padding="6,2" MinHeight="0" Content="Cancel" Command="{Binding Roles.CancelCommand}"
+                                                    IsVisible="{Binding CanCancelRole}" AutomationProperties.Name="Cancel the role change" />
+                                        </WrapPanel>
                                     </StackPanel>
                                     <!-- The state in a dot and in words, never colour alone: Met = fresh, Sleep = stale. -->
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -61,6 +68,32 @@
                                             <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
                                             <Button.Flyout>
                                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <!-- ADR 90: an Android device's role. The change waits for Google Drive, and for the looser-change delay when it moves "the phone". -->
+                                                    <MenuItem Header="Role" IsVisible="{Binding HasRoles}">
+                                                        <MenuItem.Icon>
+                                                            <mi:MaterialIcon Kind="CellphoneCog" Width="16" Height="16" />
+                                                        </MenuItem.Icon>
+                                                        <MenuItem Header="{Binding Roles.Main.Header}" Command="{Binding Roles.Main.Command}" IsEnabled="{Binding Roles.Main.IsEnabled}">
+                                                            <MenuItem.Icon>
+                                                                <mi:MaterialIcon Kind="Check" Width="16" Height="16" IsVisible="{Binding Roles.Main.IsCurrent}" />
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                        <MenuItem Header="{Binding Roles.Tablet.Header}" Command="{Binding Roles.Tablet.Command}" IsEnabled="{Binding Roles.Tablet.IsEnabled}">
+                                                            <MenuItem.Icon>
+                                                                <mi:MaterialIcon Kind="Check" Width="16" Height="16" IsVisible="{Binding Roles.Tablet.IsCurrent}" />
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                        <MenuItem Header="{Binding Roles.Other.Header}" Command="{Binding Roles.Other.Command}" IsEnabled="{Binding Roles.Other.IsEnabled}">
+                                                            <MenuItem.Icon>
+                                                                <mi:MaterialIcon Kind="Check" Width="16" Height="16" IsVisible="{Binding Roles.Other.IsCurrent}" />
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                        <MenuItem Header="Cancel the role change" Command="{Binding Roles.CancelCommand}" IsVisible="{Binding CanCancelRole}">
+                                                            <MenuItem.Icon>
+                                                                <mi:MaterialIcon Kind="Undo" Width="16" Height="16" />
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                    </MenuItem>
                                                     <MenuItem Header="{Binding RemoveHeader}" Command="{Binding RemoveCommand}" IsEnabled="{Binding RemoveEnabled}">
                                                         <MenuItem.Icon>
                                                             <mi:MaterialIcon Kind="LinkOff" Width="16" Height="16" />
@@ -221,12 +254,14 @@
                     <Border Classes="sRow">
                         <StackPanel Spacing="8">
                             <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                <TextBox Text="{Binding RelayUrlText}" PlaceholderText="Relay address, e.g. https://192.168.1.20:8743" IsEnabled="{Binding !RelayHost.HostOn}" />
+                                <TextBox Text="{Binding RelayUrlText}" PlaceholderText="Relay address" IsEnabled="{Binding !RelayHost.HostOn}" />
                                 <TextBox Grid.Column="1" Text="{Binding RelayPinText}" IsEnabled="{Binding !RelayHost.HostOn}"
-                                         PlaceholderText="Pin (empty if the relay has a normal certificate)" />
+                                         PlaceholderText="Pin (optional)" />
                             </Grid>
                             <TextBox Text="{Binding RelayAdmissionText}" IsEnabled="{Binding !RelayHost.HostOn}" MaxWidth="560" HorizontalAlignment="Left"
-                                     PlaceholderText="Admission key (from the relay; lets this PC start the group on it)" />
+                                     PlaceholderText="Admission key" />
+                            <TextBlock Classes="sHint" TextWrapping="Wrap"
+                                       Text="Address, for example https://192.168.1.20:8743. Pin: leave it empty if the relay has a normal certificate. Admission key: from the relay; it lets this PC start the group on it." />
                             <TextBlock Classes="sHint"
                                        Text="The admission key is printed by the relay with its address and pin. Joining with a link from a device that has it fills this in. Keep it private: whoever has it can start groups on your relay." />
                             <StackPanel Orientation="Horizontal" Spacing="8">

@@ -35,6 +35,11 @@ public sealed partial class StatsViewModel : ObservableObject
     private readonly IActivityLog _log;
     private readonly Func<DateTimeOffset, DateTimeOffset, Task<IReadOnlyList<SessionRecord>>> _loadRecords;
     private readonly ReceivedDevicesService _received;
+
+    /// <summary>ADR 90: narrows the received devices to "the phones" (the main phone, or the phones with no role); null keeps every device. Set by the app.</summary>
+    public Func<IReadOnlyList<ReceivedDevice>, IReadOnlyList<ReceivedDevice>>? PhonesOf { get; init; }
+
+    private IReadOnlyList<ReceivedDevice> ThePhones(IReadOnlyList<ReceivedDevice> devices) => PhonesOf?.Invoke(devices) ?? devices;
     private readonly OmittedSessionsService _omitted;
     private readonly DeletedUsageService _deleted;
     private readonly DisplayNamesService _names;
@@ -428,6 +433,9 @@ public sealed partial class StatsViewModel : ObservableObject
         }
     }
 
+    /// <summary>ADR 90: the roles in use changed, so "the phone" may be another device: read the page again (when shown).</summary>
+    public void RolesChanged() => RequestRefresh();
+
     // A change while the page is hidden is read when it is shown.
     private void RequestRefresh()
     {
@@ -702,7 +710,8 @@ public sealed partial class StatsViewModel : ObservableObject
         IReadOnlyList<SyncPickup> pickups = _phone.Between(from, now.AddDays(1))
             .Where(pickup => !leftOutStarts.Any(start => (start - pickup.SessionStart).Duration() <= PickupStartTolerance)).ToList();
         IReadOnlyList<ReceivedSession> receivedSessions = ReceivedSessions.In(_received.Devices, from, now.AddDays(1), now);
-        SyncSmartBedtime? bedtime = PhoneBedtime.Of(_received.Active);
+        // ADR 90: the smart bedtime of "the phone" (the main phone, or every phone with no role), as the PC's sleep inputs read it.
+        SyncSmartBedtime? bedtime = PhoneBedtime.Of(ThePhones(_received.Active));
         bool phoneCounts = _phone.IsCounting;
         bool loggingOn = _privacy.Current.ActivityLogEnabled;
         TimeSpan goal = TimeSpan.FromMinutes(Math.Max(1, _goal.Current.DailyMinutes));
