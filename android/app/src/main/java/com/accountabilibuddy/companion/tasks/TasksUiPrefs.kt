@@ -3,6 +3,7 @@ package com.accountabilibuddy.companion.tasks
 import android.content.Context
 import com.accountabilibuddy.shared.TokenVault
 import com.accountabilibuddy.shared.tasks.TaskJson
+import com.accountabilibuddy.shared.tasks.TaskLists
 import com.accountabilibuddy.shared.tasks.TaskView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,25 @@ class TasksUiPrefs private constructor(context: Context) {
         if (next == _state.value) return
         _state.value = next
         prefs.edit().putString(KEY, TokenVault.seal(write(next).toString(), ALIAS)).apply()
+    }
+
+    // The default view this run of the app has opened (memory only, never stored): null until the page first has its list.
+    private var openedDefault: String? = null
+
+    /**
+     * Opens the account's default view (Settings › Tasks › Default view; the built-in Default when none is set) the first time the
+     * Tasks page has its list after the app starts, and again whenever the default view changes on any device: the page opens with it,
+     * like the PC at every start (owner, 2026-11-16). In between, the view in use is kept. Nothing happens before the list has its views.
+     */
+    @Synchronized
+    fun openDefaultView(lists: TaskLists) {
+        val views = lists.views.map { it.view }.filter { it.isLive }
+        if (views.isEmpty()) return
+        val wanted = defaultViewId(lists)
+        if (openedDefault.equals(wanted, ignoreCase = true)) return
+        openedDefault = wanted
+        val view = views.firstOrNull { it.id.equals(wanted, ignoreCase = true) } ?: return
+        update { it.copy(config = view.config, viewId = view.id.takeUnless { id -> id.equals(TaskView.DEFAULT_ID, ignoreCase = true) }) }
     }
 
     /** Asks for the Shelf to hide (stricter, at once) or show in a session (looser: waits, never in a session); what happened ([TaskHideShelfRule]). */
@@ -123,6 +143,12 @@ class TasksUiPrefs private constructor(context: Context) {
         private var instance: TasksUiPrefs? = null
 
         /** The one store of the app. */
+        /** The account's default view among the live views, else the built-in Default's id. */
+        fun defaultViewId(lists: TaskLists): String {
+            val chosen = lists.account?.defaultViewId
+            return if (chosen != null && lists.views.any { it.view.isLive && it.view.id.equals(chosen, ignoreCase = true) }) chosen else TaskView.DEFAULT_ID
+        }
+
         fun of(context: Context): TasksUiPrefs = instance ?: synchronized(this) { instance ?: TasksUiPrefs(context).also { instance = it } }
     }
 }

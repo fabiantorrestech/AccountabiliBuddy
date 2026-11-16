@@ -176,6 +176,8 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     // ADR 89 (LB1c): the list as THIS phone shows it: another device's device-only labels and tags never show; writers keep them.
     val scopeView = com.accountabilibuddy.companion.ui.tasks.rememberScopeView(app)
     val lists = remember(scopeView) { scopeView.shown() }
+    // The page opens with the account's default view at every start of the app, and follows a new default (owner, 2026-11-16).
+    LaunchedEffect(lists) { prefs.openDefaultView(lists) }
     val received by app.sync.received.collectAsState()
     val motion by UiPrefs.motion.collectAsState()
     // Looked at again every half minute: "Overdue", "untouched 4 wk" and a session that ended on the PC follow the clock.
@@ -912,15 +914,14 @@ private fun HeaderIcon(icon: ImageVector, description: String, active: Boolean, 
 private fun customViewOf(lists: TaskLists, viewId: String?, now: OffsetDateTime): TaskView? {
     val views = lists.views.map { it.view }.filter { it.isLive }.ifEmpty { TaskView.builtIns(now) }
     val activeId = viewId ?: TaskView.DEFAULT_ID
-    val accountDefault = lists.account?.defaultViewId?.takeIf { id -> views.any { it.id.equals(id, ignoreCase = true) } }
-    if (activeId.equals(TaskView.DEFAULT_ID, ignoreCase = true) || (accountDefault != null && activeId.equals(accountDefault, ignoreCase = true))) return null
+    if (activeId.equals(TasksUiPrefs.defaultViewId(lists), ignoreCase = true)) return null
     return views.firstOrNull { it.id.equals(activeId, ignoreCase = true) }
 }
 
 @Composable
 private fun ViewPill(view: TaskView, onClick: () -> Unit) {
     val colors = Ab.colors
-    val name = TaskViewWords.chip(view)
+    val name = view.name.ifBlank { "Default" }
     Row(
         Modifier.height(44.dp).widthIn(max = 160.dp).clip(CircleShape).background(colors.surface2).clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = "Saved views: $name" }.padding(horizontal = 12.dp),
