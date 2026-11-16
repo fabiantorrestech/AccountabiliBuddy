@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
  * Debug builds only (this file is in the debug source set, so a release APK doesn't contain it): fills the app with made-up
  * data for screenshots on an emulator.
  *
- * `adb -s emulator-5554 shell am broadcast -a com.accountabilibuddy.companion.debug.SEED -p com.accountabilibuddy.companion
+ * `adb -s emulator-5554 shell am broadcast -a com.accountabilibuddy.companion.debug.SEED -p com.accountabilibuddy.companion.debug
  * --es mode session` with mode `idle`, `session` or `clear` (see [DemoSeeder]). The result is written to logcat, tag DemoSeed.
  */
 class DemoSeedReceiver : BroadcastReceiver() {

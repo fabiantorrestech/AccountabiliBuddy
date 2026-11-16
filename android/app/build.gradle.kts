@@ -17,12 +17,17 @@ android {
     }
 
     buildTypes {
+        debug {
+            // CP1a: a separate app (com.accountabilibuddy.companion.debug) with its own data, keys, grants and watch pairing, so it
+            // installs next to the release build. No versionNameSuffix: the version parsers (SetupFeatures, the PC's pocket rule) need x.y.z.
+            applicationIdSuffix = ".debug"
+        }
         release {
             // R8: unused code and resources removed, so the app is much smaller and starts faster.
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Signed with this PC's debug key so it installs over the debug build; a real key comes before any store.
+            // Signed with this PC's debug key so it installs next to the debug build (which has its own id); a real key comes before any store.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

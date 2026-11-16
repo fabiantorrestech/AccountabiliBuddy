@@ -21,9 +21,9 @@ Short version. The full text, with every stored document, synced field and edge 
 dotnet build AccountabiliBuddy.sln
 dotnet run --project src/AccountabiliBuddy.App   # uses %LocalAppData%\AccountabiliBuddy-Dev (not your real data)
 pwsh scripts/package.ps1 [-Version x.y.z] [-Publish]   # installer + portable zip in releases/; -Publish uploads them to the public releases repo (needs vpk 1.2.161 and gh auth login)
-cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug   # phone and watch APKs (app/ and wear/build/outputs/apk/debug)
-cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleRelease   # small R8 build (~2.5 MB), signed with this PC's debug key so it installs over the debug build
-cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew :wear:assembleDebug   # the watch app (wear/build/outputs/apk/debug); same app id as the phone app
+cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleDebug   # phone and watch debug APKs (app/ and wear/build/outputs/apk/debug); id com.accountabilibuddy.companion.debug, label "AB Debug", installs NEXT TO the release app with its own data, keys, grants and watch pairing (CP1a); adb -p/-n and run-as take the .debug id
+cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew assembleRelease   # small R8 build (~2.5 MB), signed with this PC's debug key; it is the build that upgrades the real data: to test an upgrade on your own data install this one, never the debug APK (a different app id)
+cd android && JAVA_HOME="C:/Program Files/Android/Android Studio/jbr" ./gradlew :wear:assembleDebug   # the watch app (wear/build/outputs/apk/debug); same app id as the phone app of its build type (.debug for debug)
 pwsh scripts/publish-apks.ps1 [-Tag vx.y.z]   # after a release build: phone + watch APKs onto that release (default the latest) in the public releases repo; never a release of their own (the desktop update feed needs releases.win.json on the latest)
 ```
 

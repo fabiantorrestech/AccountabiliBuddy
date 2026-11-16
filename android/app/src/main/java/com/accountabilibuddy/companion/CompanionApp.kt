@@ -1378,9 +1378,11 @@ class CompanionApp : Application() {
         return true
     }
 
-    /** E.g. "Fabian's Pixel 7" (the name set in Android's settings), else the model. */
+    /** E.g. "Fabian's Pixel 7" (the name set in Android's settings), else the model; the debug build adds " (debug)" (CP1a). */
     private fun readDeviceName(): String =
-        Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
+        com.accountabilibuddy.companion.sync.DefaultDeviceName.of(
+            Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME), Build.MODEL, packageName,
+        )
 
     internal fun appVersion(): String =
         runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "?"

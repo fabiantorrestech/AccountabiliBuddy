@@ -283,6 +283,8 @@ private val selfChecks: List<Pair<String, (CheckReport) -> Unit>> = listOf(
     "ps2a-self" to Ps2aSelfCheck::run,
     // PS2b: the file's session part (B4 stamp, B5, V-N1, R14, B11), the phone's own sessions counted with the others, the 5-minute write (B13), the allReceived classification.
     "ps2b-self" to Ps2bSelfCheck::run,
+    // CP1a: AB debug build next to the release build (default device name; scans of build files, manifests, strings, adb lines).
+    "cp1a-self" to Cp1aSelfCheck::run,
 )
 
 /** Areas whose every fixture file must have a check above (a new C# fixture file can't go unchecked). */

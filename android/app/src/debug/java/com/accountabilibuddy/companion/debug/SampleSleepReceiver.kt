@@ -19,7 +19,7 @@ import java.time.ZoneId
 
 /**
  * Debug builds only: `adb shell am broadcast -a com.accountabilibuddy.companion.debug.SAMPLE_SLEEP -p
- * com.accountabilibuddy.companion` writes the last finished night as slept from 00:20 to 06:35 (replacing earlier
+ * com.accountabilibuddy.companion.debug` writes the last finished night as slept from 00:20 to 06:35 (replacing earlier
  * samples), so reading sleep can be tested.
  */
 class SampleSleepReceiver : BroadcastReceiver() {

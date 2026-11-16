@@ -20,6 +20,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // CP1a: the same suffix as the phone app's debug build, so each watch app still pairs with the phone app of its own id.
+            applicationIdSuffix = ".debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- CP1a: the debug watch app sits next to the release one: its name, tile and complication names differ, so the picker shows two. -->
+<resources>
+    <string name="app_name">AB Debug</string>
+    <string name="tile_label">Debug: Focus today</string>
+    <string name="complication_label">Debug: Focus</string>
+    <string name="timers_complication_label">Debug: Timers</string>
+</resources>

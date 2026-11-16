@@ -98,6 +98,8 @@ val sharedCopy = tasks.register<Sync>("copySharedSources") {
             "com/accountabilibuddy/companion/essentials/CapabilityMemory.kt",
             "com/accountabilibuddy/companion/essentials/RedirectRules.kt",
             "com/accountabilibuddy/companion/essentials/SigningCertificates.kt",
+            // CP1a: the default device name (the debug build adds " (debug)").
+            "com/accountabilibuddy/companion/sync/DefaultDeviceName.kt",
         )
     }
     into(layout.buildDirectory.dir("sharedSrc"))

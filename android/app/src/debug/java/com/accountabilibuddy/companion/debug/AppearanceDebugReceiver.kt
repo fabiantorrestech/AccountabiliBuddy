@@ -16,7 +16,8 @@ import java.time.LocalTime
  * Debug only: sets the appearance preferences from adb, so the screenshots can walk through the six palettes. Extras (all
  * optional): theme (instrument, nightdesk, paper), mode (system, light, dark, settime, sunset), colour (quiet, standard),
  * darkat and lightat (HH:mm), place ("lat,lon", or "none"), legacy (Light, Dark or System: writes the pre-theme "theme"
- * key and removes "mode", then the next app start migrates it).
+ * key and removes "mode", then the next app start migrates it). Sent with
+ * `adb shell am broadcast -a com.accountabilibuddy.companion.debug.APPEARANCE -p com.accountabilibuddy.companion.debug --es theme paper`.
  */
 class AppearanceDebugReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

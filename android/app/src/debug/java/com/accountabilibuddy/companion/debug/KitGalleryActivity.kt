@@ -60,8 +60,8 @@ import com.accountabilibuddy.companion.ui.theme.ThemeName
 
 /**
  * Debug only: every item of the component kit in one scrolling page, for screenshots on the emulator. Opened with
- * `adb shell am start -n com.accountabilibuddy.companion/.debug.KitGalleryActivity --es theme paper --ez dark true
- * [--ez quiet false] [--es show sheet|dialog]`. It draws one theme and one variant whatever the app's own setting is.
+ * `adb shell am start -n com.accountabilibuddy.companion.debug/com.accountabilibuddy.companion.debug.KitGalleryActivity --es theme paper --ez dark true
+ * [--ez quiet false] [--es show sheet|dialog]` (the full class name: the `/.debug.X` shorthand would resolve to `...debug.debug.X`). It draws one theme and one variant whatever the app's own setting is.
  */
 class KitGalleryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

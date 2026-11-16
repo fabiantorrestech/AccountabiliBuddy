@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Debug builds only: a sample night for Health Connect, and the demo-data seeder for screenshots. -->
+<!-- Debug builds only: a sample night for Health Connect, and the demo-data seeder for screenshots. The debug build is a separate
+     app (com.accountabilibuddy.companion.debug, CP1a) that can sit on a long-lived install, so every exported entry point here needs
+     android.permission.DUMP: adb shell holds it, other apps can't get it (signature|privileged|development), the app's own code passes. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
 
     <application>
         <receiver
             android:name=".debug.SampleSleepReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.accountabilibuddy.companion.debug.SAMPLE_SLEEP" />
             </intent-filter>
@@ -14,7 +17,8 @@
         <!-- Made-up data for screenshots on an emulator: the extra "mode" is idle, session or clear (see DemoSeeder). -->
         <receiver
             android:name=".debug.DemoSeedReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.accountabilibuddy.companion.debug.SEED" />
             </intent-filter>
@@ -22,14 +26,16 @@
         <!-- Sets the theme, light or dark mode, colour, set times and place from adb (see AppearanceDebugReceiver). -->
         <receiver
             android:name=".debug.AppearanceDebugReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.accountabilibuddy.companion.debug.APPEARANCE" />
             </intent-filter>
         </receiver>
         <receiver
             android:name=".debug.DebugVoiceSwitch"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.DUMP">
             <intent-filter>
                 <action android:name="com.accountabilibuddy.companion.debug.VOICE" />
             </intent-filter>
@@ -49,6 +55,7 @@
         <activity
             android:name=".debug.KitGalleryActivity"
             android:exported="true"
+            android:permission="android.permission.DUMP"
             android:theme="@style/Theme.AccountabiliBuddy" />
     </application>
 </manifest>

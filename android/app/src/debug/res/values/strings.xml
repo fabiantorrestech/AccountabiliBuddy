@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- CP1a: the debug build is a separate app next to the release one, so its launcher, widget picker and settings name differ. -->
+<resources>
+    <string name="app_name">AB Debug</string>
+</resources>

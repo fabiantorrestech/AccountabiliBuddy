@@ -165,7 +165,7 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
-            android:taskAffinity="com.accountabilibuddy.companion.nudge" />
+            android:taskAffinity="${applicationId}.nudge" />
 
         <!-- The essentials screen (LockMyPhone-Extended style, soft). -->
         <activity
@@ -174,7 +174,7 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
-            android:taskAffinity="com.accountabilibuddy.companion.essentials" />
+            android:taskAffinity="${applicationId}.essentials" />
 
         <!-- "Phones down": what an unlock lands on during a PC focus session with the placement guard on (phase 11b). -->
         <activity
@@ -183,7 +183,7 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
-            android:taskAffinity="com.accountabilibuddy.companion.phonedown" />
+            android:taskAffinity="${applicationId}.phonedown" />
 
         <!-- A bedtime reminder that rings (ADR 38), over the lock screen. -->
         <activity
@@ -193,7 +193,7 @@
             android:launchMode="singleTask"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:taskAffinity="com.accountabilibuddy.companion.bedtime" />
+            android:taskAffinity="${applicationId}.bedtime" />
 
         <receiver android:name=".notify.BedtimeReminderReceiver" android:exported="false" />
         <!-- Goal reminders' alarm and their notifications' actions (round 2 R6b3); no permission of its own. -->
@@ -207,7 +207,7 @@
             android:launchMode="singleTask"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:taskAffinity="com.accountabilibuddy.companion.timers" />
+            android:taskAffinity="${applicationId}.timers" />
         <!-- Their exact alarm, progress tick and notification buttons. -->
         <receiver android:name=".timers.TimerReceiver" android:exported="false" />
         <!-- ADR 37: the block guard's exact alarm (heads-up, re-enable times). -->
@@ -218,14 +218,14 @@
             android:name=".nudge.EmergencyActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:taskAffinity="com.accountabilibuddy.companion.nudge" />
+            android:taskAffinity="${applicationId}.nudge" />
 
         <!-- "Need it for work" from the parked notice or Today: the work use chooser on its own (phone placement). -->
         <activity
             android:name=".placement.WorkUseActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:taskAffinity="com.accountabilibuddy.companion.nudge" />
+            android:taskAffinity="${applicationId}.nudge" />
 
         <activity-alias
             android:name="ViewPermissionUsageActivity"
