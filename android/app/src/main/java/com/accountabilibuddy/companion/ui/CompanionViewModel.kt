@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.ui
 
+import com.accountabilibuddy.companion.notify.TimelineNotifier
 import android.app.Application
 import android.net.Uri
 import android.text.format.DateFormat
@@ -864,6 +865,13 @@ class CompanionViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun setTimelineNotification(on: Boolean) {
         store.setTimelineNotification(on)
+        TimelineNotifier.showAgain()
+        refreshOutside()
+    }
+
+    fun setTimelineNotificationPinned(pinned: Boolean) {
+        store.setTimelineNotificationPinned(pinned)
+        TimelineNotifier.showAgain()
         refreshOutside()
     }
 

@@ -1,5 +1,6 @@
 package com.accountabilibuddy.watch
 
+import com.accountabilibuddy.shared.StatusNotification
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -100,6 +101,16 @@ class WatchActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        StatusNotification.refresh(this)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1) StatusNotification.refresh(this)
+    }
+
     override fun onStart() {
         super.onStart()
         askForNews(force = false)
@@ -172,7 +183,7 @@ private fun WatchApp(
                 // ADR 54: what the phone link needs the user to know comes first; the snapshot stays behind it.
                 val noticePage = listOfNotNull(Page.Notice.takeIf { notice != null })
                 if (snapshot == null) {
-                    noticePage + listOf(Page.NotLinked, Page.Timers)
+                    noticePage + listOf(Page.NotLinked, Page.Timers, Page.Alerts)
                 } else {
                     // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
                     // keeps the user on the page they are on when the order changes). The Lunch page shows on a workday or while

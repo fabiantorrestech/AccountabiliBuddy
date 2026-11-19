@@ -1,5 +1,11 @@
 package com.accountabilibuddy.watch.ui
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.wear.compose.material3.SwitchButton
+import com.accountabilibuddy.shared.StatusNotification
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,10 +32,21 @@ fun AlertsPage(onChanged: () -> Unit) {
     var vibration by remember { mutableStateOf(AlertSettings.vibration(context)) }
     var sound by remember { mutableStateOf(AlertSettings.sound(context)) }
     var warning by remember { mutableStateOf(AlertSettings.warning(context)) }
+    var statusNotification by remember { mutableStateOf(StatusNotification.isEnabled(context)) }
     Column(
-        Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        SwitchButton(
+            checked = statusNotification,
+            onCheckedChange = {
+                StatusNotification.setEnabled(context, it)
+                statusNotification = it
+            },
+            label = { Text("Persistent status notification") },
+            modifier = Modifier.fillMaxWidth(),
+        )
         Text("When a focus, break or timer ends", fontSize = 13.sp, textAlign = TextAlign.Center)
         OutlinedButton(onClick = {
             vibration = Vibration.entries[(vibration.ordinal + 1) % Vibration.entries.size]

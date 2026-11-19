@@ -145,7 +145,11 @@ private fun settingsSummaries(inputs: SettingsListInputs, appearance: String, pe
             "work card".takeIf { inputs.takeoverOn },
             "${inputs.state.document.profiles.size} profiles".takeIf { inputs.state.document.profiles.isNotEmpty() },
         ).joinToString(" · "),
-        SettingsCategory.Alerts to (if (inputs.state.timelineNotificationOn) "Timeline pinned" else "Timeline off") + " · noise player · headphones",
+        SettingsCategory.Alerts to when {
+            !inputs.state.timelineNotificationOn -> "Timeline off · notifications · noise player"
+            inputs.state.timelineNotificationPinned -> "Timeline pinned · notifications · noise player"
+            else -> "Timeline on · notifications · noise player"
+        },
         SettingsCategory.Devices to inputs.devicesSummary,
         SettingsCategory.Connections to listOfNotNull("Beeminder", "Curbox".takeIf { inputs.curbox.granted }, "other blockers").joinToString(", "),
         SettingsCategory.Appearance to appearance,

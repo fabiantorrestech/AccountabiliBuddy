@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion.notify
 
+import com.accountabilibuddy.companion.CompanionApp
 import android.Manifest
 import android.app.PendingIntent
 import android.content.Context
@@ -41,7 +42,21 @@ object TimelineNotifier {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    fun show(context: Context, model: DayBarModel) {
+    @Volatile
+    private var dismissedWhileUnpinned = false
+
+    fun showAgain() {
+        dismissedWhileUnpinned = false
+    }
+
+    fun restoreAfterSwipe(context: Context): Boolean {
+        val pinned = (context.applicationContext as CompanionApp).store.state.value.timelineNotificationPinned
+        if (!pinned) dismissedWhileUnpinned = true
+        return pinned
+    }
+
+    fun show(context: Context, model: DayBarModel, pinned: Boolean) {
+        if (!pinned && dismissedWhileUnpinned) return
         if (!canPost(context)) {
             return
         }
@@ -110,20 +125,23 @@ object TimelineNotifier {
             .setCustomContentView(collapsed)
             .setCustomBigContentView(expanded)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())
-            .setColorized(true)
-            .setColor(card)
-            .setOngoing(true)
-            // Swiped away (Android 14+ allows it): posted again at once.
-            .setDeleteIntent(RefreshReceiver.dismissedIntent(context, 100))
+            .setOngoing(pinned)
+            .setDeleteIntent(RefreshReceiver.timelineDismissedIntent(context))
             .setSilent(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             // Its own group, so Android never bundles it with the bedtime reminder (that would unpin it).
             .setGroup(Channels.TIMELINE)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(open)
+            .apply {
+                if (pinned) {
+                    setColorized(true)
+                    setColor(card)
+                    setPriority(NotificationCompat.PRIORITY_MAX)
+                    setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+                }
+            }
             .build()
 
         try {

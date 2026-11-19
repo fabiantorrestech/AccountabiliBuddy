@@ -52,6 +52,8 @@ object SettingsSearch {
         SearchEntry("PC profiles and rules", Guards, A.PROFILES, listOf("profiles", "rules", "pc", "focus profile")),
 
         // Alerts & on-screen
+        SearchEntry("Persistent status notification", Alerts, A.STATUS_NOTIFICATION, listOf("status", "notification", "persistent", "shortcut")),
+        SearchEntry("Pin timeline notification", Alerts, A.TIMELINE, listOf("pin", "timeline", "notification", "persistent")),
         SearchEntry("Timeline notification", Alerts, A.TIMELINE, listOf("notification", "widget", "home screen", "pinned", "timeline")),
         SearchEntry("Noise player", Alerts, A.NOISE, listOf("noise", "sound", "sounds", "folder", "repeat", "music", "media controls", "volume", "widget", "calls")),
         SearchEntry("Play when headphones connect", Alerts, A.HEADPHONES, listOf("headphones", "bluetooth", "wired", "headset", "only at certain times")),

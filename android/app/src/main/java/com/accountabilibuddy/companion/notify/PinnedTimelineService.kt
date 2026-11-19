@@ -110,7 +110,7 @@ class PinnedTimelineService : Service() {
         NotificationCompat.Builder(this, Channels.TIMELINE)
             .setSmallIcon(R.drawable.ic_stat_timeline)
             .setContentTitle(getString(R.string.app_name))
-            .setOngoing(true)
+            .setOngoing((application as CompanionApp).store.state.value.timelineNotificationPinned)
             .setSilent(true)
             .build()
 
