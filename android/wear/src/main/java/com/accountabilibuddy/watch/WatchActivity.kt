@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -66,13 +67,17 @@ class WatchActivity : ComponentActivity() {
     // Opened from the Timers complication or a timer's "Time's up": go to the Timers page once.
     private var openTimers by mutableStateOf(false)
 
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) StatusNotification.refresh(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Always 12-hour AM/PM (project convention), whatever the watch's setting.
         use24HourClock = false
         // Bedtime reminders (ADR 38) post notifications: asked once.
         if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         openTimers = intent?.getStringExtra(PAGE) == PAGE_TIMERS
         val snapshots = SnapshotStore.snapshot(this)
@@ -104,11 +109,6 @@ class WatchActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         StatusNotification.refresh(this)
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 1) StatusNotification.refresh(this)
     }
 
     override fun onStart() {
