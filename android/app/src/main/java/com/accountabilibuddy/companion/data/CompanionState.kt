@@ -24,6 +24,7 @@ data class CompanionState(
     val importedAt: String? = null,
     val slept: List<LocalWindow> = emptyList(),
     val timelineNotificationOn: Boolean = true,
+    val timelineNotificationPinned: Boolean = true,
     val bedtimeReminderOn: Boolean = true,
     val lastReminderNight: String? = null,
     /** The PC's own day plan as last received (the document shows a waiting edit instead). */

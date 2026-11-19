@@ -49,7 +49,15 @@ fun SettingsDetailHost(
             )
             SettingsCategory.FocusSessions -> FocusSessionsPage(anchor, actions.pause)
             SettingsCategory.Alerts -> AlertsPage(
-                anchor, inputs.state.timelineNotificationOn, actions.onTimelineNotification, actions.onAddWidget, inputs.noise, inputs.noiseSettings,
+                anchor = anchor,
+                timelineNotificationOn = inputs.state.timelineNotificationOn,
+                timelineNotificationPinned = inputs.state.timelineNotificationPinned,
+                onTimelineNotification = actions.onTimelineNotification,
+                onTimelineNotificationPinned = actions.onTimelineNotificationPinned,
+                onStatusNotification = actions.onStatusNotification,
+                onAddWidget = actions.onAddWidget,
+                noise = inputs.noise,
+                noiseSettings = inputs.noiseSettings,
             )
             SettingsCategory.Devices -> DevicesScreen(devices, anchor)
             SettingsCategory.Connections -> ConnectionsPage(

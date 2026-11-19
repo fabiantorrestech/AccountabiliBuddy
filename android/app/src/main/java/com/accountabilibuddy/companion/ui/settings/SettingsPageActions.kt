@@ -13,6 +13,8 @@ data class SettingsPageActions(
     val onClearImport: () -> Unit,
     val onSaveSleep: (SleepSettings) -> Unit,
     val onTimelineNotification: (Boolean) -> Unit,
+    val onTimelineNotificationPinned: (Boolean) -> Unit,
+    val onStatusNotification: (Boolean) -> Unit,
     val onConnectHealth: () -> Unit,
     val onAddWidget: () -> Unit,
     val onConnectCurbox: () -> Unit,

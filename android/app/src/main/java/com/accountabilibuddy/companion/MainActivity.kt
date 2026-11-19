@@ -1,5 +1,6 @@
 package com.accountabilibuddy.companion
 
+import com.accountabilibuddy.shared.StatusNotification
 import android.Manifest
 import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
@@ -71,8 +72,9 @@ class MainActivity : ComponentActivity() {
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) {
-            viewModel.message.value = "Without notification permission the timeline can't show in the notification shade."
+            viewModel.message.value = "Without notification permission the app can't show notifications."
         }
+        StatusNotification.refresh(this)
         viewModel.refreshOutside()
     }
 
@@ -105,6 +107,10 @@ class MainActivity : ComponentActivity() {
                             askForNotifications()
                         }
                     },
+                    onStatusNotification = { on ->
+                        StatusNotification.setEnabled(this, on)
+                        if (on) askForNotifications()
+                    },
                     onAddWidget = ::pinWidget,
                     onAllowUsage = ::openUsageAccess,
                     onConnectCurbox = ::connectCurbox,
@@ -112,7 +118,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (viewModel.state.value.timelineNotificationOn) {
+        if (viewModel.state.value.timelineNotificationOn || StatusNotification.isEnabled(this)) {
             askForNotifications()
         }
 
@@ -146,11 +152,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        TimelineNotifier.showAgain()
         viewModel.onStart()
     }
 
     override fun onResume() {
         super.onResume()
+        StatusNotification.refresh(this)
         // In front, the app may start the service that pins the card.
         viewModel.refreshOutside()
     }

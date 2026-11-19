@@ -1,11 +1,13 @@
 package com.accountabilibuddy.watch
 
+import com.accountabilibuddy.shared.StatusNotification
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -65,13 +67,17 @@ class WatchActivity : ComponentActivity() {
     // Opened from the Timers complication or a timer's "Time's up": go to the Timers page once.
     private var openTimers by mutableStateOf(false)
 
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) StatusNotification.refresh(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Always 12-hour AM/PM (project convention), whatever the watch's setting.
         use24HourClock = false
         // Bedtime reminders (ADR 38) post notifications: asked once.
         if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+            notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         openTimers = intent?.getStringExtra(PAGE) == PAGE_TIMERS
         val snapshots = SnapshotStore.snapshot(this)
@@ -98,6 +104,11 @@ class WatchActivity : ComponentActivity() {
         if (intent.getStringExtra(PAGE) == PAGE_TIMERS) {
             openTimers = true
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        StatusNotification.refresh(this)
     }
 
     override fun onStart() {
@@ -172,7 +183,7 @@ private fun WatchApp(
                 // ADR 54: what the phone link needs the user to know comes first; the snapshot stays behind it.
                 val noticePage = listOfNotNull(Page.Notice.takeIf { notice != null })
                 if (snapshot == null) {
-                    noticePage + listOf(Page.NotLinked, Page.Timers)
+                    noticePage + listOf(Page.NotLinked, Page.Timers, Page.Alerts)
                 } else {
                     // While a focus or break timer runs, its page comes first; else while lunch runs, the Lunch page (the pager
                     // keeps the user on the page they are on when the order changes). The Lunch page shows on a workday or while

@@ -126,6 +126,8 @@ class CompanionStore(private val folder: File) {
 
     fun setTimelineNotification(on: Boolean) = updatePhone { it.copy(timelineNotificationOn = on) }
 
+    fun setTimelineNotificationPinned(pinned: Boolean) = updatePhone { it.copy(timelineNotificationPinned = pinned) }
+
     fun setBedtimeReminder(on: Boolean) = updatePhone { it.copy(bedtimeReminderOn = on) }
 
     fun setLastReminderNight(night: String) = updatePhone { it.copy(lastReminderNight = night) }
@@ -217,7 +219,14 @@ class CompanionStore(private val folder: File) {
     /** Forgets everything imported (the phone's own choices stay). */
     fun clearImport() = synchronized(lock) {
         listOf(PROFILES, EVENTS, DAY_BAR, PLAN_META, PENDING_PLAN).forEach { File(folder, it).delete() }
-        _state.update { CompanionState(sleep = it.sleep, timelineNotificationOn = it.timelineNotificationOn, bedtimeReminderOn = it.bedtimeReminderOn) }
+        _state.update {
+            CompanionState(
+                sleep = it.sleep,
+                timelineNotificationOn = it.timelineNotificationOn,
+                timelineNotificationPinned = it.timelineNotificationPinned,
+                bedtimeReminderOn = it.bedtimeReminderOn,
+            )
+        }
         savePhone()
     }
 
@@ -236,6 +245,7 @@ class CompanionStore(private val folder: File) {
             state.importedFrom?.let { put("importedFrom", it) }
             state.importedAt?.let { put("importedAt", it) }
             put("timelineNotificationOn", state.timelineNotificationOn)
+            put("timelineNotificationPinned", state.timelineNotificationPinned)
             put("bedtimeReminderOn", state.bedtimeReminderOn)
             state.lastReminderNight?.let { put("lastReminderNight", it) }
             put("slept", buildJsonArray {
@@ -271,6 +281,7 @@ class CompanionStore(private val folder: File) {
                 importedFrom = phone.string("importedFrom"),
                 importedAt = phone.string("importedAt"),
                 timelineNotificationOn = phone.bool("timelineNotificationOn", true),
+                timelineNotificationPinned = phone.bool("timelineNotificationPinned", true),
                 bedtimeReminderOn = phone.bool("bedtimeReminderOn", true),
                 lastReminderNight = phone.string("lastReminderNight"),
                 slept = (phone["slept"] as? JsonArray).orEmpty().mapNotNull { element ->

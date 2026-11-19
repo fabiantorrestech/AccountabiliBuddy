@@ -37,6 +37,7 @@ object SettingsAnchors {
 
     // Alerts & on-screen
     const val TIMELINE = "timeline"
+    const val STATUS_NOTIFICATION = "status-notification"
     const val NOISE = "noise"
     const val HEADPHONES = "headphones"
 
