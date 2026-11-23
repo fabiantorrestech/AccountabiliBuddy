@@ -334,7 +334,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
                 parts.Add(TodayTail);
             }
 
-            return string.Join(" · ", parts);
+            // Every row's line is drawn after the ↳ icon (owner 2026-11-23); a step's part already starts with it.
+            string line = string.Join(" · ", parts);
+            return HasTodayParent || line.Length == 0 ? line : "↳ " + line;
         }
     }
 

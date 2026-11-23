@@ -12,10 +12,10 @@ object TaskTitleHelp {
     const val SOFT_LIMIT = 60
     const val COUNTER_FROM = 50
 
-    // Unicode word characters, as .NET's \w (the flag changes nothing on Android, where they always are).
-    private val labelWord = Pattern.compile("(^|\\s)@([\\w-]+)", Pattern.UNICODE_CHARACTER_CLASS)
-    private val tagWord = Pattern.compile("(^|\\s)#([\\w-]+)", Pattern.UNICODE_CHARACTER_CLASS)
-    private val spaces = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS)
+    // Unicode word characters, as .NET's \w (UnicodePatterns: Android has them without the flag and refuses it, AB-Bugs #28).
+    private val labelWord = UnicodePatterns.compile("(^|\\s)@([\\w-]+)")
+    private val tagWord = UnicodePatterns.compile("(^|\\s)#([\\w-]+)")
+    private val spaces = UnicodePatterns.compile("\\s+")
 
     fun parse(text: String, labels: List<TaskLabel>): TaskTypedTitle {
         var label: String? = null
@@ -55,7 +55,7 @@ object TaskTitleHelp {
 
     /** [text] without the word [mark] ("@ePT", "#Release": a chip's ×), compared without case; the rest stays as typed. */
     fun without(text: String, mark: String): String {
-        val pattern = Pattern.compile("(^|\\s)" + Pattern.quote(mark) + "(\\s+|$)", Pattern.UNICODE_CHARACTER_CLASS or Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE)
+        val pattern = UnicodePatterns.compile("(^|\\s)" + Pattern.quote(mark) + "(\\s+|$)", Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE)
         // In the middle the space before it stays (one space between its neighbours); at the end nothing is left behind.
         return replace(pattern, text) { lead, after -> if (after.isEmpty()) "" else lead }.trimStart()
     }

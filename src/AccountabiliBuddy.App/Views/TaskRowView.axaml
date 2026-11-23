@@ -534,15 +534,16 @@
                                        TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Tip}" />
                         </DockPanel>
                         <!-- Round 2 (Today only, owner fix after 0.1.132; boards B-PC-Idle / B-PC-Session): the details on one indented line
-                             under the title: a step "↳ task · ● label · 142b", a task "● label · 25 min"; a missing part goes with its dot. The
-                             amber Overdue pill and the sync-problem cloud still show; a step's ▾ (its live step list) on hover or focus. -->
+                             under the title: a step "↳ task · ● label · 142b", a task "↳ ● label · 25 min" (every sub-line starts with ↳, owner
+                             2026-11-23); a missing part goes with its dot. The amber Overdue pill and the sync-problem cloud still show; a step's ▾
+                             (its live step list) on hover or focus. -->
                         <Panel Classes="todayOnly rowSub">
                             <!-- One line for every row, the same size and left edge (design fix round 2): the step's "↳ task" trims only when the
                                  line runs out of room; the other parts keep their width. -->
                             <controls:PriorityRowPanel IsVisible="{Binding HasTodayLine}" AutomationProperties.Name="{Binding TodayLineText}">
                                 <!-- The "↳" is drawn as an icon: the text glyph comes from a fallback font, smaller and lower than the line. -->
                                 <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,0,4,0" Foreground="{DynamicResource Ab.Muted}"
-                                                 VerticalAlignment="Center" IsVisible="{Binding HasTodayParent}" />
+                                                 VerticalAlignment="Center" />
                                 <TextBlock Classes="muted" Text="{Binding StepSourceTitle}" FontSize="12" controls:PriorityRowPanel.Shrinks="True"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" IsVisible="{Binding HasTodayParent}" />
                                 <TextBlock Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
@@ -571,13 +572,20 @@
                                 </Button>
                             </controls:PriorityRowPanel>
                         </Panel>
+                        <!-- The Tasks page's details line, after the same ↳ icon as Today's (owner 2026-11-23); it sits on the first line when
+                             the text wraps. -->
                         <Panel Classes="tasksOnly">
-                        <TextBlock Classes="muted rowSub" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding ShowsSubText}" />
+                        <Grid Classes="rowSub" ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsSubText}">
+                            <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,2,4,0" Foreground="{DynamicResource Ab.Muted}"
+                                             VerticalAlignment="Top" />
+                            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" />
+                        </Grid>
                         </Panel>
                         <!-- A focused step (Quiet view): "↳ task · ● label · 142b ▾", also in Compact; ▾ opens the live step list. -->
                         <Panel Classes="tasksOnly">
                         <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding IsStepRow}">
-                            <TextBlock Classes="muted" Text="↳" FontSize="12" VerticalAlignment="Center" />
+                            <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}"
+                                             VerticalAlignment="Center" />
                             <TextBlock Classes="muted" Text="{Binding StepSourceTitle}" FontSize="12" MaxWidth="220" TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center" />
                             <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasStepSourceLabel}">
@@ -652,6 +660,9 @@
                                     <Binding Path="$self.(views:TaskColumnScope.IsColumn)" />
                                 </MultiBinding>
                             </DockPanel.IsVisible>
+                            <!-- ↳ before the details (owner 2026-11-23), unless the text line above already starts with it. -->
+                            <mi:MaterialIcon DockPanel.Dock="Left" Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,0,4,0"
+                                             Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" IsVisible="{Binding !ShowsSubText}" />
                             <TextBlock DockPanel.Dock="Left" Classes="muted" Text="{Binding CategoryName}" FontSize="12" Margin="0,0,10,0" MaxWidth="120"
                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
                                 <TextBlock.IsVisible>

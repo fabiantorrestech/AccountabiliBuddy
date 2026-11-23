@@ -20,7 +20,7 @@ object TaskSearch {
     private val idPattern = Pattern.compile("^[0-9]+[a-z]{0,4}$")
     private val labelToken = Pattern.compile("^@([\\p{L}\\p{M}\\p{Nd}\\p{Pc}-]+)$")
     private val tagToken = Pattern.compile("^#([\\p{L}\\p{M}\\p{Nd}\\p{Pc}-]+)$")
-    private val spaces = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS)
+    private val spaces = UnicodePatterns.compile("\\s+")
 
     private class Words(val labels: List<String>, val tags: List<String>, val text: List<String>) {
         val isEmpty: Boolean get() = labels.isEmpty() && tags.isEmpty() && text.isEmpty()

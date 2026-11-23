@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -108,7 +109,7 @@ fun AbSheet(
             }
         },
         sheetState = sheetState,
-        // A sheet that is typed in handles the keyboard itself (below), so the sheet never grows or moves when the keyboard comes up.
+        // A sheet that is typed in handles the keyboard itself (below, against Material's own keyboard padding), so it never grows or moves.
         contentWindowInsets = if (aboveKeyboard) ({ WindowInsets(0, 0, 0, 0) }) else ({ BottomSheetDefaults.windowInsets }),
         shape = RoundedCornerShape(topStart = shapes.large, topEnd = shapes.large),
         containerColor = colors.surface,
@@ -120,9 +121,22 @@ fun AbSheet(
     ) {
         NoWindowAnimationWhenOff()
         BackHandler(enabled = refusing) { guard?.ask?.invoke() }
-        // A sheet that is typed in ([aboveKeyboard]) keeps its height and place: its content and footer make room for the keyboard
-        // inside it, following the keyboard as it slides in, so the sheet itself never jumps.
-        Column(Modifier.fillMaxWidth().height(sheetHeight).navigationBarsPadding().then(if (aboveKeyboard) Modifier.imePadding() else Modifier)) {
+        // A sheet that is typed in ([aboveKeyboard]) keeps its top edge where it is while the keyboard comes and goes: the keyboard covers
+        // its lower part, and its content and footer fit in what is left above it. Material3's ModalBottomSheet pads its whole area by the
+        // keyboard (Box(fillMaxSize().imePadding()), whatever contentWindowInsets says), which on its own lifts and squeezes the sheet to
+        // the top of the screen (owner, 2026-11-23); so the sheet takes the keyboard's height off its own, read at layout time so the
+        // keyboard's slide doesn't recompose the sheet on every frame. Nav-bar padding nests inside that padding, so it isn't counted twice.
+        val keyboard = WindowInsets.ime
+        val sheetSize = if (aboveKeyboard) {
+            Modifier.layout { measurable, constraints ->
+                val height = (sheetHeight.roundToPx() - keyboard.getBottom(this)).coerceIn(0, constraints.maxHeight)
+                val placeable = measurable.measure(constraints.copy(minHeight = height, maxHeight = height))
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }
+        } else {
+            Modifier.height(sheetHeight)
+        }
+        Column(Modifier.fillMaxWidth().then(sheetSize).navigationBarsPadding()) {
             Row(
                 Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 24.dp, end = 12.dp, top = 4.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
