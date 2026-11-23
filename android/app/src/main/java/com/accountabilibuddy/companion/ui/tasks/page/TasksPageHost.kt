@@ -214,7 +214,6 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
     var archiveOpen by rememberSaveable { mutableStateOf(false) }
     var adding by remember { mutableStateOf<ShelfPage?>(null) }
     var addingAnywhere by remember { mutableStateOf(false) }
-    var addAnother by remember { mutableStateOf(false) }
     var newLabel by remember { mutableStateOf(false) }
     var selecting by remember { mutableStateOf(false) }
     var selection by remember { mutableStateOf(listOf<String>()) }
@@ -798,8 +797,6 @@ fun TasksPageHost(controlPc: ReceivedDevice?, @Suppress("UNUSED_PARAMETER") snac
             tagExists = scopeView::tagExists,
             deviceLabelIds = scopeView.labels.filter { !TaskScopes.isShared(it.onlyOn, scopeView.removed) }.map { it.id }.toSet(),
             canKeepHere = app.sync.isJoined,
-            another = addAnother,
-            onAnother = { addAnother = it },
             onAdd = { draft ->
                 controller.add(draft.title, draft.bin, draft.labelId, draft.tags, draft.estimateMinutes, draft.note, draft.steps, draft.dueOn, draft.dueAt, draft.reminders, pc).also { added ->
                     if (added) draft.onlyHereTags.forEach { controller.setTagScope(it, onlyHere = true) }

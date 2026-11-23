@@ -59,8 +59,23 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.accountabilibuddy.companion.ui.kit.AbPrimaryButton
-import com.accountabilibuddy.companion.ui.kit.AbSwitch
 import com.accountabilibuddy.companion.ui.kit.AbTextField
 import com.accountabilibuddy.companion.ui.sheets.AbSheet
 import com.accountabilibuddy.companion.ui.sheets.AbSheetHeight
@@ -100,7 +115,9 @@ val TIME_LIMIT_CHOICES: List<Int> = listOf(10, 15, 25, 50, 90)
  * the field with an accent border that reads **@label** and **#tag** as they are typed (tinted in the field, and shown as removable
  * chips below: a label's chip with its dot), then "+ Time limit", "+ Reminder", "+ Steps" and "+ Note", the **Send to** grid
  * (Today: This session, Queued; Shelf: To sort, Next, Later) that starts on the bin you are looking at ([startBin]), and the footer
- * with the **Add another** switch (keeps the sheet open and clears the field) and **Add**.
+ * with one split pill (owner, 2026-11-23): **+ Add** adds and closes; its **▴** opens, upward, **Add and continue**, which adds, clears
+ * the field and keeps the sheet open with the same bin, label and tags. The keyboard's ✓ follows the last choice: it closes until "Add
+ * and continue" was used once in this sheet, then it continues too.
  *
  * While "@" or "#" is being typed, the labels and tags that match are offered as chips (a label whose name has a space can only be
  * picked that way). The title's counter shows from 50 characters ("52 / 60"; nothing stops a longer one). A page's own label or tag
@@ -112,7 +129,6 @@ val TIME_LIMIT_CHOICES: List<Int> = listOf(10, 15, 25, 50, 90)
  * the sheet itself never moves ([AbSheet] `aboveKeyboard`).
  *
  * @param onAdd Adds the task; true when it was added.
- * @param another Whether "Add another" is on (kept by the page while Tasks is open).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -127,8 +143,6 @@ fun AddTaskSheet(
     /** ADR 89: the label ids shown here that are device-only, to offer them after the shared ones; and whether this phone can have device-only tags (it is in a group). */
     deviceLabelIds: Set<String> = emptySet(),
     canKeepHere: Boolean = false,
-    another: Boolean,
-    onAnother: (Boolean) -> Unit,
     onAdd: (AddTaskDraft) -> Boolean,
     onDismiss: () -> Unit,
 ) {
@@ -169,11 +183,13 @@ fun AddTaskSheet(
     val newTags = tags.filter { !tagExists(it) }
     val setText = { value: String -> text = TextFieldValue(value, TextRange(value.length)) }
 
-    val add = {
+    // "Add and continue" was used in this sheet: the keyboard's ✓ continues too (it closes until then).
+    var continuing by remember { mutableStateOf(false) }
+    val add = { keepOpen: Boolean ->
         val allSteps = steps + listOfNotNull(step.trim().takeIf { it.isNotEmpty() })
         val draft = AddTaskDraft(typed.title, bin, labelId, tags, limit, note.trim().takeIf { it.isNotEmpty() }, allSteps, dueOn, dueAt, if (dueOn != null) rules else emptyList(), if (tagsHere) newTags else emptyList())
         if (typed.title.isNotBlank() && onAdd(draft)) {
-            if (another) {
+            if (keepOpen) {
                 // The field clears for the next one; where it goes, its label and its tags stay as they were picked.
                 setText("")
                 steps = emptyList()
@@ -205,16 +221,15 @@ fun AddTaskSheet(
         height = AbSheetHeight.Tall,
         aboveKeyboard = true,
         footer = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    Modifier.weight(1f).heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).clickable(role = Role.Switch) { onAnother(!another) },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    AbSwitch(another)
-                    Text("Add another", style = Ab.type.small.copy(fontSize = 13.5.sp), color = colors.muted)
-                }
-                AbPrimaryButton("Add", onClick = add, enabled = typed.title.isNotBlank())
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                AddSplitButton(
+                    enabled = typed.title.isNotBlank(),
+                    onAdd = { add(false) },
+                    onAddAndContinue = {
+                        continuing = true
+                        add(true)
+                    },
+                )
             }
         },
     ) {
@@ -234,7 +249,7 @@ fun AddTaskSheet(
                 cursorBrush = SolidColor(colors.accent),
                 visualTransformation = tintMarks,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { add() }),
+                keyboardActions = KeyboardActions(onDone = { add(continuing) }),
                 maxLines = 4,
             )
         }
@@ -377,6 +392,64 @@ fun AddTaskSheet(
         MoveToGrid("Send to", bin, onPick = { bin = it }, modifier = Modifier.padding(top = 8.dp))
         Text("Starts on the bin you are looking at", style = Ab.type.small.copy(fontSize = 12.sp), color = colors.faint, modifier = Modifier.padding(horizontal = 24.dp))
     }
+}
+
+// The footer's split pill (owner, 2026-11-23): "+ Add" adds and closes; "▴" opens "Add and continue" above itself (a menu that drops
+// down would land behind the keyboard). The menu doesn't take the focus, so the keyboard stays up for the next task.
+@Composable
+private fun AddSplitButton(enabled: Boolean, onAdd: () -> Unit, onAddAndContinue: () -> Unit) {
+    val colors = Ab.colors
+    var menuOpen by remember { mutableStateOf(false) }
+    val fill = if (enabled) colors.accent else colors.surface2
+    val ink = if (enabled) colors.onAccent else colors.faint
+    Row(Modifier.heightIn(min = 52.dp).clip(Ab.shapes.pill).background(fill), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.heightIn(min = 52.dp).clickable(enabled = enabled, role = Role.Button, onClick = onAdd).padding(start = 16.dp, end = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
+            Text("Add", style = Ab.type.body, fontWeight = FontWeight.SemiBold, color = ink)
+        }
+        Box(Modifier.width(1.dp).height(26.dp).background(ink.copy(alpha = 0.3f)))
+        Box {
+            Box(
+                Modifier.heightIn(min = 52.dp).semantics { contentDescription = "More ways to add" }
+                    .clickable(enabled = enabled, role = Role.Button) { menuOpen = true }.padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = null, tint = ink, modifier = Modifier.size(22.dp))
+            }
+            if (menuOpen) {
+                Popup(popupPositionProvider = AboveAnchorEnd, onDismissRequest = { menuOpen = false }, properties = PopupProperties(focusable = false)) {
+                    Surface(shape = Ab.shapes.mediumShape, color = colors.surface2, contentColor = colors.ink, shadowElevation = 6.dp) {
+                        Row(
+                            Modifier.clickable(role = Role.Button) {
+                                menuOpen = false
+                                onAddAndContinue()
+                            }.heightIn(min = 48.dp).padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null, tint = colors.muted, modifier = Modifier.size(20.dp))
+                            Text("Add and continue", style = Ab.type.body, color = colors.ink)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A popup above its anchor, right edges lined up, a small gap between.
+private object AboveAnchorEnd : PopupPositionProvider {
+    private const val GAP_PX = 12
+
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset =
+        IntOffset(
+            (anchorBounds.right - popupContentSize.width).coerceAtLeast(0),
+            (anchorBounds.top - popupContentSize.height - GAP_PX).coerceAtLeast(0),
+        )
 }
 
 // The field's text with its "@label" and "#tag" words in the accent.
