@@ -19,9 +19,9 @@
                     <ItemsControl ItemsSource="{Binding Presets}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:MinutesPreset">
+                                <!-- No Command here: the Click handler chooses, then closes the menu (a Command bound through
+                                     $parent would detach when the menu closes in Click, before Avalonia runs it, so only 9 min worked). -->
                                 <Button Content="{Binding Text}" Tag="{Binding Minutes}"
-                                        Command="{Binding $parent[ItemsControl].((vm:MinutesChoiceViewModel)DataContext).ChooseCommand}"
-                                        CommandParameter="{Binding Minutes}"
                                         HorizontalAlignment="Stretch" Margin="0,0,0,2" Click="OnChoicePicked"
                                         PointerEntered="OnChoiceEntered" PointerExited="OnChoiceExited" />
                             </DataTemplate>

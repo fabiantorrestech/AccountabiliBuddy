@@ -91,6 +91,12 @@ public partial class TaskbarOverlayWindow : Window
         TileView.SetSolidity(opacity, solidTime, solidDate, card, outline);
     }
 
+    /// <summary>The kept-solid time and date fade while the pointer is over them (owner, AB-Bugs #34).</summary>
+    public void SetClockDimmed(bool dimmed) => TileView.SetClockDimmed(dimmed);
+
+    /// <summary>Where the tile's clock is on screen (physical pixels), or null when it shows none.</summary>
+    public AccountabiliBuddy.Core.Ports.PixelBox? ClockScreenBox() => IsVisible ? TileView.ClockScreenBox() : null;
+
     public void Apply(OverlayTarget target, OverlaySettings settings, OverlayAppRule? rule)
     {
         bool monitorChanged = _target.MonitorId != target.MonitorId || Math.Abs(_target.Scale - target.Scale) > 0.001;

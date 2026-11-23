@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.App.Services;
 /// a session tick, a setting, a taskbar or display change, a new window in front. Display only: nothing here changes what is blocked; the
 /// buttons use the Today page's own commands. The timer shows while a session runs for a profile that has it on (its own choice or the default;
 /// it can be hidden for the rest of the session), between sessions on days with focus blocks, in the evening (sleep mode), and while this PC's
-/// timers and alarms run. Ctrl+Alt+H hides all of it until pressed again (a held Ctrl+Alt still peeks, a glow still shows), and the panel's
+/// timers and alarms run. Ctrl+Alt+H hides all of it until pressed again (a glow still shows; a held Ctrl+Alt peeks only with "Keep shortcuts while the overlay is
+/// hidden" on, see <see cref="ReleasesShortcuts"/>), and the panel's
 /// Disable turns it off until the user turns it on in the app. Use from the UI thread only.
 /// </summary>
 public sealed class SessionOverlayService : IDisposable
@@ -45,6 +46,13 @@ public sealed class SessionOverlayService : IDisposable
     // state is looked at, only for as long as the peek lasts.
     private readonly DispatcherTimer _peekGuard = new() { Interval = TimeSpan.FromSeconds(1) };
 
+    // Owner (AB-Bugs #34): the kept-solid time and date dim while the pointer is over them and stay dim this long after it leaves. The pointer
+    // is read from the mouse's own events (ICursorWatcher), watched only while a tile shows a kept-solid clock.
+    private static readonly TimeSpan ClockUndimAfter = TimeSpan.FromSeconds(1.5);
+    private readonly DispatcherTimer _clockUndimTimer = new() { Interval = ClockUndimAfter };
+    private ICursorWatcher? _cursor;
+    private PixelBox? _watchedArea;
+
     private TaskbarOverlayWindow? _tile;
     private OverlayPanelWindow? _panel;
     private OverlayPanelViewModel? _panelModel;
@@ -55,7 +63,7 @@ public sealed class SessionOverlayService : IDisposable
     private DateTimeOffset _hiddenUntil = DateTimeOffset.MinValue;
     private DateTimeOffset _doneUntil = DateTimeOffset.MinValue;
     private DateTimeOffset _lastShownAt = DateTimeOffset.MinValue;
-    private (bool On, bool Hidden, bool HiddenByShortcut, bool OverlayOn) _lastStatus = (false, false, false, true);
+    private (bool On, bool Hidden, bool HiddenByShortcut, bool OverlayOn, bool ReleasesShortcuts) _lastStatus = (false, false, false, true, false);
     private bool _started;
 
     // The keyboard hook is installed only while hold-to-peek is on and the overlay is not turned off, and either the tile is on screen or
@@ -171,13 +179,28 @@ public sealed class SessionOverlayService : IDisposable
     /// <summary>Why Ctrl+Alt+H could not be registered (another program holds it); null when it works or is off.</summary>
     public string? HideHotkeyError { get; private set; }
 
-    /// <summary>True while Ctrl+Alt+H keeps the overlay hidden (a held Ctrl+Alt still peeks). Never true with the overlay turned off or the shortcut switched off.</summary>
+    /// <summary>True while Ctrl+Alt+H keeps the overlay hidden (a held Ctrl+Alt peeks only when <see cref="ReleasesShortcuts"/> is false). Never true with the overlay turned off or the shortcut switched off.</summary>
     public bool IsHiddenByShortcut
     {
         get
         {
             OverlaySettings settings = _settings.Current;
             return settings.OverlayOn && settings.HideShortcutOn && settings.HiddenByShortcut;
+        }
+    }
+
+    /// <summary>
+    /// "Keep shortcuts while the overlay is hidden" is off (the default) and the overlay is hidden by Ctrl+Alt+H, or turned off with the
+    /// panel's Disable: AB lets go of its other system-wide keys so other apps get them. Hidden by Ctrl+Alt+H: no Ctrl+Alt peek (no keyboard
+    /// hook), no Ctrl+Alt+Space, and the app frees Ctrl+Alt+N; only Ctrl+Alt+H stays, to bring the overlay back. After Disable the overlay
+    /// holds no keys anyway (Ctrl+Alt+H included), so this only frees Ctrl+Alt+N (owner, AB-Bugs #30, #31).
+    /// </summary>
+    public bool ReleasesShortcuts
+    {
+        get
+        {
+            OverlaySettings settings = _settings.Current;
+            return !settings.KeepShortcutsWhileHidden && (IsHiddenByShortcut || (!settings.OverlayOn && settings.OffFromPanel));
         }
     }
 
@@ -227,6 +250,13 @@ public sealed class SessionOverlayService : IDisposable
                 _ctrlAlt.SetListening(true);
             }
 
+            // The pointer watcher's hook too (Windows may have dropped it unseen, leaving the clock dimmed): the next update watches afresh.
+            if (state.IsActive != _sessionWasActive && _watchedArea is not null)
+            {
+                _cursor?.Watch(null);
+                _watchedArea = null;
+            }
+
             _sessionWasActive = state.IsActive;
 
             Update();
@@ -254,6 +284,58 @@ public sealed class SessionOverlayService : IDisposable
     public void OnActivityChanged()
     {
         Update();
+    }
+
+    /// <summary>The pointer watcher for dimming the kept-solid clock under the mouse (owner, AB-Bugs #34); set by the app. Without one the clock never dims.</summary>
+    public void SetCursorWatcher(ICursorWatcher cursor)
+    {
+        _cursor = cursor;
+        cursor.InsideChanged += (_, inside) => Dispatcher.UIThread.Post(() => OnPointerOverClock(inside));
+        _clockUndimTimer.Tick += (_, _) =>
+        {
+            _clockUndimTimer.Stop();
+            _tile?.SetClockDimmed(false);
+        };
+    }
+
+    private void OnPointerOverClock(bool inside)
+    {
+        if (inside)
+        {
+            _clockUndimTimer.Stop();
+            _tile?.SetClockDimmed(true);
+        }
+        else if (_tile is not null)
+        {
+            _clockUndimTimer.Stop();
+            _clockUndimTimer.Start();
+        }
+    }
+
+    // Watches the tile's clock while it is kept solid (after layout, so its place on screen is known); nothing is watched otherwise.
+    private void SyncCursorWatch()
+    {
+        if (_cursor is null || _disposed)
+        {
+            return;
+        }
+
+        OverlaySettings settings = _settings.Current;
+        // Only while the tile is see-through: at full opacity the clock looks the same dimmed, and no mouse hook is worth that.
+        bool seeThrough = settings.TileOpacity(_sessions.State.IsActive, _ctrlAlt.IsHeld) < 0.999;
+        PixelBox? area = settings.OverlayOn && seeThrough && (settings.SolidClockTime || settings.SolidClockDate) ? _tile?.ClockScreenBox() : null;
+        if (area != _watchedArea)
+        {
+            // Only a change reaches the watcher's thread (this runs on every tick).
+            _watchedArea = area;
+            _cursor.Watch(area);
+        }
+
+        if (area is null)
+        {
+            _clockUndimTimer.Stop();
+            _tile?.SetClockDimmed(false);
+        }
     }
 
     public void SetNoisePlayer(NoisePlayerViewModel noise)
@@ -418,6 +500,8 @@ public sealed class SessionOverlayService : IDisposable
         _wakeTimer.Stop();
         _pendingWakes.Clear();
         _clockTimer.Stop();
+        _clockUndimTimer.Stop();
+        _cursor?.Watch(null);
         _hookOn = false;
         _ctrlAlt.SetListening(false);
         _stickyHotkey.Unregister();
@@ -699,7 +783,8 @@ public sealed class SessionOverlayService : IDisposable
         SyncStickyHotkey();
         SyncHideHotkey();
         SyncPanelKeys();
-        (bool, bool, bool, bool) status = (IsOnForSession, IsHiddenForSession, IsHiddenByShortcut, _settings.Current.OverlayOn);
+        Dispatcher.UIThread.Post(SyncCursorWatch, DispatcherPriority.Background);
+        (bool, bool, bool, bool, bool) status = (IsOnForSession, IsHiddenForSession, IsHiddenByShortcut, _settings.Current.OverlayOn, ReleasesShortcuts);
         if (status != _lastStatus)
         {
             _lastStatus = status;
@@ -709,7 +794,7 @@ public sealed class SessionOverlayService : IDisposable
 
     private void SyncStickyHotkey()
     {
-        bool want = _settings.Current.PanelSticky && _settings.Current.OverlayOn;
+        bool want = _settings.Current.PanelSticky && _settings.Current.OverlayOn && !ReleasesShortcuts;
         if (want == _stickyRegistered)
         {
             return;
@@ -758,11 +843,12 @@ public sealed class SessionOverlayService : IDisposable
     }
 
     // The hook reads Ctrl and Alt for the peek. It is on while the tile shows, and while Ctrl+Alt+H keeps a tile hidden that would otherwise show
-    // (so a held Ctrl+Alt can bring it up); off when the overlay is turned off.
+    // (so a held Ctrl+Alt can bring it up) if "Keep shortcuts while the overlay is hidden" is on; off when the overlay is turned off, and while
+    // hidden with that setting off (ReleasesShortcuts).
     private void SyncHook()
     {
         OverlaySettings settings = _settings.Current;
-        bool want = settings.OverlayOn && settings.HoldToPeek && (_tile is { IsVisible: true } || _hiddenButPeekable);
+        bool want = settings.OverlayOn && settings.HoldToPeek && !ReleasesShortcuts && (_tile is { IsVisible: true } || _hiddenButPeekable);
         if (want != _hookOn)
         {
             _hookOn = want;

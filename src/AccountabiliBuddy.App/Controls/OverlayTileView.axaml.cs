@@ -1,6 +1,7 @@
 using AccountabiliBuddy.App.Services;
 using AccountabiliBuddy.App.ViewModels;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
@@ -21,6 +22,10 @@ public partial class OverlayTileView : UserControl
     private bool _card;
     private bool _outline;
     private ContentControl? _clock;
+    private bool _clockDimmed;
+
+    // The kept-solid clock fades when the pointer comes over it and when it comes back (owner, AB-Bugs #34); Motion Off: at once.
+    private static readonly TimeSpan ClockFade = TimeSpan.FromMilliseconds(250);
 
     public OverlayTileView()
     {
@@ -49,14 +54,49 @@ public partial class OverlayTileView : UserControl
         ApplySolidity();
     }
 
+    /// <summary>
+    /// The pointer is over the kept-solid time and date: they fade to the tile's own opacity, so what is under them shows; false brings them
+    /// back (owner, AB-Bugs #34). Only the clock part changes; the card and outline stay with it.
+    /// </summary>
+    public void SetClockDimmed(bool dimmed)
+    {
+        if (dimmed == _clockDimmed)
+        {
+            return;
+        }
+
+        _clockDimmed = dimmed;
+        ApplySolidity();
+    }
+
+    /// <summary>Where the clock part is on screen (physical pixels), or null when the tile shows no clock.</summary>
+    public AccountabiliBuddy.Core.Ports.PixelBox? ClockScreenBox()
+    {
+        if (_clock is not { IsVisible: true } clock || clock.Bounds.Width <= 0 || clock.Bounds.Height <= 0 || TopLevel.GetTopLevel(clock) is null)
+        {
+            return null;
+        }
+
+        PixelPoint topLeft = clock.PointToScreen(new Point(0, 0));
+        PixelPoint bottomRight = clock.PointToScreen(new Point(clock.Bounds.Width, clock.Bounds.Height));
+        return new AccountabiliBuddy.Core.Ports.PixelBox(topLeft.X, topLeft.Y, bottomRight.X, bottomRight.Y);
+    }
+
     private void ApplySolidity()
     {
         bool solidClock = _solidTime || _solidDate;
         TileBack.Opacity = _opacity;
         NudgeDot.Opacity = _opacity;
+        if (_clock is not null)
+        {
+            _clock.Transitions = Motion.Current is { IsOn: false }
+                ? null
+                : [new DoubleTransition { Property = OpacityProperty, Duration = ClockFade }];
+        }
+
         foreach (Control part in MainRow.Children.Concat(ExtraRow.Children))
         {
-            part.Opacity = solidClock && ReferenceEquals(part, _clock) ? 1 : _opacity;
+            part.Opacity = solidClock && !_clockDimmed && ReferenceEquals(part, _clock) ? 1 : _opacity;
         }
 
         if (DataContext is TaskbarOverlayViewModel model)

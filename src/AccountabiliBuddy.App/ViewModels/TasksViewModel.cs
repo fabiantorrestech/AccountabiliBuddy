@@ -1098,6 +1098,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         {
             OnPropertyChanged(nameof(IsSessionLive));
             OnPropertyChanged(nameof(CanStartSession));
+            AddBox.FollowSession();
             Refresh();
         }
     }
@@ -1276,6 +1277,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         session.Title = "This session";
         session.Hint = sessionHint;
         session.Bin = TaskBin.Session;
+        // Owner (AB-Improvements #35): a "+" on This session adds a task without going to the Tasks page (through the session's cap;
+        // a full session leaves it in Queued, as every add to This session does).
+        session.UseAdd(this, TaskBin.Session, "Add to This session");
         TaskSectionViewModel queued = panel.Section("queued", _queuedRows, quiet: true, canPin: true, opensByDefault: false);
         queued.Title = "Queued";
         queued.Bin = TaskBin.Queued;

@@ -208,7 +208,7 @@
         </DockPanel>
 
         <Panel IsVisible="{Binding Toasts, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="18,0,0,18">
-            <views:TaskToastView DataContext="{Binding Toasts}" MaxWidth="460" />
+            <views:TaskToastView DataContext="{Binding Toasts}" />
         </Panel>
     </Panel>
 </UserControl>

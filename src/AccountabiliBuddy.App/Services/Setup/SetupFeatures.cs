@@ -168,9 +168,16 @@ public static class SetupFeatures
         new SetupFeature(
             "overlay.hide", "0.1.120",
             "Ctrl+Alt+H: hide the overlay until you want it",
-            "Press Ctrl+Alt+H in any app to hide the overlay (it stays hidden until you press it again, even after a restart; holding Ctrl+Alt still shows it). The Ctrl+Alt panel also has a button that turns the overlay off, which Today or Settings turn back on.",
+            "Press Ctrl+Alt+H in any app to hide the overlay (it stays hidden until you press it again, even after a restart; while it is hidden, other apps get AB's Ctrl+Alt shortcuts unless Settings › Overlay keeps them). The Ctrl+Alt panel also has a button that turns the overlay off, which Today or Settings turn back on.",
             IsRelevant: () => true,
             IsSetUp: () => overlay.Current.HideShortcutSeen,
+            Step: ViewModels.AssistantStep.PanelCtrlAlt),
+        new SetupFeature(
+            "overlay.hiddenKeys", "0.1.148",
+            "Hidden overlay, free shortcuts",
+            "While Ctrl+Alt+H hides the overlay, AB now lets go of its other Ctrl+Alt shortcuts (Ctrl+Alt+N, Ctrl+Alt+Space, the Ctrl+Alt peek) so other apps get them; only Ctrl+Alt+H stays. To keep them while it is hidden, turn on Settings › Overlay › Keep shortcuts while the overlay is hidden.",
+            IsRelevant: () => overlay.Current.HideShortcutSeen,
+            IsSetUp: () => overlay.Current.KeepShortcutsWhileHidden,
             Step: ViewModels.AssistantStep.PanelCtrlAlt),
         new SetupFeature(
             "calendar.rules", "0.1.123",

@@ -24,3 +24,24 @@ internal fun AppearanceSetupPage() {
         )
     }
 }
+
+/** What's new in 0.1.83 (AB-Improvements #29): the E-Ink theme, and the e-ink settings that go with it. */
+@Composable
+internal fun EInkThemeSetupPage() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("E-Ink theme", style = MaterialTheme.typography.headlineSmall)
+        Text("A fourth theme for e-ink screens: black on white (or white on black in dark), no tinted fills, firm edges and bold text. Only this phone has it.")
+        Text("Settings › Appearance › Theme › E-Ink. Its \"Use e-ink settings\" button also turns Animations Off and Step scrolling on, so the screen redraws once per change.")
+        androidx.compose.material3.OutlinedButton(onClick = {
+            UiPrefs.setThemeName(context, com.accountabilibuddy.companion.ui.theme.ThemeName.EInk)
+            UiPrefs.setMotion(context, MotionSpeed.Off)
+            UiPrefs.setStepScroll(context, true)
+        }) { Text("Use E-Ink with e-ink settings") }
+        Text(
+            "The theme stays on this phone; it is never synced. Pick another theme any time in Settings › Appearance.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}

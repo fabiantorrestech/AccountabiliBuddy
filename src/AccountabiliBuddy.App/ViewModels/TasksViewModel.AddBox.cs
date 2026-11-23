@@ -48,6 +48,8 @@ public sealed partial class TasksViewModel : IAddBoxHost
 
     bool IAddBoxHost.SuggestShorterTitles => TaskSettings?.Current.SuggestShorterTitles ?? true;
 
+    bool IAddBoxHost.IsSessionOn => _session.IsSessionActive;
+
     /// <summary>Ctrl+J: the jot opens and takes the keyboard (the caller shows a page that has it first).</summary>
     public void OpenJot() => Jot.Open();
 

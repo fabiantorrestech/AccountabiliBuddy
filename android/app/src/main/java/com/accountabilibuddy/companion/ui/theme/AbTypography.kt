@@ -86,6 +86,11 @@ class AbTypography(
                 displayFamily = AbFonts.Newsreader, displayWeight = FontWeight.Medium, displaySpacing = 0.em,
                 numeralFamily = AbFonts.Newsreader, numeralWeight = FontWeight.Normal,
             )
+            // E-Ink: the system sans in bold weights, which keep their strokes on a low-contrast screen.
+            ThemeName.EInk -> AbTypography(
+                displayFamily = FontFamily.Default, displayWeight = FontWeight.Bold, displaySpacing = 0.em,
+                numeralFamily = FontFamily.Default, numeralWeight = FontWeight.SemiBold,
+            )
         }
     }
 }

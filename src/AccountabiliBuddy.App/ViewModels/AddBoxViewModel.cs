@@ -13,7 +13,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// An add box (spec 03 §B "Add box", B2 "Jot it down", 05 "Add box", Implementation Notes 13x): the typed title, where it goes (Send
 /// to, To sort by default), the "@label" / "#tag" list that opens as soon as "@" or "#" is typed and narrows per letter, the picked
-/// label and tags as removable chips, and the title help under the box: the 60-character soft limit with its counter from 50, the
+/// label and tags as removable chips above the text, and the title help under the box: the 60-character soft limit with its counter from 50, the
 /// "Move … to notes" split, the project marker at the start ("Part of a project?" with label and tag choices, Apply, Keep as typed)
 /// and the one-time offer to learn a marker style. Rule-based and local; nothing here blocks adding. One class for the Tasks page's
 /// box, a Shelf bin's "+" box and Jot it down (<see cref="AddBoxKind"/>); the page adds the task (<see cref="IAddBoxHost"/>).
@@ -63,6 +63,19 @@ public sealed partial class AddBoxViewModel : ObservableObject
         _presetDestination = destination;
         Destination = destination;
         Text = string.Empty;
+        FollowSession();
+    }
+
+    /// <summary>
+    /// The page's box sends to This session while a session is planning or running, and to To sort otherwise (owner,
+    /// AB-Improvements #23). A Shelf bin's box keeps its bin; the jot always goes to To sort.
+    /// </summary>
+    public void FollowSession()
+    {
+        if (Kind == AddBoxKind.Main)
+        {
+            Destination = _host.IsSessionOn ? TaskBin.Session : TaskBin.Sort;
+        }
     }
 
     public AddBoxKind Kind { get; }
@@ -180,10 +193,8 @@ public sealed partial class AddBoxViewModel : ObservableObject
     /// <summary>"Treat “⟦Name⟧” as a project marker?".</summary>
     public string OfferText => _offer is { } offer ? "Treat “" + offer.Pattern.Open + "Name" + offer.Pattern.Close + "” as a project marker?" : string.Empty;
 
-    public bool ShowsChipLine => HasChips && !ShowsMarker && !ShowsSplit;
-
     /// <summary>The hint line shows (it floats under the box, so nothing moves when it does).</summary>
-    public bool ShowsHint => IsFocused && (ShowsCounter || ShowsMarker || ShowsSplit || ShowsChipLine || ShowsOffer);
+    public bool ShowsHint => IsFocused && (ShowsCounter || ShowsMarker || ShowsSplit || ShowsOffer);
 
     private TaskTitleSplit? CurrentSplit
     {
@@ -368,7 +379,10 @@ public sealed partial class AddBoxViewModel : ObservableObject
 
     /// <summary>Enter or the send button: the task is added with its chips (and "@label" / "#tag" typed in the text).</summary>
     [RelayCommand]
-    private async Task SubmitAsync()
+    private Task SubmitAsync() => SubmitToAsync(null);
+
+    /// <summary>Adds what is typed to <paramref name="to"/>, or to the box's own destination when null.</summary>
+    private async Task SubmitToAsync(TaskBin? to)
     {
         DismissSuggestions();
         TaskTypedTitle parsed = TaskTitleHelp.Parse(Text, _host.Labels);
@@ -377,7 +391,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
             return;
         }
 
-        await AddAsync(parsed.Title, parsed, note: null);
+        await AddAsync(parsed.Title, parsed, note: null, to);
     }
 
     /// <summary>"Move “…” to notes": the title is the part before the split, the rest its note.</summary>
@@ -394,9 +408,9 @@ public sealed partial class AddBoxViewModel : ObservableObject
         await AddAsync(split.Head, parsed, note);
     }
 
-    private async Task AddAsync(string title, TaskTypedTitle parsed, string? note)
+    private async Task AddAsync(string title, TaskTypedTitle parsed, string? note, TaskBin? to = null)
     {
-        TaskBin destination = IsJot ? TaskBin.Sort : Destination;
+        TaskBin destination = IsJot ? TaskBin.Sort : to ?? Destination;
         var request = new AddBoxRequest(title, destination, _labelId ?? parsed.LabelId, TaskLabels.With(_tags, parsed.Tags) ?? [], note, FromJot: IsJot);
         if (!await _host.AddFromBoxAsync(request))
         {
@@ -417,15 +431,19 @@ public sealed partial class AddBoxViewModel : ObservableObject
 
     // ---- Send to ----
 
-    /// <summary>The Send to menu: "New tasks go to" This session, Queued, To sort (the default), Next, Later; then From your lists….</summary>
+    /// <summary>
+    /// The Send to menu: "Add to" This session, Queued, To sort, Next, Later (the box's own destination marked "Default"); then From
+    /// your lists…. Picking a bin adds what is typed there now, and the default stays (owner, AB-Improvements #23); with nothing typed
+    /// the box only takes the keyboard back.
+    /// </summary>
     public IReadOnlyList<TaskMenuEntry> DestinationMenu()
     {
-        var entries = new List<TaskMenuEntry> { new("New tasks go to", IsHeading: true) };
+        var entries = new List<TaskMenuEntry> { new("Add to", IsHeading: true) };
         foreach (TaskBin bin in new[] { TaskBin.Session, TaskBin.Queued, TaskBin.Sort, TaskBin.Next, TaskBin.Later })
         {
             TaskBin chosen = bin;
-            string header = bin == TaskBin.Sort ? TaskBins.Name(bin) + " · Default" : TaskBins.Name(bin);
-            entries.Add(new TaskMenuEntry(header, new RelayCommand(() => Destination = chosen), IsChecked: Destination == bin, Icon: IconOf(bin)));
+            string header = bin == Destination ? TaskBins.Name(bin) + " · Default" : TaskBins.Name(bin);
+            entries.Add(new TaskMenuEntry(header, new AsyncRelayCommand(() => AddToAsync(chosen)), IsChecked: Destination == bin, Icon: IconOf(bin)));
         }
 
         if (_host.FromYourLists is not null)
@@ -435,6 +453,17 @@ public sealed partial class AddBoxViewModel : ObservableObject
         }
 
         return entries;
+    }
+
+    private async Task AddToAsync(TaskBin bin)
+    {
+        if (TaskTitleHelp.Parse(Text, _host.Labels).Title.Length == 0)
+        {
+            FocusRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        await SubmitToAsync(bin);
     }
 
     public ListPickerViewModel? FromYourLists => _host.FromYourLists;
@@ -611,7 +640,6 @@ public sealed partial class AddBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(MarkerTagText));
         OnPropertyChanged(nameof(ShowsOffer));
         OnPropertyChanged(nameof(OfferText));
-        OnPropertyChanged(nameof(ShowsChipLine));
         OnPropertyChanged(nameof(ShowsHint));
     }
 

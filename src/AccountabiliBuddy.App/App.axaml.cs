@@ -73,6 +73,7 @@ public partial class App : Application
     private AccountabiliBuddy.Platform.Windows.Power.WinRtBatteryReader? _batteryReader;
     private AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CtrlAltWatcher? _ctrlAltWatcher;
     private AccountabiliBuddy.Platform.Windows.Hotkeys.Win32PanelKeys? _panelKeys;
+    private AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CursorWatcher? _cursorWatcher;
     private Win32GlobalHotkey? _overlayStickyHotkey;
     private Win32GlobalHotkey? _overlayHideHotkey;
     private PcAlarmService? _pcAlarm;
@@ -536,6 +537,7 @@ public partial class App : Application
         _panelKeys = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32PanelKeys();
         _overlayStickyHotkey = new Win32GlobalHotkey();
         _overlayHideHotkey = new Win32GlobalHotkey();
+        _cursorWatcher = new AccountabiliBuddy.Platform.Windows.Hotkeys.Win32CursorWatcher();
         var batteryVisibility = new BatteryVisibilityService(documents);
         batteryVisibility.LoadBlocking();
         _sessionOverlay = new SessionOverlayService(
@@ -552,6 +554,7 @@ public partial class App : Application
         _timers = new AccountabiliBuddy.App.Services.Timers.TimersService(documents, _sessions);
         _timers.LoadBlocking();
         _sessionOverlay.SetTimers(_timers);
+        _sessionOverlay.SetCursorWatcher(_cursorWatcher);
         _ = new AccountabiliBuddy.App.Services.Timers.TimerRinger(
             _timers,
             // Never silent: with "Focus ends" set to Off they ring with the bell.
@@ -636,6 +639,11 @@ public partial class App : Application
             return found is null ? null : (found.StartedAt, found.ProfileId);
         };
         _capture = new CaptureService(_comebacks, new Win32GlobalHotkey(), monitorLocator);
+        // Owner (AB-Bugs #31): while the overlay is hidden and keeps no shortcuts, Ctrl+Alt+N goes back to the other apps too.
+        CaptureService capture = _capture;
+        SessionOverlayService overlay = _sessionOverlay!;
+        capture.SetHotkeyOn(!overlay.ReleasesShortcuts);
+        overlay.Changed += (_, _) => capture.SetHotkeyOn(!overlay.ReleasesShortcuts);
         // ADR 27: work hours on this computer (off unless turned on in Settings).
         _workHours = new WorkHoursGuard(_sessions, _configuration, documents, windowsEnforcer, () => _activityWatcher.CaptureCurrent(), presenter.ShowNotice);
         _workHours.LoadBlocking();
@@ -4469,6 +4477,7 @@ public partial class App : Application
         _overlayHideHotkey?.Dispose();
         _panelKeys?.Dispose();
         _ctrlAltWatcher?.Dispose();
+        _cursorWatcher?.Dispose();
         _batteryReader?.Dispose();
         _taskbarGeometry?.Dispose();
         _noise?.Dispose();

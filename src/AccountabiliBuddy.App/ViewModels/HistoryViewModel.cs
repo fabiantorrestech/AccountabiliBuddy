@@ -387,12 +387,25 @@ public sealed partial class HistoryViewModel : ObservableObject
 
     private SessionGapsService? _gaps;
 
+    // The day the page last refreshed on, to notice a new day while the app stayed open.
+    private DateTime? _refreshedOn;
+
     private IReadOnlyList<SessionRecord> WithGaps(IReadOnlyList<SessionRecord> records) => _gaps?.Apply(records) ?? records;
 
     [RelayCommand]
     private async Task RefreshAsync()
     {
         DateTimeOffset localNow = _timeProvider.GetLocalNow();
+        // A new day while the app stayed open (owner, AB-Improvements #22): a day view showing the old today moves to the new one;
+        // a day picked by hand stays. (Today and Week follow the clock by themselves.)
+        if (_refreshedOn is DateTime last && localNow.Date != last && Period == HistoryPeriod.Day && SelectedDay?.Date == last)
+        {
+            _refreshedOn = localNow.Date;
+            SelectedDay = localNow.Date;
+            return; // Refreshes from OnSelectedDayChanged.
+        }
+
+        _refreshedOn = localNow.Date;
         var startOfToday = new DateTimeOffset(localNow.Date, localNow.Offset);
         DateTime day = (SelectedDay ?? localNow.Date).Date;
         DateTimeOffset startOfDay = new(day, _timeProvider.LocalTimeZone.GetUtcOffset(day));

@@ -701,7 +701,7 @@
         <Panel Grid.Row="2" DataContext="{Binding TaskPage}" x:DataType="vm:TasksViewModel" IsVisible="{Binding $parent[views:TodayView].((vm:SessionViewModel)DataContext).TaskPage, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
             <views:JotBoxView DataContext="{Binding Jot}" Margin="22,4,14,12" HorizontalAlignment="Left" MinWidth="240" MaxWidth="420" ZIndex="1" />
             <Canvas Height="0" VerticalAlignment="Top" ZIndex="20">
-                <views:TaskToastView DataContext="{Binding Toasts}" Canvas.Left="18" Canvas.Bottom="6" MaxWidth="364" />
+                <views:TaskToastView DataContext="{Binding Toasts}" Canvas.Left="18" Canvas.Bottom="6" />
             </Canvas>
         </Panel>
     </Grid>

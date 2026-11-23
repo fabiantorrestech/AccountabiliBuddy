@@ -428,6 +428,14 @@ public sealed partial class PlanViewModel : ObservableObject
         RuleText = IsLocked
             ? "Locked while a focus session you started runs."
             : $"A change that makes today less strict waits {(int)_configuration.Current.Locks.LooseningDelay.TotalMinutes} min; any other applies at once.";
+        // A new day while the app stayed open (owner, AB-Improvements #22): the page follows it if it was showing the old today;
+        // a day picked by hand stays.
+        if (_refreshedOn != default && today != _refreshedOn && SelectedDate == _refreshedOn)
+        {
+            SelectedDate = today;
+            WeekStart = WeekSwitch.MondayOf(today);
+        }
+
         _refreshedOn = today;
         CanGoToToday = SelectedDate != today;
         OnlyThisDayText = $"Change only {SelectedDate:ddd MMM d}";

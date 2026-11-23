@@ -38,10 +38,17 @@ object SetupFeatures {
     const val SCREEN_TIME_GOALS = "goals.screenTime"
     const val ESSENTIALS_LOCK = "essentials.lock"
     const val PHONE_SESSIONS = "session.onPhone"
+    const val EINK_THEME = "appearance.eink"
     private const val PREFS = "setupFeatures"
     private const val VERSIONS = "versions"
 
     val all = listOf(
+        SetupFeature(
+            EINK_THEME, "0.1.83", "E-Ink theme: high contrast for e-ink screens, with Animations Off and Step scrolling in one tap",
+            relevant = { true },
+            // Set up once seen in the assistant, or the E-Ink theme is already in use (Settings › Appearance).
+            setUp = { done(it, EINK_THEME) || it.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("themeName", null) == "EInk" },
+        ),
         SetupFeature(
             PHONE_SESSIONS, "0.1.80", "Focus sessions on this phone: start with or without a PC, with app locks from a session profile",
             relevant = { true },

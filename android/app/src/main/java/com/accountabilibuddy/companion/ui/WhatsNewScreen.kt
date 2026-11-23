@@ -66,6 +66,7 @@ fun WhatsNewScreen(onConnectCurbox: () -> Unit, onReenableTime: (Boolean, java.t
                 SetupFeatures.SCREEN_TIME_GOALS -> ScreenTimeSetupPage()
                 SetupFeatures.ESSENTIALS_LOCK -> EssentialsLockSetupPage()
                 SetupFeatures.PHONE_SESSIONS -> PhoneSessionSetupPage()
+                SetupFeatures.EINK_THEME -> EInkThemeSetupPage()
             }
         }
         Button(onClick = {

@@ -26,6 +26,8 @@ class AbShapes(
             ThemeName.NightDesk -> AbShapes(small = 14.dp, medium = 20.dp, large = 28.dp, cardEdge = 0.dp)
             ThemeName.Instrument -> AbShapes(small = 8.dp, medium = 10.dp, large = 14.dp, cardEdge = 1.dp)
             ThemeName.Paper -> AbShapes(small = 10.dp, medium = 14.dp, large = 18.dp, cardEdge = 1.dp)
+            // E-Ink: tight corners and a firm edge, so cards read without shading (AB-Improvements #29).
+            ThemeName.EInk -> AbShapes(small = 6.dp, medium = 8.dp, large = 10.dp, cardEdge = 1.5.dp)
         }
     }
 }

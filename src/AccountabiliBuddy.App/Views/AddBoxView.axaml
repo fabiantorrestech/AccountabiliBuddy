@@ -6,9 +6,9 @@
              x:Class="AccountabiliBuddy.App.Views.AddBoxView"
              x:DataType="vm:AddBoxViewModel">
     <!-- The add box (spec 03 §B): a "+ Add a task" pill at rest (~160 DIP); in use it widens to the full row with the send button and
-         Send to ("Add to To sort" ▾). Text left in it after leaving greys out and the box shrinks to fit it. The hint line floats under
+         Send to ("Add to To sort" ▾); the picked label and tags show as chips above the text. Text left in it after leaving greys out and the box shrinks to fit it. The hint line floats under
          the box (it never pushes the rows): the counter from 50 characters, "Move … to notes", "Part of a project?" with the marker's
-         label and tag, the picked chips, or the offer to learn a marker style. The "@" / "#" list opens under the box. The page gives
+         label and tag, or the offer to learn a marker style. The "@" / "#" list opens under the box. The page gives
          this control a ZIndex so the floating line draws over the rows below it. -->
     <UserControl.Styles>
         <Style Selector="Border.addPill">
@@ -155,8 +155,38 @@
                 PointerPressed="OnPillPressed">
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                 <mi:MaterialIcon Kind="Plus" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                <TextBox x:Name="Box" Grid.Column="1" Classes="addEntry" Classes.leftover="{Binding IsLeftover}" Text="{Binding Text}"
-                         PlaceholderText="Add a task" AutomationProperties.Name="Add a task" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <!-- The picked label (its colour dot) and tags as pills with ×, above the text while the box is in use (owner,
+                         AB-Improvements #36); Backspace at the start of the box takes the last one off too. -->
+                    <ItemsControl ItemsSource="{Binding Chips}" Margin="0,6,0,0">
+                        <ItemsControl.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="HasChips" />
+                                <Binding Path="IsExpanded" />
+                            </MultiBinding>
+                        </ItemsControl.IsVisible>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="6" LineSpacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AddBoxChipViewModel">
+                                <Border CornerRadius="999" Padding="8,1,3,1" Background="{DynamicResource Ab.Surface}">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                        <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
+                                        <Button Classes="chipRemove" Command="{Binding RemoveCommand}" AutomationProperties.Name="{Binding RemoveName}">
+                                            <mi:MaterialIcon Kind="Close" Width="11" Height="11" />
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBox x:Name="Box" Classes="addEntry" Classes.leftover="{Binding IsLeftover}" Text="{Binding Text}"
+                             PlaceholderText="Add a task" AutomationProperties.Name="Add a task" />
+                </StackPanel>
                 <Border Grid.Column="2" IsVisible="{Binding IsExpanded}" Height="32" CornerRadius="999" Background="{DynamicResource Ab.Surface}"
                         ClipToBounds="True" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
@@ -217,27 +247,6 @@
                     </Button>
                     <Button Classes="hintChip apply" Content="Apply" Command="{Binding ApplyMarkerCommand}" />
                 </StackPanel>
-
-                <ItemsControl ItemsSource="{Binding Chips}" IsVisible="{Binding ShowsChipLine}" VerticalAlignment="Center">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="6" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:AddBoxChipViewModel">
-                            <Border CornerRadius="999" Padding="8,1,3,1" Background="{DynamicResource Ab.Surface}">
-                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                                    <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
-                                    <Button Classes="chipRemove" Command="{Binding RemoveCommand}" AutomationProperties.Name="{Binding RemoveName}">
-                                        <mi:MaterialIcon Kind="Close" Width="11" Height="11" />
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
 
                 <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsOffer}">
                     <TextBlock Classes="muted" Text="{Binding OfferText}" FontSize="12" VerticalAlignment="Center" />

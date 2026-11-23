@@ -24,10 +24,17 @@ public partial class MinutesSplitButton : UserControl
 
     private void OnChoiceExited(object? sender, PointerEventArgs e) => ViewModel?.Hover(null);
 
-    /// <summary>A menu entry was picked: close the menu (the command already ran).</summary>
+    /// <summary>A menu entry was picked (Tag = minutes): choose it, then close the menu.</summary>
     private void OnChoicePicked(object? sender, RoutedEventArgs e)
     {
-        ViewModel?.Hover(null);
+        MinutesChoiceViewModel? viewModel = ViewModel;
+        if (viewModel is not null && sender is Control { Tag: int minutes })
+        {
+            viewModel.Hover(null);
+            viewModel.ChooseCommand.Execute(minutes);
+        }
+
+        e.Handled = true;
         SplitMenu.Flyout?.Hide();
     }
 

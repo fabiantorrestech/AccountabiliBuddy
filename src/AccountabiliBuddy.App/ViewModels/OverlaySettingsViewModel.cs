@@ -251,6 +251,10 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool HideShortcutOn { get; set; }
 
+    /// <summary>While hidden (Ctrl+Alt+H or the panel's Disable), AB keeps its other shortcuts (<see cref="OverlaySettings.KeepShortcutsWhileHidden"/>).</summary>
+    [ObservableProperty]
+    public partial bool KeepShortcutsWhileHidden { get; set; }
+
     /// <summary>A focus session the user started is running: the overlay can't be turned off now (turning it on always works), like the panel's Disable.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanChangeOverlayOn), nameof(ShowsOverlayLockedText))]
@@ -279,6 +283,7 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
         _loading = true;
         OverlayOn = settings.OverlayOn;
         HideShortcutOn = settings.HideShortcutOn;
+        KeepShortcutsWhileHidden = settings.KeepShortcutsWhileHidden;
         PlacementIndex = Array.IndexOf(PlacementChoices, settings.EffectivePlacement);
         AutoHideIndex = (int)settings.AutoHide;
         LeftAlignedIndex = (int)settings.LeftAligned;
@@ -411,6 +416,11 @@ public sealed partial class OverlaySettingsViewModel : ObservableObject
     {
         // Switching it off while hidden shows the overlay again: with the shortcut gone there would be no way to bring it back.
         Save(s => s with { HideShortcutOn = value, HiddenByShortcut = value && s.HiddenByShortcut });
+    }
+
+    partial void OnKeepShortcutsWhileHiddenChanged(bool value)
+    {
+        Save(s => s with { KeepShortcutsWhileHidden = value });
     }
 
     partial void OnPlacementIndexChanged(int value)

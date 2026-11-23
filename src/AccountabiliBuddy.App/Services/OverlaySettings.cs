@@ -57,12 +57,13 @@ namespace AccountabiliBuddy.App.Services;
 /// <param name="SolidClockDate">The same for the tile's date.</param>
 /// <param name="SideTileY">Where the vertical tile was dragged to along the screen edge (physical pixels from the top); null = the middle.</param>
 /// <param name="HideShortcutOn">Ctrl+Alt+H is registered system-wide and toggles <paramref name="HiddenByShortcut"/>. On by default and for saved settings without the field.</param>
-/// <param name="HiddenByShortcut">The overlay is hidden until Ctrl+Alt+H is pressed again; a held Ctrl+Alt still peeks. Kept across sessions and restarts, this PC only.</param>
+/// <param name="HiddenByShortcut">The overlay is hidden until Ctrl+Alt+H is pressed again; a held Ctrl+Alt peeks only with <paramref name="KeepShortcutsWhileHidden"/> on. Kept across sessions and restarts, this PC only.</param>
 /// <param name="HideShortcutSeen">Ctrl+Alt+H was used at least once (the migration assistant's "set up?" check).</param>
 /// <param name="OverlayOn">The master switch: false = no tile, no timeline, no corner clock, no peek, and neither Ctrl+Alt+H nor Ctrl+Alt+Space is registered. On by default and for saved settings without the field.</param>
 /// <param name="SolidClockCard">While the time or date is kept solid, a black card sits behind the clock (white text on it) so it reads over any background. On by default and for saved settings without the field.</param>
 /// <param name="SolidClockOutline">While the time or date is kept solid, a black outline goes around each letter of the time and date. Off by default.</param>
 /// <param name="ClickThrough">The tile lets clicks through to whatever is under it (its buttons and the click that opens the Ctrl+Alt panel don't work; hold Ctrl+Alt for the panel). On by default and for saved settings without the field.</param>
+/// <param name="KeepShortcutsWhileHidden">While Ctrl+Alt+H hides the overlay, AB keeps its other system-wide keys (the Ctrl+Alt peek, Ctrl+Alt+Space, Ctrl+Alt+N). Off by default and for saved settings without the field: hidden, only Ctrl+Alt+H stays, so other apps get those keys (owner, AB-Bugs #30, #31). After the panel's Disable the overlay holds no keys either way; this then only decides Ctrl+Alt+N.</param>
 /// <param name="OffFromPanel">The overlay was turned off with the Ctrl+Alt panel's Disable button (only meaningful while <paramref name="OverlayOn"/> is false); Today then shows a "Turn on" card. Turned off in Settings, it does not.</param>
 public sealed record OverlaySettings(
     OverlayStyle Style,
@@ -119,7 +120,8 @@ public sealed record OverlaySettings(
     bool SolidClockDate = true,
     bool ClickThrough = true,
     bool SolidClockCard = true,
-    bool SolidClockOutline = false)
+    bool SolidClockOutline = false,
+    bool KeepShortcutsWhileHidden = false)
 {
     /// <summary>Default vertical distance for maximized apps from a top corner (clears tabs, toolbars, window buttons).</summary>
     public const int TopCornerDrop = 110;

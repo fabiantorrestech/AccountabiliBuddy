@@ -652,11 +652,21 @@ public partial class MainWindow : Window
             .Where(entry => entry.Target is { Tab: SearchTabs.Settings, SettingsGroup: not null } && TextMatcher.Find(entry.Text, query).Count > 0)
             .Select(entry => entry.Target.SettingsGroup!.Value)
             .ToHashSet();
+        // Highlights show only while the search is open (owner, AB-Improvements #25): closing it by clicking away keeps the typed
+        // words for next time, but the page shows no highlights until it opens again.
+        void ShowHighlights() => Highlights.Query = viewModel.IsSearchOpen ? search.Query : null;
         search.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SearchViewModel.Query))
             {
-                Highlights.Query = search.Query;
+                ShowHighlights();
+            }
+        };
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainWindowViewModel.IsSearchOpen))
+            {
+                ShowHighlights();
             }
         };
         Highlights.PropertyChanged += (_, e) =>

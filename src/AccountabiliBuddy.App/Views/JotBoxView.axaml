@@ -86,9 +86,30 @@
         </Panel>
 
         <!-- Open: the box. -->
-        <Border IsVisible="{Binding IsOpen}" BorderBrush="{DynamicResource Ab.Accent}" BorderThickness="1"
+        <Border x:Name="Card" IsVisible="{Binding IsOpen}" BorderBrush="{DynamicResource Ab.Accent}" BorderThickness="1"
                 CornerRadius="{DynamicResource Ab.PanelRadius}" Padding="14,8,12,8">
             <StackPanel Spacing="6">
+                <!-- The label (its colour dot) and tags as pills with ×, above the text (owner, AB-Improvements #36). -->
+                <ItemsControl ItemsSource="{Binding Chips}" IsVisible="{Binding HasChips}" Margin="27,0,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel ItemSpacing="6" LineSpacing="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AddBoxChipViewModel">
+                            <Border CornerRadius="999" Padding="8,1,3,1" Background="{DynamicResource Ab.Surface2}">
+                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                    <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
+                                    <Button Classes="chipRemove" Command="{Binding RemoveCommand}" AutomationProperties.Name="{Binding RemoveName}">
+                                        <mi:MaterialIcon Kind="Close" Width="11" Height="11" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                     <mi:MaterialIcon Kind="PencilOutline" Width="17" Height="17" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                     <TextBox x:Name="Box" Grid.Column="1" Classes="jotEntry" Text="{Binding Text}" PlaceholderText="Jot it down · #tag, @label"
@@ -96,35 +117,15 @@
                     <TextBlock Grid.Column="2" Classes="faint" Text="Enter · Esc" FontSize="11" FontFamily="{DynamicResource Ab.NumeralFont}"
                                VerticalAlignment="Center" />
                 </Grid>
-                <Grid Height="20" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="6" Margin="27,0,0,0">
-                    <ItemsControl ItemsSource="{Binding Chips}" VerticalAlignment="Center">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="6" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:AddBoxChipViewModel">
-                                <Border CornerRadius="999" Padding="8,1,3,1" Background="{DynamicResource Ab.Surface2}">
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                                        <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
-                                        <Button Classes="chipRemove" Command="{Binding RemoveCommand}" AutomationProperties.Name="{Binding RemoveName}">
-                                            <mi:MaterialIcon Kind="Close" Width="11" Height="11" />
-                                        </Button>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Grid.Column="1" Classes="muted" Text="→ Shelf · To sort" FontSize="12" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="3" Classes="muted" Text="{Binding JotCountText}" FontSize="12" VerticalAlignment="Center" />
+                <Grid Height="20" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6" Margin="27,0,0,0">
+                    <TextBlock Classes="muted" Text="→ Shelf · To sort" FontSize="12" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2" Classes="muted" Text="{Binding JotCountText}" FontSize="12" VerticalAlignment="Center" />
                 </Grid>
             </StackPanel>
         </Border>
 
-        <!-- The "@" / "#" list, above the box. -->
-        <Popup PlacementTarget="{Binding #Box}" Placement="TopEdgeAlignedLeft" VerticalOffset="-6" IsLightDismissEnabled="False"
+        <!-- The "@" / "#" list, above the box (above its chips too). -->
+        <Popup PlacementTarget="{Binding #Card}" Placement="TopEdgeAlignedLeft" VerticalOffset="-6" IsLightDismissEnabled="False"
                IsOpen="{Binding HasSuggestions, Mode=OneWay}">
             <views:AddBoxSuggestionsView />
         </Popup>

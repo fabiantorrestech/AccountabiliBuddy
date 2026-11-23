@@ -179,6 +179,9 @@ SetWindowsHookEx
 UnhookWindowsHookEx
 CallNextHookEx
 KBDLLHOOKSTRUCT
+// The overlay's kept-solid clock dims under the pointer: a low-level mouse hook, only while it is watched
+MSLLHOOKSTRUCT
+WM_MOUSEMOVE
 WINDOWS_HOOK_ID
 WM_KEYDOWN
 WM_KEYUP

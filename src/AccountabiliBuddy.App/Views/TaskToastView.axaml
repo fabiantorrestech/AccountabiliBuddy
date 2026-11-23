@@ -48,7 +48,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Border x:Name="Card" IsVisible="{Binding IsVisible}" HorizontalAlignment="Left" VerticalAlignment="Bottom" MinWidth="260" MaxWidth="520"
+    <Border x:Name="Card" IsVisible="{Binding IsVisible}" HorizontalAlignment="Left" VerticalAlignment="Bottom" MinWidth="260" MaxWidth="420"
             Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
             CornerRadius="{DynamicResource Ab.PopoverRadius}" BoxShadow="{DynamicResource Ab.PopoverShadow}" ClipToBounds="True">
         <Panel>

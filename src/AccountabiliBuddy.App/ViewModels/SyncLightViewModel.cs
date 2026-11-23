@@ -7,7 +7,7 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The title bar's sync light (design 20a): a dot and one glyph per device, read from what the Devices page already knows
+/// The title bar's sync light (design 20a): a dot and this PC's glyph (each device's glyph in the popover), read from what the Devices page already knows
 /// (<see cref="DevicesViewModel.Rows"/> and <see cref="DevicesViewModel.SyncProblem"/>). Display only; it changes nothing.
 /// Green = all in step. One definition of "behind" serves the glyphs, the dot and the popover: a device is behind when its
 /// newest data is more than 5 minutes older than its own sync interval (<see cref="DeviceSyncState.Behind"/>: a day for a
@@ -38,6 +38,16 @@ public sealed partial class SyncLightViewModel : ObservableObject
 
     /// <summary>Every device, this PC first, in the order of the glyphs and of the popover's lines.</summary>
     public ObservableCollection<SyncLightDeviceViewModel> Devices { get; } = new();
+
+    /// <summary>
+    /// This PC's glyph: the only one in the title bar, next to the dot that sums up all devices (owner, AB-Improvements #26: the bar
+    /// no longer grows with each device; hover or click opens the popover with every device).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasThisDevice))]
+    public partial SyncLightDeviceViewModel? ThisDevice { get; set; }
+
+    public bool HasThisDevice => ThisDevice is not null;
 
     /// <summary>False with no other device linked: only the sync button shows then.</summary>
     [ObservableProperty]
@@ -78,6 +88,7 @@ public sealed partial class SyncLightViewModel : ObservableObject
         bool hasOthers = rows.Count > 1;
 
         Devices.Clear();
+        SyncLightDeviceViewModel? thisDevice = null;
         foreach (DeviceRowViewModel row in rows.OrderBy(KindOrder).ThenBy(row => row.Name, StringComparer.CurrentCultureIgnoreCase))
         {
             bool isThisPc = row.Kind == "This PC";
@@ -85,11 +96,18 @@ public sealed partial class SyncLightViewModel : ObservableObject
             string ago = isThisPc ? "this PC" : row.Age is TimeSpan age ? DevicesViewModel.Ago(age) : "not yet";
             bool synced = isThisPc ? problem is null : row.State == DeviceSyncState.UpToDate;
             bool failing = isThisPc ? problem is not null : IsBehind(row);
-            Devices.Add(new SyncLightDeviceViewModel(row.Name, IconFor(row.Kind), ago, dim, synced, failing)
+            var device = new SyncLightDeviceViewModel(row.Name, IconFor(row.Kind), ago, dim, synced, failing)
             {
                 FailingIcon = isThisPc ? MaterialIconKind.CloudAlertOutline : MaterialIconKind.CloudOffOutline,
-            });
+            };
+            Devices.Add(device);
+            if (isThisPc)
+            {
+                thisDevice = device;
+            }
         }
+
+        ThisDevice = thisDevice;
 
         IsOffline = problem is not null;
         bool somethingWrong = problem is not null || rows.Skip(1).Any(IsBehind);

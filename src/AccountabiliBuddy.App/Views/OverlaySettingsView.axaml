@@ -305,10 +305,21 @@
                 <StackPanel>
                     <TextBlock Text="Ctrl+Alt+H hides the overlay" />
                     <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
-                               Text="Press it to hide the overlay until you press it again, in any app, also between sessions and after a restart. While it is hidden, holding Ctrl+Alt still shows it, and Today says it is hidden." />
+                               Text="Press it to hide the overlay until you press it again, in any app, also between sessions and after a restart. Today says it is hidden." />
                     <TextBlock Classes="muted" FontSize="12" Foreground="{DynamicResource Ab.Drift}" TextWrapping="Wrap" Text="{Binding HideHotkeyError}" IsVisible="{Binding HasHideHotkeyError}" />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding HideShortcutOn}" OnContent="" OffContent="" AutomationProperties.Name="Ctrl+Alt+H hides the overlay" />
+            </Grid>
+        </Border>
+        <!-- Owner (AB-Bugs #30, #31): hidden, AB lets go of its other shortcuts unless this is on. -->
+        <Border Classes="row">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                    <TextBlock Text="Keep shortcuts while the overlay is hidden" />
+                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                               Text="Off: while Ctrl+Alt+H hides it, only Ctrl+Alt+H stays, so other apps get Ctrl+Alt+N, Ctrl+Alt+Space and Ctrl+Alt with letters. On: they keep working, and holding Ctrl+Alt still shows the overlay. After Disable in the panel the overlay has no shortcuts at all; this only decides Ctrl+Alt+N then." />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding KeepShortcutsWhileHidden}" OnContent="" OffContent="" AutomationProperties.Name="Keep shortcuts while the overlay is hidden" />
             </Grid>
         </Border>
         <Border Classes="row">

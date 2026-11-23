@@ -2,12 +2,16 @@ package com.accountabilibuddy.companion.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-/** The six palettes (three themes, light and dark), copied from the PC's theme dictionaries (ADR 49). */
+/**
+ * The palettes, light and dark: the PC's three themes, copied from its theme dictionaries (ADR 49), and the phone's own E-Ink
+ * (AB-Improvements #29).
+ */
 object AbPalettes {
     fun of(theme: ThemeName, dark: Boolean): AbColors = when (theme) {
         ThemeName.Instrument -> if (dark) InstrumentDark else InstrumentLight
         ThemeName.NightDesk -> if (dark) NightDeskDark else NightDeskLight
         ThemeName.Paper -> if (dark) PaperDark else PaperLight
+        ThemeName.EInk -> if (dark) EInkDark else EInkLight
     }
 
     private fun c(hex: Long) = Color(0xFF000000 or hex)
@@ -65,6 +69,34 @@ object AbPalettes {
         sleep = c(0x6E6A9E), waiting = c(0xA8741D), met = c(0x3F7A5A), drift = c(0xB5523F),
         plan = c(0xCFC8B9), upcoming = c(0xBDB6A6),
         amberInk = c(0x7F4F00), amberFill = c(0xF8EBCB), amberLine = c(0xE0C27A),
+    )
+
+    /**
+     * E-Ink, light: black on white. Text greys stay at 7:1 or more against white (muted #333333 is 12.6:1, faint #555555 is 7.5:1);
+     * fills are white or one light grey, so a grayscale screen draws them without dithering; every line is black. Status colours
+     * are ink, since an e-ink screen shows them as near-identical greys: state reads from words, borders and weight.
+     */
+    val EInkLight = AbColors(
+        isDark = false,
+        bg = c(0xFFFFFF), surface = c(0xFFFFFF), surface2 = c(0xE6E6E6), line = c(0x000000),
+        ink = c(0x000000), muted = c(0x333333), faint = c(0x555555),
+        accent = c(0x000000), onAccent = c(0xFFFFFF), accentSoft = c(0xE6E6E6),
+        infoBg = c(0xFFFFFF), infoInk = c(0x000000),
+        sleep = c(0x000000), waiting = c(0x000000), met = c(0x000000), drift = c(0x000000),
+        plan = c(0xBDBDBD), upcoming = c(0x7A7A7A),
+        amberInk = c(0x000000), amberFill = c(0xFFFFFF), amberLine = c(0x000000),
+    )
+
+    /** E-Ink, dark: the same rules inverted, white on black (muted #DDDDDD, faint #BBBBBB stay above 10:1). */
+    val EInkDark = AbColors(
+        isDark = true,
+        bg = c(0x000000), surface = c(0x000000), surface2 = c(0x333333), line = c(0xFFFFFF),
+        ink = c(0xFFFFFF), muted = c(0xDDDDDD), faint = c(0xBBBBBB),
+        accent = c(0xFFFFFF), onAccent = c(0x000000), accentSoft = c(0x333333),
+        infoBg = c(0x000000), infoInk = c(0xFFFFFF),
+        sleep = c(0xFFFFFF), waiting = c(0xFFFFFF), met = c(0xFFFFFF), drift = c(0xFFFFFF),
+        plan = c(0x555555), upcoming = c(0x999999),
+        amberInk = c(0xFFFFFF), amberFill = c(0x000000), amberLine = c(0xFFFFFF),
     )
 
     val PaperDark = AbColors(

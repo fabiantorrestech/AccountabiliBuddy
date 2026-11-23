@@ -337,18 +337,10 @@
                                              Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
                                     <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
                                 </Panel>
-                                <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="5" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
-                                            <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="13" Height="13" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                                <!-- Only this PC's glyph (owner, AB-Improvements #26): the dot sums up every device; hover opens them all. -->
+                                <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding SyncLight.ThisDevice.IsDim, FallbackValue=False}"
+                                                 Kind="{Binding SyncLight.ThisDevice.Icon, FallbackValue=Laptop}" Width="13" Height="13"
+                                                 IsVisible="{Binding SyncLight.HasThisDevice, FallbackValue=False}" />
                             </StackPanel>
                         </Button>
                         <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R); part of the synced-devices group. -->

@@ -54,4 +54,7 @@ public interface IAddBoxHost
 
     /// <summary>Today's date on the trusted clock, in the PC's time zone (the jot's "N today").</summary>
     DateOnly Today { get; }
+
+    /// <summary>A session is planning or running: the page's add box sends to This session by default (owner, AB-Improvements #23).</summary>
+    bool IsSessionOn => false;
 }

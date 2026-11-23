@@ -121,16 +121,30 @@ fun AppearanceScreen(onBack: () -> Unit, anchor: String? = null) {
 
         AbCard(Modifier.bringIntoViewRequester(cards.getValue(SettingsAnchors.THEME))) {
             AbSectionLabel("Theme")
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ThemeName.entries.forEach { theme ->
-                    SwatchPreview(theme, selected = theme == themeName, onClick = { UiPrefs.setThemeName(context, theme) }, modifier = Modifier.weight(1f))
+            // Two to a row (four themes since E-Ink, AB-Improvements #29), so each swatch and name keeps the width it had.
+            ThemeName.entries.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { theme ->
+                        SwatchPreview(theme, selected = theme == themeName, onClick = { UiPrefs.setThemeName(context, theme) }, modifier = Modifier.weight(1f))
+                    }
+                }
+                // The names are their own row, aligned on their text baselines, since each theme's font has its own metrics.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { theme ->
+                        SwatchName(theme, selected = theme == themeName, onClick = { UiPrefs.setThemeName(context, theme) }, modifier = Modifier.weight(1f))
+                    }
                 }
             }
-            // The names are their own row, aligned on their text baselines, since each theme's font has its own metrics.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ThemeName.entries.forEach { theme ->
-                    SwatchName(theme, selected = theme == themeName, onClick = { UiPrefs.setThemeName(context, theme) }, modifier = Modifier.weight(1f))
-                }
+            // E-Ink picked: the two settings that make an e-ink screen calm, offered in one tap until both are on.
+            if (themeName == ThemeName.EInk && (motion != MotionSpeed.Off || !stepScroll)) {
+                Text(
+                    "For an e-ink screen, also turn Animations Off and Step scrolling on (under Animations below): the screen then redraws once per change instead of on every frame.",
+                    style = Ab.type.small, color = Ab.colors.muted,
+                )
+                AbTonalButton("Use e-ink settings", onClick = {
+                    UiPrefs.setMotion(context, MotionSpeed.Off)
+                    UiPrefs.setStepScroll(context, true)
+                })
             }
         }
 

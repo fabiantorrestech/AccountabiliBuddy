@@ -18,6 +18,7 @@ public sealed class CaptureService : IDisposable
     private readonly IGlobalHotkey _hotkey;
     private readonly IMonitorLocator _monitors;
     private CapturePopup? _popup;
+    private bool _registered;
 
     public CaptureService(ComebackStore comebacks, IGlobalHotkey hotkey, IMonitorLocator monitors)
     {
@@ -25,14 +26,38 @@ public sealed class CaptureService : IDisposable
         _hotkey = hotkey;
         _monitors = monitors;
         _hotkey.Pressed += (_, _) => Dispatcher.UIThread.Post(Show);
-        HotkeyError = _hotkey.TryRegister(Shortcut, out string? error) ? null : error;
+        SetHotkeyOn(true);
     }
 
     /// <summary>True after the shutdown routine was finished (until the next work part): the popup says a thought waits for tomorrow. Set by the app.</summary>
     public Func<bool>? IsWorkOver { get; set; }
 
     /// <summary>Why the shortcut isn't active (another app has it), or null.</summary>
-    public string? HotkeyError { get; }
+    public string? HotkeyError { get; private set; }
+
+    /// <summary>
+    /// Holds or lets go of Ctrl+Alt+N system-wide: the app lets go of it while the overlay is hidden and keeps no shortcuts then, so other
+    /// apps get it (owner, AB-Bugs #31; <see cref="SessionOverlayService.ReleasesShortcuts"/>).
+    /// </summary>
+    public void SetHotkeyOn(bool on)
+    {
+        if (on == _registered)
+        {
+            return;
+        }
+
+        if (on)
+        {
+            _registered = _hotkey.TryRegister(Shortcut, out string? error);
+            HotkeyError = _registered ? null : error;
+        }
+        else
+        {
+            _hotkey.Unregister();
+            _registered = false;
+            HotkeyError = null;
+        }
+    }
 
     /// <summary>Opens the popup (or brings it back to the front).</summary>
     public void Show()
