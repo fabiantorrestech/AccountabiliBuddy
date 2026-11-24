@@ -254,26 +254,74 @@
             <Setter Property="CornerRadius" Value="10" />
         </Style>
 
-        <!-- The add row's search pill and label chips (moved here from the Shelf column). -->
-        <Style Selector="Button.labelChip">
-            <Setter Property="Padding" Value="12,5" />
-            <Setter Property="FontSize" Value="13" />
+        <!-- The label row (Tasks redesign 4b.01-4b.19, boards 01-03): chips 30 high, radius 999, 13 px. The button is only a frame (no
+             fill of its own, the app's focus ring); its Border.chipFace draws the chip. At rest a label's text is Muted and its dot at 50%;
+             the row lights as one (hover, keyboard focus, the +N menu open, Fade off: class "lit"); a picked label stays lit in its own
+             colour at 17% with a full-colour border. Colours and fills fade over 0.28 s (opacity: the idleFade classes, Themes/AbStyles). -->
+        <Style Selector=":is(Button).rowChip">
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
-        <Style Selector="Button.labelChip /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector=":is(Button).rowChip /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="999" />
         </Style>
-        <Style Selector="Button.labelChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        <Style Selector="Border.chipFace">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.28" Easing="SineEaseInOut" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.28" Easing="SineEaseInOut" />
+                </Transitions>
+            </Setter>
         </Style>
-        <Style Selector="Button.labelChip.selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Style Selector="Button.allChip.picked Border.chipFace">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.moreChip Border.chipFace">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="ToggleButton.labelChip:checked Border.chipFace" x:DataType="vm:LabelFilterChipViewModel">
+            <Setter Property="Background" Value="{Binding Tint}" />
+            <Setter Property="BorderBrush" Value="{Binding Dot}" />
+        </Style>
+        <Style Selector="TextBlock.chipText">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Foreground" Duration="0:0:0.28" Easing="SineEaseInOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Ellipse.chipDot">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Opacity" Value="0.5" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.28" Easing="SineEaseInOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Grid.labelRow:pointerover TextBlock.chipText, Grid.labelRow:focus-within TextBlock.chipText, Grid.labelRow.lit TextBlock.chipText, ToggleButton.labelChip:checked TextBlock.chipText">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Grid.labelRow:pointerover Ellipse.chipDot, Grid.labelRow:focus-within Ellipse.chipDot, Grid.labelRow.lit Ellipse.chipDot, ToggleButton.labelChip:checked Ellipse.chipDot">
+            <Setter Property="Opacity" Value="1" />
         </Style>
         <Style Selector="TextBox.searchEntry">
             <Setter Property="FontSize" Value="13.5" />
@@ -708,12 +756,6 @@
                         </ContentControl>
                     </Border>
 
-                    <!-- The labels editor (the label row's "+", only without the Labels screen). -->
-                    <Border Margin="0,12,0,0" Padding="16,12" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
-                            IsVisible="{Binding Shelf.IsManagingLabels}">
-                        <views:CategoryEditorView DataContext="{Binding CategoryEditor}" />
-                    </Border>
-
                     <!-- Weekly tidy-up: on its day, never in a session; × = not this week. -->
                     <Border Margin="0,12,0,0" Padding="16,8,8,8" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
                             IsVisible="{Binding Shelf.HasTidyCard}">
@@ -731,32 +773,57 @@
                     </Border>
                 </StackPanel>
 
-                <!-- The label row (rebuilt in item 4b): + = the labels editor, All, each label, No label; dimmed with the Shelf during a session. -->
-                <Grid DockPanel.Dock="Top" Margin="22,12,22,0" ColumnDefinitions="Auto,*" ColumnSpacing="6" IsVisible="{Binding Shelf.HasViews}">
+                <!-- The label row (Tasks redesign 4b; SPEC "Page layout" row 3; boards 01-03, 23): "All" · the labels in category order (the
+                     +N menu's order) · +N. Only the whole chips that fit show (LabelChipRowPanel measures them); +N counts the rest plus No
+                     label and opens the +N menu (LabelsMenuView, in the window's overlay layer). Several labels can be picked (the view's
+                     working copy); "All" clears them. Idle, the row rests at 30% and lights as one; dimmed with the Shelf during a session. -->
+                <Grid x:Name="LabelRow" DockPanel.Dock="Top" Margin="22,12,22,0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6"
+                      Classes="labelRow idleFadeHost" Classes.lit="{Binding Shelf.IsLabelRowLit}" IsVisible="{Binding Shelf.HasViews}">
                     <Grid.Opacity>
                         <Binding Path="IsShelfShown" Converter="{x:Static views:TasksView.ShownOpacity}" />
                     </Grid.Opacity>
-                    <Button Classes="labelChip" Padding="7,5" VerticalAlignment="Top" Command="{Binding Shelf.ToggleManageLabelsCommand}" ToolTip.Tip="Labels: add, rename, recolour or delete"
-                            AutomationProperties.Name="Labels" IsHitTestVisible="{Binding IsShelfShown}">
-                        <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
+                    <Button Classes="rowChip allChip idleFade fadeChip" Classes.picked="{Binding Shelf.IsAllPicked}" Command="{Binding Shelf.PickAllLabelsCommand}"
+                            IsHitTestVisible="{Binding IsShelfShown}" ToolTip.Tip="Every label" AutomationProperties.Name="All labels">
+                        <Border Classes="chipFace" Padding="14,0">
+                            <TextBlock Text="All" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                        </Border>
                     </Button>
-                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Shelf.LabelChips}" IsHitTestVisible="{Binding IsShelfShown}">
+                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Shelf.RowChips}" IsHitTestVisible="{Binding IsShelfShown}" AutomationProperties.Name="Labels">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                <controls:LabelChipRowPanel Spacing="6" FitCount="{Binding Shelf.ChipsInRow, Mode=OneWayToSource}" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:TaskChipViewModel">
-                                <Button Classes="labelChip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Text}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                                        <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
+                            <DataTemplate x:DataType="vm:LabelFilterChipViewModel">
+                                <ToggleButton Classes="rowChip labelChip idleFade fadeLabel" IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding PickCommand}"
+                                              KeyboardNavigation.IsTabStop="{Binding InRow}" AutomationProperties.Name="{Binding Name}">
+                                    <Border Classes="chipFace" Padding="12,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Ellipse Classes="chipDot" Fill="{Binding Dot}" />
+                                            <TextBlock Classes="chipText" Text="{Binding Name}" />
+                                        </StackPanel>
+                                    </Border>
+                                </ToggleButton>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <Button x:Name="MoreLabelsButton" Grid.Column="2" Classes="rowChip moreChip idleFade fadeChip" Classes.on="{Binding Shelf.HasPickBehindMore}"
+                            Click="OnMoreLabelsClick" IsHitTestVisible="{Binding IsShelfShown}" ToolTip.Tip="Every label: pick, reorder, add"
+                            AutomationProperties.Name="More labels and reorder">
+                        <Border Classes="chipFace" Padding="12,0">
+                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                <TextBlock Text="{Binding Shelf.MoreText}" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                                <mi:MaterialIcon Kind="ChevronDown" Width="13" Height="13" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Button>
+                    <!-- The +N menu: 8 under the row, right-aligned with it; no page dim; a click outside or Esc closes it. -->
+                    <Popup x:Name="LabelsMenuPopup" Grid.Column="2" PlacementTarget="{Binding #LabelRow}" Placement="BottomEdgeAlignedRight" VerticalOffset="8"
+                           ShouldUseOverlayLayer="True" IsLightDismissEnabled="True" IsOpen="{Binding Shelf.IsLabelsMenuOpen, Mode=TwoWay}"
+                           Opened="OnLabelsMenuOpened" Closed="OnLabelsMenuClosed">
+                        <views:LabelsMenuView x:Name="LabelsMenu" DataContext="{Binding Shelf}" />
+                    </Popup>
                 </Grid>
 
                 <!-- The Archive: one row at the bottom that opens the Notebook (come-backs, session notes, unfinished and done tasks) in

@@ -113,7 +113,12 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     public bool ShowsEmpty => IsOpen && IsEmpty;
 
-    public string EmptyText => "Nothing to see here.";
+    /// <summary>What an empty open section says.</summary>
+    public const string DefaultEmptyText = "Nothing to see here.";
+
+    /// <summary>"Nothing to see here.", or "Nothing with these labels here." in a Shelf column while the label row filters (Tasks redesign 4b.15).</summary>
+    [ObservableProperty]
+    public partial string EmptyText { get; set; } = DefaultEmptyText;
 
     /// <summary>The bin its tasks are in (This session, Queued, Finished today, a Shelf bin); null for a label or tag group and Reminders due today.</summary>
     public AccountabiliBuddy.Core.Domain.TaskBin? Bin { get; set; }

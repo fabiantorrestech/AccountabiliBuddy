@@ -1,0 +1,159 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.LabelsMenuView"
+             x:DataType="vm:ShelfViewModel"
+             Width="290">
+    <!-- The Tasks page's +N menu (Tasks redesign 4b.20-4b.38, board 02): "Labels" and its hint, every label grouped by category (icon
+         and name, labels indented on a guide line, short names), then "Other labels" (no category), No label, and the footer: New label,
+         "Rename, recolour, delete". A click picks a label (as its chip does); a label drags within its category, a category by its heading
+         (the row follows). Keys: ↑/↓ move, Enter/Space pick, Alt+↑/↓ move the label or category, Esc closes. Header and footer stay; the
+         list scrolls when the window is short. Colours: Ab.* and the derived brushes, and the labels' own colours. -->
+    <UserControl.Styles>
+        <Style Selector=":is(Button).lmRow">
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector=":is(Button).lmRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.lmFace">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.28" Easing="SineEaseInOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector=":is(Button).lmRow:pointerover Border.lmFace">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="ToggleButton.lmLabel:checked Border.lmFace" x:DataType="vm:LabelFilterChipViewModel">
+            <Setter Property="Background" Value="{Binding Tint}" />
+        </Style>
+        <Style Selector="ToggleButton.lmNone:checked Border.lmFace">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <!-- A heading is not a pick: no hover fill. -->
+        <Style Selector="Button.lmHead:pointerover Border.lmFace">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.lmHead.fixed">
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
+        <Style Selector="Button.lmFoot">
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.lmFoot /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lmFoot:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lmFoot.quietFoot /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.lmFoot.quietFoot:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="Card" Padding="8,12,8,8" Background="{DynamicResource Ab.Dialog}" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="1"
+            CornerRadius="14" BoxShadow="{DynamicResource Ab.DialogShadow}">
+        <DockPanel>
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="8,0,8,8">
+                <TextBlock Text="Labels" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Top" />
+                <TextBlock Grid.Column="1" Text="Drag to reorder · the row follows this order" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                           TextWrapping="Wrap" Margin="0,2,0,0" VerticalAlignment="Top" />
+            </Grid>
+
+            <Border DockPanel.Dock="Bottom" Margin="0,6,0,0" Padding="4,8,4,0" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,1,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Classes="lmFoot" Content="New label" Command="{Binding NewLabelCommand}" ToolTip.Tip="Name a new label (no category)"
+                            AutomationProperties.Name="New label" />
+                    <Button Classes="lmFoot quietFoot" Content="Rename, recolour, delete" Command="{Binding ManageLabelsCommand}"
+                            ToolTip.Tip="Settings › Tasks › Labels" AutomationProperties.Name="Rename, recolour, delete labels" />
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer x:Name="ListScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <ItemsControl x:Name="GroupList" ItemsSource="{Binding MenuGroups}" AutomationProperties.Name="Labels by category">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LabelFilterGroupViewModel">
+                                <StackPanel>
+                                    <Button Classes="lmRow lmHead" Classes.fixed="{Binding !CanMove}" Focusable="{Binding CanMove}"
+                                            AutomationProperties.Name="{Binding Name, StringFormat='{}{0} category (Alt+Up or Alt+Down moves it)'}">
+                                        <Border Classes="lmFace" Height="30" Padding="2,0,8,0">
+                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                                                <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center"
+                                                                 Opacity="{Binding CanMove, Converter={x:Static views:TasksView.ShownOpacity}}" />
+                                                <mi:MaterialIcon Grid.Column="1" Kind="{Binding Icon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Name}" FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink2}"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Text="{Binding CountText}" FontSize="11.5" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Border>
+                                    </Button>
+                                    <Border Margin="17,0,0,6" Padding="6,0,0,0" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="1,0,0,0">
+                                        <ItemsControl ItemsSource="{Binding Items}" AutomationProperties.Name="{Binding Name}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:LabelFilterChipViewModel">
+                                                    <ToggleButton Classes="lmRow lmLabel" IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding PickCommand}"
+                                                                  AutomationProperties.Name="{Binding Name}">
+                                                        <Border Classes="lmFace" Height="30" Padding="2,0,8,0">
+                                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
+                                                                <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center" />
+                                                                <Ellipse Grid.Column="1" Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" />
+                                                                <TextBlock Grid.Column="2" Text="{Binding ShortName}" FontSize="13" Foreground="{DynamicResource Ab.Ink}"
+                                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Name}" />
+                                                                <TextBlock Grid.Column="3" Text="not in row" FontSize="11" Foreground="{DynamicResource Ab.Faint}"
+                                                                           VerticalAlignment="Center" IsVisible="{Binding IsNotInRow}" />
+                                                                <TextBlock Grid.Column="4" Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </ToggleButton>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ToggleButton Classes="lmRow lmNone" IsChecked="{Binding IsNoLabelPicked, Mode=OneWay}" Command="{Binding ToggleNoLabelCommand}"
+                                  AutomationProperties.Name="No label">
+                        <Border Classes="lmFace" Height="32" Padding="26,0,8,0">
+                            <TextBlock Text="No label" FontSize="13" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                        </Border>
+                    </ToggleButton>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</UserControl>

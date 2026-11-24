@@ -777,7 +777,8 @@
     <Style Selector=":is(Control).idleFade:pointerover, :is(Control).idleFade:pressed, :is(Control).idleFade:focus-within, :is(Control).idleFade.on, :is(Control).idleFade:flyout-open, :is(Control).idleFade:checked, :is(Control).idleFade:selected">
         <Setter Property="Opacity" Value="1" />
     </Style>
-    <Style Selector=":is(Control).idleFadeHost:pointerover :is(Control).idleFade, :is(Control).idleFadeHost:focus-within :is(Control).idleFade">
+    <!-- A host with class "lit" (the label row while its +N menu is open) keeps all its chips lit. -->
+    <Style Selector=":is(Control).idleFadeHost:pointerover :is(Control).idleFade, :is(Control).idleFadeHost:focus-within :is(Control).idleFade, :is(Control).idleFadeHost.lit :is(Control).idleFade">
         <Setter Property="Opacity" Value="1" />
     </Style>
 </Styles>

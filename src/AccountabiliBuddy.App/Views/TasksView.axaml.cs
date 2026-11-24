@@ -33,6 +33,7 @@ public partial class TasksView : UserControl
         ResetButton.AddHandler(PointerCaptureLostEvent, OnResetCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
         ResetButton.AddHandler(KeyDownEvent, OnResetKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         ResetButton.AddHandler(KeyUpEvent, OnResetKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
+        LabelsMenu.Dismissed += (_, _) => MoreLabelsButton.Focus(NavigationMethod.Directional);
     }
 
     // The page stays alive while another tab shows: leaving it clears the selection, so it is not found half-done on return.
@@ -276,6 +277,44 @@ public partial class TasksView : UserControl
                 box.SelectAll();
             }
         }, DispatcherPriority.Background);
+    }
+
+    // ---- The label row's +N menu (Tasks redesign 4b) ----
+
+    // When the menu last closed: a click on +N that closed it by light dismiss must not open it again at once.
+    private long _labelsMenuClosedAt;
+
+    // +N was pressed from the keyboard (Enter or Space): the menu's first row shows its focus ring.
+    private bool _labelsMenuFromKeyboard;
+
+    private void OnMoreLabelsClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not TasksViewModel page || Environment.TickCount64 - _labelsMenuClosedAt < 250)
+        {
+            return;
+        }
+
+        _labelsMenuFromKeyboard = !MoreLabelsButton.IsPointerOver;
+        page.Shelf.IsLabelsMenuOpen = !page.Shelf.IsLabelsMenuOpen;
+        e.Handled = true;
+    }
+
+    // Opened: at most as tall as the room under the row (8 clear of the window's bottom; its list scrolls), and the keyboard goes in.
+    private void OnLabelsMenuOpened(object? sender, EventArgs e)
+    {
+        if (TopLevel.GetTopLevel(LabelRow) is { } top && LabelRow.TranslatePoint(new Point(0, LabelRow.Bounds.Height), top) is Point bottom)
+        {
+            LabelsMenu.MaxHeight = Math.Max(160, top.ClientSize.Height - bottom.Y - 8 - 8);
+        }
+
+        bool fromKeyboard = _labelsMenuFromKeyboard;
+        _labelsMenuFromKeyboard = false;
+        Dispatcher.UIThread.Post(() => LabelsMenu.FocusFirst(fromKeyboard), DispatcherPriority.Input);
+    }
+
+    private void OnLabelsMenuClosed(object? sender, EventArgs e)
+    {
+        _labelsMenuClosedAt = Environment.TickCount64;
     }
 
     // ---- The open task's chips and footer ----

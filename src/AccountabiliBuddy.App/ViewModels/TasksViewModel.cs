@@ -78,6 +78,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Shelf.Panel.TodayStrip = TodayStrip;
         Shelf.Panel.MoveColumn = MoveColumnAsync;
         Shelf.Panel.MoveColumnOnto = MoveColumnOntoAsync;
+        Shelf.FollowFade(layout);
+        // The +N menu's "New label": the naming row in the notice slot; Enter makes the label (nothing else to apply it to).
+        Shelf.NewLabelRequested = () => AskNewCategory(_ => Task.CompletedTask);
         _columnOrder = layout.Current.ColumnOrder;
         _finishes.Changed += OnFinishChanged;
         _finishes.Started += OnFinishStarted;
@@ -1419,6 +1422,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             section.Bin = bin;
             section.Hint = CountText(groupRows.Count);
             section.StarCount = groupRows.Count(row => row.IsHighlighted);
+            section.EmptyText = !Shelf.FiltersByLabel ? TaskSectionViewModel.DefaultEmptyText : "Nothing with these labels here.";
             section.CanMoveColumn = canMoveColumns;
             TaskLabel? label = LabelOf(labelId);
             section.Dot = label is null ? null : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color));

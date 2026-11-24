@@ -172,6 +172,48 @@ public static class TaskLabelEdits
         };
     }
 
+    /// <summary>
+    /// The live labels named in <paramref name="order"/> (ids of live labels; others are ignored) in that order, among themselves: they take
+    /// the places they already hold (their positions, lowest first), so labels not named (another category's, or ones this device doesn't
+    /// show) keep theirs. A position edit of the whole label (<see cref="TaskLabel.EditedAt"/>, as <see cref="TaskCategoryEdits"/> moves
+    /// one); only a label whose position changes is stamped. Used by the Tasks page's label menu to reorder a category's labels.
+    /// </summary>
+    public static TaskLists Reorder(TaskLists lists, IReadOnlyList<Guid> order, DateTimeOffset now)
+    {
+        List<TaskLabel> labels = lists.Labels.Select(item => item.Label).ToList();
+        List<int> named = order.Distinct()
+            .Select(id => labels.FindIndex(label => label.Id == id && label.IsLive))
+            .Where(index => index >= 0)
+            .ToList();
+        if (named.Count < 2)
+        {
+            return lists;
+        }
+
+        // The places they hold, lowest first; a tie is opened up just enough that the new order reads the same on every device.
+        List<double> places = named.Select(index => labels[index].Position).OrderBy(position => position).ToList();
+        for (int place = 1; place < places.Count; place++)
+        {
+            if (places[place] <= places[place - 1])
+            {
+                places[place] = places[place - 1] + 1e-6;
+            }
+        }
+
+        bool changed = false;
+        for (int place = 0; place < named.Count; place++)
+        {
+            int index = named[place];
+            if (labels[index].Position != places[place])
+            {
+                labels[index] = labels[index] with { Position = places[place], EditedAt = After(now, labels[index].EditedAt) };
+                changed = true;
+            }
+        }
+
+        return changed ? With(lists, labels) : lists;
+    }
+
     /// <summary>A device list with <paramref name="self"/> added (a list of just <paramref name="self"/> for a shared label).</summary>
     public static IReadOnlyList<Guid> Joined(IReadOnlyList<Guid>? onlyOn, Guid self)
     {

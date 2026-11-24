@@ -10,7 +10,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
 /// The Shelf of the Tasks page (spec 03 §B, shared behaviour §1; round 2 R3: the page itself, its bins as columns): the search pill,
-/// the label chips (+, All, each label, No label), the weekly tidy-up card, the saved views and the View menu (from the page header's
+/// the label row and its +N menu (ShelfViewModel.LabelRow.cs), the weekly tidy-up card, the saved views and the View menu (from the page header's
 /// Views and Options), then its sections (<see cref="Panel"/>: To sort, Next, Later, or label / tag groups, each drawn as a column).
 /// What it shows comes from the active view (<see cref="TaskViewService"/>); its rows are built by <see cref="TasksViewModel"/>, which
 /// owns the lists. Before the task list exists (the old lists still the source) only the search narrows it and grouping stays by bins.
@@ -52,9 +52,6 @@ public sealed partial class ShelfViewModel : ObservableObject
 
     public bool IsSearching => Search.Length > 0;
 
-    [ObservableProperty]
-    public partial IReadOnlyList<TaskChipViewModel> LabelChips { get; set; } = [];
-
     /// <summary>"Bins", "Label" or "None": the View menu's Group by value (a view stored as "tag" reads as Bins on the PC).</summary>
     [ObservableProperty]
     public partial string GroupText { get; set; }
@@ -64,14 +61,10 @@ public sealed partial class ShelfViewModel : ObservableObject
     public partial string CountText { get; set; }
 
     /// <summary>
-    /// Opens the Labels screen (Settings › Tasks › Labels): the chip row's "+" and the View menu's "Manage labels…". Set by the app while
-    /// the task list is the source; without it the "+" opens the older editor under the chips.
+    /// Opens the Labels screen (Settings › Tasks › Labels): the +N menu's "Rename, recolour, delete" and the View menu's "Manage labels…".
+    /// Set by the app while the task list is the source.
     /// </summary>
     public Action? OpenLabels { get; set; }
-
-    /// <summary>The labels editor (the chip row's "+") is open under the chips (only without the Labels screen).</summary>
-    [ObservableProperty]
-    public partial bool IsManagingLabels { get; set; }
 
     [ObservableProperty]
     public partial bool HasTidyCard { get; set; }
@@ -221,18 +214,6 @@ public sealed partial class ShelfViewModel : ObservableObject
     public IReadOnlyList<TaskMenuEntry> SortEntries() => SortMenu(_views?.Working.Sort ?? TaskViewConfig.SortDefault);
 
     [RelayCommand]
-    private void ToggleManageLabels()
-    {
-        if (OpenLabels is not null)
-        {
-            OpenLabels();
-            return;
-        }
-
-        IsManagingLabels = !IsManagingLabels;
-    }
-
-    [RelayCommand]
     private void ClearSearch() => SearchText = string.Empty;
 
     /// <summary>The tidy-up card's ×: not this week.</summary>
@@ -289,40 +270,11 @@ public sealed partial class ShelfViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGroupedByBins));
         OnPropertyChanged(nameof(IsGroupedByLabels));
         OnPropertyChanged(nameof(IsGroupedByNone));
-        LabelChips = BuildChips();
+        SyncLabelRow();
         TidyUpCard? card = _tidyUp?.Card();
         HasTidyCard = card is not null;
         TidyTitle = card?.Title ?? string.Empty;
         TidySub = card?.Sub ?? string.Empty;
-    }
-
-    // "All", each live label (its dot), "No label"; one picked at a time (the View menu, 3.5, does several).
-    private List<TaskChipViewModel> BuildChips()
-    {
-        if (_views is null || _store is null)
-        {
-            return [];
-        }
-
-        TaskViewConfig working = _views.Working;
-        bool noRestriction = ShownLabelIds(working.Labels).Count == 0 && !working.NoLabel;
-        var chips = new List<TaskChipViewModel> { new("All", noRestriction, () => PickLabel(null, false)) };
-        foreach (TaskLabel label in LiveLabels())
-        {
-            Guid id = label.Id;
-            bool only = ShownLabelIds(working.Labels) is [Guid single] && single == id && !working.NoLabel;
-            chips.Add(new TaskChipViewModel(label.Name, only, () => PickLabel(id, false), TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color))));
-        }
-
-        bool onlyNone = working.NoLabel && ShownLabelIds(working.Labels).Count == 0;
-        chips.Add(new TaskChipViewModel("No label", onlyNone, () => PickLabel(null, true)));
-        return chips;
-    }
-
-    private Task PickLabel(Guid? id, bool noLabel)
-    {
-        _views?.Modify(config => config with { Labels = WithHiddenLabelIds(config.Labels, id is Guid one ? [one] : []), NoLabel = noLabel });
-        return Task.CompletedTask;
     }
 
     /// <summary>History (the View menu's "History…"): a fresh list of the last 30 days; null before the task list exists.</summary>
