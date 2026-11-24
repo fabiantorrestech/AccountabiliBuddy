@@ -11,7 +11,7 @@ using Avalonia.VisualTree;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// The Tasks page. Code-behind: a click on the Today strip opens Today (round 2 R3), Esc in the search pill clears it, keeping a title
+/// The Tasks page. Code-behind: a click on the Today pill opens Today (round 2 R3), Esc in the header's search clears it, keeping a title
 /// or note typed in the detail card when the box loses the keyboard, the ⋯ menus of the detail card's steps, putting the keyboard in
 /// the detail card's title or step box when a menu asks for it, and the dialogs the rows and menus ask for (Rename one by one, Delete
 /// N, Changed on both devices).
@@ -231,9 +231,9 @@ public partial class TasksView : UserControl
         }
     }
 
-    // ---- The Today strip and the search pill (round 2 R3) ----
+    // ---- The Today pill and the header's search (Tasks redesign 4a) ----
 
-    // A click on the strip (not on its Open Today button, which says so itself) opens Today too (change note §2: selecting it jumps there).
+    // A click on the Today pill (not on its Open Today button, which says so itself) opens Today too (change note §2: selecting it jumps there).
     private void OnTodayStripReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.InitialPressMouseButton == MouseButton.Left && DataContext is TasksViewModel page)
@@ -243,7 +243,7 @@ public partial class TasksView : UserControl
         }
     }
 
-    // Esc in the search pill clears it.
+    // Esc in the header's search clears it.
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape && DataContext is TasksViewModel { Shelf.IsSearching: true } page)
@@ -563,7 +563,8 @@ public partial class TasksView : UserControl
         }
     }
 
-    // Options (tune): under the button, aligned to its right edge; its View menu's "History…" opens History there too.
+    // Options (tune; board 09): the panel menu under the button, aligned to its right edge, floating over the page (nothing moves); its
+    // History row and the View menu's "History…" open History there too.
     private void OnTasksOptionsRequested(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not TasksViewModel tasks)
@@ -579,7 +580,7 @@ public partial class TasksView : UserControl
             {
                 TaskHistoryPopover.ShowAt(anchor, history, PlacementMode.BottomEdgeAlignedRight);
             }
-        }, () => TasksHeader.SetOptionsOpen(false));
+        }, () => TasksHeader.SetOptionsOpen(false), panelLook: true);
         e.Handled = true;
     }
 }

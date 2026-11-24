@@ -171,7 +171,7 @@ public sealed partial class GoalsViewModel : ObservableObject
     {
         _dirty = false;
         DateOnly today = _data.Today;
-        DateText = GoalTexts.Date(today, today);
+        DateText = PageDateText.Of(today);
         GoalStore store = _goals.Store;
         IsReady = store.IsReady;
         if (!store.IsReady)

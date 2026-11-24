@@ -6,12 +6,14 @@
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.TasksView"
              x:DataType="vm:TasksViewModel">
-    <!-- The Tasks page (spec 03 §B; round 2 R3, change note §2, board Tasks-PC: planning only). One card: the page header ("Tasks · Thu
-         11/12", Views, Expand / collapse all, History, Options), the Today strip (counts, a drop target into Today › Queued, Open Today),
-         the add box with the search pill and the label chips, the weekly tidy-up card, then the Shelf's columns (ShelfView: bins, labels or
-         tags side by side, each scrolling on its own; the page never scrolls), and the Archive row at the bottom. During a session (Hide
-         the Shelf on) the columns hide behind "Show the Shelf" (Ctrl+\) with a quiet count; adding, searching and the strip still work.
-         Right of the card: the detail card of the task the user opened. Cards take the theme's Tasks radius. -->
+    <!-- The Tasks page (spec 03 §B; round 2 R3; Tasks redesign item 4a, boards 01 / 09 / 23). One card: the page header in one line
+         ("Tasks · Tuesday · Nov 24", the search with its filter button, Group by Bins | Labels | None, Views, Expand / collapse all,
+         History until item 6, Options), the add row (the add box and the Today drop pill: a drop target into Today › Queued, Open
+         Today), the one notice slot (Hold to reset, the session ended strip, the naming row, notices, the view fallback note, the weekly
+         tidy-up…), the label row, then the Shelf's columns (ShelfView: each scrolling on its own; the page never scrolls), and the
+         Archive row at the bottom. During a session (Hide the Shelf on) the columns hide behind "Show the Shelf" (Ctrl+\) with a quiet
+         count; adding, searching and the pill still work. Menus and pop-ups float over the page: nothing above the bottom row moves when
+         they open. Right of the card: the detail card of the task the user opened. Cards take the theme's Tasks radius. -->
     <UserControl.Resources>
         <!-- Check boxes, expanders and switches read in ink, not accent. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -101,21 +103,40 @@
             </Style>
         </ContainerQuery>
 
-        <!-- The Today strip (round 2 R3): a quiet band with a dashed line; lit (accent) while a row is dragged, stronger over it. -->
+        <!-- The Today drop pill (4a.40-4a.44; was the round 2 Today strip): 44 high, a 1 px dashed Line3 outline, no fill; lit (accent)
+             while a row is dragged, stronger over it. 320 wide right of the add box; under it, full width, when the row is narrower than
+             750 (the card narrower than 794). Set by style, not in place, so the container query can move it. -->
         <Style Selector="Border.todayStrip">
-            <Setter Property="Background" Value="{DynamicResource Ab.SectionBlock}" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Height" Value="44" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
+        <Style Selector="Border.todayPill">
+            <Setter Property="Grid.Column" Value="1" />
+            <Setter Property="Grid.Row" Value="0" />
+            <Setter Property="Width" Value="320" />
+            <Setter Property="Margin" Value="10,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+        </Style>
+        <ContainerQuery Name="TasksPage" Query="max-width:793">
+            <Style Selector="Border.todayPill">
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Width" Value="NaN" />
+                <Setter Property="Margin" Value="0,10,0,0" />
+            </Style>
+        </ContainerQuery>
         <Style Selector="Border.todayStrip.lit">
             <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
         </Style>
         <Style Selector="Rectangle.stripLine">
-            <Setter Property="Stroke" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Stroke" Value="{DynamicResource Ab.Line3}" />
             <Setter Property="StrokeThickness" Value="1" />
             <Setter Property="StrokeDashArray" Value="4,3" />
-            <Setter Property="RadiusX" Value="10" />
-            <Setter Property="RadiusY" Value="10" />
+            <Setter Property="RadiusX" Value="22" />
+            <Setter Property="RadiusY" Value="22" />
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
         <Style Selector="Rectangle.stripLine.lit">
@@ -127,9 +148,11 @@
             <Setter Property="StrokeDashArray" Value="" />
         </Style>
         <Style Selector="Button.stripOpen">
-            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="8,0" />
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.stripOpen /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
@@ -140,6 +163,95 @@
         <Style Selector="Button.stripOpen:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+
+        <!-- The header (4a.08-4a.19). Search filters: 28 round, Tune 15, faded until used. -->
+        <Style Selector="Button.searchFilters">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.searchFilters /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.searchFilters:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <!-- Group by: a 32 high pill track with a 1 px Line border, padding 2; each choice 26 high, icon 14 + 12.5 px text; the one in
+             force on a Line fill in Ink, semibold; the others Muted; fill and colour change over 0.2 s. -->
+        <Style Selector="Border.groupToggle">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="2" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="RadioButton.groupChoice">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="11,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2" />
+                    <BrushTransition Property="Foreground" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="RadioButton.groupChoice:pointerover">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="RadioButton.groupChoice:checked">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <!-- Views, Expand / collapse all, History: 36 square, radius 10, no border, an 18 px icon in Muted; Options: the same size, its
+             1 px Line border and Ink icon from Button.abOptions. -->
+        <Style Selector="Button.abHeaderIcon.tasksIcon">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Button.abHeaderIcon.tasksIcon /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.abHeaderIcon.tasksIcon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.abHeaderIcon.tasksIcon.viewOn">
+            <Setter Property="Width" Value="NaN" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.abHeaderIcon.tasksIcon.viewOn /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="controls|PageHeader#TasksHeader Button.abOptions">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="CornerRadius" Value="10" />
         </Style>
 
         <!-- The add row's search pill and label chips (moved here from the Shelf column). -->
@@ -364,19 +476,122 @@
     <Grid x:Name="Page" ColumnDefinitions="*,Auto">
         <Border x:Name="TasksCard" Grid.Column="0" Classes="card tasksCard" Padding="0" ClipToBounds="True"
                 Container.Name="TasksPage" Container.Sizing="Width">
+            <!-- Tasks redesign (4a.01): the card's rows 22 px in from its sides, 18 px from its top, 12 px apart: the header, the add row,
+                 the notice slot (no height while empty), the label row, the Shelf; the Archive row at the bottom. -->
             <DockPanel>
-                <!-- The page header (round 2, brief §3.3 / §4.6): "Tasks · Wed 11/11", Hold to reset (labelled, while the session view
-                     changed), then icon-only Views (bookmark), Expand / collapse all and History, then the bordered Options (tune), last.
-                     Normal / Compact are in Options › Rows. -->
-                <controls:PageHeader x:Name="TasksHeader" DockPanel.Dock="Top" Margin="26,20,16,0" Title="Tasks" Date="{Binding TodayDateText}"
-                                     OptionsRequested="OnTasksOptionsRequested">
+                <!-- The page header in one line at every width (4a.02-4a.21): "Tasks" · "Tuesday · Nov 24" · the search with its filter
+                     button · Group by Bins | Labels | None · Views · Expand / collapse all · History (until item 6) · Options. The date
+                     shortens first, then the search narrows (Controls/PageHeaderRow). Its icon buttons rest faint (idleFade). -->
+                <controls:PageHeader x:Name="TasksHeader" DockPanel.Dock="Top" Margin="22,18,22,0" Title="Tasks" Date="{Binding TodayDateText}"
+                                     FadesOptions="True" OptionsRequested="OnTasksOptionsRequested">
+                    <controls:PageHeader.Search>
+                        <!-- Search (titles, steps, notes, tags, or a number like 142b; Esc clears) and, at its right edge, Search filters. -->
+                        <Border Classes="searchPill" Height="36" Padding="12,0,3,0">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                <mi:MaterialIcon Kind="Magnify" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                <TextBox Grid.Column="1" Classes="searchEntry" Text="{Binding Shelf.SearchText}" PlaceholderText="Search · @label #tag" KeyDown="OnSearchKeyDown"
+                                         AutomationProperties.Name="Search tasks">
+                                    <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
+                                </TextBox>
+                                <!-- Opens the Search filters panel (item 7); until then it does nothing. -->
+                                <Button x:Name="SearchFiltersButton" Grid.Column="2" Classes="searchFilters idleFade" ToolTip.Tip="Search filters"
+                                        AutomationProperties.Name="Search filters">
+                                    <mi:MaterialIcon Kind="Tune" Width="15" Height="15" />
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </controls:PageHeader.Search>
                     <controls:PageHeader.Actions>
-                    <StackPanel Orientation="Horizontal" Spacing="2">
-                    <!-- Hold to reset (1.5 s): the session view back the way it started. It keeps its slot (faded out, no clicks) while
-                         nothing changed, so nothing jumps; a click that isn't a hold shows the hint. -->
-                    <Button x:Name="ResetButton" Margin="0,0,6,0" Classes="quiet resetHold" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                            Opacity="{Binding IsSessionViewChanged, Converter={x:Static views:TasksView.ShownOpacity}}" IsHitTestVisible="{Binding IsSessionViewChanged}"
-                            Focusable="{Binding IsSessionViewChanged}" ToolTip.Tip="{x:Static vm:TasksViewModel.ResetHint}"
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                    <!-- Group by (4a.11-4a.16): the open view's working copy; a view stored as "tag" shows Bins and keeps its value. -->
+                    <Border Classes="groupToggle" IsVisible="{Binding Shelf.HasViews}" ToolTip.Tip="Group by" AutomationProperties.Name="Group by">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="GroupBinsChoice" Classes="groupChoice" GroupName="TasksGroupBy" IsChecked="{Binding Shelf.IsGroupedByBins, Mode=OneWay}"
+                                         Command="{Binding Shelf.PickGroupCommand}" CommandParameter="bins" AutomationProperties.Name="Bins">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <mi:MaterialIcon Kind="ViewColumnOutline" Width="14" Height="14" />
+                                    <TextBlock Text="Bins" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Classes="groupChoice" GroupName="TasksGroupBy" IsChecked="{Binding Shelf.IsGroupedByLabels, Mode=OneWay}"
+                                         Command="{Binding Shelf.PickGroupCommand}" CommandParameter="label" AutomationProperties.Name="Labels">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <mi:MaterialIcon Kind="CircleSlice8" Width="14" Height="14" />
+                                    <TextBlock Text="Labels" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton Classes="groupChoice" GroupName="TasksGroupBy" IsChecked="{Binding Shelf.IsGroupedByNone, Mode=OneWay}"
+                                         Command="{Binding Shelf.PickGroupCommand}" CommandParameter="none" AutomationProperties.Name="None">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <mi:MaterialIcon Kind="FormatListBulleted" Width="14" Height="14" />
+                                    <TextBlock Text="None" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                    <!-- A view other than the default in use: the button widens into a tinted pill with the view's name (lit, not faded);
+                         back on the default, the plain bookmark. -->
+                    <Button x:Name="ViewsButton" Classes="abHeaderIcon tasksIcon idleFade" Classes.viewOn="{Binding Shelf.HasCustomView}"
+                            Classes.on="{Binding Shelf.HasCustomView}" Click="OnViewsClick"
+                            IsVisible="{Binding Shelf.HasViews}" ToolTip.Tip="{Binding Shelf.ViewsButtonText}" AutomationProperties.Name="{Binding Shelf.ViewsButtonText}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <mi:MaterialIcon Kind="BookmarkOutline" Width="18" Height="18" IsVisible="{Binding !Shelf.HasCustomView}" />
+                            <mi:MaterialIcon Kind="Bookmark" Width="16" Height="16" IsVisible="{Binding Shelf.HasCustomView}" />
+                            <TextBlock Text="{Binding Shelf.CustomViewName}" IsVisible="{Binding Shelf.HasCustomView}" MaxWidth="140"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="13" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="abHeaderIcon tasksIcon idleFade" Command="{Binding Shelf.Panel.ToggleExpandCommand}" ToolTip.Tip="{Binding Shelf.Panel.ExpandTip}"
+                            AutomationProperties.Name="{Binding Shelf.Panel.ExpandTip}">
+                        <mi:MaterialIcon Kind="{Binding Shelf.Panel.ExpandIcon}" Width="18" Height="18" />
+                    </Button>
+                    <!-- History leaves with item 6 (the Archive sheet); until then it stays, faded like the others. -->
+                    <Button x:Name="HistoryButton" Classes="abHeaderIcon tasksIcon idleFade" Click="OnHistoryClick" IsVisible="{Binding Shelf.HasHistory}"
+                            ToolTip.Tip="History: finished and deleted tasks, 30 days" AutomationProperties.Name="History">
+                        <mi:MaterialIcon Kind="History" Width="18" Height="18" />
+                    </Button>
+                    </StackPanel>
+                    </StackPanel>
+                    </controls:PageHeader.Actions>
+                </controls:PageHeader>
+
+                <!-- The add row (4a.35-4a.44): the add box fills the row; the Today drop pill sits to its right (320) and wraps under the box
+                     when the row is narrower than 750 (the TasksPage container query). The add box's hint line and "@" / "#" list float
+                     over what is below (ZIndex). -->
+                <Grid x:Name="AddRow" DockPanel.Dock="Top" Margin="22,12,22,0" ZIndex="2" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <views:AddBoxView DataContext="{Binding AddBox}" VerticalAlignment="Top" />
+                    <!-- The Today pill: what Today holds ("Nothing queued · drop a task here"), a drop target into Today › Queued (Undo in
+                         the toast; never This session), Open Today. A click anywhere on it opens Today as well. -->
+                    <Border x:Name="TodayStripBar" Classes="todayStrip todayPill" Classes.lit="{Binding TodayStrip.IsLit}"
+                            PointerReleased="OnTodayStripReleased" ToolTip.Tip="{Binding TodayStrip.HintText}"
+                            AutomationProperties.Name="Today: drop a task here to queue it for today, or open Today">
+                        <Panel>
+                            <Rectangle Classes="stripLine" Classes.lit="{Binding TodayStrip.IsLit}" Classes.hot="{Binding TodayStrip.IsHot}" />
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10" Margin="14,0,6,0">
+                                <mi:MaterialIcon Kind="CalendarToday" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="Today" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding TodayStrip.StatusText}" FontSize="13" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" FontFeatures="+tnum" />
+                                <Button Grid.Column="3" Classes="stripOpen" Command="{Binding TodayStrip.OpenTodayCommand}" ToolTip.Tip="Show the Today tab"
+                                        AutomationProperties.Name="Open Today">
+                                    <StackPanel Orientation="Horizontal" Spacing="3">
+                                        <TextBlock Text="Open Today" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <mi:MaterialIcon Kind="ChevronRight" Width="14" Height="14" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Panel>
+                    </Border>
+                </Grid>
+
+                <!-- The notice slot (4a.45-4a.52): every notice of the page, between the add row and the label row, in today's order; none
+                     shows anywhere else. Empty, it takes no height; two at once stack (each 12 px below the one above). -->
+                <StackPanel x:Name="NoticeSlot" DockPanel.Dock="Top" Margin="22,0,22,0">
+                    <!-- Hold to reset (1.5 s): the session view back the way it started; shown while it changed. A click that isn't a hold
+                         shows the hint; a narrow page keeps the icon only. -->
+                    <Button x:Name="ResetButton" Margin="0,12,0,0" HorizontalAlignment="Left" Classes="quiet resetHold" Padding="0" MinHeight="0" MinWidth="0"
+                            IsVisible="{Binding IsSessionViewChanged}" ToolTip.Tip="{x:Static vm:TasksViewModel.ResetHint}"
                             ToolTip.IsOpen="{Binding ShowsResetHint}" AutomationProperties.Name="Hold to reset the session view">
                         <Panel>
                             <Border x:Name="ResetFill" HorizontalAlignment="Left" Width="0" CornerRadius="999" Background="{DynamicResource Ab.Accent}"
@@ -389,228 +604,164 @@
                             </Border>
                         </Panel>
                     </Button>
-                    <!-- A view other than the default in use: the button widens into a tinted pill with the view's name; back on the default, the plain icon. -->
-                    <Button x:Name="ViewsButton" Classes="abHeaderIcon" Classes.viewOn="{Binding Shelf.HasCustomView}" Click="OnViewsClick"
-                            IsVisible="{Binding Shelf.HasViews}" ToolTip.Tip="{Binding Shelf.ViewsButtonText}" AutomationProperties.Name="{Binding Shelf.ViewsButtonText}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <mi:MaterialIcon Kind="BookmarkOutline" Width="18" Height="18" IsVisible="{Binding !Shelf.HasCustomView}" />
-                            <mi:MaterialIcon Kind="Bookmark" Width="16" Height="16" IsVisible="{Binding Shelf.HasCustomView}" />
-                            <TextBlock Text="{Binding Shelf.CustomViewName}" IsVisible="{Binding Shelf.HasCustomView}" MaxWidth="140"
-                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontSize="13" />
-                        </StackPanel>
-                    </Button>
-                    <Button Classes="abHeaderIcon" Command="{Binding Shelf.Panel.ToggleExpandCommand}" ToolTip.Tip="{Binding Shelf.Panel.ExpandTip}"
-                            AutomationProperties.Name="{Binding Shelf.Panel.ExpandTip}">
-                        <mi:MaterialIcon Kind="{Binding Shelf.Panel.ExpandIcon}" Width="18" Height="18" />
-                    </Button>
-                    <Button x:Name="HistoryButton" Classes="abHeaderIcon" Click="OnHistoryClick" IsVisible="{Binding Shelf.HasHistory}"
-                            ToolTip.Tip="History: finished and deleted tasks, 30 days" AutomationProperties.Name="History">
-                        <mi:MaterialIcon Kind="History" Width="18" Height="18" />
-                    </Button>
-                    </StackPanel>
-                    </controls:PageHeader.Actions>
-                </controls:PageHeader>
 
-                <!-- MIG1: after the task migration, the open tasks of the earlier version wait in To sort; never shown during a session. -->
-                <Border DockPanel.Dock="Top" Margin="26,14,16,0" Padding="14,8,8,8" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Ab.Line}"
-                        DataContext="{Binding EarlierTasks}" x:DataType="vm:EarlierTasksCardViewModel" IsVisible="{Binding IsVisible, FallbackValue=False}">
-                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="Sort them now" Command="{Binding SortThemNowCommand}" />
-                        <Button Grid.Column="2" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" Command="{Binding DismissCommand}"
-                                AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss for good">
-                            <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
-                        </Button>
-                    </Grid>
-                </Border>
-
-                <!-- "Session ended at 12:52 AM" (P4): Tasks switches to planning the next time it opens, or now; × closes it (a 15-second ring). -->
-                <Border DockPanel.Dock="Top" Classes="endedStrip" Margin="26,14,16,0" Padding="14,10,8,10" IsVisible="{Binding ShowsEndedNotice}">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-                        <mi:MaterialIcon Classes="endedTarget" Kind="Target" Width="19" Height="19" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
-                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding EndedTitle}" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap" />
-                            <TextBlock Classes="muted" Text="Tasks switches to planning the next time you open it." FontSize="12" TextWrapping="Wrap" />
-                            <Button Classes="link endedSave" Padding="0" MinHeight="0" HorizontalAlignment="Left" Command="{Binding SaveSessionViewCommand}"
-                                    ToolTip.Tip="Create a view from what the Shelf shows now" AutomationProperties.Name="Save it as a view">
-                                <TextBlock Classes="faint" FontSize="12" FontStyle="Italic" TextWrapping="Wrap"
-                                           Text="Want to keep this setup? Save it as a view now, before it resets." />
+                    <!-- MIG1: after the task migration, the open tasks of the earlier version wait in To sort; never shown during a session. -->
+                    <Border Margin="0,12,0,0" Padding="14,8,8,8" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Ab.Line}"
+                            DataContext="{Binding EarlierTasks}" x:DataType="vm:EarlierTasksCardViewModel" IsVisible="{Binding IsVisible, FallbackValue=False}">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="Sort them now" Command="{Binding SortThemNowCommand}" />
+                            <Button Grid.Column="2" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" Command="{Binding DismissCommand}"
+                                    AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss for good">
+                                <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
                             </Button>
-                        </StackPanel>
-                        <Button Grid.Column="2" Classes="endedSwitch" Content="Switch now" Command="{Binding SwitchNowCommand}" VerticalAlignment="Center" />
-                        <Button Grid.Column="3" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                                Command="{Binding DismissEndedCommand}" AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss (it closes by itself)">
-                            <Panel>
-                                <controls:ProgressRing Width="26" Height="26" Value="{Binding EndedCountdown}" Thickness="2" TrackBrush="Transparent"
-                                                       ArcBrush="{DynamicResource Ab.Faint}" IsHitTestVisible="False" />
-                                <mi:MaterialIcon Kind="Close" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Panel>
-                        </Button>
-                    </Grid>
-                </Border>
+                        </Grid>
+                    </Border>
 
-                <!-- The Today strip (round 2 R3): Today's counts (no timer), a drop target into Today › Queued (Undo in the toast; never
-                     This session), Open Today. A click anywhere on it opens Today as well. -->
-                <Border x:Name="TodayStripBar" DockPanel.Dock="Top" Margin="26,9,16,0" Classes="todayStrip" Classes.lit="{Binding TodayStrip.IsLit}"
-                        PointerReleased="OnTodayStripReleased"
-                        AutomationProperties.Name="Today: drop a task here to queue it for today, or open Today">
-                    <Panel>
-                        <Rectangle Classes="stripLine" Classes.lit="{Binding TodayStrip.IsLit}" Classes.hot="{Binding TodayStrip.IsHot}" />
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10" Margin="16,10,8,10">
-                            <mi:MaterialIcon Kind="CalendarToday" Width="17" Height="17" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1" Text="Today" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="2" Classes="muted" Text="{Binding TodayStrip.CountsText}" FontSize="13" VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis" FontFeatures="+tnum" />
-                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                <TextBlock Classes="faint" Text="{Binding TodayStrip.HintText}" FontSize="12.5" VerticalAlignment="Center" />
-                                <mi:MaterialIcon Kind="ArrowLeft" Width="13" Height="13" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center" />
+                    <!-- "Session ended at 12:52 AM" (P4): Tasks switches to planning the next time it opens, or now; × closes it (a 15-second ring). -->
+                    <Border Classes="endedStrip" Margin="0,12,0,0" Padding="14,10,8,10" IsVisible="{Binding ShowsEndedNotice}">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                            <mi:MaterialIcon Classes="endedTarget" Kind="Target" Width="19" Height="19" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding EndedTitle}" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Classes="muted" Text="Tasks switches to planning the next time you open it." FontSize="12" TextWrapping="Wrap" />
+                                <Button Classes="link endedSave" Padding="0" MinHeight="0" HorizontalAlignment="Left" Command="{Binding SaveSessionViewCommand}"
+                                        ToolTip.Tip="Create a view from what the Shelf shows now" AutomationProperties.Name="Save it as a view">
+                                    <TextBlock Classes="faint" FontSize="12" FontStyle="Italic" TextWrapping="Wrap"
+                                               Text="Want to keep this setup? Save it as a view now, before it resets." />
+                                </Button>
                             </StackPanel>
-                            <Button Grid.Column="4" Classes="stripOpen" Command="{Binding TodayStrip.OpenTodayCommand}" ToolTip.Tip="Show the Today tab"
-                                    AutomationProperties.Name="Open Today">
-                                <StackPanel Orientation="Horizontal" Spacing="3">
-                                    <TextBlock Text="Open Today" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    <mi:MaterialIcon Kind="ChevronRight" Width="15" Height="15" VerticalAlignment="Center" />
-                                </StackPanel>
+                            <Button Grid.Column="2" Classes="endedSwitch" Content="Switch now" Command="{Binding SwitchNowCommand}" VerticalAlignment="Center" />
+                            <Button Grid.Column="3" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                    Command="{Binding DismissEndedCommand}" AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss (it closes by itself)">
+                                <Panel>
+                                    <controls:ProgressRing Width="26" Height="26" Value="{Binding EndedCountdown}" Thickness="2" TrackBrush="Transparent"
+                                                           ArcBrush="{DynamicResource Ab.Faint}" IsHitTestVisible="False" />
+                                    <mi:MaterialIcon Kind="Close" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Panel>
                             </Button>
                         </Grid>
-                    </Panel>
-                </Border>
+                    </Border>
 
-                <!-- The add row: "+ Add a task" (in use it widens over the search and chips; nothing pushes), the search pill (titles,
-                     steps, notes, tags, or a number like 142b) and the label chips (+ = the labels editor, All, each label, No label;
-                     hidden with the Shelf during a session). The add box's hint line floats over what is below. -->
-                <Panel DockPanel.Dock="Top" Margin="26,12,16,0" ZIndex="2">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="170,0,0,0" VerticalAlignment="Top" MinHeight="44">
-                        <Border Classes="searchPill" Padding="12,0" Height="38" Width="200" VerticalAlignment="Center">
-                            <Grid ColumnDefinitions="Auto,*">
-                                <mi:MaterialIcon Kind="Magnify" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                <TextBox Grid.Column="1" Classes="searchEntry" Text="{Binding Shelf.SearchText}" PlaceholderText="Search · @label #tag" KeyDown="OnSearchKeyDown"
-                                         AutomationProperties.Name="Search the Shelf">
-                                    <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
-                                </TextBox>
-                            </Grid>
-                        </Border>
-                        <!-- "+" keeps its place before the first chip when the chips wrap (board Tasks-PC: one row with the add box and Search). -->
-                        <Grid Grid.Column="1" ColumnDefinitions="Auto,*" ColumnSpacing="6" VerticalAlignment="Center" IsVisible="{Binding Shelf.HasViews}">
-                            <Grid.Opacity>
-                                <Binding Path="IsShelfShown" Converter="{x:Static views:TasksView.ShownOpacity}" />
-                            </Grid.Opacity>
-                            <Button Classes="labelChip" Padding="7,5" VerticalAlignment="Top" Command="{Binding Shelf.ToggleManageLabelsCommand}" ToolTip.Tip="Labels: add, rename, recolour or delete"
-                                    AutomationProperties.Name="Labels" IsHitTestVisible="{Binding IsShelfShown}">
-                                <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
-                            </Button>
-                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Shelf.LabelChips}" IsHitTestVisible="{Binding IsShelfShown}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel ItemSpacing="6" LineSpacing="6" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:TaskChipViewModel">
-                                        <Button Classes="labelChip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Text}">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                                                <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                    <!-- A picker's "New category…": its name; Enter makes it and applies it. -->
+                    <Border Margin="0,12,0,0" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                            IsVisible="{Binding IsNamingCategory}">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBox x:Name="NewCategoryBox" Classes="rowEntry" FontSize="14" Text="{Binding NewCategoryName}" PlaceholderText="{Binding NamePrompt}"
+                                     AutomationProperties.Name="New category name">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding SaveNewCategoryCommand}" />
+                                    <KeyBinding Gesture="Escape" Command="{Binding CancelNewCategoryCommand}" />
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                            <CheckBox Grid.Column="1" Content="Only on this device" IsChecked="{Binding NewOnlyHere}" IsVisible="{Binding CanChooseScope}" FontSize="12"
+                                      Margin="0,0,6,0" VerticalAlignment="Center" ToolTip.Tip="Shared on all your devices unless this is ticked"
+                                      AutomationProperties.Name="Only on this device" />
+                            <Button Grid.Column="2" Classes="quiet" Command="{Binding CancelNewCategoryCommand}" Padding="8,2" AutomationProperties.Name="Cancel new category"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
                         </Grid>
-                    </Grid>
-                    <views:AddBoxView DataContext="{Binding AddBox}" VerticalAlignment="Top" />
-                </Panel>
+                    </Border>
 
-                <!-- A picker's "New category…": its name; Enter makes it and applies it. -->
-                <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="16,4,8,4" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding IsNamingCategory}">
-                    <Grid ColumnDefinitions="*,Auto,Auto">
-                        <TextBox x:Name="NewCategoryBox" Classes="rowEntry" FontSize="14" Text="{Binding NewCategoryName}" PlaceholderText="{Binding NamePrompt}"
-                                 AutomationProperties.Name="New category name">
-                            <TextBox.KeyBindings>
-                                <KeyBinding Gesture="Enter" Command="{Binding SaveNewCategoryCommand}" />
-                                <KeyBinding Gesture="Escape" Command="{Binding CancelNewCategoryCommand}" />
-                            </TextBox.KeyBindings>
-                        </TextBox>
-                        <CheckBox Grid.Column="1" Content="Only on this device" IsChecked="{Binding NewOnlyHere}" IsVisible="{Binding CanChooseScope}" FontSize="12"
-                                  Margin="0,0,6,0" VerticalAlignment="Center" ToolTip.Tip="Shared on all your devices unless this is ticked"
-                                  AutomationProperties.Name="Only on this device" />
-                        <Button Grid.Column="2" Classes="quiet" Command="{Binding CancelNewCategoryCommand}" Padding="8,2" AutomationProperties.Name="Cancel new category"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
-                    </Grid>
-                </Border>
+                    <!-- Why something was not done. -->
+                    <Border Margin="0,12,0,0" Padding="16,10,8,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                            IsVisible="{Binding HasNotice}">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Classes="muted" Text="{Binding Notice}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="quiet" Command="{Binding DismissNoticeCommand}" Padding="8,2" AutomationProperties.Name="Dismiss"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
+                        </Grid>
+                    </Border>
 
-                <!-- Why something was not done. -->
-                <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="16,10,8,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding HasNotice}">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Classes="muted" Text="{Binding Notice}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Classes="quiet" Command="{Binding DismissNoticeCommand}" Padding="8,2" AutomationProperties.Name="Dismiss"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
-                    </Grid>
-                </Border>
+                    <!-- ADR 89: the view filters only by labels another device keeps to itself, so the page shows Default. -->
+                    <Border Margin="0,12,0,0" Padding="16,10,16,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                            IsVisible="{Binding HasViewFallbackNote}">
+                        <TextBlock Classes="muted" Text="{Binding ViewFallbackNote}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </Border>
 
-                <!-- ADR 89: the view filters only by labels another device keeps to itself, so the page shows Default. -->
-                <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="16,10,16,10" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding HasViewFallbackNote}">
-                    <TextBlock Classes="muted" Text="{Binding ViewFallbackNote}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center" />
-                </Border>
-
-                <!-- "Add to Today" at three tasks: nothing is added until this is answered. -->
-                <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding HasPending}">
-                    <ContentControl Content="{Binding Pending}">
-                        <ContentControl.DataTemplates>
-                            <DataTemplate x:DataType="vm:PendingMoveViewModel">
-                                <StackPanel Spacing="10">
-                                    <TextBlock Text="{Binding TitleText}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                    <TextBox Text="{Binding Reason}" PlaceholderText="Why? (10+ characters, stays on this PC)" AutomationProperties.Name="Why add it anyway" />
-                                    <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Ab.Drift}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button Content="Add anyway" Command="{Binding AddAnywayCommand}" />
-                                        <Button Classes="quiet" Content="Leave it where it is" Command="{Binding CancelCommand}" />
+                    <!-- "Add to Today" at three tasks: nothing is added until this is answered. -->
+                    <Border Margin="0,12,0,0" Padding="18,14" CornerRadius="18" Background="{DynamicResource Ab.Surface2}"
+                            IsVisible="{Binding HasPending}">
+                        <ContentControl Content="{Binding Pending}">
+                            <ContentControl.DataTemplates>
+                                <DataTemplate x:DataType="vm:PendingMoveViewModel">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="{Binding TitleText}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBox Text="{Binding Reason}" PlaceholderText="Why? (10+ characters, stays on this PC)" AutomationProperties.Name="Why add it anyway" />
+                                        <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Ab.Drift}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasError}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Content="Add anyway" Command="{Binding AddAnywayCommand}" />
+                                            <Button Classes="quiet" Content="Leave it where it is" Command="{Binding CancelCommand}" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="2" IsVisible="{Binding CanSwap}">
+                                            <TextBlock Classes="muted" Text="Or put it in place of one of today's tasks (that one goes to Come back to):" FontSize="13" TextWrapping="Wrap" />
+                                            <ItemsControl ItemsSource="{Binding SwapChoices}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:PendingMoveViewModel+SwapChoice">
+                                                        <Button Classes="quiet" Command="{Binding SwapCommand}" HorizontalAlignment="Left" Padding="10,6">
+                                                            <TextBlock Text="{Binding Title}" FontSize="14" TextTrimming="CharacterEllipsis" MaxWidth="360" />
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
                                     </StackPanel>
-                                    <StackPanel Spacing="2" IsVisible="{Binding CanSwap}">
-                                        <TextBlock Classes="muted" Text="Or put it in place of one of today's tasks (that one goes to Come back to):" FontSize="13" TextWrapping="Wrap" />
-                                        <ItemsControl ItemsSource="{Binding SwapChoices}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:PendingMoveViewModel+SwapChoice">
-                                                    <Button Classes="quiet" Command="{Binding SwapCommand}" HorizontalAlignment="Left" Padding="10,6">
-                                                        <TextBlock Text="{Binding Title}" FontSize="14" TextTrimming="CharacterEllipsis" MaxWidth="360" />
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                </DataTemplate>
+                            </ContentControl.DataTemplates>
+                        </ContentControl>
+                    </Border>
+
+                    <!-- The labels editor (the label row's "+", only without the Labels screen). -->
+                    <Border Margin="0,12,0,0" Padding="16,12" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
+                            IsVisible="{Binding Shelf.IsManagingLabels}">
+                        <views:CategoryEditorView DataContext="{Binding CategoryEditor}" />
+                    </Border>
+
+                    <!-- Weekly tidy-up: on its day, never in a session; × = not this week. -->
+                    <Border Margin="0,12,0,0" Padding="16,8,8,8" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
+                            IsVisible="{Binding Shelf.HasTidyCard}">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
+                            <mi:MaterialIcon Kind="Broom" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Shelf.TidyTitle}" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Shelf.TidySub}" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="3" Content="Tidy up" Command="{Binding Shelf.StartTidyCommand}" Padding="12,5" VerticalAlignment="Center"
+                                    ToolTip.Tip="Go through the untouched tasks one by one" AutomationProperties.Name="Tidy up" />
+                            <Button Grid.Column="4" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center" Command="{Binding Shelf.DismissTidyCommand}"
+                                    ToolTip.Tip="Not this week" AutomationProperties.Name="Not this week">
+                                <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- The label row (rebuilt in item 4b): + = the labels editor, All, each label, No label; dimmed with the Shelf during a session. -->
+                <Grid DockPanel.Dock="Top" Margin="22,12,22,0" ColumnDefinitions="Auto,*" ColumnSpacing="6" IsVisible="{Binding Shelf.HasViews}">
+                    <Grid.Opacity>
+                        <Binding Path="IsShelfShown" Converter="{x:Static views:TasksView.ShownOpacity}" />
+                    </Grid.Opacity>
+                    <Button Classes="labelChip" Padding="7,5" VerticalAlignment="Top" Command="{Binding Shelf.ToggleManageLabelsCommand}" ToolTip.Tip="Labels: add, rename, recolour or delete"
+                            AutomationProperties.Name="Labels" IsHitTestVisible="{Binding IsShelfShown}">
+                        <mi:MaterialIcon Kind="Plus" Width="14" Height="14" />
+                    </Button>
+                    <ItemsControl Grid.Column="1" ItemsSource="{Binding Shelf.LabelChips}" IsHitTestVisible="{Binding IsShelfShown}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TaskChipViewModel">
+                                <Button Classes="labelChip" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Text}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                        <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
                                     </StackPanel>
-                                </StackPanel>
+                                </Button>
                             </DataTemplate>
-                        </ContentControl.DataTemplates>
-                    </ContentControl>
-                </Border>
-
-                <!-- The labels editor (the chips' "+", only without the Labels screen). -->
-                <Border DockPanel.Dock="Top" Margin="26,10,16,0" Padding="16,12" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding Shelf.IsManagingLabels}">
-                    <views:CategoryEditorView DataContext="{Binding CategoryEditor}" />
-                </Border>
-
-                <!-- Weekly tidy-up: on its day, never in a session; × = not this week. -->
-                <Border DockPanel.Dock="Top" Margin="26,12,16,0" Padding="16,8,8,8" CornerRadius="{DynamicResource Ab.PanelRadius}" Background="{DynamicResource Ab.Surface2}"
-                        IsVisible="{Binding Shelf.HasTidyCard}">
-                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
-                        <mi:MaterialIcon Kind="Broom" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{Binding Shelf.TidyTitle}" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Shelf.TidySub}" FontSize="12.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                        <Button Grid.Column="3" Content="Tidy up" Command="{Binding Shelf.StartTidyCommand}" Padding="12,5" VerticalAlignment="Center"
-                                ToolTip.Tip="Go through the untouched tasks one by one" AutomationProperties.Name="Tidy up" />
-                        <Button Grid.Column="4" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center" Command="{Binding Shelf.DismissTidyCommand}"
-                                ToolTip.Tip="Not this week" AutomationProperties.Name="Not this week">
-                            <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
-                        </Button>
-                    </Grid>
-                </Border>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
 
                 <!-- The Archive: one row at the bottom that opens the Notebook (come-backs, session notes, unfinished and done tasks) in
                      place of the columns, with its filters and search; a second click goes back to the columns. -->
-                <Button DockPanel.Dock="Bottom" Classes="archiveRow" Margin="20,4,12,10" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
+                <Button DockPanel.Dock="Bottom" Classes="archiveRow" Margin="10,4,10,10" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                         <TextBlock Classes="muted" Text="Archive" FontSize="13.5" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Archive.SummaryText}" FontSize="12" VerticalAlignment="Center"
@@ -621,7 +772,7 @@
                 </Button>
 
                 <!-- The Shelf's columns; the hidden Shelf's note during a session; or the Archive. -->
-                <Panel Margin="26,14,16,0">
+                <Panel Margin="22,12,22,0">
                     <Panel>
                         <Panel.IsVisible>
                             <MultiBinding Converter="{x:Static BoolConverters.And}">

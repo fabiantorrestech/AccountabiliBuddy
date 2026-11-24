@@ -5,32 +5,27 @@
              xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.AddBoxView"
              x:DataType="vm:AddBoxViewModel">
-    <!-- The add box (spec 03 §B): a "+ Add a task" pill at rest (~160 DIP); in use it widens to the full row with the send button and
-         Send to ("Add to To sort" ▾); the picked label and tags show as chips above the text. Text left in it after leaving greys out and the box shrinks to fit it. The hint line floats under
+    <!-- The add box (spec 03 §B; Tasks redesign 4a): a "+ Add a task" pill that fills the add row; in use it shows the send button and
+         Send to ("Add to To sort" ▾); the picked label and tags show as chips above the text. Text left in it after leaving greys out. The hint line floats under
          the box (it never pushes the rows): the counter from 50 characters, "Move … to notes", "Part of a project?" with the marker's
          label and tag, or the offer to learn a marker style. The "@" / "#" list opens under the box. The page gives
          this control a ZIndex so the floating line draws over the rows below it. -->
     <UserControl.Styles>
+        <!-- Tasks redesign 4a.35-4a.36: the box fills the add row at rest and in use (the Today pill sits to its right), 44 high, a
+             Surface2 pill, padding 0 6 0 16; a 1 px border, transparent at rest and Faint while adding. What sits inside the box (chips,
+             Details, "Add to [bin]") is item 5's. -->
         <Style Selector="Border.addPill">
-            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="MinHeight" Value="44" />
-            <Setter Property="CornerRadius" Value="28" />
-            <Setter Property="Padding" Value="16,4,8,4" />
+            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Padding" Value="16,3,6,3" />
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Ibeam" />
         </Style>
-        <!-- At rest the pill is always 160 wide, empty or holding a draft (greyed, clipped): leaving the box never leaves an odd-sized
-             box behind and nothing around it moves (PC fixes, owner 0.1.132). -->
-        <Style Selector="Border.addPill">
-            <Setter Property="Width" Value="160" />
-        </Style>
         <Style Selector="Border.addPill.expanded">
-            <Setter Property="Width" Value="NaN" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="Padding" Value="18,4,6,4" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
         </Style>
 
         <!-- The entry: no box of its own inside the pill. -->

@@ -28,6 +28,14 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// menu open; Enter on the entry moves to the next choice.
 /// </param>
 /// <param name="OpensMore">Opens a panel or another page (Reminders &amp; due date, "Tasks settings"): drawn with › like a submenu, and → opens it too.</param>
+/// <param name="WideSegments">
+/// With <paramref name="Segments"/>: the choices fill the menu's width under the entry's text as a heading, with the note under them
+/// (Tasks redesign board 09, Options › Rows and Label dot), instead of sitting small at the right.
+/// </param>
+/// <param name="IsSwitch">
+/// An on/off switch at the right (Tasks redesign board 09, Options › "Fade controls you're not using"): <paramref name="IsChecked"/> is
+/// its state, <paramref name="Command"/> flips it; the menu stays open.
+/// </param>
 public sealed record TaskMenuEntry(
     string Header,
     ICommand? Command = null,
@@ -44,7 +52,9 @@ public sealed record TaskMenuEntry(
     string? Shortcut = null,
     string? Note = null,
     bool OpensMore = false,
-    IReadOnlyList<TaskMenuEntry>? Segments = null)
+    IReadOnlyList<TaskMenuEntry>? Segments = null,
+    bool WideSegments = false,
+    bool IsSwitch = false)
 {
     public static TaskMenuEntry Separator { get; } = new(string.Empty, IsSeparator: true);
 

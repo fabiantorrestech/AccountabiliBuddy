@@ -375,12 +375,16 @@
         <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+    <!-- The date after the title (Tasks redesign 4a.05-4a.07): "Tuesday · Nov 24", 16 px Ink2, 4 px in and 6 px down so it sits on the
+         title's baseline; it shortens with an ellipsis first when the header runs out of room (Controls/PageHeaderRow). -->
     <Style Selector="TextBlock.abPageDate">
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink2}" />
         <Setter Property="FontFeatures" Value="+tnum" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Margin" Value="0,6,0,0" />
+        <Setter Property="Margin" Value="4,6,0,0" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
     </Style>
     <!-- An icon-only secondary header control (Views, Expand/collapse all, History): quiet, 34 square, a tooltip and a name. -->
     <Style Selector="Button.abHeaderIcon">
@@ -647,6 +651,98 @@
     <Style Selector="TextBlock.abMenuDanger">
         <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
     </Style>
+    <!-- The Tasks redesign's panel menu (board 09, Tasks › Options; TaskMenuFlyout.PanelLook): 36 px rows in 13.5 px, Line2 dividers 6 px
+         above and below; Rows and Label dot as full-width segmented controls (a Surface track, padding 3; segments 30 high, 12.5 px
+         semibold; the one in force Line2 and Ink); a switch row (min 44) for "Fade controls you're not using". -->
+    <Style Selector="MenuFlyoutPresenter.abPanelMenu MenuItem">
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="FontSize" Value="13.5" />
+        <Setter Property="Padding" Value="10,0" />
+    </Style>
+    <!-- The template's submenu chevron is hidden here, so its column takes no room and the full-width rows reach the panel's edge;
+         Sort › and Views › draw their own › after their value (TaskMenuEntry.OpensMore). -->
+    <Style Selector="MenuFlyoutPresenter.abPanelMenu MenuItem /template/ Path#PART_ChevronPath">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter.abPanelMenu MenuItem /template/ TextBlock#PART_InputGestureText">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter.abPanelMenu Separator.abMenuDivider">
+        <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+        <Setter Property="Margin" Value="2,6" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter.abPanelMenu MenuItem.abMenuWide">
+        <Setter Property="Padding" Value="8,6" />
+    </Style>
+    <Style Selector="MenuItem.abMenuWide:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.abMenuWideSegs">
+        <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="3" />
+    </Style>
+    <Style Selector="Button.abMenuWideSeg">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.abMenuWideSeg /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.abMenuWideSeg:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="Button.abMenuWideSeg.selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+        <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+    </Style>
+    <Style Selector="MenuItem.abMenuSwitchRow">
+        <Setter Property="MinHeight" Value="44" />
+    </Style>
+    <Style Selector="Border.abMenuSwitch">
+        <Setter Property="Width" Value="38" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="CornerRadius" Value="11" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.2" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.abMenuSwitch.on">
+        <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+    </Style>
+    <Style Selector="Ellipse.abMenuSwitchKnob">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Fill" Value="{DynamicResource Ab.Muted}" />
+        <Setter Property="RenderTransform" Value="translateX(0px)" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.abMenuSwitch.on Ellipse.abMenuSwitchKnob">
+        <Setter Property="Fill" Value="{DynamicResource Ab.OnAccent}" />
+        <Setter Property="RenderTransform" Value="translateX(16px)" />
+    </Style>
+
     <!-- A heading is a disabled entry: the theme's disabled dimming would make it unreadable on Paper, so it keeps full opacity. -->
     <Style Selector="MenuItem.abMenuHeading">
         <Setter Property="Opacity" Value="1" />

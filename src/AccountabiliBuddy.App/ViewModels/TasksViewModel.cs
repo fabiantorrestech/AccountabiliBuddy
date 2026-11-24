@@ -1262,7 +1262,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         // The Tasks page's Today strip: counts only, no timer (change note §2).
         string stripSession = live ? $"{_tasks.ActionsUsed}/{_tasks.ActionCap}" : readyActions > 0 ? $"{readyActions} ready" : "empty";
         TodayStrip.Update(stripSession, _queuedRows.Count, _reminderRows.Count, _doneRows.Count);
-        TodayDateText = now.ToString("ddd M/d", CultureInfo.InvariantCulture);
+        TodayDateText = PageDateText.Of(now);
         Jot.IsQuiet = live;
         NotifySessionViewChanged();
 

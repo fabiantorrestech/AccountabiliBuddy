@@ -235,6 +235,12 @@ public sealed class TaskViewService
             config = lists.Views.FirstOrDefault(item => item.Id == TaskView.DefaultId && item.View.IsLive)?.View.Config ?? TaskViewConfig.Everything;
         }
 
+        // The PC has no Group by tag (Tasks redesign, plan conflict #5): a view stored as "tag" shows as Bins; its stored value stays.
+        if (config.Group == TaskViewConfig.GroupTag)
+        {
+            config = config with { Group = TaskViewConfig.GroupBins };
+        }
+
         var context = new TaskViewContext(
             _time.GetUtcNow(), TimeZoneInfo.Local, labels, Search, scope, showEmptyBins, _store.LabelShown, _store.TagShown,
             TaskLabelGroupBook.Live(lists.LabelGroups));

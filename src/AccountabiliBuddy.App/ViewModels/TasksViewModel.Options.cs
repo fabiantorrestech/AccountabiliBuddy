@@ -1,3 +1,6 @@
+using AccountabiliBuddy.App.Services.Tasks;
+using AccountabiliBuddy.App.Services.Today;
+
 namespace AccountabiliBuddy.App.ViewModels;
 
 // Round 2 (plan R1.3): the page headers' Options (tune) menus of the two pages this view model drives, Tasks and Today, and the views
@@ -8,15 +11,27 @@ public sealed partial class TasksViewModel
     public Action<SettingsSection>? OpenSettings { get; set; }
 
     /// <summary>
-    /// The Tasks page's Options menu (<see cref="PageOptionsMenus.Tasks"/>, board Tasks-PC-Options): Group by, Rows, Views ›, Sort ›,
-    /// Expand all bins, History; its last row opens Settings › Tasks.
+    /// The Tasks page's Options menu (<see cref="PageOptionsMenus.Tasks"/>, Tasks redesign board 09): Sort ›, Rows, Label dot, Fade controls
+    /// you're not using, then Views ›, Expand all bins, Show finished on Today, Show more today, History; its last row opens Settings › Tasks.
     /// </summary>
     public IReadOnlyList<TaskMenuEntry> TasksOptionsMenu()
     {
-        return PageOptionsMenus.Tasks(
-            IsCompact, UseNormalRowsCommand, UseCompactRowsCommand, Shelf.HasViews ? Shelf.GroupMenu() : [], Shelf.ViewMenu(), Shelf.ActiveViewText,
-            Shelf.HasViews ? Shelf.SortEntries() : [], Shelf.SortText, Shelf.Panel.IsExpanded, Shelf.Panel.ToggleExpandCommand, Shelf.HasHistory,
-            OpenSettingsAt);
+        TaskSettingsService? settings = TaskSettings;
+        TodayLayoutService? today = _todayLayout;
+        var state = new TasksOptionsState(
+            IsCompact, UseNormalRowsCommand, UseCompactRowsCommand,
+            Shelf.HasViews ? Shelf.SortEntries() : [], Shelf.SortText,
+            TaskLabelStyles.Migrated(settings?.Current.LabelStyle ?? TaskLabelStyle.UnderTask),
+            settings is null ? null : style => settings.SetLabelStyleAsync(style),
+            _layout.Current.FadeIdleControls, _layout.SetFadeIdleControlsAsync,
+            Shelf.ViewMenu(), Shelf.ActiveViewText,
+            Shelf.Panel.IsExpanded, Shelf.Panel.ToggleExpandCommand,
+            ShowsFinishedOnToday,
+            today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowFinishedTodayAsync(!ShowsFinishedOnToday)),
+            today?.Current.ShowMoreToday ?? false,
+            today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowMoreTodayAsync(!today.Current.ShowMoreToday)),
+            Shelf.HasHistory);
+        return PageOptionsMenus.Tasks(state, OpenSettingsAt);
     }
 
     /// <summary>Opens Settings at a section scrolled to one of its groups (by search area name); set by the app. Null opens the section.</summary>

@@ -1,16 +1,19 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Controls.PageHeader">
-    <!-- A page's header (round 2, brief §3.3, CN §4b): "<Page>" then the date in muted text ("Wed 11/11"); at the right the page's own
-         controls (labelled primary buttons, then icon-only secondary controls with tooltips: Button.abHeaderIcon), then the one bordered
-         Options (tune) button, always last. No gear: the Options menu's last row opens the page's settings. Styles: Themes/AbStyles.axaml. -->
-    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
+    <!-- A page's header (round 2, brief §3.3, CN §4b; Tasks redesign 4a): one line at every width. "<Page>" in the display font, the date
+         ("Tuesday · Nov 24", 16 px Ink2; it shortens with an ellipsis first), then at the right the page's search (if any), its own controls
+         (labelled primary buttons, icon-only secondary controls with tooltips: Button.abHeaderIcon), then the one bordered Options (tune)
+         button, always last. No gear: the Options menu's last row opens the page's settings. Styles: Themes/AbStyles.axaml. -->
+    <controls:PageHeaderRow x:Name="Row" Spacing="10">
         <TextBlock x:Name="TitleText" Classes="abPageTitle" />
-        <TextBlock x:Name="DateText" Grid.Column="1" Classes="abPageDate" />
-        <ContentControl x:Name="ActionsHost" Grid.Column="3" VerticalAlignment="Center" />
-        <Button x:Name="OptionsButton" Grid.Column="4" Classes="abOptions" Click="OnOptionsClick" ToolTip.Tip="Options">
+        <TextBlock x:Name="DateText" Classes="abPageDate" />
+        <ContentControl x:Name="SearchHost" VerticalAlignment="Center" MinWidth="140" MaxWidth="300" HorizontalContentAlignment="Stretch" />
+        <ContentControl x:Name="ActionsHost" VerticalAlignment="Center" />
+        <Button x:Name="OptionsButton" Classes="abOptions" Click="OnOptionsClick" ToolTip.Tip="Options">
             <mi:MaterialIcon Kind="Tune" Width="18" Height="18" />
         </Button>
-    </Grid>
+    </controls:PageHeaderRow>
 </UserControl>

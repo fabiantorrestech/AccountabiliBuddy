@@ -88,15 +88,23 @@ public static class TaskMenus
     /// closes. The nearest container with <see cref="MenuHostClass"/> (the row) gets an accent outline while the menu is open.
     /// </summary>
     /// <param name="fromKeyboard">Opened with the Menu key or Shift+F10: the first entry takes the keyboard at once.</param>
+    /// <param name="panelLook">The Tasks redesign's panel look (board 09, the page Options): 290 wide, Surface2, a Line2 border, radius 14.</param>
     public static void ShowEntries(
         Control button,
         IEnumerable<TaskMenuEntry> entries,
         PlacementMode placement,
         Action<TaskMenuEntry>? viewAction = null,
         Action? closed = null,
-        bool fromKeyboard = false)
+        bool fromKeyboard = false,
+        bool panelLook = false)
     {
-        var flyout = new TaskMenuFlyout { Placement = placement, ViewAction = viewAction, FocusFirstItem = fromKeyboard };
+        var flyout = new TaskMenuFlyout { Placement = placement, ViewAction = viewAction, FocusFirstItem = fromKeyboard, PanelLook = panelLook };
+        if (panelLook)
+        {
+            // Board 09: 6 below its button.
+            flyout.VerticalOffset = 6;
+        }
+
         foreach (Control item in Build(entries, viewAction))
         {
             flyout.Items.Add(item);
@@ -153,6 +161,12 @@ public static class TaskMenus
             if (entry.Segments is { Count: > 0 } segments)
             {
                 yield return SegmentsItem(entry, segments);
+                continue;
+            }
+
+            if (entry.IsSwitch)
+            {
+                yield return SwitchItem(entry);
                 continue;
             }
 
@@ -213,7 +227,7 @@ public static class TaskMenus
         for (int index = 0; index < segments.Count; index++)
         {
             int at = index;
-            var button = new Button { Content = segments[index].Header, Focusable = false, Classes = { "abMenuSeg" } };
+            var button = new Button { Content = segments[index].Header, Focusable = false, Classes = { entry.WideSegments ? "abMenuWideSeg" : "abMenuSeg" } };
             button.Classes.Set("selected", segments[index].IsChecked);
             AutomationProperties.SetName(button, entry.Header + ": " + segments[index].Header);
             button.Click += (_, e) =>
@@ -222,7 +236,15 @@ public static class TaskMenus
                 e.Handled = true;
             };
             buttons.Add(button);
-            strip.Children.Add(button);
+            if (!entry.WideSegments)
+            {
+                strip.Children.Add(button);
+            }
+        }
+
+        if (entry.WideSegments)
+        {
+            return WideSegmentsItem(entry, segments, buttons, Pick);
         }
 
         var row = new DockPanel { LastChildFill = true };
@@ -246,6 +268,67 @@ public static class TaskMenus
             item.Icon = MenuIcon(kind, "Ab.Muted");
         }
 
+        return item;
+    }
+
+    // Board 09's Rows and Label dot: the entry's text as a small heading, the choices filling the width on a Surface track, the note under them.
+    private static MenuItem WideSegmentsItem(TaskMenuEntry entry, IReadOnlyList<TaskMenuEntry> segments, List<Button> buttons, Action<int> pick)
+    {
+        var track = new Grid { ColumnDefinitions = new ColumnDefinitions(string.Join(",", segments.Select(_ => "*"))) };
+        for (int index = 0; index < buttons.Count; index++)
+        {
+            Grid.SetColumn(buttons[index], index);
+            track.Children.Add(buttons[index]);
+        }
+
+        var lines = new StackPanel { Spacing = 6 };
+        lines.Children.Add(Text(entry.Header, "abMenuHead"));
+        lines.Children.Add(new Border { Classes = { "abMenuWideSegs" }, Child = track });
+        if (entry.Note is { Length: > 0 } note)
+        {
+            lines.Children.Add(Text(note, "abMenuNote"));
+        }
+
+        var item = new MenuItem { Header = lines, Tag = entry, StaysOpenOnClick = true, Classes = { "abMenuWide" } };
+        item.Click += (_, _) => pick((buttons.FindIndex(button => button.Classes.Contains("selected")) + 1) % buttons.Count);
+        string chosen = segments.FirstOrDefault(segment => segment.IsChecked)?.Header ?? "none";
+        AutomationProperties.SetName(item, $"{entry.Header}: {chosen}. Enter picks the next choice.");
+        return item;
+    }
+
+    // Board 09's "Fade controls you're not using": the text and its note on the left, a switch at the right (38 × 22, an 18 px knob);
+    // a click (or Enter) flips it at once and the menu stays open.
+    private static MenuItem SwitchItem(TaskMenuEntry entry)
+    {
+        var knob = new Avalonia.Controls.Shapes.Ellipse { Classes = { "abMenuSwitchKnob" } };
+        var track = new Border { Classes = { "abMenuSwitch" }, Child = knob, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) };
+        track.Classes.Set("on", entry.IsChecked);
+        DockPanel.SetDock(track, Dock.Right);
+
+        var lines = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        TextBlock text = Text(entry.Header, "abMenuText");
+        text.TextWrapping = TextWrapping.Wrap;
+        lines.Children.Add(text);
+        if (entry.Note is { Length: > 0 } note)
+        {
+            lines.Children.Add(Text(note, "abMenuNote"));
+        }
+
+        var row = new DockPanel { LastChildFill = true, Margin = new Thickness(0, 4) };
+        row.Children.Add(track);
+        row.Children.Add(lines);
+        var item = new MenuItem { Header = row, Tag = entry, StaysOpenOnClick = true, Classes = { "abMenuSwitchRow" } };
+        void Name() => AutomationProperties.SetName(item, $"{entry.Header}: {(track.Classes.Contains("on") ? "on" : "off")}");
+        Name();
+        item.Click += (_, _) =>
+        {
+            track.Classes.Set("on", !track.Classes.Contains("on"));
+            Name();
+            if (entry.Command is { } command && command.CanExecute(null))
+            {
+                command.Execute(null);
+            }
+        };
         return item;
     }
 

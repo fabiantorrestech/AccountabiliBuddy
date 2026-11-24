@@ -1,3 +1,4 @@
+using AccountabiliBuddy.App.Services.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
@@ -30,58 +31,76 @@ public static class PageOptionsMenus
     /// <summary>The note under Options › History (board Tasks-PC-Options).</summary>
     public const string HistoryNote = "Finished and deleted tasks, 30 days";
 
+    /// <summary>The note under Options › Label dot (board 09).</summary>
+    public const string LabelDotNote = "Under the task matches the phone and tablet.";
+
     /// <summary>
-    /// Tasks (round 2 R3, brief §4.6, board Tasks-PC-Options): Group by Bins / Label / Tag / None · one list, Rows Normal / Compact │
-    /// Views › (the active view, "★ Default"; the whole View menu: saved views, This view, arrange, Show only, Reset), Sort › (its value,
-    /// "Your order"), Expand all bins (or Collapse all), History (with its note; opens the History popover through
-    /// <see cref="TaskMenuEntry.ViewAction"/> "history") │ Tasks settings ›.
+    /// Tasks (Tasks redesign 4a.22-4a.33, board 09, resolutions O1 and O2): Sort › (its value) │ Rows Comfortable | Compact, Label dot Under
+    /// the task | By the check box (with its note) │ "Fade controls you're not using" (a switch) │ then today's kept rows in today's order:
+    /// Views › (the active view), Expand all bins (or Collapse all), Show finished on Today, Show more today, History (until item 6) │ Tasks
+    /// settings ›. Group by is the header's toggle now. Rows, Label dot and Fade apply at once behind the open menu.
     /// </summary>
-    public static IReadOnlyList<TaskMenuEntry> Tasks(
-        bool compact,
-        ICommand normalRows,
-        ICommand compactRows,
-        IReadOnlyList<TaskMenuEntry> groupBy,
-        IReadOnlyList<TaskMenuEntry> viewMenu,
-        string? viewText,
-        IReadOnlyList<TaskMenuEntry> sortMenu,
-        string? sortText,
-        bool expanded,
-        ICommand? toggleExpand,
-        bool hasHistory,
-        Action<SettingsSection> openSettings)
+    public static IReadOnlyList<TaskMenuEntry> Tasks(TasksOptionsState state, Action<SettingsSection> openSettings)
     {
         var entries = new List<TaskMenuEntry>();
-        if (groupBy.Count > 0)
+        if (state.SortMenu.Count > 0)
         {
-            entries.Add(new TaskMenuEntry("Group by", IsHeading: true));
-            entries.AddRange(groupBy);
+            entries.Add(new TaskMenuEntry("Sort", Children: state.SortMenu, Value: state.SortText, OpensMore: true));
             entries.Add(TaskMenuEntry.Separator);
         }
 
-        entries.Add(new TaskMenuEntry("Rows", IsHeading: true));
-        entries.Add(new TaskMenuEntry("Normal", normalRows, IsChecked: !compact, Icon: MaterialIconKind.ViewHeadline));
-        entries.Add(new TaskMenuEntry("Compact", compactRows, IsChecked: compact, Icon: MaterialIconKind.FormatLineSpacing));
+        // O1: "Comfortable" names the stored "normal" rows.
+        List<TaskMenuEntry> rows =
+        [
+            new TaskMenuEntry("Comfortable", state.NormalRows, IsChecked: !state.Compact),
+            new TaskMenuEntry("Compact", state.CompactRows, IsChecked: state.Compact),
+        ];
+        entries.Add(new TaskMenuEntry("Rows", Segments: rows, WideSegments: true));
+        if (state.SetLabelDot is { } setLabelDot)
+        {
+            // Two choices here; a row style stored as "Pill before the title" (Settings › Tasks only) ticks neither.
+            List<TaskMenuEntry> dots =
+            [
+                new TaskMenuEntry("Under the task", new AsyncRelayCommand(() => setLabelDot(TaskLabelStyle.UnderTask)), IsChecked: state.LabelDot == TaskLabelStyle.UnderTask),
+                new TaskMenuEntry("By the check box", new AsyncRelayCommand(() => setLabelDot(TaskLabelStyle.ByCheckBox)), IsChecked: state.LabelDot == TaskLabelStyle.ByCheckBox),
+            ];
+            entries.Add(new TaskMenuEntry("Label dot", Segments: dots, Note: LabelDotNote, WideSegments: true));
+        }
+
+        if (state.SetFadeIdle is { } setFadeIdle)
+        {
+            entries.Add(TaskMenuEntry.Separator);
+            bool fade = state.FadeIdle;
+            entries.Add(new TaskMenuEntry(
+                "Fade controls you're not using", new AsyncRelayCommand(() => setFadeIdle(!fade)), IsChecked: fade,
+                Note: "Labels and icons light up on hover", IsSwitch: true));
+        }
+
+        // O2: today's rows after a divider, in today's order.
         entries.Add(TaskMenuEntry.Separator);
-        if (viewMenu.Count > 0)
+        if (state.ViewMenu.Count > 0)
         {
-            entries.Add(new TaskMenuEntry("Views", Children: viewMenu, Icon: MaterialIconKind.BookmarkOutline, Value: viewText));
+            entries.Add(new TaskMenuEntry("Views", Children: state.ViewMenu, Value: state.ViewText, OpensMore: true));
         }
 
-        if (sortMenu.Count > 0)
+        entries.Add(new TaskMenuEntry(state.Expanded ? "Collapse all bins" : "Expand all bins", state.ToggleExpand));
+        if (state.ToggleFinishedOnToday is { } toggleFinished)
         {
-            entries.Add(new TaskMenuEntry("Sort", Children: sortMenu, Icon: MaterialIconKind.Sort, Value: sortText));
+            entries.Add(new TaskMenuEntry("Show finished on Today", toggleFinished, IsChecked: state.ShowsFinishedOnToday));
         }
 
-        entries.Add(new TaskMenuEntry(
-            expanded ? "Collapse all bins" : "Expand all bins", toggleExpand,
-            Icon: expanded ? MaterialIconKind.UnfoldLessHorizontal : MaterialIconKind.UnfoldMoreHorizontal));
-        if (hasHistory)
+        if (state.ToggleMoreToday is { } toggleMore)
         {
-            entries.Add(new TaskMenuEntry("History", ViewAction: "history", Icon: MaterialIconKind.History, Note: HistoryNote));
+            entries.Add(new TaskMenuEntry("Show more today", toggleMore, IsChecked: state.ShowsMoreToday));
+        }
+
+        if (state.HasHistory)
+        {
+            entries.Add(new TaskMenuEntry("History", ViewAction: "history", Note: HistoryNote));
         }
 
         entries.Add(TaskMenuEntry.Separator);
-        entries.Add(SettingsRow(TasksSettingsText, TasksSettingsSection, null, openSettings));
+        entries.Add(new TaskMenuEntry(TasksSettingsText, new RelayCommand(() => openSettings(TasksSettingsSection)), OpensMore: true));
         return entries;
     }
 

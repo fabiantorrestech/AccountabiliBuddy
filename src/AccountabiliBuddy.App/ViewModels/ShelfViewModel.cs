@@ -55,7 +55,7 @@ public sealed partial class ShelfViewModel : ObservableObject
     [ObservableProperty]
     public partial IReadOnlyList<TaskChipViewModel> LabelChips { get; set; } = [];
 
-    /// <summary>"Bins", "Label", "Tag" or "None": the Group by button's text.</summary>
+    /// <summary>"Bins", "Label" or "None": the View menu's Group by value (a view stored as "tag" reads as Bins on the PC).</summary>
     [ObservableProperty]
     public partial string GroupText { get; set; }
 
@@ -150,8 +150,42 @@ public sealed partial class ShelfViewModel : ObservableObject
     /// <summary>"Uses a label from Laptop. Showing Default.": set by the last <see cref="Query"/> when the view only filters by labels or tags hidden here (ADR 89).</summary>
     public string? FallbackNote => _views?.FallbackNote;
 
-    /// <summary>The active view's Group by ("bins", "label", "tag", "none"); bins before the task list exists.</summary>
-    public string Grouping => _views?.Working.Group ?? TaskViewConfig.GroupBins;
+    /// <summary>
+    /// The active view's Group by as the PC shows it ("bins", "label", "none"); bins before the task list exists. The PC has no Group by
+    /// tag (Tasks redesign, plan conflict #5): a synced view stored as "tag" shows as Bins and keeps its stored value until a choice is picked.
+    /// </summary>
+    public string Grouping => ShownGroup(_views?.Working.Group);
+
+    /// <summary>The header's Group by toggle: Bins is in force.</summary>
+    public bool IsGroupedByBins => Grouping == TaskViewConfig.GroupBins;
+
+    /// <summary>The header's Group by toggle: Labels is in force.</summary>
+    public bool IsGroupedByLabels => Grouping == TaskViewConfig.GroupLabel;
+
+    /// <summary>The header's Group by toggle: None (one list) is in force.</summary>
+    public bool IsGroupedByNone => Grouping == TaskViewConfig.GroupNone;
+
+    /// <summary>A stored Group by as the PC shows it: "tag" (and anything unknown) reads as "bins".</summary>
+    public static string ShownGroup(string? stored)
+    {
+        return stored is TaskViewConfig.GroupLabel or TaskViewConfig.GroupNone ? stored : TaskViewConfig.GroupBins;
+    }
+
+    /// <summary>
+    /// The header's Group by toggle (Bins | Labels | None): changes the open view's working copy, as the View menu's Group by does; saving
+    /// it stays the View menu's. Picking what already shows changes nothing, so a "tag" view showing as Bins keeps its stored value.
+    /// </summary>
+    [RelayCommand]
+    private void PickGroup(string? group)
+    {
+        string picked = ShownGroup(group);
+        if (_views is null || picked == Grouping)
+        {
+            return;
+        }
+
+        _views.Modify(config => config with { Group = picked });
+    }
 
     /// <summary>The Options menu's "Views ›" value: "★ Default" for the default view in use, else the view's name.</summary>
     public string? ActiveViewText
@@ -246,13 +280,15 @@ public sealed partial class ShelfViewModel : ObservableObject
         }
 
         IsShuffled = _views?.Working.Sort == TaskViewConfig.SortShuffle;
-        GroupText = (_views?.Working.Group ?? TaskViewConfig.GroupBins) switch
+        GroupText = Grouping switch
         {
             TaskViewConfig.GroupLabel => "Label",
-            TaskViewConfig.GroupTag => "Tag",
             TaskViewConfig.GroupNone => "None",
             _ => "Bins",
         };
+        OnPropertyChanged(nameof(IsGroupedByBins));
+        OnPropertyChanged(nameof(IsGroupedByLabels));
+        OnPropertyChanged(nameof(IsGroupedByNone));
         LabelChips = BuildChips();
         TidyUpCard? card = _tidyUp?.Card();
         HasTidyCard = card is not null;
@@ -664,7 +700,10 @@ public sealed partial class ShelfViewModel : ObservableObject
         return Enum.TryParse(pascal, out MaterialIconKind kind) ? kind : MaterialIconKind.BookmarkOutline;
     }
 
-    /// <summary>"Bins ▾": Group by Bins, Label, Tag or None (the view's working copy; saving it is the View menu's, 3.5).</summary>
+    /// <summary>
+    /// The View menu's Group by ›: Bins, Label or None (the view's working copy; saving it is the View menu's, 3.5). No Tag on the PC (plan
+    /// conflict #5): a view stored as "tag" ticks Bins.
+    /// </summary>
     public IReadOnlyList<TaskMenuEntry> GroupMenu()
     {
         if (_views is null)
@@ -672,12 +711,11 @@ public sealed partial class ShelfViewModel : ObservableObject
             return [new TaskMenuEntry("Bins", IsChecked: true)];
         }
 
-        string current = _views.Working.Group;
+        string current = Grouping;
         return
         [
             GroupEntry("Bins", TaskViewConfig.GroupBins, current),
             GroupEntry("Label", TaskViewConfig.GroupLabel, current),
-            GroupEntry("Tag", TaskViewConfig.GroupTag, current),
             GroupEntry("None · one list", TaskViewConfig.GroupNone, current),
         ];
     }
@@ -687,10 +725,9 @@ public sealed partial class ShelfViewModel : ObservableObject
         MaterialIconKind icon = group switch
         {
             TaskViewConfig.GroupLabel => MaterialIconKind.CircleSlice8,
-            TaskViewConfig.GroupTag => MaterialIconKind.Pound,
             TaskViewConfig.GroupNone => MaterialIconKind.FormatListBulleted,
             _ => MaterialIconKind.TrayFull,
         };
-        return new TaskMenuEntry(text, new RelayCommand(() => _views?.Modify(config => config with { Group = group })), IsChecked: group == current, Icon: icon);
+        return new TaskMenuEntry(text, new RelayCommand(() => PickGroup(group)), IsChecked: group == current, Icon: icon);
     }
 }

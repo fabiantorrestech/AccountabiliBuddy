@@ -20,7 +20,7 @@ public sealed partial class ViewEditorViewModel : ObservableObject
         ["bookmark-outline", "star-outline", "lightning-bolt", "head-cog", "briefcase-outline", "home-outline", "calendar-today", "fire", "leaf", "school-outline"];
 
     private static readonly (string Value, string Text)[] GroupChoices =
-        [(TaskViewConfig.GroupBins, "Bins"), (TaskViewConfig.GroupLabel, "Label"), (TaskViewConfig.GroupTag, "Tag"), (TaskViewConfig.GroupNone, "None · one list")];
+        [(TaskViewConfig.GroupBins, "Bins"), (TaskViewConfig.GroupLabel, "Label"), (TaskViewConfig.GroupNone, "None · one list")];
 
     // The "No label" tick's value among the label options.
     private const string NoLabelValue = "none";
@@ -239,7 +239,8 @@ public sealed partial class ViewEditorViewModel : ObservableObject
     // The dialog's controls from a view's settings.
     private void Apply(TaskViewConfig config)
     {
-        GroupIndex = Math.Max(0, Array.FindIndex(GroupChoices, choice => choice.Value == config.Group));
+        // No Group by tag on the PC (plan conflict #5): a view stored as "tag" shows Bins here and keeps "tag" unless another choice is made.
+        GroupIndex = Math.Max(0, Array.FindIndex(GroupChoices, choice => choice.Value == ShelfViewModel.ShownGroup(config.Group)));
         SortIndex = Math.Max(0, Array.FindIndex(ShelfViewModel.SortChoices, choice => choice.Value == config.Sort));
         PinHighlights = config.PinHighlights;
         HighlightedOnly = config.Only.HighlightedOnly;
@@ -276,11 +277,18 @@ public sealed partial class ViewEditorViewModel : ObservableObject
             NoLabel = Labels.Any(option => option.IsChecked && option.Value == NoLabelValue),
             Tags = tags.Count == 0 ? null : tags,
             Match = MatchAllTags ? TaskViewConfig.MatchAll : TaskViewConfig.MatchAny,
-            Group = GroupChoices[Math.Clamp(GroupIndex, 0, GroupChoices.Length - 1)].Value,
+            Group = PickedGroup(),
             Sort = sort,
             PinHighlights = PinHighlights,
             Seed = sort == TaskViewConfig.SortShuffle ? _base.Seed ?? Random.Shared.Next(1, int.MaxValue) : _base.Seed,
         };
+    }
+
+    // The Group by choice; Bins left as it was on a "tag" view keeps "tag" (the PC can't offer it, so it can't take it off).
+    private string PickedGroup()
+    {
+        string picked = GroupChoices[Math.Clamp(GroupIndex, 0, GroupChoices.Length - 1)].Value;
+        return picked == ShelfViewModel.ShownGroup(_base.Group) ? _base.Group : picked;
     }
 
     private static List<ViewEditorOption> Options((string Value, string Text)[] choices, IReadOnlyList<string>? picked)

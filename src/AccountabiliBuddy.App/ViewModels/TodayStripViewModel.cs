@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The Tasks page's Today strip (round 2 R3, change note §2, board Tasks-PC): "Today · This session 3 ready · Queued 2 · Reminders due
+/// The Tasks page's Today drop pill (Tasks redesign 4a.40-4a.43; before it, the Today strip of round 2 R3, change note §2, board Tasks-PC): "Today · This session 3 ready · Queued 2 · Reminders due
 /// today 1 · Finished 1", "Drag here, or hover a row and press ←", and Open Today. It only counts (no timer: the time lives in the title
 /// bar); a Shelf row dropped on it goes to Today › Queued (<see cref="Services.Tasks.TodayStripDrop"/>, Undo in the toast). It lights up
 /// while a row is dragged and highlights while one is over it.
@@ -18,14 +18,21 @@ public sealed partial class TodayStripViewModel : ObservableObject
     {
         _drop = drop;
         _openToday = openToday;
-        CountsText = string.Empty;
+        CountsText = StatusText = string.Empty;
     }
+
+    /// <summary>The pill's line: "Nothing queued · drop a task here" while Today holds nothing, else <see cref="CountsText"/> (4a.42).</summary>
+    public const string NothingQueuedText = "Nothing queued · drop a task here";
+
+    /// <summary>What the Today pill says after "Today".</summary>
+    [ObservableProperty]
+    public partial string StatusText { get; set; }
 
     /// <summary>"This session 3 ready · Queued 2 · Reminders due today 1 · Finished 1" (parts at 0 are left out, This session never).</summary>
     [ObservableProperty]
     public partial string CountsText { get; set; }
 
-    public string HintText => "Drag here, or hover a row and press";
+    public string HintText => "Drag here, or hover a row and press ←";
 
     /// <summary>A row is being dragged on the page: the strip shows it takes drops.</summary>
     [ObservableProperty]
@@ -55,6 +62,8 @@ public sealed partial class TodayStripViewModel : ObservableObject
         }
 
         CountsText = string.Join(" · ", parts);
+        bool nothingThere = session == "empty" && queued == 0 && reminders == 0 && finished == 0;
+        StatusText = nothingThere ? NothingQueuedText : CountsText;
     }
 
     /// <summary>A row let go over the strip.</summary>
