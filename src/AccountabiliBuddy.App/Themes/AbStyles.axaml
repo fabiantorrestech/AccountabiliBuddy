@@ -651,4 +651,37 @@
     <Style Selector="MenuItem.abMenuHeading">
         <Setter Property="Opacity" Value="1" />
     </Style>
+
+    <!-- ===== Tasks redesign, shared parts (plan item 3; checklist 3.42-3.47). Colours: Ab.* and the derived brushes in Themes/*.axaml. ===== -->
+
+    <!-- idleFade (plan #9; Button.quiet is a different, older class): a control not in use rests faint and lights fully on hover, press,
+         keyboard focus (focus-within, so the focus ring always shows at full strength) and while "on" (its pop-up open: class "on" or
+         :flyout-open; :checked; :selected). Icons rest at Ab.IdleFadeIcon (22%); label row chips at Ab.IdleFadeChip (30%): "fadeChip" for
+         All and +N (0.15 s), "fadeLabel" for the label chips (0.28 s). A host marked idleFadeHost lights all its chips while the pointer
+         or the keyboard is in it (the label row lights as one). "Fade controls you're not using" off: both resources are 1 (IdleFade). -->
+    <Style Selector=":is(Control).idleFade">
+        <Setter Property="Opacity" Value="{DynamicResource Ab.IdleFadeIcon}" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector=":is(Control).idleFade.fadeChip">
+        <Setter Property="Opacity" Value="{DynamicResource Ab.IdleFadeChip}" />
+    </Style>
+    <Style Selector=":is(Control).idleFade.fadeLabel">
+        <Setter Property="Opacity" Value="{DynamicResource Ab.IdleFadeChip}" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.28" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector=":is(Control).idleFade:pointerover, :is(Control).idleFade:pressed, :is(Control).idleFade:focus-within, :is(Control).idleFade.on, :is(Control).idleFade:flyout-open, :is(Control).idleFade:checked, :is(Control).idleFade:selected">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector=":is(Control).idleFadeHost:pointerover :is(Control).idleFade, :is(Control).idleFadeHost:focus-within :is(Control).idleFade">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
 </Styles>

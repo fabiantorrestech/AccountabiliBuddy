@@ -1997,6 +1997,8 @@ public partial class App : Application
         // How the Tasks page and Today's task sections are laid out on this PC (density, split, folds, pins).
         var taskLayout = new AccountabiliBuddy.App.Services.Tasks.TaskLayoutStore(documents);
         taskLayout.LoadBlocking();
+        // Tasks redesign: "Fade controls you're not using" sets the idleFade styles' resting opacity app-wide.
+        AccountabiliBuddy.App.Services.Tasks.IdleFade.Follow(taskLayout);
         // Round 2: the Today page's layout (sidebar parts, Panel / Chip / Off, in and out of a session). Outside ProductaBuddy the lunch
         // part can't be off.
         var todayLayout = new AccountabiliBuddy.App.Services.Today.TodayLayoutService(documents, () => AppBrand.Name == AppBrand.CompanionName);
@@ -2266,7 +2268,7 @@ public partial class App : Application
                 }
 
                 taskSettingsPage = new TaskSettingsViewModel(
-                    _taskSettings, _taskReminderSettings, _taskCalendarExport, _taskViews, _taskAccount, time)
+                    _taskSettings, _taskReminderSettings, _taskCalendarExport, _taskViews, _taskAccount, time, taskLayout)
                 {
                     OpenSection = mainViewModel.OpenSettings,
                     OpenSectionArea = (section, area) =>

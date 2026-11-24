@@ -33,6 +33,17 @@ public partial class TaskRowView : UserControl
             return flags.Length == 3 && (flags[0] || flags[1] && flags[2]);
         });
 
+    /// <summary>
+    /// The leading label dot shows in a Shelf column when the row asks for it there (By the check box, Pill before), and on Today only with
+    /// By the check box. Values: is a column, column wants it, is Today, By the check box.
+    /// </summary>
+    public static readonly Avalonia.Data.Converters.IMultiValueConverter LeadDotShown =
+        new Avalonia.Data.Converters.FuncMultiValueConverter<bool, bool>(values =>
+        {
+            bool[] flags = values.ToArray();
+            return flags.Length == 4 && (flags[0] && flags[1] || flags[2] && flags[3]);
+        });
+
     private static readonly TimeSpan FoldTime = TimeSpan.FromMilliseconds(300);
 
     private KeyModifiers _pressModifiers;

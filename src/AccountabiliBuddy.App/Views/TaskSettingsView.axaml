@@ -154,15 +154,15 @@
                                 <Button Grid.Column="2" Content="Open labels" Command="{Binding ShowLabelsCommand}" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
-                        <Border Classes="sRow" search:SearchArea.Name="Label style">
+                        <Border Classes="sRow" search:SearchArea.Name="Label dot">
                             <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14">
-                                <mi:MaterialIcon Classes="rowIcon" Kind="TagTextOutline" />
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CircleSlice8" />
                                 <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Classes="sTitle" Text="Label on rows" />
-                                    <TextBlock Classes="sHint" Text="Dot: the label's dot and name at the row's right. Pill before: before the title. Pill in details: on the line under the title (not in Compact rows)." />
+                                    <TextBlock Classes="sTitle" Text="Label dot" />
+                                    <TextBlock Classes="sHint" Text="Under the task matches the phone and tablet. By the check box: the dot left of the box, the name still under the task. Pill before the title: the name before the title." />
                                 </StackPanel>
                                 <ListBox Grid.Row="1" Grid.Column="1" Classes="segmented" Margin="0,8,0,0" ItemsSource="{Binding LabelStyleChoices}"
-                                         SelectedIndex="{Binding LabelStyleIndex}" AutomationProperties.Name="Label on rows" />
+                                         SelectedIndex="{Binding LabelStyleIndex}" AutomationProperties.Name="Label dot" />
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -464,6 +464,17 @@
                                     <TextBlock Classes="sHint" Text="Rows say “untouched 5 wk” once a task counts as untouched." />
                                 </StackPanel>
                                 <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding ShowAgeOnRows}" VerticalAlignment="Top" AutomationProperties.Name="Show age on rows" />
+                            </Grid>
+                        </Border>
+                        <!-- Tasks redesign (3.47): this PC, the same in both modes (Tasks › Options gets it too). -->
+                        <Border Classes="sRow" search:SearchArea.Name="Fade controls you're not using" IsVisible="{Binding CanFadeIdleControls}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="CircleOpacity" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Fade controls you're not using" />
+                                    <TextBlock Classes="sHint" Text="Labels and icons light up on hover" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding FadeIdleControls}" VerticalAlignment="Top" AutomationProperties.Name="Fade controls you're not using" />
                             </Grid>
                         </Border>
                         <Border Classes="sRow" search:SearchArea.Name="Weekly tidy-up">

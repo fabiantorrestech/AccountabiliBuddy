@@ -59,6 +59,9 @@ public sealed class TaskLayoutStore
 
     public Task SetCompactAsync(bool compact) => UpdateAsync(current => current with { Compact = compact });
 
+    /// <summary>"Fade controls you're not using" (Settings › Tasks, Tasks › Options): at once, the same in both modes.</summary>
+    public Task SetFadeIdleControlsAsync(bool on) => UpdateAsync(current => current with { FadeIdleControls = on });
+
     public Task SetSplitAsync(int percent) => UpdateAsync(current => current with
     {
         TodaySplit = Math.Clamp(percent, TaskLayoutPreferences.MinSplit, TaskLayoutPreferences.MaxSplit),

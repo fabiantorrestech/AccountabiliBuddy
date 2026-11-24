@@ -153,7 +153,7 @@
         <Style Selector="Button.catChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
         </Style>
-        <!-- Label style "Pill before" / "Pill in details" (Settings › Tasks): the label's name on a tint of its colour; a click opens the picker. -->
+        <!-- Label dot "Pill before the title" (Settings › Tasks): the label's name on a tint of its colour; a click opens the picker. -->
         <Style Selector="Button.labelPill">
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="0" />
@@ -499,10 +499,20 @@
                 <Border Classes="focusRing" />
                 <Grid Classes="rowGrid" Classes.nowOpen="{Binding HasNowSteps}" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,0,4,0">
                     <StackPanel Grid.Column="0" Classes="leadCell" Orientation="Horizontal" Spacing="6" MinWidth="22">
+                        <!-- Label dot "By the check box" (Tasks redesign 3.76): the 8 px dot left of the check box, in a Shelf column and on Today;
+                             a column also keeps it for "Pill before". "Under the task" puts the dot on the sub-line instead. -->
                         <Button Classes="leadDot" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="{Binding LeadDotTip}"
-                                IsVisible="{Binding $self.(views:TaskColumnScope.IsColumn)}" IsEnabled="{Binding CanLabel}">
+                                IsEnabled="{Binding CanLabel}">
+                            <Button.IsVisible>
+                                <MultiBinding Converter="{x:Static views:TaskRowView.LeadDotShown}">
+                                    <Binding Path="$self.(views:TaskColumnScope.IsColumn)" />
+                                    <Binding Path="ShowsColumnLeadDot" />
+                                    <Binding Path="$self.(views:TodayPageScope.IsToday)" />
+                                    <Binding Path="ShowsDotByCheckBox" />
+                                </MultiBinding>
+                            </Button.IsVisible>
                             <Panel Width="8" Height="8">
-                                <Ellipse Fill="{Binding CategoryBrush}" IsVisible="{Binding ShowsLabelChip}" />
+                                <Ellipse Fill="{Binding CategoryBrush}" IsVisible="{Binding ShowsLeadDotFill}" />
                                 <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.2" IsVisible="{Binding !HasCategory}" />
                             </Panel>
                         </Button>
@@ -549,7 +559,7 @@
                                 <TextBlock Classes="muted" Text="·" FontSize="12" Margin="5,0" VerticalAlignment="Center"
                                            IsVisible="{Binding ShowsTodayDotAfterParent}" />
                                 <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasTodayLabel}">
-                                    <Ellipse Width="7" Height="7" Fill="{Binding TodayLabelBrush}" VerticalAlignment="Center" />
+                                    <Ellipse Width="7" Height="7" Fill="{Binding TodayLabelBrush}" VerticalAlignment="Center" IsVisible="{Binding ShowsTodayLabelDot}" />
                                     <TextBlock Classes="muted" Text="{Binding TodayLabel}" FontSize="12" MaxWidth="120" TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
@@ -663,24 +673,18 @@
                             <!-- ↳ before the details (owner 2026-11-23), unless the text line above already starts with it. -->
                             <mi:MaterialIcon DockPanel.Dock="Left" Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,0,4,0"
                                              Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" IsVisible="{Binding !ShowsSubText}" />
-                            <TextBlock DockPanel.Dock="Left" Classes="muted" Text="{Binding CategoryName}" FontSize="12" Margin="0,0,10,0" MaxWidth="120"
-                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
-                                <TextBlock.IsVisible>
+                            <!-- The label at the start of the sub-line: "Under the task" draws its 7 px dot first; "By the check box" keeps the name only. -->
+                            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="6" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <StackPanel.IsVisible>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <Binding Path="ShowsLabelChip" />
                                         <Binding Path="$self.(views:TaskColumnScope.IsColumn)" />
                                     </MultiBinding>
-                                </TextBlock.IsVisible>
-                            </TextBlock>
-                            <Button Classes="labelPill" DockPanel.Dock="Left" Margin="0,0,10,0" IsVisible="{Binding ShowsLabelPillInDetails}" Click="OnCategoryClick" AutomationProperties.Name="Change label" ToolTip.Tip="Change label">
-                                    <Panel>
-                                        <Border Background="{Binding CategoryBrush}" Opacity="0.18" CornerRadius="999" />
-                                        <StackPanel Orientation="Horizontal" Spacing="5" Margin="7,1,8,1">
-                                            <Ellipse Width="6" Height="6" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding CategoryName}" FontSize="12" MaxWidth="90" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </Panel>
-                                </Button>
+                                </StackPanel.IsVisible>
+                                <Ellipse Width="7" Height="7" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" IsVisible="{Binding ShowsSubLineDot}" />
+                                <TextBlock Classes="muted" Text="{Binding CategoryName}" FontSize="12" MaxWidth="120" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
                         <ItemsControl ItemsSource="{Binding Bits}" IsVisible="{Binding HasBits}" VerticalAlignment="Center" ItemTemplate="{StaticResource RowBitTemplate}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>

@@ -56,6 +56,46 @@
             <SolidColorBrush x:Key="Ab.AmberLine" Color="{DynamicResource Ab.AmberLineColor}" />
             <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
             <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />
+            <!-- Tasks redesign (plan item 3, #10): mixes of two tokens, precomputed from this theme's own colours (a mix of two DynamicResources
+                 cannot be written in AbStyles), and the accent / drift / amber tints over transparent. Line2 = Line 88% + Ink 12%, Line3 = Line 68% + Ink 32%,
+                 Ink2 = Ink 78% + Muted 22%, Muted2 = Muted 70% + Faint 30%, AccentLine = Accent 40% + AccentSoft 60%, AccentRing = Accent 65% +
+                 AccentSoft 35%, DriftLine = Drift 55% + Surface 45%, Dialog = Surface. -->
+            <Color x:Key="Ab.Line2Color">#CBCFD8</Color>
+            <Color x:Key="Ab.Line3Color">#A3A8B2</Color>
+            <Color x:Key="Ab.Ink2Color">#293244</Color>
+            <Color x:Key="Ab.Muted2Color">#6B788C</Color>
+            <Color x:Key="Ab.AccentLineColor">#C7B7A1</Color>
+            <Color x:Key="Ab.AccentRingColor">#AF987B</Color>
+            <Color x:Key="Ab.DriftLineColor">#D6A095</Color>
+            <Color x:Key="Ab.DialogColor">#FFFFFF</Color>
+            <Color x:Key="Ab.AccentTint5Color">#0D8C6D45</Color>
+            <Color x:Key="Ab.AccentTint14Color">#248C6D45</Color>
+            <Color x:Key="Ab.AccentTint16Color">#298C6D45</Color>
+            <Color x:Key="Ab.AccentTint18Color">#2E8C6D45</Color>
+            <Color x:Key="Ab.AccentTint35Color">#598C6D45</Color>
+            <Color x:Key="Ab.DriftTint8Color">#14B5523F</Color>
+            <Color x:Key="Ab.DriftTint12Color">#1FB5523F</Color>
+            <Color x:Key="Ab.DriftTint14Color">#24B5523F</Color>
+            <Color x:Key="Ab.AmberTint9Color">#178A5300</Color>
+            <!-- Ab.Shadow's colour: black at 50% in dark, warm black rgba(30,25,15,0.16) in light. -->
+            <Color x:Key="Ab.ShadowColor">#291E190F</Color>
+            <SolidColorBrush x:Key="Ab.Line2" Color="{DynamicResource Ab.Line2Color}" />
+            <SolidColorBrush x:Key="Ab.Line3" Color="{DynamicResource Ab.Line3Color}" />
+            <SolidColorBrush x:Key="Ab.Ink2" Color="{DynamicResource Ab.Ink2Color}" />
+            <SolidColorBrush x:Key="Ab.Muted2" Color="{DynamicResource Ab.Muted2Color}" />
+            <SolidColorBrush x:Key="Ab.AccentLine" Color="{DynamicResource Ab.AccentLineColor}" />
+            <SolidColorBrush x:Key="Ab.AccentRing" Color="{DynamicResource Ab.AccentRingColor}" />
+            <SolidColorBrush x:Key="Ab.DriftLine" Color="{DynamicResource Ab.DriftLineColor}" />
+            <SolidColorBrush x:Key="Ab.Dialog" Color="{DynamicResource Ab.DialogColor}" />
+            <SolidColorBrush x:Key="Ab.AccentTint5" Color="{DynamicResource Ab.AccentTint5Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint14" Color="{DynamicResource Ab.AccentTint14Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint16" Color="{DynamicResource Ab.AccentTint16Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint18" Color="{DynamicResource Ab.AccentTint18Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint35" Color="{DynamicResource Ab.AccentTint35Color}" />
+            <SolidColorBrush x:Key="Ab.DriftTint8" Color="{DynamicResource Ab.DriftTint8Color}" />
+            <SolidColorBrush x:Key="Ab.DriftTint12" Color="{DynamicResource Ab.DriftTint12Color}" />
+            <SolidColorBrush x:Key="Ab.DriftTint14" Color="{DynamicResource Ab.DriftTint14Color}" />
+            <SolidColorBrush x:Key="Ab.AmberTint9" Color="{DynamicResource Ab.AmberTint9Color}" />
             <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
             <Color x:Key="SystemAccentColor">#8C6D45</Color>
             <Color x:Key="SystemAccentColorLight1">#8C6D45</Color>
@@ -73,6 +113,10 @@
             <Color x:Key="SystemBaseLowColor">#E3E7EE</Color>
             <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #8C6D45</BoxShadows>
             <BoxShadows x:Key="Ab.FocusRingOnAccent">inset 0 0 0 2 #1A2233</BoxShadows>
+            <!-- Tasks redesign: the 1 px ring on selected rows (Ab.AccentRing), the menus' shadow (0 12 36) and the dialogs' (0 18 50) in Ab.Shadow's colour. -->
+            <BoxShadows x:Key="Ab.SelectedRing">inset 0 0 0 1 #AF987B</BoxShadows>
+            <BoxShadows x:Key="Ab.Shadow">0 12 36 0 #291E190F</BoxShadows>
+            <BoxShadows x:Key="Ab.DialogShadow">0 18 50 0 #291E190F</BoxShadows>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <Color x:Key="Ab.BgColor">#10141C</Color>
@@ -128,6 +172,46 @@
             <SolidColorBrush x:Key="Ab.AmberLine" Color="{DynamicResource Ab.AmberLineColor}" />
             <SolidColorBrush x:Key="Ab.DragCancel" Color="{DynamicResource Ab.DragCancelColor}" />
             <SolidColorBrush x:Key="Ab.DragCancelFill" Color="{DynamicResource Ab.DragCancelFillColor}" />
+            <!-- Tasks redesign (plan item 3, #10): mixes of two tokens, precomputed from this theme's own colours (a mix of two DynamicResources
+                 cannot be written in AbStyles), and the accent / drift / amber tints over transparent. Line2 = Line 88% + Ink 12%, Line3 = Line 68% + Ink 32%,
+                 Ink2 = Ink 78% + Muted 22%, Muted2 = Muted 70% + Faint 30%, AccentLine = Accent 40% + AccentSoft 60%, AccentRing = Accent 65% +
+                 AccentSoft 35%, DriftLine = Drift 55% + Surface 45%, Dialog = Surface 55% + Surface2 45%. -->
+            <Color x:Key="Ab.Line2Color">#3E4554</Color>
+            <Color x:Key="Ab.Line3Color">#626976</Color>
+            <Color x:Key="Ab.Ink2Color">#CAD0DB</Color>
+            <Color x:Key="Ab.Muted2Color">#7D869A</Color>
+            <Color x:Key="Ab.AccentLineColor">#6D624E</Color>
+            <Color x:Key="Ab.AccentRingColor">#978669</Color>
+            <Color x:Key="Ab.DriftLineColor">#826160</Color>
+            <Color x:Key="Ab.DialogColor">#1B202C</Color>
+            <Color x:Key="Ab.AccentTint5Color">#0DD2B98F</Color>
+            <Color x:Key="Ab.AccentTint14Color">#24D2B98F</Color>
+            <Color x:Key="Ab.AccentTint16Color">#29D2B98F</Color>
+            <Color x:Key="Ab.AccentTint18Color">#2ED2B98F</Color>
+            <Color x:Key="Ab.AccentTint35Color">#59D2B98F</Color>
+            <Color x:Key="Ab.DriftTint8Color">#14D99A8E</Color>
+            <Color x:Key="Ab.DriftTint12Color">#1FD99A8E</Color>
+            <Color x:Key="Ab.DriftTint14Color">#24D99A8E</Color>
+            <Color x:Key="Ab.AmberTint9Color">#17E9C27A</Color>
+            <!-- Ab.Shadow's colour: black at 50% in dark, warm black rgba(30,25,15,0.16) in light. -->
+            <Color x:Key="Ab.ShadowColor">#80000000</Color>
+            <SolidColorBrush x:Key="Ab.Line2" Color="{DynamicResource Ab.Line2Color}" />
+            <SolidColorBrush x:Key="Ab.Line3" Color="{DynamicResource Ab.Line3Color}" />
+            <SolidColorBrush x:Key="Ab.Ink2" Color="{DynamicResource Ab.Ink2Color}" />
+            <SolidColorBrush x:Key="Ab.Muted2" Color="{DynamicResource Ab.Muted2Color}" />
+            <SolidColorBrush x:Key="Ab.AccentLine" Color="{DynamicResource Ab.AccentLineColor}" />
+            <SolidColorBrush x:Key="Ab.AccentRing" Color="{DynamicResource Ab.AccentRingColor}" />
+            <SolidColorBrush x:Key="Ab.DriftLine" Color="{DynamicResource Ab.DriftLineColor}" />
+            <SolidColorBrush x:Key="Ab.Dialog" Color="{DynamicResource Ab.DialogColor}" />
+            <SolidColorBrush x:Key="Ab.AccentTint5" Color="{DynamicResource Ab.AccentTint5Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint14" Color="{DynamicResource Ab.AccentTint14Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint16" Color="{DynamicResource Ab.AccentTint16Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint18" Color="{DynamicResource Ab.AccentTint18Color}" />
+            <SolidColorBrush x:Key="Ab.AccentTint35" Color="{DynamicResource Ab.AccentTint35Color}" />
+            <SolidColorBrush x:Key="Ab.DriftTint8" Color="{DynamicResource Ab.DriftTint8Color}" />
+            <SolidColorBrush x:Key="Ab.DriftTint12" Color="{DynamicResource Ab.DriftTint12Color}" />
+            <SolidColorBrush x:Key="Ab.DriftTint14" Color="{DynamicResource Ab.DriftTint14Color}" />
+            <SolidColorBrush x:Key="Ab.AmberTint9" Color="{DynamicResource Ab.AmberTint9Color}" />
             <!-- FluentTheme colour keys, so Fluent controls follow the theme (see FluentOverrides.axaml). -->
             <Color x:Key="SystemAccentColor">#D2B98F</Color>
             <Color x:Key="SystemAccentColorLight1">#D2B98F</Color>
@@ -145,6 +229,10 @@
             <Color x:Key="SystemBaseLowColor">#1F2532</Color>
             <BoxShadows x:Key="Ab.FocusRing">inset 0 0 0 2 #D2B98F</BoxShadows>
             <BoxShadows x:Key="Ab.FocusRingOnAccent">inset 0 0 0 2 #DCE1EA</BoxShadows>
+            <!-- Tasks redesign: the 1 px ring on selected rows (Ab.AccentRing), the menus' shadow (0 12 36) and the dialogs' (0 18 50) in Ab.Shadow's colour. -->
+            <BoxShadows x:Key="Ab.SelectedRing">inset 0 0 0 1 #978669</BoxShadows>
+            <BoxShadows x:Key="Ab.Shadow">0 12 36 0 #80000000</BoxShadows>
+            <BoxShadows x:Key="Ab.DialogShadow">0 18 50 0 #80000000</BoxShadows>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

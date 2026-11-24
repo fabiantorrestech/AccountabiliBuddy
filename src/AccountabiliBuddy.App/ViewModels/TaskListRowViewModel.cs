@@ -129,20 +129,37 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The row has a label (shown as <see cref="LabelStyle"/> says).</summary>
     public bool HasCategory => !string.IsNullOrWhiteSpace(CategoryName);
 
-    /// <summary>How the label shows (Settings › Tasks › Labels › Label style); Dot by default.</summary>
+    /// <summary>Where the label shows (Settings › Tasks › Label dot): Under the task by default.</summary>
     public TaskLabelStyle LabelStyle { get; init; }
 
-    /// <summary>The label's dot and name at the row's right (Dot; a click opens the picker).</summary>
-    public bool ShowsLabelChip => HasCategory && LabelStyle == TaskLabelStyle.Dot;
+    private TaskLabelStyle LabelDot => TaskLabelStyles.Migrated(LabelStyle);
+
+    /// <summary>
+    /// The label as a dot and its name (Under the task or By the check box, not Pill before): the name on the sub-line in a Shelf column, the
+    /// chip at the row's right elsewhere (a click opens the picker).
+    /// </summary>
+    public bool ShowsLabelChip => HasCategory && LabelDot != TaskLabelStyle.PillBefore;
+
+    /// <summary>Under the task: the label's 7 px dot before its name on the sub-line.</summary>
+    public bool ShowsSubLineDot => HasCategory && LabelDot == TaskLabelStyle.UnderTask;
+
+    /// <summary>
+    /// The leading dot in a Shelf column (filled in the label's colour, hollow without one; a click opens the picker): By the check box, and
+    /// Pill before (where it was before the redesign). Under the task has none: the dot is on the sub-line.
+    /// </summary>
+    public bool ShowsColumnLeadDot => LabelDot != TaskLabelStyle.UnderTask;
+
+    /// <summary>By the check box: the 8 px dot left of the check box (filled; on Today and in a Shelf column).</summary>
+    public bool ShowsDotByCheckBox => LabelDot == TaskLabelStyle.ByCheckBox;
+
+    /// <summary>The leading dot is filled in the label's colour (By the check box, with a label).</summary>
+    public bool ShowsLeadDotFill => HasCategory && ShowsDotByCheckBox;
 
     /// <summary>The label as a tinted pill before the title (Pill before).</summary>
-    public bool ShowsLabelPillBefore => HasCategory && LabelStyle == TaskLabelStyle.PillBefore;
+    public bool ShowsLabelPillBefore => HasCategory && LabelDot == TaskLabelStyle.PillBefore;
 
-    /// <summary>The label as a tinted pill at the start of the detail line (Pill in details).</summary>
-    public bool ShowsLabelPillInDetails => HasCategory && LabelStyle == TaskLabelStyle.PillInDetails;
-
-    /// <summary>The detail line shows: its bits, or the label's pill in details.</summary>
-    public bool ShowsDetailLine => HasBits || ShowsLabelPillInDetails;
+    /// <summary>The detail line shows its bits (a label alone shows it in a Shelf column, <see cref="Views.TaskRowView.DetailLineShown"/>).</summary>
+    public bool ShowsDetailLine => HasBits;
 
     /// <summary>The row can have a label (every kind but Auto-saved): its chip, or the quiet "+ label" spot, opens the picker.</summary>
     public bool CanLabel => _labelMenu is not null;
@@ -293,6 +310,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     /// <summary>The label's colour for Today's line.</summary>
     public IBrush TodayLabelBrush => IsStepRow ? StepSourceBrush : CategoryBrush;
+
+    /// <summary>Today's line draws the label's dot, except on a task row with By the check box (its dot is left of the check box then).</summary>
+    public bool ShowsTodayLabelDot => IsStepRow || !ShowsDotByCheckBox;
 
     /// <summary>Today's line, last part: a step's ID ("142b"), else the row's own line (time limit, steps left, finished, reminder).</summary>
     public string TodayTail => IsStepRow ? StepSourceId : SubText;

@@ -31,6 +31,7 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
     private readonly TaskCalendarExportService? _export;
     private readonly TaskViewService? _views;
     private readonly TaskAccountSettingsService? _account;
+    private readonly TaskLayoutStore? _layout;
     private readonly TimeProvider _time;
 
     // True while the page reads the services: the properties' change handlers then save nothing.
@@ -45,13 +46,15 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         TaskCalendarExportService? export,
         TaskViewService? views,
         TaskAccountSettingsService? account,
-        TimeProvider time)
+        TimeProvider time,
+        TaskLayoutStore? layout = null)
     {
         _settings = settings;
         _reminders = reminders;
         _export = export;
         _views = views;
         _account = account;
+        _layout = layout;
         _time = time;
         RingingSummary = ExportStatus = PickedStatus = TimeLimitHint = DefaultViewHint = StatusText = ResetNote = string.Empty;
         CompactPending = ShelfPending = ActionsPending = SessionViewPending = StepAwayPending = SideTaskPending = LunchDiscardPending = string.Empty;
@@ -72,6 +75,11 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         if (_account is not null)
         {
             _account.Changed += (_, _) => Dispatcher.UIThread.Post(Load);
+        }
+
+        if (_layout is not null)
+        {
+            _layout.Changed += (_, _) => Dispatcher.UIThread.Post(Load);
         }
 
         Load();
@@ -202,10 +210,17 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         ShowsLabelsScreen = false;
     }
 
-    public IReadOnlyList<string> LabelStyleChoices { get; } = ["Dot", "Pill before", "Pill in details"];
+    /// <summary>Label dot: "Under the task", "By the check box", "Pill before the title" (the last one here only, never in Options).</summary>
+    public IReadOnlyList<string> LabelStyleChoices { get; } = TaskLabelStyles.SettingsChoices.Select(TaskLabelStyles.NameOf).ToList();
 
     [ObservableProperty]
     public partial int LabelStyleIndex { get; set; }
+
+    /// <summary>"Fade controls you're not using" (this PC, both modes); the row hides when the page has no layout store.</summary>
+    [ObservableProperty]
+    public partial bool FadeIdleControls { get; set; }
+
+    public bool CanFadeIdleControls => _layout is not null;
 
     // ---- During a session ----
 
@@ -440,7 +455,8 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
             NewReminderIndex = Array.IndexOf(NewReminderRules, reminders.NewReminderRule);
             LoadExport();
 
-            LabelStyleIndex = (int)settings.LabelStyle;
+            LabelStyleIndex = Math.Max(0, TaskLabelStyles.SettingsChoices.ToList().IndexOf(TaskLabelStyles.Migrated(settings.LabelStyle)));
+            FadeIdleControls = _layout?.Current.FadeIdleControls ?? true;
 
             CompactInSession = settings.CompactInSession;
             CompactPending = PendingText(settings.PendingCompactInSession == false, settings.PendingCompactFrom, "Compact rows off");
@@ -726,12 +742,20 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
 
     partial void OnLabelStyleIndexChanged(int value)
     {
-        if (_loading || !Enum.IsDefined((TaskLabelStyle)value))
+        if (_loading || value < 0 || value >= TaskLabelStyles.SettingsChoices.Count)
         {
             return;
         }
 
-        _ = _settings.SetLabelStyleAsync((TaskLabelStyle)value);
+        _ = _settings.SetLabelStyleAsync(TaskLabelStyles.SettingsChoices[value]);
+    }
+
+    partial void OnFadeIdleControlsChanged(bool value)
+    {
+        if (!_loading && _layout is not null)
+        {
+            _ = _layout.SetFadeIdleControlsAsync(value);
+        }
     }
 
     // ---- saving: During a session ----

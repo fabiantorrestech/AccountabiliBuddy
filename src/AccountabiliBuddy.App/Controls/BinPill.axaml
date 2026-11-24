@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Controls.BinPill">
+    <!-- The bin pill (Tasks redesign plan item 3; checklist 3.68-3.73; board 06): icon, bin name, ˅. A click opens "Move to" (an existing task)
+         or "Add to" (a new task) 6 px under it; a pick only raises BinPicked / PickCommand, the caller applies it. -->
+    <UserControl.Styles>
+        <Style Selector="Button.binPill">
+            <!-- The app's focus ring (Ab.FocusRing on the presenter) only, not Fluent's adorner. -->
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="10,0,8,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.binPill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.binPill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted2}" />
+        </Style>
+        <Style Selector="Button.binPill:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+        </Style>
+
+        <Style Selector="Border.binMenu">
+            <Setter Property="Width" Value="220" />
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.Shadow}" />
+        </Style>
+        <!-- A menu row: 34 high, 13.5 px; the task's bin now has the Line2 fill (and is the checked one). -->
+        <Style Selector="ToggleButton.binRow">
+            <!-- The app's focus ring (Ab.FocusRing on the presenter) only, not Fluent's adorner. -->
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ToggleButton.binRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ToggleButton.binRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ToggleButton.binRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="ToggleButton.binRow:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <Button x:Name="Pill" Classes="binPill" Click="OnPillClick">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <mi:MaterialIcon x:Name="PillIcon" Width="14" Height="14" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                <TextBlock x:Name="PillName" VerticalAlignment="Center" />
+                <mi:MaterialIcon Kind="ChevronDown" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+            </StackPanel>
+        </Button>
+        <!-- The menu's frame keeps room for its shadow inside the pop-up (offsets move it back to 6 px under the pill, left edges aligned). -->
+        <Popup x:Name="Menu" PlacementTarget="{Binding #Pill}" Placement="BottomEdgeAlignedLeft" HorizontalOffset="-16" VerticalOffset="6"
+               IsLightDismissEnabled="True" Closed="OnMenuClosed">
+            <Border Classes="binMenu" Margin="16,0,16,40">
+                <StackPanel x:Name="MenuList" Spacing="0">
+                    <TextBlock x:Name="MenuHeading" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}" Margin="10,6,10,4" />
+                    <ItemsControl x:Name="MenuRows">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BinPillChoice">
+                                <ToggleButton Classes="binRow" IsChecked="{Binding IsCurrent, Mode=OneWay}" Click="OnRowClick"
+                                              AutomationProperties.Name="{Binding Name}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Hint}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                                                   IsVisible="{Binding HasHint}" />
+                                    </Grid>
+                                </ToggleButton>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Panel>
+</UserControl>

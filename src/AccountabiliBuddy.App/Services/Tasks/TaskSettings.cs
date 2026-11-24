@@ -39,7 +39,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <param name="PendingHideShelfFrom">When <paramref name="PendingHideShelfInSession"/> takes effect, unless a session runs then.</param>
 /// <param name="PendingSessionView">Grouped (looser than Quiet), waiting; null when nothing waits.</param>
 /// <param name="PendingSessionViewFrom">When <paramref name="PendingSessionView"/> takes effect, unless a session runs then.</param>
-/// <param name="LabelStyle">How rows show their label: Dot (default), Pill before the title, Pill in the detail line. Display only.</param>
+/// <param name="LabelStyle">Label dot: where rows show their label: Under the task (default), By the check box, or Pill before the title (Settings only). Display only.</param>
 /// <param name="DefaultTimeLimitMinutes">The time limit a task typed in the add box starts with; 0 for none (25 by default, spec 02).</param>
 /// <param name="SuggestShorterTitles">The add box's title help: the counter from 50 characters and "Move … to notes" (on by default).</param>
 /// <param name="ShowAgeOnRows">Rows say "untouched N wk" once a task counts as untouched (on by default).</param>
@@ -73,7 +73,7 @@ public sealed record TaskSettings(
     DateTimeOffset? PendingHideShelfFrom = null,
     SessionTaskView? PendingSessionView = null,
     DateTimeOffset? PendingSessionViewFrom = null,
-    TaskLabelStyle LabelStyle = TaskLabelStyle.Dot,
+    TaskLabelStyle LabelStyle = TaskLabelStyle.UnderTask,
     int DefaultTimeLimitMinutes = TaskSettings.StandardTimeLimitMinutes,
     bool SuggestShorterTitles = true,
     bool ShowAgeOnRows = true,

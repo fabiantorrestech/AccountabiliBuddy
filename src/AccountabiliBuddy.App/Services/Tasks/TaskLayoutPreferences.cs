@@ -16,12 +16,17 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// Round 2 R3: the Shelf's columns left to right, per grouping ("bins", "label", "tag"), as group keys ("bin:next", "label:…"). This PC
 /// only, never in a view or a sync file (plan §3b item 3; a shared page order waits for ADR 83). Absent: the grouping's own order.
 /// </param>
+/// <param name="FadeIdleControls">
+/// Tasks redesign (checklist 3.47, resolution O9): "Fade controls you're not using". On (the default), controls marked <c>idleFade</c> rest faint
+/// and light up on hover, press, keyboard focus or while in use; off, they sit at full strength. One value for both modes, this PC only.
+/// </param>
 public sealed record TaskLayoutPreferences(
     bool Compact = false,
     int TodaySplit = TaskLayoutPreferences.DefaultSplit,
     IReadOnlyDictionary<string, bool>? ExpandAll = null,
     IReadOnlyList<string>? Pinned = null,
-    IReadOnlyDictionary<string, IReadOnlyList<string>>? ColumnOrder = null)
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? ColumnOrder = null,
+    bool FadeIdleControls = true)
 {
     public const int DefaultSplit = 46;
     public const int MinSplit = 30;

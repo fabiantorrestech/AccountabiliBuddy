@@ -22,4 +22,23 @@ public static class TaskBinIcons
             _ => MaterialIconKind.Tray,
         };
     }
+
+    /// <summary>
+    /// The Tasks redesign's bin icons (checklist 3.33, SPEC): Today (Queued) CalendarToday, Next SkipNext, To sort InboxOutline, Later
+    /// ClockOutline, Done CheckCircleOutline; This session keeps the app's PlayCircleOutline. The bin pill uses them now; the pages move
+    /// from <see cref="Of"/> to these when they are restyled (plan items 4, 5, 8), so each page keeps one icon per bin meanwhile.
+    /// </summary>
+    public static MaterialIconKind Redesigned(TaskBin bin)
+    {
+        return bin switch
+        {
+            TaskBin.Session => MaterialIconKind.PlayCircleOutline,
+            TaskBin.Queued => MaterialIconKind.CalendarToday,
+            TaskBin.Sort => MaterialIconKind.InboxOutline,
+            TaskBin.Next => MaterialIconKind.SkipNext,
+            TaskBin.Later => MaterialIconKind.ClockOutline,
+            TaskBin.Done => MaterialIconKind.CheckCircleOutline,
+            _ => MaterialIconKind.Tray,
+        };
+    }
 }

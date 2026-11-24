@@ -11,6 +11,10 @@
             </ResourceDictionary.MergedDictionaries>
             <!-- ADR 68: the name the app shows for itself; AppBrand sets ProductaBuddy in companion mode. -->
             <sys:String x:Key="Ab.BrandName">AccountabiliBuddy</sys:String>
+            <!-- Tasks redesign: the idleFade styles' resting opacity (icons 22%, label row chips 30%); IdleFade sets 1 when "Fade controls you're
+                 not using" is off. -->
+            <x:Double x:Key="Ab.IdleFadeIcon">0.22</x:Double>
+            <x:Double x:Key="Ab.IdleFadeChip">0.3</x:Double>
         </ResourceDictionary>
     </Application.Resources>
     <Application.Styles>

@@ -55,6 +55,9 @@ public sealed class TaskLabelService
         }
     }
 
+    /// <summary>ADR 93: the live label groups ("categories"), in their order; none while the task list isn't active.</summary>
+    public IReadOnlyList<TaskLabelGroup> Groups => _store.IsActive ? TaskLabelGroupBook.Live(_store.Lists.LabelGroups) : [];
+
     /// <summary>How many tasks have the label: the task list's live tasks, plus a running session's checklist tasks (held out of the list).</summary>
     public int UseCount(Guid labelId)
     {

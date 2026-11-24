@@ -324,10 +324,10 @@ public sealed class TaskSettingsService
         return from == SessionTaskView.Quiet && to == SessionTaskView.Grouped;
     }
 
-    /// <summary>How rows show their label (Dot, Pill before, Pill in details). Display only: at once.</summary>
+    /// <summary>Label dot: where rows show their label (Under the task, By the check box, Pill before the title). Display only: at once.</summary>
     public Task SetLabelStyleAsync(TaskLabelStyle style, GuidanceMode? mode = null)
     {
-        return UpdateAsync(settings => settings with { LabelStyle = style }, mode);
+        return UpdateAsync(settings => settings with { LabelStyle = TaskLabelStyles.Migrated(style) }, mode);
     }
 
     /// <summary>The time limit new tasks from the add box start with (0 for none). It only fills a field, so at once.</summary>
@@ -586,7 +586,8 @@ public sealed class TaskSettingsService
             SessionActions = Core.Tasks.SessionActions.ClampCap(settings.SessionActions),
             PendingSessionActions = settings.PendingSessionActions is int pending ? Core.Tasks.SessionActions.ClampCap(pending) : null,
             UntouchedWeeks = TaskUntouched.ClampWeeks(settings.UntouchedWeeks),
-            LabelStyle = Enum.IsDefined(settings.LabelStyle) ? settings.LabelStyle : TaskLabelStyle.Dot,
+            // Tasks redesign (plan #8): a stored Dot or Pill in details reads as Under the task; Pill before and By the check box stay.
+            LabelStyle = TaskLabelStyles.Migrated(settings.LabelStyle),
             DefaultTimeLimitMinutes = Math.Clamp(settings.DefaultTimeLimitMinutes, 0, SessionChecklist.MaxEstimateMinutes),
             SessionView = Enum.IsDefined(settings.SessionView) ? settings.SessionView : SessionTaskView.Quiet,
         };

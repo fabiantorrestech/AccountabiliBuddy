@@ -1,0 +1,282 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             x:Class="AccountabiliBuddy.App.Controls.LabelPicker"
+             x:DataType="vm:LabelPickerViewModel">
+    <!-- The shared label picker (Tasks redesign plan item 3; checklist 3.48-3.67; board 21 DragPick): an optional header row (the caller's
+         "Label · Now: …" and the "No label" button), the search field, then the category rail (150 wide) and the shown category's labels on a
+         guide line, each scrolling on its own. Keys: ↑/↓ move, ← / → between rail and labels, Enter picks, Esc clears the search first. -->
+    <UserControl.Styles>
+        <!-- "No label": a small outlined pill; picked = accent 14% fill and an accent border. -->
+        <Style Selector="Button.lpNoLabel">
+            <!-- The app's focus ring (Ab.FocusRing on the presenter) only, not Fluent's adorner. -->
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.lpNoLabel /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lpNoLabel:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+        </Style>
+        <Style Selector="Button.lpNoLabel.picked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint14}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+
+        <!-- The search field: 30 high, radius 9, a Line2 border on the surface; the text box inside has no frame of its own, so the app's focus
+             ring sits on the field. -->
+        <Style Selector="Border.lpSearch">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Padding" Value="10,0" />
+        </Style>
+        <Style Selector="Border.lpSearch:focus-within">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+        <Style Selector="TextBox.lpSearchEntry">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBox.lpSearchEntry /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="TextBox.lpSearchEntry:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.lpSearchEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+
+        <!-- The rail: padding 6, a 1 px line, radius 12, the section-block ground. -->
+        <Style Selector="Border.lpRail">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="{DynamicResource Ab.SectionBlock}" />
+        </Style>
+        <!-- A rail row: 30 high, 13 px semibold, Ink2; selected = the line fill and Ink. -->
+        <Style Selector="Button.lpCategory">
+            <!-- The app's focus ring (Ab.FocusRing on the presenter) only, not Fluent's adorner. -->
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.lpCategory /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink2}" />
+        </Style>
+        <Style Selector="Button.lpCategory:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lpCategory.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lpAddCategory">
+            <!-- The app's focus ring (Ab.FocusRing on the presenter) only, not Fluent's adorner. -->
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.lpAddCategory /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.lpAddCategory:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- The label pane: padding 6, a 1 px line, radius 12 (on the dialog's ground). -->
+        <Style Selector="Border.lpPane">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+        <!-- A label row: 30 high, 13 px; the picked fill and border sit on the inner frame (so the row never shifts), hover under it. -->
+        <Style Selector="Button.lpLabel">
+            <!-- The app's focus ring (Ab.FocusRing on the presenter) only, not Fluent's adorner. -->
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.lpLabel /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lpLabel:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.lpTag">
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.lpTag > TextBlock">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink2}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="6">
+        <DockPanel x:Name="HeaderRow">
+            <DockPanel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                    <Binding Path="$parent[controls:LabelPicker].ShowsNoLabel" />
+                    <Binding Path="$parent[controls:LabelPicker].Header" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                </MultiBinding>
+            </DockPanel.IsVisible>
+            <Button DockPanel.Dock="Right" Classes="lpNoLabel" Classes.picked="{Binding IsNoLabelPicked}" Command="{Binding PickNoLabelCommand}"
+                    IsVisible="{Binding $parent[controls:LabelPicker].ShowsNoLabel}" AutomationProperties.Name="No label">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Muted2}" StrokeThickness="1.5" VerticalAlignment="Center" />
+                    <TextBlock Text="No label" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+            <ContentPresenter Content="{Binding $parent[controls:LabelPicker].Header}" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <Border Grid.Row="1" Classes="lpSearch">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <mi:MaterialIcon Kind="Magnify" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                <TextBox x:Name="SearchBox" Grid.Column="1" Classes="lpSearchEntry" Text="{Binding SearchText}"
+                         PlaceholderText="Type to find a label in any category · Enter picks" AutomationProperties.Name="Find a label" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="150,*" ColumnSpacing="8" MinHeight="240">
+            <Border Classes="lpRail">
+                <DockPanel>
+                    <Button DockPanel.Dock="Bottom" Classes="lpAddCategory" Command="{Binding RequestAddCategoryCommand}" IsVisible="{Binding CanAddCategory}"
+                            AutomationProperties.Name="Add a category">
+                        <TextBlock Text="+ Category" />
+                    </Button>
+                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="RailList" ItemsSource="{Binding Rail}" AutomationProperties.Name="Label categories">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="2" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LabelPickerCategoryViewModel">
+                                    <Button Classes="lpCategory" Classes.selected="{Binding IsSelected}" Command="{Binding SelectCommand}"
+                                            Opacity="{Binding RowOpacity}" AutomationProperties.Name="{Binding Name}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" Width="15" Height="15" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            <Ellipse Grid.Column="2" Width="7" Height="7" Fill="{DynamicResource Ab.Accent}" VerticalAlignment="Center"
+                                                     IsVisible="{Binding HasPick}" AutomationProperties.Name="Has the picked label" />
+                                            <TextBlock Grid.Column="3" Text="{Binding CountText}" FontSize="11.5" FontWeight="Normal"
+                                                       Foreground="{DynamicResource Ab.Muted2}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Column="1" Classes="lpPane" MinWidth="240">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="LabelList" Spacing="2">
+                        <TextBlock Text="Matches in every category" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Muted}"
+                                   Margin="8,4,8,2" IsVisible="{Binding IsSearching}" />
+                        <ItemsControl ItemsSource="{Binding Sections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LabelPickerSectionViewModel">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,4,8,3">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink2}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Border Margin="15,0,0,4" Padding="10,0,0,0" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="1,0,0,0">
+                                            <ItemsControl ItemsSource="{Binding Items}" AutomationProperties.Name="{Binding Name}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Spacing="1" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:LabelPickerItemViewModel">
+                                                        <Button Classes="lpLabel" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding FullName}">
+                                                            <Border MinHeight="30" Padding="10,0" CornerRadius="8" BorderThickness="1"
+                                                                    Background="{Binding Fill}" BorderBrush="{Binding Line}">
+                                                                <Border.Transitions>
+                                                                    <Transitions>
+                                                                        <BrushTransition Property="Background" Duration="0:0:0.15" />
+                                                                        <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+                                                                    </Transitions>
+                                                                </Border.Transitions>
+                                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9">
+                                                                    <Ellipse Width="9" Height="9" Fill="{Binding Dot}" VerticalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding ShortName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                                    <Border Grid.Column="2" Classes="lpTag" IsVisible="{Binding HasTag}">
+                                                                        <TextBlock Text="{Binding Tag}" />
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Border>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
