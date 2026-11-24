@@ -63,7 +63,7 @@ public static class TaskListRules
             tasks[index] = tasks[index] with { Task = task };
         }
 
-        var result = new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared), lists.Account, lists.TagScopes);
+        var result = new TaskLists(tasks, read.Labels, lists.Views, CloseFinished(read.History, prepared), lists.Account, lists.TagScopes, lists.LabelGroups);
         return TaskScopes.KeepHidden(lists, result, self, removed, now, joinNew: false);
     }
 
@@ -176,6 +176,13 @@ public static class TaskListRules
             merged = scopeBasis with { TagScopes = MergedScopes(lists.TagScopes, scopeBasis.TagScopes, TaskScopes.Clean(scopes), self, now) };
         }
 
+        // ADR 93: the label groups merge item by item whenever the file carries them; a file without (an older app, a QR file) leaves them alone.
+        if (file.LabelGroups is { } groups)
+        {
+            TaskLists groupBasis = merged ?? lists;
+            merged = groupBasis with { LabelGroups = TaskLabelGroupMerge.Merge(groupBasis.LabelGroups, groups, now) };
+        }
+
         return merged;
     }
 
@@ -199,14 +206,14 @@ public static class TaskListRules
 
         OldTaskReadResult read = OldTaskFieldsReader.Read(new OldTaskReadInput(
             fields, file.Device.DeviceId, file.Device.Kind ?? string.Empty, lists.Tasks, lists.Labels, lists.Log, self, now, zone, sessionActions));
-        return new TaskLists(read.Tasks, read.Labels, lists.Views, CloseFinished(read.History, fields), lists.Account, lists.TagScopes);
+        return new TaskLists(read.Tasks, read.Labels, lists.Views, CloseFinished(read.History, fields), lists.Account, lists.TagScopes, lists.LabelGroups);
     }
 
     /// <summary>
     /// Another device's (or a backup's) task list merged in: tasks field by field (<see cref="TaskFieldMerge"/>), labels, views and
-    /// History item by item (a label's rings on and device list by their own stamps, <see cref="TaskLabelMerge"/>), the account's Tasks settings field by field
-    /// (none incoming keeps this device's), the tag scopes item by item (none incoming keeps this device's, ADR 89). Items a damaged file left
-    /// empty are dropped.
+    /// History item by item (a label's rings on, device list and group by their own stamps, <see cref="TaskLabelMerge"/>), the account's Tasks settings field by field
+    /// (none incoming keeps this device's), the tag scopes item by item (none incoming keeps this device's, ADR 89), the label groups item by
+    /// item (none incoming keeps this device's, ADR 93). Items a damaged file left empty are dropped.
     /// </summary>
     public static TaskLists MergeLists(TaskLists lists, TaskLists incoming, Guid self, DateTimeOffset now)
     {
@@ -219,12 +226,14 @@ public static class TaskListRules
             SharedListMerge.Merge(lists.Views, incoming.Views.OfType<SyncTaskView>().Where(item => item.View is not null), now),
             SharedListMerge.Merge(lists.Log, incoming.Log.OfType<SyncTaskLogItem>().Where(item => item.Entry?.Task is not null), now),
             incoming.Account is null ? lists.Account : TaskAccountSettingsMerge.Merge(lists.Account, incoming.Account, now),
-            incoming.TagScopes is null ? lists.TagScopes : MergedScopes(lists.TagScopes, lists.TagScopes, TaskScopes.Clean(incoming.TagScopes), self, now));
+            incoming.TagScopes is null ? lists.TagScopes : MergedScopes(lists.TagScopes, lists.TagScopes, TaskScopes.Clean(incoming.TagScopes), self, now),
+            incoming.LabelGroups is null ? lists.LabelGroups : TaskLabelGroupMerge.Merge(lists.LabelGroups, incoming.LabelGroups, now));
     }
 
     /// <summary>
-    /// A backup's task list as a restore takes it in (ADR 71, 89): its live tasks, labels, views and scopes stamped <paramref name="now"/> by
-    /// <paramref name="self"/>, so they come back over later edits and deletions (their deletions don't). The device that wrote the
+    /// A backup's task list as a restore takes it in (ADR 71, 89, 93): its live tasks, labels, views, scopes and label groups stamped
+    /// <paramref name="now"/> by <paramref name="self"/>, so they come back over later edits and deletions (their deletions don't); a label's
+    /// group choice is stamped now like its device list, so the backup's choice wins. The device that wrote the
     /// backup (<paramref name="backupDevice"/>, null in an older backup) is swapped for this device in every label list and tag scope, so a
     /// reinstalled device (a new id) sees the labels and tags it made; a label's list stamp is stamped now like a scope's, so the backup's
     /// choice wins. A task keeps the labels and tags this device holds that are hidden here (<see cref="TaskScopes.WithHiddenTags"/>,
@@ -247,9 +256,12 @@ public static class TaskListRules
                 EditedAt = now,
                 OnlyOn = Swapped(item.Label.OnlyOn),
                 OnlyOnStamp = item.Label.OnlyOnStamp is null ? null : stamp,
+                GroupStamp = item.Label.GroupStamp is null ? null : stamp,
             })).ToList();
         List<SyncTagScope>? scopes = backup.TagScopes?.Where(scope => scope.DeletedAt is null)
             .Select(scope => scope with { EditedAt = now, OnlyOn = Swapped(scope.OnlyOn) }).ToList();
+        List<SyncTaskLabelGroup>? groups = TaskLabelGroupMerge.Clean(backup.LabelGroups)?.Where(item => item.Group.IsLive)
+            .Select(item => new SyncTaskLabelGroup(item.Group with { EditedAt = now })).ToList();
 
         List<TaskLabel> mergedLabels = TaskLabelMerge.Merge(current.Labels, labels, now).Select(item => item.Label).ToList();
         IReadOnlyList<SyncTagScope>? mergedScopes = TagScopeMerge.Merge(current.TagScopes, scopes, now);
@@ -276,7 +288,8 @@ public static class TaskListRules
             labels,
             backup.Views.Where(item => item.View?.IsLive == true).Select(item => new SyncTaskView(item.View with { EditedAt = now })).ToList(),
             backup.Log.Where(item => item.Entry?.Task is not null).ToList(),
-            TagScopes: scopes);
+            TagScopes: scopes,
+            LabelGroups: groups);
     }
 
     // The tag scopes merged item by item, then this device's own scope rejoined when a newer list left it out (<paramref name="own"/>: this
@@ -356,7 +369,7 @@ public static class TaskListRules
 
     /// <summary>
     /// History past its 90 days goes (on every device alike); tombstones past their 30 days go (a local item's stub stays), except
-    /// labels' (kept for good, <see cref="TaskLabelMerge"/>).
+    /// labels' and label groups' (kept for good, <see cref="TaskLabelMerge"/>, <see cref="TaskLabelGroupMerge"/>).
     /// </summary>
     public static TaskLists Pruned(TaskLists lists, DateTimeOffset now, Guid self)
     {
@@ -367,7 +380,8 @@ public static class TaskListRules
             SharedListMerge.Merge(lists.Views, [], now),
             SharedListMerge.Merge(log, [], now),
             lists.Account,
-            lists.TagScopes is null ? null : TagScopeMerge.Merge(lists.TagScopes, [], now));
+            lists.TagScopes is null ? null : TagScopeMerge.Merge(lists.TagScopes, [], now),
+            lists.LabelGroups is null ? null : TaskLabelGroupMerge.Merge(lists.LabelGroups, [], now));
     }
 
     /// <summary>
@@ -392,6 +406,7 @@ public static class TaskListRules
             TaskLog = lists.Log.ToList(),
             TaskAccountSettings = lists.Account is { IsEmpty: false } account ? account : null,
             TagScopes = lists.TagScopes is { Count: > 0 } scopes ? scopes.ToList() : null,
+            LabelGroups = lists.LabelGroups is { Count: > 0 } groups ? groups.ToList() : null,
         };
     }
 

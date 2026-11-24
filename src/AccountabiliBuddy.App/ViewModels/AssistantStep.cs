@@ -92,6 +92,11 @@ public enum AssistantStep
     DeviceRoles,
 
     /// <summary>
+    /// ADR 93: label categories, suggested from the name prefixes several labels share; Create makes the ticked ones (only as a new feature).
+    /// </summary>
+    LabelCategories,
+
+    /// <summary>
     /// ADR 68: AccountabiliBuddy or ProductaBuddy, in the first run (ProductaBuddy preselected on a fresh install), as the full
     /// setup's last page, and as a new feature for upgraded installs.
     /// </summary>

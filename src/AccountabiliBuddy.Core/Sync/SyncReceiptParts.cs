@@ -29,7 +29,7 @@ public static class SyncReceiptParts
     /// <summary>The outcomes of an accept, per part.</summary>
     public static readonly IReadOnlyList<string> States = [Taken, Held, Off, Absent, Refused];
 
-    /// <summary>The parts of a sync file a receipt reports on (tasks = tasks, labels, views, task log and the account's task settings; goals = the five goal parts).</summary>
+    /// <summary>The parts of a sync file a receipt reports on (tasks = tasks, labels, label groups, views, task log and the account's task settings; goals = the five goal parts).</summary>
     public static readonly IReadOnlyList<string> Codes = ["sessions", "dayPlan", "settings", "tasks", "oldLists", "goals", "goalHistory", "steps", "lunch", "actions"];
 
     public const int MaxEntries = 16;

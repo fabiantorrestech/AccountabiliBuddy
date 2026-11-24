@@ -236,7 +236,8 @@ public sealed class TaskViewService
         }
 
         var context = new TaskViewContext(
-            _time.GetUtcNow(), TimeZoneInfo.Local, labels, Search, scope, showEmptyBins, _store.LabelShown, _store.TagShown);
+            _time.GetUtcNow(), TimeZoneInfo.Local, labels, Search, scope, showEmptyBins, _store.LabelShown, _store.TagShown,
+            TaskLabelGroupBook.Live(lists.LabelGroups));
         return TaskViewRules.Apply(lists.Tasks.Select(item => item.Task), config, context);
     }
 

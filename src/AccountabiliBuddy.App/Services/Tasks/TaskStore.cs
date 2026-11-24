@@ -12,7 +12,7 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// <summary>
 /// The one shared task list on this PC (ADR 76): tasks, labels, saved views and History, the only place they are stored once the
 /// startup migration ran (marker document "tasks.model"). Kept as DPAPI-encrypted documents ("tasks.items", "tasks.labels",
-/// "tasks.views", "tasks.log", and the account's Tasks settings in "tasks.account"), with two device-local ones: the views' search words ("tasks.viewSearches") and the ids the PC's
+/// "tasks.views", "tasks.log", the account's Tasks settings in "tasks.account", ADR 89's tag scopes in "tasks.tagScopes" and ADR 93's label groups in "tasks.labelGroups"), with two device-local ones: the views' search words ("tasks.viewSearches") and the ids the PC's
 /// categories had ("tasks.categoryIds"). The PC's old lists (the next session's list, Later, come-backs, Auto-saved, categories)
 /// are views of it (<see cref="TaskFacadeLists"/>) and send their changes here; sync files merge in here and this PC's file is
 /// written from here (<see cref="TaskListRules"/>). Titles, notes, steps, tags and reasons are private text: sealed at rest and in
@@ -30,6 +30,12 @@ public sealed class TaskStore
 
     /// <summary>Where a tag-scopes document that couldn't be read is kept (sealed, as it was) instead of being overwritten.</summary>
     public const string UnreadableTagScopesKey = "tasks.tagScopes.unreadable";
+
+    /// <summary>ADR 93: the label groups ("categories" in the UI, tombstones kept for good), sealed; synced and backed up with the lists.</summary>
+    public const string LabelGroupsKey = "tasks.labelGroups";
+
+    /// <summary>Where a label-groups document that couldn't be read is kept (sealed, as it was) instead of being overwritten.</summary>
+    public const string UnreadableLabelGroupsKey = "tasks.labelGroups.unreadable";
 
     /// <summary>The account's Tasks settings (default view, picked calendar), sealed; synced and backed up with the lists.</summary>
     public const string AccountKey = "tasks.account";
@@ -327,7 +333,8 @@ public sealed class TaskStore
                 LoadList<SyncTaskView>(ViewsKey).Where(item => item.View is not null).ToList(),
                 LoadList<SyncTaskLogItem>(LogKey).Where(item => item.Entry?.Task is not null).ToList(),
                 LoadAccount(),
-                LoadTagScopes());
+                LoadTagScopes(),
+                LoadLabelGroups());
             _categoryIds = LoadSealed<Dictionary<Guid, Guid>>(CategoryIdsKey) ?? [];
             _viewSearches = LoadSealed<Dictionary<Guid, string>>(ViewSearchesKey) ?? [];
             (_running, _heldEndedAt) = LoadRunning();
@@ -736,6 +743,7 @@ public sealed class TaskStore
             new(LogKey, Sealed(lists.Log)),
             new(AccountKey, Sealed(lists.Account ?? SyncTaskAccountSettings.Empty)),
             new(TagScopesKey, Sealed(lists.TagScopes ?? [])),
+            new(LabelGroupsKey, Sealed(lists.LabelGroups ?? [])),
             new(CategoryIdsKey, Sealed(ids)),
             new(ViewSearchesKey, Sealed(searches)),
         };
@@ -856,13 +864,35 @@ public sealed class TaskStore
 
     private void SetAsideTagScopes()
     {
+        SetAside(TagScopesKey, UnreadableTagScopesKey);
+    }
+
+    // ADR 93's label groups, as the tag scopes: a document that can't be read here starts empty (every label uncategorised) rather than closing
+    // the task list; the other devices' files bring the groups back. The unreadable document is set aside (UnreadableLabelGroupsKey, the first
+    // one kept) so the next save doesn't overwrite it with an empty list.
+    private List<SyncTaskLabelGroup>? LoadLabelGroups()
+    {
         try
         {
-            Stored? raw = Task.Run(() => _store.LoadAsync<Stored>(TagScopesKey)).GetAwaiter().GetResult();
-            Stored? aside = Task.Run(() => _store.LoadAsync<Stored>(UnreadableTagScopesKey)).GetAwaiter().GetResult();
+            return TaskLabelGroupMerge.Merge(LoadList<SyncTaskLabelGroup>(LabelGroupsKey), [], Now);
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or NotSupportedException or System.Security.Cryptography.CryptographicException)
+        {
+            SetAside(LabelGroupsKey, UnreadableLabelGroupsKey);
+            return null;
+        }
+    }
+
+    // Keeps an unreadable document's sealed value under asideKey (the first one kept), so the next save can't overwrite it.
+    private void SetAside(string key, string asideKey)
+    {
+        try
+        {
+            Stored? raw = Task.Run(() => _store.LoadAsync<Stored>(key)).GetAwaiter().GetResult();
+            Stored? aside = Task.Run(() => _store.LoadAsync<Stored>(asideKey)).GetAwaiter().GetResult();
             if (raw is not null && aside is null)
             {
-                Task.Run(() => _store.SaveAsync(UnreadableTagScopesKey, raw)).GetAwaiter().GetResult();
+                Task.Run(() => _store.SaveAsync(asideKey, raw)).GetAwaiter().GetResult();
             }
         }
         catch (Exception ex) when (ex is SqliteException or JsonException or NotSupportedException)

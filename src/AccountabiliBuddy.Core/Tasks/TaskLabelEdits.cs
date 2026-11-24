@@ -7,7 +7,8 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// The Labels screen's edits of the labels themselves (ADR 76, spec 03 §C, 05 §16), each stamped so the newest version wins on every
 /// device (<see cref="SharedListMerge"/>): a new label (the name-based id, a colour of the 12-colour set or a custom one), a new colour
 /// (any form <see cref="TaskLabelColors"/> takes, opacity kept) and its "Rings on" devices (stamped on their own, see
-/// <see cref="TaskLabelMerge"/>) and its "Only on" devices (ADR 89, the same way: a stamp of its own). Renaming and deleting go through the PC's
+/// <see cref="TaskLabelMerge"/>), its "Only on" devices (ADR 89, the same way: a stamp of its own) and its group (ADR 93, <see cref="SetGroup"/>,
+/// the same way; the groups themselves are <see cref="TaskLabelGroupEdits"/>). Renaming and deleting go through the PC's
 /// category list (<see cref="TaskCategoryEdits"/>), which also carries them to a running checklist. Ids only change for a new label.
 /// </summary>
 public static class TaskLabelEdits
@@ -71,8 +72,14 @@ public static class TaskLabelEdits
         var label = new TaskLabel(newId, trimmed, chosen, position, stamp);
         if (existing >= 0)
         {
-            // Revived: rings on every device and shown on every device again unless asked otherwise, both stamped at the revive.
-            labels[existing] = label with { RingOnStamp = new TaskFieldStamp(stamp, self), OnlyOn = deviceOnly ? [self] : null, OnlyOnStamp = new TaskFieldStamp(stamp, self) };
+            // Revived: rings on every device and shown on every device again unless asked otherwise, in no group (ADR 93), all stamped at the revive.
+            labels[existing] = label with
+            {
+                RingOnStamp = new TaskFieldStamp(stamp, self),
+                OnlyOn = deviceOnly ? [self] : null,
+                OnlyOnStamp = new TaskFieldStamp(stamp, self),
+                GroupStamp = new TaskFieldStamp(stamp, self),
+            };
         }
         else
         {
@@ -136,6 +143,32 @@ public static class TaskLabelEdits
         {
             OnlyOn = TaskScopes.Normalized(devices),
             OnlyOnStamp = new TaskFieldStamp(label.OnlyOnStamp is { } held ? After(now, held.At) : now, self),
+        };
+    }
+
+    /// <summary>
+    /// ADR 93: the label moved into the live group <paramref name="groupId"/>, or out of any (null: uncategorised), stamped on its own
+    /// (<see cref="TaskLabel.GroupStamp"/>: now, or just after a stamp ahead) by <paramref name="self"/>. The label's own
+    /// <see cref="TaskLabel.EditedAt"/> stays (as a join of its device list), so the move can't revert another device's rename or recolour made
+    /// at the same time. Unchanged for no such live label, a group that isn't live, or a label already there.
+    /// </summary>
+    public static TaskLists SetGroup(TaskLists lists, Guid labelId, Guid? groupId, DateTimeOffset now, Guid self)
+    {
+        if (groupId is Guid wanted && TaskLabelGroupBook.Find(lists.LabelGroups, wanted) is null)
+        {
+            return lists;
+        }
+
+        return Changed(lists, labelId, label => label.GroupId == groupId ? null : WithGroup(label, groupId, now, self));
+    }
+
+    /// <summary>The label in <paramref name="groupId"/> (null: none), stamped on its own; its <see cref="TaskLabel.EditedAt"/> stays.</summary>
+    public static TaskLabel WithGroup(TaskLabel label, Guid? groupId, DateTimeOffset now, Guid self)
+    {
+        return label with
+        {
+            GroupId = groupId,
+            GroupStamp = new TaskFieldStamp(label.GroupStamp is { } held ? After(now, held.At) : now, self),
         };
     }
 

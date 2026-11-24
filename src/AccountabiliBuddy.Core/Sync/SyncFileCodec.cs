@@ -267,6 +267,7 @@ public static class SyncFileCodec
                 .Select(item => TaskLabelColors.IsValid(item.Label.Color) ? item : item with { Label = item.Label with { Color = TaskLabelColors.Set[0] } })
                 .Select(CleanRingOn)
                 .Select(CleanOnlyOn)
+                .Select(CleanGroup)
                 .ToList(),
             Views = file.Views?
                 .Where(item => item is { View: { Name: not null, Config: { Only: not null } } } && item.View.Id != Guid.Empty)
@@ -276,7 +277,14 @@ public static class SyncFileCodec
                 .ToList(),
             TaskAccountSettings = TaskAccountSettingsMerge.Clean(file.TaskAccountSettings),
             TagScopes = TaskScopes.Clean(file.TagScopes),
+            LabelGroups = TaskLabelGroupMerge.Clean(file.LabelGroups),
         };
+    }
+
+    // A label's group (ADR 93): the empty id is no group (its stamp stays, a choice of "no category").
+    private static SyncTaskLabel CleanGroup(SyncTaskLabel item)
+    {
+        return item.Label.GroupId == Guid.Empty ? item with { Label = item.Label with { GroupId = null } } : item;
     }
 
     /// <summary>ADR 79's optional goal parts, with every item the merge can't use left out (<see cref="GoalSyncClean"/>); a missing part stays missing.</summary>

@@ -126,7 +126,7 @@ public static class TaskCategoryEdits
         return index >= 0 ? index : labels.FindIndex(label => label.IsLive && hidden.Contains(label.Id) && TaskLabel.SameName(label.Name, name));
     }
 
-    // A deleted label that comes back rings on every device again, stamped by self at the revive (TaskLabelMerge).
+    // A deleted label that comes back rings on every device again, in no group (ADR 93), stamped by self at the revive (TaskLabelMerge).
     private static int AddLabel(List<TaskLabel> labels, string name, string color, DateTimeOffset now, Guid self)
     {
         // The name-based id, or (taken by a label renamed since) the name's next numbered one.
@@ -138,7 +138,7 @@ public static class TaskCategoryEdits
         var label = new TaskLabel(id, name, TaskLabelColors.IsValid(color) ? color.Trim() : TaskLabelColors.FirstUnused(labels), position, stamp);
         if (existing >= 0)
         {
-            labels[existing] = label with { RingOnStamp = new TaskFieldStamp(stamp, self), OnlyOnStamp = new TaskFieldStamp(stamp, self) };
+            labels[existing] = label with { RingOnStamp = new TaskFieldStamp(stamp, self), OnlyOnStamp = new TaskFieldStamp(stamp, self), GroupStamp = new TaskFieldStamp(stamp, self) };
             return existing;
         }
 

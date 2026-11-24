@@ -14,6 +14,9 @@ public static class SetupFeatures
     /// <summary>Round 2 R5: the Goals page's entry.</summary>
     public const string GoalsId = "goals.page";
 
+    /// <summary>ADR 93: label categories (its page suggests them from shared name prefixes; answering it marks it dealt with on this PC).</summary>
+    public const string LabelCategoriesId = "labels.categories";
+
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
         SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard,
@@ -21,6 +24,15 @@ public static class SetupFeatures
         Tasks.TaskCalendarExportService? taskExport, Tasks.TaskReminderSettingsService? taskReminderSettings, Func<bool> hasPhones,
         Goals.GoalsService? goals = null, Today.TodayLayoutService? todayLayout = null, Sync.DeviceRolesService? deviceRoles = null) => new[]
     {
+        // ADR 93: labels get categories. Offered only while some labels share a name prefix (there is something to suggest); set up once a
+        // category exists (made here or on any device). Answering the page (Create or Not now) marks it dealt with on this PC (setup.features).
+        new SetupFeature(
+            LabelCategoriesId, "0.1.152",
+            "Labels: categories with an icon",
+            "Put your labels under categories such as Work or Personal, each with an icon, on all your devices. Labels that share a name prefix (\"Work - AI\", \"Work - Ops\") are suggested as a category; nothing is grouped until you create it.",
+            IsRelevant: () => Tasks.LabelGroupSetupService.HasSuggestions(taskStore),
+            IsSetUp: () => Tasks.LabelGroupSetupService.HasGroups(taskStore),
+            Step: ViewModels.AssistantStep.LabelCategories),
         // SR1-P1 (ADR 90): which Android device is the main phone, a tablet or another device. Offered only when the group has two or more Android
         // devices; set up once every one of them has a role (a change that still waits counts).
         new SetupFeature(

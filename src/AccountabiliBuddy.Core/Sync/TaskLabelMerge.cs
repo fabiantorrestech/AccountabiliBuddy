@@ -4,8 +4,9 @@ using AccountabiliBuddy.Core.Tasks;
 namespace AccountabiliBuddy.Core.Sync;
 
 /// <summary>
-/// Merges two label lists (ADR 76, 89): item by item, newest version first (<see cref="SharedListMerge"/>), then each live label's
-/// "Rings on" and "Only on" on their own: the copy with the newest stamp (<see cref="TaskLabel.RingOnStamp"/>, <see cref="TaskLabel.OnlyOnStamp"/>)
+/// Merges two label lists (ADR 76, 89, 93): item by item, newest version first (<see cref="SharedListMerge"/>), then each live label's
+/// "Rings on", "Only on" and group (category) on their own: the copy with the newest stamp (<see cref="TaskLabel.RingOnStamp"/>,
+/// <see cref="TaskLabel.OnlyOnStamp"/>, <see cref="TaskLabel.GroupStamp"/>)
 /// gives the field (a stamped list beats an unstamped one; between two stamps the later time, then the device id, then the list; a stamp far
 /// ahead counts as <see cref="SharedListMerge.FutureLimit"/> ahead). So a newer change to the label's name or colour made without the
 /// newest rings on or device list (a PC rebuilding the label from an older phone's category) never takes the choice back, and every device
@@ -34,6 +35,13 @@ public static class TaskLabelMerge
         (label, source) => label with { OnlyOn = source.OnlyOn, OnlyOnStamp = source.OnlyOnStamp },
         (label, stamp) => label with { OnlyOnStamp = stamp });
 
+    // ADR 93: the label's group (category), stamped on its own; the text is the id (none is empty, a choice of "no category").
+    private static readonly Field Group = new(
+        label => label.GroupStamp,
+        label => label.GroupId?.ToString("D") ?? string.Empty,
+        (label, source) => label with { GroupId = source.GroupId, GroupStamp = source.GroupStamp },
+        (label, stamp) => label with { GroupStamp = stamp });
+
     public static List<SyncTaskLabel> Merge(IEnumerable<SyncTaskLabel> held, IEnumerable<SyncTaskLabel> incoming, DateTimeOffset now)
     {
         List<SyncTaskLabel> heldList = held.ToList();
@@ -43,6 +51,7 @@ public static class TaskLabelMerge
         List<TaskLabel> all = heldList.Concat(incomingList).Select(item => item.Label).Where(label => label.IsLive).ToList();
 
         merged = WithNewest(merged, all, limit, RingOn);
+        merged = WithNewest(merged, all, limit, Group);
         return WithNewest(merged, all, limit, OnlyOn).Select(WithStoredOnlyOn).ToList();
     }
 

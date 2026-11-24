@@ -11,6 +11,7 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <param name="ShowEmptyBins">Group by bins lists every bin of the scope, empty ones too.</param>
 /// <param name="LabelShown">ADR 89: whether this device shows a label. A task whose label it doesn't show reads as No label (grouping, the No label filter, search). Null: every label.</param>
 /// <param name="TagShown">ADR 89: whether this device shows a tag; tags it doesn't show make no group, no search match, and don't count as a tag. Null: every tag.</param>
+/// <param name="Groups">ADR 93: the label groups, for ordering Group by Labels (group position, then label position; uncategorised labels last). Null: none.</param>
 public sealed record TaskViewContext(
     DateTimeOffset Now,
     TimeZoneInfo Zone,
@@ -19,7 +20,8 @@ public sealed record TaskViewContext(
     IReadOnlyList<TaskBin>? Scope = null,
     bool ShowEmptyBins = false,
     Func<TaskLabel, bool>? LabelShown = null,
-    Func<string, bool>? TagShown = null)
+    Func<string, bool>? TagShown = null,
+    IReadOnlyList<TaskLabelGroup>? Groups = null)
 {
     // Worked out once per query, not once per task (a view of hundreds of tasks asks for them for each).
     private IReadOnlyList<TaskLabel>? _shownLabels;

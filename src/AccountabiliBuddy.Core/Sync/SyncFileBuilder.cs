@@ -137,14 +137,14 @@ public static class SyncFileBuilder
         // receiver's goals alone), nor the goal history marker (GS1b: QR files carry nothing of the history). ADR 86's receipts stay out too: the
         // QR codes' room goes to sessions, so a QR-only pair is judged from the card's seen map ("older app: no per-part receipt").
         // ADR 90's device roles stay in (ids, role words and times: a QR-only phone learns its role from the PC); ADR 91's steps switch is
-        // Android-to-Android only, so it stays out.
+        // Android-to-Android only, so it stays out. ADR 93's label groups go with the labels: never in a QR file (their names are private text).
         file = file with
         {
             Events = null, NextTasks = null, Parked = null, Later = null, PastKeys = null, Categories = null,
             TaskHistory = null, PastSettled = null, AutoSaved = null, Handovers = null, HandoverAcks = null,
             Tasks = null, Labels = null, Views = null, TaskLog = null, TaskAccountSettings = null,
             Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null, GoalYearsMerged = null,
-            Receipts = null, SessionNotes = null, TagScopes = null, StepsTracking = null,
+            Receipts = null, SessionNotes = null, TagScopes = null, StepsTracking = null, LabelGroups = null,
         };
         DateTimeOffset writtenAt = file.Device.WrittenAt;
         DateTimeOffset todayStart = StartOfDay(writtenAt, zone);

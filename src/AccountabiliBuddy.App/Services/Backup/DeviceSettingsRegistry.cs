@@ -28,7 +28,7 @@ public static class DeviceSettingsRegistry
     public static IReadOnlyList<string> TaskKeys { get; } =
         ["session.nextTasks", "session.later", "capture.comebacks", "session.categories", "session.movedToLater", "session.recentlyDeleted",
          "tasks.autoSaved", "tasks.pastSettled", "tasks.keptPast", "tasks.items", "tasks.labels", "tasks.views", "tasks.log",
-         "tasks.account", "tasks.tagScopes", "capture.notes"];
+         "tasks.account", "tasks.tagScopes", "tasks.labelGroups", "capture.notes"];
 
     /// <summary>
     /// Round 2 R4: the goal lists (sealed at rest with this PC's key); they go in backups with the task lists, readable inside the
@@ -49,7 +49,7 @@ public static class DeviceSettingsRegistry
         "session.taskHistory", "session.tasks", "setup.assistant", "setup.features", "shutdown.autoSaved", "shutdown.reviews", "tasks.receivedHistory", "tasks.handovers",
         "sleep.pendingOff", "sleep.reminders", "startNudge.notNow", "startOfDay", "this-pc", "unlock", "workEnded", "backup.auto", "dayplan.sleepSeeded", "history.sectionsFilled",
         "tasks.model", "tasks.modelAttempt", "tasks.running", "tasks.tidyUp", "tasks.earlierNotice",
-        "tasks.reminderMissed", "tasks.volumeRestore", "tasks.calendarExport",
+        "tasks.reminderMissed", "tasks.volumeRestore", "tasks.calendarExport", "tasks.labelGroups.unreadable",
         "goals.model", "goals.modelAttempt", "goals.deepWork.pending", "goals.reminderState",
     ];
 

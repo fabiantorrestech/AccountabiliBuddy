@@ -144,6 +144,16 @@ namespace AccountabiliBuddy.Core.Sync;
 /// Read leniently (<see cref="SyncLenientObjectConverter{T}"/>). It rides the ADR 61 row that covers <see cref="Steps"/>: withheld there, it
 /// neither goes nor is taken. Appended after <see cref="DeviceRoles"/>. Receipts count it with the "steps" part.
 /// </param>
+/// <param name="LabelGroups">
+/// ADR 93: the label groups ("categories" in the UI), each as its name-derived id, name, icon key, position, edit time and, once deleted, a
+/// tombstone kept for good (<see cref="SyncTaskLabelGroup"/>), merged item by item (<see cref="TaskLabelGroupMerge"/>, newest wins). A label's own
+/// choice of group rides in <see cref="Labels"/> (<c>groupId</c>, <c>groupStamp</c>). Always shared (no device list). Group names are the user's
+/// text: sealed files between the user's own devices under "Sync task lists" only, never in a QR file, never in the copy a receiver keeps of the
+/// file, never sent on to the watch, never logged. Null from an app that predates it (which ignores it), from a device that never made a group,
+/// in a QR file and while task lists aren't shared; a file without it leaves the receiver's groups alone. Read leniently and cleaned
+/// (<see cref="TaskLabelGroupMerge.Clean"/>). Appended after <see cref="StepsTracking"/>; the format version is unchanged. Receipts count it with
+/// the "tasks" part.
+/// </param>
 public sealed record SyncFile(
     int FormatVersion,
     SyncDeviceCard Device,
@@ -201,7 +211,8 @@ public sealed record SyncFile(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncSessionNote>))] IReadOnlyList<SyncSessionNote>? SessionNotes = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTagScope>))] IReadOnlyList<SyncTagScope>? TagScopes = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncDeviceRole>))] IReadOnlyList<SyncDeviceRole>? DeviceRoles = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientObjectConverter<SyncStepsTracking>))] SyncStepsTracking? StepsTracking = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientObjectConverter<SyncStepsTracking>))] SyncStepsTracking? StepsTracking = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] [property: JsonConverter(typeof(SyncLenientListConverter<SyncTaskLabelGroup>))] IReadOnlyList<SyncTaskLabelGroup>? LabelGroups = null)
 {
     public const int CurrentFormatVersion = 1;
 }

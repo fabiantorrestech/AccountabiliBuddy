@@ -355,7 +355,7 @@ public sealed class SyncCoordinator
 
     /// <summary>
     /// The copy of a received file this PC keeps (<see cref="ReceivedDevicesService"/>, stored in the clear): without what is merged into
-    /// this PC's own sealed stores (the shared lists, ADR 48; the past keys, ADR 56; ADR 76's task parts and the account's Tasks settings;
+    /// this PC's own sealed stores (the shared lists, ADR 48; the past keys, ADR 56; ADR 76's task parts and the account's Tasks settings; ADR 93's label groups;
     /// ADR 79's goal parts and the goal history marker), so their text is never kept a second time in the clear. <paramref name="steps"/>
     /// is the step count to keep (a QR file's, which carries none, keeps the stored one).
     /// </summary>
@@ -365,7 +365,7 @@ public sealed class SyncCoordinator
         {
             NextTasks = null, Parked = null, Later = null, PastKeys = null, Steps = steps, Tasks = null, Labels = null, Views = null, TaskLog = null,
             TaskAccountSettings = null, Goals = null, GoalAreas = null, GoalEntries = null, GoalReminders = null, GoalReviews = null, GoalYearsMerged = null,
-            SessionNotes = null, TagScopes = null,
+            SessionNotes = null, TagScopes = null, LabelGroups = null,
         };
     }
 
@@ -742,7 +742,7 @@ public sealed class SyncCoordinator
     // a part that threw), absent (not in the file), taken.
     private async Task<IReadOnlyDictionary<string, string>> ReceiveSharedListsAsync(SyncFile file)
     {
-        bool hasTasks = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null || file.SessionNotes is not null || file.TagScopes is not null;
+        bool hasTasks = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null || file.SessionNotes is not null || file.TagScopes is not null || file.LabelGroups is not null;
         bool hasOld = file.NextTasks is not null || file.Parked is not null || file.Later is not null;
         bool hasGoals = file.Goals is not null || file.GoalAreas is not null || file.GoalEntries is not null || file.GoalReminders is not null || file.GoalReviews is not null;
         var states = new Dictionary<string, string>();
@@ -793,7 +793,7 @@ public sealed class SyncCoordinator
         }
 
         // Session notes (ADR 87) merge in ReceiveTaskLists whether or not the task model is wired, so a file whose only task part is notes is not "refused".
-        bool hasModelParts = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null || file.TagScopes is not null;
+        bool hasModelParts = file.Tasks is not null || file.Labels is not null || file.Views is not null || file.TaskLog is not null || file.TaskAccountSettings is not null || file.TagScopes is not null || file.LabelGroups is not null;
         states["tasks"] = !hasTasks ? SyncReceiptParts.Absent : tasksOpen && (MergeTaskModel is not null || !hasModelParts) ? tasksState : SyncReceiptParts.Refused;
         states["oldLists"] = !hasOld ? SyncReceiptParts.Absent : tasksOpen ? tasksState : SyncReceiptParts.Refused;
         states["goals"] = !hasGoals ? SyncReceiptParts.Absent : goalsOpen && MergeGoals is not null ? goalsState : SyncReceiptParts.Refused;

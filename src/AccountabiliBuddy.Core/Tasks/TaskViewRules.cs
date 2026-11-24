@@ -142,15 +142,24 @@ public static class TaskViewRules
         return bins.Select(bin => new TaskViewGroup("bin:" + bin.ToString().ToLowerInvariant(), TaskBins.Name(bin), bin, null, null, shown.Where(task => task.Bin == bin).ToList())).ToList();
     }
 
+    // ADR 93: the labels under their groups (by group position, then label position), uncategorised labels after every group, then No label.
     private static List<TaskViewGroup> ByLabel(List<TaskItem> shown, TaskViewContext context)
     {
         var groups = new List<TaskViewGroup>();
-        foreach (TaskLabel label in context.ShownLabels.Where(label => label.IsLive).OrderBy(label => label.Position).ThenBy(label => label.Name, StringComparer.OrdinalIgnoreCase))
+        IReadOnlyDictionary<Guid, TaskLabelGroup> liveGroups = TaskLabelGroupBook.LiveById(context.Groups);
+        var ordered = context.ShownLabels.Where(label => label.IsLive)
+            .Select(label => (Label: label, Group: TaskLabelGroupBook.GroupOf(label, liveGroups)))
+            .OrderBy(entry => entry.Group is null ? 1 : 0)
+            .ThenBy(entry => entry.Group?.Position ?? 0)
+            .ThenBy(entry => entry.Group?.Id.ToString("D") ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(entry => entry.Label.Position)
+            .ThenBy(entry => entry.Label.Name, StringComparer.OrdinalIgnoreCase);
+        foreach ((TaskLabel label, TaskLabelGroup? group) in ordered)
         {
             List<TaskItem> of = shown.Where(task => task.LabelId == label.Id).ToList();
             if (of.Count > 0)
             {
-                groups.Add(new TaskViewGroup("label:" + label.Id.ToString("D"), label.Name, null, label.Id, null, of));
+                groups.Add(new TaskViewGroup("label:" + label.Id.ToString("D"), label.Name, null, label.Id, null, of, group?.Id));
             }
         }
 

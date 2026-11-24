@@ -1,0 +1,39 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.LabelCategoriesPageView"
+             x:DataType="vm:SetupAssistantViewModel">
+    <!-- ADR 93: label categories. The setup assistant's page for upgraded installs: the categories suggested from the name prefixes several labels
+         share (one tick each, all on) and "Shorten the names" (off). The window's ScrollViewer scrolls it at the smallest size. -->
+    <StackPanel Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+        <TextBlock Classes="body" TextWrapping="Wrap"
+                   Text="Labels can now sit under categories, each with an icon, on all your devices. Some of your labels already share a name prefix, so here are categories made from them. Nothing is grouped until you create them." />
+        <ItemsControl ItemsSource="{Binding CategoryRows}" IsVisible="{Binding HasCategoryRows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LabelCategoryRowViewModel">
+                    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="10" Margin="0,6">
+                        <CheckBox IsChecked="{Binding IsTicked}" VerticalAlignment="Top" AutomationProperties.Name="{Binding Name}" />
+                        <mi:MaterialIcon Grid.Column="1" Kind="{Binding Icon}" Width="20" Height="20" VerticalAlignment="Top" Margin="0,6,0,0" />
+                        <StackPanel Grid.Column="2" Spacing="2" Margin="0,4,0,0">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding LabelsText}" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding ExistingText}" IsVisible="{Binding HasExisting}" TextWrapping="Wrap" />
+                            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding ShortText}" TextWrapping="Wrap"
+                                       IsVisible="{Binding $parent[ItemsControl].((vm:SetupAssistantViewModel)DataContext).ShortenLabelNames, FallbackValue=False}" />
+                            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding SkippedText}" TextWrapping="Wrap"
+                                       IsVisible="{Binding $parent[ItemsControl].((vm:SetupAssistantViewModel)DataContext).ShortenLabelNames, FallbackValue=False}" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="muted" TextWrapping="Wrap" IsVisible="{Binding !HasCategoryRows}"
+                   Text="None of your labels share a name prefix right now, so there is nothing to suggest." />
+        <CheckBox IsChecked="{Binding ShortenLabelNames}" IsVisible="{Binding HasCategoryRows}">
+            <TextBlock TextWrapping="Wrap" Text="Shorten the names: &quot;Work - AI&quot; becomes &quot;AI&quot; under Work. A name another label already has is kept." />
+        </CheckBox>
+        <TextBlock Classes="muted" TextWrapping="Wrap"
+                   Text="Your goals keep counting single labels. An older app on another device shows the labels without categories until it is updated, and never takes a category away." />
+    </StackPanel>
+</UserControl>

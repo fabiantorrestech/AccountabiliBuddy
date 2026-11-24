@@ -1224,6 +1224,8 @@ public partial class App : Application
             TodayLayout = _todayLayout,
             DeviceRoles = deviceRoles,
             StepsMoved = _stepsMovedCard,
+            // ADR 93: the label categories page, only with the task list in use.
+            LabelCategories = taskStore.IsActive ? new AccountabiliBuddy.App.Services.Tasks.LabelGroupSetupService(taskStore, sessionTasks) : null,
         };
         setupViewModel.OpenAssistant = () => ShowSetupAssistant(quick: false);
 

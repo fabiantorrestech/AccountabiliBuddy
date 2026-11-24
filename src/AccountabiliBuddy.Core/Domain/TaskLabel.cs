@@ -30,6 +30,15 @@ namespace AccountabiliBuddy.Core.Domain;
 /// Merges on its own like <paramref name="RingOnStamp"/>, so a newer whole-label edit made without it (an older app's category) never
 /// takes the choice back. A tombstone keeps the stamp, not the list; a revived label is shared, stamped at the revive.
 /// </param>
+/// <param name="GroupId">
+/// ADR 93: the label group (category) it sits under; null for none. A group that is missing or deleted shows the label as uncategorised;
+/// nothing rewrites the label for it.
+/// </param>
+/// <param name="GroupStamp">
+/// When and on which device <paramref name="GroupId"/> was chosen (a stamp with a null id is a choice of "no category"); null when never.
+/// Merges on its own like <paramref name="OnlyOnStamp"/> (<see cref="Sync.TaskLabelMerge"/>), so an older app's whole-label edit, which knows
+/// nothing of groups, never takes the category away. A tombstone keeps the stamp, not the id; a revived label has no group, stamped at the revive.
+/// </param>
 public sealed record TaskLabel(
     Guid Id,
     string Name,
@@ -40,7 +49,9 @@ public sealed record TaskLabel(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? RingOnStamp = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<Guid>? OnlyOn = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? OnlyOnStamp = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? OnlyOnStamp = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? GroupId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Sync.TaskFieldStamp? GroupStamp = null)
 {
     // A fixed namespace for the name-based ids (an RFC 4122 version 5 style id); the phone's twin uses the same bytes.
     private static readonly Guid NameSpace = new("6f1b9a4e-3c2d-4e8b-9a71-5d0c2b7e4f13");
@@ -73,9 +84,9 @@ public sealed record TaskLabel(
         return string.Equals(first.Trim(), second.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>The label as a tombstone: no name or colour left, and no device list (its stamp stays, ADR 89).</summary>
+    /// <summary>The label as a tombstone: no name or colour left, no device list and no group (their stamps stay, ADR 89, 93).</summary>
     public TaskLabel Deleted(DateTimeOffset at)
     {
-        return new TaskLabel(Id, string.Empty, TaskLabelColors.Set[0], Position, at, DeletedAt: at, OnlyOnStamp: OnlyOnStamp);
+        return new TaskLabel(Id, string.Empty, TaskLabelColors.Set[0], Position, at, DeletedAt: at, OnlyOnStamp: OnlyOnStamp, GroupStamp: GroupStamp);
     }
 }
