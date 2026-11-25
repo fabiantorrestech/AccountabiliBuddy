@@ -93,6 +93,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             panel.ClearSelectionOfRows = ClearSelection;
         }
 
+        // Tasks redesign 8a.04: Ctrl+A on the Tasks page selects the column that has the focus, not every column.
+        Shelf.Panel.SelectSectionRows = SelectColumn;
+
         Notice = NewCategoryName = TodayDateText = string.Empty;
         _tasks.Changed += OnStoreChanged;
         _comebacks.Changed += OnStoreChanged;
@@ -201,7 +204,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     /// <summary>How many rows are selected (Ctrl/Shift+click, Ctrl+A); the bulk menu (3.5) acts on them.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PickedText), nameof(HasPicked))]
+    [NotifyPropertyChangedFor(nameof(PickedText), nameof(HasPicked), nameof(MoveOrLabelText), nameof(DeleteSelectedText))]
     public partial int PickedCount { get; set; }
 
     /// <summary>"3 selected".</summary>
@@ -827,7 +830,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             entries.Add(TaskMenuEntry.Async("Move to This session", () => MoveQueuedToSessionAsync(key.Id), MaterialIconKind.ArrowLeftBoldOutline));
         }
 
-        entries.Add(TaskMenuEntry.Do("Rename", rename ?? (() => BeginDetailEdit(key, "title")), MaterialIconKind.PencilOutline));
+        entries.Add(new TaskMenuEntry("Rename", new RelayCommand(rename ?? (() => BeginDetailEdit(key, "title"))), Icon: MaterialIconKind.PencilOutline, Id: "rename"));
         if (key.Kind is not (TaskRowKind.ComeBack or TaskRowKind.Queued))
         {
             entries.Add(TaskMenuEntry.Do("Add subtask", addStep ?? (() => BeginDetailEdit(key, "step")), MaterialIconKind.PlaylistPlus));
@@ -852,7 +855,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         entries.Add(TaskMenuEntry.Separator);
-        entries.Add(new TaskMenuEntry("Delete", new AsyncRelayCommand(() => DeleteAsync(key)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del"));
+        entries.Add(new TaskMenuEntry("Delete", new AsyncRelayCommand(() => DeleteAsync(key)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del", Id: "delete"));
         return entries;
     }
 

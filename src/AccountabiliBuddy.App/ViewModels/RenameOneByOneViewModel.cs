@@ -36,8 +36,8 @@ public sealed partial class RenameOneByOneViewModel : ObservableObject
 
     public bool IsMany => Count > 1;
 
-    /// <summary>"Rename all" with several, "Rename" with one.</summary>
-    public string ApplyText => IsMany ? "Rename all" : "Rename";
+    /// <summary>"Rename all (5)" with several (the counts rule, Tasks redesign 8a.42), "Rename" with one.</summary>
+    public string ApplyText => IsMany ? SelectionCountText.Action("Rename all", Count) : "Rename";
 
     public string Foot => "Enter goes to the next one · Alt+←/→ steps · nothing changes until Rename all";
 

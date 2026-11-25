@@ -10,9 +10,10 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// The Tasks keyboard map's window part (spec 03 §E): Ctrl+G go to a task by its ID (any page), and on Tasks and Today: Ctrl+Z undo
 /// (the toast's, else the last 10 task actions), Del delete, F2 rename, H highlight, and Esc's last steps (selection, then the open
-/// task). Del, F2 and H act on the selection, else the row with the keyboard, else the open task, by running the entry its menu shows
-/// (the same rules as the menus: a running session's tasks included, nothing around the session's cap). Nothing fires while a text box
-/// has the keyboard or a popover is open. The rest of the map lives where it acts: Ctrl+Shift+S, Ctrl+\, Ctrl+J, Ctrl+F and Ctrl+R in
+/// task); on Tasks also Ctrl+U clear the selection and Ctrl+E edit it (Tasks redesign 8a.08-8a.10). Del, F2 and H act on the selection,
+/// else the row with the keyboard, else the open task, by running the entry its menu shows, found by its id (so "Delete (3)" still
+/// answers Del, 8a.51; the same rules as the menus: a running session's tasks included, nothing around the session's cap). Nothing fires
+/// while a text box has the keyboard or a popover is open. The rest of the map lives where it acts: Ctrl+Shift+S, Ctrl+\, Ctrl+J, Ctrl+F and Ctrl+R in
 /// the window, the rows' ↑/↓, Space, Enter and Alt+↑/↓ in the row, Ctrl+A in the section.
 /// </summary>
 public sealed class TaskShortcuts
@@ -55,6 +56,16 @@ public sealed class TaskShortcuts
             return true;
         }
 
+        if (onTasks && e.Key == Key.U && e.KeyModifiers == KeyModifiers.Control)
+        {
+            return tasks.ClearSelection();
+        }
+
+        if (onTasks && e.Key == Key.E && e.KeyModifiers == KeyModifiers.Control)
+        {
+            return tasks.EditSelection();
+        }
+
         if (e.KeyModifiers != KeyModifiers.None)
         {
             return false;
@@ -79,9 +90,9 @@ public sealed class TaskShortcuts
         return e.Key switch
         {
             Key.Escape => tasks.Escape(onTasks),
-            Key.Delete => Run(tasks.ShortcutMenu(RowOf(focused), onTasks), "Del", header => header == "Delete" || header.StartsWith("Delete ", StringComparison.Ordinal)),
-            Key.F2 => Run(tasks.ShortcutMenu(RowOf(focused), onTasks), "F2", header => header is "Rename" or "Rename one by one"),
-            Key.H => Run(tasks.ShortcutMenu(RowOf(focused), onTasks), "H", header => header is "Highlight" or "Remove highlight"),
+            Key.Delete => Run(tasks.ShortcutMenu(RowOf(focused), onTasks), "delete"),
+            Key.F2 => Run(tasks.ShortcutMenu(RowOf(focused), onTasks), "rename"),
+            Key.H => Run(tasks.ShortcutMenu(RowOf(focused), onTasks), "highlight"),
             _ => false,
         };
     }
@@ -125,11 +136,10 @@ public sealed class TaskShortcuts
         return false;
     }
 
-    // The entry this key runs ("Del", "F2", "H": its Shortcut, never shown in the menu), or the older menus' entry of that name; run when it can.
-    private static bool Run(IReadOnlyList<TaskMenuEntry> menu, string hint, Func<string, bool> isNamed)
+    // The entry this key runs, found by its id ("delete", "rename", "highlight"), never by its text (8a.51); run when it can.
+    private static bool Run(IReadOnlyList<TaskMenuEntry> menu, string id)
     {
-        TaskMenuEntry? entry = menu.FirstOrDefault(item => item.Shortcut == hint && item.Command is not null)
-            ?? menu.FirstOrDefault(item => item.Command is not null && !item.IsHeading && isNamed(item.Header));
+        TaskMenuEntry? entry = menu.FirstOrDefault(item => item.Id == id && item.Command is not null);
         if (entry?.Command is not { } command || !command.CanExecute(null))
         {
             return false;

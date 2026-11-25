@@ -161,6 +161,79 @@ public static class TaskToasts
         return on ? "Added to Google Calendar" : "Taken off Google Calendar";
     }
 
+    // ---- Tasks redesign 8a: the right-click menu's and the select bar's toasts, which count the tasks ("1 task", "3 tasks") ----
+
+    /// <summary>"1 task" or "3 tasks".</summary>
+    public static string Count(int count)
+    {
+        return count == 1 ? "1 task" : count + " tasks";
+    }
+
+    /// <summary>"Moved 3 tasks to Later"; <paramref name="binName"/> is the name the menu showed ("Today" for Queued).</summary>
+    public static string MovedCount(int count, string binName)
+    {
+        return "Moved " + Count(count) + " to " + binName;
+    }
+
+    /// <summary>"Marked 3 tasks done".</summary>
+    public static string MarkedDone(int count)
+    {
+        return "Marked " + Count(count) + " done";
+    }
+
+    /// <summary>"Deleted 3 tasks · in the Archive for 30 days" (Archive › Recently deleted keeps them).</summary>
+    public static string DeletedToArchive(int count)
+    {
+        return "Deleted " + Count(count) + " · in the Archive for 30 days";
+    }
+
+    /// <summary>"Labelled 3 tasks Work - AI" (the label's full name); null = "Labelled 3 tasks No label".</summary>
+    public static string LabelledCount(int count, string? labelName)
+    {
+        return "Labelled " + Count(count) + " " + (labelName ?? "No label");
+    }
+
+    /// <summary>"Highlighted 3 tasks" / "Took the highlight off 3 tasks".</summary>
+    public static string HighlightedCount(int count, bool on)
+    {
+        return (on ? "Highlighted " : "Took the highlight off ") + Count(count);
+    }
+
+    /// <summary>"Added #docs to 3 tasks" / "Took #docs off 3 tasks".</summary>
+    public static string TagCount(int count, string tag, bool added)
+    {
+        return added ? "Added #" + tag + " to " + Count(count) : "Took #" + tag + " off " + Count(count);
+    }
+
+    /// <summary>"Time limit 25 min for 3 tasks" / "No time limit for 3 tasks".</summary>
+    public static string TimeLimitCount(int count, int? minutes)
+    {
+        return minutes is int value ? "Time limit " + value + " min for " + Count(count) : "No time limit for " + Count(count);
+    }
+
+    /// <summary>"Linked 3 tasks to Spanish" / "Unlinked 3 tasks"; a goal with no name says "a goal".</summary>
+    public static string LinkedCount(int count, string? goalName)
+    {
+        if (goalName is null)
+        {
+            return "Unlinked " + Count(count);
+        }
+
+        return "Linked " + Count(count) + " to " + (goalName.Length == 0 ? "a goal" : goalName);
+    }
+
+    /// <summary>"3 tasks sync to all your devices" (one: "1 task syncs to all your devices").</summary>
+    public static string SyncedEverywhere(int count)
+    {
+        return Count(count) + (count == 1 ? " syncs" : " sync") + " to all your devices";
+    }
+
+    /// <summary>"Kept 3 tasks on this PC only" / "Kept 3 tasks on Pixel only".</summary>
+    public static string KeptOn(int count, string where)
+    {
+        return "Kept " + Count(count) + " on " + where + " only";
+    }
+
     public static string Tidied(int decided, int total)
     {
         return decided == total ? "Tidied " + total + (total == 1 ? " task" : " tasks") : "Tidied " + decided + " of " + total + " tasks";

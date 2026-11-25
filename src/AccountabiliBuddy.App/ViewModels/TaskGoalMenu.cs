@@ -13,11 +13,16 @@ public static class TaskGoalMenu
     /// <param name="goals">The goals that can be linked to (id, name, icon), in the Goals page's order.</param>
     /// <param name="current">The goal of a single task (null for none, and for a selection of several).</param>
     /// <param name="setGoal">Links the task or tasks to the goal (id and name), or to none (null, null).</param>
-    public static TaskMenuEntry Entry(IReadOnlyList<(Guid Id, string Name, MaterialIconKind Icon)> goals, Guid? current, Func<Guid?, string?, Task> setGoal)
+    /// <param name="count">
+    /// How many tasks it acts on: "Link to goal (3)" for 2 or more, plain "Link to goal" for one (the counts rule, Tasks redesign 8a.41).
+    /// </param>
+    public static TaskMenuEntry Entry(
+        IReadOnlyList<(Guid Id, string Name, MaterialIconKind Icon)> goals, Guid? current, Func<Guid?, string?, Task> setGoal, int count = 1)
     {
+        string header = SelectionCountText.Action("Link to goal", count);
         if (goals.Count == 0)
         {
-            return new TaskMenuEntry("Link to goal", Icon: MaterialIconKind.LinkVariant, Note: "No goals yet");
+            return new TaskMenuEntry(header, Icon: MaterialIconKind.LinkVariant, Note: "No goals yet", Id: "goal");
         }
 
         var children = new List<TaskMenuEntry>();
@@ -31,6 +36,6 @@ public static class TaskGoalMenu
         children.Add(TaskMenuEntry.Separator);
         children.Add(new TaskMenuEntry("Unlink", new AsyncRelayCommand(() => setGoal(null, null)), Icon: MaterialIconKind.LinkVariantOff));
         string? linked = goals.Where(goal => goal.Id == current).Select(goal => goal.Name).FirstOrDefault();
-        return new TaskMenuEntry("Link to goal", Children: children, Icon: MaterialIconKind.LinkVariant, Value: linked);
+        return new TaskMenuEntry(header, Children: children, Icon: MaterialIconKind.LinkVariant, Value: linked, Id: "goal");
     }
 }

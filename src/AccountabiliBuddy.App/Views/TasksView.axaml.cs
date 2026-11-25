@@ -12,8 +12,8 @@ namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
 /// The Tasks page. Code-behind: a click on the Today pill opens Today (round 2 R3), Esc in the header's search clears it, the naming
-/// row's box taking the keyboard when a picker asks for it, and the dialogs the rows and menus ask for (Rename one by one, Delete N,
-/// Changed on both devices). The open task's editor is the popup (<see cref="TaskEditorView"/>), with its own code-behind.
+/// row's box taking the keyboard when a picker asks for it, the dialogs the rows and menus ask for (Rename one by one, Changed on both
+/// devices; Delete (N) acts at once since Tasks redesign 8a), and the right-click menu of the Shelf's rows (<see cref="TaskContextMenuLayer"/>). The open task's editor is the popup (<see cref="TaskEditorView"/>), with its own code-behind.
 /// </summary>
 public partial class TasksView : UserControl
 {
@@ -79,6 +79,7 @@ public partial class TasksView : UserControl
         base.OnPropertyChanged(change);
         if (change.Property == IsVisibleProperty && !IsVisible && DataContext is TasksViewModel page)
         {
+            ContextMenuLayer.Close(restoreFocus: false);
             page.ClearSelection();
             page.Shelf.IsSearchFiltersOpen = false;
         }
@@ -114,7 +115,6 @@ public partial class TasksView : UserControl
         {
             _subscribed.FocusRequested -= OnFocusRequested;
             _subscribed.RenameEachRequested -= OnRenameEachRequested;
-            _subscribed.DeleteManyRequested -= OnDeleteManyRequested;
             _subscribed.ConflictRequested -= OnConflictRequested;
             _subscribed.SessionFullRequested -= OnSessionFullRequested;
             _subscribed.FocusRowRequested -= OnFocusRowRequested;
@@ -125,7 +125,6 @@ public partial class TasksView : UserControl
         {
             _subscribed.FocusRequested += OnFocusRequested;
             _subscribed.RenameEachRequested += OnRenameEachRequested;
-            _subscribed.DeleteManyRequested += OnDeleteManyRequested;
             _subscribed.ConflictRequested += OnConflictRequested;
             _subscribed.SessionFullRequested += OnSessionFullRequested;
             _subscribed.FocusRowRequested += OnFocusRowRequested;
@@ -148,6 +147,29 @@ public partial class TasksView : UserControl
         }, DispatcherPriority.Background);
     }
 
+    // ---- The right-click menu of the Shelf's rows (Tasks redesign 8a) ----
+
+    /// <summary>
+    /// A Shelf row was right-clicked (or got the menu key): the row is selected (alone, when it wasn't), and the menu for the whole selection
+    /// opens at the pointer (under the row from the keyboard). False when the redesign's menu doesn't apply to it: the row opens its own.
+    /// </summary>
+    internal bool ShowContextMenu(TaskListRowViewModel row, TaskSectionViewModel? column, Control rowButton, ContextRequestedEventArgs e, Action<TaskMenuEntry> viewAction)
+    {
+        if (_subscribed?.OpenContextMenu(row, column) is not { } entries)
+        {
+            return false;
+        }
+
+        bool fromPointer = e.TryGetPosition(ContextMenuLayer, out Point at);
+        if (!fromPointer)
+        {
+            at = rowButton.TranslatePoint(new Point(12, rowButton.Bounds.Height), ContextMenuLayer) ?? default;
+        }
+
+        ContextMenuLayer.Open(entries, at, viewAction, rowButton, fromKeyboard: !fromPointer);
+        return true;
+    }
+
     // ---- The dialogs (spec 03 §C): over the window, the keyboard back where it was once they close ----
 
     private void OnRenameEachRequested(object? sender, IReadOnlyList<Guid> ids)
@@ -155,14 +177,6 @@ public partial class TasksView : UserControl
         if (_subscribed?.RenameEachDialog(ids) is { } rename)
         {
             _ = RenameOneByOneDialog.ShowAsync(this, rename);
-        }
-    }
-
-    private void OnDeleteManyRequested(object? sender, IReadOnlyList<Guid> ids)
-    {
-        if (_subscribed?.DeleteManyDialog(ids) is { } delete)
-        {
-            _ = DeleteTasksDialog.ShowAsync(this, delete);
         }
     }
 

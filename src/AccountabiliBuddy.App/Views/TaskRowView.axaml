@@ -131,17 +131,20 @@
         <Style Selector="Button.listRow Button, Button.listRow CheckBox">
             <Setter Property="IsTabStop" Value="False" />
         </Style>
+        <!-- A selected row (Tasks redesign 8a.05): Ab.AccentSoft fill and a 1 px Ab.AccentRing ring inside the row; radius 10 in a Shelf column. -->
         <Style Selector="Border.tint">
-            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
             <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
         <Style Selector="Border.ring">
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
-            <Setter Property="BorderThickness" Value="2" />
-            <Setter Property="Opacity" Value="0.55" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AccentRing}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
             <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Border.taskColumn Border.tint, Border.taskColumn Border.ring">
+            <Setter Property="CornerRadius" Value="10" />
         </Style>
 
         <!-- A row's label chip (dot and name; a click opens the picker) and the quiet "+ label" spot on a row with none, which
@@ -576,7 +579,7 @@
                 </Border.IsVisible>
             </Border>
             <Border Classes="starTint" Opacity="0.75" IsVisible="{Binding ShowsHighlightTint}" />
-            <Border Classes="tint" Opacity="0.16" IsVisible="{Binding IsPicked}" />
+            <Border Classes="tint" IsVisible="{Binding IsPicked}" />
             <Border Classes="ring" IsVisible="{Binding IsPicked}" />
             <Button x:Name="RowButton" Classes="listRow" Classes.selected="{Binding IsSelected}" Classes.picked="{Binding IsPicked}" Classes.starred="{Binding ShowsHighlightTint}" Click="OnRowClick"
                     AutomationProperties.Name="{Binding Title}">

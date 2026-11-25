@@ -9,9 +9,9 @@ public enum TaskRowClick
     /// <summary>Ctrl+click: adds the row to the selection or takes it out.</summary>
     Toggle,
 
-    /// <summary>Shift+click: selects the rows from the last clicked one to this one (same panel, visible order).</summary>
+    /// <summary>Shift+↑/↓: selects the rows from the last picked one to this one (same panel, visible order), in place of the selection.</summary>
     Range,
 
-    /// <summary>Ctrl+Shift+click: adds that range to the selection.</summary>
+    /// <summary>Shift+click (and Ctrl+Shift+click): adds the rows from the last picked one to this one to the selection (Tasks redesign 8a.03).</summary>
     AddRange,
 }

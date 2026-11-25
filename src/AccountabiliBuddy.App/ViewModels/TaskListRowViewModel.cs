@@ -169,6 +169,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
 
     /// <summary>One of the rows selected with Ctrl/Shift+click (the bulk actions act on these).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsHighlightTint))]
     public partial bool IsPicked { get; set; }
 
     /// <summary>The check box shows where a row can be ticked.</summary>
@@ -212,8 +213,8 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The check box and the strike: ticked, or being finished.</summary>
     public bool ShowsTicked => IsTicked || IsFinishing;
 
-    /// <summary>The accent tint behind a highlighted open row.</summary>
-    public bool ShowsHighlightTint => IsHighlighted && !ShowsTicked;
+    /// <summary>The amber tint behind a highlighted open row; a selected row's fill takes its place (the star stays, Tasks redesign 8a.05).</summary>
+    public bool ShowsHighlightTint => IsHighlighted && !ShowsTicked && !IsPicked;
 
     /// <summary>Ticks or unticks it (the check box); the rules are the existing ones.</summary>
     public ICommand? ToggleCommand { get; }

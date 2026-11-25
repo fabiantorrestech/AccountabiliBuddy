@@ -224,7 +224,8 @@ public partial class TaskRowView : UserControl
         _pointerClick = false;
         bool ctrl = modifiers.HasFlag(KeyModifiers.Control);
         bool shift = modifiers.HasFlag(KeyModifiers.Shift);
-        TaskRowClick click = shift ? ctrl ? TaskRowClick.AddRange : TaskRowClick.Range : ctrl ? TaskRowClick.Toggle : TaskRowClick.Open;
+        // Tasks redesign 8a.03 (plan #13): Shift+click adds the range from the last picked task (Ctrl+Shift+click does the same).
+        TaskRowClick click = shift ? TaskRowClick.AddRange : ctrl ? TaskRowClick.Toggle : TaskRowClick.Open;
         if (SectionModel is { } section)
         {
             section.Click(row, click);
@@ -255,12 +256,23 @@ public partial class TaskRowView : UserControl
         e.Handled = true;
     }
 
-    // Right-click (or the menu key): on a row inside a selection of two or more, the bulk menu; otherwise the row's own menu (a row
-    // outside the selection clears it first).
+    // Right-click (or the menu key): on the Tasks page's Shelf, the page's right-click menu (TaskContextMenuLayer); elsewhere, on a row
+    // inside a selection of two or more, the bulk menu, otherwise the row's own menu (a row outside the selection clears it first).
     private void OnRowContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (DataContext is not TaskListRowViewModel row)
         {
+            return;
+        }
+
+        // From the menu key or Shift+F10 there is no pointer: the menu opens under the row.
+        bool fromPointer = e.TryGetPosition(RowButton, out _);
+
+        // Tasks redesign 8a: on the Tasks page a Shelf row's right-click selects it (alone, when it wasn't selected) and opens the menu
+        // for the whole selection over the page.
+        if (this.FindAncestorOfType<TasksView>() is { } page && page.ShowContextMenu(row, SectionModel, RowButton, e, OnMenuViewAction))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -269,8 +281,6 @@ public partial class TaskRowView : UserControl
             SectionModel?.ClearSelection();
         }
 
-        // From the menu key or Shift+F10 there is no pointer: the menu opens under the row.
-        bool fromPointer = e.TryGetPosition(RowButton, out _);
         PlacementMode placement = fromPointer ? PlacementMode.Pointer : PlacementMode.BottomEdgeAlignedLeft;
         TaskMenus.ShowEntries(RowButton, row.BuildContextMenu(), placement, OnMenuViewAction, fromKeyboard: !fromPointer);
         e.Handled = true;

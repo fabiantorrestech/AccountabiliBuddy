@@ -85,6 +85,9 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
     /// <summary>The page's Ctrl+A for this panel.</summary>
     public Action<TaskSectionsPanelViewModel>? SelectAllRows { get; set; }
 
+    /// <summary>The page's Ctrl+A for one section (the Tasks page's columns, Tasks redesign 8a.04); null: Ctrl+A selects the whole panel.</summary>
+    public Action<TaskSectionViewModel>? SelectSectionRows { get; set; }
+
     /// <summary>The page's Esc: clears the selection; false when there was none.</summary>
     public Func<bool>? ClearSelectionOfRows { get; set; }
 
@@ -111,6 +114,19 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
     }
 
     public void SelectAll() => SelectAllRows?.Invoke(this);
+
+    /// <summary>Ctrl+A in <paramref name="section"/>: that section's rows where the page selects by column, else the whole panel's.</summary>
+    public void SelectAllIn(TaskSectionViewModel section)
+    {
+        if (SelectSectionRows is { } selectSection)
+        {
+            selectSection(section);
+        }
+        else
+        {
+            SelectAll();
+        }
+    }
 
     public bool ClearSelection() => ClearSelectionOfRows?.Invoke() ?? false;
 

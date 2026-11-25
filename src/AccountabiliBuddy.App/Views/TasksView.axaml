@@ -81,6 +81,98 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
 
+        <!-- The select bar (8a.16-8a.22): 44 high, AccentSoft with a 1 px AccentLine border, radius 12, padding 0 6 0 4. -->
+        <Style Selector="Border.selectBar">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AccentLine}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="4,0,6,0" />
+        </Style>
+        <Style Selector="Button.selectBarClose">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.selectBarClose /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Button.selectBarClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint14}" />
+        </Style>
+        <Style Selector="Button.selectBarMove, Button.selectBarDelete">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.selectBarMove /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AccentLine}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.selectBarMove:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint14}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AccentRing}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.selectBarDelete /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Button.selectBarDelete:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.DriftTint8}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+
+        <!-- The right-click menu's rows (8a.32, 8a.36, 8a.53; TaskContextMenuLayer): radius 8, transparent; Ab.Line under the pointer, on the
+             keyboard and while its submenu is open; the strong row (Batch edit) always Ab.Line. -->
+        <Style Selector="Button.ctxItem">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.ctxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Button.ctxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.ctxItem:focus-visible /template/ ContentPresenter#PART_ContentPresenter, Button.ctxItem.subOpen /template/ ContentPresenter#PART_ContentPresenter, Button.ctxItem.strong /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.ctxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+        </Style>
+        <Style Selector="Button.ctxItem:disabled">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+        <Style Selector="Button.ctxItem:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- The Tags submenu's inline "New tag…" box: no fill or border of its own (the dashed Line3 outline is drawn behind it). -->
+        <Style Selector="TextBox.ctxNewTag">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.ctxNewTag /template/ Border#PART_BorderElement, TextBox.ctxNewTag:pointerover /template/ Border#PART_BorderElement, TextBox.ctxNewTag:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+
         <!-- Normal / Compact: two halves of one pill; the one in use is Surface2. -->
         <Style Selector="Button.segment">
             <Setter Property="Padding" Value="10,4" />
@@ -737,7 +829,30 @@
                      counts are the Archive sheet's own rows); a click slides the Archive sheet up over the card; faint until used, lit while
                      the sheet is open. -->
                 <Panel x:Name="BottomRowSlot" DockPanel.Dock="Bottom" Height="44" Margin="12,12,12,2">
-                    <Button x:Name="ArchiveRowButton" Classes="archiveRow idleFade" Classes.on="{Binding ShowsArchive}" Command="{Binding ToggleArchiveCommand}"
+                    <!-- The select bar (8a.16-8a.23) while anything is selected: × · "3 selected" · the hint (cut first) · Move or label (3) · Delete (3). -->
+                    <Border x:Name="SelectBar" Classes="selectBar" IsVisible="{Binding HasPicked}" AutomationProperties.Name="Selected tasks">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
+                            <Button x:Name="StopSelectingButton" Classes="selectBarClose" Command="{Binding StopSelectingCommand}" AutomationProperties.Name="Stop selecting"
+                                    ToolTip.Tip="Stop selecting (Esc)">
+                                <mi:MaterialIcon Kind="Close" Width="17" Height="17" Foreground="{DynamicResource Ab.Ink}" />
+                            </Button>
+                            <TextBlock Grid.Column="1" Text="{Binding PickedText}" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="Drag the stack · right-click for Batch edit · Esc clears" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            <Button x:Name="MoveOrLabelButton" Grid.Column="3" Classes="selectBarMove" Command="{Binding MoveOrLabelSelectionCommand}"
+                                    AutomationProperties.Name="{Binding MoveOrLabelText}">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <mi:MaterialIcon Kind="FolderMoveOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding MoveOrLabelText}" FontSize="13" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="DeleteSelectionButton" Grid.Column="4" Classes="selectBarDelete" Command="{Binding DeleteSelectionCommand}"
+                                    AutomationProperties.Name="{Binding DeleteSelectedText}">
+                                <TextBlock Text="{Binding DeleteSelectedText}" FontSize="13" VerticalAlignment="Center" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <Button x:Name="ArchiveRowButton" Classes="archiveRow idleFade" IsVisible="{Binding !HasPicked}" Classes.on="{Binding ShowsArchive}" Command="{Binding ToggleArchiveCommand}"
                             AutomationProperties.Name="Archive" ToolTip.Tip="{Binding Archive.TaskCountsText}">
                         <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
                             <mi:MaterialIcon Kind="ArchiveOutline" Width="18" Height="18" VerticalAlignment="Center" />
@@ -799,5 +914,9 @@
         <Panel Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="20" Margin="22,0,0,60">
             <views:TaskToastView DataContext="{Binding Toasts}" />
         </Panel>
+
+        <!-- The right-click menu of the Shelf's rows (Tasks redesign 8a, boards 19 / 20 / 30): over the whole page, not dimmed; a click outside
+             closes it. -->
+        <views:TaskContextMenuLayer x:Name="ContextMenuLayer" ZIndex="22" />
     </Grid>
 </UserControl>

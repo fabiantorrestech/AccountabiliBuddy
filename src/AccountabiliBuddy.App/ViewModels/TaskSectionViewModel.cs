@@ -273,7 +273,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     public void Click(TaskListRowViewModel row, TaskRowClick click) => _panel.Click(row, click);
 
     /// <summary>Ctrl+A in this section: every row the panel shows is selected.</summary>
-    public void SelectAll() => _panel.SelectAll();
+    public void SelectAll() => _panel.SelectAllIn(this);
 
     /// <summary>Esc in this section: the selection is cleared. False when nothing was selected.</summary>
     public bool ClearSelection() => _panel.ClearSelection();

@@ -27,12 +27,6 @@ public sealed partial class TasksViewModel
     /// </summary>
     public event EventHandler<IReadOnlyList<Guid>>? RenameEachRequested;
 
-    /// <summary>
-    /// "Delete N" was chosen for these tasks: the page opens its confirm dialog (M5 task 3), which calls <see cref="DeleteManyAsync"/>.
-    /// While nothing listens, the menu asks in a small submenu instead.
-    /// </summary>
-    public event EventHandler<IReadOnlyList<Guid>>? DeleteManyRequested;
-
     /// <summary>The task list's copy of a row's task when the redesign's menu applies to it; null for rows that keep their old menu.</summary>
     private TaskItem? MenuTask(TaskRowKey key)
     {
@@ -69,7 +63,7 @@ public sealed partial class TasksViewModel
                 Value: $"{(item.Reminders ?? []).Count} of {TaskReminder.MaxPerTask}", OpensMore: true),
             HighlightEntry(ids, [item]),
             TaskMenuEntry.Separator,
-            new("Rename", new RelayCommand(() => BeginDetailEdit(key, "title")), Icon: MaterialIconKind.FormTextbox, Shortcut: "F2"),
+            new("Rename", new RelayCommand(() => BeginDetailEdit(key, "title")), Icon: MaterialIconKind.FormTextbox, Shortcut: "F2", Id: "rename"),
         };
         if (item.Number is TaskNumber number)
         {
@@ -83,7 +77,7 @@ public sealed partial class TasksViewModel
         }
 
         entries.Add(TaskMenuEntry.Separator);
-        entries.Add(new TaskMenuEntry("Delete", new AsyncRelayCommand(() => DeleteAsync(key)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del"));
+        entries.Add(new TaskMenuEntry("Delete", new AsyncRelayCommand(() => DeleteAsync(key)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del", Id: "delete"));
         return entries;
     }
 
@@ -119,9 +113,11 @@ public sealed partial class TasksViewModel
     // ---- A selection (right-click inside it) ----
 
     /// <summary>
-    /// The bulk menu for the selected rows (two or more): Move to…, Time limit, Label, Tags, Highlight, Rename one by one, Sync, Delete N.
-    /// Each acts on every selected task the task list holds as one action (one undo step) and then clears the selection; a running
-    /// session's own tasks and rows the task list doesn't hold are left out (the heading says how many). Empty for fewer than two.
+    /// The bulk menu for the selected rows (two or more) outside the Tasks page (Today's sections; the Tasks page has its right-click menu,
+    /// <see cref="ContextMenuFor"/>): Move to (N), Time limit (N), Label (N), Tags (N), Link to goal (N), Highlight (N), Rename one by one (N),
+    /// Sync (N), Delete (N) (the counts rule, Tasks redesign 8a). Each acts on every selected task the task list holds as one action (one
+    /// undo step) and then clears the selection; a running session's own tasks and rows the task list doesn't hold are left out (the
+    /// heading says how many). Delete acts at once with Undo (8a.75). Empty for fewer than two.
     /// </summary>
     internal IReadOnlyList<TaskMenuEntry> SelectionMenu()
     {
@@ -142,54 +138,30 @@ public sealed partial class TasksViewModel
         }
 
         List<TaskItem> tasks = ids.Select(StoredTask).OfType<TaskItem>().ToList();
-        entries.Add(TaskMenuEntry.Group("Move to…", MoveChoices(ids, null, null), MaterialIconKind.ArrowRight));
-        entries.Add(TaskMenuEntry.Group("Time limit", TimeLimitChoicesFor(ids, null), MaterialIconKind.TimerOutline));
-        entries.Add(TaskMenuEntry.Group("Label", LabelChoicesFor(ids, null, markCurrent: false), MaterialIconKind.CircleSlice8));
-        entries.Add(TaskMenuEntry.Group("Tags", TagChoicesFor(ids), MaterialIconKind.Pound));
+        int count = ids.Count;
+        entries.Add(TaskMenuEntry.Group(SelectionCountText.Action("Move to", count), MoveChoices(ids, null, null), MaterialIconKind.ArrowRight));
+        entries.Add(TaskMenuEntry.Group(SelectionCountText.Action("Time limit", count), TimeLimitChoicesFor(ids, null), MaterialIconKind.TimerOutline));
+        entries.Add(TaskMenuEntry.Group(SelectionCountText.Action("Label", count), LabelChoicesFor(ids, null, markCurrent: false), MaterialIconKind.CircleSlice8));
+        entries.Add(TaskMenuEntry.Group(SelectionCountText.Action("Tags", count), TagChoicesFor(ids), MaterialIconKind.Pound));
         entries.Add(GoalEntry(ids, null));
         entries.Add(HighlightEntry(ids, tasks));
-        if (RenameEachRequested is not null && ids.Count > 1)
+        if (RenameEachRequested is not null && count > 1)
         {
-            entries.Add(TaskMenuEntry.Do("Rename one by one", () => { RenameEachRequested?.Invoke(this, ids); }, MaterialIconKind.FormTextbox));
+            entries.Add(new TaskMenuEntry(
+                SelectionCountText.Action("Rename one by one", count), new RelayCommand(() => RenameEachRequested?.Invoke(this, ids)), Icon: MaterialIconKind.FormTextbox,
+                Id: "rename"));
         }
 
         if (BulkSyncChoices(held) is { } sync)
         {
-            entries.Add(TaskMenuEntry.Group("Sync", sync, MaterialIconKind.Sync));
+            entries.Add(TaskMenuEntry.Group(SelectionCountText.Action("Sync", count), sync, MaterialIconKind.Sync));
         }
 
         entries.Add(TaskMenuEntry.Separator);
-        entries.Add(BulkDeleteEntry(ids));
+        entries.Add(new TaskMenuEntry(
+            SelectionCountText.Action("Delete", count), new AsyncRelayCommand(() => DeleteCountedAsync(ids)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true,
+            Shortcut: "Del", Id: "delete"));
         return entries;
-    }
-
-    /// <summary>
-    /// Deletes the tasks as one action (one undo step): each goes to History as deleted, where Bring back can revive it for 30 days.
-    /// The selection clears. Used by the Delete N confirm (the menu's own, or the dialog of M5 task 3).
-    /// </summary>
-    public Task DeleteManyAsync(IReadOnlyList<Guid> ids)
-    {
-        return BulkAsync(actions => actions.DeleteAsync(ids));
-    }
-
-    // "Delete N": the dialog when one listens, else a submenu that asks once.
-    private TaskMenuEntry BulkDeleteEntry(IReadOnlyList<Guid> ids)
-    {
-        string text = "Delete " + ids.Count;
-        if (DeleteManyRequested is not null)
-        {
-            return new TaskMenuEntry(text, new RelayCommand(() => DeleteManyRequested?.Invoke(this, ids)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true, Shortcut: "Del");
-        }
-
-        return new TaskMenuEntry(
-            text,
-            Children:
-            [
-                new TaskMenuEntry("They stay in History for 30 days", IsHeading: true),
-                new TaskMenuEntry($"Delete {ids.Count} tasks", new AsyncRelayCommand(() => DeleteManyAsync(ids)), Icon: MaterialIconKind.DeleteOutline, IsDanger: true),
-            ],
-            Icon: MaterialIconKind.DeleteOutline,
-            IsDanger: true);
     }
 
     // "Sync": the same choices as one task's Sync devices (all devices, this PC only, or one other device), for each selected task that
@@ -237,9 +209,20 @@ public sealed partial class TasksViewModel
         }
 
         ClearSelection();
-        Notice = refused > 0
-            ? $"{refused} of them can't be kept on one device right now."
-            : keeper is null ? "They sync to all your devices again." : keeper == SelfId?.Invoke() ? "Kept on this PC only." : "Sent to that device: kept there only, once they sync.";
+        if (refused > 0)
+        {
+            Notice = $"{refused} of them can't be kept on one device right now.";
+        }
+        else
+        {
+            // Tasks redesign 8a.85: a toast that counts them (where a task is kept is the devices' sync choice, not an undo step).
+            int count = items.Count;
+            string where = keeper == SelfId?.Invoke()
+                ? "this PC"
+                : (KeepOnDevices?.Invoke() ?? []).Where(device => device.Id == keeper).Select(device => device.Name).FirstOrDefault() ?? "that device";
+            _actions?.Say(keeper is null ? TaskToasts.SyncedEverywhere(count) : TaskToasts.KeptOn(count, where));
+        }
+
         RebuildLists();
     }
 
@@ -341,7 +324,7 @@ public sealed partial class TasksViewModel
     // GS5: "Link to goal" and its Unlink (TaskGoalMenu); a link to a goal that no longer exists shows as none.
     private TaskMenuEntry GoalEntry(IReadOnlyList<Guid> ids, Guid? current)
     {
-        return TaskGoalMenu.Entry(LinkableGoals?.Invoke() ?? [], current, (goalId, goalName) => BulkAsync(actions => actions.SetGoalAsync(ids, goalId, goalName)));
+        return TaskGoalMenu.Entry(LinkableGoals?.Invoke() ?? [], current, (goalId, goalName) => BulkAsync(actions => actions.SetGoalAsync(ids, goalId, goalName)), ids.Count);
     }
 
     // A label made from "New label…" (a category of the session list underneath, ADR 76): found by its name in the task list.
@@ -374,13 +357,14 @@ public sealed partial class TasksViewModel
         return entries;
     }
 
-    // Highlight, or Remove highlight when every one of them has it (the H key).
+    // Highlight (N), or Remove highlight (N) when every one of them has it (the H key); its toast counts them.
     private TaskMenuEntry HighlightEntry(IReadOnlyList<Guid> ids, IReadOnlyList<TaskItem> tasks)
     {
         bool all = tasks.Count > 0 && tasks.All(task => task.Highlight);
         return new TaskMenuEntry(
-            all ? "Remove highlight" : "Highlight", new AsyncRelayCommand(() => BulkAsync(actions => actions.SetHighlightAsync(ids, !all))),
-            Icon: all ? MaterialIconKind.StarOffOutline : MaterialIconKind.StarOutline, Shortcut: "H");
+            SelectionCountText.Action(all ? "Remove highlight" : "Highlight", ids.Count),
+            new AsyncRelayCommand(() => BulkAsync(actions => actions.SetHighlightAsync(ids, !all, TaskToasts.HighlightedCount(ids.Count, !all)))),
+            Icon: all ? MaterialIconKind.StarOffOutline : MaterialIconKind.StarOutline, Shortcut: "H", Id: "highlight");
     }
 
     // One action through the task actions, then the selection clears (the rows it named may have moved).
@@ -426,13 +410,6 @@ public sealed partial class TasksViewModel
     {
         List<(Guid Id, string Title)> tasks = InListOrder(ids).Select(task => (task.Id, task.Title)).ToList();
         return tasks.Count == 0 ? null : new RenameOneByOneViewModel(titles => BulkAsync(actions => actions.RenameEachAsync(titles)), tasks);
-    }
-
-    /// <summary>"Delete N tasks?" for these tasks; Delete runs <see cref="DeleteManyAsync"/>. Null when none of them is in the task list.</summary>
-    public DeleteTasksViewModel? DeleteManyDialog(IReadOnlyList<Guid> ids)
-    {
-        List<TaskItem> tasks = InListOrder(ids);
-        return tasks.Count == 0 ? null : new DeleteTasksViewModel(tasks.Select(task => task.Title).ToList(), () => DeleteManyAsync(tasks.Select(task => task.Id).ToList()));
     }
 
     private List<TaskItem> InListOrder(IReadOnlyList<Guid> ids)

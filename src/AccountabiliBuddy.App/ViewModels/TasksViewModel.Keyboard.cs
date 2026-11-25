@@ -20,6 +20,18 @@ public sealed partial class TasksViewModel
     /// </summary>
     internal IReadOnlyList<TaskMenuEntry> ShortcutMenu(TaskListRowViewModel? focused, bool onTasksPage)
     {
+        // Tasks redesign 8a: on the Tasks page the keys act through the right-click menu's entries (Del deletes at once with Undo, F2 is
+        // Rename or Rename one by one, H highlights them all), on the selection, else the row with the keyboard.
+        if (onTasksPage && _picked.Count > 0 && _picked.All(IsShelfRow) && ContextMenuFor(_picked.ToList(), null) is { } selection)
+        {
+            return selection;
+        }
+
+        if (onTasksPage && _picked.Count == 0 && focused is not null && IsShelfRow(focused.Key) && ContextMenuFor([focused.Key], null) is { } row)
+        {
+            return row;
+        }
+
         if (_picked.Count >= 2)
         {
             return SelectionMenu();

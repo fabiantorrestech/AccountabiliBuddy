@@ -42,9 +42,10 @@ public sealed class TaskActionsService
 
     /// <summary>
     /// Moves tasks to a bin. This session goes through the session's cap (<see cref="MoveToSessionAsync"/>); Finished today is a tick
-    /// (<see cref="FinishAsync"/>); the others keep each task's id, number and everything else.
+    /// (<see cref="FinishAsync"/>); the others keep each task's id, number and everything else. <paramref name="toast"/> replaces the
+    /// action's own toast text (the Tasks page's menus count the tasks: "Moved 3 tasks to Later"); its Undo is the same.
     /// </summary>
-    public async Task<TaskMoveOutcome> MoveAsync(IReadOnlyList<Guid> ids, TaskBin bin)
+    public async Task<TaskMoveOutcome> MoveAsync(IReadOnlyList<Guid> ids, TaskBin bin, string? toast = null)
     {
         if (bin == TaskBin.Session)
         {
@@ -53,11 +54,11 @@ public sealed class TaskActionsService
 
         if (bin == TaskBin.Done)
         {
-            await FinishAsync(ids);
+            await FinishAsync(ids, toast);
             return new TaskMoveOutcome(ids.Count, []);
         }
 
-        bool changed = await RunAsync(TaskActionKind.Move, ids.Count, (lists, self, now) => TaskActions.Move(lists, ids, bin, now, self));
+        bool changed = await RunAsync(TaskActionKind.Move, ids.Count, (lists, self, now) => TaskActions.Move(lists, ids, bin, now, self), toast);
         return new TaskMoveOutcome(changed ? ids.Count : 0, []);
     }
 
@@ -173,7 +174,7 @@ public sealed class TaskActionsService
     /// Ticks tasks. One that sits in the session's checklist is ticked there (its steps, the next step taking the slot, "All tasks
     /// done"); the others go to Finished today (a finished Shelf task settles into History).
     /// </summary>
-    public async Task<bool> FinishAsync(IReadOnlyList<Guid> ids)
+    public async Task<bool> FinishAsync(IReadOnlyList<Guid> ids, string? toast = null)
     {
         (List<Guid> inChecklist, List<Guid> inList) = Split(ids);
         foreach (Guid id in inChecklist)
@@ -181,7 +182,7 @@ public sealed class TaskActionsService
             await _session!.SetTickedAsync(id, true);
         }
 
-        bool changed = inList.Count > 0 && await RunAsync(TaskActionKind.Finish, inList.Count, (lists, self, now) => TaskActions.Finish(lists, inList, now, self));
+        bool changed = inList.Count > 0 && await RunAsync(TaskActionKind.Finish, inList.Count, (lists, self, now) => TaskActions.Finish(lists, inList, now, self), toast);
         return changed || inChecklist.Count > 0;
     }
 
@@ -288,9 +289,9 @@ public sealed class TaskActionsService
 
     // ---- removing ----
 
-    public Task<bool> DeleteAsync(IReadOnlyList<Guid> ids)
+    public Task<bool> DeleteAsync(IReadOnlyList<Guid> ids, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Delete, ids.Count, (lists, self, now) => TaskActions.Delete(lists, ids, now, self));
+        return RunAsync(TaskActionKind.Delete, ids.Count, (lists, self, now) => TaskActions.Delete(lists, ids, now, self), toast);
     }
 
     public Task<bool> ArchiveAsync(IReadOnlyList<Guid> ids)
@@ -345,20 +346,20 @@ public sealed class TaskActionsService
         return changed;
     }
 
-    public Task<bool> SetLabelAsync(IReadOnlyList<Guid> ids, Guid? labelId)
+    public Task<bool> SetLabelAsync(IReadOnlyList<Guid> ids, Guid? labelId, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self, removed: _store.Removed));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self, removed: _store.Removed), toast);
     }
 
     /// <summary>Links tasks to a goal, or to none (GS5); the caller passes a goal that exists.</summary>
-    public Task<bool> SetGoalAsync(IReadOnlyList<Guid> ids, Guid? goalId, string? goalName)
+    public Task<bool> SetGoalAsync(IReadOnlyList<Guid> ids, Guid? goalId, string? goalName, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetGoal(lists, ids, goalId, goalName, now, self));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetGoal(lists, ids, goalId, goalName, now, self), toast);
     }
 
-    public Task<bool> AddTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags)
+    public Task<bool> AddTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.AddTags(lists, ids, tags, now, self, removed: _store.Removed));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.AddTags(lists, ids, tags, now, self, removed: _store.Removed), toast);
     }
 
     public Task<bool> RemoveTagsAsync(IReadOnlyList<Guid> ids, IReadOnlyList<string> tags)
@@ -366,19 +367,19 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.RemoveTags(lists, ids, tags, now, self, removed: _store.Removed));
     }
 
-    public Task<bool> ToggleTagAsync(IReadOnlyList<Guid> ids, string tag)
+    public Task<bool> ToggleTagAsync(IReadOnlyList<Guid> ids, string tag, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.ToggleTag(lists, ids, tag, now, self, removed: _store.Removed));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.ToggleTag(lists, ids, tag, now, self, removed: _store.Removed), toast);
     }
 
-    public Task<bool> SetTimeLimitAsync(IReadOnlyList<Guid> ids, int? minutes)
+    public Task<bool> SetTimeLimitAsync(IReadOnlyList<Guid> ids, int? minutes, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetTimeLimit(lists, ids, minutes, now, self));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetTimeLimit(lists, ids, minutes, now, self), toast);
     }
 
-    public Task<bool> SetHighlightAsync(IReadOnlyList<Guid> ids, bool on)
+    public Task<bool> SetHighlightAsync(IReadOnlyList<Guid> ids, bool on, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetHighlight(lists, ids, on, now, self));
+        return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetHighlight(lists, ids, on, now, self), toast);
     }
 
     public Task<bool> ToggleHighlightAsync(IReadOnlyList<Guid> ids)
@@ -547,8 +548,9 @@ public sealed class TaskActionsService
         Toast?.Invoke(this, new TaskToastEventArgs(text, canUndo, explains));
     }
 
-    // Runs a pure action over the lists; when it changed something, keeps it on the undo stack and raises its toast.
-    private async Task<bool> RunAsync(TaskActionKind kind, int count, Func<TaskLists, Guid, DateTimeOffset, TaskActionResult> action)
+    // Runs a pure action over the lists; when it changed something, keeps it on the undo stack and raises its toast (or
+    // <paramref name="toast"/> in its place, the undo entry's text too).
+    private async Task<bool> RunAsync(TaskActionKind kind, int count, Func<TaskLists, Guid, DateTimeOffset, TaskActionResult> action, string? toast = null)
     {
         TaskLists? before = null;
         TaskActionResult? result = null;
@@ -566,8 +568,9 @@ public sealed class TaskActionsService
         }
 
         TaskActionKind recorded = count > 1 && kind is TaskActionKind.Edit or TaskActionKind.Delete or TaskActionKind.Move ? TaskActionKind.Bulk : kind;
-        _undo.Push(TaskUndoRules.Capture(before, result.Affected, recorded, result.Toast, result.Lists, at));
-        Announce(result.Toast, canUndo: true);
+        string text = toast ?? result.Toast;
+        _undo.Push(TaskUndoRules.Capture(before, result.Affected, recorded, text, result.Lists, at));
+        Announce(text, canUndo: true);
         return true;
     }
 

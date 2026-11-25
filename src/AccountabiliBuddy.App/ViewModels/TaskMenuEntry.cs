@@ -18,8 +18,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="IsDanger">Drawn in the drift (red) colour: Delete, the View menu's Reset. A row menu puts it last (brief §3.6).</param>
 /// <param name="Value">Muted text at the right: what the entry is set to now ("Next", "50 min", "142c", "1 of 5", "2 of 3"). Never a key.</param>
 /// <param name="Shortcut">
-/// The key that runs this entry on a row or the page ("F2", "Del", "H"; <see cref="Services.TaskShortcuts"/>). Never shown in a menu:
-/// menus have no shortcut letters (brief §3.6, CN §4b).
+/// The key that runs this entry ("F2", "Del", "H", "M", "Ctrl+E"). The older menus never show it (brief §3.6, CN §4b); the Tasks page's
+/// right-click menu (Tasks redesign 8a, <see cref="Views.TaskContextMenuLayer"/>) shows it as a key chip at the right edge and runs it
+/// while the menu is open. Keys on a row or the page find their entry by <paramref name="Id"/> (<see cref="Services.TaskShortcuts"/>).
 /// </param>
 /// <param name="Note">A muted second line under the text ("How the day starts and ends, the start-of-day card").</param>
 /// <param name="Segments">
@@ -35,6 +36,17 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="IsSwitch">
 /// An on/off switch at the right (Tasks redesign board 09, Options › "Fade controls you're not using"): <paramref name="IsChecked"/> is
 /// its state, <paramref name="Command"/> flips it; the menu stays open.
+/// </param>
+/// <param name="Id">
+/// What the entry is, whatever its text says ("delete", "rename", "highlight"): keys find their entry by it, so "Delete (3)" still
+/// answers Del (Tasks redesign 8a.51). Null for entries no key runs.
+/// </param>
+/// <param name="IsStrong">The right-click menu's strong row (Batch edit): a Line fill, weight 600, its icon in the accent.</param>
+/// <param name="OnGuide">Set in under the group heading above it, on a 1 px guide line (the right-click menu's Edit group, a category's labels).</param>
+/// <param name="AccentIcon">Its icon in the accent (a bin in Move to, a goal, a tag some or all of the tasks have).</param>
+/// <param name="Submit">
+/// An inline box in the right-click menu ("New tag…"): choosing the entry turns it into a text box; Enter passes what was typed here and
+/// closes the menu.
 /// </param>
 public sealed record TaskMenuEntry(
     string Header,
@@ -54,7 +66,12 @@ public sealed record TaskMenuEntry(
     bool OpensMore = false,
     IReadOnlyList<TaskMenuEntry>? Segments = null,
     bool WideSegments = false,
-    bool IsSwitch = false)
+    bool IsSwitch = false,
+    string? Id = null,
+    bool IsStrong = false,
+    bool OnGuide = false,
+    bool AccentIcon = false,
+    Func<string, Task>? Submit = null)
 {
     public static TaskMenuEntry Separator { get; } = new(string.Empty, IsSeparator: true);
 
