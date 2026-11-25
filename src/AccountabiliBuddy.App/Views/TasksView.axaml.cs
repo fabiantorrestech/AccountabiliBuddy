@@ -35,6 +35,7 @@ public partial class TasksView : UserControl
         AddHandler(PointerMovedEvent, (_, e) => _stackDrag.OnMoved(e), RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerReleasedEvent, (_, e) => _stackDrag.OnReleased(e), RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerCaptureLostEvent, (_, e) => _stackDrag.OnCaptureLost(e), RoutingStrategies.Direct | RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(KeyDownEvent, OnEscapeWithContextMenu, RoutingStrategies.Tunnel);
         // The reset button's own press and release (a Button handles them itself, so listen to handled ones too).
         ResetButton.AddHandler(PointerPressedEvent, OnResetPressed, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         ResetButton.AddHandler(PointerReleasedEvent, OnResetReleased, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
@@ -65,12 +66,43 @@ public partial class TasksView : UserControl
         }
     }
 
-    /// <summary>Ctrl+F on the Tasks page (7.06): the caret goes into the page's search box, its text selected.</summary>
+    /// <summary>Ctrl+F does something here: not while the editor popup or Move and label is open (their own boxes keep the keyboard).</summary>
+    public bool TakesFindKey => DataContext is TasksViewModel { ShowsEditorOnTasks: false, ShowsMoveAndLabel: false };
+
+    /// <summary>
+    /// Ctrl+F on the Tasks page (7.06): the caret goes into the page's search box, its text selected; with the Archive sheet open, into the
+    /// Archive's search. Nothing when <see cref="TakesFindKey"/> is false.
+    /// </summary>
     public void FocusSearch()
     {
+        if (!TakesFindKey)
+        {
+            return;
+        }
+
+        if (DataContext is TasksViewModel { IsArchiveOpen: true })
+        {
+            ArchiveSheet.FocusSearch();
+            return;
+        }
+
         SearchEntry.Focus(NavigationMethod.Pointer);
         SearchEntry.SelectAll();
     }
+
+    // 8a.71: Esc with the right-click menu open closes the menu first, wherever the keyboard is (a row's section would otherwise clear the
+    // selection under the open menu); the selection stays, a second Esc clears it. Tunnel, so it runs before the row and the section.
+    private void OnEscapeWithContextMenu(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && ContextMenuLayer.IsOpen)
+        {
+            ContextMenuLayer.Close(restoreFocus: true);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>The right-click menu of the Shelf's rows is open (the page's keys wait until it closes, except Ctrl+Z).</summary>
+    public bool IsContextMenuOpen => ContextMenuLayer.IsOpen;
 
     // 7.10: 60 from the card's top, the right edge under the search box's right edge, at most the card's height − 72.
     private void PlaceShelfFilters()

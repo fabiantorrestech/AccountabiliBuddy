@@ -523,10 +523,14 @@ public partial class MainWindow : Window
         {
             // Tasks redesign 7.06, 9.10: on the Tasks page Ctrl+F puts the caret in the page's own search; elsewhere the title-bar menu opens
             // with the caret in its search.
-            if (viewModel.IsTasksSelected && this.GetVisualDescendants().OfType<TasksView>().FirstOrDefault(view => view.IsEffectivelyVisible) is { } tasksView)
+            // With the Archive sheet open it is the Archive's search; with the editor popup or Move and label open, nothing.
+            if (viewModel.IsTasksSelected && ShownTasksView() is { } tasksView)
             {
-                CloseTitleMenu();
-                tasksView.FocusSearch();
+                if (tasksView.TakesFindKey)
+                {
+                    CloseTitleMenu();
+                    tasksView.FocusSearch();
+                }
             }
             else
             {
@@ -589,10 +593,23 @@ public partial class MainWindow : Window
             viewModel.Go(direction);
             e.Handled = true;
         }
-        else if (_taskShortcuts.Handle(e, viewModel, FocusManager?.GetFocusedElement()))
+        else if (_taskShortcuts.Handle(e, viewModel, FocusManager?.GetFocusedElement(), PanelOverPage(viewModel)))
         {
             e.Handled = true;
         }
+    }
+
+    // The Tasks page while it is on screen, else null.
+    private TasksView? ShownTasksView()
+    {
+        return Pages.Children[(int)MainTab.Tasks] is TasksView { IsEffectivelyVisible: true } tasksView ? tasksView : null;
+    }
+
+    // A panel of the window's own (not in the overlay) is over the page: the title-bar menu, or the Tasks page's right-click menu. The page's
+    // keys (Del, F2, H, Ctrl+E, Ctrl+U, Ctrl+G, Esc's steps) must not act on the selection behind it (TaskShortcuts).
+    private bool PanelOverPage(MainWindowViewModel viewModel)
+    {
+        return viewModel.IsSearchOpen || (viewModel.IsTasksSelected && ShownTasksView() is { IsContextMenuOpen: true });
     }
 
     /// <summary>

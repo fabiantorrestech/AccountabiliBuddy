@@ -13,8 +13,9 @@ namespace AccountabiliBuddy.App.ViewModels;
 // holds what the page shows while dragging (the stack card, the drag bar, the lit targets) and what a drop changes. A drop is one task
 // action (one undo step, a toast that counts the tasks) and clears the selection: on a bin only the bin changes, on a label only the label,
 // never the tags; the Today pill queues for today (Today › Queued, never This session, so the session's cap is never in play); on its own
-// column the stack is reordered there ("Your order" only, never in Group by None). The "choose a bin and label" zone hands the stack to
-// Move and label (MoveAndLabelRequested, item 8c) and keeps the selection; Group by None's Archive zone archives it (Archive › Unfinished).
+// bin column the stack is reordered there ("Your order" only, never in Group by None or on a Group by Labels column). The "choose a bin
+// and label" zone hands the stack to Move and label (RequestMoveAndLabel, item 8c) and keeps the selection; Group by None's Archive zone
+// archives it (Archive › Unfinished).
 public sealed partial class TasksViewModel
 {
     // The stack being dragged, in the page's order (its first task is the top card); empty when no drag is going on.
@@ -132,9 +133,9 @@ public sealed partial class TasksViewModel
             shelfRow.IsDragSource = stack.Contains(shelfRow.Key);
         }
 
+        LightStackColumns(Shelf.Panel.Sections);
         foreach (TaskSectionViewModel column in Shelf.Panel.Sections)
         {
-            column.IsStackLit = TakesStack(column);
             column.IsStackHot = false;
         }
 
@@ -225,14 +226,33 @@ public sealed partial class TasksViewModel
     /// A Shelf column takes the stack: a bin (or its rail) or a label column some of the stack would change for, or the stack's own column
     /// when it can be reordered there. Group by None's list takes nothing (8b.29).
     /// </summary>
-    internal bool TakesStack(TaskSectionViewModel column)
+    internal bool TakesStack(TaskSectionViewModel column) => TakesStack(column, StackTasks());
+
+    /// <summary>
+    /// While a stack is dragged, <paramref name="columns"/> light by <see cref="TakesStack(TaskSectionViewModel)"/> (the drag's start, and a
+    /// refresh mid-drag that brings a new column, e.g. a label from a sync). The stack's tasks are read once for all of them.
+    /// </summary>
+    private void LightStackColumns(IEnumerable<TaskSectionViewModel> columns)
+    {
+        if (_stackKeys.Count == 0)
+        {
+            return;
+        }
+
+        List<TaskItem> tasks = StackTasks();
+        foreach (TaskSectionViewModel column in columns)
+        {
+            column.IsStackLit = TakesStack(column, tasks);
+        }
+    }
+
+    private bool TakesStack(TaskSectionViewModel column, IReadOnlyList<TaskItem> tasks)
     {
         if (Shelf.IsGroupedByNone || _stackKeys.Count == 0)
         {
             return false;
         }
 
-        List<TaskItem> tasks = StackTasks();
         if (column.IsLabelColumn)
         {
             return TryLabelOf(column, out Guid? labelId) && (!tasks.All(task => HasLabel(task, labelId)) || CanReorderIn(column));
@@ -274,15 +294,8 @@ public sealed partial class TasksViewModel
         switch (target.Kind)
         {
             case StackDropKind.Column when takes && target.Column is { IsLabelColumn: true } labelColumn && TryLabelOf(labelColumn, out Guid? labelId):
-                if (tasks.All(task => HasLabel(task, labelId)))
-                {
-                    await ReorderStackAsync(ids, labelColumn, target);
-                }
-                else
-                {
-                    await LabelStackAsync(tasks, labelId, labelId is Guid id ? Shelf.ChipOf(id)?.Name ?? labelColumn.Title : null);
-                }
-
+                // A label column only labels: a reorder there could only move tasks within one bin (CanReorderIn).
+                await LabelStackAsync(tasks, labelId, labelId is Guid id ? Shelf.ChipOf(id)?.Name ?? labelColumn.Title : null);
                 break;
             case StackDropKind.Column when takes && target.Column is { Bin: TaskBin bin } binColumn:
                 if (tasks.All(task => task.Bin == bin))
@@ -373,10 +386,11 @@ public sealed partial class TasksViewModel
         return BulkAsync(actions => actions.ReorderManyAsync(ids, beforeId, TaskToasts.ReorderedCount(ids.Count)));
     }
 
-    // A reorder shows only in "Your order", never in Group by None's newest-first list, and only in an open column (not a rail).
+    // A reorder shows only in "Your order", never in Group by None's newest-first list, and only in an open column (not a rail). Never in a
+    // Group by Labels column either: its tasks come from several bins and a reorder only moves tasks within one, so a drop there only labels.
     private bool CanReorderIn(TaskSectionViewModel column)
     {
-        return !Shelf.IsGroupedByNone && Shelf.IsYourOrder && column.ShowsColumn;
+        return !Shelf.IsGroupedByNone && Shelf.IsYourOrder && column.ShowsColumn && !column.IsLabelColumn;
     }
 
     private List<TaskItem> StackTasks()

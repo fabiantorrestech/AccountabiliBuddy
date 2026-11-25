@@ -17,6 +17,9 @@ public partial class TitleMenuView : UserControl
     /// <summary>Esc with nothing typed, or a choice that leaves for another page: the window closes the menu.</summary>
     public event EventHandler? CloseRequested;
 
+    // The view model whose CloseRequested this view listens to (let go when the data context changes).
+    private TitleMenuViewModel? _subscribed;
+
     public TitleMenuView()
     {
         InitializeComponent();
@@ -54,10 +57,15 @@ public partial class TitleMenuView : UserControl
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
-        if (DataContext is TitleMenuViewModel menu)
+        if (_subscribed is not null)
         {
-            menu.CloseRequested -= OnMenuCloseRequested;
-            menu.CloseRequested += OnMenuCloseRequested;
+            _subscribed.CloseRequested -= OnMenuCloseRequested;
+        }
+
+        _subscribed = DataContext as TitleMenuViewModel;
+        if (_subscribed is not null)
+        {
+            _subscribed.CloseRequested += OnMenuCloseRequested;
         }
 
         ShowVariant();

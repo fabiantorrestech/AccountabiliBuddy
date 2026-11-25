@@ -299,6 +299,11 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         {
             Archive.IsSearchFiltersOpen = false;
         }
+        else
+        {
+            // The Shelf's selection goes: the keys (Del, F2, H) must never act on rows hidden under the sheet.
+            ClearSelection();
+        }
     }
 
     public void Dispose()
@@ -325,9 +330,16 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             _session.Focus.PropertyChanged -= OnFocusPropertyChanged;
         }
 
+        if (_actions is not null)
+        {
+            _actions.Undone -= OnActionUndone;
+        }
+
         Shelf.Detach();
         Toasts.Dispose();
         Detail?.Dispose();
+        MoveAndLabel?.Dispose();
+        MoveAndLabel = null;
     }
 
     [RelayCommand]
@@ -1479,6 +1491,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         Shelf.Panel.Show(sections);
+        // A refresh mid-drag (a sync) may bring a new column: it lights like the others (nothing while no stack is dragged).
+        LightStackColumns(sections);
         OfferArchiveSearch(sections);
         Shelf.Pager.Use(grouping ?? "none", sections.Select(section => section.Key).ToList());
         Shelf.UseLabelBands(labelColumns);

@@ -37,6 +37,9 @@ public partial class ArchiveSheetView : UserControl
     /// <summary>The sheet went down (Esc, the dim, the fold button or the Archive row): the page puts the keyboard back on the row.</summary>
     public event EventHandler? Closed;
 
+    /// <summary>Ctrl+F while the sheet is open: the caret goes into the Archive's search.</summary>
+    public void FocusSearch() => ArchiveNotebook.FocusSearch();
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);

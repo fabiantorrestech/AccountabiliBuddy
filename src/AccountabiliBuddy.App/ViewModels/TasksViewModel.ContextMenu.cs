@@ -16,12 +16,6 @@ public sealed partial class TasksViewModel
     /// <summary>The time limits the right-click menu offers, in minutes (8a.65).</summary>
     private static readonly int[] ContextTimeLimits = [10, 15, 25, 50, 90];
 
-    /// <summary>
-    /// "Batch edit (N)…", Ctrl+E with 2 or more, the select bar's "Move or label (N)" or a drop on the choose zone asked for Move and label
-    /// with these tasks; the page opens it right after (<see cref="OpenMoveAndLabel"/>, item 8c; the selection stays meanwhile).
-    /// </summary>
-    public event EventHandler<IReadOnlyList<Guid>>? MoveAndLabelRequested;
-
     /// <summary>The select bar's "Move or label (3)"; "Move or label" for one task (the counts rule).</summary>
     public string MoveOrLabelText => SelectionCountText.Action("Move or label", PickedCount);
 
@@ -453,11 +447,12 @@ public sealed partial class TasksViewModel
         }
     }
 
+    // "Batch edit (N)…", Ctrl+E with 2 or more, the select bar's "Move or label (N)" or a drop on the choose zone: Move and label opens with
+    // these tasks (item 8c; the selection stays meanwhile).
     private void RequestMoveAndLabel(IReadOnlyList<Guid> ids)
     {
         if (ids.Count > 0)
         {
-            MoveAndLabelRequested?.Invoke(this, ids);
             OpenMoveAndLabel(ids);
         }
     }

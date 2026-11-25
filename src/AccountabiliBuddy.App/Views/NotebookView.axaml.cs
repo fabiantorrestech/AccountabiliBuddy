@@ -36,6 +36,13 @@ public partial class NotebookView : UserControl
         FiltersLayer.SizeChanged += (_, _) => PlaceFilters();
     }
 
+    /// <summary>Ctrl+F with the Archive sheet open: the caret goes into the Archive's search box, its text selected.</summary>
+    public void FocusSearch()
+    {
+        SearchBox.Focus(NavigationMethod.Pointer);
+        SearchBox.SelectAll();
+    }
+
     // Under the search box, its right edge under the box's; at most the sheet's height − 76 tall and never past the sheet's bottom.
     private void PlaceFilters()
     {

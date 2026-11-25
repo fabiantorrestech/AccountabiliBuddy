@@ -119,11 +119,28 @@ internal sealed class TaskStackDrag
             return;
         }
 
-        Track(e);
-        StackDropTarget? target = _target;
         e.Handled = true;
-        Finish();
-        _ = Page?.DropStackAsync(target);
+        StackDropTarget? target = null;
+        bool tracked = false;
+        try
+        {
+            Track(e);
+            target = _target;
+            tracked = true;
+        }
+        finally
+        {
+            // The window's size pin and the pointer always go back, whatever the last hit test did.
+            Finish();
+            if (tracked)
+            {
+                _ = Page?.DropStackAsync(target);
+            }
+            else
+            {
+                Page?.EndStackDrag();
+            }
+        }
     }
 
     /// <summary>The page lost the pointer it held (another control took it, or the system did): the drag is cancelled.</summary>
@@ -243,11 +260,18 @@ internal sealed class TaskStackDrag
 
     private void OnWindowDeactivated(object? sender, EventArgs e) => Cancel();
 
+    // While a stack is dragged no key reaches the page (Del, F2, H, Ctrl+Z would act on the stack mid-drag): Esc cancels, every other key is
+    // swallowed.
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_dragging && e.Key == Key.Escape)
+        if (!_dragging)
         {
-            e.Handled = true;
+            return;
+        }
+
+        e.Handled = true;
+        if (e.Key == Key.Escape)
+        {
             Cancel();
         }
     }

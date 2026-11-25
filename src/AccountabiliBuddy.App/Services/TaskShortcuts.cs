@@ -13,7 +13,8 @@ namespace AccountabiliBuddy.App.Services;
 /// task); on Tasks also Ctrl+U clear the selection and Ctrl+E edit it (Tasks redesign 8a.08-8a.10). Del, F2 and H act on the selection,
 /// else the row with the keyboard, else the open task, by running the entry its menu shows, found by its id (so "Delete (3)" still
 /// answers Del, 8a.51; the same rules as the menus: a running session's tasks included, nothing around the session's cap). Nothing fires
-/// while a text box has the keyboard or a popover is open. The rest of the map lives where it acts: Ctrl+Shift+S, Ctrl+\, Ctrl+J, Ctrl+F and Ctrl+R in
+/// while a text box has the keyboard or a popover is open; while a panel is over the page (the title-bar menu, the right-click menu, and on
+/// Tasks Move and label, the Search filters or the Archive sheet) only Ctrl+Z does, so no key acts on a selection hidden behind it. The rest of the map lives where it acts: Ctrl+Shift+S, Ctrl+\, Ctrl+J, Ctrl+F and Ctrl+R in
 /// the window, the rows' ↑/↓, Space, Enter and Alt+↑/↓ in the row, Ctrl+A in the section.
 /// </summary>
 public sealed class TaskShortcuts
@@ -29,8 +30,11 @@ public sealed class TaskShortcuts
         _openGoTo = openGoTo;
     }
 
-    /// <summary>Acts on <paramref name="e"/> when it is one of these keys and applies here; true when it did.</summary>
-    public bool Handle(KeyEventArgs e, MainWindowViewModel window, IInputElement? focused)
+    /// <summary>
+    /// Acts on <paramref name="e"/> when it is one of these keys and applies here; true when it did. <paramref name="panelOpen"/>: one of the
+    /// window's own panels is over the page (the title-bar menu, the Tasks page's right-click menu, which runs its own keys).
+    /// </summary>
+    public bool Handle(KeyEventArgs e, MainWindowViewModel window, IInputElement? focused, bool panelOpen)
     {
         if (window.Tasks is not { } tasks || InPopover(focused))
         {
@@ -38,11 +42,14 @@ public sealed class TaskShortcuts
         }
 
         bool typing = focused is TextBox;
-        if (window.IsTasksSelected && tasks.ShowsMoveAndLabel)
+        bool onTasks = window.IsTasksSelected;
+        bool onTaskPage = onTasks || window.SelectedTab == MainWindowViewModel.TodayTab;
+        if (panelOpen || (onTasks && (tasks.ShowsMoveAndLabel || tasks.Shelf.IsSearchFiltersOpen || tasks.IsArchiveOpen)))
         {
-            // Move and label is open (Tasks redesign 8c): only Ctrl+Z (its Apply is one undo step); Del, F2, H, Ctrl+E, Ctrl+U and Ctrl+G
-            // would act on the selection behind it.
-            if (!typing && e.Key == Key.Z && e.KeyModifiers == KeyModifiers.Control)
+            // A panel is over the page (Move and label, Tasks redesign 8c; the title-bar menu; the right-click menu; the Search filters; the
+            // Archive sheet): only Ctrl+Z, where it always works (Move and label's Apply is one undo step); Del, F2, H, Ctrl+E, Ctrl+U, Ctrl+G
+            // and Esc's steps would act on the selection behind it.
+            if (!typing && onTaskPage && e.Key == Key.Z && e.KeyModifiers == KeyModifiers.Control)
             {
                 _ = tasks.UndoLatestAsync();
                 return true;
@@ -57,8 +64,7 @@ public sealed class TaskShortcuts
             return true;
         }
 
-        bool onTasks = window.IsTasksSelected;
-        if (typing || !(onTasks || window.SelectedTab == MainWindowViewModel.TodayTab))
+        if (typing || !onTaskPage)
         {
             return false;
         }
