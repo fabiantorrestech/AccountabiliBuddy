@@ -107,6 +107,13 @@ public sealed partial class ViewEditorViewModel : ObservableObject
     [ObservableProperty]
     public partial IReadOnlyList<ViewEditorOption> Labels { get; set; } = [];
 
+    /// <summary>
+    /// Tasks redesign 10.35: the shared labels' ticks grouped under their categories (each heading picks all its labels), then "Other labels"
+    /// with "No label". The same options as <see cref="Labels"/>.
+    /// </summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<ViewEditorLabelGroup> LabelGroups { get; set; } = [];
+
     [ObservableProperty]
     public partial IReadOnlyList<ViewEditorOption> Tags { get; set; } = [];
 
@@ -247,9 +254,13 @@ public sealed partial class ViewEditorViewModel : ObservableObject
         MatchAllTags = config.Match == TaskViewConfig.MatchAll;
         ViewEditorOption LabelOption(TaskLabel label) => new(
             label.Id.ToString("D"), label.Name, config.Labels?.Contains(label.Id) == true, TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color)));
-        var labels = _labels.Where(_isSharedLabel).Select(LabelOption).ToList();
-        labels.Add(new ViewEditorOption(NoLabelValue, "No label", config.NoLabel));
+        List<TaskLabel> shared = _labels.Where(_isSharedLabel).ToList();
+        var options = shared.ToDictionary(label => label.Id, LabelOption);
+        var noLabel = new ViewEditorOption(NoLabelValue, "No label", config.NoLabel);
+        var labels = shared.Select(label => options[label.Id]).ToList();
+        labels.Add(noLabel);
         Labels = labels;
+        LabelGroups = GroupedLabels(shared, options, noLabel);
         DeviceLabels = _labels.Where(label => !_isSharedLabel(label)).Select(LabelOption).ToList();
         Tags = _tags.Where(_isSharedTag).Select(tag => new ViewEditorOption(tag, "#" + tag, TaskLabels.Has(config.Tags, tag))).ToList();
         DeviceTags = _tags.Where(tag => !_isSharedTag(tag)).Select(tag => new ViewEditorOption(tag, "#" + tag, TaskLabels.Has(config.Tags, tag))).ToList();
@@ -289,6 +300,23 @@ public sealed partial class ViewEditorViewModel : ObservableObject
     {
         string picked = GroupChoices[Math.Clamp(GroupIndex, 0, GroupChoices.Length - 1)].Value;
         return picked == ShelfViewModel.ShownGroup(_base.Group) ? _base.Group : picked;
+    }
+
+    // The shared labels under their live categories (in the categories' order), then "Other labels": the ones with none and "No label".
+    private List<ViewEditorLabelGroup> GroupedLabels(IReadOnlyList<TaskLabel> shared, IReadOnlyDictionary<Guid, ViewEditorOption> options, ViewEditorOption noLabel)
+    {
+        IReadOnlyList<TaskLabelGroup> groups = _views.LabelGroups;
+        IReadOnlyDictionary<Guid, TaskLabelGroup> liveGroups = TaskLabelGroupBook.LiveById(groups);
+        var result = groups
+            .Select(group => new ViewEditorLabelGroup(group.Name, LabelGroupIconKinds.Of(group.Icon), isCategory: true,
+                shared.Where(label => TaskLabelGroupBook.GroupOf(label, liveGroups)?.Id == group.Id).Select(label => options[label.Id]).ToList()))
+            .Where(group => group.Options.Count > 0)
+            .ToList();
+        List<ViewEditorOption> others = shared.Where(label => TaskLabelGroupBook.GroupOf(label, liveGroups) is null).Select(label => options[label.Id]).ToList();
+        others.Add(noLabel);
+        result.Add(new ViewEditorLabelGroup(result.Count > 0 ? LabelCategorySectionViewModel.OtherName : "Labels", Material.Icons.MaterialIconKind.CircleSlice8,
+            isCategory: false, others));
+        return result;
     }
 
     private static List<ViewEditorOption> Options((string Value, string Text)[] choices, IReadOnlyList<string>? picked)

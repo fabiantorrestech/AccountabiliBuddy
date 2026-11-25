@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.Core.Sync;
 /// Merges two label-group lists (ADR 93) item by item with <see cref="SharedListMerge"/>: the newest version of each group wins, a time far
 /// ahead is clamped to 2 minutes ahead, and tombstones are kept for good (ids, position and stamps only), like label tombstones: a device
 /// that was away longer than 30 days must not bring a deleted group back. Either side null means none; nothing left is null, so a device
-/// that never made a group keeps writing none. Entries the merge can't use (no group, no id, a live one with no name) are left out.
+/// that never made a group keeps writing none. Entries the merge can't use (no group, no id, a live one with no name or a blank one) are left out.
 /// </summary>
 public static class TaskLabelGroupMerge
 {
@@ -39,6 +39,6 @@ public static class TaskLabelGroupMerge
     {
         // Read from JSON, the non-nullable fields can still be missing.
         TaskLabelGroup? group = item?.Group;
-        return group is not null && group.Id != Guid.Empty && (group.DeletedAt is not null || group.Name is { Length: > 0 });
+        return group is not null && group.Id != Guid.Empty && (group.DeletedAt is not null || (group.Name is not null && group.Name.Trim().Length > 0));
     }
 }

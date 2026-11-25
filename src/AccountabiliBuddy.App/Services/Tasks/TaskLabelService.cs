@@ -93,7 +93,8 @@ public sealed class TaskLabelService
     /// <see cref="AddAsync"/> that also says when the name was a device-only label of other devices, which this device joined (ADR 89:
     /// <c>JoinedWith</c> names them, "Laptop, Phone").
     /// </summary>
-    public async Task<(Guid? Id, string? JoinedWith)> AddScopedAsync(string name, string color, bool onlyOnThisDevice)
+    /// <param name="groupId">Tasks redesign (Q1): the category the new label goes in (null: none), set in the same stamped change as the add.</param>
+    public async Task<(Guid? Id, string? JoinedWith)> AddScopedAsync(string name, string color, bool onlyOnThisDevice, Guid? groupId = null)
     {
         Guid? added = null;
         string? joined = null;
@@ -104,7 +105,7 @@ public sealed class TaskLabelService
             TaskLists changed = TaskLabelEdits.Add(lists, name, color, now, self, out Guid? id, onlyOnThisDevice, _store.Removed);
             added = id;
             joined = hidden is null || id is null ? null : _store.OtherDevicesText(hidden.OnlyOn);
-            return changed;
+            return id is Guid labelId && groupId is Guid group ? TaskLabelEdits.SetGroup(changed, labelId, group, now, self) : changed;
         });
         return (added, joined);
     }
@@ -166,6 +167,69 @@ public sealed class TaskLabelService
     public Task DeleteAsync(Guid labelId)
     {
         return _tasks.DeleteCategoryAsync(CategoryIdOf(labelId));
+    }
+
+    // ---- ADR 93: label groups ("categories" in the UI), always shared; every edit stamped, so it syncs ----
+
+    /// <summary>Whether <paramref name="name"/> can be a category's (<paramref name="groupId"/>: the one being renamed; null for a new one).</summary>
+    public TaskLabelNameCheck CheckGroupName(Guid? groupId, string name)
+    {
+        return TaskLabelGroupEdits.CheckName(_store.Lists.LabelGroups, groupId, name);
+    }
+
+    /// <summary>A new category at the end of the list; null when the name is blank or taken (nothing added).</summary>
+    public async Task<Guid?> AddGroupAsync(string name, string icon)
+    {
+        Guid? added = null;
+        await _store.ChangeAsync(this, (lists, _, now) =>
+        {
+            TaskLists changed = TaskLabelGroupEdits.Add(lists, name, icon, now, out Guid? id);
+            added = id;
+            return changed;
+        });
+        return added;
+    }
+
+    public Task RenameGroupAsync(Guid groupId, string name)
+    {
+        return _store.ChangeAsync(this, (lists, _, now) => TaskLabelGroupEdits.Rename(lists, groupId, name, now));
+    }
+
+    public Task SetGroupIconAsync(Guid groupId, string icon)
+    {
+        return _store.ChangeAsync(this, (lists, _, now) => TaskLabelGroupEdits.SetIcon(lists, groupId, icon, now));
+    }
+
+    /// <summary>The category goes on every device (a tombstone); its labels are never edited for it and show under "Other labels".</summary>
+    public Task DeleteGroupAsync(Guid groupId)
+    {
+        return _store.ChangeAsync(this, (lists, _, now) => TaskLabelGroupEdits.Delete(lists, groupId, now));
+    }
+
+    /// <summary>The categories in <paramref name="order"/> (a stamped position edit of each one that moves).</summary>
+    public Task ReorderGroupsAsync(IReadOnlyList<Guid> order)
+    {
+        return _store.ChangeAsync(this, (lists, _, now) => TaskLabelGroupEdits.Reorder(lists, order, now));
+    }
+
+    /// <summary>
+    /// A label dragged to a place: into the category <paramref name="groupId"/> (null: none, "Other labels") if it isn't there (its group
+    /// choice stamped on its own), then <paramref name="orderInGroup"/> (that category's labels as shown, the label in its new place) as a
+    /// stamped position edit. One change of the task list, so it syncs as one.
+    /// </summary>
+    public Task MoveLabelAsync(Guid labelId, Guid? groupId, IReadOnlyList<Guid> orderInGroup)
+    {
+        return _store.ChangeAsync(this, (lists, self, now) =>
+        {
+            // Only a move to another category edits the group choice: a label under "Other labels" because its category was deleted keeps
+            // naming it when it is only reordered there.
+            TaskLabel? label = lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.Id == labelId && item.IsLive);
+            IReadOnlyDictionary<Guid, TaskLabelGroup> liveGroups = TaskLabelGroupBook.LiveById(TaskLabelGroupBook.Live(lists.LabelGroups));
+            TaskLists changed = label is not null && TaskLabelGroupBook.GroupOf(label, liveGroups)?.Id != groupId
+                ? TaskLabelEdits.SetGroup(lists, labelId, groupId, now, self)
+                : lists;
+            return TaskLabelEdits.Reorder(changed, orderInGroup, now);
+        });
     }
 
     // The id the label's category has on this PC (its own id unless the migration kept an older one).

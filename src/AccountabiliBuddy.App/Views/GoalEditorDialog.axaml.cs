@@ -54,4 +54,14 @@ public partial class GoalEditorDialog : TaskDialogWindow
             viewModel.AreaAdded(area);
         }
     }
+
+    // Tasks redesign 10.32: a "tasks with label" source's label, from the grouped label picker (no "No label": a goal counts one label).
+    private void OnLabelPickClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is Avalonia.Controls.Button { DataContext: GoalSourceRowViewModel row } button && row.LabelPicker() is { } picker)
+        {
+            LabelPickerPopover.Show(button, picker, row.ApplyLabelPick, showsNoLabel: false);
+            e.Handled = true;
+        }
+    }
 }

@@ -403,7 +403,18 @@
                                                     <RadioButton GroupName="stepsFrom" Theme="{StaticResource {x:Type ToggleButton}}" Content="Phone" IsChecked="{Binding StepsPhone}" IsEnabled="{Binding IsEditable}"
                                                                  CornerRadius="0,14,14,0" AutomationProperties.Name="Count phone steps" />
                                                 </StackPanel>
-                                                <ComboBox ItemsSource="{Binding Labels}" SelectedItem="{Binding SelectedLabel}" IsVisible="{Binding ShowsLabel}" MinWidth="220"
+                                                <!-- Tasks redesign 10.32: the grouped label picker (one label; a goal never counts a whole category). -->
+                                                <Button IsVisible="{Binding ShowsLabelPicker}" MinWidth="220" HorizontalAlignment="Left" HorizontalContentAlignment="Stretch"
+                                                        Click="OnLabelPickClick" ToolTip.Tip="Pick the label this source counts" AutomationProperties.Name="Label">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                                        <Ellipse Width="9" Height="9" Fill="{Binding LabelPickBrush}" VerticalAlignment="Center"
+                                                                 IsVisible="{Binding LabelPickBrush, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding LabelPickText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                        <mi:MaterialIcon Grid.Column="2" Kind="ChevronDown" Width="16" Height="16" VerticalAlignment="Center"
+                                                                         Foreground="{DynamicResource Ab.Muted}" />
+                                                    </Grid>
+                                                </Button>
+                                                <ComboBox ItemsSource="{Binding Labels}" SelectedItem="{Binding SelectedLabel}" IsVisible="{Binding ShowsLabelList}" MinWidth="220"
                                                           PlaceholderText="Pick a label" AutomationProperties.Name="Label">
                                                     <ComboBox.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:GoalChoice">

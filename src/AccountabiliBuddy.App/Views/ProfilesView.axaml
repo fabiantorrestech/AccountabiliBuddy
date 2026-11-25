@@ -222,9 +222,9 @@
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
-                                    <Button Content="Copy" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CopySelectedRulesCommand}"
+                                    <Button Content="{Binding CopySelectedText}" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).CopySelectedRulesCommand}"
                                             ToolTip.Tip="Copy the ticked rules there; this profile keeps them" />
-                                    <Button Content="Move" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).MoveSelectedRulesCommand}"
+                                    <Button Content="{Binding MoveSelectedText}" Command="{Binding $parent[UserControl].((vm:ProfilesViewModel)DataContext).MoveSelectedRulesCommand}"
                                             ToolTip.Tip="Move the ticked rules there; they leave this profile" />
                                 </WrapPanel>
                             </Border>

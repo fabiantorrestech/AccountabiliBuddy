@@ -20,6 +20,57 @@ public sealed partial class SessionTasksService
         return _nextTasks.ToList();
     }
 
+    /// <summary>The task list is in use, so the grouped label picker can show (<see cref="LabelPickerSource"/>).</summary>
+    public bool UsesTaskList => _taskStore is { IsActive: true };
+
+    /// <summary>
+    /// Tasks redesign item 10 (ADR 93): what the grouped label picker (<see cref="ViewModels.LabelPickerViewModel"/>) shows in the checklist
+    /// and the session's dialogs: the labels this device shows, each carrying its category's id here as its id (so a pick is a category id
+    /// this service takes), and the live label groups. Null before the task list is in use (the old category menu stays then).
+    /// </summary>
+    public (IReadOnlyList<TaskLabel> Labels, IReadOnlyList<TaskLabelGroup> Groups)? LabelPickerSource()
+    {
+        if (_taskStore is not { IsActive: true } store)
+        {
+            return null;
+        }
+
+        Func<TaskLabel, bool> shown = store.LabelShown;
+        IReadOnlyList<TaskLabel> labels = store.Lists.Labels
+            .Select(item => item.Label)
+            .Where(label => label.IsLive && label.Name.Trim().Length > 0 && shown(label))
+            .OrderBy(label => label.Position).ThenBy(label => label.Id.ToString("D"), StringComparer.Ordinal)
+            .Select(label => label with { Id = store.CategoryIds.TryGetValue(label.Id, out Guid categoryId) ? categoryId : label.Id })
+            .ToList();
+        return (labels, TaskLabelGroupBook.Live(store.Lists.LabelGroups));
+    }
+
+    /// <summary>
+    /// The category icon (ADR 93 group icon key) of the label a category id here stands for; null when it has no live category, or before the
+    /// task list is in use. For task lines that may carry the icon (reminders, the session's dialogs).
+    /// </summary>
+    public TaskLabelGroup? LabelGroupOfCategory(Guid? categoryId)
+    {
+        if (categoryId is not Guid id || _taskStore is not { IsActive: true } store)
+        {
+            return null;
+        }
+
+        // The label whose category had this id on this PC (the migration may have kept an older id), else the id is the label's own.
+        Guid labelId = id;
+        foreach (KeyValuePair<Guid, Guid> pair in store.CategoryIds)
+        {
+            if (pair.Value == id)
+            {
+                labelId = pair.Key;
+                break;
+            }
+        }
+
+        TaskLabel? label = store.Lists.Labels.Select(item => item.Label).FirstOrDefault(item => item.Id == labelId && item.IsLive);
+        return label?.GroupId is Guid groupId ? TaskLabelGroupBook.Find(store.Lists.LabelGroups, groupId) : null;
+    }
+
     /// <summary>
     /// From now on the next session's list and the categories are views of <paramref name="tasks"/> (ADR 76). While no session runs
     /// the draft shows the task list's next-session tasks; a running checklist stays as it is.

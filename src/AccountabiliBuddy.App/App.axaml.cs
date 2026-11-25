@@ -4211,9 +4211,13 @@ public partial class App : Application
         (Guid selfDeviceId, string selfDeviceName) = _goalSelfDevice();
         // ST4: the screen-time entries already in the goals (they travel sealed already; nothing new is read or sent).
         IReadOnlyList<AccountabiliBuddy.Core.Goals.GoalAppMatch> fromGoals = AccountabiliBuddy.App.Services.Goals.GoalScreenTimeSuggestions.EntriesOf(goals.Lists.LiveGoals);
+        // Tasks redesign 10.32 (ADR 93): the grouped label picker, keyed like the plain list (a label's name-based id).
+        var pickerSource = sessionTasks.LabelPickerSource();
         var lookups = new GoalEditorLookups(labels, categories, _beeminder?.HasToken == true, beeminder, guidance.IsCompanion, beeminderRead, beeminderProblem, hiddenLabelNote, hiddenTagNote,
             GroupHasPhone: _groupHasPhone(), InSyncGroup: _inSyncGroup(), ReadSeen: readSeen, SelfDeviceId: selfDeviceId, SelfDeviceName: selfDeviceName,
-            OtherDevices: _goalOtherDevices(), GoalsSyncOn: _goalsSyncOn(), MainPhoneName: _goalMainPhoneName(), FromGoals: fromGoals, HasAndroidDevice: _goalHasAndroidDevice());
+            OtherDevices: _goalOtherDevices(), GoalsSyncOn: _goalsSyncOn(), MainPhoneName: _goalMainPhoneName(), FromGoals: fromGoals, HasAndroidDevice: _goalHasAndroidDevice(),
+            PickerLabels: pickerSource?.Labels.Select(label => label with { Id = AccountabiliBuddy.Core.Domain.TaskLabel.IdFor(label.Name) }).ToList(),
+            PickerGroups: pickerSource?.Groups);
         var editor = new GoalEditorViewModel(goals, data, lookups, goal, section, data.Today, data.Zone, focusActive);
         if (suggested is not null)
         {

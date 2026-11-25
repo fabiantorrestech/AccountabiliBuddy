@@ -131,15 +131,16 @@
                                             <CheckBox Grid.Column="1" IsChecked="{Binding IsDone}" MinWidth="0" Padding="0" Margin="0,0,6,0" VerticalAlignment="Center"
                                                       IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).CanTick}"
                                                       Classes.compact="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).IsCompact}" />
-                                            <!-- Its category: the dot opens the menu to put it in another one. -->
-                                            <Button Grid.Column="2" Classes="small" Padding="2,0" ToolTip.Tip="{Binding CategoryName, StringFormat='Category: {0} (click to change)'}"
-                                                    AutomationProperties.Name="Change category"
+                                            <!-- Its label: the dot opens the grouped label picker (Tasks redesign 10.25; the old category menu before the
+                                                 task list is in use). -->
+                                            <Button Grid.Column="2" Classes="small" Padding="2,0" ToolTip.Tip="{Binding CategoryName, StringFormat='Label: {0} (click to change)'}"
+                                                    AutomationProperties.Name="Change label" Click="OnRowLabelClick"
                                                     IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).ShowsCategoryPickers}">
                                                 <Ellipse Width="10" Height="10" Fill="{Binding CategoryBrush}" Stroke="#80808080" StrokeThickness="1" />
-                                                <Button.Flyout>
+                                                <FlyoutBase.AttachedFlyout>
                                                     <MenuFlyout ItemsSource="{Binding CategoryChoices}" ItemContainerTheme="{StaticResource CategoryMenuItem}"
                                                                 ItemTemplate="{StaticResource CategoryChoiceTemplate}" />
-                                                </Button.Flyout>
+                                                </FlyoutBase.AttachedFlyout>
                                             </Button>
                                             <Button Grid.Column="3" Classes="name" Command="{Binding PickCommand}" IsVisible="{Binding !IsEditing}"
                                                     AutomationProperties.Name="{Binding Title}"

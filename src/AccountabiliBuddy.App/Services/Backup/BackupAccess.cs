@@ -190,7 +190,11 @@ public static class BackupAccess
                 if (store is { IsActive: true } && lists.Tasks is { } backupTasks)
                 {
                     // ADR 76: the backup's task list goes into this one (the old documents stay as the migration left them).
-                    int live = await store.ImportAsync(new TaskLists(backupTasks, lists.Labels ?? [], lists.Views ?? [], lists.TaskLog ?? [], TagScopes: lists.TagScopes, LabelGroups: TaskLabelGroupMerge.Clean(lists.LabelGroups)), restore, lists.Device);
+                    // ADR 93: a label's empty group id is no group, as the sync codec reads it.
+                    IReadOnlyList<SyncTaskLabel> backupLabels = (lists.Labels ?? [])
+                        .Select(item => item.Label is { GroupId: Guid groupId } && groupId == Guid.Empty ? item with { Label = item.Label with { GroupId = null } } : item)
+                        .ToList();
+                    int live = await store.ImportAsync(new TaskLists(backupTasks, backupLabels, lists.Views ?? [], lists.TaskLog ?? [], TagScopes: lists.TagScopes, LabelGroups: TaskLabelGroupMerge.Clean(lists.LabelGroups)), restore, lists.Device);
                     if (account is not null && lists.AccountSettings is { } accountSettings)
                     {
                         await account.ImportAsync(accountSettings, restore);

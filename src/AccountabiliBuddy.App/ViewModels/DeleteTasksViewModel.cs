@@ -20,7 +20,7 @@ public sealed partial class DeleteTasksViewModel : ObservableObject
         Heading = titles.Count == 1 ? "Delete 1 task?" : $"Delete {titles.Count} tasks?";
         Titles = titles.Take(Listed).ToList();
         MoreText = titles.Count > Listed ? $"and {titles.Count - Listed} more" : string.Empty;
-        DeleteText = titles.Count == 1 ? "Delete" : $"Delete {titles.Count}";
+        DeleteText = SelectionCountText.Action("Delete", titles.Count);
     }
 
     public event EventHandler? CloseRequested;

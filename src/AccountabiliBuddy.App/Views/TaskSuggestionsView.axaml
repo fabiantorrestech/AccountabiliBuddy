@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="AccountabiliBuddy.App.Views.TaskSuggestionsView"
              x:DataType="vm:ListPickerViewModel"
              IsVisible="{Binding HasSuggestions}">
@@ -25,16 +26,21 @@
         <ItemsControl ItemsSource="{Binding Suggestions}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ListPickRowViewModel">
+                    <!-- Tasks redesign 10.26: the Tasks rows' look: the title over a ↳ sub-line (the label's dot and name, then the list and
+                         its detail). -->
                     <Button Classes="suggestion" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}" AutomationProperties.Name="{Binding Title}">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                            <Panel Width="10" VerticalAlignment="Top" Margin="0,5,0,0">
-                                <Ellipse Width="10" Height="10" Fill="{Binding Brush}" Stroke="#80808080" StrokeThickness="1" IsVisible="{Binding HasCategory}" />
-                            </Panel>
-                            <StackPanel Grid.Column="1" Spacing="1">
-                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding SuggestionDetail}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="5" Margin="2,0,0,0">
+                                <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                <Ellipse Width="7" Height="7" Fill="{Binding Brush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                                <TextBlock Text="{Binding CategoryName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                                           MaxWidth="140" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasCategory}" />
+                                <TextBlock Text="·" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
+                                <TextBlock Text="{Binding SuggestionDetail}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" />
                             </StackPanel>
-                        </Grid>
+                        </StackPanel>
                     </Button>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>

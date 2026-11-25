@@ -21,8 +21,15 @@
                             <TextBlock Classes="muted" FontSize="12.5" Text="{Binding ExistingText}" IsVisible="{Binding HasExisting}" TextWrapping="Wrap" />
                             <TextBlock Classes="muted" FontSize="12.5" Text="{Binding ShortText}" TextWrapping="Wrap"
                                        IsVisible="{Binding $parent[ItemsControl].((vm:SetupAssistantViewModel)DataContext).ShortenLabelNames, FallbackValue=False}" />
-                            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding SkippedText}" TextWrapping="Wrap"
-                                       IsVisible="{Binding $parent[ItemsControl].((vm:SetupAssistantViewModel)DataContext).ShortenLabelNames, FallbackValue=False}" />
+                            <!-- Only with "Shorten the names" on and a name kept. -->
+                            <TextBlock Classes="muted" FontSize="12.5" Text="{Binding SkippedText}" TextWrapping="Wrap">
+                                <TextBlock.IsVisible>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <Binding Path="$parent[ItemsControl].((vm:SetupAssistantViewModel)DataContext).ShortenLabelNames" FallbackValue="False" />
+                                        <Binding Path="HasSkipped" />
+                                    </MultiBinding>
+                                </TextBlock.IsVisible>
+                            </TextBlock>
                         </StackPanel>
                     </Grid>
                 </DataTemplate>

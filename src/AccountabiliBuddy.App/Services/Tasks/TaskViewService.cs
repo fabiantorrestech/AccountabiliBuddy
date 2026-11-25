@@ -46,6 +46,9 @@ public sealed class TaskViewService
     /// <summary>The live views in their order.</summary>
     public IReadOnlyList<TaskView> Views => TaskViewEdits.Live(_store.Lists);
 
+    /// <summary>ADR 93: the live label categories, in their order (the view editor groups its label filter by them); none while inactive.</summary>
+    public IReadOnlyList<TaskLabelGroup> LabelGroups => _store.IsActive ? TaskLabelGroupBook.Live(_store.Lists.LabelGroups) : [];
+
     public TaskView? Active => Views.FirstOrDefault(view => view.Id == ActiveId);
 
     /// <summary>The view the Shelf opens with on every device: the account's pick when it still exists, else the built-in Default.</summary>

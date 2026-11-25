@@ -26,6 +26,8 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="FromGoals">SR1-P2 (ST4): the screen-time entries already in the goals (any goal's rules; they already travel sealed to the user's own devices), offered as "From your goals"; null for none.</param>
 /// <param name="HasAndroidDevice">SR1-P2 (ADR 90): an Android device is in the group (whatever its role); with <paramref name="GroupHasPhone"/> false, the steps row says "Set a main phone to count steps."</param>
 /// <param name="IsProductaBuddy">ProductaBuddy mode (ADR 68): the PB badge, per-mode defaults, lowering Deep work at once.</param>
+/// <param name="PickerLabels">Tasks redesign 10.32 (ADR 93): the labels for the grouped label picker, each with its <paramref name="Labels"/> key as its id; null: the plain list shows.</param>
+/// <param name="PickerGroups">The live label categories the picker groups them under.</param>
 public sealed record GoalEditorLookups(
     IReadOnlyList<GoalChoice> Labels,
     IReadOnlyList<GoalChoice> CalendarCategories,
@@ -46,7 +48,9 @@ public sealed record GoalEditorLookups(
     bool GoalsSyncOn = true,
     string? MainPhoneName = null,
     IReadOnlyList<Core.Goals.GoalAppMatch>? FromGoals = null,
-    bool HasAndroidDevice = false)
+    bool HasAndroidDevice = false,
+    IReadOnlyList<Core.Domain.TaskLabel>? PickerLabels = null,
+    IReadOnlyList<Core.Domain.TaskLabelGroup>? PickerGroups = null)
 {
     public static GoalEditorLookups Empty { get; } = new([], [], false, [], false);
 }

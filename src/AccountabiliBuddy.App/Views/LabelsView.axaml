@@ -6,13 +6,21 @@
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.LabelsView"
              x:DataType="vm:LabelsViewModel">
-    <!-- The Labels screen (Settings › Tasks › Labels; spec 03 §C, 05 §16, prototype's label rows): "‹ Tasks", "Labels" with the count and
-         +, then one row per label (colour dot · name box · "3 tasks" · Rings on ▾ · delete, or the delete question) and the new label row
-         (dashed dot with the first unused colour, "New label, then Enter"). Rows have 6 DIP between them. The Tasks pages' toast shows at
-         the bottom left. -->
+    <!-- The Labels screen (Settings › Tasks › Labels; spec 03 §C, 05 §16; Tasks redesign 10.15-10.24, ADR 93): "‹ Tasks", "Labels" with the
+         count, "+ Category" and +, then the categories in their order, each a heading (grip · icon picker · name box · "3 labels" · delete, or
+         the delete question) with its labels indented under it on a guide line, then "Other labels" (labels with no category; its heading shows
+         once a category exists). A label row: grip · colour dot · name box · "3 tasks" · Shared/This device · Rings on ▾ · delete. Drag a label
+         by its grip to another category or place, a category by its grip; Alt+Up/Down does the same. The new label row (it lands in "Other
+         labels") and the tags follow. The Tasks pages' toast shows at the bottom left. -->
     <UserControl.Styles>
         <Style Selector="TextBox.labelName">
             <Setter Property="FontSize" Value="15" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.categoryName">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
@@ -32,12 +40,89 @@
             <Setter Property="VerticalAlignment" Value="Top" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
+        <!-- The drag grip (DragVertical): quiet until the row is hovered or the grip has the keyboard. -->
+        <Style Selector="Button.dragGrip">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+            <Setter Property="Content">
+                <Template>
+                    <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" />
+                </Template>
+            </Setter>
+        </Style>
+        <Style Selector="Border.labelRow:pointerover Button.dragGrip, Border.sectionHead:pointerover Button.dragGrip, Button.dragGrip:focus-within">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <!-- A row or heading being dragged rests faint; the drop line shows where it lands. -->
+        <Style Selector="Border.dragging">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+        <!-- A category's labels sit indented under it on a guide line (as the +N menu and the label picker show them). -->
+        <Style Selector="Border.categoryLabels">
+            <Setter Property="Margin" Value="22,0,0,0" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1,0,0,0" />
+        </Style>
+        <Style Selector="Border.categoryLabels.flat">
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Border.sectionHead">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="8,6,12,6" />
+        </Style>
+        <!-- The icon picker's grid: 32 DIP squares; the picked one in the accent's soft fill with an accent border. -->
+        <Style Selector="Button.iconChoice">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink2}" />
+        </Style>
+        <Style Selector="Button.iconChoice.picked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint14}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.iconChoice.picked">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.categoryIcon">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink2}" />
+        </Style>
     </UserControl.Styles>
+    <UserControl.Resources>
+        <!-- The icon picker: a flyout of the 24 category icons, 6 a row (ADR 32 Material icons; the key is what is stored). -->
+        <DataTemplate x:Key="IconGridTemplate" x:DataType="vm:LabelGroupIconChoiceViewModel">
+            <Button Classes="quiet iconChoice" Classes.picked="{Binding IsPicked}" Command="{Binding PickCommand}"
+                    ToolTip.Tip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
+                <mi:MaterialIcon Kind="{Binding Icon}" Width="18" Height="18" />
+            </Button>
+        </DataTemplate>
+    </UserControl.Resources>
 
     <Panel>
         <DockPanel>
-            <!-- Header: ‹ Tasks · Labels · 5 labels · + -->
-            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="0,0,16,12" MaxWidth="760" HorizontalAlignment="Stretch">
+            <!-- Header: ‹ Tasks · Labels · 11 labels · + Category · + -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8" Margin="0,0,16,12" MaxWidth="760" HorizontalAlignment="Stretch">
                 <Button Classes="quiet" Command="{Binding BackCommand}" Padding="6,4" AutomationProperties.Name="Back to Tasks settings" ToolTip.Tip="Back to Settings › Tasks">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                         <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" VerticalAlignment="Center" />
@@ -48,109 +133,223 @@
                     <TextBlock Classes="sGroup" Text="Labels" VerticalAlignment="Center" Margin="0" />
                     <TextBlock Classes="muted" Text="{Binding CountText}" FontSize="13" VerticalAlignment="Center" />
                 </StackPanel>
-                <Button Grid.Column="2" Classes="quiet" Width="32" Height="32" Padding="0" Command="{Binding FocusNewCommand}"
+                <Button Grid.Column="2" Classes="quiet" Height="32" Padding="8,0" Command="{Binding StartAddCategoryCommand}"
+                        VerticalContentAlignment="Center" ToolTip.Tip="New category: a heading with an icon that labels sit under, on all your devices"
+                        AutomationProperties.Name="New category">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <mi:MaterialIcon Kind="FolderPlusOutline" Width="18" Height="18" VerticalAlignment="Center" />
+                        <TextBlock Text="Category" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Classes="quiet" Width="32" Height="32" Padding="0" Command="{Binding FocusNewCommand}"
                         HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
                         ToolTip.Tip="New label" AutomationProperties.Name="New label">
                     <mi:MaterialIcon Kind="Plus" Width="18" Height="18" />
                 </Button>
             </Grid>
 
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <Panel x:Name="ListHost">
+            <ScrollViewer x:Name="ListScroll" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="0,0,16,72" Spacing="12" MaxWidth="760" HorizontalAlignment="Stretch">
                     <Border Classes="sInfo">
-                        <TextBlock Text="A label is the coloured dot, and each task has one. Rings on picks which devices ring for its tasks' reminders; a PC always rings for its own. Changes reach your other devices with the task lists." TextWrapping="Wrap" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Text="A label is the coloured dot, and each task has one. Labels sit under categories: drag one by its grip to another category or place. Rings on picks which devices ring for its tasks' reminders; a PC always rings for its own. Changes reach your other devices with the task lists." />
                     </Border>
+
+                    <!-- + Category: icon picker · "Category name, then Enter" · Cancel. A category is always shared (no "Only on this device"). -->
+                    <Border Classes="sPanel" IsVisible="{Binding IsAddingCategory}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="12,8">
+                            <Button Classes="quiet categoryIcon" ToolTip.Tip="Pick an icon" AutomationProperties.Name="Category icon">
+                                <mi:MaterialIcon Kind="{Binding NewCategoryIcon}" Width="20" Height="20" />
+                                <Button.Flyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft">
+                                        <ItemsControl ItemsSource="{Binding NewCategoryIconChoices}" ItemTemplate="{StaticResource IconGridTemplate}" Width="228">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel ItemSpacing="4" LineSpacing="4" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Flyout>
+                                </Button.Flyout>
+                            </Button>
+                            <TextBox x:Name="NewCategoryBox" Grid.Column="1" Classes="categoryName" Classes.invalid="{Binding IsNewCategoryNameTaken}"
+                                     Text="{Binding NewCategoryName}" PlaceholderText="Category name, then Enter" AutomationProperties.Name="New category name">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding AddCategoryCommand}" />
+                                    <KeyBinding Gesture="Escape" Command="{Binding CancelAddCategoryCommand}" />
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                            <Button Grid.Column="2" Content="Cancel" Command="{Binding CancelAddCategoryCommand}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
                     <Border Classes="sPanel">
                         <StackPanel Margin="0,0,0,-1">
-                            <ItemsControl ItemsSource="{Binding Rows}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Spacing="6" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
+                            <ItemsControl x:Name="SectionList" ItemsSource="{Binding Sections}">
                                 <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:LabelRowViewModel">
-                                        <Border Classes="sRow" Padding="14,8">
-                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10">
-                                                <controls:LabelColorButton Editor="{Binding ColorEditor}" Dot="{Binding ColorBrush}" CurrentColor="{Binding Color}" />
-                                                <TextBox Grid.Column="1" Classes="labelName" Classes.invalid="{Binding IsNameBad}" Text="{Binding Name}"
-                                                         LostFocus="OnNameLostFocus" AutomationProperties.Name="Label name">
-                                                    <TextBox.KeyBindings>
-                                                        <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
-                                                        <KeyBinding Gesture="Escape" Command="{Binding CancelNameCommand}" />
-                                                    </TextBox.KeyBindings>
-                                                </TextBox>
-                                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center"
-                                                           IsVisible="{Binding IsNotConfirmingDelete}" />
-                                                <!-- ADR 89: Shared (Devices icon) or This device only (Laptop icon). Device only to shared asks first. -->
-                                                <Button Grid.Column="3" Classes="ringOn" Command="{Binding ToggleScopeCommand}" IsVisible="{Binding CanScope}"
-                                                        ToolTip.Tip="Shared: on all your devices. This device: only on this device, hidden on the others"
-                                                        AutomationProperties.Name="Label scope">
-                                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                                        <mi:MaterialIcon Kind="{Binding ScopeIcon}" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding ScopeText}" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Grid.Column="4" Classes="ringOn" IsVisible="{Binding IsNotConfirmingDelete}"
-                                                        ToolTip.Tip="Which devices ring for this label's reminders" AutomationProperties.Name="Rings on">
-                                                    <StackPanel Orientation="Horizontal" Spacing="5">
-                                                        <mi:MaterialIcon Kind="BellOutline" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding RingText}" VerticalAlignment="Center" />
-                                                        <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                                    </StackPanel>
-                                                    <Button.Flyout>
-                                                        <Flyout Placement="BottomEdgeAlignedRight">
-                                                            <StackPanel Width="250" Spacing="6">
-                                                                <TextBlock Text="Rings on" FontWeight="SemiBold" />
-                                                                <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" />
-                                                                <ItemsControl ItemsSource="{Binding RingChoices}">
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate x:DataType="vm:RingDeviceChoiceViewModel">
-                                                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="0,4">
-                                                                                <mi:MaterialIcon Classes="rowIcon" Kind="{Binding Icon}" Width="18" Height="18" />
-                                                                                <StackPanel Grid.Column="1" Spacing="1">
-                                                                                    <TextBlock Text="{Binding Name}" FontSize="13" TextWrapping="Wrap" />
-                                                                                    <TextBlock Classes="muted" Text="{Binding Status}" FontSize="11" TextWrapping="Wrap" />
-                                                                                </StackPanel>
-                                                                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Top"
-                                                                                          AutomationProperties.Name="{Binding Name}" />
-                                                                            </Grid>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:LabelCategorySectionViewModel">
+                                        <Border Classes="sectionBlock">
+                                        <StackPanel>
+                                            <!-- The heading: grip · icon · name · "3 labels" · delete (a category), or "Other labels". -->
+                                            <Border Classes="sectionHead" IsVisible="{Binding ShowsHeading}">
+                                                <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                                                    <Button Classes="quiet dragGrip" IsVisible="{Binding IsCategory}"
+                                                            ToolTip.Tip="Drag to move the category (Alt+Up/Down)" AutomationProperties.Name="Move category" />
+                                                    <Panel Width="18" IsVisible="{Binding IsOther}" />
+                                                    <Button Grid.Column="1" Classes="quiet categoryIcon" IsVisible="{Binding IsCategory}"
+                                                            ToolTip.Tip="Pick an icon" AutomationProperties.Name="Category icon">
+                                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" />
+                                                        <Button.Flyout>
+                                                            <Flyout Placement="BottomEdgeAlignedLeft">
+                                                                <ItemsControl ItemsSource="{Binding IconChoices}" ItemTemplate="{StaticResource IconGridTemplate}" Width="228">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel ItemSpacing="4" LineSpacing="4" />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
                                                                 </ItemsControl>
+                                                            </Flyout>
+                                                        </Button.Flyout>
+                                                    </Button>
+                                                    <Panel Grid.Column="1" Width="30" Height="30" IsVisible="{Binding IsOther}">
+                                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="20" Height="20" Foreground="{DynamicResource Ab.Muted}" />
+                                                    </Panel>
+                                                    <TextBox Grid.Column="2" Classes="categoryName" Classes.invalid="{Binding IsNameBad}" Text="{Binding Name}"
+                                                             IsVisible="{Binding IsCategory}" LostFocus="OnCategoryNameLostFocus" AutomationProperties.Name="Category name">
+                                                        <TextBox.KeyBindings>
+                                                            <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
+                                                            <KeyBinding Gesture="Escape" Command="{Binding CancelNameCommand}" />
+                                                        </TextBox.KeyBindings>
+                                                    </TextBox>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                               Margin="2,0,0,0" IsVisible="{Binding IsOther}" />
+                                                    <TextBlock Grid.Column="3" Classes="muted" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center"
+                                                               IsVisible="{Binding IsNotConfirmingDelete}" />
+                                                    <Button Grid.Column="4" Classes="quiet" Width="28" Height="28" Padding="0" Command="{Binding AskDeleteCommand}"
+                                                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center"
+                                                            ToolTip.Tip="Delete category (its labels stay, under Other labels)" AutomationProperties.Name="Delete category">
+                                                        <Button.IsVisible>
+                                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                                <Binding Path="IsCategory" />
+                                                                <Binding Path="IsNotConfirmingDelete" />
+                                                            </MultiBinding>
+                                                        </Button.IsVisible>
+                                                        <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
+                                                    </Button>
+                                                    <!-- The delete question: Keep · Delete · its 3 labels move to Other labels (ADR 93: labels never edited). -->
+                                                    <WrapPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3" ItemSpacing="8" LineSpacing="6" Margin="0,6,0,2"
+                                                               IsVisible="{Binding IsConfirmingDelete}">
+                                                        <Button Content="Keep" Command="{Binding KeepItCommand}" AutomationProperties.Name="Keep this category" />
+                                                        <Button Classes="danger" Content="{Binding DeleteText}" Command="{Binding DeleteCommand}" AutomationProperties.Name="Confirm delete" />
+                                                    </WrapPanel>
+                                                </Grid>
+                                            </Border>
+                                            <Border Classes="categoryLabels" Classes.flat="{Binding !ShowsHeading}">
+                                                <StackPanel>
+                                                    <ItemsControl ItemsSource="{Binding Rows}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:LabelRowViewModel">
+                                                <Border Classes="sRow labelRow" Padding="8,6,12,6">
+                                                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                                                        <!-- The grip: drag the label to another category or place (Alt+Up/Down from the keyboard). -->
+                                                        <Button Classes="quiet dragGrip" ToolTip.Tip="Drag to move it (Alt+Up/Down)" AutomationProperties.Name="Move label" />
+                                                        <controls:LabelColorButton Grid.Column="1" Editor="{Binding ColorEditor}" Dot="{Binding ColorBrush}" CurrentColor="{Binding Color}" />
+                                                        <TextBox Grid.Column="2" Classes="labelName" Classes.invalid="{Binding IsNameBad}" Text="{Binding Name}"
+                                                                 LostFocus="OnNameLostFocus" AutomationProperties.Name="Label name">
+                                                            <TextBox.KeyBindings>
+                                                                <KeyBinding Gesture="Enter" Command="{Binding SaveNameCommand}" />
+                                                                <KeyBinding Gesture="Escape" Command="{Binding CancelNameCommand}" />
+                                                            </TextBox.KeyBindings>
+                                                        </TextBox>
+                                                        <TextBlock Grid.Column="3" Classes="muted" Text="{Binding CountText}" FontSize="12" VerticalAlignment="Center"
+                                                                   IsVisible="{Binding IsNotConfirmingDelete}" />
+                                                        <!-- ADR 89: Shared (Devices icon) or This device only (Laptop icon). Device only to shared asks first. -->
+                                                        <Button Grid.Column="4" Classes="ringOn" Command="{Binding ToggleScopeCommand}" IsVisible="{Binding CanScope}"
+                                                                ToolTip.Tip="Shared: on all your devices. This device: only on this device, hidden on the others"
+                                                                AutomationProperties.Name="Label scope">
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <mi:MaterialIcon Kind="{Binding ScopeIcon}" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding ScopeText}" VerticalAlignment="Center" />
                                                             </StackPanel>
-                                                        </Flyout>
-                                                    </Button.Flyout>
-                                                </Button>
-                                                <Button Grid.Column="5" Classes="quiet" Width="28" Height="28" Padding="0" Command="{Binding AskDeleteCommand}"
-                                                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center"
-                                                        IsVisible="{Binding IsNotConfirmingDelete}" ToolTip.Tip="Delete label" AutomationProperties.Name="Delete label">
-                                                    <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
-                                                </Button>
-                                                <!-- The delete question: Keep · Delete · 3 tasks become No label. -->
-                                                <StackPanel Grid.Column="2" Grid.ColumnSpan="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                                                            IsVisible="{Binding IsConfirmingDelete}">
-                                                    <Button Content="Keep" Command="{Binding KeepItCommand}" AutomationProperties.Name="Keep this label" />
-                                                    <Button Classes="danger" Content="{Binding DeleteText}" Command="{Binding DeleteCommand}" AutomationProperties.Name="Confirm delete" />
+                                                        </Button>
+                                                        <Button Grid.Column="5" Classes="ringOn" IsVisible="{Binding IsNotConfirmingDelete}"
+                                                                ToolTip.Tip="Which devices ring for this label's reminders" AutomationProperties.Name="Rings on">
+                                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                <mi:MaterialIcon Kind="BellOutline" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding RingText}" VerticalAlignment="Center" />
+                                                                <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                            <Button.Flyout>
+                                                                <Flyout Placement="BottomEdgeAlignedRight">
+                                                                    <StackPanel Width="250" Spacing="6">
+                                                                        <TextBlock Text="Rings on" FontWeight="SemiBold" />
+                                                                        <TextBlock Classes="muted" Text="{Binding Name}" FontSize="12" />
+                                                                        <ItemsControl ItemsSource="{Binding RingChoices}">
+                                                                            <ItemsControl.ItemTemplate>
+                                                                                <DataTemplate x:DataType="vm:RingDeviceChoiceViewModel">
+                                                                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" Margin="0,4">
+                                                                                        <mi:MaterialIcon Classes="rowIcon" Kind="{Binding Icon}" Width="18" Height="18" />
+                                                                                        <StackPanel Grid.Column="1" Spacing="1">
+                                                                                            <TextBlock Text="{Binding Name}" FontSize="13" TextWrapping="Wrap" />
+                                                                                            <TextBlock Classes="muted" Text="{Binding Status}" FontSize="11" TextWrapping="Wrap" />
+                                                                                        </StackPanel>
+                                                                                        <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding IsOn}" VerticalAlignment="Top"
+                                                                                                  AutomationProperties.Name="{Binding Name}" />
+                                                                                    </Grid>
+                                                                                </DataTemplate>
+                                                                            </ItemsControl.ItemTemplate>
+                                                                        </ItemsControl>
+                                                                    </StackPanel>
+                                                                </Flyout>
+                                                            </Button.Flyout>
+                                                        </Button>
+                                                        <Button Grid.Column="6" Classes="quiet" Width="28" Height="28" Padding="0" Command="{Binding AskDeleteCommand}"
+                                                                HorizontalContentAlignment="Center" VerticalContentAlignment="Center" VerticalAlignment="Center"
+                                                                IsVisible="{Binding IsNotConfirmingDelete}" ToolTip.Tip="Delete label" AutomationProperties.Name="Delete label">
+                                                            <mi:MaterialIcon Kind="DeleteOutline" Width="16" Height="16" />
+                                                        </Button>
+                                                        <!-- The delete question: Keep · Delete · 3 tasks become No label. -->
+                                                        <StackPanel Grid.Column="3" Grid.ColumnSpan="4" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                                                    IsVisible="{Binding IsConfirmingDelete}">
+                                                            <Button Content="Keep" Command="{Binding KeepItCommand}" AutomationProperties.Name="Keep this label" />
+                                                            <Button Classes="danger" Content="{Binding DeleteText}" Command="{Binding DeleteCommand}" AutomationProperties.Name="Confirm delete" />
+                                                        </StackPanel>
+                                                        <!-- Make shared: asks first, since the label then shows on every device. -->
+                                                        <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="5" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0"
+                                                                    IsVisible="{Binding IsConfirmingShare}">
+                                                            <TextBlock Classes="muted" Text="It will show on all your devices." FontSize="12" VerticalAlignment="Center" />
+                                                            <Button Content="Keep" Command="{Binding KeepScopeCommand}" AutomationProperties.Name="Keep this label on this device" />
+                                                            <Button Content="Make shared" Command="{Binding MakeSharedCommand}" AutomationProperties.Name="Make shared" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="5" Classes="faint" Text="{Binding DevicesLine}" FontSize="11.5"
+                                                                   Margin="2,3,0,0" IsVisible="{Binding HasDevicesLine}" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <!-- An empty category: a quiet line that is also where a dragged label drops. -->
+                                                    <TextBlock Classes="faint" FontSize="12" Margin="14,9" Text="No labels yet: drag one here.">
+                                                        <TextBlock.IsVisible>
+                                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                                <Binding Path="IsEmpty" />
+                                                                <Binding Path="ShowsHeading" />
+                                                            </MultiBinding>
+                                                        </TextBlock.IsVisible>
+                                                    </TextBlock>
                                                 </StackPanel>
-                                                <!-- Make shared: asks first, since the label then shows on every device. -->
-                                                <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0"
-                                                            IsVisible="{Binding IsConfirmingShare}">
-                                                    <TextBlock Classes="muted" Text="It will show on all your devices." FontSize="12" VerticalAlignment="Center" />
-                                                    <Button Content="Keep" Command="{Binding KeepScopeCommand}" AutomationProperties.Name="Keep this label on this device" />
-                                                    <Button Content="Make shared" Command="{Binding MakeSharedCommand}" AutomationProperties.Name="Make shared" />
-                                                </StackPanel>
-                                                <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5" Classes="faint" Text="{Binding DevicesLine}" FontSize="11.5"
-                                                           Margin="2,3,0,0" IsVisible="{Binding HasDevicesLine}" />
-                                            </Grid>
+                                            </Border>
+                                        </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <TextBlock Classes="muted" Text="No labels yet. Add one below." FontSize="13" Margin="18,10" IsVisible="{Binding IsEmpty}" />
-                            <!-- The new label row. -->
+                            <!-- The new label row: colour · name · the category it goes in (the one last worked in, else Other labels) · Only on
+                                 this device. -->
                             <Border Classes="sRow" Padding="14,10,14,12">
-                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
                                     <controls:LabelColorButton Editor="{Binding NewColorEditor}" Dot="{Binding NewColorBrush}" CurrentColor="{Binding NewColor}"
                                                                IsDashed="True" Tip="Pick a colour" />
                                     <TextBox x:Name="NewNameBox" Grid.Column="1" Classes="labelName" Classes.invalid="{Binding IsNewNameTaken}" Text="{Binding NewName}"
@@ -159,7 +358,19 @@
                                             <KeyBinding Gesture="Enter" Command="{Binding AddCommand}" />
                                         </TextBox.KeyBindings>
                                     </TextBox>
-                                    <CheckBox Grid.Column="2" Content="Only on this device" IsChecked="{Binding NewOnlyHere}" IsVisible="{Binding CanScope}" FontSize="12"
+                                    <ComboBox Grid.Column="2" Width="150" VerticalAlignment="Center" ItemsSource="{Binding NewLabelCategories}"
+                                              SelectedItem="{Binding NewLabelCategory}" ToolTip.Tip="The category the new label goes in"
+                                              AutomationProperties.Name="Category for the new label">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:LabelCategoryChoice">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <mi:MaterialIcon Kind="{Binding Icon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="96" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <CheckBox Grid.Column="3" Content="Only on this device" IsChecked="{Binding NewOnlyHere}" IsVisible="{Binding CanScope}" FontSize="12"
                                               VerticalAlignment="Center" ToolTip.Tip="Shared on all your devices unless this is ticked"
                                               AutomationProperties.Name="Only on this device" />
                                 </Grid>
@@ -205,6 +416,11 @@
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
+            <!-- Where a dragged label or category lands: a 2 DIP accent line over the list (never takes the pointer). -->
+            <Canvas x:Name="DropLayer" IsHitTestVisible="False">
+                <Border x:Name="DropLine" Height="2" CornerRadius="1" Background="{DynamicResource Ab.Accent}" IsVisible="False" />
+            </Canvas>
+            </Panel>
         </DockPanel>
 
         <Panel IsVisible="{Binding Toasts, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="18,0,0,18">

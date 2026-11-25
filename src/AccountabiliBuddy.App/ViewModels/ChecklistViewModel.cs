@@ -631,6 +631,50 @@ public sealed partial class ChecklistViewModel : ObservableObject, IDisposable
         return entries;
     }
 
+    /// <summary>A task's label is picked with the grouped label picker (the task list is in use); else the old category choices show.</summary>
+    public bool UsesLabelPicker => _tasks.UsesTaskList;
+
+    public bool UsesCategoryChoices => !UsesLabelPicker;
+
+    /// <summary>
+    /// Tasks redesign 10.25 (ADR 93): the grouped label picker for a task row's dot (its label now tagged "Current"); a pick puts the task in
+    /// that label, "No label" takes it out. Null before the task list is in use: the row's old category menu shows then.
+    /// </summary>
+    public LabelPickerViewModel? RowLabelPicker(TaskRowViewModel row)
+    {
+        return _tasks.LabelPickerSource() is { } source ? new LabelPickerViewModel(source.Labels, source.Groups, [row.CategoryId]) : null;
+    }
+
+    /// <summary>A pick from <see cref="RowLabelPicker"/>: the task's label (a category id here), or none for "No label".</summary>
+    public Task ApplyRowLabelPickAsync(TaskRowViewModel row, LabelPick pick)
+    {
+        Guid? categoryId = pick.IsNoLabel ? null : pick.LabelId;
+        return pick.IsNothing || categoryId == row.CategoryId ? Task.CompletedTask : _tasks.SetCategoryAsync(row.Id, categoryId);
+    }
+
+    /// <summary>
+    /// The grouped label picker for the "Add a task" box's dot (which label new tasks get). Null before the task list is in use, or while
+    /// other devices list categories of their own (the old menu offers those).
+    /// </summary>
+    public LabelPickerViewModel? NewTaskLabelPicker()
+    {
+        if (_tasks.OtherCategories().Count > 0 || _tasks.LabelPickerSource() is not { } source)
+        {
+            return null;
+        }
+
+        return new LabelPickerViewModel(source.Labels, source.Groups, _newTaskCategoryId is Guid current ? [current] : []);
+    }
+
+    /// <summary>A pick from <see cref="NewTaskLabelPicker"/>: the label new tasks get ("No label": none).</summary>
+    public void ApplyNewTaskLabelPick(LabelPick pick)
+    {
+        if (!pick.IsNothing)
+        {
+            _ = PickNewTaskCategory(pick.IsNoLabel ? null : pick.LabelId);
+        }
+    }
+
     // Another device's category: this PC takes it into its own list (the same name in any case is this PC's already, with its colour) and new tasks go in it.
     private async Task PickOtherDeviceCategoryAsync(SyncCategory category)
     {

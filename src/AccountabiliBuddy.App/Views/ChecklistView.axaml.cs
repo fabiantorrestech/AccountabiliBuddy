@@ -49,9 +49,37 @@ public partial class ChecklistView : UserControl
     // The new-task category picker: the menu is built as it opens, from this PC's categories and the other devices'.
     private void OnNewTaskCategoryClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button button && DataContext is ChecklistViewModel viewModel)
+        if (sender is not Button button || DataContext is not ChecklistViewModel viewModel)
+        {
+            return;
+        }
+
+        // Tasks redesign 10.25: the grouped label picker; the old menu before the task list is in use (or with other devices' categories).
+        if (viewModel.NewTaskLabelPicker() is { } picker)
+        {
+            LabelPickerPopover.Show(button, picker, viewModel.ApplyNewTaskLabelPick);
+        }
+        else
         {
             TaskMenus.ShowEntries(button, viewModel.BuildNewTaskCategoryMenu(), PlacementMode.BottomEdgeAlignedLeft);
+        }
+    }
+
+    // A task's dot: the grouped label picker, or (before the task list is in use) the old category menu attached to the dot.
+    private void OnRowLabelClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: TaskRowViewModel row } button || DataContext is not ChecklistViewModel viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.RowLabelPicker(row) is { } picker)
+        {
+            LabelPickerPopover.Show(button, picker, pick => _ = viewModel.ApplyRowLabelPickAsync(row, pick));
+        }
+        else
+        {
+            FlyoutBase.ShowAttachedFlyout(button);
         }
     }
 

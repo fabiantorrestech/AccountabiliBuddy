@@ -194,7 +194,26 @@
                                                                  KeyDown="OnNewStepKeyDown" />
                                                     </StackPanel>
 
-                                                    <StackPanel Spacing="4" IsVisible="{Binding HasCategoryChoices}">
+                                                    <!-- Tasks redesign 10.25: the label opens the grouped label picker (categories with icons). -->
+                                                    <StackPanel Spacing="4"
+                                                                IsVisible="{Binding $parent[UserControl].((vm:ChecklistViewModel)DataContext).UsesLabelPicker, FallbackValue=False}">
+                                                        <TextBlock Classes="section" Text="Label" />
+                                                        <Button Classes="quiet" Padding="8,4" HorizontalAlignment="Left" Click="OnRowLabelClick"
+                                                                ToolTip.Tip="Pick its label" AutomationProperties.Name="Label">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <Ellipse Width="10" Height="10" Fill="{Binding CategoryBrush}" Stroke="#80808080" StrokeThickness="1" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding CategoryName}" FontSize="13" VerticalAlignment="Center" />
+                                                                <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </StackPanel>
+                                                    <StackPanel Spacing="4">
+                                                        <StackPanel.IsVisible>
+                                                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                                <Binding Path="HasCategoryChoices" />
+                                                                <Binding Path="$parent[UserControl].((vm:ChecklistViewModel)DataContext).UsesCategoryChoices" FallbackValue="False" />
+                                                            </MultiBinding>
+                                                        </StackPanel.IsVisible>
                                                         <TextBlock Classes="section" Text="Category" />
                                                         <ItemsControl ItemsSource="{Binding CategoryChoices}">
                                                             <ItemsControl.ItemsPanel>

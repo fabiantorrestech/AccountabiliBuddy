@@ -62,9 +62,15 @@ public sealed class LabelGroupSetupService
                     continue;
                 }
 
+                // Checked again inside the change: a label another device put in a category meanwhile keeps that category.
+                IReadOnlyDictionary<Guid, TaskLabelGroup> liveGroups = TaskLabelGroupBook.LiveById(TaskLabelGroupBook.Live(changed.LabelGroups));
                 foreach (LabelGroupSuggestionItem item in suggestion.Labels)
                 {
-                    changed = TaskLabelEdits.SetGroup(changed, item.LabelId, id, now, self);
+                    TaskLabel? label = changed.Labels.Select(entry => entry.Label).FirstOrDefault(entry => entry.Id == item.LabelId && entry.IsLive);
+                    if (label is not null && TaskLabelGroupBook.GroupOf(label, liveGroups) is null)
+                    {
+                        changed = TaskLabelEdits.SetGroup(changed, item.LabelId, id, now, self);
+                    }
                 }
             }
 

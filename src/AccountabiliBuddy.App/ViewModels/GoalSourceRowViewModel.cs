@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services.Goals;
+using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Goals;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,6 +35,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     private GoalStepsFrom? _stepsFrom;
     private readonly string? _mainPhoneName;
     private readonly IReadOnlyList<GoalAppMatch> _fromGoals;
+    private readonly IReadOnlyList<TaskLabel>? _pickerLabels;
+    private readonly IReadOnlyList<TaskLabelGroup> _pickerGroups;
 
     public GoalSourceRowViewModel(GoalSourceRule rule, GoalEditorLookups lookups, bool locked, Action<GoalSourceRowViewModel> remove, Action changed)
     {
@@ -49,6 +52,8 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
         _fromGoals = lookups.FromGoals ?? [];
         IsLocked = locked;
         Labels = lookups.Labels;
+        _pickerLabels = lookups.PickerLabels;
+        _pickerGroups = lookups.PickerGroups ?? [];
         // A label another device keeps to itself (ADR 89) still counts: the row keeps it, says where it is from and never shows its name.
         if (rule.LabelId is Guid kept && !Labels.Any(choice => choice.Key == kept.ToString()) && lookups.HiddenLabelNote?.Invoke(kept) is string hiddenNote)
         {
@@ -279,6 +284,41 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
     public bool ShowsSwitch => !IsLocked && !ShowsBeeminder;
 
     public bool HasNoLabels => ShowsLabel && Labels.Count == 0;
+
+    /// <summary>Tasks redesign 10.32: the label is picked with the grouped label picker (a button) rather than the plain list.</summary>
+    public bool ShowsLabelPicker => ShowsLabel && _pickerLabels is not null && Labels.Count > 0;
+
+    public bool ShowsLabelList => ShowsLabel && !ShowsLabelPicker;
+
+    /// <summary>The picked label's dot on the picker button (none before a pick).</summary>
+    public Avalonia.Media.IBrush? LabelPickBrush => SelectedLabel?.Brush;
+
+    /// <summary>The picker button's text: the label picked, or "Pick a label".</summary>
+    public string LabelPickText => SelectedLabel?.Text ?? "Pick a label";
+
+    /// <summary>
+    /// The grouped label picker (categories with icons, labels under them; ADR 93), with the label picked now tagged "Current". A goal counts
+    /// one label, never a whole category (owner decision), and "No label" is not offered. Null when the plain list shows.
+    /// </summary>
+    public LabelPickerViewModel? LabelPicker()
+    {
+        if (_pickerLabels is null)
+        {
+            return null;
+        }
+
+        Guid? current = SelectedLabel is GoalChoice picked && Guid.TryParse(picked.Key, out Guid id) ? id : null;
+        return new LabelPickerViewModel(_pickerLabels, _pickerGroups, current is Guid held ? [held] : []);
+    }
+
+    /// <summary>A pick from <see cref="LabelPicker"/>: that label (a "No label" pick changes nothing).</summary>
+    public void ApplyLabelPick(LabelPick pick)
+    {
+        if (pick.LabelId is Guid id && Labels.FirstOrDefault(choice => choice.Key == id.ToString()) is GoalChoice choice)
+        {
+            SelectedLabel = choice;
+        }
+    }
 
     public bool HasNoCategories => ShowsCategory && Categories.Count == 0;
 
@@ -555,7 +595,12 @@ public sealed partial class GoalSourceRowViewModel : ObservableObject
 
     partial void OnAutomaticChanged(bool value) => _changed();
 
-    partial void OnSelectedLabelChanged(GoalChoice? value) => Edited();
+    partial void OnSelectedLabelChanged(GoalChoice? value)
+    {
+        OnPropertyChanged(nameof(LabelPickText));
+        OnPropertyChanged(nameof(LabelPickBrush));
+        Edited();
+    }
 
     partial void OnTagChanged(string value) => Edited();
 

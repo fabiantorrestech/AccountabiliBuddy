@@ -271,8 +271,11 @@
                             <StackPanel Grid.Column="1" Spacing="3">
                                 <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" LineHeight="19.5" TextWrapping="Wrap" MaxLines="2"
                                            TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" ToolTip.Tip="{Binding Title}" Padding="0,0,4,0" />
+                                <!-- Tasks redesign 10.27: a task's line in the Tasks rows' look: ↳, the label's dot, then the details. -->
                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding IsTaskCard}" />
+                                    <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,0,-1,0" Foreground="{DynamicResource Ab.Muted}"
+                                                     VerticalAlignment="Center" IsVisible="{Binding IsTaskCard}" />
+                                    <Ellipse Width="7" Height="7" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding IsTaskCard}" />
                                     <TextBlock Text="{Binding Meta}" FontSize="12.5" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" MaxWidth="320" />
                                 </StackPanel>
                             </StackPanel>

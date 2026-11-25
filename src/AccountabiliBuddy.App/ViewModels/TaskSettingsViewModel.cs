@@ -413,10 +413,14 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
     [
         new("Ctrl+\\", "Show the Shelf hidden during a session (Tasks), or the Today sidebar (Today)"),
         new("Ctrl+J", "Jot it down"),
-        new("Ctrl+F", "Search"),
+        new("Ctrl+F", "Search: on Tasks it searches the page, elsewhere the whole app"),
         new("Ctrl+G", "Go to a task by its ID"),
         new("Ctrl+Z", "Undo (the last 10 actions)"),
-        new("Esc", "Close or clear: a popover, the selection, the open task, the search"),
+        new("Ctrl+click / Shift+click", "Select tasks / select a range (Tasks)"),
+        new("Ctrl+E", "Edit the task, or Batch edit the selection (Tasks)"),
+        new("Ctrl+A", "Select all in the column (Tasks)"),
+        new("Ctrl+U", "Clear the selection (Tasks)"),
+        new("Esc", "Close or clear, in this order: a menu, the selection, the open task, the search"),
         new("Del", "Delete"),
         new("F2", "Rename"),
         new("H", "Highlight"),
@@ -1008,6 +1012,12 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
             DateOnlyEvent = defaults.DateOnlyEvent,
             NewReminderRule = defaults.NewReminderRule,
         });
+        // "Fade controls you're not using" is this PC's (tasks.layout, both modes): back to on.
+        if (_layout is not null)
+        {
+            await _layout.SetFadeIdleControlsAsync(true);
+        }
+
         ResetNote = note ?? "Tasks settings are back to their defaults.";
         Load();
     }

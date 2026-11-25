@@ -145,6 +145,12 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     /// <summary>E.g. "3 selected".</summary>
     public string SelectionText => $"{Rules.Count(rule => rule.IsSelected)} selected";
 
+    /// <summary>The selection bar's "Copy (3)" / "Copy" (the count rule for actions on a selection, <see cref="SelectionCountText"/>).</summary>
+    public string CopySelectedText => SelectionCountText.Action("Copy", Rules.Count(rule => rule.IsSelected));
+
+    /// <summary>"Move (3)" / "Move".</summary>
+    public string MoveSelectedText => SelectionCountText.Action("Move", Rules.Count(rule => rule.IsSelected));
+
     /// <summary>"Select all": ticked when every rule shown is; ticking or unticking it does all the shown ones.</summary>
     public bool AllRulesSelected
     {
@@ -362,6 +368,8 @@ public sealed partial class ProfileEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasSelectedRules));
         OnPropertyChanged(nameof(SelectionText));
+        OnPropertyChanged(nameof(CopySelectedText));
+        OnPropertyChanged(nameof(MoveSelectedText));
         OnPropertyChanged(nameof(AllRulesSelected));
     }
 

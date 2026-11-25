@@ -92,10 +92,41 @@ public partial class TodayTaskRowsView : UserControl
     // The new-task category picker: the menu is built as it opens, from this PC's categories and the other devices'.
     private void OnNewTaskCategoryClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button button && DataContext is ChecklistViewModel viewModel)
+        if (sender is not Button button || DataContext is not ChecklistViewModel viewModel)
+        {
+            return;
+        }
+
+        // Tasks redesign 10.25: the grouped label picker; the old menu before the task list is in use (or with other devices' categories).
+        if (viewModel.NewTaskLabelPicker() is { } picker)
+        {
+            LabelPickerPopover.Show(button, picker, viewModel.ApplyNewTaskLabelPick);
+        }
+        else
         {
             TaskMenus.ShowEntries(button, viewModel.BuildNewTaskCategoryMenu(), PlacementMode.BottomEdgeAlignedLeft);
         }
+    }
+
+    // The row flyout's Label: the flyout closes (saving a rename, as a click away does) and the grouped label picker opens under the row.
+    private void OnRowLabelClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: TaskRowViewModel row } || DataContext is not ChecklistViewModel viewModel
+            || viewModel.RowLabelPicker(row) is not { } picker)
+        {
+            return;
+        }
+
+        Button? rowButton = this.GetVisualDescendants().OfType<Button>()
+            .FirstOrDefault(button => button.Classes.Contains("taskRow") && ReferenceEquals(button.DataContext, row));
+        if (rowButton is null)
+        {
+            return;
+        }
+
+        rowButton.Flyout?.Hide();
+        LabelPickerPopover.Show(rowButton, picker, pick => _ = viewModel.ApplyRowLabelPickAsync(row, pick));
+        e.Handled = true;
     }
 
     // A row's ⋯ menu (or a step's) is built when it opens. Rename and Add subtask open the row's own editor.

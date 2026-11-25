@@ -98,20 +98,49 @@
                     <mi:MaterialIcon Kind="Devices" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                     <TextBlock Classes="muted" Text="Shared" FontSize="11.5" FontWeight="SemiBold" />
                 </StackPanel>
-                <ItemsControl ItemsSource="{Binding Labels}">
+                <!-- Tasks redesign 10.35: the labels under their categories; a category's heading ticks all its labels (or, all on, takes them
+                     off). The view keeps label ids only. -->
+                <ItemsControl ItemsSource="{Binding LabelGroups}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <WrapPanel ItemSpacing="14" />
+                            <StackPanel Spacing="4" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ViewEditorOption">
-                            <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Text}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Ellipse Width="8" Height="8" Fill="{Binding Dot}" IsVisible="{Binding HasDot}" VerticalAlignment="Center" />
-                                    <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                        <DataTemplate x:DataType="vm:ViewEditorLabelGroup">
+                            <StackPanel Spacing="1">
+                                <Button Classes="quiet" Padding="4,2" MinHeight="0" HorizontalAlignment="Left" Command="{Binding PickCommand}"
+                                        IsVisible="{Binding IsCategory}" ToolTip.Tip="{Binding PickTip}" AutomationProperties.Name="{Binding Name}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="{Binding StateIcon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Ink2}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,2" IsVisible="{Binding IsOther}">
+                                    <mi:MaterialIcon Kind="{Binding Icon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
                                 </StackPanel>
-                            </CheckBox>
+                                <Border BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="1,0,0,0" Margin="12,0,0,0" Padding="12,0,0,0">
+                                    <ItemsControl ItemsSource="{Binding Options}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel ItemSpacing="14" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ViewEditorOption">
+                                                <CheckBox IsChecked="{Binding IsChecked}" AutomationProperties.Name="{Binding Text}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <Ellipse Width="8" Height="8" Fill="{Binding Dot}" IsVisible="{Binding HasDot}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Text}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </CheckBox>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
