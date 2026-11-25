@@ -1,0 +1,182 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.TaskLayoutMenuView"
+             x:DataType="vm:TaskLayoutMenuViewModel"
+             Width="290">
+    <!-- Options › Layout (0.1.154): the panel look of the Options menu (board 09: 290 wide, Surface2, a 1 px Line2 edge, radius 14, the
+         dialogs' shadow). Header: ‹ back to Options, "Layout", the view's name and the hint. Then the view's columns in this PC's order,
+         each a 34 px row: grip · icon (a bin's, or a label's category) · dot · name · "folded" · the fold toggle. A row drags up and down
+         (4 px before it starts, the rows it passes slide aside) or moves with Alt+↑/↓; ↑/↓ walk the rows, Enter/Space on the toggle folds,
+         Esc closes. The list scrolls when the window is short; the footer stays: Reset order. Colours: Ab.* and the labels' own. -->
+    <UserControl.Styles>
+        <Style Selector="Border.lyRow">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="2,0,4,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+        </Style>
+        <Style Selector="Border.lyRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+        </Style>
+        <Style Selector="Border.lyRow:focus-visible">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <!-- The row being dragged: lifted (Surface, a Line2 edge) over the rows it passes. -->
+        <Style Selector="Border.lyRow.dragging">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.Shadow}" />
+        </Style>
+        <Style Selector="TextBlock.lyName">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.lyName.folded">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.lyFold">
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.lyFold /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink2}" />
+        </Style>
+        <Style Selector="Button.lyFold:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lyFold:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <!-- Folded: the toggle lit in the accent tint. -->
+        <Style Selector="Button.lyFold.folded /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.lyFold.folded:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.lyBack, Button.lyFoot">
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.lyBack">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.lyBack /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.lyBack:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lyFoot">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.lyFoot /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lyFoot:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.lyFoot:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="Card" Padding="8" Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="1"
+            CornerRadius="14" BoxShadow="{DynamicResource Ab.DialogShadow}">
+        <DockPanel>
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="4" Margin="0,0,0,6">
+                <Button x:Name="BackButton" Classes="lyBack" Click="OnBackClick" VerticalAlignment="Top" ToolTip.Tip="Back to Options"
+                        AutomationProperties.Name="Back to Options">
+                    <mi:MaterialIcon Kind="ChevronLeft" Width="18" Height="18" />
+                </Button>
+                <StackPanel Grid.Column="1" Spacing="2" Margin="0,4,4,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Layout" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ViewName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Hint}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+
+            <Border DockPanel.Dock="Bottom" Margin="0,6,0,0" Padding="4,8,4,0" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,1,0,0">
+                <Button x:Name="ResetOrderButton" Classes="lyFoot" Command="{Binding ResetOrderCommand}" IsEnabled="{Binding CanReset}"
+                        ToolTip.Tip="Back to the view's own order (folds stay)" AutomationProperties.Name="Reset order">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="Restore" Width="15" Height="15" VerticalAlignment="Center" />
+                        <TextBlock Text="Reset order" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </Border>
+
+            <ScrollViewer x:Name="ListScroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="RowList" ItemsSource="{Binding Rows}" AutomationProperties.Name="Columns">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TaskLayoutRowViewModel">
+                            <Border Classes="lyRow" AutomationProperties.Name="{Binding AccessibleName}">
+                                <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
+                                    <mi:MaterialIcon Kind="DragVertical" Width="16" Height="16" Foreground="{DynamicResource Ab.Faint}" VerticalAlignment="Center"
+                                                     ToolTip.Tip="Drag to reorder (Alt+↑ / Alt+↓)" />
+                                    <mi:MaterialIcon Grid.Column="1" Kind="{Binding IconKind}" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}"
+                                                     VerticalAlignment="Center" IsVisible="{Binding HasIcon}" ToolTip.Tip="{Binding CategoryName}" />
+                                    <Ellipse Grid.Column="2" Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                                    <TextBlock Grid.Column="3" Classes="lyName" Classes.folded="{Binding IsFolded}" Text="{Binding Name}" ToolTip.Tip="{Binding FullName}" />
+                                    <TextBlock Grid.Column="4" Text="{Binding StateText}" FontSize="11" Foreground="{DynamicResource Ab.Faint}"
+                                               VerticalAlignment="Center" IsVisible="{Binding HasStateText}" />
+                                    <Button Grid.Column="5" Classes="lyFold" Classes.folded="{Binding IsFolded}" Command="{Binding ToggleFoldCommand}"
+                                            ToolTip.Tip="{Binding FoldTip}" AutomationProperties.Name="{Binding FoldTip}">
+                                        <mi:MaterialIcon Kind="{Binding FoldIcon}" Width="16" Height="16" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</UserControl>

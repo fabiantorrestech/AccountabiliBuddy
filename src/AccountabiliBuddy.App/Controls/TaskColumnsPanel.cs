@@ -16,7 +16,8 @@ namespace AccountabiliBuddy.App.Controls;
 /// (<see cref="IsRailProperty"/>: a folded column, the empty Later) is <see cref="RailWidth"/> wide. The three bins may shrink to
 /// <see cref="SmallestColumnWidth"/> first (so they fit the smallest window, 901 × 567); when the columns still do not fit, only as many
 /// whole columns as fit are shown (<see cref="ColumnsPerPage"/>, at most <see cref="MaxPerPage"/> when set: Group by Labels' 4, all as
-/// wide) and the rest are on other pages: <see cref="FirstIndex"/> is the column the page was turned to, the page holding it is the one
+/// wide; 0.1.154: plus the rails that still fit, drawn at that page's right end, so its pages differ in size, <see cref="PageSizes"/>)
+/// and the rest are on other pages: <see cref="FirstIndex"/> is the column the page was turned to, the page holding it is the one
 /// drawn. There is no sideways scrolling. Hidden columns are neither measured nor focusable. Every column is as tall as the panel, so each
 /// one scrolls on its own and its header stays put. Turning the page slides the columns in (Settings › Animations; Off = no slide).
 /// <see cref="TaskColumnPaging"/> holds the paging numbers. The handle between Next and To sort is drawn over the gap by the Shelf
@@ -72,8 +73,18 @@ public sealed class TaskColumnsPanel : Panel
     public static readonly DirectProperty<TaskColumnsPanel, double> ColumnWidthProperty =
         AvaloniaProperty.RegisterDirect<TaskColumnsPanel, double>(nameof(ColumnWidth), panel => panel.ColumnWidth);
 
+    /// <summary>0.1.154: how many columns each page holds when the pages differ in size (Group by Labels); null when they don't.</summary>
+    public static readonly DirectProperty<TaskColumnsPanel, IReadOnlyList<int>?> PageSizesProperty =
+        AvaloniaProperty.RegisterDirect<TaskColumnsPanel, IReadOnlyList<int>?>(nameof(PageSizes), panel => panel.PageSizes);
+
+    /// <summary>0.1.154: the widths of the page's columns as drawn, left to right (the Labels view's bands span them).</summary>
+    public static readonly DirectProperty<TaskColumnsPanel, IReadOnlyList<double>> SlotWidthsProperty =
+        AvaloniaProperty.RegisterDirect<TaskColumnsPanel, IReadOnlyList<double>>(nameof(SlotWidths), panel => panel.SlotWidths);
+
     private int _columnsPerPage = 1;
     private double _columnWidth;
+    private IReadOnlyList<int>? _pageSizes;
+    private IReadOnlyList<double> _slotWidths = [];
 
     static TaskColumnsPanel()
     {
@@ -159,6 +170,33 @@ public sealed class TaskColumnsPanel : Panel
         private set => SetAndRaise(ColumnWidthProperty, ref _columnWidth, value);
     }
 
+    /// <summary>Group by Labels: each page's column count (pages differ once columns are folded to rails); null in the other groupings.</summary>
+    public IReadOnlyList<int>? PageSizes
+    {
+        get => _pageSizes;
+        private set
+        {
+            bool same = value is null ? _pageSizes is null : _pageSizes is not null && _pageSizes.SequenceEqual(value);
+            if (!same)
+            {
+                SetAndRaise(PageSizesProperty, ref _pageSizes, value);
+            }
+        }
+    }
+
+    /// <summary>The page's column widths as drawn, left to right.</summary>
+    public IReadOnlyList<double> SlotWidths
+    {
+        get => _slotWidths;
+        private set
+        {
+            if (!_slotWidths.SequenceEqual(value))
+            {
+                SetAndRaise(SlotWidthsProperty, ref _slotWidths, value);
+            }
+        }
+    }
+
     /// <summary>The index of the first column of the page drawn now.</summary>
     public int ShownFirst { get; private set; }
 
@@ -178,8 +216,9 @@ public sealed class TaskColumnsPanel : Panel
         {
             int perPage = Math.Max(1, _columnsPerPage);
             int count = Children.Count;
-            int from = TaskColumnPaging.PageOf(old, count, perPage);
-            int to = TaskColumnPaging.PageOf(now, count, perPage);
+            IReadOnlyList<int>? sizes = _pageSizes;
+            int from = sizes is not null ? TaskColumnPaging.PageOfIndex(sizes, old) : TaskColumnPaging.PageOf(old, count, perPage);
+            int to = sizes is not null ? TaskColumnPaging.PageOfIndex(sizes, now) : TaskColumnPaging.PageOf(now, count, perPage);
             if (from != to)
             {
                 Slide(to > from ? 1 : -1);
@@ -193,12 +232,15 @@ public sealed class TaskColumnsPanel : Panel
         PagePlan plan = Plan(room);
         ColumnsPerPage = plan.PerPage;
         ColumnWidth = plan.SlotWidth;
+        PageSizes = plan.PageSizes;
+        SlotWidths = plan.Widths;
         ShownFirst = plan.First;
         double height = double.IsInfinity(availableSize.Height) ? 0 : availableSize.Height;
         for (int index = 0; index < Children.Count; index++)
         {
             Control child = Children[index];
-            bool shown = index >= plan.First && index < plan.First + plan.Widths.Length;
+            int slot = Array.IndexOf(plan.Order, index);
+            bool shown = slot >= 0;
             if (child.IsVisible != shown)
             {
                 child.IsVisible = shown;
@@ -206,7 +248,7 @@ public sealed class TaskColumnsPanel : Panel
 
             if (shown)
             {
-                child.Measure(new Size(plan.Widths[index - plan.First], availableSize.Height));
+                child.Measure(new Size(plan.Widths[slot], availableSize.Height));
                 if (double.IsInfinity(availableSize.Height))
                 {
                     height = Math.Max(height, child.DesiredSize.Height);
@@ -225,10 +267,10 @@ public sealed class TaskColumnsPanel : Panel
         TaskColumnSplitPair? handle = null;
         for (int slot = 0; slot < plan.Widths.Length; slot++)
         {
-            Control child = Children[plan.First + slot];
+            Control child = Children[plan.Order[slot]];
             double width = plan.Widths[slot];
             child.Arrange(new Rect(x, 0, width, finalSize.Height));
-            if (slot + 1 < plan.Widths.Length && PairsWith(child, Children[plan.First + slot + 1]))
+            if (slot + 1 < plan.Widths.Length && PairsWith(child, Children[plan.Order[slot + 1]]))
             {
                 handle = new TaskColumnSplitPair(x + width + Spacing / 2, x, width + plan.Widths[slot + 1], GetSplitRole(child) == "lead");
             }
@@ -253,24 +295,18 @@ public sealed class TaskColumnsPanel : Panel
         return !GetIsRail(left) && !GetIsRail(right) && ((a == "lead" && b == "trail") || (a == "trail" && b == "lead"));
     }
 
-    // The page's columns and their widths for this much room.
+    // The page's columns (in the order drawn) and their widths for this much room.
     private PagePlan Plan(double room)
     {
         int count = Children.Count;
         if (count == 0)
         {
-            return new PagePlan(1, 0, [], 0);
+            return new PagePlan(1, 0, [], [], 0, MaxPerPage > 0 ? [0] : null);
         }
 
         if (MaxPerPage > 0)
         {
-            // Group by Labels: as many columns of at least the minimum as fit, at most MaxPerPage, all as wide (the last page keeps that width).
-            int fit = double.IsFinite(room) ? (int)Math.Floor((room + Spacing) / (MinColumnWidth + Spacing)) : MaxPerPage;
-            int perPage = Math.Clamp(Math.Min(fit, count), 1, MaxPerPage);
-            double slot = TaskColumnPaging.ColumnWidth(room, perPage, Spacing);
-            int firstOfPage = TaskColumnPaging.FirstOfPage(TaskColumnPaging.PageOf(FirstIndex, count, perPage), count, perPage);
-            int shown = Math.Min(perPage, count - firstOfPage);
-            return new PagePlan(perPage, firstOfPage, Enumerable.Repeat(slot, shown).ToArray(), slot);
+            return RailPagePlan(room, count);
         }
 
         int per = PerPageByWeight(room, count);
@@ -278,7 +314,32 @@ public sealed class TaskColumnsPanel : Panel
         int n = Math.Min(per, count - first);
         double min = count <= TaskColumnPaging.ShrinkUpTo ? Math.Min(MinColumnWidth, SmallestColumnWidth) : MinColumnWidth;
         double[] widths = WeightedWidths(room, first, n, min);
-        return new PagePlan(per, first, widths, widths.Length > 0 ? widths.Max() : 0);
+        return new PagePlan(per, first, Enumerable.Range(first, n).ToArray(), widths, widths.Length > 0 ? widths.Max() : 0, null);
+    }
+
+    // Group by Labels (0.1.154): pages of up to MaxPerPage open columns of at least the minimum plus the rails that still fit beside them
+    // (TaskColumnPaging.RailPages). A page's open columns are all as wide: a page without rails keeps the full pages' width (a part-filled
+    // last page too); on a page with rails they share what the rails leave, so the rails sit at the page's right end.
+    private PagePlan RailPagePlan(double room, int count)
+    {
+        bool[] rails = Children.Select(GetIsRail).ToArray();
+        IReadOnlyList<int> sizes = TaskColumnPaging.RailPages(rails, room, MinColumnWidth, RailWidth, Spacing, MaxPerPage);
+        int page = TaskColumnPaging.PageOfIndex(sizes, Math.Clamp(FirstIndex, 0, count - 1));
+        int first = TaskColumnPaging.StartOfPage(sizes, page);
+        int n = sizes[page];
+        int[] order = TaskColumnOrder.OpenFirst(Enumerable.Range(first, n), index => rails[index]).ToArray();
+        int opens = order.Count(index => !rails[index]);
+        int railCount = n - opens;
+        double slot = TaskColumnPaging.OpenSlotWidth(room, rails.Count(rail => !rail), MinColumnWidth, Spacing, MaxPerPage);
+        double openWidth = slot;
+        if (opens > 0 && railCount > 0 && double.IsFinite(room))
+        {
+            // A page with rails: its open columns share what the rails leave, so the rails end at the page's right edge.
+            openWidth = Math.Max(0, Math.Floor((room - railCount * RailWidth - (n - 1) * Spacing) / opens));
+        }
+
+        double[] widths = order.Select(index => rails[index] ? RailWidth : openWidth).ToArray();
+        return new PagePlan(sizes.Max(), first, order, widths, slot, sizes);
     }
 
     // All the columns when they fit at their minimum (rails at their width; the three bins may shrink to the smallest width); else as many
@@ -429,7 +490,8 @@ public sealed class TaskColumnsPanel : Panel
         return double.IsFinite(offered) ? offered : Children.Count * MinColumnWidth + Math.Max(0, Children.Count - 1) * Spacing;
     }
 
-    private readonly record struct PagePlan(int PerPage, int First, double[] Widths, double SlotWidth);
+    // Order: the page's children in the order drawn (Widths holds one width per slot); PageSizes: each page's column count (Labels only).
+    private readonly record struct PagePlan(int PerPage, int First, int[] Order, double[] Widths, double SlotWidth, IReadOnlyList<int>? PageSizes);
 
     // A page turn: the columns slide in a few pixels from the side the page came from while they fade in (Animations Off: nothing).
     private async void Slide(int direction)

@@ -8,9 +8,11 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 // Tasks redesign 4c (SPEC "Page layout" row 4): how the Shelf's columns share the width. Group by Bins: Next leads (58% of the width it
-// shares with To sort by default; the handle between them resizes it, 30–75%, this PC only), Later is a 62 px rail while empty. Group by
-// Labels: one column per label in category order, then No label, as many 220 px columns a page as fit (at most 4), with a band row
-// naming each category on the page and the ‹ 1 / 3 › pager at its right. Group by None: one list across the width.
+// shares with To sort by default; the handle between them resizes it, 30–75%, this PC only), Later is a 62 px rail while empty; folded
+// columns and the empty Later sit at the right (0.1.154). Group by Labels: one column per label, then No label, in this PC's own order
+// (0.1.154; category order until moved), as many 220 px columns a page as fit (at most 4) plus the folded ones that still fit, at that
+// page's right, with a band row naming each run of a category on the page and the ‹ 1 / 3 › pager at its right. Group by None: one list
+// across the width.
 public sealed partial class ShelfViewModel
 {
     /// <summary>Group by Labels: at most this many label columns a page.</summary>
@@ -52,7 +54,12 @@ public sealed partial class ShelfViewModel
     {
         _layoutStore = layout;
         ShelfSplit = layout.Current.ShelfSplitNow;
-        _layoutChanged = (_, _) => ShelfSplit = layout.Current.ShelfSplitNow;
+        _layoutChanged = (_, _) =>
+        {
+            ShelfSplit = layout.Current.ShelfSplitNow;
+            // A fold moves a label column to its page's right: the bands follow the order drawn.
+            RebuildBands();
+        };
         layout.Changed += _layoutChanged;
         _pagerChanged = (_, args) =>
         {
@@ -102,7 +109,8 @@ public sealed partial class ShelfViewModel
 
     /// <summary>
     /// Group by Labels' columns, in the +N menu's order (category by category, then "Other labels"), then No label: each label's key,
-    /// its full and short name, colour and band. The label row is brought up to date first, so both read the same order.
+    /// its full and short name, colour and band. The label row is brought up to date first, so both read the same order. The page then
+    /// puts them in this PC's own order (0.1.154), so this order only places the columns it doesn't name yet.
     /// </summary>
     public IReadOnlyList<LabelColumnSpec> LabelColumns()
     {
@@ -145,19 +153,24 @@ public sealed partial class ShelfViewModel
         RebuildBands();
     }
 
-    // The bands of the page showing: one per category run, spanning its columns; "4 of 7 on this page" when not all its labels are here.
+    // The bands of the page showing: one per run of a category in the order drawn (the page's open columns, then its rails), spanning its
+    // columns; "4 of 7 on this page" when not all its labels are here.
     private void RebuildBands()
     {
         var bands = new List<LabelBandViewModel>();
+        var onPage = new Dictionary<string, int>(StringComparer.Ordinal);
         if (IsGroupedByLabels)
         {
-            foreach (string key in Pager.KeysOnPage)
+            List<string> drawn = TaskColumnOrder.OpenFirst(
+                Pager.KeysOnPage, key => Panel.Sections.FirstOrDefault(section => section.Key == key)?.IsRail ?? false);
+            foreach (string key in drawn)
             {
                 if (!_bandOf.TryGetValue(key, out LabelBandInfo info))
                 {
                     continue;
                 }
 
+                onPage[info.Key] = onPage.GetValueOrDefault(info.Key) + 1;
                 if (bands.Count > 0 && bands[^1].Key == info.Key)
                 {
                     bands[^1].Span++;
@@ -171,12 +184,16 @@ public sealed partial class ShelfViewModel
         LabelBands.Clear();
         foreach (LabelBandViewModel band in bands)
         {
-            band.Finish();
+            band.Finish(onPage.GetValueOrDefault(band.Key, band.Span));
             LabelBands.Add(band);
         }
 
         OnPropertyChanged(nameof(LabelPageText));
     }
+
+    /// <summary>Group by Labels: the category icon and name of a label column (Options › Layout's rows); null when it has none.</summary>
+    public (MaterialIconKind Icon, string Name)? BandOf(string key) =>
+        _bandOf.TryGetValue(key, out LabelBandInfo info) ? (info.Icon, info.Name) : null;
 
     private readonly record struct LabelBandInfo(string Key, string Name, MaterialIconKind Icon, int Total);
 }

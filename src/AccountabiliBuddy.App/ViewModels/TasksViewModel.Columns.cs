@@ -14,6 +14,9 @@ public sealed partial class TasksViewModel
     // The layout's column orders as last applied (a new value means a column moved).
     private IReadOnlyDictionary<string, IReadOnlyList<string>>? _columnOrder;
 
+    // 0.1.154: the folded columns as last applied (a fold moves a Bins column to the rails at the right).
+    private IReadOnlyList<string>? _foldedColumns;
+
     /// <summary>The Today strip under the page header.</summary>
     public TodayStripViewModel TodayStrip { get; }
 
@@ -35,33 +38,28 @@ public sealed partial class TasksViewModel
         }
     }
 
-    // Ctrl+Alt+←/→ on a column's header: one place left or right among the columns shown, stored for the grouping. In Group by Labels
-    // (plan #6, 4b.36) the label moves within its category instead: a synced position edit, the same as a drag in the +N menu.
+    // Ctrl+Alt+←/→ on a column's header: one place left or right, stored for the grouping on this PC (0.1.154: Group by Labels too, never
+    // a synced label edit; that reverses 4b.36). An open column passes the open ones and a rail the rails, so every press shows: the rails
+    // are drawn at the right (Bins) or at their page's right (Labels) whatever their stored place.
     private Task MoveColumnAsync(string key, int step)
     {
-        if (Shelf.IsGroupedByLabels)
-        {
-            if (!key.StartsWith("label:", StringComparison.Ordinal) || !Guid.TryParse(key["label:".Length..], out Guid labelId))
-            {
-                return Task.CompletedTask;
-            }
-
-            Shelf.Pager.Reveal(key);
-            return Shelf.MoveLabelByAsync(labelId, step);
-        }
-
-        return StoreColumnOrder(key, stored => TaskColumnOrder.MovedBy(ShownColumnKeys(), stored, key, step));
+        bool rail = Shelf.Panel.Sections.FirstOrDefault(section => section.Key == key)?.IsRail ?? false;
+        List<string> peers = ShownColumnKeys()
+            .Where(shown => (Shelf.Panel.Sections.FirstOrDefault(section => section.Key == shown)?.IsRail ?? false) == rail)
+            .ToList();
+        return StoreColumnOrder(key, stored => TaskColumnOrder.MovedBy(peers, stored, key, step));
     }
 
-    // A column's grip let go over another column: it takes that column's place (not in Group by Labels, whose order is the categories').
+    // A column's grip let go over another column: it takes that column's place.
     private Task MoveColumnOntoAsync(string key, string targetKey)
     {
-        if (Shelf.IsGroupedByLabels)
-        {
-            return Task.CompletedTask;
-        }
-
         return StoreColumnOrder(key, stored => TaskColumnOrder.MovedOnto(ShownColumnKeys(), stored, key, targetKey));
+    }
+
+    // Group by Bins: the column is drawn as a rail (folded on this PC, or Later while it has no task at all).
+    private bool IsBinRail(string key, TaskBin? bin, int rowCount)
+    {
+        return _layout.Current.IsColumnFolded(key) || (bin == TaskBin.Later && _laterTotal == 0 && rowCount == 0);
     }
 
     // ---- Tasks redesign 4c: the Shelf's columns as each grouping draws them ----
@@ -160,12 +158,13 @@ public sealed partial class TasksViewModel
     }
 
     // Each grouping's column: Bins fold (kept on this PC) and share the width (Next and To sort by the split, Later 0.8; Later a rail while
-    // it has no task at all); a label column has its dot and short name; None's one list is "All tasks · Newest first".
+    // it has no task at all); a label column has its dot and short name and folds too (0.1.154, a header click or Options › Layout; its own key, so the
+    // Labels view's folds are apart from the Bins view's); None's one list is "All tasks · Newest first".
     private void ShapeColumn(TaskSectionViewModel section, TaskBin? bin, int rowCount, LabelColumnSpec? labelColumn)
     {
         bool byBins = !Shelf.HasViews || Shelf.IsGroupedByBins;
-        section.CanFold = byBins;
-        section.StoresFold = byBins;
+        section.CanFold = byBins || labelColumn is not null;
+        section.StoresFold = byBins || labelColumn is not null;
         section.IsLabelColumn = labelColumn is not null;
         section.ShortTitle = labelColumn?.ShortName ?? section.Title;
         section.HeaderNote = string.Empty;
@@ -180,6 +179,8 @@ public sealed partial class TasksViewModel
         if (labelColumn is not null)
         {
             section.Dot = labelColumn.Dot;
+            // No label's rail shows its band's icon (a label's rail shows its dot).
+            section.Icon = labelColumn.Dot is null ? labelColumn.BandIcon : null;
         }
 
         if (Shelf.HasViews && Shelf.IsGroupedByNone)

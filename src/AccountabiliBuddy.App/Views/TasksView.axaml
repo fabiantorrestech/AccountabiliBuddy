@@ -706,6 +706,15 @@
                     </controls:PageHeader.Actions>
                 </controls:PageHeader>
 
+                <!-- Options › Layout (0.1.154): the view's columns to reorder and fold, under the Options button where the Options panel
+                     was (the page sets the anchor as it opens); a click outside or Esc closes it, ‹ goes back to Options. -->
+                <Popup x:Name="LayoutMenuPopup" DockPanel.Dock="Top" Placement="BottomEdgeAlignedRight" VerticalOffset="6"
+                       ShouldUseOverlayLayer="True" IsLightDismissEnabled="True" IsOpen="{Binding LayoutMenu.IsOpen, Mode=TwoWay}"
+                       Opened="OnLayoutMenuOpened" Closed="OnLayoutMenuClosed">
+                    <views:TaskLayoutMenuView x:Name="LayoutMenu" DataContext="{Binding LayoutMenu}" Dismissed="OnLayoutMenuDismissed"
+                                              BackRequested="OnLayoutMenuBack" />
+                </Popup>
+
                 <!-- The add row (4a.35-4a.44): the add box fills the row; the Today drop pill sits to its right (320) and wraps under the box
                      when the row is narrower than 750 (the TasksPage container query). The add box's hint line and "@" / "#" list float
                      over what is below (ZIndex). -->

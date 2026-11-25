@@ -489,9 +489,68 @@ public partial class TasksView : UserControl
             return;
         }
 
+        ShowTasksOptions(tasks);
+        e.Handled = true;
+    }
+
+    private void ShowTasksOptions(TasksViewModel tasks)
+    {
         Control anchor = TasksHeader.OptionsAnchor;
         TasksHeader.SetOptionsOpen(true);
-        TaskMenus.ShowEntries(anchor, tasks.TasksOptionsMenu(), PlacementMode.BottomEdgeAlignedRight, null, () => TasksHeader.SetOptionsOpen(false), panelLook: true);
-        e.Handled = true;
+        TaskMenus.ShowEntries(
+            anchor, tasks.TasksOptionsMenu(), PlacementMode.BottomEdgeAlignedRight, entry => OnTasksOptionsViewAction(tasks, entry),
+            () => TasksHeader.SetOptionsOpen(tasks.LayoutMenu.IsOpen), panelLook: true);
+    }
+
+    // Options › Layout › (0.1.154): the Layout panel opens where the Options panel was.
+    private void OnTasksOptionsViewAction(TasksViewModel tasks, TaskMenuEntry entry)
+    {
+        if (entry.ViewAction != PageOptionsMenus.LayoutAction)
+        {
+            return;
+        }
+
+        LayoutMenuPopup.PlacementTarget = TasksHeader.OptionsAnchor;
+        // After the Options panel has closed (its light dismiss would close this one too).
+        Dispatcher.UIThread.Post(() =>
+        {
+            TasksHeader.SetOptionsOpen(true);
+            tasks.LayoutMenu.IsOpen = true;
+        }, DispatcherPriority.Input);
+    }
+
+    private void OnLayoutMenuOpened(object? sender, EventArgs e)
+    {
+        Control anchor = TasksHeader.OptionsAnchor;
+        if (TopLevel.GetTopLevel(anchor) is { } top && anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), top) is Point bottom)
+        {
+            LayoutMenu.MaxHeight = Math.Max(160, top.ClientSize.Height - bottom.Y - 6 - 8);
+        }
+
+        // The panel takes the keyboard (↓ goes to the first row, Esc closes); no row looks picked until a key is pressed.
+        Dispatcher.UIThread.Post(() => LayoutMenu.FocusFirst(fromKeyboard: false), DispatcherPriority.Input);
+    }
+
+    private void OnLayoutMenuClosed(object? sender, EventArgs e)
+    {
+        TasksHeader.SetOptionsOpen(false);
+    }
+
+    // Esc in the Layout panel: the keyboard goes back to the Options button.
+    private void OnLayoutMenuDismissed(object? sender, EventArgs e)
+    {
+        TasksHeader.OptionsAnchor.Focus(NavigationMethod.Directional);
+    }
+
+    // ‹ in the Layout panel: back to the Options panel.
+    private void OnLayoutMenuBack(object? sender, EventArgs e)
+    {
+        if (DataContext is not TasksViewModel tasks)
+        {
+            return;
+        }
+
+        tasks.LayoutMenu.IsOpen = false;
+        Dispatcher.UIThread.Post(() => ShowTasksOptions(tasks), DispatcherPriority.Input);
     }
 }

@@ -169,7 +169,7 @@
                 </ItemsControl.Styles>
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <controls:TaskBandsPanel ColumnWidth="{Binding Pager.ColumnWidth}" Spacing="14" />
+                        <controls:TaskBandsPanel ColumnWidth="{Binding Pager.ColumnWidth}" ColumnWidths="{Binding Pager.SlotWidths}" Spacing="14" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
@@ -229,6 +229,7 @@
                     <ItemsPanelTemplate>
                         <controls:TaskColumnsPanel FirstIndex="{Binding Pager.FirstIndex}" ColumnsPerPage="{Binding Pager.PerPage, Mode=OneWayToSource}"
                                                    ColumnWidth="{Binding Pager.ColumnWidth, Mode=OneWayToSource}" MinColumnWidth="{Binding ColumnMinWidth}"
+                                                   PageSizes="{Binding Pager.PageSizes, Mode=OneWayToSource}" SlotWidths="{Binding Pager.SlotWidths, Mode=OneWayToSource}"
                                                    MaxPerPage="{Binding ColumnsPerPageLimit}" Split="{Binding ShelfSplit}"
                                                    SmallestColumnWidth="220" Spacing="14" RailWidth="62" />
                     </ItemsPanelTemplate>

@@ -32,6 +32,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     public ObservableCollection<TaskListRowViewModel> Rows { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RailTitle))]
     public partial string Title { get; set; }
 
     /// <summary>The faint text after the title: "3 ready", "3/3 in focus", a count.</summary>
@@ -176,7 +177,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     // ---- Tasks redesign 4c: the Shelf's columns (Group by Bins folds and rails, Group by Labels and None headers) ----
 
-    /// <summary>A header click folds it (Group by Bins); false keeps it open (a label column, None's list).</summary>
+    /// <summary>It can fold to a rail: a bin or a label column (a header click or Options › Layout, 0.1.154); false keeps it open (None's list).</summary>
     [ObservableProperty]
     public partial bool CanFold { get; set; } = true;
 
@@ -205,8 +206,11 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     /// <summary>The header's tooltip: what a click and Ctrl+Alt+← / → do here.</summary>
     public string HeaderTip => IsLabelColumn
-        ? "Ctrl+Alt+← / Ctrl+Alt+→ moves the label within its category"
+        ? "Click to fold · Ctrl+Alt+← / Ctrl+Alt+→ moves the column (this PC only)"
         : CanFold ? "Click to fold · Ctrl+Alt+← / Ctrl+Alt+→ moves the column · right-click for Expand all and Collapse all" : Title;
+
+    /// <summary>The name a rail shows: a label column's short name, else the title.</summary>
+    public string RailTitle => IsLabelColumn && ShortTitle.Length > 0 ? ShortTitle : Title;
 
     /// <summary>"Fold Next" / "Unfold Next": the header's and the rail's accessible name.</summary>
     public string FoldName => (IsOpen ? "Fold " : "Unfold ") + Title;
@@ -221,7 +225,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     /// <summary>A label column of Group by Labels: a 10 px dot, the label's short name and its count at the right.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowsBinHeader), nameof(HeaderTip))]
+    [NotifyPropertyChangedFor(nameof(ShowsBinHeader), nameof(HeaderTip), nameof(RailTitle))]
     public partial bool IsLabelColumn { get; set; }
 
     /// <summary>The usual Shelf header (icon, title, count, stars, "+"): Group by Bins and None.</summary>
@@ -229,6 +233,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     /// <summary>A label column's title: the label's name without its category ("AI" under Work).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RailTitle))]
     public partial string ShortTitle { get; set; } = string.Empty;
 
     /// <summary>A quiet note at the header's right ("Newest first" on Group by None's list); empty for none.</summary>

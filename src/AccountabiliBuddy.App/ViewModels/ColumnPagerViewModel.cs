@@ -22,6 +22,11 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
     private bool _isFrozen;
     private int? _waitingPerPage;
 
+    // 0.1.154: Group by Labels' pages differ in size once columns are folded (the panel reports them); null pages evenly by _perPage.
+    private IReadOnlyList<int>? _pageSizes;
+    private IReadOnlyList<int>? _waitingPageSizes;
+    private bool _hasWaitingPageSizes;
+
     public ColumnPagerViewModel()
     {
         PreviousCommand = new RelayCommand(() => Step(-1), () => PageIndex > 0);
@@ -50,10 +55,35 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
     [ObservableProperty]
     public partial double ColumnWidth { get; set; }
 
-    public int PageCount => TaskColumnPaging.PageCount(_keys.Count, _perPage);
+    /// <summary>
+    /// 0.1.154: each page's column count when the pages differ in size (Group by Labels with folded columns; the panel writes it as it
+    /// measures); null when every page holds <see cref="PerPage"/>.
+    /// </summary>
+    public IReadOnlyList<int>? PageSizes
+    {
+        get => _pageSizes;
+        set => SetPageSizes(value);
+    }
+
+    /// <summary>The widths of the page's columns as the panel last drew them, left to right (the Labels view's bands span them).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<double> SlotWidths { get; set; } = [];
+
+    public int PageCount => Sizes is { } sizes ? sizes.Count : TaskColumnPaging.PageCount(_keys.Count, _perPage);
 
     /// <summary>The page showing now, 0-based.</summary>
-    public int PageIndex => TaskColumnPaging.PageOf(FirstIndex, _keys.Count, _perPage);
+    public int PageIndex => PageOf(FirstIndex);
+
+    // The page sizes in force: the panel's when they cover exactly the columns now shown (a rebuild may be a layout pass ahead of them).
+    private IReadOnlyList<int>? Sizes => _pageSizes is { Count: > 0 } sizes && sizes.Sum() == _keys.Count ? sizes : null;
+
+    private int PageOf(int index) => Sizes is { } sizes
+        ? TaskColumnPaging.PageOfIndex(sizes, Math.Clamp(index, 0, Math.Max(0, _keys.Count - 1)))
+        : TaskColumnPaging.PageOf(index, _keys.Count, _perPage);
+
+    private int FirstOf(int page) => Sizes is { } sizes
+        ? TaskColumnPaging.StartOfPage(sizes, page)
+        : TaskColumnPaging.FirstOfPage(page, _keys.Count, _perPage);
 
     /// <summary>The columns do not all fit: the bar shows.</summary>
     public bool HasPages => PageCount > 1;
@@ -74,9 +104,15 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
     /// <summary>The columns of the page showing now, in order.</summary>
     public IReadOnlyList<string> KeysOnPage => PageKeys(PageIndex);
 
-    /// <summary>The columns of page <paramref name="page"/>, in order.</summary>
+    /// <summary>The columns of page <paramref name="page"/>, in order (the stored order; Group by Labels draws a page's rails at its right).</summary>
     public IReadOnlyList<string> PageKeys(int page)
     {
+        if (Sizes is { } sizes)
+        {
+            int index = Math.Clamp(page, 0, sizes.Count - 1);
+            return _keys.Skip(TaskColumnPaging.StartOfPage(sizes, index)).Take(sizes[index]).ToList();
+        }
+
         int first = TaskColumnPaging.FirstOfPage(page, _keys.Count, _perPage);
         return _keys.Skip(first).Take(_perPage).ToList();
     }
@@ -100,7 +136,7 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
             int at = keys.ToList().IndexOf(_revealKey);
             if (at >= 0)
             {
-                first = TaskColumnPaging.FirstOfPage(TaskColumnPaging.PageOf(at, keys.Count, _perPage), keys.Count, _perPage);
+                first = FirstOf(PageOf(at));
             }
 
             _revealKey = null;
@@ -130,6 +166,13 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
                 _waitingPerPage = null;
                 SetPerPage(waiting);
             }
+
+            if (!value && _hasWaitingPageSizes)
+            {
+                _hasWaitingPageSizes = false;
+                SetPageSizes(_waitingPageSizes);
+                _waitingPageSizes = null;
+            }
         }
     }
 
@@ -152,6 +195,26 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
         Refresh();
     }
 
+    // The panel measured the pages (Group by Labels): kept like PerPage, and held while frozen.
+    private void SetPageSizes(IReadOnlyList<int>? sizes)
+    {
+        bool same = sizes is null ? _pageSizes is null : _pageSizes is not null && _pageSizes.SequenceEqual(sizes);
+        if (_isFrozen)
+        {
+            _hasWaitingPageSizes = !same;
+            _waitingPageSizes = same ? null : sizes;
+            return;
+        }
+
+        if (same)
+        {
+            return;
+        }
+
+        _pageSizes = sizes;
+        Refresh();
+    }
+
     /// <summary>The next <see cref="Use"/> turns to the page holding the column <paramref name="key"/> (it moved across a page edge).</summary>
     public void Reveal(string key) => _revealKey = key;
 
@@ -164,7 +227,7 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
             return false;
         }
 
-        SetFirst(TaskColumnPaging.FirstOfPage(target, _keys.Count, _perPage));
+        SetFirst(FirstOf(target));
         Refresh();
         return true;
     }
@@ -176,7 +239,7 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
     public int PageOfKey(string key)
     {
         int at = _keys.ToList().IndexOf(key);
-        return at < 0 ? -1 : TaskColumnPaging.PageOf(at, _keys.Count, _perPage);
+        return at < 0 ? -1 : PageOf(at);
     }
 
     private void SetFirst(int first)

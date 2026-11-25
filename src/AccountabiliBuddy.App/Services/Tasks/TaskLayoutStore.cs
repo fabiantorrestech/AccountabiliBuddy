@@ -88,6 +88,19 @@ public sealed class TaskLayoutStore
         return current with { ColumnOrder = orders };
     });
 
+    /// <summary>0.1.154, Options › Layout › Reset order: the grouping's columns go back to their own order (this PC only).</summary>
+    public Task ResetColumnOrderAsync(string grouping) => UpdateAsync(current =>
+    {
+        if (current.ColumnOrderOf(grouping) is null)
+        {
+            return current;
+        }
+
+        var orders = new Dictionary<string, IReadOnlyList<string>>(current.ColumnOrder ?? new Dictionary<string, IReadOnlyList<string>>());
+        orders.Remove(grouping);
+        return current with { ColumnOrder = orders };
+    });
+
     /// <summary>Tasks redesign 4c: Next's share of the Next and To sort width, in percent (clamped 30–75; this PC only).</summary>
     public Task SetShelfSplitAsync(int percent) => UpdateAsync(current => current with
     {

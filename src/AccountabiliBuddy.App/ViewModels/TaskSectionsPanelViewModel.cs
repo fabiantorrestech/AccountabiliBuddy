@@ -183,7 +183,8 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
 
     /// <summary>
     /// A header click: folds or unfolds it until Tasks is next opened; a Shelf bin (Tasks redesign 4c) keeps its fold on this PC
-    /// (<see cref="TaskLayoutStore.SetColumnsFoldedAsync"/>). A section that can't fold (a label column, None's list) stays open.
+    /// (<see cref="TaskLayoutStore.SetColumnsFoldedAsync"/>; a label column too, under its own key, 0.1.154). A
+    /// section that can't fold (None's list) stays open.
     /// </summary>
     public void Toggle(TaskSectionViewModel section)
     {
@@ -237,10 +238,11 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
         await _layout.SetExpandAllAsync(Key, false);
     }
 
-    // Tasks redesign 4c: Expand all / Collapse all unfold or fold the Shelf's bins whose folds are kept (this PC only).
+    // Tasks redesign 4c: Expand all / Collapse all unfold or fold the Shelf's bins whose folds are kept (this PC only); the label columns'
+    // folds are Options › Layout's alone.
     private Task SetStoredFoldsAsync(bool folded)
     {
-        List<string> keys = Sections.Where(section => section.StoresFold && section.CanFold).Select(section => section.Key).ToList();
+        List<string> keys = Sections.Where(section => section.StoresFold && section.CanFold && !section.IsLabelColumn).Select(section => section.Key).ToList();
         return keys.Count == 0 ? Task.CompletedTask : _layout.SetColumnsFoldedAsync(keys, folded);
     }
 

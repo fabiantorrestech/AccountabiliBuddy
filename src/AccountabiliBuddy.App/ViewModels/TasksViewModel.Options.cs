@@ -12,7 +12,7 @@ public sealed partial class TasksViewModel
 
     /// <summary>
     /// The Tasks page's Options menu (<see cref="PageOptionsMenus.Tasks"/>, Tasks redesign board 09): Sort ›, Rows, Label dot, Fade controls
-    /// you're not using, then Views ›, Expand all bins, Show finished on Today, Show more today, History; its last row opens Settings › Tasks.
+    /// you're not using, then Views ›, Layout › (0.1.154), Expand all bins, Show finished on Today, Show more today, History; its last row opens Settings › Tasks.
     /// </summary>
     public IReadOnlyList<TaskMenuEntry> TasksOptionsMenu()
     {
@@ -29,7 +29,8 @@ public sealed partial class TasksViewModel
             ShowsFinishedOnToday,
             today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowFinishedTodayAsync(!ShowsFinishedOnToday)),
             today?.Current.ShowMoreToday ?? false,
-            today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowMoreTodayAsync(!today.Current.ShowMoreToday)));
+            today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowMoreTodayAsync(!today.Current.ShowMoreToday)),
+            LayoutMenu.IsAvailable ? LayoutMenu.GroupName : null);
         return PageOptionsMenus.Tasks(state, OpenSettingsAt);
     }
 

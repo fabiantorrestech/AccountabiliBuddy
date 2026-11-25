@@ -35,9 +35,12 @@ public sealed partial class LabelBandViewModel : ObservableObject
 
     public bool HasNote => Note.Length > 0;
 
-    /// <summary>The note once the span is known.</summary>
-    public void Finish()
+    /// <summary>
+    /// The note once the span is known: <paramref name="onPage"/> is how many of its labels the page shows in all (0.1.154: a category
+    /// may show as two runs once columns are reordered or folded).
+    /// </summary>
+    public void Finish(int onPage)
     {
-        Note = Span < Total ? $"{Span} of {Total} on this page" : string.Empty;
+        Note = onPage < Total ? $"{onPage} of {Total} on this page" : string.Empty;
     }
 }

@@ -28,14 +28,20 @@ public static class PageOptionsMenus
     /// <summary>The Settings › Today group "Sidebar items and order…" scrolls to (its search area name).</summary>
     public const string TodaySidebarArea = "Today sidebar";
 
+    /// <summary>Options › Layout's view action: the page opens the Layout panel (<see cref="TaskLayoutMenuViewModel"/>) under Options.</summary>
+    public const string LayoutAction = "layout";
+
+    /// <summary>The note under Options › Layout.</summary>
+    public const string LayoutNote = "Reorder and fold this view's columns";
+
     /// <summary>The note under Options › Label dot (board 09).</summary>
     public const string LabelDotNote = "Under the task matches the phone and tablet.";
 
     /// <summary>
     /// Tasks (Tasks redesign 4a.22-4a.33, board 09, resolutions O1 and O2): Sort › (its value) │ Rows Comfortable | Compact, Label dot Under
     /// the task | By the check box (with its note) │ "Fade controls you're not using" (a switch) │ then today's kept rows in today's order:
-    /// Views › (the active view), Expand all bins (or Collapse all), Show finished on Today, Show more today, History (until item 6) │ Tasks
-    /// settings ›. Group by is the header's toggle now. Rows, Label dot and Fade apply at once behind the open menu.
+    /// Views › (the active view), Layout › (0.1.154; not in Group by None), Expand all bins (or Collapse all), Show finished on Today, Show
+    /// more today, History (until item 6) │ Tasks settings ›. Group by is the header's toggle now. Rows, Label dot and Fade apply at once behind the open menu.
     /// </summary>
     public static IReadOnlyList<TaskMenuEntry> Tasks(TasksOptionsState state, Action<SettingsSection> openSettings)
     {
@@ -78,6 +84,11 @@ public static class PageOptionsMenus
         if (state.ViewMenu.Count > 0)
         {
             entries.Add(new TaskMenuEntry("Views", Children: state.ViewMenu, Value: state.ViewText, OpensMore: true));
+        }
+
+        if (state.LayoutText is { } layoutText)
+        {
+            entries.Add(new TaskMenuEntry("Layout", ViewAction: LayoutAction, Value: layoutText, Note: LayoutNote, OpensMore: true));
         }
 
         entries.Add(new TaskMenuEntry(state.Expanded ? "Collapse all bins" : "Expand all bins", state.ToggleExpand));

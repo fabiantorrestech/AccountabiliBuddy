@@ -77,11 +77,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Shelf.Panel.TodayStrip = TodayStrip;
         Shelf.Panel.MoveColumn = MoveColumnAsync;
         Shelf.Panel.MoveColumnOnto = MoveColumnOntoAsync;
+        LayoutMenu = new TaskLayoutMenuViewModel(layout, Shelf);
         Shelf.FollowFade(layout);
         Shelf.FollowLayout(layout);
         // The +N menu's "New label": the naming row in the notice slot; Enter makes the label (nothing else to apply it to).
         Shelf.NewLabelRequested = () => AskNewCategory(_ => Task.CompletedTask);
         _columnOrder = layout.Current.ColumnOrder;
+        _foldedColumns = layout.Current.FoldedColumns;
         _finishes.Changed += OnFinishChanged;
         _finishes.Started += OnFinishStarted;
         foreach (TaskSectionsPanelViewModel panel in new[] { TodayTabPanel, Shelf.Panel })
@@ -136,6 +138,9 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public ShelfViewModel Shelf { get; }
 
+    /// <summary>Options › Layout (0.1.154): the view's columns to reorder and fold, this PC only.</summary>
+    public TaskLayoutMenuViewModel LayoutMenu { get; }
+
     /// <summary>
     /// Compact rows (32 DIP) on the Shelf and on Today; remembered on this PC. In the session layout Compact is on by itself (the
     /// setting), and a pick made then lasts only for that layout.
@@ -181,10 +186,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         ApplyDensity();
         OnPropertyChanged(nameof(IsCompact));
-        if (!ReferenceEquals(_columnOrder, _layout.Current.ColumnOrder))
+        if (!ReferenceEquals(_columnOrder, _layout.Current.ColumnOrder) || !ReferenceEquals(_foldedColumns, _layout.Current.FoldedColumns))
         {
-            // A column moved (Ctrl+Alt+←/→, the grip): the Shelf's columns follow at the next rebuild.
+            // A column moved (Ctrl+Alt+←/→, the grip, Options › Layout) or folded (0.1.154: Bins draws its rails at the right): the Shelf's
+            // columns follow at the next rebuild.
             _columnOrder = _layout.Current.ColumnOrder;
+            _foldedColumns = _layout.Current.FoldedColumns;
             QueueRefresh();
         }
     }
@@ -1414,7 +1421,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
             if (Shelf.IsGroupedByLabels)
             {
-                // Tasks redesign 4c.40: one column per label in category order (empty ones too), then No label; the per-PC order is not used.
+                // Tasks redesign 4c.40: one column per label (empty ones too) and No label; 0.1.154: in this PC's own order (below), new
+                // labels at the right, starting from category order.
                 labelColumns = Shelf.LabelColumns();
                 groups = LabelGroups(labelColumns, groups);
             }
@@ -1437,16 +1445,22 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             }
         }
 
-        // Round 2 R3: the columns in this PC's order for the grouping (Group by None is one list: nothing to order; Group by Labels follows
-        // the categories, plan #6).
+        // Round 2 R3: the columns in this PC's order for the grouping (Group by None is one list: nothing to order). 0.1.154: Group by
+        // Labels uses this PC's order too; Group by Bins draws its open columns first and its rails (folded, the empty Later) at the right,
+        // each in the stored order (Group by Labels does that within each page: TaskColumnsPanel).
         string? grouping = Shelf.HasViews ? TaskColumnOrder.GroupingOf(Shelf.Grouping) : TaskViewConfig.GroupBins;
-        if (grouping is not null && grouping != TaskViewConfig.GroupLabel)
+        _laterTotal = rows.Values.Count(entry => entry.Bin == TaskBin.Later);
+        if (grouping is not null)
         {
             groups = TaskColumnOrder.Apply(groups, group => group.Key, _layout.Current.ColumnOrderOf(grouping));
         }
 
+        if (grouping == TaskViewConfig.GroupBins)
+        {
+            groups = TaskColumnOrder.OpenFirst(groups, group => IsBinRail(group.Key, group.Bin, group.Rows.Count));
+        }
+
         bool canMoveColumns = grouping is not null && groups.Count > 1;
-        _laterTotal = rows.Values.Count(entry => entry.Bin == TaskBin.Later);
         Dictionary<string, LabelColumnSpec> labelSpecs = labelColumns.ToDictionary(column => column.Key, StringComparer.Ordinal);
         var sections = new List<TaskSectionViewModel>();
         foreach ((string key, string title, TaskBin? bin, Guid? labelId, List<TaskListRowViewModel> groupRows) in groups)
@@ -1464,7 +1478,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             section.Hint = CountText(groupRows.Count);
             section.StarCount = groupRows.Count(row => row.IsHighlighted);
             section.EmptyText = EmptyTextOf(key, labelSpecs);
-            section.CanMoveColumn = canMoveColumns && (grouping != TaskViewConfig.GroupLabel || key != "label:none");
+            section.CanMoveColumn = canMoveColumns;
             section.CanDragColumn = canMoveColumns && grouping != TaskViewConfig.GroupLabel;
             TaskLabel? label = LabelOf(labelId);
             section.Dot = label is null ? null : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color));

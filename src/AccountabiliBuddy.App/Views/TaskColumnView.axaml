@@ -17,7 +17,10 @@
         <!-- A rail's contents: the bin's icon, its count, then its name (and the empty Later's note) written top to bottom. -->
         <DataTemplate x:Key="RailContent" x:DataType="vm:TaskSectionViewModel">
             <StackPanel Spacing="10" HorizontalAlignment="Center">
-                <mi:MaterialIcon Kind="{Binding IconKind}" Width="19" Height="19" Foreground="{DynamicResource Ab.Accent}" HorizontalAlignment="Center" />
+                <mi:MaterialIcon Kind="{Binding IconKind}" Width="19" Height="19" Foreground="{DynamicResource Ab.Accent}" HorizontalAlignment="Center"
+                                 IsVisible="{Binding !HasDot}" />
+                <!-- 0.1.154: a folded label column shows its dot. -->
+                <Ellipse Width="10" Height="10" Fill="{Binding Dot}" HorizontalAlignment="Center" IsVisible="{Binding HasDot}" Margin="0,4" />
                 <Border Classes="columnCount">
                     <TextBlock Text="{Binding CountText}" />
                 </Border>
@@ -25,7 +28,7 @@
                     <LayoutTransformControl.LayoutTransform>
                         <RotateTransform Angle="90" />
                     </LayoutTransformControl.LayoutTransform>
-                    <TextBlock Classes="railTitle" Text="{Binding Title}" />
+                    <TextBlock Classes="railTitle" Text="{Binding RailTitle}" />
                 </LayoutTransformControl>
                 <LayoutTransformControl HorizontalAlignment="Center" IsVisible="{Binding HasRailNote}">
                     <LayoutTransformControl.LayoutTransform>
@@ -296,7 +299,7 @@
                     </Grid>
                     <!-- A label column (Group by Labels, 4c.48): dot 10 · short name 15.5 px bold (ellipsis) · count at the right. -->
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsLabelColumn}">
-                        <Button x:Name="LabelHeaderButton" Classes="columnHeader" HorizontalAlignment="Stretch" KeyDown="OnHeaderKeyDown"
+                        <Button x:Name="LabelHeaderButton" Classes="columnHeader" HorizontalAlignment="Stretch" KeyDown="OnHeaderKeyDown" Command="{Binding ToggleCommand}"
                                 AutomationProperties.Name="{Binding ColumnName}" ToolTip.Tip="{Binding HeaderTip}">
                             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                 <Ellipse Width="10" Height="10" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />

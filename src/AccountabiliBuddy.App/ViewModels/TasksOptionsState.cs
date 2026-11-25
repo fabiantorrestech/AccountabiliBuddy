@@ -6,6 +6,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>
 /// What the Tasks page's Options menu (<see cref="PageOptionsMenus.Tasks"/>) shows and does, read when it opens. A null action leaves its
 /// row out (Label dot without the task settings, Fade without the layout store, the Today rows without Today's layout).
+/// <paramref name="LayoutText"/> (0.1.154) is Options › Layout's value ("Bins", "Labels"); null leaves the row out (Group by None).
 /// </summary>
 public sealed record TasksOptionsState(
     bool Compact,
@@ -24,4 +25,5 @@ public sealed record TasksOptionsState(
     bool ShowsFinishedOnToday,
     ICommand? ToggleFinishedOnToday,
     bool ShowsMoreToday,
-    ICommand? ToggleMoreToday);
+    ICommand? ToggleMoreToday,
+    string? LayoutText = null);
