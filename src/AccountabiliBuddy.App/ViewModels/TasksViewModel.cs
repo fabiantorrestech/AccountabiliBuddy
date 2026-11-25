@@ -71,7 +71,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _time = time;
         _layout = layout;
         Toasts = new TaskToastViewModel(tasks);
-        CategoryEditor = new CategoryEditorViewModel(tasks);
         TodayTabPanel = new TaskSectionsPanelViewModel("todaytab", layout);
         Shelf = new ShelfViewModel(new TaskSectionsPanelViewModel("shelf", layout));
         TodayStrip = new TodayStripViewModel(DropOnTodayAsync, () => OpenTodayRequested?.Invoke(this, EventArgs.Empty));
@@ -195,8 +194,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>The page's toast (Tasks and Today): every task action's, a delete's, a tick's "Finished …", with Undo and Ctrl+Z.</summary>
     public TaskToastViewModel Toasts { get; }
 
-    /// <summary>The Categories button's editor: rename, recolour, add and delete (the same rows as Today's tag button).</summary>
-    public CategoryEditorViewModel CategoryEditor { get; }
 
     /// <summary>The Categories editor is open under the header.</summary>
     [ObservableProperty]
@@ -1163,7 +1160,6 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Guid? runningId = live ? current.Shown?.Task.Id : null;
         DateTime now = LocalNow();
         DateOnly today = DateOnly.FromDateTime(now);
-        CategoryEditor.Refresh(_tasks.Categories);
         Dictionary<Guid, TaskItem> stored = StoredTasks();
         _rebuildStored = stored;
         RememberNumbers(stored.Values);
