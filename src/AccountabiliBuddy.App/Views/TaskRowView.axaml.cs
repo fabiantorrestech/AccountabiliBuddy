@@ -425,6 +425,14 @@ public partial class TaskRowView : UserControl
 
     private void OnHandlePressed(object? sender, PointerPressedEventArgs e)
     {
+        // Tasks redesign 8b: on the Tasks page's Shelf the whole row drags the selection as a stack (the page's TaskStackDrag took this
+        // press already); the handle only keeps the press from also clicking the row.
+        if (TaskColumnScope.GetIsColumn(this) && this.FindAncestorOfType<TasksView>() is not null)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (sender is Control handle)
         {
             Section?.HandlePressed(handle, e);

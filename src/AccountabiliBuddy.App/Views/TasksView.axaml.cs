@@ -23,9 +23,18 @@ public partial class TasksView : UserControl
 
     private TasksViewModel? _subscribed;
 
+    // Tasks redesign 8b: dragging the selection as a stack (the press, the 6 px start, the targets, the page-turn hold, the resize lock).
+    private readonly TaskStackDrag _stackDrag;
+
     public TasksView()
     {
         InitializeComponent();
+        _stackDrag = new TaskStackDrag(this, LabelsMenuPopup, MoreLabelsButton);
+        // A row's press is the row button's own (handled), so listen to handled ones too; while dragging the page holds the pointer.
+        AddHandler(PointerPressedEvent, (_, e) => _stackDrag.OnPressed(e), RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerMovedEvent, (_, e) => _stackDrag.OnMoved(e), RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, (_, e) => _stackDrag.OnReleased(e), RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerCaptureLostEvent, (_, e) => _stackDrag.OnCaptureLost(e), RoutingStrategies.Direct | RoutingStrategies.Bubble, handledEventsToo: true);
         // The reset button's own press and release (a Button handles them itself, so listen to handled ones too).
         ResetButton.AddHandler(PointerPressedEvent, OnResetPressed, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         ResetButton.AddHandler(PointerReleasedEvent, OnResetReleased, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
@@ -45,6 +54,15 @@ public partial class TasksView : UserControl
             }
         };
         ShelfFiltersLayer.SizeChanged += (_, _) => PlaceShelfFilters();
+    }
+
+    /// <summary>Tasks redesign 8b: a stack drag starts; any tooltip open on the page closes (none open again until it ends).</summary>
+    internal void CloseToolTipsUnder()
+    {
+        foreach (Control control in this.GetVisualDescendants().OfType<Control>().Where(ToolTip.GetIsOpen))
+        {
+            ToolTip.SetIsOpen(control, false);
+        }
     }
 
     /// <summary>Ctrl+F on the Tasks page (7.06): the caret goes into the page's search box, its text selected.</summary>
@@ -79,6 +97,7 @@ public partial class TasksView : UserControl
         base.OnPropertyChanged(change);
         if (change.Property == IsVisibleProperty && !IsVisible && DataContext is TasksViewModel page)
         {
+            _stackDrag.Cancel();
             ContextMenuLayer.Close(restoreFocus: false);
             page.ClearSelection();
             page.Shelf.IsSearchFiltersOpen = false;
@@ -101,6 +120,7 @@ public partial class TasksView : UserControl
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        _stackDrag.Cancel();
         base.OnDetachedFromVisualTree(e);
         if (DataContext is TasksViewModel page)
         {

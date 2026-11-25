@@ -175,6 +175,18 @@ public static class TaskToasts
         return "Moved " + Count(count) + " to " + binName;
     }
 
+    /// <summary>"Archived 3 tasks" (Tasks redesign 8b: a stack dropped on Group by None's Archive zone; Archive › Unfinished keeps them).</summary>
+    public static string ArchivedCount(int count)
+    {
+        return "Archived " + Count(count);
+    }
+
+    /// <summary>"Reordered 3 tasks" (Tasks redesign 8b: a stack dropped on its own column).</summary>
+    public static string ReorderedCount(int count)
+    {
+        return "Reordered " + Count(count);
+    }
+
     /// <summary>"Marked 3 tasks done".</summary>
     public static string MarkedDone(int count)
     {

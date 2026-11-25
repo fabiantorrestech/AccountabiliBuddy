@@ -233,8 +233,23 @@
                 <Setter Property="ZIndex" Value="1" />
             </Style>
         </ContainerQuery>
+        <!-- Tasks redesign 8b.20-8b.23: while a stack is dragged the pill is a lit target (dashed AccentRing, Accent 5%), under the stack an
+             Accent edge with a 1 px line inside it (the 2 px solid stroke) and Accent 16%; its line reads what a drop does, in Ink. -->
+        <Style Selector="Border.todayStrip">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
         <Style Selector="Border.todayStrip.lit">
-            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint5}" />
+        </Style>
+        <Style Selector="Border.todayStrip.lit.hot">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+        </Style>
+        <Style Selector="TextBlock.stripText.dragInk">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
         <Style Selector="Rectangle.stripLine">
             <Setter Property="Stroke" Value="{DynamicResource Ab.Line3}" />
@@ -245,7 +260,7 @@
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
         <Style Selector="Rectangle.stripLine.lit">
-            <Setter Property="Stroke" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Stroke" Value="{DynamicResource Ab.AccentRing}" />
         </Style>
         <Style Selector="Rectangle.stripLine.hot">
             <Setter Property="Stroke" Value="{DynamicResource Ab.Accent}" />
@@ -432,6 +447,84 @@
         </Style>
         <Style Selector="Grid.labelRow:pointerover Ellipse.chipDot, Grid.labelRow:focus-within Ellipse.chipDot, Grid.labelRow.lit Ellipse.chipDot, ToggleButton.labelChip:checked Ellipse.chipDot">
             <Setter Property="Opacity" Value="1" />
+        </Style>
+        <!-- Tasks redesign 8b.25-8b.27 (board 15): while a stack is dragged every label chip is a target at full strength with a 1 px Line3
+             edge (a picked one keeps its colours); All and +N stay faded. The chip under the stack: the label's colour at 25% with a full-colour
+             edge. +N under the stack lights (and opens the full list, whose rows are targets too). -->
+        <Style Selector="Grid.labelRow.stackDrag ToggleButton.labelChip">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Grid.labelRow.stackDrag ToggleButton.labelChip:not(:checked) Border.chipFace">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+        </Style>
+        <Style Selector="Grid.labelRow.stackDrag TextBlock.chipText">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Grid.labelRow.stackDrag Ellipse.chipDot">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="ToggleButton.labelChip.dropHot Border.chipFace" x:DataType="vm:LabelFilterChipViewModel">
+            <Setter Property="Background" Value="{Binding DropTint}" />
+            <Setter Property="BorderBrush" Value="{Binding Dot}" />
+        </Style>
+        <Style Selector="Button.moreChip.dropHot">
+            <Setter Property="Opacity" Value="1" />
+        </Style>
+        <Style Selector="Button.moreChip.dropHot Border.chipFace">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+
+        <!-- The drag bar (8b.11-8b.18, boards 14, 18): in the bottom row while a stack is dragged, two zones 10 apart. The left one takes the
+             room: a 1.5 px dashed AccentRing edge, radius 12, Muted 13.5 px semibold, "Drop here to choose a bin and label" (Group by None: the
+             Archive zone); under the stack an Accent edge, Accent 16% and Ink. The Cancel zone (240 wide): a 1.5 px dashed Drift edge, Drift
+             text; under the stack a solid edge and Drift 14%. -->
+        <Style Selector="Border.zoneFill">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Rectangle.zoneLine">
+            <Setter Property="StrokeThickness" Value="1.5" />
+            <Setter Property="StrokeDashArray" Value="3,2" />
+            <Setter Property="RadiusX" Value="12" />
+            <Setter Property="RadiusY" Value="12" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Panel.chooseZone Rectangle.zoneLine">
+            <Setter Property="Stroke" Value="{DynamicResource Ab.AccentRing}" />
+        </Style>
+        <Style Selector="Panel.chooseZone TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Panel.chooseZone mi|MaterialIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Panel.chooseZone.hot Rectangle.zoneLine">
+            <Setter Property="Stroke" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Panel.chooseZone.hot Border.zoneFill">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+        </Style>
+        <Style Selector="Panel.chooseZone.hot TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Panel.chooseZone.hot mi|MaterialIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Panel.cancelZone Rectangle.zoneLine">
+            <Setter Property="Stroke" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Panel.cancelZone.hot Rectangle.zoneLine">
+            <Setter Property="StrokeDashArray" Value="" />
+        </Style>
+        <Style Selector="Panel.cancelZone.hot Border.zoneFill">
+            <Setter Property="Background" Value="{DynamicResource Ab.DriftTint14}" />
         </Style>
         <Style Selector="TextBox.searchEntry">
             <Setter Property="FontSize" Value="13.5" />
@@ -621,7 +714,7 @@
                                       Classes.expanded="{Binding IsExpanded}" />
                     <!-- The Today pill: what Today holds ("Nothing queued · drop a task here"), a drop target into Today › Queued (Undo in
                          the toast; never This session), Open Today. A click anywhere on it opens Today as well. -->
-                    <Border x:Name="TodayStripBar" Classes="todayStrip todayPill" Classes.lit="{Binding TodayStrip.IsLit}"
+                    <Border x:Name="TodayStripBar" Classes="todayStrip todayPill" Classes.lit="{Binding TodayStrip.IsLit}" Classes.hot="{Binding TodayStrip.IsHot}"
                             PointerReleased="OnTodayStripReleased" ToolTip.Tip="{Binding TodayStrip.HintText}"
                             AutomationProperties.Name="Today: drop a task here to queue it for today, or open Today">
                         <Panel>
@@ -629,7 +722,7 @@
                             <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10" Margin="14,0,6,0">
                                 <mi:MaterialIcon Kind="CalendarToday" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="Today" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding TodayStrip.StatusText}" FontSize="13" VerticalAlignment="Center"
+                                <TextBlock Grid.Column="2" Classes="muted stripText" Classes.dragInk="{Binding TodayStrip.IsStackDrag}" Text="{Binding TodayStrip.ShownText}" FontSize="13" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" FontFeatures="+tnum" />
                                 <Button Grid.Column="3" Classes="stripOpen" Command="{Binding TodayStrip.OpenTodayCommand}" ToolTip.Tip="Show the Today tab"
                                         AutomationProperties.Name="Open Today">
@@ -775,7 +868,7 @@
                      label and opens the +N menu (LabelsMenuView, in the window's overlay layer). Several labels can be picked (the view's
                      working copy); "All" clears them. Idle, the row rests at 30% and lights as one; dimmed with the Shelf during a session. -->
                 <Grid x:Name="LabelRow" DockPanel.Dock="Top" Margin="22,12,22,0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="6"
-                      Classes="labelRow idleFadeHost" Classes.lit="{Binding Shelf.IsLabelRowLit}" IsVisible="{Binding Shelf.HasViews}">
+                      Classes="labelRow idleFadeHost" Classes.lit="{Binding Shelf.IsLabelRowLit}" Classes.stackDrag="{Binding Shelf.IsStackDragging}" IsVisible="{Binding Shelf.HasViews}">
                     <Grid.Opacity>
                         <Binding Path="IsShelfShown" Converter="{x:Static views:TasksView.ShownOpacity}" />
                     </Grid.Opacity>
@@ -793,7 +886,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:LabelFilterChipViewModel">
-                                <ToggleButton Classes="rowChip labelChip idleFade fadeLabel" IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding PickCommand}"
+                                <ToggleButton Classes="rowChip labelChip idleFade fadeLabel" Classes.dropHot="{Binding IsDropHot}" IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding PickCommand}"
                                               KeyboardNavigation.IsTabStop="{Binding InRow}" AutomationProperties.Name="{Binding Name}">
                                     <Border Classes="chipFace" Padding="12,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -806,6 +899,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <Button x:Name="MoreLabelsButton" Grid.Column="2" Classes="rowChip moreChip idleFade fadeChip" Classes.on="{Binding Shelf.HasPickBehindMore}"
+                            Classes.dropHot="{Binding Shelf.IsMoreDropHot}"
                             Click="OnMoreLabelsClick" IsHitTestVisible="{Binding IsShelfShown}" ToolTip.Tip="Every label: pick, reorder, add"
                             AutomationProperties.Name="More labels and reorder">
                         <Border Classes="chipFace" Padding="12,0">
@@ -830,7 +924,13 @@
                      the sheet is open. -->
                 <Panel x:Name="BottomRowSlot" DockPanel.Dock="Bottom" Height="44" Margin="12,12,12,2">
                     <!-- The select bar (8a.16-8a.23) while anything is selected: × · "3 selected" · the hint (cut first) · Move or label (3) · Delete (3). -->
-                    <Border x:Name="SelectBar" Classes="selectBar" IsVisible="{Binding HasPicked}" AutomationProperties.Name="Selected tasks">
+                    <Border x:Name="SelectBar" Classes="selectBar" AutomationProperties.Name="Selected tasks">
+                        <Border.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="HasPicked" />
+                                <Binding Path="!IsStackDragging" />
+                            </MultiBinding>
+                        </Border.IsVisible>
                         <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
                             <Button x:Name="StopSelectingButton" Classes="selectBarClose" Command="{Binding StopSelectingCommand}" AutomationProperties.Name="Stop selecting"
                                     ToolTip.Tip="Stop selecting (Esc)">
@@ -852,8 +952,38 @@
                             </Button>
                         </Grid>
                     </Border>
-                    <Button x:Name="ArchiveRowButton" Classes="archiveRow idleFade" IsVisible="{Binding !HasPicked}" Classes.on="{Binding ShowsArchive}" Command="{Binding ToggleArchiveCommand}"
+                    <!-- The drag bar (8b.11-8b.18) while a stack is dragged: "choose a bin and label" (Group by None: the Archive zone) · Cancel. At the
+                         smallest window (900 wide) the left zone still has over 500 px, so neither zone's text is cut. -->
+                    <Grid x:Name="DragBar" ColumnDefinitions="*,Auto" ColumnSpacing="10" IsVisible="{Binding IsStackDragging}">
+                        <Panel x:Name="DragChooseZone" Classes="chooseZone" Classes.hot="{Binding IsChooseZoneHot}" Background="Transparent">
+                            <Border Classes="zoneFill" />
+                            <Rectangle Classes="zoneLine" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,0">
+                                <mi:MaterialIcon Kind="{Binding ChooseZoneIcon}" Width="17" Height="17" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding ChooseZoneText}" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            </StackPanel>
+                        </Panel>
+                        <Panel x:Name="DragCancelZone" Grid.Column="1" Classes="cancelZone" Classes.hot="{Binding IsCancelZoneHot}" Background="Transparent"
+                               Width="240">
+                            <Border Classes="zoneFill" />
+                            <Rectangle Classes="zoneLine" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,0">
+                                <mi:MaterialIcon Kind="Close" Width="15" Height="15" Foreground="{DynamicResource Ab.Drift}" VerticalAlignment="Center" />
+                                <TextBlock Text="Cancel" FontSize="13.5" FontWeight="Bold" Foreground="{DynamicResource Ab.Drift}" VerticalAlignment="Center" />
+                                <TextBlock Text="keeps them selected" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            </StackPanel>
+                        </Panel>
+                    </Grid>
+                    <Button x:Name="ArchiveRowButton" Classes="archiveRow idleFade" Classes.on="{Binding ShowsArchive}" Command="{Binding ToggleArchiveCommand}"
                             AutomationProperties.Name="Archive" ToolTip.Tip="{Binding Archive.TaskCountsText}">
+                        <Button.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="!HasPicked" />
+                                <Binding Path="!IsStackDragging" />
+                            </MultiBinding>
+                        </Button.IsVisible>
                         <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
                             <mi:MaterialIcon Kind="ArchiveOutline" Width="18" Height="18" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Text="Archive" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />

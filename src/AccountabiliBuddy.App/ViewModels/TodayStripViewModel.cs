@@ -26,7 +26,19 @@ public sealed partial class TodayStripViewModel : ObservableObject
 
     /// <summary>What the Today pill says after "Today".</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownText))]
     public partial string StatusText { get; set; }
+
+    /// <summary>
+    /// The line the pill shows: <see cref="StatusText"/>, or while a stack is dragged (Tasks redesign 8b.23) "Drop here to queue for today",
+    /// "Release to queue them for today" while the stack is over it.
+    /// </summary>
+    public string ShownText => !IsStackDrag ? StatusText : IsHot ? "Release to queue them for today" : "Drop here to queue for today";
+
+    /// <summary>Tasks redesign 8b: a stack of selected tasks is being dragged on the Tasks page (the pill's line says what a drop does, in Ink).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownText))]
+    public partial bool IsStackDrag { get; set; }
 
     /// <summary>"This session 3 ready · Queued 2 · Reminders due today 1 · Finished 1" (parts at 0 are left out, This session never).</summary>
     [ObservableProperty]
@@ -40,6 +52,7 @@ public sealed partial class TodayStripViewModel : ObservableObject
 
     /// <summary>A dragged row is over the strip: letting go drops it here.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownText))]
     public partial bool IsHot { get; set; }
 
     /// <summary>The counts from the page's rebuild.</summary>

@@ -18,6 +18,10 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
     private string? _revealKey;
     private int _perPage = 1;
 
+    // Tasks redesign 8b.45: while a stack is dragged the count a page holds stays as it was; what the panel measures meanwhile waits here.
+    private bool _isFrozen;
+    private int? _waitingPerPage;
+
     public ColumnPagerViewModel()
     {
         PreviousCommand = new RelayCommand(() => Step(-1), () => PageIndex > 0);
@@ -106,10 +110,39 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
         Refresh();
     }
 
+    /// <summary>
+    /// Tasks redesign 8b.45-8b.47: while true (a stack is being dragged) the columns a page holds don't change, so the page and the column
+    /// under the pointer stay put; only a page turn moves them. Set back to false, the count the panel measured meanwhile applies.
+    /// </summary>
+    public bool IsFrozen
+    {
+        get => _isFrozen;
+        set
+        {
+            if (_isFrozen == value)
+            {
+                return;
+            }
+
+            _isFrozen = value;
+            if (!value && _waitingPerPage is int waiting)
+            {
+                _waitingPerPage = null;
+                SetPerPage(waiting);
+            }
+        }
+    }
+
     /// <summary>The panel measured: this many columns fit a page now.</summary>
     public void SetPerPage(int perPage)
     {
         perPage = Math.Max(1, perPage);
+        if (_isFrozen)
+        {
+            _waitingPerPage = perPage == _perPage ? null : perPage;
+            return;
+        }
+
         if (perPage == _perPage)
         {
             return;

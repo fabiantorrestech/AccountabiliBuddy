@@ -214,6 +214,12 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Move, 1, (lists, self, now) => TaskActions.Reorder(lists, id, beforeId, now, self));
     }
 
+    /// <summary>Tasks redesign 8b: a stack dropped on its own column, each before <paramref name="beforeId"/> in order; one undo step.</summary>
+    public Task<bool> ReorderManyAsync(IReadOnlyList<Guid> ids, Guid? beforeId, string toast)
+    {
+        return RunAsync(TaskActionKind.Move, ids.Count, (lists, self, now) => TaskActions.ReorderMany(lists, ids, beforeId, toast, now, self), toast);
+    }
+
     public Task<bool> RenameStepAsync(Guid taskId, Guid stepId, string title)
     {
         return RunAsync(TaskActionKind.Edit, 1, (lists, self, now) => TaskActions.RenameStep(lists, taskId, stepId, title, now, self));
@@ -294,9 +300,9 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Delete, ids.Count, (lists, self, now) => TaskActions.Delete(lists, ids, now, self), toast);
     }
 
-    public Task<bool> ArchiveAsync(IReadOnlyList<Guid> ids)
+    public Task<bool> ArchiveAsync(IReadOnlyList<Guid> ids, string? toast = null)
     {
-        return RunAsync(TaskActionKind.Delete, ids.Count, (lists, self, now) => TaskActions.Archive(lists, ids, now, self));
+        return RunAsync(TaskActionKind.Delete, ids.Count, (lists, self, now) => TaskActions.Archive(lists, ids, now, self), toast);
     }
 
     // ---- editing (one task or a selection) ----

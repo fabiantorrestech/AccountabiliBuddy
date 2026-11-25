@@ -175,6 +175,57 @@
         <Style Selector="Border.railTint.dropHot">
             <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
         </Style>
+        <!-- Tasks redesign 8b.20-8b.21, O7: while a stack is dragged every column (or rail) that takes it is lit: its solid edge turns into a
+             dashed AccentRing one (Rectangle.stackLine over it) and it fills with Accent 5%; the one under the stack gets an Accent edge with a
+             1 px Accent line inside it (the 2 px solid stroke) and Accent 16%; changes over 0.15 s. -->
+        <Style Selector="Border.taskColumn">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.taskColumn.stackLit">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint5}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.taskColumn.stackLit.stackHot">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+        </Style>
+        <Style Selector="Rectangle.stackLine">
+            <Setter Property="Stroke" Value="{DynamicResource Ab.AccentRing}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="StrokeDashArray" Value="4,3" />
+            <Setter Property="RadiusX" Value="14" />
+            <Setter Property="RadiusY" Value="14" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+        <Style Selector="Rectangle.stackLine.stackHot">
+            <Setter Property="Stroke" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="StrokeDashArray" Value="" />
+        </Style>
+        <Style Selector="Rectangle.railLine.stackLit">
+            <Setter Property="Stroke" Value="{DynamicResource Ab.AccentRing}" />
+        </Style>
+        <Style Selector="Rectangle.railLine.stackHot">
+            <Setter Property="Stroke" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="StrokeThickness" Value="2" />
+            <Setter Property="StrokeDashArray" Value="" />
+        </Style>
+        <Style Selector="Border.railTint.stackLit">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint5}" />
+        </Style>
+        <Style Selector="Border.railTint.stackHot">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+        </Style>
+        <Style Selector="Button.foldRail.stackLit /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint5}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.foldRail.stackLit.stackHot /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+        </Style>
         <Style Selector="TextBlock.railTitle">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="Bold" />
@@ -185,18 +236,31 @@
     <Panel>
         <!-- The rail: a folded bin, or Later while it has no task. -->
         <Panel x:Name="Rail" IsVisible="{Binding IsRail}" Background="Transparent">
-            <Border Classes="railTint" Classes.dropHot="{Binding IsDropTarget}" IsVisible="{Binding IsEmptyRail}" />
-            <Rectangle Classes="railLine" Classes.dropHot="{Binding IsDropTarget}" IsVisible="{Binding IsEmptyRail}" />
-            <Button x:Name="RailButton" Classes="foldRail" Classes.dropHot="{Binding IsDropTarget}" IsVisible="{Binding IsFoldedRail}"
+            <Border Classes="railTint" Classes.dropHot="{Binding IsDropTarget}" Classes.stackLit="{Binding IsStackLit}" Classes.stackHot="{Binding IsStackHot}"
+                    IsVisible="{Binding IsEmptyRail}" />
+            <Rectangle Classes="railLine" Classes.dropHot="{Binding IsDropTarget}" Classes.stackLit="{Binding IsStackLit}" Classes.stackHot="{Binding IsStackHot}"
+                       IsVisible="{Binding IsEmptyRail}" />
+            <Button x:Name="RailButton" Classes="foldRail" Classes.dropHot="{Binding IsDropTarget}" Classes.stackLit="{Binding IsStackLit}"
+                    Classes.stackHot="{Binding IsStackHot}" IsVisible="{Binding IsFoldedRail}"
                     Command="{Binding ToggleCommand}" ToolTip.Tip="Folded" AutomationProperties.Name="{Binding FoldName}">
                 <ContentControl Content="{Binding}" ContentTemplate="{StaticResource RailContent}" />
             </Button>
+            <!-- O7: a folded rail takes the stack like its open column, lit like the Later rail (dashed while lit, solid under the stack). -->
+            <Rectangle Classes="stackLine" Classes.stackHot="{Binding IsStackHot}">
+                <Rectangle.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="IsFoldedRail" />
+                        <Binding Path="IsStackLit" />
+                    </MultiBinding>
+                </Rectangle.IsVisible>
+            </Rectangle>
             <ContentControl IsVisible="{Binding IsEmptyRail}" Margin="0,14" Content="{Binding}" ContentTemplate="{StaticResource RailContent}"
                             HorizontalAlignment="Center" VerticalAlignment="Top"
                             AutomationProperties.Name="Later, empty: drop a task here" />
         </Panel>
 
         <Border x:Name="Card" Classes="taskColumn" Classes.columnDrop="{Binding IsColumnDropTarget}" Classes.labelColumn="{Binding IsLabelColumn}"
+                Classes.stackLit="{Binding IsStackLit}" Classes.stackHot="{Binding IsStackHot}"
                 IsVisible="{Binding ShowsColumn}" ClipToBounds="True" Container.Name="TaskColumn" Container.Sizing="Width">
             <DockPanel>
                 <!-- The pinned header. -->
@@ -254,5 +318,14 @@
                 </ScrollViewer>
             </DockPanel>
         </Border>
+        <!-- 8b.20-8b.21: the open column's dashed edge while lit, its solid Accent edge and inner line under the stack. -->
+        <Rectangle Classes="stackLine" Classes.stackHot="{Binding IsStackHot}">
+            <Rectangle.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="ShowsColumn" />
+                    <Binding Path="IsStackLit" />
+                </MultiBinding>
+            </Rectangle.IsVisible>
+        </Rectangle>
     </Panel>
 </UserControl>

@@ -1645,6 +1645,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             HidesLabelOnLine = shelfLine.HidesLabel,
             AddToToday = shelfLine.AddToToday,
             IsPicked = _picked.Contains(key),
+            IsDragSource = IsStackDragging && _stackKeys.Contains(key),
             Finishes = _finishes,
             SelectionMenu = selectable ? SelectionMenu : null,
             ReminderMenu = item is null ? null : () => ReminderMenuFor(key),

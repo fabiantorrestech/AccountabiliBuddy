@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.TaskDragStackView"
+             x:DataType="vm:TasksViewModel"
+             IsHitTestVisible="False" Focusable="False">
+    <!-- The stack under the pointer while selected tasks are dragged (Tasks redesign 8b.03-8b.08, board 14): decoration only, it never takes
+         the pointer. Drawn in the window's overlay layer (TaskStackDrag places it 14 px right of and 10 px below the pointer), so it shows over
+         the +N label list too. The top card is the first task's (264 wide, padding 12 14, radius 12, Ab.Line fill, a 1 px Line3 border, the
+         stack shadow, turned −2°): its title (14 px, one line) and "↳ · dot 7 · label" (12 px Muted). With 2 or more tasks: two Surface2
+         cards behind it (1 px Line2, radius 12, turned +4° and −5°) and the count badge 10 px outside its top-right corner (at least 26 ×
+         26, Accent with OnAccent, 13 px bold). Over a drop target it shrinks to 92% in 0.12 s (not over "choose a bin and label"). -->
+    <UserControl.Styles>
+        <Style Selector="Panel.stack">
+            <Setter Property="RenderTransformOrigin" Value="0%,0%" />
+            <Setter Property="RenderTransform" Value="scale(1)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Panel.stack.over">
+            <Setter Property="RenderTransform" Value="scale(0.92)" />
+        </Style>
+        <Style Selector="Border.backCard">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+        <Style Selector="Border.topCard">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="14,12" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.StackShadow}" />
+        </Style>
+        <Style Selector="Border.countBadge">
+            <Setter Property="MinWidth" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,-10,-10,0" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- 16 px of room on every side (StackRoom): the turned back cards and the badge reach past the top card and must not be cut off. -->
+    <Panel Classes="stack" Classes.over="{Binding IsStackOverTarget}" Width="264" Margin="16">
+        <Border Classes="backCard" IsVisible="{Binding StackHasMany}" RenderTransform="rotate(4deg) translate(6px, 4px)" />
+        <Border Classes="backCard" IsVisible="{Binding StackHasMany}" RenderTransform="rotate(-5deg) translate(-4px, 6px)" />
+        <Panel RenderTransform="rotate(-2deg)">
+            <Border Classes="topCard">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding StackTitle}" FontSize="14" Foreground="{DynamicResource Ab.Ink}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="13" Height="13" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                        <Ellipse Width="7" Height="7" Fill="{Binding StackLabelDot}" IsVisible="{Binding StackHasLabelDot}" VerticalAlignment="Center" />
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource Ab.Muted2}" IsVisible="{Binding !StackHasLabelDot}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding StackLabelName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+            <Border Classes="countBadge" IsVisible="{Binding StackHasMany}">
+                <TextBlock Text="{Binding StackCountText}" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource Ab.OnAccent}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" FontFeatures="+tnum" />
+            </Border>
+        </Panel>
+    </Panel>
+</UserControl>

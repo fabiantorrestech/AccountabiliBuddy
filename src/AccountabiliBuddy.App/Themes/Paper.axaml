@@ -117,6 +117,8 @@
             <BoxShadows x:Key="Ab.SelectedRing">inset 0 0 0 1 #849874</BoxShadows>
             <BoxShadows x:Key="Ab.Shadow">0 12 36 0 #291E190F</BoxShadows>
             <BoxShadows x:Key="Ab.DialogShadow">0 18 50 0 #291E190F</BoxShadows>
+            <!-- Tasks redesign 8b.04: the dragged stack's top card (0 16 36 in Ab.Shadow's colour). -->
+            <BoxShadows x:Key="Ab.StackShadow">0 16 36 0 #291E190F</BoxShadows>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
             <Color x:Key="Ab.BgColor">#1A1917</Color>
@@ -233,6 +235,8 @@
             <BoxShadows x:Key="Ab.SelectedRing">inset 0 0 0 1 #839271</BoxShadows>
             <BoxShadows x:Key="Ab.Shadow">0 12 36 0 #80000000</BoxShadows>
             <BoxShadows x:Key="Ab.DialogShadow">0 18 50 0 #80000000</BoxShadows>
+            <!-- Tasks redesign 8b.04: the dragged stack's top card (0 16 36 in Ab.Shadow's colour). -->
+            <BoxShadows x:Key="Ab.StackShadow">0 16 36 0 #80000000</BoxShadows>
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

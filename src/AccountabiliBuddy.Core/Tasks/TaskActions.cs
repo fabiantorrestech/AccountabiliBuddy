@@ -101,6 +101,30 @@ public static class TaskActions
         return Result(lists, after, changed, "Moved");
     }
 
+    /// <summary>
+    /// Tasks redesign 8b: a stack dropped on its own column. Each task goes before <paramref name="beforeId"/> (or to the end of its bin when
+    /// null) in the order given, so the stack keeps its order there; all of it is one change (one undo step). A task in another bin than
+    /// <paramref name="beforeId"/> stays where it is.
+    /// </summary>
+    public static TaskActionResult ReorderMany(TaskLists lists, IReadOnlyList<Guid> ids, Guid? beforeId, string toast, DateTimeOffset now, Guid self)
+    {
+        TaskLists current = lists;
+        var affected = new List<Guid>();
+        foreach (Guid id in ids.Distinct().Where(id => id != beforeId))
+        {
+            TaskActionResult step = Reorder(current, id, beforeId, now, self);
+            if (!step.Changed)
+            {
+                continue;
+            }
+
+            current = step.Lists;
+            affected.AddRange(step.Affected.Where(changed => !affected.Contains(changed)));
+        }
+
+        return affected.Count == 0 ? TaskActionResult.None(lists) : new TaskActionResult(current, toast, affected);
+    }
+
     /// <summary>Ticks tasks: each goes to Finished today (<see cref="TaskBin.Done"/>) remembering the bin it left; a finished Shelf task settles into History on normalizing.</summary>
     public static TaskActionResult Finish(TaskLists lists, IReadOnlyList<Guid> ids, DateTimeOffset now, Guid self)
     {

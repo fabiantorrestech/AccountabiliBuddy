@@ -459,6 +459,17 @@
             <Setter Property="Padding" Value="7,0" />
         </Style>
 
+        <!-- Tasks redesign 8b.09: the rows of a stack being dragged dim to 40% (their selected fill and ring stay), in 0.15 s. -->
+        <Style Selector="Panel.listItem">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Panel.listItem.dragSource">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
         <Style Selector="Border.dragHandle">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Cursor" Value="SizeAll" />
@@ -568,7 +579,7 @@
     <StackPanel x:Name="RowRoot" Spacing="0">
         <Border Classes="dropLine" IsVisible="{Binding ShowsLineAbove}" Margin="8,0" />
         <!-- abMenuHost: the row gets an accent outline (Border.abMenuRing) while its menu is open (round 2, brief §3.6). -->
-        <Panel Classes="listItem abMenuHost" Classes.now="{Binding IsNow}" ContextRequested="OnRowContextRequested" KeyDown="OnRowKeyDown">
+        <Panel Classes="listItem abMenuHost" Classes.now="{Binding IsNow}" Classes.dragSource="{Binding IsDragSource}" ContextRequested="OnRowContextRequested" KeyDown="OnRowKeyDown">
             <!-- Round 2 (Today only, brief §4.2): the running row is tinted and outlined in the accent. -->
             <Border Classes="nowTint">
                 <Border.IsVisible>

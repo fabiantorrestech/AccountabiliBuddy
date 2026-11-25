@@ -172,6 +172,10 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     [NotifyPropertyChangedFor(nameof(ShowsHighlightTint))]
     public partial bool IsPicked { get; set; }
 
+    /// <summary>Tasks redesign 8b.09: the row is in the stack being dragged; it dims to 40% (keeping its selected fill and ring).</summary>
+    [ObservableProperty]
+    public partial bool IsDragSource { get; set; }
+
     /// <summary>The check box shows where a row can be ticked.</summary>
     public bool ShowsDoneTick => HasToggle;
 

@@ -15,6 +15,9 @@ public sealed partial class LabelFilterChipViewModel : ObservableObject
     // 17% of 255 (hex 2B): a picked label's fill, the same in every theme.
     private const byte PickedAlpha = 0x2B;
 
+    // 25% of 255 (hex 40): the chip under a dragged stack (Tasks redesign 8b.26).
+    private const byte DropAlpha = 0x40;
+
     private readonly Action<Guid> _toggle;
 
     public LabelFilterChipViewModel(Guid id, Action<Guid> toggle)
@@ -22,7 +25,7 @@ public sealed partial class LabelFilterChipViewModel : ObservableObject
         Id = id;
         _toggle = toggle;
         Name = ShortName = CountText = string.Empty;
-        Dot = Tint = Brushes.Transparent;
+        Dot = Tint = DropTint = Brushes.Transparent;
         PickCommand = new RelayCommand(() => _toggle(Id));
     }
 
@@ -43,6 +46,17 @@ public sealed partial class LabelFilterChipViewModel : ObservableObject
     /// <summary>The label's colour at 17%: a picked chip's (and menu row's) fill.</summary>
     [ObservableProperty]
     public partial IBrush Tint { get; set; }
+
+    /// <summary>The label's colour at 25%: the chip (and menu row) under a dragged stack (8b.26).</summary>
+    [ObservableProperty]
+    public partial IBrush DropTint { get; set; }
+
+    /// <summary>
+    /// Tasks redesign 8b.26 / 8b.28: a dragged stack is over this label's chip, its +N menu row, or (Group by Labels) its column: the chip
+    /// and the row light in the label's colour at 25% with a full-colour border.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsDropHot { get; set; }
 
     /// <summary>In the view's label filter (several can be).</summary>
     [ObservableProperty]
@@ -71,6 +85,7 @@ public sealed partial class LabelFilterChipViewModel : ObservableObject
         {
             Dot = new SolidColorBrush(color);
             Tint = new SolidColorBrush(Color.FromArgb(PickedAlpha, color.R, color.G, color.B));
+            DropTint = new SolidColorBrush(Color.FromArgb(DropAlpha, color.R, color.G, color.B));
         }
 
         CountText = taskCount > 0 ? taskCount.ToString(System.Globalization.CultureInfo.CurrentCulture) : string.Empty;

@@ -262,6 +262,14 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     /// <summary>The page's Today strip, which takes this panel's rows when they are dropped on it; null where there is none.</summary>
     public TodayStripViewModel? TodayStrip => _panel.TodayStrip;
 
+    /// <summary>Tasks redesign 8b.20: a stack is being dragged and this column takes it (dashed AccentRing edge, Accent 5% fill).</summary>
+    [ObservableProperty]
+    public partial bool IsStackLit { get; set; }
+
+    /// <summary>Tasks redesign 8b.21: the stack is over this column (Accent edge and inner line, Accent 16% fill).</summary>
+    [ObservableProperty]
+    public partial bool IsStackHot { get; set; }
+
     /// <summary>A row is being dragged over the end of this section (a line under its last row, or under the header when empty).</summary>
     [ObservableProperty]
     public partial bool IsDropTarget { get; set; }

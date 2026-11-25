@@ -46,6 +46,18 @@
         <Style Selector="ToggleButton.lmNone:checked Border.lmFace">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <!-- Tasks redesign 8b.27: while a stack is dragged the label rows and No label take it; the one under the stack lights in the label's
+             colour at 25% with a 1 px full-colour edge (No label: Accent 16% with an Accent edge). -->
+        <Style Selector="ToggleButton.lmLabel.dropHot Border.lmFace" x:DataType="vm:LabelFilterChipViewModel">
+            <Setter Property="Background" Value="{Binding DropTint}" />
+            <Setter Property="BorderBrush" Value="{Binding Dot}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="ToggleButton.lmNone.dropHot Border.lmFace">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint16}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
         <!-- A heading is not a pick: no hover fill. -->
         <Style Selector="Button.lmHead:pointerover Border.lmFace">
             <Setter Property="Background" Value="Transparent" />
@@ -123,7 +135,7 @@
                                         <ItemsControl ItemsSource="{Binding Items}" AutomationProperties.Name="{Binding Name}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:LabelFilterChipViewModel">
-                                                    <ToggleButton Classes="lmRow lmLabel" IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding PickCommand}"
+                                                    <ToggleButton Classes="lmRow lmLabel" Classes.dropHot="{Binding IsDropHot}" IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding PickCommand}"
                                                                   AutomationProperties.Name="{Binding Name}">
                                                         <Border Classes="lmFace" Height="30" Padding="2,0,8,0">
                                                             <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
@@ -146,7 +158,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <ToggleButton Classes="lmRow lmNone" IsChecked="{Binding IsNoLabelPicked, Mode=OneWay}" Command="{Binding ToggleNoLabelCommand}"
+                    <ToggleButton Classes="lmRow lmNone" Classes.dropHot="{Binding IsNoLabelDropHot}" IsChecked="{Binding IsNoLabelPicked, Mode=OneWay}" Command="{Binding ToggleNoLabelCommand}"
                                   AutomationProperties.Name="No label">
                         <Border Classes="lmFace" Height="32" Padding="26,0,8,0">
                             <TextBlock Text="No label" FontSize="13" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
