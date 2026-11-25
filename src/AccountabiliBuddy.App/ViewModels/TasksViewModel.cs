@@ -325,6 +325,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             _session.Focus.PropertyChanged -= OnFocusPropertyChanged;
         }
 
+        Shelf.Detach();
         Toasts.Dispose();
         Detail?.Dispose();
     }

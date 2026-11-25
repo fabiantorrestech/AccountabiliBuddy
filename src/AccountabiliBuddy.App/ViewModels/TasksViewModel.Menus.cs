@@ -363,8 +363,21 @@ public sealed partial class TasksViewModel
         bool all = tasks.Count > 0 && tasks.All(task => task.Highlight);
         return new TaskMenuEntry(
             SelectionCountText.Action(all ? "Remove highlight" : "Highlight", ids.Count),
-            new AsyncRelayCommand(() => BulkAsync(actions => actions.SetHighlightAsync(ids, !all, TaskToasts.HighlightedCount(ids.Count, !all)))),
+            new AsyncRelayCommand(() => HighlightCountedAsync(ids, !all)),
             Icon: all ? MaterialIconKind.StarOffOutline : MaterialIconKind.StarOutline, Shortcut: "H", Id: "highlight");
+    }
+
+    // Counts only the tasks whose highlight changes; when none does, says so (no undo step).
+    private async Task HighlightCountedAsync(IReadOnlyList<Guid> ids, bool on)
+    {
+        List<Guid> changing = Changing(ids, task => task.Highlight != on);
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync(on ? "highlighted" : "without a highlight");
+            return;
+        }
+
+        await BulkAsync(actions => actions.SetHighlightAsync(changing, on, TaskToasts.HighlightedCount(changing.Count, on)));
     }
 
     // One action through the task actions, then the selection clears (the rows it named may have moved).

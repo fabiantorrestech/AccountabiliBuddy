@@ -478,6 +478,19 @@ public sealed class TaskActionsService
         return made;
     }
 
+    /// <summary>"Do again" for a task still in Finished today: the same copy as <see cref="DoAgainAsync"/> (<see cref="TaskHistoryRules.DoAgainOfLive"/>).</summary>
+    public async Task<Guid?> DoAgainOfLiveAsync(Guid taskId)
+    {
+        Guid? made = null;
+        await RunAsync(TaskActionKind.History, 1, (lists, self, now) =>
+        {
+            TaskActionResult result = TaskHistoryRules.DoAgainOfLive(lists, taskId, now, self);
+            made = result.Changed ? result.Affected[0] : null;
+            return result;
+        });
+        return made;
+    }
+
     /// <summary>
     /// "Untick" a finished task that already settled into History: it comes back open in the bin it came from (To sort when unknown),
     /// one stamped edit and one undo step with a toast (<see cref="TaskHistoryRules.Reopen"/>).

@@ -266,7 +266,7 @@ public sealed partial class TasksViewModel
         AddBox.ClearAfterDetails();
     }
 
-    /// <summary>The new task's tags menu: the tags this device shows, ticked where picked, and "New tag…" (its name in the naming row).</summary>
+    /// <summary>The new task's tags menu: the tags this device shows, ticked where picked, and "New tag…" (an inline box in the popup's tag pill area).</summary>
     internal IReadOnlyList<TaskMenuEntry> DraftTagMenu(IReadOnlyList<string> current, Action<string> toggle, Action<string> add)
     {
         IEnumerable<string> known = _store is { IsActive: true } store ? store.VisibleTags() : _tasks.AllLabels();
@@ -278,11 +278,11 @@ public sealed partial class TasksViewModel
         }
 
         List<TaskMenuEntry> entries = ScopeGrouped(items);
-        entries.Add(TaskMenuEntry.Do("New tag…", () => AskNewLabel(name =>
+        entries.Add(InlineNewTagEntry(name =>
         {
             add(name);
             return Task.CompletedTask;
-        }), MaterialIconKind.Plus));
+        }));
         return entries;
     }
 }

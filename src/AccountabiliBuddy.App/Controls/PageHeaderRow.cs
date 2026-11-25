@@ -146,6 +146,8 @@ public sealed class PageHeaderRow : Panel
         return right - width - Spacing;
     }
 
+    private (string Text, Typeface Typeface, double Size, double Width)? _dateTextWidth;
+
     // The width "Tuesday · …" takes in the date's own font, plus its margin.
     private double DateMinWidth()
     {
@@ -155,7 +157,14 @@ public sealed class PageHeaderRow : Panel
         }
 
         var typeface = new Typeface(date.FontFamily, date.FontStyle, date.FontWeight, date.FontStretch);
-        using var layout = new TextLayout(DateMinText, typeface, date.FontSize, null);
-        return Math.Ceiling(layout.Width) + date.Margin.Left + date.Margin.Right + date.Padding.Left + date.Padding.Right;
+        // The text's width is measured once per (text, font, size), not on every measure pass.
+        if (_dateTextWidth is not { } cached || cached.Text != DateMinText || cached.Typeface != typeface || cached.Size != date.FontSize)
+        {
+            using var layout = new TextLayout(DateMinText, typeface, date.FontSize, null);
+            cached = (DateMinText, typeface, date.FontSize, Math.Ceiling(layout.Width));
+            _dateTextWidth = cached;
+        }
+
+        return cached.Width + date.Margin.Left + date.Margin.Right + date.Padding.Left + date.Padding.Right;
     }
 }

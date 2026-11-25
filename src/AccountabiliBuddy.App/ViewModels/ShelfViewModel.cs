@@ -271,7 +271,12 @@ public sealed partial class ShelfViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGroupedByBins));
         OnPropertyChanged(nameof(IsGroupedByLabels));
         OnPropertyChanged(nameof(IsGroupedByNone));
-        SyncLabelRow();
+        if (!_labelRowSynced)
+        {
+            SyncLabelRow();
+        }
+
+        _labelRowSynced = false;
         ShowFiltersState();
         OnPropertyChanged(nameof(HasSearchFilters));
         TidyUpCard? card = _tidyUp?.Card();

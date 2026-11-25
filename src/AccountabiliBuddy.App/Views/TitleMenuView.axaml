@@ -225,7 +225,7 @@
         <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="12" Spacing="12">
                 <!-- Search (9.08): the caret lands here when the menu opens. -->
-                <TextBox x:Name="Box" Classes="tmSearch" Text="{Binding Search.Query, FallbackValue=''}" PlaceholderText="Search tasks, goals, settings…"
+                <TextBox x:Name="Box" Classes="tmSearch" Text="{Binding Search.Query, FallbackValue=''}" PlaceholderText="Search tasks, labels, settings…"
                          AutomationProperties.Name="Search everything" IsVisible="{Binding Search, Converter={x:Static ObjectConverters.IsNotNull}}">
                     <TextBox.InnerLeftContent>
                         <mi:MaterialIcon Kind="Magnify" Width="16" Height="16" Margin="12,0,8,0" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />

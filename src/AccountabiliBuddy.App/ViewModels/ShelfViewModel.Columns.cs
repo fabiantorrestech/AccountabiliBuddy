@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
@@ -21,6 +22,11 @@ public sealed partial class ShelfViewModel
     // Each label column's place in the band row: its category (or "Other labels" / "No label") and how many columns that band has in all.
     private readonly Dictionary<string, LabelBandInfo> _bandOf = new(StringComparer.Ordinal);
     private TaskLayoutStore? _layoutStore;
+    private EventHandler? _layoutChanged;
+    private PropertyChangedEventHandler? _pagerChanged;
+
+    // LabelColumns brought the label row up to date in this rebuild: the Refresh right after it needn't do it again.
+    private bool _labelRowSynced;
 
     /// <summary>Next's share of the width it shares with To sort (0.30–0.75): this PC's split, or the one being dragged.</summary>
     [ObservableProperty]
@@ -46,8 +52,9 @@ public sealed partial class ShelfViewModel
     {
         _layoutStore = layout;
         ShelfSplit = layout.Current.ShelfSplitNow;
-        layout.Changed += (_, _) => ShelfSplit = layout.Current.ShelfSplitNow;
-        Pager.PropertyChanged += (_, args) =>
+        _layoutChanged = (_, _) => ShelfSplit = layout.Current.ShelfSplitNow;
+        layout.Changed += _layoutChanged;
+        _pagerChanged = (_, args) =>
         {
             if (args.PropertyName is nameof(ColumnPagerViewModel.KeysOnPage))
             {
@@ -56,6 +63,33 @@ public sealed partial class ShelfViewModel
                 OnPropertyChanged(nameof(ShowsBottomPager));
             }
         };
+        Pager.PropertyChanged += _pagerChanged;
+    }
+
+    /// <summary>Lets go of the layout store and the pager (<see cref="FollowLayout"/>, <see cref="FollowFade"/>); the page's dispose calls it.</summary>
+    public void Detach()
+    {
+        if (_layoutStore is { } layout)
+        {
+            if (_layoutChanged is not null)
+            {
+                layout.Changed -= _layoutChanged;
+            }
+
+            if (_fadeChanged is not null)
+            {
+                layout.Changed -= _fadeChanged;
+            }
+        }
+
+        if (_pagerChanged is not null)
+        {
+            Pager.PropertyChanged -= _pagerChanged;
+        }
+
+        _layoutChanged = null;
+        _fadeChanged = null;
+        _pagerChanged = null;
     }
 
     /// <summary>The handle between Next and To sort was let go (or moved with ← / →): Next's new share is kept on this PC.</summary>
@@ -73,6 +107,7 @@ public sealed partial class ShelfViewModel
     public IReadOnlyList<LabelColumnSpec> LabelColumns()
     {
         SyncLabelRow();
+        _labelRowSynced = true;
 
         // With labels picked in the label row, only their columns show (No label only when it is picked); the bands count what shows.
         bool picking = IsNoLabelPicked || MenuGroups.Any(group => group.Items.Any(chip => chip.IsSelected));

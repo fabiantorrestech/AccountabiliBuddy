@@ -6,7 +6,8 @@ namespace AccountabiliBuddy.Core.Tasks;
 /// <summary>
 /// History (ADR 76), pure: a task that is finished, archived or deleted is kept with its snapshot (90 days stored, the last
 /// <see cref="Listed"/> listed). <see cref="Remove"/> files a task there, <see cref="DoAgain"/> makes a new Queued copy of a finished
-/// one, <see cref="BringBack"/> revives an archived or deleted one under its own id and number. A "deleted" entry is also what
+/// one, <see cref="BringBack"/> revives an archived or deleted one under its own id and number, <see cref="Reopen"/> unticks a finished
+/// one that already settled here (the same task, open again in the bin it came from). A "deleted" entry is also what
 /// "Recently deleted" meant for tasks (ADR 50): the PC's own deletes through its old lists are filed here too
 /// (<see cref="WithDeletions"/>), so one list serves Undo, Restore and History.
 /// </summary>
@@ -67,7 +68,22 @@ public static class TaskHistoryRules
             return TaskActionResult.None(lists);
         }
 
-        TaskItem old = found.Entry.Task;
+        return DoAgainCopy(lists, found.Entry.Task, now, self);
+    }
+
+    /// <summary>
+    /// <see cref="DoAgain"/> for a finished task still live in Finished today (it has no History entry yet): the same copy, by the same rule.
+    /// Nothing changes when no live task has the id.
+    /// </summary>
+    public static TaskActionResult DoAgainOfLive(TaskLists lists, Guid taskId, DateTimeOffset now, Guid self)
+    {
+        return lists.Tasks.FirstOrDefault(item => item.Id == taskId && item.Task.IsLive) is { } found
+            ? DoAgainCopy(lists, found.Task, now, self)
+            : TaskActionResult.None(lists);
+    }
+
+    private static TaskActionResult DoAgainCopy(TaskLists lists, TaskItem old, DateTimeOffset now, Guid self)
+    {
         List<TaskStep>? steps = old.Steps?.Select(step => new TaskStep(Guid.NewGuid(), step.Title, EstimateMinutes: step.EstimateMinutes)).ToList();
         var copy = new TaskItem(
             Guid.NewGuid(), old.Title, TaskBin.Queued, TaskListRules.EndOf(lists, TaskBin.Queued), now, now, now,

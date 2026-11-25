@@ -70,11 +70,15 @@ public sealed partial class ShelfViewModel
     /// <summary>The +N menu's "New label": the page's naming row (the notice slot) asks for its name. Set by the page.</summary>
     public Action? NewLabelRequested { get; set; }
 
+    private EventHandler? _fadeChanged;
+
     /// <summary>The row follows "Fade controls you're not using" (device-local).</summary>
     public void FollowFade(TaskLayoutStore layout)
     {
         IsLabelRowAlwaysLit = !layout.Current.FadeIdleControls;
-        layout.Changed += (_, _) => IsLabelRowAlwaysLit = !layout.Current.FadeIdleControls;
+        _layoutStore ??= layout;
+        _fadeChanged = (_, _) => IsLabelRowAlwaysLit = !layout.Current.FadeIdleControls;
+        layout.Changed += _fadeChanged;
     }
 
     partial void OnChipsInRowChanged(int value) => MarkRow();

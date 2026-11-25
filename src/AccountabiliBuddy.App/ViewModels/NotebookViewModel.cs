@@ -494,12 +494,13 @@ public sealed partial class NotebookViewModel : ObservableObject
         if (row.Source == ArchiveSource.TaskList && row.IsDone && _actions?.Invoke() is { } actions)
         {
             TaskLists lists = Lists;
-            if (lists.Tasks.Any(item => item.Id == row.Id && item.Task.IsLive && item.Task.Bin == TaskBin.Done))
+            // A live task with this id (Finished today, or both it and its entry after a cross-device race) unticks the normal way.
+            if (lists.Tasks.FirstOrDefault(item => item.Id == row.Id && item.Task.IsLive) is { } live)
             {
-                return () => actions.ReopenAsync([row.Id]);
+                return live.Task.Bin == TaskBin.Done ? () => actions.ReopenAsync([row.Id]) : null;
             }
 
-            // Already settled into History: the same task comes back open in the bin it came from (one undo step).
+            // Already settled into History and no live task: the same task comes back open in the bin it came from (one undo step).
             if (lists.Log.Any(item => item.Id == row.Id && item.Entry.IsLive && item.Entry.Kind == TaskHistoryKind.Finished))
             {
                 return () => actions.ReopenFromHistoryAsync(row.Id);
@@ -510,8 +511,8 @@ public sealed partial class NotebookViewModel : ObservableObject
     }
 
     // "Do again" (6.23): a fresh copy in Queued with a new id and number and its origin noted, as History's Do again did. A task settled
-    // into History goes through History's own Do again; any other done task (Finished today, or a past session's) is copied by the same
-    // rule's parts: its label, tags, time limit, note and steps (open again).
+    // into History or still in Finished today goes through History's Do again rule; a past session's task is copied by the rule's main parts:
+    // its label, tags, time limit, note and steps (open again).
     private Func<Task>? DoAgainOf(ArchiveTaskRow row)
     {
         if (_actions?.Invoke() is not { } actions || _taskStore is not { IsActive: true })
@@ -526,6 +527,12 @@ public sealed partial class NotebookViewModel : ObservableObject
         }
 
         TaskItem? live = lists.Tasks.FirstOrDefault(item => item.Id == row.Id && item.Task.IsLive)?.Task;
+        if (live is { Bin: TaskBin.Done })
+        {
+            // Finished today: History's rule copies it (goal, effort, devices, calendar and step estimates too).
+            return () => actions.DoAgainOfLiveAsync(row.Id);
+        }
+
         Guid? labelId = live?.LabelId ?? (row.CategoryId is Guid category && lists.Labels.Any(item => item.Label.IsLive && item.Label.Id == category) ? category : null);
         IReadOnlyList<string> steps = row.Steps.Select(step => step.Title).Where(title => title.Trim().Length > 0).ToList();
         return () => CopyAsync(actions, row.Title, labelId, live?.Tags, live?.Note, live?.EstimateMinutes, TaskOrigins.DoneAgain(live?.Number), steps);

@@ -169,6 +169,15 @@ public static class TaskToasts
         return count == 1 ? "1 task" : count + " tasks";
     }
 
+    /// <summary>
+    /// What the right-click menu says when a choice would change nothing ("Already in Later", "Already done"): no undo step goes with it.
+    /// Its other toasts count only the tasks that changed.
+    /// </summary>
+    public static string Already(string state)
+    {
+        return "Already " + state;
+    }
+
     /// <summary>"Moved 3 tasks to Later"; <paramref name="binName"/> is the name the menu showed ("Today" for Queued).</summary>
     public static string MovedCount(int count, string binName)
     {

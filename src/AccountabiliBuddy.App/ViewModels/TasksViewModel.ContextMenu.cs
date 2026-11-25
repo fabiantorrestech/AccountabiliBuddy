@@ -305,19 +305,67 @@ public sealed partial class TasksViewModel
             return;
         }
 
-        await BulkAsync(actions => actions.MoveAsync(ids, bin, TaskToasts.MovedCount(ids.Count, name)));
+        List<Guid> changing = Changing(ids, task => task.Bin != bin);
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync("in " + name);
+            return;
+        }
+
+        await BulkAsync(actions => actions.MoveAsync(changing, bin, TaskToasts.MovedCount(changing.Count, name)));
     }
 
-    private Task MarkDoneAsync(IReadOnlyList<Guid> ids) => BulkAsync(actions => actions.FinishAsync(ids, TaskToasts.MarkedDone(ids.Count)));
-
-    private Task LabelCountedAsync(IReadOnlyList<Guid> ids, Guid? labelId, string? fullName)
+    // The ids whose task would change: the counted toasts count these only (as the drop toasts do), and a choice that changes nothing says so.
+    private List<Guid> Changing(IReadOnlyList<Guid> ids, Func<TaskItem, bool> changes)
     {
-        return BulkAsync(actions => actions.SetLabelAsync(ids, labelId, TaskToasts.LabelledCount(ids.Count, fullName)));
+        return ids.Where(id => StoredTask(id) is { } task && changes(task)).ToList();
     }
 
-    private Task ToggleTagCountedAsync(IReadOnlyList<Guid> ids, string tag, bool adding)
+    // "Already in Later": a toast without an undo step; the selection clears as after any menu choice.
+    private Task NothingChangedAsync(string state)
     {
-        return BulkAsync(actions => actions.ToggleTagAsync(ids, tag, TaskToasts.TagCount(ids.Count, tag, adding)));
+        return BulkAsync(actions =>
+        {
+            actions.Announce(TaskToasts.Already(state), canUndo: false);
+            return Task.CompletedTask;
+        });
+    }
+
+    private async Task MarkDoneAsync(IReadOnlyList<Guid> ids)
+    {
+        List<Guid> changing = Changing(ids, task => task.Bin != TaskBin.Done);
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync("done");
+            return;
+        }
+
+        await BulkAsync(actions => actions.FinishAsync(changing, TaskToasts.MarkedDone(changing.Count)));
+    }
+
+    private async Task LabelCountedAsync(IReadOnlyList<Guid> ids, Guid? labelId, string? fullName)
+    {
+        List<Guid> changing = Changing(ids, task => !HasLabel(task, labelId));
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync(labelId is null ? "without a label" : "labelled " + fullName);
+            return;
+        }
+
+        await BulkAsync(actions => actions.SetLabelAsync(changing, labelId, TaskToasts.LabelledCount(changing.Count, fullName)));
+    }
+
+    private async Task ToggleTagCountedAsync(IReadOnlyList<Guid> ids, string tag, bool adding)
+    {
+        // Adding changes the tasks without the tag, taking off changes the ones with it.
+        List<Guid> changing = Changing(ids, task => TaskLabels.Has(ShownTagsOf(task.Tags), tag) != adding);
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync(adding ? "tagged #" + tag : "without #" + tag);
+            return;
+        }
+
+        await BulkAsync(actions => actions.ToggleTagAsync(changing, tag, TaskToasts.TagCount(changing.Count, tag, adding)));
     }
 
     private async Task AddTagCountedAsync(IReadOnlyList<Guid> ids, string typed)
@@ -328,17 +376,38 @@ public sealed partial class TasksViewModel
         }
 
         await ScopeNewTagAsync(tag, onlyHere: false);
-        await BulkAsync(actions => actions.AddTagsAsync(ids, [tag], TaskToasts.TagCount(ids.Count, tag, added: true)));
+        List<Guid> changing = Changing(ids, task => !TaskLabels.Has(ShownTagsOf(task.Tags), tag));
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync("tagged #" + tag);
+            return;
+        }
+
+        await BulkAsync(actions => actions.AddTagsAsync(changing, [tag], TaskToasts.TagCount(changing.Count, tag, added: true)));
     }
 
-    private Task TimeLimitCountedAsync(IReadOnlyList<Guid> ids, int? minutes)
+    private async Task TimeLimitCountedAsync(IReadOnlyList<Guid> ids, int? minutes)
     {
-        return BulkAsync(actions => actions.SetTimeLimitAsync(ids, minutes, TaskToasts.TimeLimitCount(ids.Count, minutes)));
+        List<Guid> changing = Changing(ids, task => task.EstimateMinutes != minutes);
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync(minutes is int value ? "set to " + value + " min" : "without a time limit");
+            return;
+        }
+
+        await BulkAsync(actions => actions.SetTimeLimitAsync(changing, minutes, TaskToasts.TimeLimitCount(changing.Count, minutes)));
     }
 
-    private Task LinkCountedAsync(IReadOnlyList<Guid> ids, Guid? goalId, string? goalName)
+    private async Task LinkCountedAsync(IReadOnlyList<Guid> ids, Guid? goalId, string? goalName)
     {
-        return BulkAsync(actions => actions.SetGoalAsync(ids, goalId, goalName, TaskToasts.LinkedCount(ids.Count, goalId is null ? null : goalName ?? string.Empty)));
+        List<Guid> changing = Changing(ids, task => task.GoalId != goalId);
+        if (changing.Count == 0)
+        {
+            await NothingChangedAsync(goalId is null ? "unlinked" : "linked to " + (goalName ?? "that goal"));
+            return;
+        }
+
+        await BulkAsync(actions => actions.SetGoalAsync(changing, goalId, goalName, TaskToasts.LinkedCount(changing.Count, goalId is null ? null : goalName ?? string.Empty)));
     }
 
     /// <summary>Delete (N) from the menu, the select bar or Del: to Archive › Recently deleted at once (30 days), one undo step (8a.75, 8a.77).</summary>

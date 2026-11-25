@@ -184,9 +184,57 @@ public partial class TaskEditorView : UserControl
     {
         if (sender is Button { DataContext: TaskDetailViewModel detail } button)
         {
-            TaskMenus.ShowEntries(button, detail.TagMenu(), PlacementMode.BottomEdgeAlignedLeft);
+            TaskMenus.ShowEntries(button, detail.TagMenu(), PlacementMode.BottomEdgeAlignedLeft, entry => BeginNewTag(button, entry));
             e.Handled = true;
         }
+    }
+
+    // "New tag…": the tag pill is swapped for a text box in its place (Enter adds the tag to this task, Esc or leaving it cancels).
+    private static void BeginNewTag(Button pill, TaskMenuEntry entry)
+    {
+        if (entry.Submit is not { } submit || pill.Parent is not Panel row)
+        {
+            return;
+        }
+
+        var box = new TextBox { MinWidth = 160, Height = 28, PlaceholderText = "New tag · Enter adds it" };
+        Avalonia.Automation.AutomationProperties.SetName(box, "New tag for this task");
+        bool finished = false;
+
+        void Finish(bool add)
+        {
+            if (finished)
+            {
+                return;
+            }
+
+            finished = true;
+            string typed = box.Text ?? string.Empty;
+            row.Children.Remove(box);
+            pill.IsVisible = true;
+            if (add && !string.IsNullOrWhiteSpace(typed))
+            {
+                _ = submit(typed);
+            }
+        }
+
+        box.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
+            {
+                Finish(add: true);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                Finish(add: false);
+                e.Handled = true;
+            }
+        };
+        box.LostFocus += (_, _) => Finish(add: false);
+        row.Children.Insert(row.Children.IndexOf(pill) + 1, box);
+        pill.IsVisible = false;
+        Dispatcher.UIThread.Post(() => box.Focus(NavigationMethod.Pointer), DispatcherPriority.Background);
     }
 
     private void OnTimeLimitPillClick(object? sender, RoutedEventArgs e)
@@ -213,7 +261,7 @@ public partial class TaskEditorView : UserControl
     {
         if (sender is Button { DataContext: TaskDraftViewModel draft } button)
         {
-            TaskMenus.ShowEntries(button, draft.TagMenu(), PlacementMode.BottomEdgeAlignedLeft);
+            TaskMenus.ShowEntries(button, draft.TagMenu(), PlacementMode.BottomEdgeAlignedLeft, entry => BeginNewTag(button, entry));
             e.Handled = true;
         }
     }

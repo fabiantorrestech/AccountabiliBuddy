@@ -311,7 +311,7 @@ public sealed partial class TasksViewModel
 
     internal IReadOnlyList<TaskMenuEntry> LabelMenuFor(TaskRowKey key) => LabelEntries(key);
 
-    internal IReadOnlyList<TaskMenuEntry> TagMenuFor(TaskRowKey key) => LabelsEntries(key) ?? [];
+    internal IReadOnlyList<TaskMenuEntry> TagMenuFor(TaskRowKey key) => LabelsEntries(key, inlineNewTag: true) ?? [];
 
     internal bool CanTag(TaskRowKey key) => CanLabel(key);
 

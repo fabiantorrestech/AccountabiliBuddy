@@ -138,10 +138,11 @@ public sealed class TaskMenuFlyout : MenuFlyout
             return;
         }
 
+        // Opened with the mouse: take the keyboard without a focus visual (Unspecified), so no row looks selected until a key is pressed.
         _presenter.Focusable = true;
-        if (!_presenter.Focus(NavigationMethod.Directional) && first is not null)
+        if (!_presenter.Focus(NavigationMethod.Unspecified) && first is not null)
         {
-            first.Focus(NavigationMethod.Directional);
+            first.Focus(NavigationMethod.Unspecified);
         }
     }
 

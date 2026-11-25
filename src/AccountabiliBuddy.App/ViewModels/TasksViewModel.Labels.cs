@@ -32,7 +32,7 @@ public sealed partial class TasksViewModel
 
     // The ⋯ menu's "Labels": every label on this device's lists, ticked where the row has it (a click adds or removes it), and
     // "New label…". Not for another PC's past task: its record is that PC's.
-    private List<TaskMenuEntry>? LabelsEntries(TaskRowKey key)
+    private List<TaskMenuEntry>? LabelsEntries(TaskRowKey key, bool inlineNewTag = false)
     {
         if (!CanLabel(key))
         {
@@ -53,7 +53,8 @@ public sealed partial class TasksViewModel
 
         List<TaskMenuEntry> entries = ScopeGrouped(items);
 
-        entries.Add(TaskMenuEntry.Do("New tag…", () => AskNewLabel(name => SetRowLabelsAsync(key, TaskLabels.With(LabelsOf(key), [name]))), MaterialIconKind.Plus));
+        Func<string, Task> addToRow = name => SetRowLabelsAsync(key, TaskLabels.With(LabelsOf(key), [name]));
+        entries.Add(inlineNewTag ? InlineNewTagEntry(addToRow) : TaskMenuEntry.Do("New tag…", () => AskNewLabel(addToRow), MaterialIconKind.Plus));
         return entries;
     }
 
@@ -160,6 +161,20 @@ public sealed partial class TasksViewModel
             TaskRowKind.AutoSaved => _autoSaved.Find(key.Id)?.LocalTo,
             _ => FindTask(key.Id)?.LocalTo ?? _tasks.PastTaskOf(key.Id)?.LocalTo,
         };
+    }
+
+    // The task editor's "New tag…": the editor turns it into a text box in its tag pill area (the view answers "newTag"); Enter passes the
+    // typed name to Submit, which scopes it like any typed tag and applies it.
+    private TaskMenuEntry InlineNewTagEntry(Func<string, Task> apply)
+    {
+        return new TaskMenuEntry("New tag…", Icon: MaterialIconKind.Plus, ViewAction: "newTag", Submit: async typed =>
+        {
+            if (TaskLabels.Clean([typed.Trim().TrimStart('#')]) is [string tag])
+            {
+                await ScopeNewTagAsync(tag, onlyHere: false);
+                await apply(tag);
+            }
+        });
     }
 
     // "New label…": the name box takes the keyboard; Enter applies the label to what the picker was for.
