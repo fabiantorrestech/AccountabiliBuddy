@@ -132,6 +132,55 @@ public static class TaskHistoryRules
     }
 
     /// <summary>
+    /// "Untick" a finished task that has settled into History: the same task (id, number, steps, everything) comes back open in the bin
+    /// it came from (<see cref="TaskItem.PrevBin"/>; To sort when that is unknown, This session or Finished today), at the end of it,
+    /// touched now. It is one stamped edit like <see cref="BringBack"/>: the task's tombstone is revived and the entry goes. A step's
+    /// focus is cleared, as a running session's checklist is never touched. A task that is live again (or no live Finished entry) changes nothing.
+    /// </summary>
+    public static TaskActionResult Reopen(TaskLists lists, Guid entryId, DateTimeOffset now, Guid self)
+    {
+        if (lists.Log.FirstOrDefault(item => item.Id == entryId) is not { Entry: { IsLive: true, Kind: TaskHistoryKind.Finished } } found)
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        TaskItem old = found.Entry.Task;
+        if (lists.Tasks.Any(item => item.Id == old.Id && item.Task.IsLive))
+        {
+            return TaskActionResult.None(lists);
+        }
+
+        TaskBin bin = old.PrevBin is TaskBin previous && previous is not (TaskBin.Done or TaskBin.Session) ? previous : TaskBin.Sort;
+        List<SyncTaskItem> tasks = lists.Tasks.ToList();
+        int index = tasks.FindIndex(item => item.Id == old.Id);
+        DateTimeOffset at = index >= 0 ? SharedListMerge.NextStamp(now, tasks[index]) : now;
+        TaskItem back = old with
+        {
+            Bin = bin,
+            PrevBin = TaskBin.Done,
+            Position = TaskListRules.EndOf(lists, bin),
+            Steps = old.Steps is null ? null : old.Steps.Select(step => step with { Focus = false }).ToList(),
+            DoneAt = null,
+            DeletedAt = null,
+            EditedAt = at,
+            TouchedAt = at,
+        };
+        var revived = new SyncTaskItem(back, TaskFieldStamps.ForNew(back, new TaskFieldStamp(at, self)));
+        if (index >= 0)
+        {
+            tasks[index] = revived;
+        }
+        else
+        {
+            tasks.Add(revived);
+        }
+
+        List<SyncTaskLogItem> log = lists.Log.ToList();
+        PutEntry(log, found.Entry.Deleted(SharedListMerge.NextStamp(now, found)), now);
+        return new TaskActionResult(lists with { Tasks = tasks, Log = log }, TaskToasts.BackIn(bin), [old.Id]);
+    }
+
+    /// <summary>
     /// The deletes the PC's own old lists made (<paramref name="deleted"/>: ids they deleted) filed as "deleted" entries, from the
     /// tasks as they were in <paramref name="before"/>. Only a task that was live and is gone now and has no live entry already
     /// (a finished Shelf task settles into History by itself); the caller leaves out what is not a delete (a running session's tasks).

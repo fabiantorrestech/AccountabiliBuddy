@@ -28,9 +28,6 @@ public static class PageOptionsMenus
     /// <summary>The Settings › Today group "Sidebar items and order…" scrolls to (its search area name).</summary>
     public const string TodaySidebarArea = "Today sidebar";
 
-    /// <summary>The note under Options › History (board Tasks-PC-Options).</summary>
-    public const string HistoryNote = "Finished and deleted tasks, 30 days";
-
     /// <summary>The note under Options › Label dot (board 09).</summary>
     public const string LabelDotNote = "Under the task matches the phone and tablet.";
 
@@ -92,11 +89,6 @@ public static class PageOptionsMenus
         if (state.ToggleMoreToday is { } toggleMore)
         {
             entries.Add(new TaskMenuEntry("Show more today", toggleMore, IsChecked: state.ShowsMoreToday));
-        }
-
-        if (state.HasHistory)
-        {
-            entries.Add(new TaskMenuEntry("History", ViewAction: "history", Note: HistoryNote));
         }
 
         entries.Add(TaskMenuEntry.Separator);

@@ -256,11 +256,11 @@ public sealed class TaskActionsService
     /// date applied in the same change, so it is one action on the undo stack (undo deletes it) with the add's toast. This session is
     /// refused as in <see cref="AddAsync"/>.
     /// </summary>
-    public Task<bool> AddWithDetailsAsync(Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, TaskAddDetails details)
+    public Task<bool> AddWithDetailsAsync(Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, TaskAddDetails details, string? origin = null)
     {
         return RunAsync(TaskActionKind.Add, 1, (lists, self, now) =>
         {
-            TaskActionResult added = TaskActions.Add(lists, id, title, bin, labelId, tags, note, null, now, self, details.EstimateMinutes, _store.Removed);
+            TaskActionResult added = TaskActions.Add(lists, id, title, bin, labelId, tags, note, origin, now, self, details.EstimateMinutes, _store.Removed);
             if (added.Affected.Count == 0)
             {
                 return added;
@@ -450,6 +450,15 @@ public sealed class TaskActionsService
             return result;
         });
         return made;
+    }
+
+    /// <summary>
+    /// "Untick" a finished task that already settled into History: it comes back open in the bin it came from (To sort when unknown),
+    /// one stamped edit and one undo step with a toast (<see cref="TaskHistoryRules.Reopen"/>).
+    /// </summary>
+    public Task<bool> ReopenFromHistoryAsync(Guid entryId)
+    {
+        return RunAsync(TaskActionKind.History, 1, (lists, self, now) => TaskHistoryRules.Reopen(lists, entryId, now, self));
     }
 
     /// <summary>

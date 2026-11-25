@@ -24,5 +24,4 @@ public sealed record TasksOptionsState(
     bool ShowsFinishedOnToday,
     ICommand? ToggleFinishedOnToday,
     bool ShowsMoreToday,
-    ICommand? ToggleMoreToday,
-    bool HasHistory);
+    ICommand? ToggleMoreToday);

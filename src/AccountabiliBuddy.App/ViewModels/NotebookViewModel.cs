@@ -475,7 +475,7 @@ public sealed partial class NotebookViewModel : ObservableObject
     }
 
     // The check box. A past task (this PC's, another PC's or kept here) ticks as it always did. A task of the task list: one still in
-    // Finished today unticks back to its bin; one already settled into History has no way back here (Do again makes a fresh copy).
+    // Finished today unticks back to its bin; one already settled into History comes back open in the bin it came from.
     private Func<Task>? ToggleOf(ArchiveTaskRow row)
     {
         if (row.CanTick)
@@ -483,10 +483,19 @@ public sealed partial class NotebookViewModel : ObservableObject
             return () => _tasks.SetTickedAsync(row.Id, !row.IsDone);
         }
 
-        if (row.Source == ArchiveSource.TaskList && row.IsDone && _actions?.Invoke() is { } actions
-            && Lists.Tasks.Any(item => item.Id == row.Id && item.Task.IsLive && item.Task.Bin == TaskBin.Done))
+        if (row.Source == ArchiveSource.TaskList && row.IsDone && _actions?.Invoke() is { } actions)
         {
-            return () => actions.ReopenAsync([row.Id]);
+            TaskLists lists = Lists;
+            if (lists.Tasks.Any(item => item.Id == row.Id && item.Task.IsLive && item.Task.Bin == TaskBin.Done))
+            {
+                return () => actions.ReopenAsync([row.Id]);
+            }
+
+            // Already settled into History: the same task comes back open in the bin it came from (one undo step).
+            if (lists.Log.Any(item => item.Id == row.Id && item.Entry.IsLive && item.Entry.Kind == TaskHistoryKind.Finished))
+            {
+                return () => actions.ReopenFromHistoryAsync(row.Id);
+            }
         }
 
         return null;
@@ -514,19 +523,12 @@ public sealed partial class NotebookViewModel : ObservableObject
         return () => CopyAsync(actions, row.Title, labelId, live?.Tags, live?.Note, live?.EstimateMinutes, TaskOrigins.DoneAgain(live?.Number), steps);
     }
 
-    private static async Task CopyAsync(
+    // The copy and its steps are one add on the undo stack (undo removes the whole copy).
+    private static Task CopyAsync(
         TaskActionsService actions, string title, Guid? labelId, IReadOnlyList<string>? tags, string? note, int? estimate, string origin, IReadOnlyList<string> steps)
     {
-        Guid id = Guid.NewGuid();
-        if (!await actions.AddAsync(id, title, TaskBin.Queued, labelId, tags, note, origin, estimate))
-        {
-            return;
-        }
-
-        foreach (string step in steps)
-        {
-            await actions.AddStepAsync(id, step);
-        }
+        var details = new TaskAddDetails(steps, false, estimate, null, TaskCalendarDestination.GoogleCalendar);
+        return actions.AddWithDetailsAsync(Guid.NewGuid(), title, TaskBin.Queued, labelId, tags, note, details, origin);
     }
 
     // A task archived from the task list: Archive › Unfinished. Its box brings it back and ticks it; its ⋯ menu brings it back (History's
