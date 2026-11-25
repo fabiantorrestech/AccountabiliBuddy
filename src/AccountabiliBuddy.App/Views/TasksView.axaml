@@ -1039,6 +1039,12 @@
              right-hand detail card: the columns use the full width. -->
         <views:TaskEditorView x:Name="Editor" ZIndex="15" IsVisible="{Binding ShowsEditorOnTasks}" />
 
+        <!-- Move and label (Tasks redesign 8c, boards 21 / 31): centred over the card, which dims behind it; the selection stays (the select
+             bar shows under the dim) until it closes. The toast (above it) carries each Apply's Undo. -->
+        <Panel ZIndex="16" IsVisible="{Binding ShowsMoveAndLabel}">
+            <views:MoveAndLabelView x:Name="MoveAndLabelDialog" DataContext="{Binding MoveAndLabel}" />
+        </Panel>
+
         <!-- The toast (spec 03 §F; 4c.63): 22 px from the card's left, its bottom 60 px above the card's bottom (above the 44 px bottom row). Only the toast takes clicks: the panel around it
              has no background. -->
         <Panel Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="20" Margin="22,0,0,60">

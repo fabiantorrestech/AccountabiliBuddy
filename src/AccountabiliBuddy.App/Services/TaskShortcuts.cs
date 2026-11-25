@@ -38,6 +38,19 @@ public sealed class TaskShortcuts
         }
 
         bool typing = focused is TextBox;
+        if (window.IsTasksSelected && tasks.ShowsMoveAndLabel)
+        {
+            // Move and label is open (Tasks redesign 8c): only Ctrl+Z (its Apply is one undo step); Del, F2, H, Ctrl+E, Ctrl+U and Ctrl+G
+            // would act on the selection behind it.
+            if (!typing && e.Key == Key.Z && e.KeyModifiers == KeyModifiers.Control)
+            {
+                _ = tasks.UndoLatestAsync();
+                return true;
+            }
+
+            return false;
+        }
+
         if (e.Key == Key.G && e.KeyModifiers == KeyModifiers.Control)
         {
             _openGoTo(tasks);

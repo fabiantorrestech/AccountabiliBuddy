@@ -125,6 +125,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         _reminders = reminders;
         Shelf.UseTaskModel(store, views, tidyUp, actions, _time);
         Toasts.Use(actions, store);
+        actions.Undone += OnActionUndone;
         store.Changed += OnStoreChanged;
         reminders.PendingChanged += OnStoreChanged;
         QueueRefresh();
@@ -1146,6 +1147,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             using IDisposable timing = TickDiag.Measure("tasks page rebuild");
             RebuildLists();
             ShowSelected();
+            MoveAndLabel?.Refresh();
         }
         finally
         {

@@ -99,6 +99,7 @@ public partial class TasksView : UserControl
         {
             _stackDrag.Cancel();
             ContextMenuLayer.Close(restoreFocus: false);
+            page.CloseMoveAndLabel();
             page.ClearSelection();
             page.Shelf.IsSearchFiltersOpen = false;
         }
@@ -395,6 +396,14 @@ public partial class TasksView : UserControl
 
         if (e.Key != Key.Escape || DataContext is not TasksViewModel page)
         {
+            return;
+        }
+
+        // 8c: Move and label is open but the keyboard is outside it (its own Esc already ran inside): it closes first.
+        if (page.ShowsMoveAndLabel)
+        {
+            page.CloseMoveAndLabel();
+            e.Handled = true;
             return;
         }
 

@@ -175,6 +175,15 @@ public static class TaskToasts
         return "Moved " + Count(count) + " to " + binName;
     }
 
+    /// <summary>
+    /// Move and label's Apply (Tasks redesign 8c.64): "Updated 2 tasks → Later · → Work - AI · +#quick −#waiting"; <paramref name="changes"/>
+    /// is the dialog's change line words.
+    /// </summary>
+    public static string UpdatedCount(int count, string changes)
+    {
+        return "Updated " + Count(count) + " " + changes;
+    }
+
     /// <summary>"Archived 3 tasks" (Tasks redesign 8b: a stack dropped on Group by None's Archive zone; Archive › Unfinished keeps them).</summary>
     public static string ArchivedCount(int count)
     {

@@ -33,6 +33,9 @@ public sealed class TaskActionsService
     /// <summary>Raised after every action (and after an undo) with the toast to show.</summary>
     public event EventHandler<TaskToastEventArgs>? Toast;
 
+    /// <summary>An undo put an action back (raised with its entry, after the lists changed): Move and label takes back the ticks its Apply set.</summary>
+    public event EventHandler<TaskUndoEntry>? Undone;
+
     public bool CanUndo => _undo.Count > 0;
 
     /// <summary>The newest undoable action's toast text (what "Undo" would take back), or null.</summary>
@@ -357,6 +360,22 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.SetLabel(lists, ids, labelId, now, self, removed: _store.Removed), toast);
     }
 
+    /// <summary>
+    /// Move and label's Apply (Tasks redesign 8c.64): the picked bin, label and tags on every task, as one undo step with
+    /// <paramref name="toast"/>. Returns its undo entry (what <see cref="Undone"/> is raised with when it is undone), or null when nothing changed.
+    /// </summary>
+    public async Task<TaskUndoEntry?> EditManyAsync(IReadOnlyList<Guid> ids, TaskBatchEdit edit, string toast)
+    {
+        if (edit.IsEmpty || ids.Count == 0)
+        {
+            return null;
+        }
+
+        bool changed = await RunAsync(
+            TaskActionKind.Edit, ids.Count, (lists, self, now) => TaskActions.EditMany(lists, ids, edit, toast, now, self, _store.Removed), toast);
+        return changed ? _undo.Peek : null;
+    }
+
     /// <summary>Links tasks to a goal, or to none (GS5); the caller passes a goal that exists.</summary>
     public Task<bool> SetGoalAsync(IReadOnlyList<Guid> ids, Guid? goalId, string? goalName, string? toast = null)
     {
@@ -532,6 +551,8 @@ public sealed class TaskActionsService
             Announce(TaskToasts.ChangedSince, canUndo: false, explains: true);
             return new TaskUndoOutcome(false, [], skipped);
         }
+
+        Undone?.Invoke(this, popped);
 
         List<Guid> noRoom = [];
         if (sessionIds.Count > 0)

@@ -373,6 +373,50 @@ public static class TaskActions
         return all ? RemoveTags(lists, ids, [tag], now, self, removed) : AddTags(lists, ids, [tag], now, self, removed);
     }
 
+    /// <summary>
+    /// Move and label's Apply (Tasks redesign 8c): the bin, the label and the tags picked, on every task, as one action (one undo step):
+    /// <see cref="Move"/>, <see cref="SetLabel"/>, <see cref="AddTags"/> and <see cref="RemoveTags"/> in turn, each only where it changes
+    /// something. This session is never a pick here (it goes through the session's cap); <paramref name="toast"/> words what changed.
+    /// </summary>
+    public static TaskActionResult EditMany(
+        TaskLists lists, IReadOnlyList<Guid> ids, TaskBatchEdit edit, string toast, DateTimeOffset now, Guid self, IReadOnlyCollection<Guid>? removed)
+    {
+        var steps = new List<Func<TaskLists, TaskActionResult>>();
+        if (edit.Bin is TaskBin bin && bin is not (TaskBin.Session or TaskBin.Done))
+        {
+            steps.Add(current => Move(current, ids, bin, now, self));
+        }
+
+        if (edit.SetsLabel)
+        {
+            steps.Add(current => SetLabel(current, ids, edit.LabelId, now, self, removed));
+        }
+
+        if (edit.AddTags.Count > 0)
+        {
+            steps.Add(current => AddTags(current, ids, edit.AddTags, now, self, removed));
+        }
+
+        if (edit.RemoveTags.Count > 0)
+        {
+            steps.Add(current => RemoveTags(current, ids, edit.RemoveTags, now, self, removed));
+        }
+
+        TaskLists after = lists;
+        var affected = new List<Guid>();
+        foreach (Func<TaskLists, TaskActionResult> step in steps)
+        {
+            TaskActionResult result = step(after);
+            if (result.Changed)
+            {
+                after = result.Lists;
+                affected.AddRange(result.Affected);
+            }
+        }
+
+        return affected.Count == 0 ? TaskActionResult.None(lists) : new TaskActionResult(after, toast, affected.Distinct().ToList());
+    }
+
     /// <summary>Sets the time limit in minutes (null: none). Out of range values are cleaned as the checklist does.</summary>
     public static TaskActionResult SetTimeLimit(TaskLists lists, IReadOnlyList<Guid> ids, int? minutes, DateTimeOffset now, Guid self)
     {

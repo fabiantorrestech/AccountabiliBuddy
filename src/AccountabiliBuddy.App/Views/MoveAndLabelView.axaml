@@ -1,0 +1,768 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.MoveAndLabelView"
+             x:DataType="vm:MoveAndLabelViewModel">
+    <!-- Move and label (Tasks redesign 8c; SPEC "Move and label dialog"; boards 21, 31; checklist 8c.01-8c.69): centred over the Tasks card,
+         min(1000, width − 24) × min(680, height − 24), the page behind dimmed (Ab.PageScrim). Header: "Move and label" (Ab.DisplayFont) ·
+         "5 tasks brought along" · ×. Left (300, never under 250): "Tasks" · Show (All / Not done yet / Done, with counts) · "Editing 2 of 5",
+         then the rows, each scrolling on its own. Right: the change line (opens the table of the tasks that change), then Bin, Label (the
+         shared LabelPicker, never under 240) and Tags, which scroll only when the window is too short. Footer: progress · Keep as is · Apply
+         (N) · Done. -->
+    <UserControl.Styles>
+        <Style Selector="Border.mlFrame">
+            <Setter Property="MaxWidth" Value="1000" />
+            <Setter Property="MaxHeight" Value="680" />
+            <Setter Property="Margin" Value="12" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Dialog}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.DialogShadow}" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.mlFrame.entering">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="RenderTransform" Value="translateY(8px)" />
+        </Style>
+
+        <!-- Plain buttons: the app's focus ring only; the look sits on the presenter. -->
+        <Style Selector="Button.ml">
+            <Setter Property="FocusAdorner" Value="{x:Null}" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.ml:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+
+        <!-- × (8c.04): 32 square, × 18 Muted, radius 8. -->
+        <Style Selector="Button.mlClose">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.mlClose /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.mlClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- Show (8c.09): 28 high, padding 0 8 0 10, radius 8, Surface, 1 px Line2, 12.5 px. -->
+        <Style Selector="Button.mlShow">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0,8,0" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.mlShow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlShow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- The Show list (8c.10, 8c.11): 190 wide, padding 5, Surface2, 1 px Line2, radius 10; options 32 high; the shown one Ab.Line (O8). -->
+        <Style Selector="Border.mlShowMenu">
+            <Setter Property="Width" Value="190" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.Shadow}" />
+        </Style>
+        <Style Selector="Button.mlShowOption">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Button.mlShowOption /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlShowOption:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.mlShowOption.picked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- A task row (8c.12, 8c.22): padding 8, radius 10; being edited = AccentSoft and a 1 px AccentRing ring inside. -->
+        <Style Selector="Border.mlRow">
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.mlRow.editing">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AccentRing}" />
+        </Style>
+        <Style Selector="Button.mlRowButton">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+        </Style>
+        <Style Selector="Button.mlRowButton /template/ ContentPresenter#PART_ContentPresenter, Button.mlRowButton:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.mlRowButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- The round tick (8c.13): 22 × 22, 1.5 px Faint; ticked = Accent fill and border, a tick in OnAccent. -->
+        <Style Selector="Button.mlTick">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.mlTick /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.mlTick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint14}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.mlTick.ticked /template/ ContentPresenter#PART_ContentPresenter, Button.mlTick.ticked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="TextBlock.mlCaption">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted2}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.mlValue">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.struck">
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+        <Style Selector="TextBlock.mlValue.off">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="TextBlock.mlArrow">
+            <Setter Property="Text" Value="→" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- A lit pill (8c.18-8c.20): 20 high, padding 0 8, radius 999, bold Ink; accent border and Accent 18% (a label: its colour). -->
+        <Style Selector="Border.mlPill">
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint18}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.mlPill TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- The change line (8c.31-8c.33): radius 10, at least 34 high; dim = Line border, Muted, Faint arrow; lit = AccentSoft, AccentLine
+             border, bold Ink, Accent arrow and chevron. -->
+        <Style Selector="Border.mlChange">
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.mlChange.lit">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AccentLine}" />
+        </Style>
+        <Style Selector="Button.mlChangeLine">
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="12,0,10,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.mlChangeLine /template/ ContentPresenter#PART_ContentPresenter, Button.mlChangeLine:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.mlChangeLine:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Border.mlChange.lit Button.mlChangeLine /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Border.mlChange.lit Button.mlChangeLine">
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.mlChangeArrow">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Border.mlChange.lit mi|MaterialIcon.mlChangeArrow">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.mlChevron">
+            <Setter Property="RenderTransform" Value="rotate(0deg)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="mi|MaterialIcon.mlChevron.open">
+            <Setter Property="RenderTransform" Value="rotate(180deg)" />
+        </Style>
+        <Style Selector="TextBlock.mlCell">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted2}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.mlCell.changed">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- Section captions (8c.42, 8c.47, 8c.50): 13 px bold, then 12 px Muted. -->
+        <Style Selector="TextBlock.mlSection">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.mlNow">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- A bin button (8c.44-8c.46): 36 high, radius 10, padding 0 8 0 10, Surface2, 1 px Line2; picked = Accent border, a 1 px Accent line
+             inside it and Accent 14%. -->
+        <Style Selector="Button.mlBin">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="10,0,8,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.mlBin /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlBin:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlBin.picked /template/ ContentPresenter#PART_ContentPresenter, Button.mlBin.picked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint14}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="2" />
+        </Style>
+        <!-- The 1 px line inside the border is drawn as a 2 px border, the padding 1 px less, so nothing in it moves. -->
+        <Style Selector="Button.mlBin.picked">
+            <Setter Property="Padding" Value="9,0,7,0" />
+        </Style>
+        <Style Selector="Border.mlTagPill">
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Border.mlTagPill > TextBlock">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink2}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <!-- A tag chip (8c.51-8c.54): 28 high, padding 0 10, radius 999, 12.5 px, 1 px Line2; on = Accent 18%, Accent border, bold; off =
+             Drift 12%, Drift border, bold Drift struck through. -->
+        <Style Selector="Button.mlTag">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.mlTag /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlTag:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlTag.adding /template/ ContentPresenter#PART_ContentPresenter, Button.mlTag.adding:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint18}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlTag.removing /template/ ContentPresenter#PART_ContentPresenter, Button.mlTag.removing:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.DriftTint12}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Drift}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Button.mlTag.adding, Button.mlTag.removing">
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.mlTagIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.mlTagIcon.had">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.mlTagIcon.adding">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.mlTagIcon.removing">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <!-- "+ New tag · Enter" (8c.56): 140 wide, 28 high, the dashed Line3 outline drawn behind a frameless box. -->
+        <Style Selector="TextBox.mlNewTag">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.mlNewTag /template/ Border#PART_BorderElement, TextBox.mlNewTag:pointerover /template/ Border#PART_BorderElement, TextBox.mlNewTag:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+
+        <!-- The footer (8c.57-8c.63). -->
+        <Style Selector="Button.mlKeep">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button.mlKeep /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlKeep:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentTint14}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlKeep:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="Button.mlApply">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="20,0" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.mlApply /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.mlApply:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Opacity" Value="0.92" />
+        </Style>
+        <Style Selector="Button.mlApply:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRingOnAccent}" />
+        </Style>
+        <Style Selector="Button.mlApply:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted2}" />
+        </Style>
+        <Style Selector="Button.mlDone">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.mlDone /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.mlDone:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- The dim over the card (8c.03). A click on it does nothing: Done, × or Esc close the dialog. -->
+        <Border x:Name="Scrim" Background="{DynamicResource Ab.PageScrim}" PointerPressed="OnScrimPressed" />
+
+        <Border x:Name="Frame" Classes="mlFrame" AutomationProperties.Name="Move and label">
+            <DockPanel>
+                <!-- Header (8c.04). -->
+                <Border DockPanel.Dock="Top" Padding="20,16,16,12" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <TextBlock Text="Move and label" FontFamily="{DynamicResource Ab.DisplayFont}" FontWeight="SemiBold" FontSize="24"
+                                   Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding BroughtAlongText}" FontSize="13" Foreground="{DynamicResource Ab.Muted}"
+                                   VerticalAlignment="Center" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="2" Classes="ml mlClose" Command="{Binding DoneCommand}" AutomationProperties.Name="Close" ToolTip.Tip="Close (Esc)">
+                            <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Footer (8c.57-8c.63): progress · Keep as is · 10 px · Apply (N) · Done. -->
+                <Border DockPanel.Dock="Bottom" Padding="20,10,16,12" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,1,0,0">
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                        <TextBlock Text="{Binding ProgressText}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Button x:Name="KeepButton" Grid.Column="1" Classes="ml mlKeep" Margin="0,0,10,0" Command="{Binding KeepAsIsCommand}"
+                                ToolTip.Tip="Clear every pick: bin, label and tags stay as they are" ToolTip.ShowOnDisabled="True">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <mi:MaterialIcon Kind="Restore" Width="13" Height="13" VerticalAlignment="Center" />
+                                <TextBlock Text="Keep as is" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="ApplyButton" Grid.Column="2" Classes="ml mlApply" Command="{Binding ApplyCommand}" Content="{Binding ApplyText}" />
+                        <Button x:Name="DoneButton" Grid.Column="3" Classes="ml mlDone" Command="{Binding DoneCommand}" Content="Done" />
+                    </Grid>
+                </Border>
+
+                <!-- Body (8c.05): the tasks (300, never under 250) and the choices (the rest). -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300*" MinWidth="250" MaxWidth="300" />
+                        <ColumnDefinition Width="440*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- ============ Left: the tasks ============ -->
+                    <Border BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,0,1,0">
+                        <Panel>
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" Margin="14,12,14,8" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+                                    <TextBlock Text="Tasks" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                                    <Button x:Name="ShowButton" Grid.Column="1" Classes="ml mlShow" Command="{Binding ToggleShowMenuCommand}"
+                                            AutomationProperties.Name="Show">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding ShowName}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding ShowCountText}" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                            <mi:MaterialIcon Kind="ChevronDown" Width="12" Height="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <TextBlock Grid.Column="2" Text="{Binding EditingText}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </Grid>
+
+                                <!-- The rows (8c.12): the list scrolls on its own; Ctrl+A here edits every row shown. -->
+                                <Border x:Name="TaskList" Focusable="True" FocusAdorner="{x:Null}" Background="Transparent"
+                                        AutomationProperties.Name="Tasks brought along">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl Margin="8,0,8,10" ItemsSource="{Binding ShownRows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:MoveAndLabelRowViewModel">
+                                                    <Border Classes="mlRow" Classes.editing="{Binding IsEditing}" Opacity="{Binding RowOpacity}">
+                                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                            <Button Classes="ml mlTick" Classes.ticked="{Binding IsTicked}" Command="{Binding TickCommand}"
+                                                                    ToolTip.Tip="{Binding TickTip}" AutomationProperties.Name="{Binding TickTip}">
+                                                                <mi:MaterialIcon Kind="Check" Width="14" Height="14" IsVisible="{Binding IsTicked}" />
+                                                            </Button>
+                                                            <Button Grid.Column="1" Classes="ml mlRowButton" AutomationProperties.Name="{Binding Title}">
+                                                                <StackPanel Spacing="4">
+                                                                    <TextBlock Text="{Binding Title}" FontSize="13.5" Foreground="{DynamicResource Ab.Ink}"
+                                                                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                                                    <Grid ColumnDefinitions="42,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="3">
+                                                                        <!-- Bin -->
+                                                                        <TextBlock Classes="mlCaption" Text="Bin" />
+                                                                        <WrapPanel Grid.Column="1" ItemSpacing="6" LineSpacing="4">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
+                                                                                        Opacity="{Binding HasBinChange, Converter={x:Static views:MoveAndLabelView.StruckOpacity}}">
+                                                                                <mi:MaterialIcon Kind="{Binding BinIcon}" Width="12" Height="12" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                                                                <TextBlock Classes="mlValue" Classes.struck="{Binding HasBinChange}" Text="{Binding BinName}" />
+                                                                            </StackPanel>
+                                                                            <TextBlock Classes="mlArrow" IsVisible="{Binding HasBinChange}" />
+                                                                            <Border Classes="mlPill" IsVisible="{Binding HasBinChange}">
+                                                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                                    <mi:MaterialIcon Kind="{Binding BinToIcon}" Width="12" Height="12" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                                                                    <TextBlock Text="{Binding BinToName}" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                        </WrapPanel>
+                                                                        <!-- Label -->
+                                                                        <TextBlock Grid.Row="1" Classes="mlCaption" Text="Label" />
+                                                                        <WrapPanel Grid.Row="1" Grid.Column="1" ItemSpacing="6" LineSpacing="4">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center"
+                                                                                        Opacity="{Binding HasLabelChange, Converter={x:Static views:MoveAndLabelView.StruckOpacity}}">
+                                                                                <Panel Width="7" Height="7" VerticalAlignment="Center">
+                                                                                    <Ellipse Fill="{Binding LabelDot}" IsVisible="{Binding !IsUnlabelled}" />
+                                                                                    <Ellipse Stroke="{DynamicResource Ab.Muted2}" StrokeThickness="1.5" IsVisible="{Binding IsUnlabelled}" />
+                                                                                </Panel>
+                                                                                <TextBlock Classes="mlValue" Classes.struck="{Binding HasLabelChange}" Text="{Binding LabelName}" />
+                                                                            </StackPanel>
+                                                                            <TextBlock Classes="mlArrow" IsVisible="{Binding HasLabelChange}" />
+                                                                            <Panel IsVisible="{Binding HasLabelChange}" VerticalAlignment="Center">
+                                                                                <Border Classes="mlPill" BorderBrush="{Binding LabelToDot}" Background="{Binding LabelToFill}"
+                                                                                        IsVisible="{Binding !IsLabelToNone}">
+                                                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                                        <Ellipse Width="7" Height="7" Fill="{Binding LabelToDot}" VerticalAlignment="Center" />
+                                                                                        <TextBlock Text="{Binding LabelToName}" />
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                                <Border Classes="mlPill" IsVisible="{Binding IsLabelToNone}">
+                                                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                                        <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Muted2}" StrokeThickness="1.5" VerticalAlignment="Center" />
+                                                                                        <TextBlock Text="No label" />
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                            </Panel>
+                                                                        </WrapPanel>
+                                                                        <!-- Tags -->
+                                                                        <TextBlock Grid.Row="2" Classes="mlCaption" Text="Tags" />
+                                                                        <WrapPanel Grid.Row="2" Grid.Column="1" ItemSpacing="6" LineSpacing="4">
+                                                                            <TextBlock Classes="mlValue" Text="none" Foreground="{DynamicResource Ab.Faint}" IsVisible="{Binding HasNoTags}" />
+                                                                            <ItemsControl ItemsSource="{Binding Tags}">
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <WrapPanel ItemSpacing="6" LineSpacing="4" />
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate x:DataType="vm:MoveAndLabelRowTag">
+                                                                                        <Panel VerticalAlignment="Center">
+                                                                                            <TextBlock Classes="mlValue" Classes.struck="{Binding IsComingOff}" Classes.off="{Binding IsComingOff}"
+                                                                                                       Text="{Binding Text}" IsVisible="{Binding IsPlain}" />
+                                                                                            <Border Classes="mlPill" IsVisible="{Binding IsGoingOn}">
+                                                                                                <TextBlock Text="{Binding Text}" />
+                                                                                            </Border>
+                                                                                        </Panel>
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                        </WrapPanel>
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </DockPanel>
+
+                            <!-- The Show list (8c.10): under the button, over the rows. -->
+                            <Border x:Name="ShowMenu" Classes="mlShowMenu" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="60,42,0,0"
+                                    IsVisible="{Binding IsShowMenuOpen}">
+                                <ItemsControl ItemsSource="{Binding ShowOptions}" AutomationProperties.Name="Show">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:MoveAndLabelShowOptionViewModel">
+                                            <Button Classes="ml mlShowOption" Classes.picked="{Binding IsPicked}" Command="{Binding PickCommand}"
+                                                    AutomationProperties.Name="{Binding Name}">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding CountText}" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </Panel>
+                    </Border>
+
+                    <!-- ============ Right: the choices ============ -->
+                    <Grid Grid.Column="1" RowDefinitions="Auto,*" Opacity="{Binding ChoicesOpacity}">
+                        <Grid.Transitions>
+                            <Transitions>
+                                <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+                            </Transitions>
+                        </Grid.Transitions>
+
+                        <!-- (1) What will change (8c.31-8c.40). -->
+                        <Border Classes="mlChange" Classes.lit="{Binding IsChangeLit}" Margin="16,10,16,0">
+                            <StackPanel>
+                                <Button x:Name="ChangeLine" Classes="ml mlChangeLine" Command="{Binding ToggleChangeTableCommand}"
+                                        IsHitTestVisible="{Binding IsChangeLit}" Focusable="{Binding IsChangeLit}" AutomationProperties.Name="What will change">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                        <mi:MaterialIcon Classes="mlChangeArrow" Kind="ArrowRight" Width="14" Height="14" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1" Text="{Binding ChangeText}" TextTrimming="CharacterEllipsis" MaxLines="1" VerticalAlignment="Center" />
+                                        <mi:MaterialIcon Grid.Column="2" Classes="mlChevron" Classes.open="{Binding IsChangeTableOpen}" Kind="ChevronDown"
+                                                         Width="14" Height="14" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center"
+                                                         IsVisible="{Binding IsChangeLit}" />
+                                    </Grid>
+                                </Button>
+                                <Border Margin="12,0" Padding="0,4,0,8" BorderBrush="{DynamicResource Ab.AccentLine}" BorderThickness="0,1,0,0"
+                                        IsVisible="{Binding ShowsChangeTable}">
+                                    <ScrollViewer MaxHeight="132" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <Grid ColumnDefinitions="1.3*,*,*,*" ColumnSpacing="10" MinHeight="22">
+                                                <TextBlock Classes="mlCaption" Text="Task" />
+                                                <TextBlock Grid.Column="1" Classes="mlCaption" Text="Bin" />
+                                                <TextBlock Grid.Column="2" Classes="mlCaption" Text="Label" />
+                                                <TextBlock Grid.Column="3" Classes="mlCaption" Text="Tags" />
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding ChangeRows}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:MoveAndLabelChangeRow">
+                                                        <Grid ColumnDefinitions="1.3*,*,*,*" ColumnSpacing="10" MinHeight="24">
+                                                            <TextBlock Classes="mlCell" Text="{Binding Title}" Foreground="{DynamicResource Ab.Ink}" />
+                                                            <TextBlock Grid.Column="1" Classes="mlCell" Classes.changed="{Binding BinChanges}" Text="{Binding BinText}" />
+                                                            <TextBlock Grid.Column="2" Classes="mlCell" Classes.changed="{Binding LabelChanges}" Text="{Binding LabelText}" />
+                                                            <TextBlock Grid.Column="3" Classes="mlCell" Classes.changed="{Binding TagsChange}" Text="{Binding TagsText}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- (2-4) Bin, Label, Tags (8c.41): they scroll only when the window is too short; the label picker takes the rest. -->
+                        <ScrollViewer x:Name="ChoicesScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <Grid x:Name="ChoicesBody" Margin="16,10,16,12" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                                <!-- Bin (8c.42-8c.46) -->
+                                <StackPanel Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Classes="mlSection" Text="Bin" />
+                                        <TextBlock Classes="mlNow" Text="{Binding BinNowText}" />
+                                    </StackPanel>
+                                    <ItemsControl ItemsSource="{Binding Bins}" AutomationProperties.Name="Bin">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="4" Rows="1" ColumnSpacing="6" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:MoveAndLabelBinViewModel">
+                                                <Button Classes="ml mlBin" Classes.picked="{Binding IsPicked}" Command="{Binding PickCommand}"
+                                                        AutomationProperties.Name="{Binding Name}">
+                                                    <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="6">
+                                                        <mi:MaterialIcon Kind="{Binding Icon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Border Grid.Column="2" Classes="mlTagPill" IsVisible="{Binding HasTag}">
+                                                            <TextBlock Text="{Binding Tag}" />
+                                                        </Border>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+
+                                <!-- Label (8c.47-8c.49): the shared picker, its header "Label · Now: …" and No label. -->
+                                <controls:LabelPicker x:Name="Picker" Grid.Row="1" DataContext="{Binding Picker}" MinHeight="240">
+                                    <controls:LabelPicker.Header>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Classes="mlSection" Text="Label" />
+                                            <TextBlock Classes="mlNow" Text="{Binding $parent[views:MoveAndLabelView].((vm:MoveAndLabelViewModel)DataContext).LabelNowText}" />
+                                        </StackPanel>
+                                    </controls:LabelPicker.Header>
+                                </controls:LabelPicker>
+
+                                <!-- Tags (8c.50-8c.56) -->
+                                <StackPanel Grid.Row="2" Spacing="6">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Classes="mlSection" Text="Tags" />
+                                        <TextBlock Classes="mlNow" Text="Click a tag: on for all of them, or off if they all have it" />
+                                    </StackPanel>
+                                    <ItemsControl x:Name="TagList" ItemsSource="{Binding TagItems}" AutomationProperties.Name="Tags">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.DataTemplates>
+                                            <DataTemplate DataType="vm:MoveAndLabelTagViewModel">
+                                                <Button Classes="ml mlTag" Classes.adding="{Binding IsAdding}" Classes.removing="{Binding IsRemoving}"
+                                                        Command="{Binding ClickCommand}" AutomationProperties.Name="{Binding Text}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <mi:MaterialIcon Classes="mlTagIcon" Classes.had="{Binding IsHad}" Classes.adding="{Binding IsAdding}"
+                                                                         Classes.removing="{Binding IsRemoving}" Kind="{Binding Icon}" Width="14" Height="14"
+                                                                         VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Text}" Classes.struck="{Binding IsRemoving}" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Note}" FontSize="11" FontWeight="Normal" Foreground="{DynamicResource Ab.Muted}"
+                                                                   VerticalAlignment="Center" IsVisible="{Binding HasNote}" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                            <!-- "+ New tag · Enter" (8c.56): Enter picks the typed tag "on for all" (code-behind). -->
+                                            <DataTemplate DataType="vm:MoveAndLabelNewTagSlot">
+                                                <Panel Width="140" Height="28">
+                                                    <Rectangle Stroke="{DynamicResource Ab.Line3}" StrokeThickness="1" StrokeDashArray="3,2" RadiusX="14" RadiusY="14" />
+                                                    <TextBox Classes="mlNewTag" Text="{Binding Dialog.NewTagText}" PlaceholderText="+ New tag · Enter"
+                                                             AutomationProperties.Name="New tag for all of them" />
+                                                </Panel>
+                                            </DataTemplate>
+                                        </ItemsControl.DataTemplates>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+            </DockPanel>
+        </Border>
+    </Panel>
+</UserControl>
