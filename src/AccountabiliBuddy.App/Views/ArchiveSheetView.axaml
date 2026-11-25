@@ -13,7 +13,7 @@
     <Panel x:Name="Root" IsVisible="False">
         <Border x:Name="Scrim" Background="{DynamicResource Ab.ArchiveScrim}" Opacity="0" PointerPressed="OnScrimPressed" />
         <Border x:Name="Sheet" VerticalAlignment="Bottom" Background="{DynamicResource Ab.Dialog}" BorderBrush="{DynamicResource Ab.Line2}"
-                BorderThickness="0,1,0,0" CornerRadius="18,18,0,0" Padding="22,8,22,16" Focusable="True" KeyDown="OnSheetKeyDown"
+                BorderThickness="0,1,0,0" CornerRadius="18,18,0,0" Padding="22,8,22,16" Focusable="True" FocusAdorner="{x:Null}" KeyDown="OnSheetKeyDown"
                 AutomationProperties.Name="Archive">
             <views:NotebookView x:Name="ArchiveNotebook" DataContext="{Binding Archive}" />
         </Border>

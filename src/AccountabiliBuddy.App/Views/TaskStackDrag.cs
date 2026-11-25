@@ -36,6 +36,7 @@ internal sealed class TaskStackDrag
     private readonly Control _moreChip;
 
     private TaskListRowViewModel? _pressedRow;
+    private TaskListRowViewModel? _sourceRow;
     private Point _pressedAt;
     private bool _dragging;
     private bool _ending;
@@ -187,6 +188,7 @@ internal sealed class TaskStackDrag
 
         _dragging = true;
         _pointer = e.Pointer;
+        _sourceRow = row;
 
         // No tooltips pop up under the stack (a row's "142 · title", a chip's name) while it moves over the page.
         _page.CloseToolTipsUnder();
@@ -251,10 +253,32 @@ internal sealed class TaskStackDrag
             }
 
             _pointer = null;
+            ReleasePressFocus(_sourceRow);
+            _sourceRow = null;
         }
         finally
         {
             _ending = false;
+        }
+    }
+
+    // The press that became this drag gave its row the keyboard (Avalonia focuses on the press, before a drag can be told from a click),
+    // and the +N list, if it opened under the stack, hands it back to that row as it closes. A drag is not a click, so at its end the row
+    // lets the keyboard go, as it is lost after a drop when the rows are rebuilt. Kept, the row would show its hover tools
+    // (Panel.listItem:focus-within) after a Cancel, Esc or a let-go over nothing, wherever the pointer went, until the window lost focus.
+    // Esc, Del, F2 and H still reach the selection through the window (TaskShortcuts).
+    private void ReleasePressFocus(TaskListRowViewModel? row)
+    {
+        if (row is null || TopLevel.GetTopLevel(_page)?.FocusManager is not { } focus || focus.GetFocusedElement() is not Visual focused)
+        {
+            return;
+        }
+
+        bool onRow = focused.GetSelfAndVisualAncestors()
+            .Any(visual => visual is Panel { DataContext: TaskListRowViewModel item } panel && ReferenceEquals(item, row) && panel.Classes.Contains("listItem"));
+        if (onRow)
+        {
+            focus.Focus(null);
         }
     }
 

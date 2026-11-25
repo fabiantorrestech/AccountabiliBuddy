@@ -170,9 +170,26 @@ public partial class LabelsView : UserControl
 
     private void EndDrag()
     {
-        _drag?.Source.Classes.Set("dragging", false);
+        if (_drag is { } drag)
+        {
+            drag.Source.Classes.Set("dragging", false);
+            ReleaseGripFocus(drag.Source);
+        }
+
         _drag = null;
         DropLine.IsVisible = false;
+    }
+
+    // The press that became the drag gave its grip the keyboard (Avalonia focuses on the press, before a drag can be told from a click).
+    // A drag is not a click, so the grip lets the keyboard go at the end; kept, the grip stayed shown on that row (Button.dragGrip:focus-within)
+    // wherever the pointer went, until the window lost focus. A click on the grip, or Tab, still gives it the keyboard for Alt+Up/Down.
+    private void ReleaseGripFocus(Visual source)
+    {
+        if (TopLevel.GetTopLevel(this)?.FocusManager is { } focus && focus.GetFocusedElement() is Visual focused
+            && (ReferenceEquals(focused, source) || source.IsVisualAncestorOf(focused)))
+        {
+            focus.Focus(null);
+        }
     }
 
     // Near the list's top or bottom edge the list scrolls, so a label can travel to a category off screen.

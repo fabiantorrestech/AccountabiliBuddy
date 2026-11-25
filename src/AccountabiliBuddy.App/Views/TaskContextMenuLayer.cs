@@ -198,6 +198,9 @@ public sealed class TaskContextMenuLayer : Canvas
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Child = child,
+            // The frame takes the keyboard when the menu opens with the mouse (so its letter keys work); it is not an item,
+            // so it never shows the system focus outline (a white rim around the whole menu). Items show their own highlight.
+            FocusAdorner = null,
         };
         frame.Classes.Add("ctxMenuFrame");
         frame.Bind(Border.BackgroundProperty, frame.GetResourceObservable("Ab.Surface2"));
