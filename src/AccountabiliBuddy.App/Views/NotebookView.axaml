@@ -55,6 +55,10 @@
         <Style Selector="Button.archiveFilters:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <Style Selector="Button.archiveFilters.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
         <!-- The fold button (6.08): 34 square, radius 10, chevron-down 18 in Muted. -->
         <Style Selector="Button.archiveFold">
             <Setter Property="Width" Value="34" />
@@ -111,6 +115,7 @@
         </Style>
     </UserControl.Styles>
 
+    <Panel>
     <DockPanel>
         <!-- The grab bar (6.05). -->
         <Border DockPanel.Dock="Top" Width="44" Height="4" CornerRadius="2" Background="{DynamicResource Ab.Line3}" HorizontalAlignment="Center" />
@@ -125,15 +130,16 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="Archive" FontFamily="{DynamicResource Ab.DisplayFont}" FontWeight="SemiBold" FontSize="24" VerticalAlignment="Center" />
-            <Border Grid.Column="2" Classes="archiveSearch">
+            <Border x:Name="SearchPill" Grid.Column="2" Classes="archiveSearch">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                     <mi:MaterialIcon Kind="Magnify" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
                     <TextBox x:Name="SearchBox" Grid.Column="1" Classes="archiveSearchEntry" Text="{Binding Search}" PlaceholderText="Search the Archive"
                              AutomationProperties.Name="Search the Archive">
                         <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
                     </TextBox>
-                    <!-- Opens the Archive's Search filters (item 7); until then it does nothing. -->
-                    <Button Grid.Column="2" Classes="archiveFilters idleFade" ToolTip.Tip="Search filters" AutomationProperties.Name="Search filters">
+                    <!-- Opens the Archive's Search filters (item 7); "on" (accent) while a filter narrows the Archive. -->
+                    <Button Grid.Column="2" Classes="archiveFilters idleFade" Classes.on="{Binding HasSearchFilters}" Command="{Binding ToggleSearchFiltersCommand}"
+                            ToolTip.Tip="Search filters" AutomationProperties.Name="Search filters">
                         <mi:MaterialIcon Kind="Tune" Width="15" Height="15" />
                     </Button>
                 </Grid>
@@ -187,4 +193,12 @@
             <views:ArchiveColumnView x:Name="DeletedView" DataContext="{Binding DeletedColumn}" />
         </Grid>
     </DockPanel>
+
+    <!-- Search filters (item 7, 7.11): under the Archive's search box, over the sheet, inside its height (at most 66% of the card − 76); no
+         Bins (the pills do that job). A click elsewhere on the sheet closes it. -->
+    <Panel x:Name="FiltersLayer" IsVisible="{Binding IsSearchFiltersOpen}">
+        <Border Background="Transparent" PointerPressed="OnFiltersOutsidePressed" />
+        <views:SearchFiltersPanel x:Name="Filters" DataContext="{Binding FiltersPanel}" HorizontalAlignment="Right" VerticalAlignment="Top" />
+    </Panel>
+    </Panel>
 </UserControl>

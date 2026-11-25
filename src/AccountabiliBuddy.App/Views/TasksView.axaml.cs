@@ -35,6 +35,42 @@ public partial class TasksView : UserControl
         LabelsMenu.Dismissed += (_, _) => MoreLabelsButton.Focus(NavigationMethod.Directional);
         // The Archive sheet went down with the keyboard in it: back to the Archive row.
         ArchiveSheet.Closed += (_, _) => ArchiveRowButton.Focus(NavigationMethod.Directional);
+        // Item 7: the Search filters panel takes its place each time it opens and whenever the card changes size.
+        ShelfFiltersLayer.PropertyChanged += (_, change) =>
+        {
+            if (change.Property == IsVisibleProperty && ShelfFiltersLayer.IsVisible)
+            {
+                PlaceShelfFilters();
+                Dispatcher.UIThread.Post(PlaceShelfFilters, DispatcherPriority.Loaded);
+            }
+        };
+        ShelfFiltersLayer.SizeChanged += (_, _) => PlaceShelfFilters();
+    }
+
+    /// <summary>Ctrl+F on the Tasks page (7.06): the caret goes into the page's search box, its text selected.</summary>
+    public void FocusSearch()
+    {
+        SearchEntry.Focus(NavigationMethod.Pointer);
+        SearchEntry.SelectAll();
+    }
+
+    // 7.10: 60 from the card's top, the right edge under the search box's right edge, at most the card's height − 72.
+    private void PlaceShelfFilters()
+    {
+        if (ShelfFiltersLayer.IsVisible && ShelfFiltersLayer.Bounds.Height > 0)
+        {
+            ShelfFilters.PlaceIn(ShelfFiltersLayer, SearchPill, 60, ShelfFiltersLayer.Bounds.Height - 72);
+        }
+    }
+
+    // A click outside the panel closes it (the page is not dimmed; the click does nothing else).
+    private void OnShelfFiltersOutsidePressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is TasksViewModel page)
+        {
+            page.Shelf.IsSearchFiltersOpen = false;
+            e.Handled = true;
+        }
     }
 
     // The page stays alive while another tab shows: leaving it clears the selection, so it is not found half-done on return.
@@ -44,6 +80,7 @@ public partial class TasksView : UserControl
         if (change.Property == IsVisibleProperty && !IsVisible && DataContext is TasksViewModel page)
         {
             page.ClearSelection();
+            page.Shelf.IsSearchFiltersOpen = false;
         }
 
         if (change.Property == IsVisibleProperty && DataContext is TasksViewModel shown)
@@ -324,6 +361,14 @@ public partial class TasksView : UserControl
 
         if (e.Key != Key.Escape || DataContext is not TasksViewModel page)
         {
+            return;
+        }
+
+        // Item 7: the Search filters panel closes first.
+        if (page.Shelf.IsSearchFiltersOpen)
+        {
+            page.Shelf.IsSearchFiltersOpen = false;
+            e.Handled = true;
             return;
         }
 

@@ -212,7 +212,11 @@ public sealed partial class NotebookViewModel : ObservableObject
     /// <summary>6.12: "Results for “gopro”" at the right end of the pill row while the search has text.</summary>
     public string ResultsText => $"Results for “{Search.Trim()}”";
 
-    partial void OnSearchChanged(string value) => Refresh();
+    partial void OnSearchChanged(string value)
+    {
+        Refresh();
+        ShowFiltersState();
+    }
 
     /// <summary>The Unfinished pill: "Unfinished (8)" (the counts rule: counts in parentheses).</summary>
     [ObservableProperty]
@@ -235,24 +239,26 @@ public sealed partial class NotebookViewModel : ObservableObject
         List<TaskHistoryEntry> archived = Archived(archive, now);
         SetCounts(archive, archived);
 
-        string search = Search.Trim();
+        // Item 7: the words and Search filters (When = the finished or deleted time); null when nothing narrows.
+        Func<TaskSearchItem, bool>? matches = SearchMatcher(now);
+        Dictionary<Guid, TaskItem> known = KnownTasks();
         bool dotLeft = DotByCheckBox();
-        var unfinished = new List<(DateTimeOffset Sort, List<NotebookItemViewModel> Lines)>();
-        var done = new List<(DateTimeOffset Sort, List<NotebookItemViewModel> Lines)>();
+        var unfinished = new List<(DateTimeOffset Sort, List<NotebookItemViewModel> Lines, TaskSearchItem Item)>();
+        var done = new List<(DateTimeOffset Sort, List<NotebookItemViewModel> Lines, TaskSearchItem Item)>();
         foreach (ArchiveTaskRow row in archive.Tasks)
         {
             List<NotebookItemViewModel> lines = TaskLines(row, now, dotLeft);
-            (row.IsDone ? done : unfinished).Add((row.Sort, lines));
+            (row.IsDone ? done : unfinished).Add((row.Sort, lines, SearchItemOf(row, known)));
         }
 
         foreach (TaskHistoryEntry entry in archived)
         {
-            unfinished.Add((entry.When, [ArchivedLine(entry, now, dotLeft)]));
+            unfinished.Add((entry.When, [ArchivedLine(entry, now, dotLeft)], TaskSearchItem.Of(entry.Task) with { Bin = null, When = entry.When }));
         }
 
-        FillColumn(UnfinishedColumn, unfinished, search);
-        FillColumn(DoneColumn, done, search);
-        RefreshRecentlyDeleted(search, archive, now);
+        FillColumn(UnfinishedColumn, unfinished, matches);
+        FillColumn(DoneColumn, done, matches);
+        RefreshRecentlyDeleted(matches, archive, now, known);
     }
 
     // The bottom row's counts only (the sheet is closed).
@@ -272,15 +278,16 @@ public sealed partial class NotebookViewModel : ObservableObject
         TaskCountsText = $"{unfinished.ToString(CultureInfo.CurrentCulture)} unfinished · {done.ToString(CultureInfo.CurrentCulture)} done";
     }
 
-    // A task shows with all its steps when its title or one of its steps matches; newest first.
-    private static void FillColumn(ArchiveColumnViewModel column, List<(DateTimeOffset Sort, List<NotebookItemViewModel> Lines)> groups, string search)
+    // A task shows with all its steps when it matches the search (its title, steps, note and tags, as Look in says); newest first.
+    private static void FillColumn(
+        ArchiveColumnViewModel column, List<(DateTimeOffset Sort, List<NotebookItemViewModel> Lines, TaskSearchItem Item)> groups, Func<TaskSearchItem, bool>? matches)
     {
         List<List<NotebookItemViewModel>> shown = groups
-            .Where(group => search.Length == 0 || group.Lines.Any(line => line.Text.Contains(search, StringComparison.OrdinalIgnoreCase)))
+            .Where(group => matches is null || matches(group.Item))
             .OrderByDescending(group => group.Sort)
             .Select(group => group.Lines)
             .ToList();
-        column.SetRows(shown.SelectMany(lines => lines), shown.Count, search.Length > 0);
+        column.SetRows(shown.SelectMany(lines => lines), shown.Count, matches is not null);
     }
 
     // What the builder reads: this PC's history, the other PCs' histories, the tasks kept here, every device's settle records and the one task list.
@@ -322,15 +329,16 @@ public sealed partial class NotebookViewModel : ObservableObject
 
     // The device's own Recently deleted (Undo: steps, Later items, come-backs, tasks) plus what every device can see: tasks deleted from
     // the one task list and past tasks deleted anywhere. A task the device's own list already holds shows once, as its own line.
-    private void RefreshRecentlyDeleted(string search, ArchiveRows archive, DateTimeOffset now)
+    private void RefreshRecentlyDeleted(Func<TaskSearchItem, bool>? matches, ArchiveRows archive, DateTimeOffset now, Dictionary<Guid, TaskItem> known)
     {
         IReadOnlyList<DeletedItem> stored = _tasks.Deleted?.Items ?? [];
         var lines = new List<(DateTimeOffset At, RecentlyDeletedRowViewModel Row)>();
-        bool Matches(string title) => search.Length == 0 || title.Contains(search, StringComparison.OrdinalIgnoreCase);
+        // Item 7: a line matches by what is known of its task (the task list's copy, else its title), When = the time it was deleted.
+        bool Matches(Guid id, string title, DateTimeOffset deletedAt) => matches is null || matches(DeletedSearchItem(id, title, deletedAt, known));
 
         // The lines every device builds from synced data (AR1b): the same list on each PC. Restore brings a task back through its History
         // entry (as History's Bring back did), or (a past task) through a settle record stamped over the delete; never a raw restore.
-        foreach (ArchiveDeletedRow row in archive.Deleted.Where(row => Matches(row.Title)))
+        foreach (ArchiveDeletedRow row in archive.Deleted.Where(row => Matches(row.Id, row.Title, row.DeletedAt)))
         {
             string on = row.DeviceName is null ? string.Empty : $" · on {row.DeviceName}";
             lines.Add((row.DeletedAt, new RecentlyDeletedRowViewModel(row, $"Deleted {Day(row.DeletedAt, now)}{on}", RestoreOf(row, stored))));
@@ -338,13 +346,13 @@ public sealed partial class NotebookViewModel : ObservableObject
 
         // What only this PC knows (steps, Later items, auto-saved items, a task deleted outside a session) stays listed here, marked as this PC's.
         HashSet<Guid> synced = archive.Deleted.Select(row => row.Id).ToHashSet();
-        foreach (DeletedItem item in stored.Where(item => !synced.Contains(item.ItemId) && !RestoredElsewhere(item) && !_tasks.ExistsAgain(item) && Matches(item.Title)))
+        foreach (DeletedItem item in stored.Where(item => !synced.Contains(item.ItemId) && !RestoredElsewhere(item) && !_tasks.ExistsAgain(item) && Matches(item.ItemId, item.Title, item.DeletedAt)))
         {
             lines.Add((item.DeletedAt, new RecentlyDeletedRowViewModel(item, $"{KindPrefix(item.Kind)}Deleted {Day(item.DeletedAt, now)} · this PC only", _tasks)));
         }
 
         List<RecentlyDeletedRowViewModel> rows = lines.OrderByDescending(line => line.At).Select(line => line.Row).ToList();
-        DeletedColumn.SetRows(rows, rows.Count, search.Length > 0);
+        DeletedColumn.SetRows(rows, rows.Count, matches is not null);
     }
 
     // "Step · " before a deleted step's line; nothing before a task's.

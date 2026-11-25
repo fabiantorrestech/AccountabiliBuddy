@@ -88,6 +88,18 @@ public sealed class TaskViewService
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Tasks redesign item 7: this PC's Search filters (Look in, Bins, the ✓ / ✕ label and tag picks, When on the created date). Held in
+    /// memory only: never stored in a view, never synced (7.35); a view's Save or Reset leaves them as they are.
+    /// </summary>
+    public TaskSearchFilters SearchFilters { get; private set; } = TaskSearchFilters.Default;
+
+    public void SetSearchFilters(TaskSearchFilters filters)
+    {
+        SearchFilters = filters;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Back to everything, grouped by bins, manual order, pinning as the Tasks setting says (the red "reset" of the View menu).</summary>
     public void Reset()
     {
@@ -243,7 +255,7 @@ public sealed class TaskViewService
 
         var context = new TaskViewContext(
             _time.GetUtcNow(), TimeZoneInfo.Local, labels, Search, scope, showEmptyBins, _store.LabelShown, _store.TagShown,
-            TaskLabelGroupBook.Live(lists.LabelGroups));
+            TaskLabelGroupBook.Live(lists.LabelGroups), SearchFilters, System.Globalization.CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek);
         return TaskViewRules.Apply(lists.Tasks.Select(item => item.Task), config, context);
     }
 

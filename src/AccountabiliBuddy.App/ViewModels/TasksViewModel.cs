@@ -291,6 +291,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(ShowsArchive));
         Archive.ShowIfStale();
+
+        // Item 7: one Search filters panel at a time; the Archive's goes down with the sheet.
+        Shelf.IsSearchFiltersOpen = false;
+        if (!value)
+        {
+            Archive.IsSearchFiltersOpen = false;
+        }
     }
 
     public void Dispose()
@@ -1470,6 +1477,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         Shelf.Panel.Show(sections);
+        OfferArchiveSearch(sections);
         Shelf.Pager.Use(grouping ?? "none", sections.Select(section => section.Key).ToList());
         Shelf.UseLabelBands(labelColumns);
         Shelf.CountText = rows.Count == 1 ? "1 task" : $"{rows.Count} tasks";

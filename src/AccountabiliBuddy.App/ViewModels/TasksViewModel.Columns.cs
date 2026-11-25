@@ -1,6 +1,7 @@
 using AccountabiliBuddy.App.Services.Tasks;
 using AccountabiliBuddy.Core.Domain;
 using AccountabiliBuddy.Core.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using Material.Icons;
 
 namespace AccountabiliBuddy.App.ViewModels;
@@ -102,6 +103,31 @@ public sealed partial class TasksViewModel
     {
         Shelf.IsLabelsMenuOpen = false;
         Shelf.SearchText = "#" + tag;
+    }
+
+    // Tasks redesign 7.37: when the search has words and nothing on the Shelf matches, the first column (not a rail) shows the dashed
+    // "Search the Archive for “…”" box; the others keep "No matches here.".
+    private void OfferArchiveSearch(IReadOnlyList<TaskSectionViewModel> sections)
+    {
+        bool noneMatch = Shelf.HasViews && Shelf.IsSearching && sections.All(section => section.Rows.Count == 0);
+        TaskSectionViewModel? first = noneMatch ? sections.FirstOrDefault(section => !section.IsRail) ?? sections.FirstOrDefault() : null;
+        foreach (TaskSectionViewModel section in sections)
+        {
+            section.HandOffCommand = SearchArchiveCommand;
+            section.HandOffWords = ReferenceEquals(section, first) ? Shelf.Search : string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// "Search the Archive for “…”" (7.40): the Archive sheet opens with the same words and filters (Bins dropped; When now reads the
+    /// finished or deleted time) and shows "Results for “…”".
+    /// </summary>
+    [RelayCommand]
+    private void SearchArchive()
+    {
+        Shelf.IsSearchFiltersOpen = false;
+        Archive.SearchFor(Shelf.Search, Shelf.SearchFilters);
+        IsArchiveOpen = true;
     }
 
     // Group by Labels: one column per label in the +N menu's order (an empty label too), then No label, each with the rows the view found.

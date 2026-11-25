@@ -120,6 +120,29 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     [ObservableProperty]
     public partial string EmptyText { get; set; } = DefaultEmptyText;
 
+    /// <summary>
+    /// Tasks redesign 7.37-7.40: the search words when nothing on the Shelf matches them and this is the first column (it then shows the
+    /// dashed "Search the Archive for “…”" box instead of its empty line); empty otherwise.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsHandOff), nameof(ShowsEmptyLine), nameof(HandOffTitle), nameof(HandOffButtonText))]
+    public partial string HandOffWords { get; set; } = string.Empty;
+
+    /// <summary>The hand-off box's button: opens the Archive with the same words and filters (set by the page).</summary>
+    public System.Windows.Input.ICommand? HandOffCommand { get; set; }
+
+    /// <summary>The dashed hand-off box shows.</summary>
+    public bool ShowsHandOff => ShowsEmpty && HandOffWords.Length > 0;
+
+    /// <summary>The plain empty line shows (not while the hand-off box does).</summary>
+    public bool ShowsEmptyLine => ShowsEmpty && HandOffWords.Length == 0;
+
+    /// <summary>"Nothing on the Shelf matches “gopro”."</summary>
+    public string HandOffTitle => $"Nothing on the Shelf matches “{HandOffWords}”.";
+
+    /// <summary>"Search the Archive for “gopro”".</summary>
+    public string HandOffButtonText => $"Search the Archive for “{HandOffWords}”";
+
     /// <summary>The bin its tasks are in (This session, Queued, Finished today, a Shelf bin); null for a label or tag group and Reminders due today.</summary>
     public AccountabiliBuddy.Core.Domain.TaskBin? Bin { get; set; }
 
@@ -339,6 +362,8 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ShowsRows));
         OnPropertyChanged(nameof(ShowsEmpty));
+        OnPropertyChanged(nameof(ShowsHandOff));
+        OnPropertyChanged(nameof(ShowsEmptyLine));
         OnPropertyChanged(nameof(ShowsFolded));
         OnRailChanged();
     }
@@ -376,6 +401,8 @@ public sealed partial class TaskSectionViewModel : ObservableObject
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(ShowsRows));
         OnPropertyChanged(nameof(ShowsEmpty));
+        OnPropertyChanged(nameof(ShowsHandOff));
+        OnPropertyChanged(nameof(ShowsEmptyLine));
         OnPropertyChanged(nameof(FoldedText));
         OnPropertyChanged(nameof(ColumnName));
         OnPropertyChanged(nameof(CountText));

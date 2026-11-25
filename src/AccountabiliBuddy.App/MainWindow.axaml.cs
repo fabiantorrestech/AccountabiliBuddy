@@ -570,8 +570,17 @@ public partial class MainWindow : Window
 
         if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            viewModel.IsSearchOpen = true;
-            Search.FocusBox();
+            // Tasks redesign 7.06: on the Tasks page Ctrl+F puts the caret in the page's own search; elsewhere the title bar's search opens.
+            if (viewModel.IsTasksSelected && this.GetVisualDescendants().OfType<TasksView>().FirstOrDefault(view => view.IsEffectivelyVisible) is { } tasksView)
+            {
+                tasksView.FocusSearch();
+            }
+            else
+            {
+                viewModel.IsSearchOpen = true;
+                Search.FocusBox();
+            }
+
             e.Handled = true;
         }
         else if (e.Key == Key.S && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))

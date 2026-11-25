@@ -1,0 +1,302 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.SearchFiltersPanel"
+             x:DataType="vm:SearchFiltersViewModel">
+    <!-- Search filters (Tasks redesign 7.09-7.34; boards 11, 12): 340 wide, padding 14, 14 between sections, Surface2, 1 px Line2, radius 14,
+         shadow 0 18 50 Ab.Shadow (Ab.DialogShadow). The header and the footer stay put; the sections scroll inside when the panel is too tall
+         (7.41). Every chip applies at once; Done only closes. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.sfCaption">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+
+        <!-- On/off chips (Look in, Bins; 7.15) and When choices (7.29): 30 high, padding 0 12, radius 999, 12.5 px; on = Line fill, 1 px Muted,
+             Ink; off = transparent, 1 px Line2, Muted (a When choice not picked keeps Ink). -->
+        <Style Selector="Button.sfToggle">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sfToggle /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.sfToggle.when /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.sfToggle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.sfToggle.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- Label chips (7.20, 7.22): 28 high, padding 0 10, radius 999, 12 px; a dot 7. Tag chips (7.24, 7.25): 30 high, padding 0 12, 12.5 px.
+             any = transparent, 1 px Line2, Ink; ✓ include = AccentSoft fill, 1 px AccentRing; ✕ leave out = 1 px DriftLine, Drift text,
+             struck through (a tag also gets the Drift 8% fill). -->
+        <Style Selector="Button.sfPick">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sfPick.tag">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+        </Style>
+        <Style Selector="Button.sfPick /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.sfPick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.sfPick.included /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.AccentRing}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.sfPick.leftOut /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.DriftLine}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Button.sfPick.tag.leftOut /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.DriftTint8}" />
+        </Style>
+        <Style Selector="Button.sfPick.leftOut TextBlock.sfName">
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+        <Style Selector=":is(Window).motionOn Button.sfToggle /template/ ContentPresenter#PART_ContentPresenter, :is(Window).motionOn Button.sfPick /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <!-- The From / To fields (7.30): 34 high, radius 10, 1 px Line2, Surface, 13 px. -->
+        <Style Selector="CalendarDatePicker.sfDate">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+
+        <!-- Footer (7.32): Reset 32 high, no border, Muted; Done 32 high, padding 0 16, radius 999, Accent / OnAccent, 13 px semibold. -->
+        <Style Selector="Button.sfReset">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sfReset /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.sfReset:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.sfDone">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.sfDone /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.sfDone:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="Opacity" Value="0.9" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="PanelBorder" Width="340" Padding="14" Background="{DynamicResource Ab.Surface2}" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="1"
+            CornerRadius="14" BoxShadow="{DynamicResource Ab.DialogShadow}" AutomationProperties.Name="Search filters">
+        <DockPanel>
+            <!-- Header (7.12): "Search filters" bold · "Shelf" / "Archive" 12 px Muted. -->
+            <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+                <TextBlock Text="Search filters" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Place}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- Footer (7.32): over a 1 px Line2 top border. -->
+            <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,14,0,0">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                    <TextBlock Text="✓ include · ✕ leave out" FontSize="11.5" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                    <Button Grid.Column="1" Classes="sfReset" Content="Reset" Command="{Binding ResetCommand}" AutomationProperties.Name="Reset the search filters" />
+                    <Button Grid.Column="2" Classes="sfDone" Content="Done" Command="{Binding DoneCommand}" AutomationProperties.Name="Done" />
+                </Grid>
+            </Border>
+
+            <ScrollViewer x:Name="Sections" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="14">
+                    <!-- Look in (7.14). -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="sfCaption" Text="Look in" />
+                        <ItemsControl ItemsSource="{Binding LookIn}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SearchFilterToggleViewModel">
+                                    <Button Classes="sfToggle" Classes.on="{Binding IsOn}" Content="{Binding Text}" Command="{Binding ClickCommand}"
+                                            AutomationProperties.Name="{Binding AccessibleName}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Bins (7.16; the Shelf only). -->
+                    <StackPanel Spacing="8" IsVisible="{Binding ShowsBins}">
+                        <TextBlock Classes="sfCaption" Text="Bins" />
+                        <ItemsControl ItemsSource="{Binding Bins}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SearchFilterToggleViewModel">
+                                    <Button Classes="sfToggle" Classes.on="{Binding IsOn}" Content="{Binding Text}" Command="{Binding ClickCommand}"
+                                            AutomationProperties.Name="{Binding AccessibleName}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Labels by category (7.18-7.23): heading (icon 13 Accent + name 12 bold Ink2), chips on a guide line. -->
+                    <StackPanel Spacing="8" IsVisible="{Binding HasLabels}">
+                        <TextBlock Classes="sfCaption">
+                            <Run Text="Labels" />
+                            <Run Text=" · click: ✓ include → ✕ leave out → any" FontWeight="Normal" />
+                        </TextBlock>
+                        <ItemsControl ItemsSource="{Binding LabelGroups}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SearchFilterLabelGroupViewModel">
+                                    <StackPanel Spacing="6">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <mi:MaterialIcon Kind="{Binding Icon}" Width="13" Height="13" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink2}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <Border Margin="6,0,0,0" Padding="10,2,0,2" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="1,0,0,0">
+                                            <ItemsControl ItemsSource="{Binding Chips}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:SearchFilterPickChipViewModel">
+                                                        <Button Classes="sfPick" Classes.included="{Binding IsIncluded}" Classes.leftOut="{Binding IsLeftOut}"
+                                                                Command="{Binding CycleCommand}" AutomationProperties.Name="{Binding AccessibleName}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                                <TextBlock Text="{Binding Mark}" IsVisible="{Binding HasMark}" VerticalAlignment="Center" />
+                                                                <Ellipse Width="7" Height="7" Fill="{Binding Dot}" IsVisible="{Binding HasDot}" VerticalAlignment="Center" />
+                                                                <TextBlock Classes="sfName" Text="{Binding Name}" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Tags (7.24-7.27): one chip per tag in use, A–Z. -->
+                    <StackPanel Spacing="8" IsVisible="{Binding HasTags}">
+                        <TextBlock Classes="sfCaption" Text="Tags" />
+                        <ItemsControl ItemsSource="{Binding Tags}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SearchFilterPickChipViewModel">
+                                    <Button Classes="sfPick tag" Classes.included="{Binding IsIncluded}" Classes.leftOut="{Binding IsLeftOut}"
+                                            Command="{Binding CycleCommand}" AutomationProperties.Name="{Binding AccessibleName}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding Mark}" IsVisible="{Binding HasMark}" VerticalAlignment="Center" />
+                                            <TextBlock Classes="sfName" Text="{Binding Name}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- When (7.28-7.31): one choice at a time; Custom adds From and To. -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="sfCaption" Text="When" />
+                        <ItemsControl ItemsSource="{Binding WhenChoices}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SearchFilterToggleViewModel">
+                                    <Button Classes="sfToggle when" Classes.on="{Binding IsOn}" Content="{Binding Text}" Command="{Binding ClickCommand}"
+                                            AutomationProperties.Name="{Binding AccessibleName}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel Spacing="6" IsVisible="{Binding IsCustom}">
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="From" FontSize="11.5" Foreground="{DynamicResource Ab.Muted}" />
+                                    <CalendarDatePicker Classes="sfDate" SelectedDate="{Binding FromDate, Mode=TwoWay}" SelectedDateFormat="Custom"
+                                                        CustomDateFormatString="ddd M/d/yyyy" AutomationProperties.Name="From date" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Text="To" FontSize="11.5" Foreground="{DynamicResource Ab.Muted}" />
+                                    <CalendarDatePicker Classes="sfDate" SelectedDate="{Binding ToDate, Mode=TwoWay}" SelectedDateFormat="Custom"
+                                                        CustomDateFormatString="ddd M/d/yyyy" AutomationProperties.Name="To date" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="Same date in both = one day." FontSize="11.5" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</UserControl>

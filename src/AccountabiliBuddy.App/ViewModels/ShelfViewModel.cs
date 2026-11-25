@@ -134,6 +134,8 @@ public sealed partial class ShelfViewModel : ObservableObject
         {
             _views.SetSearch(value);
         }
+
+        ShowFiltersState();
     }
 
     /// <summary>What the active view shows of the Shelf's bins, grouped; null before the task list exists.</summary>
@@ -270,6 +272,8 @@ public sealed partial class ShelfViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGroupedByLabels));
         OnPropertyChanged(nameof(IsGroupedByNone));
         SyncLabelRow();
+        ShowFiltersState();
+        OnPropertyChanged(nameof(HasSearchFilters));
         TidyUpCard? card = _tidyUp?.Card();
         HasTidyCard = card is not null;
         TidyTitle = card?.Title ?? string.Empty;

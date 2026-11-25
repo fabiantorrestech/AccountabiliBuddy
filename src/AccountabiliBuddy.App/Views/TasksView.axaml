@@ -198,6 +198,11 @@
         <Style Selector="Button.searchFilters:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
         </Style>
+        <!-- Item 7: a filter narrows the Shelf: the button stays lit, Accent on AccentSoft. -->
+        <Style Selector="Button.searchFilters.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AccentSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
         <!-- Group by: a 32 high pill track with a 1 px Line border, padding 2; each choice 26 high, icon 14 + 12.5 px text; the one in
              force on a Line fill in Ink, semibold; the others Muted; fill and colour change over 0.2 s. -->
         <Style Selector="Border.groupToggle">
@@ -451,16 +456,16 @@
                                      FadesOptions="True" OptionsRequested="OnTasksOptionsRequested">
                     <controls:PageHeader.Search>
                         <!-- Search (titles, steps, notes, tags, or a number like 142b; Esc clears) and, at its right edge, Search filters. -->
-                        <Border Classes="searchPill" Height="36" Padding="12,0,3,0">
+                        <Border x:Name="SearchPill" Classes="searchPill" Height="36" Padding="12,0,3,0">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
                                 <mi:MaterialIcon Kind="Magnify" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                <TextBox Grid.Column="1" Classes="searchEntry" Text="{Binding Shelf.SearchText}" PlaceholderText="Search · @label #tag" KeyDown="OnSearchKeyDown"
+                                <TextBox x:Name="SearchEntry" Grid.Column="1" Classes="searchEntry" Text="{Binding Shelf.SearchText}" PlaceholderText="Search · @label #tag" KeyDown="OnSearchKeyDown"
                                          AutomationProperties.Name="Search tasks">
                                     <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
                                 </TextBox>
-                                <!-- Opens the Search filters panel (item 7); until then it does nothing. -->
-                                <Button x:Name="SearchFiltersButton" Grid.Column="2" Classes="searchFilters idleFade" ToolTip.Tip="Search filters"
-                                        AutomationProperties.Name="Search filters">
+                                <!-- Opens the Search filters panel (item 7); "on" (accent) while a filter narrows the Shelf. -->
+                                <Button x:Name="SearchFiltersButton" Grid.Column="2" Classes="searchFilters idleFade" Classes.on="{Binding Shelf.HasSearchFilters}"
+                                        Command="{Binding Shelf.ToggleSearchFiltersCommand}" ToolTip.Tip="Search filters" AutomationProperties.Name="Search filters">
                                     <mi:MaterialIcon Kind="Tune" Width="15" Height="15" />
                                 </Button>
                             </Grid>
@@ -772,6 +777,13 @@
                     </Panel>
                 </Panel>
             </DockPanel>
+
+            <!-- Search filters (item 7, 7.10): under the search box (60 from the card's top, its right edge under the box's), at most the card's
+                 height − 72; the page is not dimmed; a click outside closes it (the transparent layer takes that click). -->
+            <Panel x:Name="ShelfFiltersLayer" ZIndex="12" IsVisible="{Binding Shelf.IsSearchFiltersOpen}">
+                <Border Background="Transparent" PointerPressed="OnShelfFiltersOutsidePressed" />
+                <views:SearchFiltersPanel x:Name="ShelfFilters" DataContext="{Binding Shelf.FiltersPanel}" HorizontalAlignment="Right" VerticalAlignment="Top" />
+            </Panel>
 
             <!-- The Archive sheet (item 6): over the whole card, sliding up from its bottom; the page above dims. -->
             <views:ArchiveSheetView x:Name="ArchiveSheet" ZIndex="10" />

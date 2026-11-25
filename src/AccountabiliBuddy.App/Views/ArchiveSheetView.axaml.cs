@@ -192,7 +192,12 @@ public partial class ArchiveSheetView : UserControl
         }
 
         NotebookViewModel archive = _subscribed.Archive;
-        if (archive.IsSearching && TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox { Name: "SearchBox" })
+        if (archive.IsSearchFiltersOpen)
+        {
+            // Item 7: the Search filters panel closes first.
+            archive.IsSearchFiltersOpen = false;
+        }
+        else if (archive.IsSearching && TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox { Name: "SearchBox" })
         {
             archive.Search = string.Empty;
         }
