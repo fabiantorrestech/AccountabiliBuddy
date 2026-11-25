@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
+             x:Class="AccountabiliBuddy.App.Views.ArchiveSheetView"
+             x:DataType="vm:TasksViewModel">
+    <!-- The Archive sheet over the Tasks card (Tasks redesign 6.01-6.05, 6.36-6.37; boards 04, 32, 23): it slides up from the bottom of the
+         card (where the Archive row is) to 66% of the card's height, never under 320 px, full card width, in 0.28 s on
+         cubic-bezier(0.2, 0.8, 0.2, 1) (at once with Animations off). The page above dims (rgba(10,9,8,0.45)); nothing under it moves; a
+         click on the dim, Esc or the fold button closes it. Closed, it is off the card and hidden, so it can't be clicked or tabbed into.
+         Look: Ab.Dialog (Ab.Surface's colour in the light themes), a 1 px Line2 top border, radius 18 on the top corners, the shadow
+         0 −18 50 in Ab.Shadow's colour (set by the code-behind), padding 8 22 16. -->
+    <UserControl.Resources>
+        <!-- 6.03: the Archive's dim, lighter than the dialogs' Ab.PageScrim (rgba(10,9,8,0.55)). -->
+        <SolidColorBrush x:Key="ArchiveScrim" Color="#730A0908" />
+    </UserControl.Resources>
+    <Panel x:Name="Root" IsVisible="False">
+        <Border x:Name="Scrim" Background="{StaticResource ArchiveScrim}" Opacity="0" PointerPressed="OnScrimPressed" />
+        <Border x:Name="Sheet" VerticalAlignment="Bottom" Background="{DynamicResource Ab.Dialog}" BorderBrush="{DynamicResource Ab.Line2}"
+                BorderThickness="0,1,0,0" CornerRadius="18,18,0,0" Padding="22,8,22,16" Focusable="True" KeyDown="OnSheetKeyDown"
+                AutomationProperties.Name="Archive">
+            <views:NotebookView DataContext="{Binding Archive}" />
+        </Border>
+    </Panel>
+</UserControl>

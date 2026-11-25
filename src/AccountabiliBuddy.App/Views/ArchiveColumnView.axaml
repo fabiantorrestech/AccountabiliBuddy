@@ -1,0 +1,313 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.ArchiveColumnView"
+             x:DataType="vm:ArchiveColumnViewModel">
+    <!-- One Archive column (Tasks redesign 6.13-6.26; board 04): 1 px Line2 border, radius 14, its header pinned (padding 12 14 6: icon 18
+         in the accent + title 16.5 bold, a click folds it · the count pill on a Line fill), then its rows scrolling on their own. Rows
+         are the Shelf's (padding 10, radius 10, 10 px gaps, aligned to the top): the check box (20 × 20, radius 6, 1.5 px Muted2; ticked:
+         accent fill and border, the tick in OnAccent) · the title (14.5) over a ↳ sub-line (the label's dot and name, then when) · "Do
+         again" on a done task / "Restore" on a deleted one (30 high, padding 0 12, radius 999, 1 px Line2, 12.5 px) · ⋯ on hover. A
+         step sits under its task, set in. Folded, the column is a 62 px rail: icon · count · its name top to bottom; "Folded" as its
+         tooltip (O3); a click opens it. -->
+    <UserControl.Styles>
+        <Style Selector="Border.archiveColumn">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+        </Style>
+        <Style Selector="Button.archiveHeader">
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Margin" Value="-6,-3" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Button.archiveHeader /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.archiveHeader:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- The count pill (6.14): Line fill, Muted, 12.5 px, padding 1 9. -->
+        <Style Selector="Border.archiveCount">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Padding" Value="9,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.archiveCount > TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="FontFeatures" Value="+tnum" />
+        </Style>
+        <!-- The rail (6.17). -->
+        <Style Selector="Button.archiveRail">
+            <Setter Property="Padding" Value="0,14" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+        </Style>
+        <Style Selector="Button.archiveRail /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.archiveRail:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- A row (6.19): padding 10, radius 10; Surface2 under the pointer. A step: set in under its task, a 13.5 px title. -->
+        <Style Selector="Border.archiveRow">
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.archiveRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Border.archiveRow.step">
+            <Setter Property="Margin" Value="30,-4,0,0" />
+            <Setter Property="Padding" Value="10,6" />
+        </Style>
+        <Style Selector="TextBlock.archiveTitle">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="MaxLines" Value="2" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="Border.step TextBlock.archiveTitle">
+            <Setter Property="FontSize" Value="13.5" />
+        </Style>
+        <!-- A done task's title stays in Ink, not struck (board 04); a ticked step reads Muted. -->
+        <Style Selector="Border.step TextBlock.archiveTitle.stepDone">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <!-- The check box (4c.24, 6.21): 20 × 20, radius 6, 1.5 px Muted2, transparent; ticked: Accent fill and border, the tick in OnAccent. -->
+        <Style Selector="Button.archiveTick">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.archiveTick /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted2}" />
+            <Setter Property="BorderThickness" Value="1.5" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.archiveTick:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.archiveTick.ticked /template/ ContentPresenter#PART_ContentPresenter, Button.archiveTick.ticked:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.archiveTick.ticked:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+        </Style>
+        <Style Selector="Button.archiveTick mi|MaterialIcon">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="Button.archiveTick.ticked mi|MaterialIcon">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
+        <!-- "Do again" / "Restore" (6.23, 6.25). -->
+        <Style Selector="Button.archiveAction">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.archiveAction /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.archiveAction:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- ⋯ and "delete for good": 28 square, Muted, on hover or keyboard focus (abHoverOnly). -->
+        <Style Selector="Button.archiveTool">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.archiveTool /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.archiveTool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBlock.archiveSub">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.DataTemplates>
+        <!-- A task or a step (Unfinished, Done). -->
+        <DataTemplate DataType="vm:NotebookItemViewModel">
+            <Panel Classes="abMenuHost">
+                <Border Classes="archiveRow abHoverHost" Classes.step="{Binding IsSubtask}" ToolTip.Tip="{Binding EditHint}">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                        <!-- The lead cell: the label dot "By the check box" (4c.39: 8 px, left of the box) and the box, or a 20 px gap. -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                            <Panel Width="8" Height="8" Margin="0,7,0,0" VerticalAlignment="Top" IsVisible="{Binding ShowsLeadDot}">
+                                <Ellipse Fill="{Binding CategoryBrush}" IsVisible="{Binding HasCategory}" />
+                                <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.2" IsVisible="{Binding !HasCategory}" />
+                            </Panel>
+                            <Button Classes="archiveTick" Classes.ticked="{Binding IsTicked}" Command="{Binding ToggleCommand}" IsEnabled="{Binding CanTick}"
+                                    IsVisible="{Binding ShowsTickBox}" ToolTip.Tip="{Binding TickTip}" AutomationProperties.Name="{Binding TickName}">
+                                <mi:MaterialIcon Kind="Check" Width="14" Height="14" />
+                            </Button>
+                            <Border Width="20" IsVisible="{Binding ShowsTickGap}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="3">
+                            <TextBlock Classes="archiveTitle" Classes.stepDone="{Binding IsTicked}" Text="{Binding Text}" IsVisible="{Binding IsNotEditing}"
+                                       ToolTip.Tip="{Binding Text}" />
+                            <TextBox Text="{Binding EditText}" IsVisible="{Binding IsEditing}" PropertyChanged="OnInlineBoxPropertyChanged"
+                                     AutomationProperties.Name="Rename">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
+                                    <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                            <!-- The ↳ sub-line: the label (its dot "Under the task") and when; it wraps. -->
+                            <Grid ColumnDefinitions="Auto,*">
+                                <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="13" Height="13" Margin="0,1,5,0" Foreground="{DynamicResource Ab.Muted}"
+                                                 VerticalAlignment="Top" />
+                                <WrapPanel Grid.Column="1" ItemSpacing="10" LineSpacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasLabel}">
+                                        <Ellipse Width="7" Height="7" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" IsVisible="{Binding ShowsSubDot}" />
+                                        <TextBlock Classes="archiveSub" Text="{Binding LabelName}" MaxWidth="160" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock Classes="archiveSub" Text="{Binding WhenText}" TextWrapping="Wrap" />
+                                </WrapPanel>
+                            </Grid>
+                            <!-- Add subtask: a box under the line. -->
+                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsAddingStep}">
+                                <mi:MaterialIcon Kind="Plus" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBox Grid.Column="1" Text="{Binding NewStepText}" PlaceholderText="A step (Enter)" PropertyChanged="OnInlineBoxPropertyChanged"
+                                         AutomationProperties.Name="New step">
+                                    <TextBox.KeyBindings>
+                                        <KeyBinding Gesture="Enter" Command="{Binding SaveStepCommand}" />
+                                        <KeyBinding Gesture="Escape" Command="{Binding CancelStepCommand}" />
+                                    </TextBox.KeyBindings>
+                                </TextBox>
+                            </Grid>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="archiveAction" Content="Do again" Command="{Binding DoAgainCommand}" IsVisible="{Binding HasDoAgain}"
+                                ToolTip.Tip="A fresh copy in Today › Queued" AutomationProperties.Name="{Binding Text, StringFormat='Do again: {0}'}" />
+                        <Button Grid.Column="3" Classes="archiveTool abHoverOnly" IsVisible="{Binding HasMenu}" Click="OnMoreClick"
+                                AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete">
+                            <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" />
+                        </Button>
+                    </Grid>
+                </Border>
+                <Border Classes="abMenuRing" />
+            </Panel>
+        </DataTemplate>
+
+        <!-- A Recently deleted line: no box (a 20 px gap keeps the titles in line), Restore; this PC's own lines can be deleted for good. -->
+        <DataTemplate DataType="vm:RecentlyDeletedRowViewModel">
+            <Border Classes="archiveRow abHoverHost">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                    <Border Width="20" />
+                    <StackPanel Grid.Column="1" Spacing="3">
+                        <TextBlock Classes="archiveTitle" Text="{Binding Title}" ToolTip.Tip="{Binding Title}" />
+                        <Grid ColumnDefinitions="Auto,*">
+                            <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="13" Height="13" Margin="0,1,5,0" Foreground="{DynamicResource Ab.Muted}"
+                                             VerticalAlignment="Top" />
+                            <TextBlock Grid.Column="1" Classes="archiveSub" Text="{Binding WhenText}" TextWrapping="Wrap" />
+                        </Grid>
+                        <TextBlock Classes="archiveSub" Text="{Binding Message}" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="archiveAction" Content="Restore" Command="{Binding RestoreCommand}" IsVisible="{Binding CanRestore}"
+                            ToolTip.Tip="Bring it back where it was" AutomationProperties.Name="{Binding Title, StringFormat='Restore: {0}'}" />
+                    <Button Grid.Column="3" Classes="archiveTool abHoverOnly" Command="{Binding ForgetCommand}" IsVisible="{Binding CanForget}"
+                            ToolTip.Tip="Delete it for good (its content is erased from this PC)" AutomationProperties.Name="Delete for good">
+                        <mi:MaterialIcon Kind="Close" Width="15" Height="15" />
+                    </Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Panel>
+        <!-- Folded: the rail. -->
+        <Button Classes="archiveRail" IsVisible="{Binding IsFolded}" Command="{Binding ToggleCommand}" ToolTip.Tip="Folded"
+                AutomationProperties.Name="{Binding FoldName}">
+            <StackPanel Spacing="10" HorizontalAlignment="Center">
+                <mi:MaterialIcon Kind="{Binding IconKind}" Width="18" Height="18" Foreground="{DynamicResource Ab.Accent}" HorizontalAlignment="Center" />
+                <Border Classes="archiveCount">
+                    <TextBlock Text="{Binding CountText}" />
+                </Border>
+                <LayoutTransformControl HorizontalAlignment="Center">
+                    <LayoutTransformControl.LayoutTransform>
+                        <RotateTransform Angle="90" />
+                    </LayoutTransformControl.LayoutTransform>
+                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource Ab.Ink}" />
+                </LayoutTransformControl>
+            </StackPanel>
+        </Button>
+
+        <!-- Open: the column. -->
+        <Border Classes="archiveColumn" IsVisible="{Binding !IsFolded}" ClipToBounds="True">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="14,12,14,6">
+                    <Button Classes="archiveHeader" Command="{Binding ToggleCommand}" ToolTip.Tip="Fold" AutomationProperties.Name="{Binding FoldName}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <mi:MaterialIcon Kind="{Binding IconKind}" Width="18" Height="18" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Title}" FontSize="16.5" FontWeight="Bold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Border Classes="archiveCount">
+                        <TextBlock Text="{Binding CountText}" />
+                    </Border>
+                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="6,0,6,12">
+                        <ItemsControl ItemsSource="{Binding Rows}" />
+                        <TextBlock Classes="muted" Text="{Binding EmptyText}" FontSize="12.5" Margin="12,6,14,0" TextWrapping="Wrap" IsVisible="{Binding IsEmpty}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Panel>
+</UserControl>

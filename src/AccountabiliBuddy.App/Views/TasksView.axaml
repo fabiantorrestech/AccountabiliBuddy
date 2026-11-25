@@ -8,10 +8,10 @@
              x:DataType="vm:TasksViewModel">
     <!-- The Tasks page (spec 03 §B; round 2 R3; Tasks redesign item 4a, boards 01 / 09 / 23). One card: the page header in one line
          ("Tasks · Tuesday · Nov 24", the search with its filter button, Group by Bins | Labels | None, Views, Expand / collapse all,
-         History until item 6, Options), the add row (the add box and the Today drop pill: a drop target into Today › Queued, Open
+         Options), the add row (the add box and the Today drop pill: a drop target into Today › Queued, Open
          Today), the one notice slot (Hold to reset, the session ended strip, the naming row, notices, the view fallback note, the weekly
          tidy-up…), the label row, then the Shelf's columns (ShelfView: each scrolling on its own; the page never scrolls), and the
-         Archive row at the bottom. During a session (Hide the Shelf on) the columns hide behind "Show the Shelf" (Ctrl+\) with a quiet
+         Archive row at the bottom (it opens the Archive sheet, ArchiveSheetView, over the card). During a session (Hide the Shelf on) the columns hide behind "Show the Shelf" (Ctrl+\) with a quiet
          count; adding, searching and the pill still work. Menus and pop-ups float over the page: nothing above the bottom row moves when
          they open. A task the user opens (or a new task from the add box's Details) shows in the task editor popup, centred over the dimmed
          page (TaskEditorView). Cards take the theme's Tasks radius. -->
@@ -442,9 +442,10 @@
                 Container.Name="TasksPage" Container.Sizing="Width">
             <!-- Tasks redesign (4a.01): the card's rows 22 px in from its sides, 18 px from its top, 12 px apart: the header, the add row,
                  the notice slot (no height while empty), the label row, the Shelf; the Archive row at the bottom. -->
+            <Panel>
             <DockPanel>
                 <!-- The page header in one line at every width (4a.02-4a.21): "Tasks" · "Tuesday · Nov 24" · the search with its filter
-                     button · Group by Bins | Labels | None · Views · Expand / collapse all · History (until item 6) · Options. The date
+                     button · Group by Bins | Labels | None · Views · Expand / collapse all · Options (History went into the Archive, item 6). The date
                      shortens first, then the search narrows (Controls/PageHeaderRow). Its icon buttons rest faint (idleFade). -->
                 <controls:PageHeader x:Name="TasksHeader" DockPanel.Dock="Top" Margin="22,18,22,0" Title="Tasks" Date="{Binding TodayDateText}"
                                      FadesOptions="True" OptionsRequested="OnTasksOptionsRequested">
@@ -510,11 +511,6 @@
                             AutomationProperties.Name="{Binding Shelf.Panel.ExpandTip}">
                         <mi:MaterialIcon Kind="{Binding Shelf.Panel.ExpandIcon}" Width="18" Height="18" />
                     </Button>
-                    <!-- History leaves with item 6 (the Archive sheet); until then it stays, faded like the others. -->
-                    <Button x:Name="HistoryButton" Classes="abHeaderIcon tasksIcon idleFade" Click="OnHistoryClick" IsVisible="{Binding Shelf.HasHistory}"
-                            ToolTip.Tip="History: finished and deleted tasks, 30 days" AutomationProperties.Name="History">
-                        <mi:MaterialIcon Kind="History" Width="18" Height="18" />
-                    </Button>
                     </StackPanel>
                     </StackPanel>
                     </controls:PageHeader.Actions>
@@ -569,19 +565,6 @@
                             </Border>
                         </Panel>
                     </Button>
-
-                    <!-- MIG1: after the task migration, the open tasks of the earlier version wait in To sort; never shown during a session. -->
-                    <Border Margin="0,12,0,0" Padding="14,8,8,8" CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource Ab.Line}"
-                            DataContext="{Binding EarlierTasks}" x:DataType="vm:EarlierTasksCardViewModel" IsVisible="{Binding IsVisible, FallbackValue=False}">
-                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Content="Sort them now" Command="{Binding SortThemNowCommand}" />
-                            <Button Grid.Column="2" Classes="quiet" Width="30" Height="30" Padding="0" MinHeight="0" MinWidth="0" Command="{Binding DismissCommand}"
-                                    AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss for good">
-                                <mi:MaterialIcon Kind="Close" Width="14" Height="14" />
-                            </Button>
-                        </Grid>
-                    </Border>
 
                     <!-- "Session ended at 12:52 AM" (P4): Tasks switches to planning the next time it opens, or now; × closes it (a 15-second ring). -->
                     <Border Classes="endedStrip" Margin="0,12,0,0" Padding="14,10,8,10" IsVisible="{Binding ShowsEndedNotice}">
@@ -745,8 +728,9 @@
 
                 <!-- The bottom row (Tasks redesign 4c.59-4c.62): 44 px at the card's foot, 10 px wider than the content on each side. It is a
                      slot: it shows exactly one of the Archive row, the select bar (item 8a) or the drag bar (item 8b), all in this same place,
-                     so swapping them moves nothing above. Today only the Archive row is built: it opens the Archive (the Notebook) in place
-                     of the columns until the Archive sheet (item 6) replaces it; faint until used, lit while the Archive is open. -->
+                     so swapping them moves nothing above. Today only the Archive row is built: "Archive · 8 unfinished · 38 done ˄" (the
+                     counts are the Archive sheet's own rows); a click slides the Archive sheet up over the card; faint until used, lit while
+                     the sheet is open. -->
                 <Panel x:Name="BottomRowSlot" DockPanel.Dock="Bottom" Height="44" Margin="12,12,12,2">
                     <Button x:Name="ArchiveRowButton" Classes="archiveRow idleFade" Classes.on="{Binding ShowsArchive}" Command="{Binding ToggleArchiveCommand}"
                             AutomationProperties.Name="Archive" ToolTip.Tip="{Binding Archive.TaskCountsText}">
@@ -761,25 +745,13 @@
                     </Button>
                 </Panel>
 
-                <!-- The Shelf's columns; the hidden Shelf's note during a session; or the Archive. -->
+                <!-- The Shelf's columns, or the hidden Shelf's note during a session. The Archive sheet slides over them (nothing here moves). -->
                 <Panel Margin="22,12,22,0">
-                    <Panel>
-                        <Panel.IsVisible>
-                            <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Path="ShowsShelfColumns" />
-                                <Binding Path="!ShowsArchive" />
-                            </MultiBinding>
-                        </Panel.IsVisible>
+                    <Panel IsVisible="{Binding ShowsShelfColumns}">
                         <views:ShelfView DataContext="{Binding Shelf}" />
                     </Panel>
 
-                    <Panel>
-                        <Panel.IsVisible>
-                            <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Path="!ShowsShelfColumns" />
-                                <Binding Path="!ShowsArchive" />
-                            </MultiBinding>
-                        </Panel.IsVisible>
+                    <Panel IsVisible="{Binding !ShowsShelfColumns}">
                         <Rectangle Classes="hiddenLine" />
                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" Margin="24">
                             <mi:MaterialIcon Kind="Leaf" Width="24" Height="24" Foreground="{DynamicResource Ab.Muted}" HorizontalAlignment="Center" />
@@ -798,12 +770,12 @@
                                        HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                         </StackPanel>
                     </Panel>
-
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" IsVisible="{Binding ShowsArchive}">
-                        <views:NotebookView DataContext="{Binding Archive}" Margin="0,0,0,12" />
-                    </ScrollViewer>
                 </Panel>
             </DockPanel>
+
+            <!-- The Archive sheet (item 6): over the whole card, sliding up from its bottom; the page above dims. -->
+            <views:ArchiveSheetView x:Name="ArchiveSheet" ZIndex="10" />
+            </Panel>
         </Border>
 
         <!-- The task editor popup (Tasks redesign item 5): centred over the page, which dims behind it; nothing under it moves. It replaces the

@@ -55,6 +55,7 @@ public static class TaskFieldMerge
             TouchedAt = a.TouchedAt >= b.TouchedAt ? a.TouchedAt : b.TouchedAt,
             Origin = OriginOf(a, b),
             AutoSavedFor = a.AutoSavedFor is DateOnly dayA && b.AutoSavedFor is DateOnly dayB ? (dayA <= dayB ? dayA : dayB) : a.AutoSavedFor ?? b.AutoSavedFor,
+            FromNote = FromNoteOf(a, b),
             Effort = null,
         };
 
@@ -300,6 +301,18 @@ public static class TaskFieldMerge
         }
 
         return string.CompareOrdinal(a.Origin, b.Origin) <= 0 ? a.Origin : b.Origin;
+    }
+
+    // ADR 94: set once and never edited, so both copies hold the same one or one holds none (an older PC drops it); two different ones
+    // (a damaged file) keep the lower key on every device.
+    private static TaskNoteOrigin? FromNoteOf(TaskItem a, TaskItem b)
+    {
+        if (a.FromNote is null || b.FromNote is null)
+        {
+            return a.FromNote ?? b.FromNote;
+        }
+
+        return string.CompareOrdinal(a.FromNote.Key, b.FromNote.Key) <= 0 ? a.FromNote : b.FromNote;
     }
 
     private static TaskFieldStamp Unstamped(TaskItem task)

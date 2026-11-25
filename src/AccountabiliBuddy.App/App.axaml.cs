@@ -638,6 +638,9 @@ public partial class App : Application
             SessionRecord? found = around.FirstOrDefault(record => record.StartedAt <= at && at <= (record.EndedAt ?? DateTimeOffset.MaxValue));
             return found is null ? null : (found.StartedAt, found.ProfileId);
         };
+        // ADR 94: session notes become To sort tasks (once at start below, after each received file or backup with live notes, and every new
+        // Focus-mode line); works only once the task list is open, until then the notes are kept.
+        var noteConversion = new AccountabiliBuddy.App.Services.Tasks.SessionNoteConversion(taskStore, _sessionNotes, documents, time, dataDirectory);
         _capture = new CaptureService(_comebacks, new Win32GlobalHotkey(), monitorLocator);
         // Owner (AB-Bugs #31): while the overlay is hidden and keeps no shortcuts, Ctrl+Alt+N goes back to the other apps too.
         CaptureService capture = _capture;
@@ -745,7 +748,8 @@ public partial class App : Application
         // The review card after each session: what it used with no rule, as rules.
         _sessionReview = new SessionReviewService(activityLog, _configuration, documents, _sessions, () => exemptionDefaults.PreTicked)
         {
-            NotesBetween = _sessionNotes.Between,
+            // ADR 94: what the session jotted is To sort tasks now (made from its notes; a note still kept while the task list can't be used).
+            NotesBetween = noteConversion.JottedBetween,
             OverLimitCount = sessionTasks.OverLimitCount,
             PhoneCounting = () => _phonePickups?.IsCounting == true,
         };
@@ -1000,7 +1004,11 @@ public partial class App : Application
         timelineDay.Lunch = () => _lunch.Taken;
         _comebacks!.Changed += (_, _) =>
         {
-            syncCoordinator.NotifyHistoryChanged();
+            // ADR 94: session notes turned into To sort tasks ask for no write by themselves (they leave with the next normal one).
+            if (!_comebacks.ChangeWritesNothing)
+            {
+                syncCoordinator.NotifyHistoryChanged();
+            }
         };
         // ADR 87: a note the user added, edited or deleted here goes out at once; a merge of another device's notes never does.
         _sessionNotes!.LocalChanged += (_, _) => syncCoordinator.NotifyHistoryChanged();
@@ -1162,7 +1170,7 @@ public partial class App : Application
         {
             // ADR 71: synced settings and task lists back up and restore through their own services.
             Synced = AccountabiliBuddy.App.Services.Backup.BackupAccess.Synced(sleepSettings, dayBarSettings, goal, guidance, minutes => SetDailyGoalAsync(goal, minutes)),
-            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore, taskAccount, _sessionNotes),
+            Tasks = AccountabiliBuddy.App.Services.Backup.BackupAccess.Tasks(sessionTasks, _comebacks!, _later!, time, taskStore, taskAccount, _sessionNotes, noteConversion.ConvertAsync),
             ShareTaskLists = () => syncSettings.Current.ShareTaskLists,
         };
         // ADR 71: auto-backup of the synced settings, this PC's settings and (unshared) task lists, local and sealed on Drive.
@@ -1497,7 +1505,17 @@ public partial class App : Application
             sessionArmedEnd.MarkRestUnfinished = sessionTasks.MarkRestUnfinishedAtEndAsync;
             syncCoordinator.TaskModelParts = taskStore.WithParts;
             syncCoordinator.MergeTaskModel = taskStore.MergeFileAsync;
-            taskStore.Changed += (_, _) => syncCoordinator.NotifyHistoryChanged();
+            // ADR 94: session notes turned into To sort tasks ask for no write by themselves (they leave with the next normal one).
+            taskStore.Changed += (_, e) =>
+            {
+                if (!e.WritesNothing)
+                {
+                    syncCoordinator.NotifyHistoryChanged();
+                }
+            };
+            _taskListSync.ConvertNotes = noteConversion.ConvertAsync;
+            // ADR 94: the notes held (this PC's and the other devices') become To sort tasks; the first time after a database backup, behind a marker.
+            noteConversion.RunAtStartBlocking(database);
             // ADR 76: the task actions (undo, History, bulk), the Shelf's views and the weekly tidy-up: data only, the screens come later.
             _taskActions = new AccountabiliBuddy.App.Services.Tasks.TaskActionsService(taskStore, sessionTasks, time);
             _taskViews = new AccountabiliBuddy.App.Services.Tasks.TaskViewService(taskStore, taskSettings, taskAccount, time);
@@ -1922,7 +1940,7 @@ public partial class App : Application
             ShowLunchRunIntoCard(monitorLocator);
         };
         // Capture in Focus mode (redesign phase 5): notes for the session's review, come-backs with ⚑ or "!".
-        sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!);
+        sessionViewModel.Focus.Capture = new CaptureBoxViewModel(_sessionNotes!, _comebacks!, noteConversion);
         // AR1b: the Archive's notes say which device wrote them (its last known name: a removed device whose data was kept still has one).
         var notebook = new NotebookViewModel(_comebacks!, _sessionNotes!, sessionTasks, time, receivedHistory, keptPast, pastSettled, taskStore, () => _taskActions,
             deviceNames: () => NotebookDeviceNames.Of(
@@ -1947,7 +1965,7 @@ public partial class App : Application
         {
             ReviewService = _sessionReview,
             Gaps = sessionGaps,
-            NotesBetween = _sessionNotes.Between,
+            NotesBetween = noteConversion.JottedBetween,
         };
         // The Stats page (design 5p, 19a to 19c): the same history, added up as views; History itself is its "Day details".
         var statsViewModel = new StatsViewModel(
@@ -2661,21 +2679,7 @@ public partial class App : Application
         // The store raises this on any thread, inside a lock: only post.
         calendarOverlay.Changed += (_, _) => Dispatcher.UIThread.Post(setupFeatures.Refresh);
         sessionViewModel.WhatsNew = new WhatsNewCardViewModel(setupFeatures, ShowWhatsNew);
-        // MIG1: one card, shown on Today and on Tasks, never during a session; Sort them now opens Tasks (To sort is the Shelf's first column).
-        var earlierTasksCard = new EarlierTasksCardViewModel(earlierTasksNotice, () => sessionViewModel.IsSessionActive, () => mainViewModel.SelectedTab = (int)MainTab.Tasks);
-        sessionViewModel.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(SessionViewModel.IsSessionActive))
-            {
-                earlierTasksCard.Refresh();
-            }
-        };
-        sessionViewModel.EarlierTasks = earlierTasksCard;
-        if (mainViewModel.Tasks is not null)
-        {
-            mainViewModel.Tasks.EarlierTasks = earlierTasksCard;
-        }
-
+        // ADR 94: the MIG1 "Sort them now" card for earlier-version tasks is gone (the setup assistant's "notes to sort" page explains To sort).
         sessionViewModel.NextUp = new NextUpViewModel(_configuration, time, sessionViewModel.Day, sessionTasks) { GuardedPlan = guardedPlan };
         sessionViewModel.CalendarToday = new CalendarTodayViewModel(_configuration, effectivePlan, calendars, time, sessionViewModel.Day);
         sessionViewModel.SeenWhilePlanning = new SeenWhilePlanningViewModel(_planFirst!, displayNames.NameFor);

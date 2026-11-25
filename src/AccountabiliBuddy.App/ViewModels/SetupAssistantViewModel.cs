@@ -353,7 +353,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWelcome), nameof(IsLinkFirst), nameof(IsRestore), nameof(IsComputerType), nameof(IsImport), nameof(IsUsage), nameof(IsReview), nameof(IsBrowsers),
         nameof(IsBasics), nameof(IsWorkdays), nameof(IsColdTurkeyKeys), nameof(IsSpareKey), nameof(IsOwnRelay), nameof(IsDpAssistant), nameof(IsStartOfDay), nameof(IsTasks), nameof(IsPlanHelper), nameof(IsOverlayTaskbar), nameof(IsQuitSafeguard), nameof(IsShutdownRoutine), nameof(IsGuidance), nameof(IsPanelCtrlAlt), nameof(IsCalendarRules), nameof(IsAppearance), nameof(IsGoal), nameof(IsDone), nameof(StepTitle), nameof(StepNumberText), nameof(NextText),
-        nameof(IsTasksRedesign), nameof(IsTaskViewChooser), nameof(IsTaskRingDevices), nameof(IsTaskCalendarExport), nameof(IsGoalsIntro), nameof(IsTodayChoices), nameof(IsDeviceRoles), nameof(IsLabelCategories))]
+        nameof(IsTasksRedesign), nameof(IsTaskViewChooser), nameof(IsTaskRingDevices), nameof(IsTaskCalendarExport), nameof(IsGoalsIntro), nameof(IsTodayChoices), nameof(IsDeviceRoles), nameof(IsLabelCategories), nameof(IsNotesToSort))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand), nameof(BackCommand))]
     public partial AssistantStep Step { get; set; }
 
@@ -679,6 +679,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
         AssistantStep.TodayChoices => "Today: hide what you don't use",
         AssistantStep.DeviceRoles => "What is each device?",
         AssistantStep.LabelCategories => "Labels can have categories",
+        AssistantStep.NotesToSort => "Come-backs and session notes are now in To sort",
         AssistantStep.Goal => "How much focus a day?",
         _ => "All set",
     };
@@ -720,6 +721,7 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
             or AssistantStep.GoalsIntro or AssistantStep.TodayChoices or AssistantStep.DeviceRoles
             => IsLastPage(Step) ? "Finish" : "Next",
         AssistantStep.LabelCategories => AnyCategoryTicked ? "Create" : "Not now",
+        AssistantStep.NotesToSort => "Got it",
         AssistantStep.Goal => "Finish",
         AssistantStep.Done => "Close",
         _ => "Next",
@@ -960,6 +962,10 @@ public sealed partial class SetupAssistantViewModel : ObservableObject, IDisposa
                 break;
             case AssistantStep.LabelCategories:
                 await FinishLabelCategoriesStepAsync();
+                GoToNextQuickStep();
+                break;
+            case AssistantStep.NotesToSort:
+                await FinishNotesToSortStepAsync();
                 GoToNextQuickStep();
                 break;
             default:

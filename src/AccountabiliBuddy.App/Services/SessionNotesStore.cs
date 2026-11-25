@@ -96,7 +96,10 @@ public sealed class SessionNotesStore
         }
     }
 
-    /// <summary>Keeps one, timed now and tied to the running session; a blank line keeps nothing.</summary>
+    /// <summary>
+    /// Keeps one, timed now and tied to the running session; a blank line keeps nothing. Since ADR 94 a new Focus-mode line becomes a To sort
+    /// task directly (<c>SessionNoteConversion.AddLineAsync</c>); a note is kept here only while the task list can't be used.
+    /// </summary>
     public Task AddAsync(string text)
     {
         string trimmed = text.Trim();
@@ -227,6 +230,47 @@ public sealed class SessionNotesStore
 
         _all = merged;
         return SaveAsync(prune: false);
+    }
+
+    /// <summary>
+    /// ADR 94: the live notes to turn into To sort tasks (this device's and the other devices'), each with an edit time (a note stored before
+    /// ADR 87 and never stamped counts as edited when it was written). Notes stored before ADR 87 are stamped first when this device has an id.
+    /// </summary>
+    public IReadOnlyList<SyncSessionNote> ForConversion()
+    {
+        StampLegacy();
+        return _all
+            .Where(note => note.DeletedAt is null && !string.IsNullOrWhiteSpace(note.Text))
+            .Select(note => note.EditedAt == default ? note with { EditedAt = note.At } : note)
+            .ToList();
+    }
+
+    /// <summary>
+    /// ADR 94: deletes the notes that became To sort tasks (call only once those tasks are saved): an ordinary synced tombstone, so no device
+    /// converts them again. Raises <see cref="Changed"/> for the views but never <see cref="LocalChanged"/>: the conversion asks for no sync
+    /// write by itself (receiving a file never triggers a write); the tombstones leave with this device's next normal write.
+    /// </summary>
+    public Task DeleteConvertedAsync(IReadOnlyCollection<Guid> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var wanted = ids.ToHashSet();
+        DateTimeOffset now = _time.GetUtcNow();
+        bool changed = false;
+        for (int index = 0; index < _all.Count; index++)
+        {
+            SyncSessionNote held = _all[index];
+            if (held.DeletedAt is null && wanted.Contains(held.Id))
+            {
+                _all[index] = held.Deleted(SharedListMerge.NextStamp(now, held));
+                changed = true;
+            }
+        }
+
+        return changed ? SaveAsync() : Task.CompletedTask;
     }
 
     // The one-time stamp for notes stored before ADR 87 (no writing device yet): this device, edited when written, in the own session

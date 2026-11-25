@@ -17,6 +17,9 @@ public static class SetupFeatures
     /// <summary>ADR 93: label categories (its page suggests them from shared name prefixes; answering it marks it dealt with on this PC).</summary>
     public const string LabelCategoriesId = "labels.categories";
 
+    /// <summary>ADR 94: come-backs and session notes are To sort tasks now (an information page; Got it marks it dealt with on this PC).</summary>
+    public const string NotesToSortId = "tasks.notesToSort";
+
     public static IReadOnlyList<SetupFeature> All(ColdTurkeyKeysService keys, ColdTurkeyService coldTurkey, Sync.SyncSettingsService sync,
         ConfigurationService configuration, StartNudgeService startNudge, DpAssistantService dpAssistant, Theming.AppTheme appearance,
         SessionTasksService tasks, PlanHelperDismissals planHelper, OverlaySettingsService overlay, CalendarOverlayStore calendarOverlay, QuitGuardService quitGuard,
@@ -24,6 +27,15 @@ public static class SetupFeatures
         Tasks.TaskCalendarExportService? taskExport, Tasks.TaskReminderSettingsService? taskReminderSettings, Func<bool> hasPhones,
         Goals.GoalsService? goals = null, Today.TodayLayoutService? todayLayout = null, Sync.DeviceRolesService? deviceRoles = null) => new[]
     {
+        // ADR 94: come-backs and session notes are To sort tasks (notes are converted by themselves, nothing to do). Only with the task list in
+        // use; Got it marks the page dealt with on this PC (setup.features), so it is never set up otherwise.
+        new SetupFeature(
+            NotesToSortId, "0.1.152",
+            "Come-backs and session notes are now in To sort",
+            "Come-backs and the lines you type in Focus mode are now To sort tasks, sorted like everything else. Notes kept before this version were moved there for you; a session's review still lists what you jotted.",
+            IsRelevant: () => taskStore.IsActive,
+            IsSetUp: () => false,
+            Step: ViewModels.AssistantStep.NotesToSort),
         // ADR 93: labels get categories. Offered only while some labels share a name prefix (there is something to suggest); set up once a
         // category exists (made here or on any device). Answering the page (Create or Not now) marks it dealt with on this PC (setup.features).
         new SetupFeature(

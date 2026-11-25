@@ -77,6 +77,7 @@ public static class AssistantFlow
             .Where(step => step != AssistantStep.TodayChoices)
             .Where(step => step != AssistantStep.DeviceRoles)
             .Where(step => step != AssistantStep.LabelCategories)
+            .Where(step => step != AssistantStep.NotesToSort)
             .Where(step => step != AssistantStep.Usage || hasUsage)
             .Where(step => step != AssistantStep.LinkFirst || hasIdentity)
             .Where(step => step != AssistantStep.Restore || hasRestore)

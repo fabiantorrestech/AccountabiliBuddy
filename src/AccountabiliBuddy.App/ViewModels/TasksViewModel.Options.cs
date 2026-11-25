@@ -30,7 +30,8 @@ public sealed partial class TasksViewModel
             today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowFinishedTodayAsync(!ShowsFinishedOnToday)),
             today?.Current.ShowMoreToday ?? false,
             today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowMoreTodayAsync(!today.Current.ShowMoreToday)),
-            Shelf.HasHistory);
+            // History went into the Archive sheet (Tasks redesign item 6): no History entry in Options.
+            HasHistory: false);
         return PageOptionsMenus.Tasks(state, OpenSettingsAt);
     }
 

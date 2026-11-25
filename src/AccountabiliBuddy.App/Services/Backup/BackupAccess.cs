@@ -149,9 +149,10 @@ public static class BackupAccess
     /// The session notes (ADR 87): in the backup with the task lists only when it is password-protected (never in a plain one: owner decision
     /// 2026-11-14, as the goals' notes), merged back like another device's notes, also on a PC that isn't linked to a group.
     /// </param>
+    /// <param name="convertNotes">ADR 94: turns the live session notes into To sort tasks, run after a backup brought live notes into the task list.</param>
     public static TaskListsAccess Tasks(
         SessionTasksService tasks, ComebackStore comebacks, LaterStore later, TimeProvider time, TaskStore? store = null, TaskAccountSettingsService? account = null,
-        SessionNotesStore? notes = null)
+        SessionNotesStore? notes = null, Func<Task>? convertNotes = null)
     {
         return new TaskListsAccess(
             Export: includeSecrets => JsonSerializer.SerializeToElement(
@@ -195,6 +196,12 @@ public static class BackupAccess
                         await account.ImportAsync(accountSettings, restore);
                     }
 
+                    // ADR 94: the backup's live notes become To sort tasks once its task list is in (a note whose task it held is only deleted).
+                    if (convertNotes is not null && notesNote.Length > 0)
+                    {
+                        await convertNotes();
+                    }
+
                     return restore
                         ? $"Task lists restored ({live} tasks from the backup).{notesNote}"
                         : $"Task lists merged ({live} tasks in the backup; the newest edit of each kept).{notesNote}";
@@ -212,6 +219,10 @@ public static class BackupAccess
                 {
                     // An older backup (no task list in it) into the task list: its items as edits made here.
                     await store.ImportOldAsync(new OldTaskFields(next, laterItems, parked, [], lists.Categories ?? [], []));
+                    if (convertNotes is not null && notesNote.Length > 0)
+                    {
+                        await convertNotes();
+                    }
                 }
                 else
                 {

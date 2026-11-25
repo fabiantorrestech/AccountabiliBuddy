@@ -53,6 +53,12 @@ public sealed class ComebackStore
 
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// ADR 94: true only while <see cref="Changed"/> is raised for a task list change that must not ask for a sync write by itself (session
+    /// notes turned into To sort tasks, <see cref="TaskStoreChangedEventArgs.WritesNothing"/>); the app's sync listener skips it.
+    /// </summary>
+    public bool ChangeWritesNothing { get; private set; }
+
     /// <summary>An add was refused because the task list this is a view of can't be opened (ADR 76's unreadable state).</summary>
     public event EventHandler? AddRefused;
 
@@ -98,7 +104,15 @@ public sealed class ComebackStore
         ReadFromTasks();
         if (string.Join("\n", _shown.OrderBy(pair => pair.Key).Select(pair => pair.Value)) != before)
         {
-            Changed?.Invoke(this, EventArgs.Empty);
+            ChangeWritesNothing = e.WritesNothing;
+            try
+            {
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+            finally
+            {
+                ChangeWritesNothing = false;
+            }
         }
     }
 

@@ -652,6 +652,23 @@ public sealed class TaskStore
         return changed;
     }
 
+    /// <summary>
+    /// ADR 94: session notes turned into To sort tasks (<see cref="SessionNoteTasks"/>): the plan's tasks are added with their notes' own
+    /// stamps. With <paramref name="quiet"/> (the conversion at start or after a received file) the change asks for no sync write
+    /// (<see cref="TaskStoreChangedEventArgs.WritesNothing"/>): it leaves with this PC's next normal write. A new Focus-mode line is not quiet.
+    /// </summary>
+    /// <returns>The save: it fails when the tasks couldn't be written (the caller then keeps the notes). Done at once when not active or nothing to add.</returns>
+    public Task AddFromNotes(SessionNoteTaskPlan plan, bool quiet)
+    {
+        if (!IsActive || plan.Add.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        TaskLists applied = SessionNoteTasks.Apply(_lists, plan, Self, NumberingDevice(), Now, Zone);
+        return Commit(applied, null, fromOtherDevice: quiet, writesNothing: quiet).Save;
+    }
+
     /// <summary>This PC's file with the task list's parts, new and old (the old ones rebuilt here, never stored).</summary>
     public SyncFile WithParts(SyncFile file)
     {
@@ -703,7 +720,7 @@ public sealed class TaskStore
     }
 
     // Normalizes and keeps the change; saves and tells the views only when something changed.
-    private (bool Changed, Task Save) Commit(TaskLists changed, object? source, bool fromOtherDevice, bool forceSave = false)
+    private (bool Changed, Task Save) Commit(TaskLists changed, object? source, bool fromOtherDevice, bool forceSave = false, bool writesNothing = false)
     {
         TaskLists normalized = TaskListRules.Normalize(changed, Self, NumberingDevice(), Now, Zone);
         bool differs = normalized.Signature() != _lists.Signature();
@@ -716,7 +733,7 @@ public sealed class TaskStore
         Task save = Save();
         if (differs)
         {
-            Changed?.Invoke(this, new TaskStoreChangedEventArgs(source, fromOtherDevice));
+            Changed?.Invoke(this, new TaskStoreChangedEventArgs(source, fromOtherDevice, writesNothing));
         }
 
         return (differs, save);

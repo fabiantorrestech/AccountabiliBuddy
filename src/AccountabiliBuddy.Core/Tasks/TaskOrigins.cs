@@ -30,6 +30,13 @@ public static class TaskOrigins
         return "Parked " + local.ToString("ddd M/d h:mm tt", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>"Session note Tue 11/24 4:05 PM" (ADR 94): a To sort task made from a line typed in Focus mode, at the note's time.</summary>
+    public static string SessionNote(DateTimeOffset at, TimeZoneInfo zone)
+    {
+        DateTime local = TimeZoneInfo.ConvertTime(at, zone).DateTime;
+        return "Session note " + local.ToString("ddd M/d h:mm tt", CultureInfo.InvariantCulture);
+    }
+
     /// <summary>"Auto-saved Wed 11/5", for the day the shutdown card wrapped up.</summary>
     public static string AutoSaved(DateOnly day)
     {

@@ -6,9 +6,9 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// One line in the Archive: a come-back, a note, or a task or subtask (unfinished or done), with its times. Tasks, subtasks and
-/// come-backs have a check box (tick it, or untick it to open it again) and a ⋯ menu (rename, add a subtask, label, move, delete);
-/// a note can be edited (✎, Enter keeps it, Esc cancels) or deleted (✕). A task's category shows as a dot.
+/// One line in the Archive sheet (Tasks redesign item 6): a task or subtask, unfinished or done, built like a Shelf row: the check box
+/// (tick it, or untick it to open it again), the title, and a ↳ sub-line with the label's dot and name and when it finished, was left
+/// open or was archived. A task has a ⋯ menu (rename, add a subtask, label, move, delete); a done task also "Do again" (a fresh copy).
 /// </summary>
 public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuSource
 {
@@ -53,6 +53,37 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
         EditWarning = editWarning;
         DeleteWarning = deleteWarning;
     }
+
+    /// <summary>The label's name on the sub-line; empty for none.</summary>
+    public string LabelName { get; init; } = string.Empty;
+
+    public bool HasLabel => LabelName.Length > 0;
+
+    /// <summary>Settings › Label dot "By the check box" (4c.39): the dot sits left of the check box, not on the sub-line.</summary>
+    public bool DotByCheckBox { get; init; }
+
+    /// <summary>The 8 px dot left of the check box (a task, "By the check box").</summary>
+    public bool ShowsLeadDot => DotByCheckBox && !IsSubtask;
+
+    /// <summary>The 7 px dot before the label's name on the sub-line ("Under the task").</summary>
+    public bool ShowsSubDot => HasCategory && !DotByCheckBox;
+
+    /// <summary>"Do again" on a done task (6.23): a fresh copy in Queued; null where there is none.</summary>
+    public ICommand? DoAgainCommand { get; init; }
+
+    public bool HasDoAgain => DoAgainCommand is not null;
+
+    /// <summary>A task always has its box (a finished one that can't be unticked here shows it ticked, not clickable); a step only when it can be ticked.</summary>
+    public bool ShowsTickBox => CanTick || !IsSubtask;
+
+    /// <summary>No box: a 20 px gap keeps the title where the other rows have it.</summary>
+    public bool ShowsTickGap => !ShowsTickBox;
+
+    /// <summary>The box's accessible name (6.21): "Not done: {title}" while ticked, else "Mark done: {title}".</summary>
+    public string TickName => (IsTicked ? "Not done: " : "Mark done: ") + Text;
+
+    /// <summary>The box's tooltip.</summary>
+    public string TickTip => !CanTick ? "Finished. Do again makes a fresh copy" : IsTicked ? "Untick: back to unfinished" : "Mark done";
 
     /// <summary>The line under the edit box of a note that travels: saving changes it on every device.</summary>
     public string? EditWarning { get; }

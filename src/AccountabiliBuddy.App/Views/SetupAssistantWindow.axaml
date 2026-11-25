@@ -514,6 +514,15 @@
                 <!-- ADR 93: label categories suggested from shared name prefixes -->
                 <views:LabelCategoriesPageView IsVisible="{Binding IsLabelCategories}" />
 
+                <!-- ADR 94: come-backs and session notes are To sort tasks now (information only) -->
+                <StackPanel IsVisible="{Binding IsNotesToSort}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
+                    <TextBlock Classes="body" TextWrapping="Wrap"
+                               Text="Come-backs and the lines you type in Focus mode are now tasks in To sort, the Shelf's first column, so you sort them like everything else." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap"
+                               Text="The notes you kept before this version were moved there for you: each one's first line is the task's name and the whole note is in its notes. A session's review still lists what you jotted." />
+                    <TextBlock Classes="muted" TextWrapping="Wrap" Text="Nothing to set up." />
+                </StackPanel>
+
                 <!-- Where the account's Tasks view comes from (owner, 2026-11-11) -->
                 <StackPanel IsVisible="{Binding IsTaskViewChooser}" Spacing="12" MaxWidth="820" HorizontalAlignment="Left">
                     <views:TaskViewChooserView DataContext="{Binding TaskViewChooser}" />

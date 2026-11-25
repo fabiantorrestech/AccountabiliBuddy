@@ -51,6 +51,12 @@ public sealed class TaskListSync
     /// </summary>
     public Func<bool> UsesTaskStore { get; set; } = () => false;
 
+    /// <summary>
+    /// ADR 94: turns the live session notes into To sort tasks, run after a received file brought live notes (an older PC still writes them);
+    /// it asks for no sync write by itself. Null until the task list is in use. Set by the app.
+    /// </summary>
+    public Func<Task>? ConvertNotes { get; set; }
+
     /// <summary>A handover nobody took in 30 days came back here (the page tells the user once). Raised with the item's title.</summary>
     public event EventHandler<string>? CameBack;
 
@@ -90,6 +96,11 @@ public sealed class TaskListSync
         if (file.SessionNotes is { } sessionNotes && _notes is not null)
         {
             await _notes.MergeAsync(sessionNotes);
+            // ADR 94: live notes that came in become To sort tasks (the task parts of this file were merged first); nothing is sent for it.
+            if (ConvertNotes is { } convert && sessionNotes.Any(note => note is { DeletedAt: null }))
+            {
+                await convert();
+            }
         }
 
         if (file.PastSettled is { } settled)

@@ -120,7 +120,6 @@ public sealed partial class ShelfViewModel : ObservableObject
         OnPropertyChanged(nameof(CustomViewName));
         OnPropertyChanged(nameof(HasCustomView));
         OnPropertyChanged(nameof(ViewsButtonText));
-        OnPropertyChanged(nameof(HasHistory));
         StartTidyCommand.NotifyCanExecuteChanged();
     }
 
@@ -277,15 +276,6 @@ public sealed partial class ShelfViewModel : ObservableObject
         TidySub = card?.Sub ?? string.Empty;
     }
 
-    /// <summary>History (the View menu's "History…"): a fresh list of the last 30 days; null before the task list exists.</summary>
-    public TaskHistoryViewModel? History() => _actions is null ? null : new TaskHistoryViewModel(_actions, _time, HistoryLabel, tags => _store?.ShownTags(tags) ?? tags ?? []);
-
-    // A History row's label: the task list's live label with that id.
-    private AccountabiliBuddy.Core.Domain.TaskLabel? HistoryLabel(Guid? labelId)
-    {
-        return labelId is Guid id ? _store?.Lists.Labels.Select(item => item.Label).FirstOrDefault(label => label.IsLive && label.Id == id && _store.LabelShown(label)) : null;
-    }
-
     /// <summary>The reshuffle button by the Shelf's title: a new shuffled order, kept with the view until the next one.</summary>
     [RelayCommand]
     private Task ReshuffleAsync() => _views?.ReshuffleAsync() ?? Task.CompletedTask;
@@ -293,8 +283,8 @@ public sealed partial class ShelfViewModel : ObservableObject
     /// <summary>
     /// The View menu (spec 03 §C, 05 §10; round 2 R3: Options › Views ›): the saved views (the one in use ticked) with Create a view…,
     /// This view › (Save changes, Edit view…, Make it the default, Delete view), Arrange (Group by ›, Sort › incl. Shuffle, Reshuffle,
-    /// Pin highlights), Show only (Labels ›, Tags ›, Due date ›, Time limit ›, Untouched for ›, Highlighted only), History…, and a red
-    /// Reset (back to the view as saved). Changes apply to the view's working copy; only Save changes stores them. (Hide / Show Today
+    /// Pin highlights), Show only (Labels ›, Tags ›, Due date ›, Time limit ›, Untouched for ›, Highlighted only), and a red Reset (back
+    /// to the view as saved). History… went with item 6: its content is in the Archive sheet. Changes apply to the view's working copy; only Save changes stores them. (Hide / Show Today
     /// went with the Tasks page's Today column.)
     /// </summary>
     public IReadOnlyList<TaskMenuEntry> ViewMenu()
@@ -336,7 +326,6 @@ public sealed partial class ShelfViewModel : ObservableObject
                 Icon: working.Only.HighlightedOnly ? MaterialIconKind.CheckboxMarked : MaterialIconKind.CheckboxBlankOutline));
 
             entries.Add(TaskMenuEntry.Separator);
-            entries.Add(new TaskMenuEntry("History…", ViewAction: "history", Icon: MaterialIconKind.History, Value: "30 days"));
             entries.Add(new TaskMenuEntry(
                 "Reset", views.IsChanged ? new RelayCommand(() => views.Select(views.ActiveId)) : null, Icon: MaterialIconKind.Restore, IsDanger: views.IsChanged));
         }
@@ -376,9 +365,6 @@ public sealed partial class ShelfViewModel : ObservableObject
 
         return entries;
     }
-
-    /// <summary>History is there (the task list's actions): the Tasks header's History button shows.</summary>
-    public bool HasHistory => _actions is not null;
 
     // "Show only" choices: the stored value and what the menu says.
     internal static readonly (string Value, string Text)[] DueChoices =

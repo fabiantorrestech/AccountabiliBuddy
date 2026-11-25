@@ -3,123 +3,188 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:views="using:AccountabiliBuddy.App.Views"
              x:Class="AccountabiliBuddy.App.Views.NotebookView"
              x:DataType="vm:NotebookViewModel">
-    <!-- The Archive (the Notebook, restyled for the Tasks page): everything written down, so it can leave your head: come-backs,
-         session notes, unfinished and done tasks, newest first, with its own filter and search. Every task, subtask and come-back has
-         a check box and a ⋯ menu; "Recently deleted" (30 days) is the group at the top. It sits in the page's scroll. -->
-    <StackPanel Margin="4,2,4,8" Spacing="10">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBox Text="{Binding Search}" Width="240" PlaceholderText="Search the Archive" AutomationProperties.Name="Search the Archive">
-                <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
-            </TextBox>
-            <ComboBox ItemsSource="{x:Static vm:NotebookViewModel.Filters}" SelectedItem="{Binding Filter}" MinWidth="160" AutomationProperties.Name="Archive filter" />
-        </StackPanel>
-        <TextBlock Classes="muted" Text="Parked ideas, notes from sessions and tasks, newest first. Written down means you can stop holding it."
-                   FontSize="13" TextWrapping="Wrap" />
+    <!-- The Archive sheet's content (Tasks redesign item 6; SPEC "Archive"; boards 04, 12, 32; ArchiveSheetView slides it up). Rows 12 px
+         apart: the grab bar (44 × 4, Line3); the header ("Archive" in Ab.DisplayFont 24 semibold · space · "Search the Archive" with its
+         filter button · fold ˅); the pills (Everything · Unfinished (8) · Done (38) · Recently deleted; "Results for “…”" at the right
+         while searching); then the columns like the Shelf's, 14 px apart, each scrolling on its own: Unfinished, Done, Recently deleted
+         (Everything folds Recently deleted to its 62 px rail). Come-backs and session notes are not listed here. -->
+    <UserControl.Styles>
+        <!-- The search (6.07): 300 wide, shrinking to 180; 34 high, radius 999, 1 px Line2; magnifier 15; 13 px placeholder. -->
+        <Style Selector="Border.archiveSearch">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="12,0,3,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.archiveSearch:focus-within">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="TextBox.archiveSearchEntry">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0,4" />
+        </Style>
+        <Style Selector="TextBox.archiveSearchEntry /template/ Border#PART_BorderElement, TextBox.archiveSearchEntry:pointerover /template/ Border#PART_BorderElement, TextBox.archiveSearchEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <!-- The filter button inside the search: 28 round, Tune 15, faded until used (its panel is item 7). -->
+        <Style Selector="Button.archiveFilters">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.archiveFilters /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.archiveFilters:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <!-- The fold button (6.08): 34 square, radius 10, chevron-down 18 in Muted. -->
+        <Style Selector="Button.archiveFold">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.archiveFold /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.archiveFold:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- A pill (6.10): 30 high, padding 0 14 0 11, radius 999, 13 px, icon 15; picked = Line fill + 1 px Muted border, the others
+             transparent + 1 px Line2; 0.2 s. -->
+        <Style Selector="Button.archivePill">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="11,0,14,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.archivePill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.archivePill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.archivePill.picked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector=":is(Window).motionOn Button.archivePill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.2" />
+                </Transitions>
+            </Setter>
+        </Style>
+    </UserControl.Styles>
 
-        <!-- Recently deleted: tasks, steps, Later items and come-backs deleted in the last 30 days, each with Restore. A task deleted on another device is listed too. -->
-        <StackPanel Spacing="6" IsVisible="{Binding HasRecentlyDeleted}">
-            <Button Classes="quiet" Command="{Binding ToggleRecentlyDeletedCommand}" HorizontalAlignment="Left" Padding="4,6" AutomationProperties.Name="Recently deleted">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <mi:MaterialIcon Kind="ChevronRight" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsRecentlyDeleted}" />
-                    <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsRecentlyDeleted}" />
-                    <TextBlock Classes="muted" Text="{Binding RecentlyDeletedHeader}" FontSize="14" />
-                </StackPanel>
+    <DockPanel>
+        <!-- The grab bar (6.05). -->
+        <Border DockPanel.Dock="Top" Width="44" Height="4" CornerRadius="2" Background="{DynamicResource Ab.Line3}" HorizontalAlignment="Center" />
+
+        <!-- The header (6.06-6.08). -->
+        <Grid DockPanel.Dock="Top" Margin="0,12,0,0" ColumnSpacing="10">
+            <!-- Title · space · the search (a star column capped at 300, never under 180, so it shrinks before anything wraps) · fold. -->
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" MinWidth="180" MaxWidth="300" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Archive" FontFamily="{DynamicResource Ab.DisplayFont}" FontWeight="SemiBold" FontSize="24" VerticalAlignment="Center" />
+            <Border Grid.Column="2" Classes="archiveSearch">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                    <mi:MaterialIcon Kind="Magnify" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    <TextBox x:Name="SearchBox" Grid.Column="1" Classes="archiveSearchEntry" Text="{Binding Search}" PlaceholderText="Search the Archive"
+                             AutomationProperties.Name="Search the Archive">
+                        <TextBox.InnerRightContent><controls:ClearTextButton /></TextBox.InnerRightContent>
+                    </TextBox>
+                    <!-- Opens the Archive's Search filters (item 7); until then it does nothing. -->
+                    <Button Grid.Column="2" Classes="archiveFilters idleFade" ToolTip.Tip="Search filters" AutomationProperties.Name="Search filters">
+                        <mi:MaterialIcon Kind="Tune" Width="15" Height="15" />
+                    </Button>
+                </Grid>
+            </Border>
+            <Button x:Name="FoldButton" Grid.Column="3" Classes="archiveFold" Command="{Binding CloseCommand}" ToolTip.Tip="Close the Archive (Esc)"
+                    AutomationProperties.Name="Close the Archive">
+                <mi:MaterialIcon Kind="ChevronDown" Width="18" Height="18" />
             </Button>
-            <ItemsControl ItemsSource="{Binding RecentlyDeleted}" IsVisible="{Binding ShowsRecentlyDeleted}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:RecentlyDeletedRowViewModel">
-                        <Border Padding="14,10" Margin="0,0,0,6" CornerRadius="14" Background="{DynamicResource Ab.Surface2}">
-                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                <StackPanel Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
-                                    <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap">
-                                        <Run Text="{Binding KindText}" /><Run Text=" · " /><Run Text="{Binding WhenText}" />
-                                    </TextBlock>
-                                    <TextBlock Classes="muted" Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
-                                </StackPanel>
-                                <Button Grid.Column="1" Classes="quiet" Content="Restore" Command="{Binding RestoreCommand}" Padding="12,6" IsVisible="{Binding CanRestore}"
-                                        FontWeight="SemiBold" AutomationProperties.Name="Restore" />
-                                <Button Grid.Column="2" Classes="quiet" Command="{Binding ForgetCommand}" Padding="8,6" IsVisible="{Binding CanForget}" ToolTip.Tip="Delete it for good (its content is erased from this PC)" AutomationProperties.Name="Delete for good"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
+        </Grid>
 
-        <TextBlock Classes="muted" Text="Nothing here yet." IsVisible="{Binding IsEmpty}" />
+        <!-- The pills (6.09-6.12): Material icons per O10. -->
+        <Grid DockPanel.Dock="Top" Margin="0,12,0,0" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+            <WrapPanel ItemSpacing="6" LineSpacing="6">
+                <Button Classes="archivePill" Classes.picked="{Binding IsEverythingPicked}" Command="{Binding PickPillCommand}" CommandParameter="Everything"
+                        AutomationProperties.Name="Everything">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <mi:MaterialIcon Kind="ArchiveOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                        <TextBlock Text="Everything" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="archivePill" Classes.picked="{Binding IsUnfinishedPicked}" Command="{Binding PickPillCommand}" CommandParameter="Unfinished"
+                        AutomationProperties.Name="{Binding UnfinishedPillText}">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <mi:MaterialIcon Kind="CheckboxBlankOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding UnfinishedPillText}" VerticalAlignment="Center" FontFeatures="+tnum" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="archivePill" Classes.picked="{Binding IsDonePicked}" Command="{Binding PickPillCommand}" CommandParameter="Done"
+                        AutomationProperties.Name="{Binding DonePillText}">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <mi:MaterialIcon Kind="CheckCircleOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding DonePillText}" VerticalAlignment="Center" FontFeatures="+tnum" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="archivePill" Classes.picked="{Binding IsDeletedPicked}" Command="{Binding PickPillCommand}" CommandParameter="Deleted"
+                        AutomationProperties.Name="Recently deleted">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <mi:MaterialIcon Kind="DeleteClockOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                        <TextBlock Text="Recently deleted" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </WrapPanel>
+            <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ResultsText}" FontSize="12.5" VerticalAlignment="Center" MaxWidth="260"
+                       TextTrimming="CharacterEllipsis" IsVisible="{Binding IsSearching}" />
+        </Grid>
 
-        <ItemsControl ItemsSource="{Binding Items}">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:NotebookItemViewModel">
-                    <Border Padding="14,10,10,10" Margin="0,0,0,6" CornerRadius="14" Background="{DynamicResource Ab.Surface2}"
-                            Classes.sub="{Binding IsSubtask}">
-                        <Border.Styles>
-                            <Style Selector="Border.sub">
-                                <Setter Property="Margin" Value="28,-2,0,6" />
-                            </Style>
-                        </Border.Styles>
-                        <StackPanel Spacing="6">
-                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                                <CheckBox IsChecked="{Binding IsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding CanTick}"
-                                          ToolTip.Tip="Tick it off (untick to open it again)" VerticalAlignment="Top" MinWidth="0" AutomationProperties.Name="Done" />
-                                <!-- A row with no check box (the task list's, a step of another PC's task) keeps the text where the check box rows have it. -->
-                                <Border Width="28" IsVisible="{Binding !CanTick}" />
-                                <StackPanel Grid.Column="1" Spacing="2" ToolTip.Tip="{Binding EditHint}">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <Ellipse Width="8" Height="8" Fill="{Binding CategoryBrush}" VerticalAlignment="Center" IsVisible="{Binding HasCategory}" />
-                                        <TextBlock Classes.done="{Binding IsTicked}" Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding IsNotEditing}" />
-                                    </StackPanel>
-                                    <TextBox Text="{Binding EditText}" IsVisible="{Binding IsEditing}" PropertyChanged="OnInlineBoxPropertyChanged">
-                                        <TextBox.KeyBindings>
-                                            <KeyBinding Gesture="Enter" Command="{Binding SaveCommand}" />
-                                            <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
-                                        </TextBox.KeyBindings>
-                                    </TextBox>
-                                    <TextBlock Classes="muted" Text="{Binding WhenText}" FontSize="12" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <TextBlock Grid.Column="2" Classes="faint" Text="{Binding Kind}" FontSize="12" VerticalAlignment="Top" Margin="0,4,0,0" />
-                                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top">
-                                    <Button Classes="quiet" Padding="6,2" MinHeight="0" MinWidth="0" IsVisible="{Binding HasMenu}"
-                                            AutomationProperties.Name="More actions" ToolTip.Tip="Rename, label, move, add a subtask, delete" Click="OnMoreClick">
-                                        <mi:MaterialIcon Kind="DotsHorizontal" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
-                                    </Button>
-                                    <StackPanel Orientation="Horizontal" Spacing="2" IsVisible="{Binding HasEditButtons}">
-                                        <Button Classes="quiet" Command="{Binding EditCommand}" IsVisible="{Binding IsNotEditing}" ToolTip.Tip="Edit" Padding="6,0" AutomationProperties.Name="Edit"><mi:MaterialIcon Kind="PencilOutline" Width="14" Height="14" /></Button>
-                                        <Button Classes="quiet" Command="{Binding SaveCommand}" IsVisible="{Binding IsEditing}" ToolTip.Tip="Keep the change" Padding="6,0" AutomationProperties.Name="Keep the change"><mi:MaterialIcon Kind="Check" Width="14" Height="14" /></Button>
-                                        <Button Classes="quiet" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteTip}" AutomationProperties.Name="Delete" Padding="6,0"><mi:MaterialIcon Kind="Close" Width="14" Height="14" /></Button>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
-                            <!-- A note that travels (ADR 87): saving or deleting it changes it on every device. -->
-                            <TextBlock Classes="muted" Text="{Binding EditWarning}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding ShowsEditWarning}" Margin="38,0,0,0" />
-                            <WrapPanel IsVisible="{Binding IsConfirmingDelete}" Margin="38,0,0,0">
-                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,10,0" VerticalAlignment="Center">
-                                    <mi:MaterialIcon Kind="AlertCircleOutline" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
-                                    <TextBlock Text="{Binding DeleteWarning}" FontSize="13" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Button Classes="quiet" Command="{Binding DeleteCommand}" Padding="12,4" FontWeight="SemiBold" Content="Delete" AutomationProperties.Name="Delete it on all my devices" />
-                                    <Button Classes="quiet" Command="{Binding KeepItCommand}" Padding="12,4" Content="Keep it" AutomationProperties.Name="Keep it" />
-                                </StackPanel>
-                            </WrapPanel>
-                            <!-- Add subtask: a box under the line. -->
-                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsAddingStep}" Margin="34,0,0,0">
-                                <mi:MaterialIcon Kind="Plus" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBox Grid.Column="1" Text="{Binding NewStepText}" PlaceholderText="A step (Enter)" PropertyChanged="OnInlineBoxPropertyChanged"
-                                         AutomationProperties.Name="New step">
-                                    <TextBox.KeyBindings>
-                                        <KeyBinding Gesture="Enter" Command="{Binding SaveStepCommand}" />
-                                        <KeyBinding Gesture="Escape" Command="{Binding CancelStepCommand}" />
-                                    </TextBox.KeyBindings>
-                                </TextBox>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-    </StackPanel>
+        <!-- The columns (6.13-6.17): laid out by the code-behind (open columns share the width, a rail is 62 px, 14 px apart). -->
+        <Grid x:Name="ColumnsGrid" Margin="0,12,0,0" ColumnSpacing="14">
+            <views:ArchiveColumnView x:Name="UnfinishedView" DataContext="{Binding UnfinishedColumn}" />
+            <views:ArchiveColumnView x:Name="DoneView" DataContext="{Binding DoneColumn}" />
+            <views:ArchiveColumnView x:Name="DeletedView" DataContext="{Binding DeletedColumn}" />
+        </Grid>
+    </DockPanel>
 </UserControl>

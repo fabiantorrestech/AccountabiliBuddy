@@ -43,6 +43,11 @@ namespace AccountabiliBuddy.Core.Domain;
 /// For a To sort task that came from Auto-saved (ADR 72): the plan day its shutdown card wrapped up. While it is open and within
 /// Auto-saved's 30 days it travels to older apps in the old <c>autoSaved</c> field (not <c>parked</c>), so it shows once there.
 /// </param>
+/// <param name="FromNote">
+/// ADR 94: for a To sort task made from a session note, the note it came from (ids and times only; JSON <c>fromNote</c>, left out when none).
+/// Set once when the task is made, never stamped or edited (like <paramref name="Origin"/>); a copy without it (an older PC drops it) never
+/// takes it away in a merge (<see cref="Sync.TaskFieldMerge"/>).
+/// </param>
 public sealed record TaskItem(
     Guid Id,
     string Title,
@@ -73,7 +78,8 @@ public sealed record TaskItem(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? DeletedAt = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<TaskConflict>? Conflicts = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateOnly? AutoSavedFor = null,
-    [property: JsonPropertyName("goalId")][property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? GoalId = null)
+    [property: JsonPropertyName("goalId")][property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? GoalId = null,
+    [property: JsonPropertyName("fromNote")][property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TaskNoteOrigin? FromNote = null)
 {
     /// <summary>Neither a tombstone nor a local item's stub.</summary>
     [JsonIgnore]

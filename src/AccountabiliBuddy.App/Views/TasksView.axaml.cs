@@ -33,6 +33,8 @@ public partial class TasksView : UserControl
         ResetButton.AddHandler(KeyDownEvent, OnResetKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         ResetButton.AddHandler(KeyUpEvent, OnResetKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         LabelsMenu.Dismissed += (_, _) => MoreLabelsButton.Focus(NavigationMethod.Directional);
+        // The Archive sheet went down with the keyboard in it: back to the Archive row.
+        ArchiveSheet.Closed += (_, _) => ArchiveRowButton.Focus(NavigationMethod.Directional);
     }
 
     // The page stays alive while another tab shows: leaving it clears the selection, so it is not found half-done on return.
@@ -332,6 +334,14 @@ public partial class TasksView : UserControl
         }
 
         bool editing = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
+        if (!editing && page.IsArchiveOpen && !page.ShowsEditorOnTasks)
+        {
+            // The Archive sheet is open (6.03): Esc closes it (inside the sheet, its own handler already did).
+            page.IsArchiveOpen = false;
+            e.Handled = true;
+            return;
+        }
+
         if (!editing && page.ShowsEditorOnTasks)
         {
             page.CloseEditorCommand.Execute(null);
@@ -339,7 +349,7 @@ public partial class TasksView : UserControl
         }
     }
 
-    // ---- The page header (round 2, brief §3.3): Views, History and Options ----
+    // ---- The page header (round 2, brief §3.3): Views and Options (History went into the Archive sheet, Tasks redesign item 6) ----
 
     // Views (bookmark): the saved views, Create a view… and This view ›.
     private void OnViewsClick(object? sender, RoutedEventArgs e)
@@ -351,18 +361,7 @@ public partial class TasksView : UserControl
         }
     }
 
-    // History: finished and deleted tasks of the last 30 days.
-    private void OnHistoryClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control button && DataContext is TasksViewModel tasks && tasks.Shelf.History() is { } history)
-        {
-            TaskHistoryPopover.ShowAt(button, history, PlacementMode.BottomEdgeAlignedRight);
-            e.Handled = true;
-        }
-    }
-
-    // Options (tune; board 09): the panel menu under the button, aligned to its right edge, floating over the page (nothing moves); its
-    // History row and the View menu's "History…" open History there too.
+    // Options (tune; board 09): the panel menu under the button, aligned to its right edge, floating over the page (nothing moves).
     private void OnTasksOptionsRequested(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not TasksViewModel tasks)
@@ -372,13 +371,7 @@ public partial class TasksView : UserControl
 
         Control anchor = TasksHeader.OptionsAnchor;
         TasksHeader.SetOptionsOpen(true);
-        TaskMenus.ShowEntries(anchor, tasks.TasksOptionsMenu(), PlacementMode.BottomEdgeAlignedRight, entry =>
-        {
-            if (entry.ViewAction == "history" && tasks.Shelf.History() is { } history)
-            {
-                TaskHistoryPopover.ShowAt(anchor, history, PlacementMode.BottomEdgeAlignedRight);
-            }
-        }, () => TasksHeader.SetOptionsOpen(false), panelLook: true);
+        TaskMenus.ShowEntries(anchor, tasks.TasksOptionsMenu(), PlacementMode.BottomEdgeAlignedRight, null, () => TasksHeader.SetOptionsOpen(false), panelLook: true);
         e.Handled = true;
     }
 }
