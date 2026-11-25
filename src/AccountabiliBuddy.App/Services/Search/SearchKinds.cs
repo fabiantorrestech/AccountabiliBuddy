@@ -9,4 +9,10 @@ public static class SearchKinds
     public const string Calendar = "your calendar";
     public const string History = "your history";
     public const string App = "app";
+
+    /// <summary>A task label (Tasks redesign 9.09): opens Tasks filtered to it.</summary>
+    public const string Label = "label";
+
+    /// <summary>A label category: opens Tasks filtered to its labels.</summary>
+    public const string Category = "category";
 }

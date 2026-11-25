@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The search box in the main window's top right. Typing highlights matches on the page showing (the window counts them
+/// The search in the title-bar menu (Tasks redesign 9; before that a box in the main window's top right). Typing highlights matches on the page showing (the window counts them
 /// into <see cref="PageCount"/>); a moment after typing stops, the dropdown lists every match in the app (the user's own
 /// things and the app's words) grouped by tab, under the line for this page's matches. Opening one hands its target to
 /// the window.
@@ -33,6 +33,9 @@ public sealed partial class SearchViewModel : ObservableObject
 
     /// <summary>The app's words on every page (see <see cref="UiSearchSource"/>); set by the window that holds the pages.</summary>
     public Func<IReadOnlyList<SearchEntry>> UiEntries { get; set; } = () => Array.Empty<SearchEntry>();
+
+    /// <summary>The task labels and their categories (see <see cref="LabelSearchSource"/>); set by the window. Listed first.</summary>
+    public Func<IReadOnlyList<SearchEntry>> LabelEntries { get; set; } = () => Array.Empty<SearchEntry>();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasQuery))]
@@ -183,11 +186,11 @@ public sealed partial class SearchViewModel : ObservableObject
         OpenRequested?.Invoke(this, row.Target);
     }
 
-    /// <summary>The user's things first, then the app's words; at most the cap in total.</summary>
+    /// <summary>Labels and categories first, then the user's other things, then the app's words; at most the cap in total.</summary>
     private async Task<IReadOnlyList<SearchEntry>> FindAllAsync(string query)
     {
         IReadOnlyList<SearchEntry> data = await _dataEntries();
-        return DataSearchSource.Filter(data.Concat(UiEntries()), query);
+        return DataSearchSource.Filter(LabelEntries().Concat(data).Concat(UiEntries()), query);
     }
 
     private static SearchResultRow RowOf(SearchEntry entry, string query)

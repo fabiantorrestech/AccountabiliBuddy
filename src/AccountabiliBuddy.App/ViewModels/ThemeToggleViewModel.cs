@@ -6,7 +6,8 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The title bar's light/dark toggle (round 2, brief §3.2; ADR 49). A click flips what is shown between light and dark (sets
+/// Light/dark and the theme (ADR 49): since Tasks redesign 9 the title-bar menu's Appearance section (Light · Dark · System, Theme); the
+/// old title-bar toggle (round 2, brief §3.2) is no longer in the window. A click flips what is shown between light and dark (sets
 /// <see cref="LightDarkMode.Light"/> or <see cref="LightDarkMode.Dark"/>); its menu picks the mode (Light, Dark, Match Windows,
 /// At a set time, After sunset) and the theme (Instrument, Night Desk, Paper), or opens Settings › Appearance. Everything goes
 /// through <see cref="AppTheme"/>, which writes only this PC's "theme" document: never synced. Appearance isn't a guard setting,
@@ -43,12 +44,36 @@ public sealed partial class ThemeToggleViewModel : ObservableObject
         : "Switch to dark. Right-click or hold for themes";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLight), nameof(IsDark), nameof(IsSystem), nameof(IsSetTime), nameof(IsSunset))]
+    [NotifyPropertyChangedFor(nameof(IsLight), nameof(IsDark), nameof(IsSystem), nameof(IsSetTime), nameof(IsSunset), nameof(ModeNote), nameof(HasModeNote))]
     public partial LightDarkMode Mode { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsInstrument), nameof(IsNightDesk), nameof(IsPaper))]
+    [NotifyPropertyChangedFor(nameof(IsInstrument), nameof(IsNightDesk), nameof(IsPaper), nameof(ThemeText))]
     public partial ThemeName Theme { get; private set; }
+
+    /// <summary>The theme's name as shown: "Paper", "Instrument", "Night Desk".</summary>
+    public string ThemeText => NameOf(Theme);
+
+    /// <summary>
+    /// The menu's Light · Dark · System can't show At a set time or After sunset (set in Settings › Appearance): while one of them is on, it is
+    /// named next to the "Appearance" caption instead, and no segment is lit.
+    /// </summary>
+    public string ModeNote => Mode switch
+    {
+        LightDarkMode.SetTime => "At a set time",
+        LightDarkMode.Sunset => "After sunset",
+        _ => string.Empty,
+    };
+
+    public bool HasModeNote => ModeNote.Length > 0;
+
+    /// <summary>A theme's name as shown.</summary>
+    public static string NameOf(ThemeName theme) => theme switch
+    {
+        ThemeName.NightDesk => "Night Desk",
+        ThemeName.Paper => "Paper",
+        _ => "Instrument",
+    };
 
     public bool IsLight => Mode == LightDarkMode.Light;
 

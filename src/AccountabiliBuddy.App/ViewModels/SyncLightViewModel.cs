@@ -7,7 +7,7 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The title bar's sync light (design 20a): a dot and this PC's glyph (each device's glyph in the popover), read from what the Devices page already knows
+/// The sync light (design 20a; Tasks redesign 9: the dot on the title-bar menu's button and the menu's Sync section), read from what the Devices page already knows
 /// (<see cref="DevicesViewModel.Rows"/> and <see cref="DevicesViewModel.SyncProblem"/>). Display only; it changes nothing.
 /// Green = all in step. One definition of "behind" serves the glyphs, the dot and the popover: a device is behind when its
 /// newest data is more than 5 minutes older than its own sync interval (<see cref="DeviceSyncState.Behind"/>: a day for a
@@ -21,11 +21,14 @@ public sealed partial class SyncLightViewModel : ObservableObject
 
     private readonly DevicesViewModel _devices;
     private readonly SyncLightSettingService? _setting;
+    private readonly TimeProvider _time;
 
-    public SyncLightViewModel(DevicesViewModel devices, SyncLightSettingService? setting = null)
+    /// <param name="time">Turns a device's age into the 12-hour time it last synced (older than an hour); the system clock by default.</param>
+    public SyncLightViewModel(DevicesViewModel devices, SyncLightSettingService? setting = null, TimeProvider? time = null)
     {
         _devices = devices;
         _setting = setting;
+        _time = time ?? TimeProvider.System;
         if (setting is not null)
         {
             setting.Changed += (_, _) => Rebuild();
@@ -99,6 +102,7 @@ public sealed partial class SyncLightViewModel : ObservableObject
             var device = new SyncLightDeviceViewModel(row.Name, IconFor(row.Kind), ago, dim, synced, failing)
             {
                 FailingIcon = isThisPc ? MaterialIconKind.CloudAlertOutline : MaterialIconKind.CloudOffOutline,
+                WhenText = isThisPc ? (problem is null ? "This device · in step" : "This device · can't sync") : DeviceWhen(row),
             };
             Devices.Add(device);
             if (isThisPc)
@@ -121,6 +125,84 @@ public sealed partial class SyncLightViewModel : ObservableObject
         IsSeveralBehind = problem is null && behindForAnHour >= 2;
         SummaryText = problem ?? (IsSeveralBehind ? $"{behindForAnHour} devices are behind: nothing from them for over an hour" : Summary(rows));
         TipText = Tip(problem, rows);
+        HasOthers = hasOthers;
+        (StatusTitle, StatusDetail) = Status(problem, rows, behindForAnHour);
+    }
+
+    /// <summary>Another device is linked: the menu's status row folds out a device list.</summary>
+    [ObservableProperty]
+    public partial bool HasOthers { get; set; }
+
+    /// <summary>The menu's status row (Tasks redesign 9.11): "All in step", "Pixel 8 is behind", "Can't sync"…</summary>
+    [ObservableProperty]
+    public partial string StatusTitle { get; set; } = string.Empty;
+
+    /// <summary>Under it: "3 devices · last sync 2 min ago", or what is wrong.</summary>
+    [ObservableProperty]
+    public partial string StatusDetail { get; set; } = string.Empty;
+
+    private static (string Title, string Detail) Status(string? problem, IReadOnlyList<DeviceRowViewModel> rows, int behindForAnHour)
+    {
+        if (problem is not null)
+        {
+            return ("Can't sync", problem);
+        }
+
+        if (rows.Count <= 1)
+        {
+            return ("Only this PC", "Link a phone or PC in Devices & sync");
+        }
+
+        if (behindForAnHour >= 2)
+        {
+            return ($"{behindForAnHour} devices are behind", "Nothing from them for over an hour");
+        }
+
+        string count = $"{rows.Count} devices";
+        DeviceRowViewModel? newest = rows.Skip(1).Where(row => row.Age is not null).OrderBy(row => row.Age).FirstOrDefault();
+        string detail = newest?.Age is TimeSpan age ? $"{count} · last sync {DevicesViewModel.Ago(age)}" : $"{count} · waiting for your other devices";
+        List<string> behind = rows.Skip(1).Where(IsBehind).Select(row => row.Name).ToList();
+        string title = behind.Count switch
+        {
+            0 => newest is null ? "Waiting" : "All in step",
+            1 => $"{behind[0]} is behind",
+            _ => $"{behind.Count} devices are behind",
+        };
+        return (title, detail);
+    }
+
+    // A device's line in the menu: "Synced 2 min ago" (older than an hour: the 12-hour time it synced), a watch "Through the phone · 14 min ago".
+    private string DeviceWhen(DeviceRowViewModel row)
+    {
+        string? when = row.Age is TimeSpan age ? When(age) : null;
+        if (row.Indented)
+        {
+            return when is null
+                ? row.State == DeviceSyncState.Unlinked ? "Through the phone · not found" : "Through the phone · not heard from yet"
+                : $"Through the phone · {when}";
+        }
+
+        return when is null ? "Not heard from yet" : $"Synced {when}";
+    }
+
+    private string When(TimeSpan age)
+    {
+        if (age < TimeSpan.FromHours(1))
+        {
+            return DevicesViewModel.Ago(age);
+        }
+
+        DateTime now = _time.GetLocalNow().DateTime;
+        DateTime at = now - age;
+        string clock = OverlayTimeText.Clock(at);
+        if (at.Date == now.Date)
+        {
+            return clock;
+        }
+
+        return at.Date > now.Date.AddDays(-7)
+            ? $"{at.ToString("ddd", System.Globalization.CultureInfo.InvariantCulture)} {clock}"
+            : at.ToString("MMM d", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>The light's tip: "Synced · Pixel 8, Home desktop", "Behind · Pixel 8", or this PC's sync problem.</summary>

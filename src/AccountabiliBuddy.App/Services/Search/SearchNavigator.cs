@@ -17,15 +17,18 @@ public sealed class SearchNavigator
     private readonly Action<SettingsSection> _showSettingsGroup;
     private readonly Action<int> _showPlanTemplate;
     private readonly Action<object?> _reveal;
+    private readonly Action<IReadOnlyList<Guid>>? _showLabels;
 
     /// <param name="reveal">Brings the control (or, when null, the page's first match) into view once laid out.</param>
+    /// <param name="showLabels">A label or category result: the Tasks page's label filter set to just those labels.</param>
     public SearchNavigator(
         Action<int> selectTab,
         Action<Guid> selectProfile,
         Action<DateOnly> showDate,
         Action<SettingsSection> showSettingsGroup,
         Action<int> showPlanTemplate,
-        Action<object?> reveal)
+        Action<object?> reveal,
+        Action<IReadOnlyList<Guid>>? showLabels = null)
     {
         _selectTab = selectTab;
         _selectProfile = selectProfile;
@@ -33,6 +36,7 @@ public sealed class SearchNavigator
         _showSettingsGroup = showSettingsGroup;
         _showPlanTemplate = showPlanTemplate;
         _reveal = reveal;
+        _showLabels = showLabels;
     }
 
     public void Open(SearchTarget target)
@@ -51,6 +55,11 @@ public sealed class SearchNavigator
         if (target.SettingsGroup is SettingsSection group)
         {
             _showSettingsGroup(group);
+        }
+
+        if (target.Labels is { Count: > 0 } labels)
+        {
+            _showLabels?.Invoke(labels);
         }
 
         if (target.PlanTemplate is int template)

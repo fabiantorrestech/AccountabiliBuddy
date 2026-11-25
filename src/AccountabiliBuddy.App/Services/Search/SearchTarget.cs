@@ -10,6 +10,7 @@ namespace AccountabiliBuddy.App.Services.Search;
 /// <param name="Control">The control the text was found in, to bring into view (an app word).</param>
 /// <param name="PlanTemplate">The Day plan's inner tab: 0 = Workdays, 1 = Off-Days.</param>
 /// <param name="Flyout">For words inside a flyout (<see cref="SearchArea.IndexesFlyoutProperty"/>): the flyout to open on <paramref name="Control"/>.</param>
+/// <param name="Labels">A label or category result: the Tasks page shows only these labels' tasks (Tasks redesign 9.09).</param>
 public sealed record SearchTarget(
     int Tab,
     Guid? ProfileId = null,
@@ -17,4 +18,5 @@ public sealed record SearchTarget(
     SettingsSection? SettingsGroup = null,
     object? Control = null,
     int? PlanTemplate = null,
-    object? Flyout = null);
+    object? Flyout = null,
+    IReadOnlyList<Guid>? Labels = null);

@@ -6,7 +6,7 @@ namespace AccountabiliBuddy.App.Controls;
 /// <summary>
 /// The title bar's two groups (round 2, brief §3.2; owner 2026-11-14): the <see cref="TitleBarSlot.Start"/> children stack from the
 /// left edge (back / forward, the app name, the noise control) and the <see cref="TitleBarSlot.End"/> children stack leftwards from
-/// the right edge, last one rightmost (the session control, then synced devices │ light/dark │ Search │ the caption buttons). The end
+/// the right edge, last one rightmost (the session control, then the title-bar menu's button and the caption buttons). The end
 /// children take their full width first, so in a narrow window the start group is the part that gives way (its own
 /// <see cref="GiveWayPanel"/> order: the sound name, then the app name). Only when the start group is down to its smallest width
 /// does an end child that keeps room on its left (<see cref="ITitleBarLeftReserve"/>: the session control's extras) get less width

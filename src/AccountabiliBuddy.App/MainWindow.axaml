@@ -150,21 +150,50 @@
         <Style Selector="Button.caption.close:pointerover">
             <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
         </Style>
-        <!-- Busy: the sync icon spins while a sync runs (still with Animations Off: .motionOn is set from code). -->
-        <Style Selector=":is(Window).motionOn Button.busy mi|MaterialIcon">
-            <Style.Animations>
-                <Animation Duration="0:0:1.1" IterationCount="Infinite">
-                    <KeyFrame Cue="0%">
-                        <Setter Property="RotateTransform.Angle" Value="0" />
-                    </KeyFrame>
-                    <KeyFrame Cue="100%">
-                        <Setter Property="RotateTransform.Angle" Value="360" />
-                    </KeyFrame>
-                </Animation>
-            </Style.Animations>
+        <!-- The title-bar menu's button (Tasks redesign 9.02): 36 x 32, radius 10, a magnifier in Ink; transparent, Line while its menu is open. -->
+        <Style Selector="Button.titleMenu">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.titleMenu /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.titleMenu:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.titleMenu:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.titleMenu.open /template/ ContentPresenter#PART_ContentPresenter, Button.titleMenu.open:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.titleMenu:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+        <Style Selector=":is(Window).motionOn Button.titleMenu /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <!-- The menu's dropdown appears over 0.16 s (9.04; Animations on). -->
+        <Style Selector=":is(Window).motionOn views|TitleMenuView#TitleMenu">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" Easing="CubicEaseOut" />
+                </Transitions>
+            </Setter>
         </Style>
 
-        <!-- The sync light (design 20a): green = all in step; lilac = 2+ devices over an hour old; red = this device can't sync. -->
+        <!-- The sync dot on the menu's button (design 20a; 9.03): Met = all in step; Sleep = 2+ devices over an hour old; Drift = this PC can't sync. -->
         <Style Selector="Ellipse.syncDot">
             <Setter Property="Fill" Value="{DynamicResource Ab.Met}" />
         </Style>
@@ -173,16 +202,6 @@
         </Style>
         <Style Selector="Ellipse.syncDot.drift">
             <Setter Property="Fill" Value="{DynamicResource Ab.Drift}" />
-        </Style>
-        <Style Selector="mi|MaterialIcon.deviceGlyph">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-        </Style>
-        <Style Selector="mi|MaterialIcon.deviceGlyph.dim">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
-            <Setter Property="Opacity" Value="0.55" />
-        </Style>
-        <Style Selector="TextBlock.deviceName.dim">
-            <Setter Property="Opacity" Value="0.55" />
         </Style>
         <!-- The lunch chip (LU1b): a quiet pill with the lunch's time left and its ✕. -->
         <Style Selector="Border.titleChip">
@@ -215,13 +234,14 @@
             <Setter Property="MaxWidth" Value="360" />
         </Style>
     </Window.Styles>
-    <Panel>
+    <Panel x:Name="Root">
         <Grid RowDefinitions="40,Auto,*">
             <!-- Title bar, 40 tall (round 2, brief §3.2; owner 2026-11-14): at the left back / forward │ the app name, the PB pill
                  (ProductaBuddy mode only) │ the noise control; at the right the session control (it keeps room on its left where its
-                 extras open, so nothing moves), then each group split by a 1 px line: synced devices (the sync light and the sync
-                 button) │ light/dark │ Search │ the window's own minimize / maximize / close (snap layouts and all). The empty part
-                 drags the window and a double click maximizes it. Only one title-bar pop-up is open at a time (MainWindow.axaml.cs). -->
+                 extras open, so nothing moves), then the title-bar menu's button with the sync dot (Tasks redesign 9: search, sync and
+                 appearance; it replaced the sync light, Sync now, light/dark and Search), then the window's own minimize / maximize / close
+                 (snap layouts and all). The empty part drags the window and a double click maximizes it. Only one title-bar pop-up is open
+                 at a time (MainWindow.axaml.cs). -->
             <controls:TitleBarLayout x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}"
                                      chrome:WindowDecorationProperties.ElementRole="TitleBar">
                 <!-- In a narrow window the sound name gives way first, down to a short name (204 = the pill without its name + a 48 wide
@@ -278,95 +298,28 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts): right, next to the synced devices (owner 2026-11-14). -->
+                <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts): right, next to the title-bar menu (owner 2026-11-14; Tasks redesign 9). -->
                 <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="End" DataContext="{Binding SessionControl}"
                                           chrome:WindowDecorationProperties.ElementRole="User" />
 
                 <StackPanel x:Name="TitleBarEnd" controls:TitleBarLayout.Slot="End" Orientation="Horizontal">
-                    <Border Classes="titleDivider" Margin="10,0,6,0" />
-                    <StackPanel x:Name="SyncedDevicesGroup" Orientation="Horizontal">
-                        <!-- Only with another device linked: a dot and one glyph per device. Hover or click for each device's last sync. -->
-                        <Button x:Name="SyncLightButton" Classes="quiet titleIcon" Padding="10,0" Margin="0,0,2,0"
-                                chrome:WindowDecorationProperties.ElementRole="User"
-                                IsVisible="{Binding SyncLight.IsVisible, FallbackValue=False}" AutomationProperties.Name="Sync status"
-                                ToolTip.Tip="{Binding SyncLight.TipText, FallbackValue='Sync status'}">
-                            <FlyoutBase.AttachedFlyout>
-                                <Flyout Placement="BottomEdgeAlignedRight" ShowMode="Standard" FlyoutPresenterClasses="syncPopover">
-                                    <StackPanel x:Name="SyncPopover" Spacing="10" x:DataType="vm:MainWindowViewModel">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Panel Width="7" Height="7" VerticalAlignment="Center">
-                                                <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
-                                                         Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
-                                                <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
-                                            </Panel>
-                                            <TextBlock Classes="muted" FontSize="12" Text="{Binding SyncLight.SummaryText}" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                        <ItemsControl ItemsSource="{Binding SyncLight.Devices}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
-                                                    <!-- Green check = in step; red = this PC can't sync, or the device is behind (offline or failing). -->
-                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Margin="0,5">
-                                                        <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="18" Height="18" />
-                                                        <TextBlock Grid.Column="1" Classes="deviceName" Classes.dim="{Binding IsDim}" Text="{Binding Name}" Foreground="{DynamicResource Ab.Ink}" />
-                                                        <TextBlock Grid.Column="2" Classes="muted" FontSize="12" Text="{Binding AgoText}" VerticalAlignment="Center" />
-                                                        <Panel Grid.Column="3" Width="16" Height="16" VerticalAlignment="Center" AutomationProperties.Name="{Binding StatusName}">
-                                                            <mi:MaterialIcon Kind="Check" Width="16" Height="16" Foreground="{DynamicResource Ab.Met}" IsVisible="{Binding IsSynced}" />
-                                                            <mi:MaterialIcon Kind="{Binding FailingIcon}" Width="16" Height="16" Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsFailing}" />
-                                                        </Panel>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <WrapPanel ItemSpacing="4" LineSpacing="2">
-                                            <Button Classes="quiet" Command="{Binding RefreshNowCommand}" Content="Sync now" FontWeight="SemiBold" />
-                                            <Button Classes="quiet" Command="{Binding OpenDevicesAndSyncCommand}" Content="Devices &amp; sync" />
-                                            <Button Classes="quiet" Command="{Binding ShowSyncQrCodesCommand}" IsVisible="{Binding ShowsQrButton}"
-                                                    ToolTip.Tip="Show today's QR codes for your phone to scan">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <mi:MaterialIcon Kind="QrcodeScan" Width="16" Height="16" />
-                                                    <TextBlock Text="Add a device" />
-                                                </StackPanel>
-                                            </Button>
-                                        </WrapPanel>
-                                    </StackPanel>
-                                </Flyout>
-                            </FlyoutBase.AttachedFlyout>
-                            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                                <Panel Width="7" Height="7" VerticalAlignment="Center">
-                                    <Ellipse Classes="syncDot" Width="7" Height="7" Classes.sleep="{Binding SyncLight.IsSeveralBehind}"
-                                             Classes.drift="{Binding SyncLight.IsOffline}" IsVisible="{Binding SyncLight.IsDotSolid}" />
-                                    <Ellipse Width="7" Height="7" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding SyncLight.IsSyncing}" />
-                                </Panel>
-                                <!-- Only this PC's glyph (owner, AB-Improvements #26): the dot sums up every device; hover opens them all. -->
-                                <mi:MaterialIcon Classes="deviceGlyph" Classes.dim="{Binding SyncLight.ThisDevice.IsDim, FallbackValue=False}"
-                                                 Kind="{Binding SyncLight.ThisDevice.Icon, FallbackValue=Laptop}" Width="13" Height="13"
-                                                 IsVisible="{Binding SyncLight.HasThisDevice, FallbackValue=False}" />
-                            </StackPanel>
-                        </Button>
-                        <!-- Sync now and reload everything, for a manual check that all is in step (Ctrl+R); part of the synced-devices group. -->
-                        <Button Classes="quiet titleIcon" Width="40" Command="{Binding RefreshNowCommand}" ToolTip.Tip="{Binding RefreshTip}"
-                                chrome:WindowDecorationProperties.ElementRole="User"
-                                AutomationProperties.Name="Refresh and sync now" Classes.busy="{Binding IsRefreshing}">
-                            <mi:MaterialIcon Kind="Sync" Width="15" Height="15" RenderTransformOrigin="50%,50%">
-                                <mi:MaterialIcon.RenderTransform>
-                                    <RotateTransform />
-                                </mi:MaterialIcon.RenderTransform>
-                            </mi:MaterialIcon>
-                        </Button>
-                    </StackPanel>
-                    <Border Classes="titleDivider" />
-                    <!-- Light / dark; right-click or hold for the theme menu (device-local, never synced; ADR 49). -->
-                    <Panel IsVisible="{Binding HasThemeToggle}">
-                        <views:ThemeToggleButton x:Name="ThemeToggleControl" DataContext="{Binding ThemeToggle}"
-                                                 chrome:WindowDecorationProperties.ElementRole="User" />
-                    </Panel>
-                    <Border Classes="titleDivider" IsVisible="{Binding HasThemeToggle}" />
-                    <Button x:Name="SearchButton" Classes="quiet titleIcon" Width="40" Command="{Binding OpenSearchCommand}"
-                            chrome:WindowDecorationProperties.ElementRole="User"
-                            ToolTip.Tip="Search (Ctrl+F)" AutomationProperties.Name="Search">
-                        <mi:MaterialIcon Kind="Magnify" Width="17" Height="17" />
+                    <!-- The title-bar menu (Tasks redesign 9): a click (or Ctrl+F off the Tasks page) opens the dropdown with the caret in its
+                         search. The sync dot sits on its top-right, 5 from the top and 6 from the right, with a 2 px ring of the title bar's ground;
+                         a hollow ring while a sync runs. It shows as the sync light did (another device linked; Settings › Devices & sync › Sync light). -->
+                    <Button x:Name="TitleMenuButton" Classes="titleMenu" Margin="12,0,8,0" x:DataType="vm:TitleMenuViewModel"
+                            chrome:WindowDecorationProperties.ElementRole="User" ToolTip.Tip="{Binding ButtonTip}"
+                            AutomationProperties.Name="{x:Static vm:TitleMenuViewModel.AccessibleName}">
+                        <Panel>
+                            <mi:MaterialIcon Kind="Magnify" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Panel Width="12" Height="12" Margin="0,3,4,0" HorizontalAlignment="Right" VerticalAlignment="Top" IsHitTestVisible="False"
+                                   IsVisible="{Binding Sync.IsVisible, FallbackValue=False}">
+                                <Ellipse Width="12" Height="12" Fill="{DynamicResource Ab.Bg}" />
+                                <Ellipse Classes="syncDot" Width="8" Height="8" Classes.sleep="{Binding Sync.IsSeveralBehind, FallbackValue=False}"
+                                         Classes.drift="{Binding Sync.IsOffline, FallbackValue=False}" IsVisible="{Binding Sync.IsDotSolid, FallbackValue=True}" />
+                                <Ellipse Width="8" Height="8" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding Sync.IsSyncing, FallbackValue=False}" />
+                            </Panel>
+                        </Panel>
                     </Button>
-                    <Border Classes="titleDivider" Margin="6,0,8,0" />
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="MinimizeButton" Classes="caption" chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
                                 AutomationProperties.Name="Minimize">
@@ -460,11 +413,10 @@
             </Grid>
         </Grid>
 
-        <!-- Search: opened by Ctrl+F or the title bar's magnifier, under the title bar and over the page; Esc closes it. -->
-        <Border x:Name="SearchFlyout" IsVisible="{Binding IsSearchOpen}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,44,20,0"
-                Padding="10" CornerRadius="{DynamicResource Ab.CardRadius}" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" ZIndex="20">
-            <views:SearchBox x:Name="Search" DataContext="{Binding Search}" />
-        </Border>
+        <!-- The title-bar menu's dropdown (Tasks redesign 9.04): 8 under its button, right-aligned to it (the right margin is set from the
+             button's place), over the page without dimming it; it fits the window's height and scrolls inside. A click outside or Esc closes it. -->
+        <views:TitleMenuView x:Name="TitleMenu" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,44,146,12" ZIndex="20"
+                             RenderTransform="translateY(0px)" />
 
         <!-- Leaving Settings (or closing the window) with unsaved changes. -->
         <Border IsVisible="{Binding ShowsLeavePrompt}" Background="#99000000" ZIndex="30">

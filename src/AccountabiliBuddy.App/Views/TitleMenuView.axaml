@@ -1,0 +1,458 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:theming="using:AccountabiliBuddy.App.Services.Theming"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="AccountabiliBuddy.App.Views.TitleMenuView"
+             x:DataType="vm:TitleMenuViewModel">
+    <!-- The title-bar menu's dropdown (Tasks redesign 9, board 22): 330 wide, at most 720 high (scrolls), padding 12, 12 between sections,
+         Surface on a Line edge, radius 14, a 0 20 50 shadow. Search first (the caret lands there), then Sync, then Appearance. While a search is
+         typed its results take the place of Sync and Appearance; Esc clears it and they come back. Sections fold like the volume popover's
+         "Other devices" (remembered on this PC). -->
+    <UserControl.Styles>
+        <!-- The search field (9.08): 38 high, a pill on the page ground with a Line3 edge, in every state. -->
+        <Style Selector="TextBox.tmSearch">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBox.tmSearch /template/ Border#PART_BorderElement, TextBox.tmSearch:pointerover /template/ Border#PART_BorderElement, TextBox.tmSearch:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="{DynamicResource Ab.Bg}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <!-- No focus ring (board 22): the menu always opens with the caret here, so the caret is the sign. -->
+        <Style Selector="TextBox.tmSearch:focus /template/ Border#PART_BorderElement">
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="TextBox.tmSearch /template/ TextBlock#PART_PlaceholderText">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <!-- A key chip: "Ctrl+F", "Ctrl+R" (padding 1 6, radius 4, Surface2, Muted, 11). -->
+        <Style Selector="Border.tmKey">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.tmKey > TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.tmArrow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="5,2" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <!-- The box keeps the keyboard focus while stepping. -->
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style Selector="Button.tmArrow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+
+        <!-- A full-width row (status, Sync now, Theme, a result): radius 10, quiet, Surface2 on hover. -->
+        <Style Selector="Button.tmRow">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.tmRow /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.tmRow:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.tmRow:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- An unfolded section's row, and the current theme: Surface2. -->
+        <Style Selector="Button.tmRow.open /template/ ContentPresenter#PART_ContentPresenter, Button.tmRow.open:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+        <Style Selector="Button.tmRow:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+        <Style Selector="Button.tmRow.theme">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <!-- A search result: smaller padding; the box keeps the keyboard. -->
+        <Style Selector="Button.tmRow.result">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <!-- A link under the devices (QR codes, Devices & sync): 34 high, Accent, 12.5 SemiBold. -->
+        <Style Selector="Button.tmLink">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.tmLink /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.tmLink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.RowHover}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.tmLink:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+        <Style Selector="Button.tmLink.quiet /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+
+        <!-- A fold's chevron: turns 180° over 0.15 s while its section is open (only with Animations on). -->
+        <Style Selector="mi|MaterialIcon.tmChevron">
+            <Setter Property="Width" Value="15" />
+            <Setter Property="Height" Value="15" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="RenderTransform" Value="rotate(0deg)" />
+        </Style>
+        <Style Selector="Button.open mi|MaterialIcon.tmChevron">
+            <Setter Property="RenderTransform" Value="rotate(180deg)" />
+        </Style>
+        <Style Selector=":is(Window).motionOn mi|MaterialIcon.tmChevron">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <!-- Sync now's icon turns once per 0.9 s while a sync runs (9.17; Animations on). -->
+        <Style Selector=":is(Window).motionOn Button.busy mi|MaterialIcon.tmSyncIcon">
+            <Style.Animations>
+                <Animation Duration="0:0:0.9" IterationCount="Infinite">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="0" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="360" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- The sync dot (design 20a): Met = all in step; Sleep = 2+ devices over an hour old; Drift = this PC can't sync. -->
+        <Style Selector="Ellipse.tmDot">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Met}" />
+        </Style>
+        <Style Selector="Ellipse.tmDot.sleep">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Sleep}" />
+        </Style>
+        <Style Selector="Ellipse.tmDot.drift">
+            <Setter Property="Fill" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.tmDevice">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="mi|MaterialIcon.tmDevice.dim">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
+        </Style>
+        <Style Selector="TextBlock.tmDeviceName.dim">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+
+        <!-- Light · Dark · System (9.20): three equal segments on a Bg track; the picked one Line2 and Ink, the others Muted. -->
+        <Style Selector="Button.tmMode">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.tmMode /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.tmMode:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.tmMode.on /template/ ContentPresenter#PART_ContentPresenter, Button.tmMode.on:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.tmMode:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.FocusRing}" />
+        </Style>
+        <Style Selector=":is(Window).motionOn Button.tmMode /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15" />
+                </Transitions>
+            </Setter>
+        </Style>
+
+        <Style Selector="TextBlock.tmCaption">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="Card" Width="330" MaxHeight="720" Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}"
+            BorderThickness="1" CornerRadius="14"
+            AutomationProperties.Name="{x:Static vm:TitleMenuViewModel.AccessibleName}">
+        <!-- The card itself doesn't clip (that would cut its shadow off); this inner border keeps the scrolled content inside the corners. -->
+        <Border CornerRadius="13" ClipToBounds="True">
+        <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="12" Spacing="12">
+                <!-- Search (9.08): the caret lands here when the menu opens. -->
+                <TextBox x:Name="Box" Classes="tmSearch" Text="{Binding Search.Query, FallbackValue=''}" PlaceholderText="Search tasks, goals, settings…"
+                         AutomationProperties.Name="Search everything" IsVisible="{Binding Search, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <TextBox.InnerLeftContent>
+                        <mi:MaterialIcon Kind="Magnify" Width="16" Height="16" Margin="12,0,8,0" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                    </TextBox.InnerLeftContent>
+                    <TextBox.InnerRightContent>
+                        <Panel Margin="0,0,6,0" VerticalAlignment="Center">
+                            <Border Classes="tmKey" Margin="0,0,4,0" IsVisible="{Binding !Search.HasQuery, FallbackValue=True}">
+                                <TextBlock Text="Ctrl+F" />
+                            </Border>
+                            <!-- Like a browser's find bar: "2/5" on this page, ▲ ▼ to step (also ↑ ↓, Shift+Enter / Enter), and the ✕. -->
+                            <StackPanel Orientation="Horizontal" IsVisible="{Binding Search.HasQuery, FallbackValue=False}">
+                                <TextBlock Text="{Binding Search.PageCounterText, FallbackValue=''}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
+                                           VerticalAlignment="Center" Margin="4,0,4,0" />
+                                <Button Classes="tmArrow" Command="{Binding Search.PreviousCommand, FallbackValue={x:Null}}" IsEnabled="{Binding Search.HasPageMatches, FallbackValue=False}"
+                                        ToolTip.Tip="Previous match (↑ or Shift+Enter)" AutomationProperties.Name="Previous match">
+                                    <mi:MaterialIcon Kind="ChevronUp" Width="14" Height="14" />
+                                </Button>
+                                <Button Classes="tmArrow" Command="{Binding Search.NextCommand, FallbackValue={x:Null}}" IsEnabled="{Binding Search.HasPageMatches, FallbackValue=False}"
+                                        ToolTip.Tip="Next match (↓ or Enter)" AutomationProperties.Name="Next match">
+                                    <mi:MaterialIcon Kind="ChevronDown" Width="14" Height="14" />
+                                </Button>
+                                <controls:ClearTextButton Margin="2,0,0,0" />
+                            </StackPanel>
+                        </Panel>
+                    </TextBox.InnerRightContent>
+                </TextBox>
+
+                <!-- The results, while a search is typed: this page's matches, then everything in the app grouped by where it lives
+                     (labels and categories first). -->
+                <StackPanel x:Name="Results" Spacing="2" IsVisible="{Binding IsSearching}">
+                    <Button Classes="tmRow result" Command="{Binding Search.NextCommand, FallbackValue={x:Null}}" IsVisible="{Binding Search.HasPageMatches, FallbackValue=False}">
+                        <TextBlock Text="{Binding Search.PageText, FallbackValue=''}" FontSize="12.5" TextWrapping="Wrap" />
+                    </Button>
+                    <Button Classes="tmRow result" Command="{Binding Search.SearchAllCommand, FallbackValue={x:Null}}" IsVisible="{Binding !Search.ShowsAll, FallbackValue=False}">
+                        <TextBlock Text="{Binding Search.AllText, FallbackValue=''}" FontSize="12.5" FontWeight="SemiBold" />
+                    </Button>
+                    <TextBlock Text="Nothing found." FontSize="12.5" Foreground="{DynamicResource Ab.Muted}" Margin="10,6"
+                               IsVisible="{Binding Search.ShowsNothingFound, FallbackValue=False}" />
+                    <ItemsControl ItemsSource="{Binding Search.Results, FallbackValue={x:Null}}" IsVisible="{Binding Search.ShowsAll, FallbackValue=False}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SearchResultGroup">
+                                <StackPanel Spacing="1" Margin="0,4,0,2">
+                                    <TextBlock Classes="tmCaption" Text="{Binding Name}" Margin="10,2" />
+                                    <ItemsControl ItemsSource="{Binding Rows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SearchResultRow">
+                                                <Button Classes="tmRow result" CommandParameter="{Binding}"
+                                                        Command="{Binding $parent[UserControl].((vm:TitleMenuViewModel)DataContext).Search.OpenCommand, FallbackValue={x:Null}}">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <StackPanel>
+                                                            <!-- The runs on one line: whitespace between them would show as spaces. -->
+                                                            <TextBlock FontSize="13" TextTrimming="CharacterEllipsis"><Run Text="{Binding Before}" /><Run Text="{Binding Match}" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" /><Run Text="{Binding After}" /></TextBlock>
+                                                            <TextBlock Text="{Binding Path}" FontSize="11.5" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                        <Border Grid.Column="1" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" CornerRadius="9"
+                                                                Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Kind}" FontSize="10.5" Foreground="{DynamicResource Ab.Muted}" />
+                                                        </Border>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Sync (9.11-9.18): a line above; the status row folds the devices out; Sync now (Ctrl+R anywhere). -->
+                <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" Padding="0,4,0,0" IsVisible="{Binding ShowsSections}">
+                    <StackPanel Spacing="2">
+                        <Button x:Name="StatusRow" Classes="tmRow" MinHeight="44" Classes.open="{Binding IsDevicesOpen}" IsVisible="{Binding HasSync}"
+                                Command="{Binding ToggleDevicesCommand}" ToolTip.Tip="{Binding Sync.SummaryText, FallbackValue=''}"
+                                AutomationProperties.Name="{Binding Sync.StatusTitle, FallbackValue='Sync status'}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <Panel Width="9" Height="9" VerticalAlignment="Center">
+                                    <Ellipse Classes="tmDot" Width="9" Height="9" Classes.sleep="{Binding Sync.IsSeveralBehind, FallbackValue=False}"
+                                             Classes.drift="{Binding Sync.IsOffline, FallbackValue=False}" IsVisible="{Binding Sync.IsDotSolid, FallbackValue=True}" />
+                                    <Ellipse Width="9" Height="9" Stroke="{DynamicResource Ab.Met}" StrokeThickness="1.5" IsVisible="{Binding Sync.IsSyncing, FallbackValue=False}" />
+                                </Panel>
+                                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center" Margin="0,5">
+                                    <TextBlock Text="{Binding Sync.StatusTitle, FallbackValue=''}" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Sync.StatusDetail, FallbackValue=''}" FontSize="12" Foreground="{DynamicResource Ab.Muted}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <mi:MaterialIcon Grid.Column="2" Classes="tmChevron" Kind="ChevronDown" RenderTransformOrigin="50%,50%" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                        <StackPanel x:Name="DeviceList" Spacing="2" Margin="26,0,4,4" IsVisible="{Binding ShowsDevices}">
+                            <ItemsControl ItemsSource="{Binding Sync.Devices, FallbackValue={x:Null}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SyncLightDeviceViewModel">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" MinHeight="36" Margin="8,0">
+                                            <mi:MaterialIcon Classes="tmDevice" Classes.dim="{Binding IsDim}" Kind="{Binding Icon}" Width="16" Height="16" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,3">
+                                                <TextBlock Classes="tmDeviceName" Classes.dim="{Binding IsDim}" Text="{Binding Name}" FontSize="13"
+                                                           Foreground="{DynamicResource Ab.Ink}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding WhenText}" FontSize="11.5" Foreground="{DynamicResource Ab.Muted}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <!-- A tick = in step; a red sign = this PC can't sync, or the device is behind. -->
+                                            <Panel Grid.Column="2" Width="15" Height="15" VerticalAlignment="Center" AutomationProperties.Name="{Binding StatusName}"
+                                                   ToolTip.Tip="{Binding StatusName}">
+                                                <mi:MaterialIcon Kind="Check" Width="15" Height="15" Foreground="{DynamicResource Ab.Met}" IsVisible="{Binding IsSynced}" />
+                                                <mi:MaterialIcon Kind="{Binding FailingIcon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsFailing}" />
+                                            </Panel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Classes="tmLink" Command="{Binding ShowQrCodesCommand}" IsVisible="{Binding Main.ShowsQrButton}"
+                                    ToolTip.Tip="Show today's QR codes for your phone to scan">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <mi:MaterialIcon Kind="QrcodeScan" Width="15" Height="15" VerticalAlignment="Center" />
+                                    <TextBlock Text="Show today's QR codes for your phone" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <!-- Kept from the sync light's popover: Settings › Devices & sync. -->
+                            <Button Classes="tmLink quiet" Command="{Binding OpenDevicesSettingsCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <mi:MaterialIcon Kind="Devices" Width="15" Height="15" VerticalAlignment="Center" />
+                                    <TextBlock Text="Devices &amp; sync settings" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <Button x:Name="SyncNowRow" Classes="tmRow" MinHeight="44" Classes.busy="{Binding IsSyncing}" Command="{Binding SyncNowCommand}"
+                                ToolTip.Tip="{Binding Main.RefreshTip}" AutomationProperties.Name="{Binding SyncNowText}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                <mi:MaterialIcon Classes="tmSyncIcon" Kind="Sync" Width="17" Height="17" Foreground="{DynamicResource Ab.Accent}"
+                                                 VerticalAlignment="Center" RenderTransformOrigin="50%,50%">
+                                    <mi:MaterialIcon.RenderTransform>
+                                        <RotateTransform />
+                                    </mi:MaterialIcon.RenderTransform>
+                                </mi:MaterialIcon>
+                                <TextBlock Grid.Column="1" Text="{Binding SyncNowText}" FontSize="13.5" VerticalAlignment="Center" />
+                                <Border Grid.Column="2" Classes="tmKey">
+                                    <TextBlock Text="Ctrl+R" />
+                                </Border>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Appearance (9.19-9.24): Light · Dark · System, then the Theme row folding out the themes. Applies at once; the menu stays. -->
+                <Border BorderBrush="{DynamicResource Ab.Line}" BorderThickness="0,1,0,0" Padding="0,10,0,0" IsVisible="{Binding ShowsAppearance}">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto" Margin="4,0">
+                            <TextBlock Classes="tmCaption" Text="Appearance" />
+                            <!-- At a set time / After sunset (set in Settings): named here, as no segment can show it. -->
+                            <TextBlock Grid.Column="1" Classes="tmCaption" FontWeight="Normal" Text="{Binding Appearance.ModeNote, FallbackValue=''}"
+                                       IsVisible="{Binding Appearance.HasModeNote, FallbackValue=False}" />
+                        </Grid>
+                        <Border Background="{DynamicResource Ab.Bg}" Padding="3" CornerRadius="999">
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="4" AutomationProperties.Name="Light or dark">
+                                <Button Classes="tmMode" Classes.on="{Binding Appearance.IsLight, FallbackValue=False}" Command="{Binding SetModeCommand}"
+                                        CommandParameter="{x:Static theming:LightDarkMode.Light}" AutomationProperties.Name="Light">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="WhiteBalanceSunny" Width="14" Height="14" VerticalAlignment="Center" />
+                                        <TextBlock Text="Light" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="1" Classes="tmMode" Classes.on="{Binding Appearance.IsDark, FallbackValue=False}" Command="{Binding SetModeCommand}"
+                                        CommandParameter="{x:Static theming:LightDarkMode.Dark}" AutomationProperties.Name="Dark">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="WeatherNight" Width="14" Height="14" VerticalAlignment="Center" />
+                                        <TextBlock Text="Dark" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Grid.Column="2" Classes="tmMode" Classes.on="{Binding Appearance.IsSystem, FallbackValue=False}" Command="{Binding SetModeCommand}"
+                                        CommandParameter="{x:Static theming:LightDarkMode.System}" AutomationProperties.Name="System"
+                                        ToolTip.Tip="Match Windows">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <mi:MaterialIcon Kind="ThemeLightDark" Width="14" Height="14" VerticalAlignment="Center" />
+                                        <TextBlock Text="System" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
+                        <Button x:Name="ThemeRow" Classes="tmRow" Height="36" Classes.open="{Binding IsThemesOpen}" Command="{Binding ToggleThemesCommand}"
+                                AutomationProperties.Name="Theme">
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                <TextBlock Text="Theme" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding Appearance.ThemeText, FallbackValue=''}" FontSize="12.5" Foreground="{DynamicResource Ab.Muted}"
+                                           VerticalAlignment="Center" />
+                                <mi:MaterialIcon Grid.Column="2" Classes="tmChevron" Kind="ChevronDown" RenderTransformOrigin="50%,50%" VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                        <StackPanel x:Name="ThemeList" Spacing="2" IsVisible="{Binding IsThemesOpen}" AutomationProperties.Name="Theme">
+                            <ItemsControl ItemsSource="{Binding Themes}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Spacing="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ThemeChoiceViewModel">
+                                        <Button Classes="tmRow theme" Classes.open="{Binding IsCurrent}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name}"
+                                                Command="{Binding $parent[UserControl].((vm:TitleMenuViewModel)DataContext).PickThemeCommand, FallbackValue={x:Null}}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                                <!-- The swatch (9.23): 34 x 20, radius 5, a Line2 edge; Bg, Surface2 and Accent stripes 2 : 2 : 1. -->
+                                                <Border Width="34" Height="20" CornerRadius="5" BorderThickness="1" BorderBrush="{DynamicResource Ab.Line2}" ClipToBounds="True"
+                                                        VerticalAlignment="Center">
+                                                    <Grid ColumnDefinitions="2*,2*,*">
+                                                        <Border Background="{Binding BgBrush}" />
+                                                        <Border Grid.Column="1" Background="{Binding Surface2Brush}" />
+                                                        <Border Grid.Column="2" Background="{Binding AccentBrush}" />
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13" VerticalAlignment="Center" />
+                                                <mi:MaterialIcon Grid.Column="2" Kind="Check" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}"
+                                                                 IsVisible="{Binding IsCurrent}" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <!-- Kept from the old theme menu: At a set time, After sunset and the rest live in Settings › Appearance. -->
+                            <Button Classes="tmLink quiet" Command="{Binding OpenAppearanceSettingsCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <mi:MaterialIcon Kind="PaletteOutline" Width="15" Height="15" VerticalAlignment="Center" />
+                                    <TextBlock Text="More in Settings › Appearance" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        </Border>
+    </Border>
+</UserControl>

@@ -483,14 +483,14 @@
                 </Border>
             </Border>
 
-            <!-- The title bar's sync light (display only). -->
+            <!-- The sync dot on the title-bar menu's button (display only; Tasks redesign 9). -->
             <TextBlock Classes="sGroup" Text="Sync light" />
             <Border Classes="sPanel">
                 <Border Classes="sRow" BorderThickness="0">
                     <StackPanel Spacing="10">
                         <StackPanel Spacing="2">
-                            <TextBlock Classes="sTitle" Text="Show the sync light in the title bar" />
-                            <TextBlock Classes="sHint" Text="The dot and device icons next to the sync button. The sync button itself always stays." />
+                            <TextBlock Classes="sTitle" Text="Show the sync dot in the title bar" />
+                            <TextBlock Classes="sHint" Text="The dot on the title bar's menu button. The menu's Sync now and device list always stay." />
                         </StackPanel>
                         <ListBox Classes="segmented" ItemsSource="{x:Static vm:DevicesViewModel.SyncLightNames}"
                                  SelectedIndex="{Binding SyncLightIndex}" AutomationProperties.Name="Sync light" />

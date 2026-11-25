@@ -25,28 +25,11 @@ public partial class MainWindow : Window
     private static readonly TimeSpan FlashTime = TimeSpan.FromMilliseconds(1400);
     private static readonly IBrush FoundBrush = new SolidColorBrush(Color.FromRgb(250, 204, 21));
 
-    // The pointer rests on the sync light this long before its popover opens (a click opens it at once).
-    private static readonly TimeSpan SyncHoverDelay = TimeSpan.FromMilliseconds(350);
-
     // The pages the search reads, by MainTab (the dev Activity page is left out).
     private static readonly string[] SearchedPageNames = ["Today", "Tasks", "Plan", "Stats", "Settings"];
 
-    // After the pointer leaves both the sync light and its popover, the popover closes this long after (long enough to
-    // cross the gap between them).
-    private static readonly TimeSpan SyncLeaveGrace = TimeSpan.FromMilliseconds(300);
-
-    private readonly DispatcherTimer _syncHoverTimer = new() { Interval = SyncHoverDelay };
-
     // The Tasks keyboard map's window keys (Ctrl+G, Ctrl+Z, Del, F2, H, Esc's last steps).
     private readonly TaskShortcuts _taskShortcuts;
-    private readonly DispatcherTimer _syncLeaveTimer = new() { Interval = SyncLeaveGrace };
-
-    // A click on the sync light pins its popover open until a click elsewhere; hovering alone leaves it to close on leave.
-    private bool _syncPinned;
-    private bool _syncWasPinnedOnPress;
-    private bool _pointerOnSyncLight;
-    private bool _pointerOnSyncPopover;
-    private Control? _syncPresenter;
 
     private void OnLunchChipPromptClosed(object? sender, EventArgs e) => LunchChipEndButton.Flyout?.Hide();
 
@@ -67,12 +50,14 @@ public partial class MainWindow : Window
     private TimeSpan _lastWheelAt;
     private bool _swipeOff;
 
-    // The title bar's pop-ups (volume, session menu, sync light, theme menu): opening one closes the others (round 2, brief §4.2).
+    // The title bar's pop-ups (volume, session menu, lunch prompt, and the title-bar menu): opening one closes the others (round 2, brief
+    // §4.2; Tasks redesign 9.06). The menu is a panel in the window rather than a flyout, so it joins the rule by hand: it closes when one
+    // of these opens, and opening it hides them.
     private readonly OnePopupAtATime _titleBarPopups = new();
+    private readonly List<FlyoutBase> _titleBarFlyouts = [];
 
-    // The popover is attached rather than the button's own Flyout: a Button toggles its Flyout on every click, which would
-    // fight the hover-open / click-to-pin rules here.
-    private FlyoutBase? SyncFlyout => FlyoutBase.GetAttachedFlyout(SyncLightButton);
+    // The title-bar menu's view model (Tasks redesign 9), made when the window gets its view model.
+    private TitleMenuViewModel? _titleMenu;
 
     private int _shownTab;
 
@@ -85,13 +70,13 @@ public partial class MainWindow : Window
         // Styles that move only while Animations is on (the sync spin, Tasks' reset fade) look for .motionOn on the window.
         Classes.Set("motionOn", Services.Motion.Current is not { IsOn: false });
         Services.Motion.SpeedChanged += (_, _) => Classes.Set("motionOn", Services.Motion.Current is not { IsOn: false });
-        // Ctrl+G's prompt opens under the title bar's search.
-        _taskShortcuts = new TaskShortcuts(tasks => GoToTaskPopover.ShowAt(SearchButton, tasks.GoToTask));
+        // Ctrl+G's prompt opens under the title-bar menu's button (where the search lives).
+        _taskShortcuts = new TaskShortcuts(tasks => GoToTaskPopover.ShowAt(TitleMenuButton, tasks.GoToTask));
         // Del's key repeats are ignored until it comes up (seen even when something handled it), or the window loses the keyboard.
         AddHandler(KeyUpEvent, (_, e) => _taskShortcuts.KeyReleased(e.Key), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         Deactivated += (_, _) => _taskShortcuts.Reset();
         AddHandler(DragDrop.DropEvent, OnDrop);
-        // A click away from the search flyout closes it, whatever it holds.
+        // A click away from the title-bar menu closes it, whatever it holds.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         // The mouse's back / forward buttons, anywhere in the window (owner 2026-11-14).
         AddHandler(PointerPressedEvent, OnNavigationPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -119,52 +104,26 @@ public partial class MainWindow : Window
         MinimizeButton.Click += (_, _) => WindowState = WindowState.Minimized;
         MaximizeButton.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         CloseButton.Click += (_, _) => Close(); // OnClosing hides to the tray unless AllowClose is set.
-        SyncLightButton.PointerEntered += (_, _) =>
+        TitleMenuButton.Click += (_, _) => ToggleTitleMenu();
+        TitleMenu.CloseRequested += (_, _) => CloseTitleMenu();
+        // The dropdown stays right-aligned to its button as the window is resized.
+        Root.SizeChanged += (_, _) =>
         {
-            _pointerOnSyncLight = true;
-            _syncLeaveTimer.Stop();
-            _syncHoverTimer.Start();
-        };
-        SyncLightButton.PointerExited += (_, _) =>
-        {
-            _pointerOnSyncLight = false;
-            _syncHoverTimer.Stop();
-            StartSyncLeaveTimer();
-        };
-        SyncLightButton.AddHandler(
-            PointerPressedEvent,
-            (_, _) =>
+            if (TitleMenu.IsVisible)
             {
-                _syncWasPinnedOnPress = _syncPinned;
-                _syncHoverTimer.Stop(); // The click decides now; a hover still ticking must not reopen what it closes.
-            },
-            Avalonia.Interactivity.RoutingStrategies.Tunnel,
-            handledEventsToo: true);
-        SyncLightButton.Click += OnSyncLightClick;
-        if (SyncFlyout is { } syncPopover)
-        {
-            syncPopover.Opened += OnSyncPopoverOpened;
-            syncPopover.Closed += OnSyncPopoverClosed;
-            // An open flyout lays a click-catching layer over the window, which would cover the sync light itself (the
-            // pointer "leaves" it as the popover opens, and a click on it never arrives). Let input through to the window;
-            // clicks away from the popover close it here (OnWindowPointerPressed, OnWindowMessage).
-            if (syncPopover is PopupFlyoutBase popupFlyout)
-            {
-                popupFlyout.OverlayInputPassThroughElement = this;
+                PlaceTitleMenu();
             }
-        }
+        };
 
         // A session started or ended with Animations Off: the session control's room changed at once, so the left group (the sound
         // name it narrowed or widened) fades in rather than jumping (owner 2026-11-14).
         SessionControl.FootprintSnapped += (_, _) => FadeInTitleBarStart();
-        _titleBarPopups.Add(SyncFlyout);
-        _titleBarPopups.Add(SessionControl.SessionMenu);
-        _titleBarPopups.Add(NoiseControl.VolumeFlyout);
-        _titleBarPopups.Add(ThemeToggleControl.Menu);
+        AddTitleBarPopup(SessionControl.SessionMenu);
+        AddTitleBarPopup(NoiseControl.VolumeFlyout);
         // The lunch chip's "End lunch?" pop-up (LU1b): it reads lunch fresh when it opens and closes itself when answered.
         if (LunchChipEndButton.Flyout is FlyoutBase lunchFlyout)
         {
-            _titleBarPopups.Add(lunchFlyout);
+            AddTitleBarPopup(lunchFlyout);
             lunchFlyout.Opened += (_, _) =>
             {
                 if (DataContext is MainWindowViewModel { Session.Lunch: { } card })
@@ -183,31 +142,8 @@ public partial class MainWindow : Window
             };
         }
 
-        _syncHoverTimer.Tick += (_, _) =>
-        {
-            _syncHoverTimer.Stop();
-            if (SyncFlyout is { IsOpen: false } popover)
-            {
-                popover.ShowAt(SyncLightButton);
-            }
-        };
-        _syncLeaveTimer.Tick += (_, _) =>
-        {
-            _syncLeaveTimer.Stop();
-            if (!_syncPinned && !_pointerOnSyncLight && !_pointerOnSyncPopover)
-            {
-                SyncFlyout?.Hide();
-            }
-        };
-        Search.CloseRequested += (_, _) =>
-        {
-            if (DataContext is MainWindowViewModel viewModel)
-            {
-                viewModel.IsSearchOpen = false;
-            }
-        };
         Opened += (_, _) => WarmUpPages();
-        Deactivated += (_, _) => CloseSearch(); // A click in another app is a click away too.
+        Deactivated += (_, _) => CloseTitleMenu(); // A click in another app is a click away too.
         Opened += (_, _) =>
         {
             if (!_hookedWindowMessages)
@@ -227,13 +163,15 @@ public partial class MainWindow : Window
                     {
                         OnSelectedTabChanged(viewModel);
                     }
-                    else if (e.PropertyName == nameof(MainWindowViewModel.IsSearchOpen) && viewModel.IsSearchOpen)
+                    else if (e.PropertyName == nameof(MainWindowViewModel.IsSearchOpen))
                     {
-                        Dispatcher.UIThread.Post(Search.FocusBox, DispatcherPriority.Loaded);
+                        ShowTitleMenu(viewModel.IsSearchOpen);
                     }
                 };
-                // The sync light's popover is its own little tree; it reads the window's view model.
-                SyncPopover.DataContext = viewModel;
+                // The title-bar menu reads the window's search, sync light, refresh and theme; its folds are this PC's (document "syncLight").
+                _titleMenu = new TitleMenuViewModel(viewModel, viewModel.Devices?.SyncLightSetting);
+                TitleMenu.DataContext = _titleMenu;
+                TitleMenuButton.DataContext = _titleMenu;
                 ConnectSearch(viewModel);
                 // Back / forward: no move while a dialog this window owns is open (the unsaved-settings prompt is checked by the view model).
                 viewModel.IsModalOpen = () => OwnedWindows.Any(window => window.IsVisible);
@@ -245,66 +183,105 @@ public partial class MainWindow : Window
         };
     }
 
-    // Hovering opens the popover and leaving closes it again; a click pins it open (a click on a pinned one lets it go).
-    private void OnSyncLightClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    // ---- The title-bar menu (Tasks redesign 9) ----
+
+    // A pop-up of the title bar's group: it closes the menu when it opens (the menu hides it when the menu opens).
+    private void AddTitleBarPopup(FlyoutBase? popup)
     {
-        if (_syncWasPinnedOnPress)
+        if (popup is null)
         {
-            CloseSyncPopover();
             return;
         }
 
-        if (SyncFlyout is { IsOpen: false } popover)
-        {
-            popover.ShowAt(SyncLightButton);
-        }
-
-        _syncPinned = true;
+        _titleBarPopups.Add(popup);
+        _titleBarFlyouts.Add(popup);
+        popup.Opened += (_, _) => CloseTitleMenu();
     }
 
-    private void OnSyncPopoverOpened(object? sender, EventArgs e)
+    private void ToggleTitleMenu()
     {
-        _syncPresenter = SyncPopover.FindAncestorOfType<FlyoutPresenter>();
-        if (_syncPresenter is not null)
+        if (DataContext is MainWindowViewModel viewModel)
         {
-            _syncPresenter.PointerEntered += OnSyncPopoverEntered;
-            _syncPresenter.PointerExited += OnSyncPopoverExited;
+            viewModel.IsSearchOpen = !viewModel.IsSearchOpen;
         }
     }
 
-    private void OnSyncPopoverClosed(object? sender, EventArgs e)
+    /// <summary>Opens the title-bar menu with the caret in its search (a click on its button, or Ctrl+F off the Tasks page).</summary>
+    private void OpenTitleMenu()
     {
-        if (_syncPresenter is not null)
+        if (DataContext is not MainWindowViewModel viewModel)
         {
-            _syncPresenter.PointerEntered -= OnSyncPopoverEntered;
-            _syncPresenter.PointerExited -= OnSyncPopoverExited;
-            _syncPresenter = null;
+            return;
         }
 
-        _syncLeaveTimer.Stop();
-        _syncPinned = false;
-        _pointerOnSyncPopover = false;
-    }
-
-    private void OnSyncPopoverEntered(object? sender, PointerEventArgs e)
-    {
-        _pointerOnSyncPopover = true;
-        _syncLeaveTimer.Stop();
-    }
-
-    private void OnSyncPopoverExited(object? sender, PointerEventArgs e)
-    {
-        _pointerOnSyncPopover = false;
-        StartSyncLeaveTimer();
-    }
-
-    private void StartSyncLeaveTimer()
-    {
-        if (!_syncPinned && SyncFlyout is { IsOpen: true })
+        if (viewModel.IsSearchOpen)
         {
-            _syncLeaveTimer.Stop();
-            _syncLeaveTimer.Start();
+            TitleMenu.FocusSearch();
+            return;
         }
+
+        viewModel.IsSearchOpen = true;
+    }
+
+    private void CloseTitleMenu()
+    {
+        if (DataContext is MainWindowViewModel { IsSearchOpen: true } viewModel)
+        {
+            viewModel.IsSearchOpen = false;
+        }
+    }
+
+    // The window's view model says open or closed: the dropdown shows (fading and dropping in over 0.16 s while Animations is on) or hides.
+    private void ShowTitleMenu(bool open)
+    {
+        TitleMenuButton.Classes.Set("open", open);
+        if (!open)
+        {
+            TitleMenu.IsVisible = false;
+            if (TitleMenu.IsKeyboardFocusWithin)
+            {
+                TitleMenuButton.Focus();
+            }
+
+            return;
+        }
+
+        foreach (FlyoutBase popup in _titleBarFlyouts.Where(popup => popup.IsOpen))
+        {
+            popup.Hide();
+        }
+
+        PlaceTitleMenu();
+        TitleMenu.Prepare();
+        Avalonia.Animation.Transitions? transitions = TitleMenu.Transitions;
+        TitleMenu.Transitions = null;
+        TitleMenu.Opacity = transitions is null ? 1 : 0;
+        TitleMenu.RenderTransform = Avalonia.Media.Transformation.TransformOperations.Parse(transitions is null ? "translateY(0px)" : "translateY(-6px)");
+        TitleMenu.IsVisible = true;
+        TitleMenu.Transitions = transitions;
+        if (transitions is not null)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                TitleMenu.Opacity = 1;
+                TitleMenu.RenderTransform = Avalonia.Media.Transformation.TransformOperations.Parse("translateY(0px)");
+            }, DispatcherPriority.Render);
+        }
+
+        Dispatcher.UIThread.Post(TitleMenu.FocusSearch, DispatcherPriority.Loaded);
+    }
+
+    // 8 under the button, its right edge on the button's (9.04); its height up to the window's bottom less 12, where it scrolls.
+    private void PlaceTitleMenu()
+    {
+        Point? buttonRight = TitleMenuButton.TranslatePoint(new Point(TitleMenuButton.Bounds.Width, TitleMenuButton.Bounds.Height), Root);
+        if (buttonRight is not Point corner)
+        {
+            return;
+        }
+
+        double right = Math.Max(0, Root.Bounds.Width - corner.X);
+        TitleMenu.Margin = new Thickness(0, corner.Y + 8, right, 12);
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
@@ -320,35 +297,17 @@ public partial class MainWindow : Window
         }
     }
 
+    // A click away from the title-bar menu closes it, with or without a search typed (the words stay for next time). A click on its
+    // button is left to the button, which toggles it.
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         Visual? clickedVisual = e.Source as Visual;
-        if (clickedVisual is null || !(IsInside(SyncLightButton, clickedVisual) || IsInside(SyncPopover, clickedVisual)))
+        if (clickedVisual is not null && (IsInside(TitleMenu, clickedVisual) || IsInside(TitleMenuButton, clickedVisual)))
         {
-            CloseSyncPopover();
+            return;
         }
 
-        if (clickedVisual is not null && (IsInside(SearchFlyout, clickedVisual) || IsInside(SearchButton, clickedVisual) || Search.IsPartOf(clickedVisual)))
-        {
-            return; // In the box or its results dropdown (a popup of its own), or the magnifier that toggles it.
-        }
-
-        CloseSearch();
-    }
-
-    // The search closes on any click away from it, with or without a search typed (Esc also clears it; this leaves it).
-    private void CloseSearch()
-    {
-        if (DataContext is MainWindowViewModel { IsSearchOpen: true } viewModel)
-        {
-            viewModel.IsSearchOpen = false;
-        }
-    }
-
-    private void CloseSyncPopover()
-    {
-        _syncPinned = false;
-        SyncFlyout?.Hide();
+        CloseTitleMenu();
     }
 
     // A press on the title bar's empty part (or its edge) is a non-client click: Windows takes it for a drag and Avalonia
@@ -358,8 +317,7 @@ public partial class MainWindow : Window
         const uint WmNcLButtonDown = 0x00A1;
         if (msg == WmNcLButtonDown)
         {
-            CloseSyncPopover();
-            CloseSearch();
+            CloseTitleMenu();
         }
 
         return IntPtr.Zero;
@@ -430,10 +388,10 @@ public partial class MainWindow : Window
 
     // ---- The two-finger swipe ----
 
-    // True while something else owns the pointer or the page must not move: a dialog, the unsaved-settings prompt, the sync popover.
+    // True while something else owns the pointer or the page must not move: a dialog, the unsaved-settings prompt, the title-bar menu.
     private bool IsSwipeBlocked(MainWindowViewModel viewModel)
     {
-        return viewModel.IsModalOpen?.Invoke() == true || viewModel.ShowsLeavePrompt || SyncFlyout is { IsOpen: true };
+        return viewModel.IsModalOpen?.Invoke() == true || viewModel.ShowsLeavePrompt || viewModel.IsSearchOpen;
     }
 
     private void OnSwipeWheel(object? sender, PointerWheelEventArgs e)
@@ -556,13 +514,6 @@ public partial class MainWindow : Window
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key == Key.Escape && SyncFlyout is { IsOpen: true })
-        {
-            CloseSyncPopover();
-            e.Handled = true;
-            return;
-        }
-
         if (DataContext is not MainWindowViewModel viewModel)
         {
             return;
@@ -570,15 +521,16 @@ public partial class MainWindow : Window
 
         if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            // Tasks redesign 7.06: on the Tasks page Ctrl+F puts the caret in the page's own search; elsewhere the title bar's search opens.
+            // Tasks redesign 7.06, 9.10: on the Tasks page Ctrl+F puts the caret in the page's own search; elsewhere the title-bar menu opens
+            // with the caret in its search.
             if (viewModel.IsTasksSelected && this.GetVisualDescendants().OfType<TasksView>().FirstOrDefault(view => view.IsEffectivelyVisible) is { } tasksView)
             {
+                CloseTitleMenu();
                 tasksView.FocusSearch();
             }
             else
             {
-                viewModel.IsSearchOpen = true;
-                Search.FocusBox();
+                OpenTitleMenu();
             }
 
             e.Handled = true;
@@ -596,7 +548,7 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.R && e.KeyModifiers == KeyModifiers.Control)
         {
-            // The same as the title bar's sync button.
+            // The same as the title-bar menu's Sync now, from anywhere (9.18).
             if (viewModel.RefreshNowCommand.CanExecute(null))
             {
                 viewModel.RefreshNowCommand.Execute(null);
@@ -627,8 +579,8 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.Escape && viewModel.IsSearchOpen)
         {
-            viewModel.Search?.ClearCommand.Execute(null);
-            viewModel.IsSearchOpen = false;
+            // Esc closes the title-bar menu (in its search, Esc first clears a typed search: TitleMenuView).
+            CloseTitleMenu();
             e.Handled = true;
         }
         else if (NavigationKeys.FromKey(e.Key, e.KeyModifiers, e.Handled, FocusForNavigation()) is HistoryDirection direction)
@@ -656,6 +608,8 @@ public partial class MainWindow : Window
 
         Highlights.Page = Pages.Children[Math.Max(0, _shownTab)];
         search.UiEntries = SearchPages;
+        // Tasks redesign 9.09: the labels this device shows and their categories, from the Tasks page's label row.
+        search.LabelEntries = () => viewModel.Tasks is { } tasks ? LabelSearchSource.Entries(tasks.Shelf.MenuGroups) : [];
         // Settings' own Search field finds rows by the same words.
         viewModel.Settings.RowsMatching = query => SearchPages()
             .Where(entry => entry.Target is { Tab: SearchTabs.Settings, SettingsGroup: not null } && TextMatcher.Find(entry.Text, query).Count > 0)
@@ -698,10 +652,18 @@ public partial class MainWindow : Window
             date => viewModel.Plan?.OpenChangeADay(date),
             section => viewModel.Settings.Select(section),
             template => viewModel.Plan?.OpenDayTypes(template),
-            control => Dispatcher.UIThread.Post(() => RevealFound(control as Control), DispatcherPriority.Background));
+            control => Dispatcher.UIThread.Post(() => RevealFound(control as Control), DispatcherPriority.Background),
+            labels => viewModel.Tasks?.Shelf.ShowOnlyLabels(labels));
         search.OpenRequested += (_, target) =>
         {
             navigator.Open(target);
+            // A label or category: the Tasks page is now filtered to it, so the menu gets out of the way. Other results keep it open, so the
+            // page's highlights and ▲ ▼ stay at hand (as the old search box did).
+            if (target.Labels is not null)
+            {
+                CloseTitleMenu();
+            }
+
             // Words inside the Plan page's sheets: open the sheet that holds them, then the reveal below finds them on screen.
             if (target.Control is Control found && Pages.Children[(int)MainTab.Plan] is PlanView plan)
             {
