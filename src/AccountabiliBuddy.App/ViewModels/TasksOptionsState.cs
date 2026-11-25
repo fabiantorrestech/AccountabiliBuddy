@@ -16,7 +16,7 @@ public sealed record TasksOptionsState(
     TaskLabelStyle LabelDot,
     Func<TaskLabelStyle, Task>? SetLabelDot,
     bool FadeIdle,
-    Func<bool, Task>? SetFadeIdle,
+    Func<Task>? ToggleFadeIdle,
     IReadOnlyList<TaskMenuEntry> ViewMenu,
     string? ViewText,
     bool Expanded,

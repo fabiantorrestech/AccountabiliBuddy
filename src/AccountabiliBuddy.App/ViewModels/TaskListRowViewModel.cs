@@ -393,6 +393,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>A click on one of its tags: the page searches that tag ("#waiting"); null where tags don't search (Today).</summary>
     public Action<string>? SearchTag { get; init; }
 
+    /// <summary>True when a tag chip on this row can search (Tasks page rows); on Today rows the tags are plain text, not a Tab stop.</summary>
+    public bool HasSearchTag => SearchTag is not null;
+
     /// <summary>Group by Labels and None: the bin's name on the sub-line ("To sort"), after its icon; empty for none.</summary>
     public string BinLineName { get; init; } = string.Empty;
 

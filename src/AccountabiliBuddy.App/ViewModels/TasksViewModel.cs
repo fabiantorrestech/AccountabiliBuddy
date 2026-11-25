@@ -1646,7 +1646,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TimeText = extras.TimeText,
             LeftAction = shelfLine.AddToToday is null ? extras.Left : null,
             RightAction = extras.Right,
-            CanDrag = extras.CanDrag,
+            // Group by None is always newest first, so a position reorder there would not show: no drag, no Alt+↑/↓.
+            CanDrag = extras.CanDrag && !(shelfBin is not null && Shelf.IsGroupedByNone),
             CategoryId = categoryId,
             CategoryName = categoryName,
             CategoryColor = categoryColor,

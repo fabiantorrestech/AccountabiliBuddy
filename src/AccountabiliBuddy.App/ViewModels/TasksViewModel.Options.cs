@@ -23,7 +23,7 @@ public sealed partial class TasksViewModel
             Shelf.HasViews ? Shelf.SortEntries() : [], Shelf.SortText,
             TaskLabelStyles.Migrated(settings?.Current.LabelStyle ?? TaskLabelStyle.UnderTask),
             settings is null ? null : style => settings.SetLabelStyleAsync(style),
-            _layout.Current.FadeIdleControls, _layout.SetFadeIdleControlsAsync,
+            _layout.Current.FadeIdleControls, () => _layout.SetFadeIdleControlsAsync(!_layout.Current.FadeIdleControls),
             Shelf.ViewMenu(), Shelf.ActiveViewText,
             Shelf.Panel.IsExpanded, Shelf.Panel.ToggleExpandCommand,
             ShowsFinishedOnToday,

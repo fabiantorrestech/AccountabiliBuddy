@@ -67,12 +67,12 @@ public static class PageOptionsMenus
             entries.Add(new TaskMenuEntry("Label dot", Segments: dots, Note: LabelDotNote, WideSegments: true));
         }
 
-        if (state.SetFadeIdle is { } setFadeIdle)
+        if (state.ToggleFadeIdle is { } toggleFadeIdle)
         {
             entries.Add(TaskMenuEntry.Separator);
-            bool fade = state.FadeIdle;
+            // The menu stays open and the switch flips each click, so the toggle reads the store's current value when clicked.
             entries.Add(new TaskMenuEntry(
-                "Fade controls you're not using", new AsyncRelayCommand(() => setFadeIdle(!fade)), IsChecked: fade,
+                "Fade controls you're not using", new AsyncRelayCommand(toggleFadeIdle), IsChecked: state.FadeIdle,
                 Note: "Labels and icons light up on hover", IsSwitch: true));
         }
 

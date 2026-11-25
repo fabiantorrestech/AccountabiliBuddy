@@ -38,7 +38,9 @@
                     </StackPanel>
                 </Border>
                 <!-- A tag (Tasks redesign 4c.32-4c.33): "#waiting" in the accent colour; a click searches it and doesn't open the task. -->
-                <Button Classes="tagLink" IsVisible="{Binding IsTag}" Click="OnTagClick" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Tip}">
+                <Button Classes="tagLink" IsVisible="{Binding IsTag}" Click="OnTagClick"
+                        Focusable="{Binding $parent[UserControl].((vm:TaskListRowViewModel)DataContext).HasSearchTag}"
+                        IsHitTestVisible="{Binding $parent[UserControl].((vm:TaskListRowViewModel)DataContext).HasSearchTag}" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Tip}">
                     <TextBlock Text="{Binding Text}" FontSize="12" />
                 </Button>
                 <!-- The sync-problem cloud: "Changed on both devices". -->

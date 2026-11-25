@@ -17,7 +17,7 @@ namespace AccountabiliBuddy.App.ViewModels;
 public sealed partial class ShelfViewModel
 {
     /// <summary>The +N menu's last group: labels with no category, or whose category is missing or deleted.</summary>
-    public const string OtherLabelsName = "Other labels";
+    public const string OtherLabelsName = "Other";
 
     // "Other labels" has no icon of its own in the spec: the app's Label icon, as the label picker's rail (ADR 32).
     private const MaterialIconKind OtherLabelsIcon = MaterialIconKind.CircleSlice8;

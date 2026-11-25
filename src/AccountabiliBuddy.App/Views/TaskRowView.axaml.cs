@@ -300,8 +300,10 @@ public partial class TaskRowView : UserControl
     private void OnRowKeyDown(object? sender, KeyEventArgs e)
     {
         // Round 2 R3: ← on a Shelf column's row sends it to Today › Queued (its ← button; the Today strip's "press ←").
+        // Next rows in Group by Bins carry the same action as AddToToday (their ← button), never This session.
         if (e.Key == Key.Left && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, RowButton) && TaskColumnScope.GetIsColumn(this)
-            && DataContext is TaskListRowViewModel { LeftAction: { } toToday } && toToday.Icon == Material.Icons.MaterialIconKind.ArrowLeft
+            && DataContext is TaskListRowViewModel leftRow
+            && (leftRow.AddToToday ?? (leftRow.LeftAction is { Icon: Material.Icons.MaterialIconKind.ArrowLeft } left ? left : null)) is { } toToday
             && toToday.Command.CanExecute(null))
         {
             toToday.Command.Execute(null);

@@ -783,7 +783,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
             MaterialIconKind? icon = null;
             if (grouped && group?.Id != previous)
             {
-                head = group?.Name ?? "Other labels";
+                head = group?.Name ?? "Other";
                 icon = group is null ? MaterialIconKind.CircleSlice8 : Services.Tasks.LabelGroupIconKinds.Of(group.Icon);
             }
 
