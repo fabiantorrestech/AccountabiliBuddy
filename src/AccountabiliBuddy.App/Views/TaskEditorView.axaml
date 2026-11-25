@@ -1,0 +1,699 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
+             xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             x:Class="AccountabiliBuddy.App.Views.TaskEditorView"
+             x:DataType="vm:TasksViewModel">
+    <!-- The task editor popup (Tasks redesign item 5; SPEC "Task editor popup"; boards 06, 08, 33): the one editor, for a task you open
+         (TaskDetailViewModel) and for a new task from the add box's Details (TaskDraftViewModel). Centred over the page that hosts it (Tasks,
+         or Today for a row opened there), min(720, width − 48) wide and at most height − 48 high; the page behind dims (Ab.PageScrim,
+         rgba(10,9,8,0.55)) and nothing under it moves; a click on the dim, the × or Esc closes it (a menu inside closes first). The title and
+         the pill row (bin pill · label · tags · Time limit · Highlight) and the footer stay in view; only the body scrolls. Body: Steps (with
+         the time limit) and Notes on the left, Due (the Later list's tasks only, as before), Reminders and Plan on the right. Footer of a task:
+         Start with this · Add to Today · the sync line, the ID chip and ⋯ · Delete; of a new task: the keys hint · Cancel · Add to [bin]. -->
+    <UserControl.Styles>
+        <Style Selector="Border.editorFrame">
+            <Setter Property="MaxWidth" Value="720" />
+            <Setter Property="Margin" Value="24" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Dialog}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BoxShadow" Value="{DynamicResource Ab.DialogShadow}" />
+        </Style>
+
+        <!-- The title (5.04): Ab.DisplayFont, semibold, 26 px, line height 1.25, wrapping; a text box that looks like the title until clicked. -->
+        <Style Selector="TextBox.titleEntry">
+            <Setter Property="FontFamily" Value="{DynamicResource Ab.DisplayFont}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="26" />
+            <Setter Property="LineHeight" Value="32.5" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="AcceptsReturn" Value="False" />
+        </Style>
+        <Style Selector="TextBox.titleEntry /template/ Border#PART_BorderElement, TextBox.titleEntry:pointerover /template/ Border#PART_BorderElement, TextBox.titleEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+
+        <!-- Close × (5.05): 32 square at 12 from the top and right, × 18 Muted, radius 8. -->
+        <Style Selector="Button.editorClose">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="0,12,12,0" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.editorClose /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.editorClose:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- A pill of the pill row (5.08-5.11): 28 high, padding 0 10, radius 999, Ab.Line fill, no border, 12 px Ink. -->
+        <Style Selector="Button.editorPill">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.editorPill /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.editorPill:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.editorPill:flyout-open /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.editorPill.lit /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.AmberTint9}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.AmberInk}" />
+        </Style>
+
+        <!-- Captions and fields (5.13): captions 12 px semibold Muted; fields 38 high, radius 10, 1 px Line2, 13.5 px, Surface fill. -->
+        <Style Selector="TextBlock.editorCaption">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="TextBox.editorField">
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="TextBox.editorArea">
+            <Setter Property="MinHeight" Value="110" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="TextBox.editorField /template/ Border#PART_BorderElement, TextBox.editorArea /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="TextBox.editorField:pointerover /template/ Border#PART_BorderElement, TextBox.editorArea:pointerover /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="TextBox.editorField:focus /template/ Border#PART_BorderElement, TextBox.editorArea:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+        <Style Selector="CalendarDatePicker.editorField">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <!-- Reminders and Plan (5.16): a field-shaped button, its text Muted. -->
+        <Style Selector="Button.editorFieldButton">
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.editorFieldButton /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.editorFieldButton:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.editorFieldButton:flyout-open /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line3}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.editorFieldButton.set /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.editorFieldButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+
+        <!-- The footer's buttons (5.19-5.20): 36 high pills, 13.5 px. Start with this / Add to [bin]: accent, padding 0 20, semibold. Add to
+             Today: 1 px Line2, padding 0 14. Delete: no border, Drift. Cancel: no border, Muted. -->
+        <Style Selector="Button.editorAction">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.editorAction.primary">
+            <Setter Property="Padding" Value="20,0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.editorAction.primary /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.editorAction.outline /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.editorAction.outline:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.editorAction.plain /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+        </Style>
+        <Style Selector="Button.editorAction.plain:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.editorAction.danger">
+            <Setter Property="Padding" Value="12,0" />
+        </Style>
+        <Style Selector="Button.editorAction.danger /template/ ContentPresenter#PART_ContentPresenter, Button.editorAction.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <Style Selector="Border.runningBar">
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+        </Style>
+
+        <!-- The ID chip ("142", copies "142 · title") and the quiet icon buttons of the footer. -->
+        <Style Selector="Button.idChip">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.idChip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.idChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+        </Style>
+
+        <!-- Steps: the letter chip, the handle shown on hover, the step in focus, a ticked step. -->
+        <Style Selector="Border.letterChip">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.stepHandle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="SizeNorthSouth" />
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+        <Style Selector="Grid.stepRow:pointerover Border.stepHandle">
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+        <Style Selector="Grid.stepRow.focused">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="TextBlock.focusedStep">
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.stepDone">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+        <Style Selector="TextBlock.syncProblem">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
+        </Style>
+        <!-- A step's inline box (rename, a step after it): no box of its own. -->
+        <Style Selector="TextBox.inlineEntry">
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0,4" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.inlineEntry /template/ Border#PART_BorderElement, TextBox.inlineEntry:pointerover /template/ Border#PART_BorderElement, TextBox.inlineEntry:focus /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BoxShadow" Value="none" />
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <!-- The dim over the page (5.03): a click on it closes the popup. -->
+        <Border x:Name="Scrim" Background="{DynamicResource Ab.PageScrim}" PointerPressed="OnScrimPressed" />
+
+        <Border x:Name="Frame" Classes="editorFrame" Focusable="True" FocusAdorner="{x:Null}" AutomationProperties.Name="Task details">
+            <Panel>
+                <ContentControl Content="{Binding Editor}">
+                    <ContentControl.DataTemplates>
+                        <!-- ================= A task that exists (board 06) ================= -->
+                        <DataTemplate x:DataType="vm:TaskDetailViewModel">
+                            <DockPanel>
+                                <!-- Header (5.04, 5.06): the title, then the pill row. -->
+                                <StackPanel DockPanel.Dock="Top" Margin="20,18,20,14" Spacing="10">
+                                    <TextBox Classes="titleEntry" Name="DetailTitleBox" Margin="0,0,36,0" Text="{Binding Title}" IsReadOnly="{Binding !CanEditTitle}"
+                                             AutomationProperties.Name="Title" ToolTip.Tip="Rename (F2)" LostFocus="OnDetailTitleLostFocus">
+                                        <TextBox.KeyBindings>
+                                            <KeyBinding Gesture="Enter" Command="{Binding CommitTitleCommand}" />
+                                        </TextBox.KeyBindings>
+                                    </TextBox>
+                                    <WrapPanel ItemSpacing="6" LineSpacing="6">
+                                        <!-- The bin pill: where it is; a pick moves it at once (Move to). Its tooltip is the old kind line. -->
+                                        <Panel ToolTip.Tip="{Binding KindText}">
+                                            <controls:BinPill Bin="{Binding Bin}" PickCommand="{Binding PickBinCommand}" IsEnabled="{Binding CanMoveBin}" />
+                                        </Panel>
+                                        <Button Classes="editorPill" IsVisible="{Binding CanLabel}" Click="OnLabelPillClick" ToolTip.Tip="Label"
+                                                AutomationProperties.Name="{Binding LabelName, StringFormat='Label: {0}'}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Panel Width="8" Height="8" VerticalAlignment="Center">
+                                                    <Ellipse Fill="{Binding LabelBrush}" />
+                                                    <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.5" IsVisible="{Binding !HasLabel}" />
+                                                </Panel>
+                                                <TextBlock Text="{Binding LabelName}" VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="editorPill" IsVisible="{Binding CanTag}" Click="OnTagPillClick" ToolTip.Tip="Tags"
+                                                AutomationProperties.Name="{Binding TagText, StringFormat='Tags: {0}'}">
+                                            <TextBlock Text="{Binding TagText}" VerticalAlignment="Center" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+                                        </Button>
+                                        <Button Classes="editorPill" IsVisible="{Binding ShowsEditableFields}" Click="OnTimeLimitPillClick" ToolTip.Tip="Time limit"
+                                                AutomationProperties.Name="{Binding TimeLimitText, StringFormat='Time limit: {0}'}">
+                                            <TextBlock Text="{Binding TimeLimitText}" VerticalAlignment="Center" />
+                                        </Button>
+                                        <Button Classes="editorPill" Classes.lit="{Binding IsHighlighted}" IsVisible="{Binding CanHighlight}" Command="{Binding ToggleHighlightCommand}"
+                                                ToolTip.Tip="{Binding HighlightTip}" AutomationProperties.Name="{Binding HighlightTip}">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <mi:MaterialIcon Kind="Star" Width="13" Height="13" Foreground="{DynamicResource Ab.AmberInk}" VerticalAlignment="Center"
+                                                                 IsVisible="{Binding IsHighlighted}" />
+                                                <TextBlock Text="Highlight" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                </StackPanel>
+
+                                <!-- Footer (5.18-5.19): always in view. -->
+                                <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Classes="muted" Text="{Binding Message}" FontSize="12.5" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
+                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8">
+                                            <Panel VerticalAlignment="Center">
+                                                <!-- The running bar while it runs in a session; else Start with this. -->
+                                                <Border Classes="runningBar" IsVisible="{Binding ShowsRunningBar}">
+                                                    <TextBlock Classes="muted" Text="{Binding RunningText}" FontSize="13.5" VerticalAlignment="Center" />
+                                                </Border>
+                                                <Button Classes="editorAction primary" Content="Start with this" Command="{Binding StartWithThisCommand}" IsEnabled="{Binding CanStart}"
+                                                        IsVisible="{Binding ShowsStart}" AutomationProperties.Name="Start with this" />
+                                            </Panel>
+                                            <Button Grid.Column="1" Classes="editorAction outline" Content="Add to Today" Command="{Binding AddToTodayCommand}"
+                                                    IsVisible="{Binding ShowsMoveToSession}" AutomationProperties.Name="Add to Today"
+                                                    ToolTip.Tip="Put it on today's list (a done one comes back open, as a copy)" />
+                                            <!-- The sync line; "Changed on both devices" opens the dialog. -->
+                                            <Panel Grid.Column="2" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="{Binding SyncText}" IsVisible="{Binding !HasConflict}">
+                                                    <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center"
+                                                                     Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsSyncProblem}" />
+                                                    <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center"
+                                                                     Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsSyncProblem}" />
+                                                    <TextBlock Classes="muted" Classes.syncProblem="{Binding IsSyncProblem}" Text="{Binding SyncText}" FontSize="12"
+                                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                                <Button Classes="quiet" Padding="4,2" MinHeight="0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                        IsVisible="{Binding HasConflict}" Command="{Binding OpenConflictCommand}"
+                                                        ToolTip.Tip="Pick the version to keep" AutomationProperties.Name="Changed on both devices: pick a version">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Drift}" />
+                                                        <TextBlock Classes="muted syncProblem" Text="{Binding SyncText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                                   VerticalAlignment="Center" TextDecorations="Underline" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Panel>
+                                            <Button Grid.Column="3" Classes="idChip" IsVisible="{Binding HasNumber}" Click="OnCopyIdClick"
+                                                    ToolTip.Tip="Copy task ID" AutomationProperties.Name="Copy task ID">
+                                                <StackPanel Orientation="Horizontal" Spacing="5">
+                                                    <TextBlock Text="{Binding NumberText}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="11.5" VerticalAlignment="Center" />
+                                                    <mi:MaterialIcon Kind="ContentCopy" Width="13" Height="13" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Grid.Column="4" Classes="quiet" Padding="6,4" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                                    AutomationProperties.Name="More actions" ToolTip.Tip="More (or right-click the row)" Click="OnMoreClick">
+                                                <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
+                                            </Button>
+                                            <Button Grid.Column="5" Classes="editorAction plain danger" Content="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding ShowsDelete}"
+                                                    ToolTip.Tip="Delete it (it goes from your other devices too; Undo and Archive › Recently deleted bring it back)"
+                                                    AutomationProperties.Name="Delete" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Body (5.12): two columns (left grows from 300, right 200), 22 apart, 16 between sections; only it scrolls. -->
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                    <Grid Margin="20,4,20,18" ColumnDefinitions="*,22,200">
+                                        <StackPanel Spacing="16">
+                                            <!-- A To sort item's own line: its Done box and when it was parked. -->
+                                            <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsComeBack}">
+                                                <CheckBox IsChecked="{Binding IsDone, Mode=OneWay}" Command="{Binding TickComeBackCommand}" MinWidth="0" Padding="0"
+                                                          Content="Done" IsEnabled="{Binding CanEdit}" />
+                                                <TextBlock Classes="muted" Text="{Binding ParkedText}" FontSize="12.5" VerticalAlignment="Center" IsVisible="{Binding HasParkedText}" />
+                                            </StackPanel>
+
+                                            <!-- Steps (5.14): "Steps · 25 min" over the steps and the "Add a step" box. -->
+                                            <StackPanel Spacing="6" IsVisible="{Binding ShowsFields}">
+                                                <TextBlock Classes="editorCaption" Text="{Binding StepsCaption}" ToolTip.Tip="{Binding StepsSub}" />
+                                                <ItemsControl ItemsSource="{Binding Steps}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:TaskStepViewModel">
+                                                            <StackPanel Spacing="2" Margin="0,1">
+                                                                <Border Height="2" CornerRadius="1" Background="{DynamicResource Ab.Accent}" IsVisible="{Binding ShowsLineAbove}" IsHitTestVisible="False" />
+                                                                <Grid Classes="stepRow stepItem" Classes.focused="{Binding IsFocused}" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto"
+                                                                      ColumnSpacing="6" KeyDown="OnStepKeyDown" Background="Transparent">
+                                                                    <CheckBox IsChecked="{Binding IsDone, Mode=OneWay}" Command="{Binding ToggleCommand}" IsEnabled="{Binding CanEdit}"
+                                                                              MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding Title}"
+                                                                              ToolTip.Tip="Tick step" />
+                                                                    <Border Grid.Column="1" Classes="letterChip" IsVisible="{Binding HasLetter}" ToolTip.Tip="{Binding LetterTip}">
+                                                                        <TextBlock Classes="muted" Text="{Binding Letter}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="11.5" />
+                                                                    </Border>
+                                                                    <TextBlock Grid.Column="2" Text="{Binding Title}" FontSize="13.5" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                                               Classes.stepDone="{Binding IsDone}" Classes.focusedStep="{Binding IsFocused}" IsVisible="{Binding IsNotEditing}" />
+                                                                    <TextBox Grid.Column="2" Classes="inlineEntry" Text="{Binding EditText}" IsVisible="{Binding IsEditing}"
+                                                                             PropertyChanged="OnInlineBoxPropertyChanged" AutomationProperties.Name="Step name">
+                                                                        <TextBox.KeyBindings>
+                                                                            <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
+                                                                            <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
+                                                                        </TextBox.KeyBindings>
+                                                                    </TextBox>
+                                                                    <TextBlock Grid.Column="3" Classes="muted" Text="in focus" FontSize="11.5" VerticalAlignment="Center" IsVisible="{Binding IsFocused}" />
+                                                                    <Button Grid.Column="4" Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                                                            IsVisible="{Binding CanFocus}" Command="{Binding FocusCommand}" ToolTip.Tip="Bring into focus"
+                                                                            AutomationProperties.Name="Bring into focus">
+                                                                        <mi:MaterialIcon Kind="Target" Width="15" Height="15" Foreground="{DynamicResource Ab.Faint}" />
+                                                                    </Button>
+                                                                    <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" IsVisible="{Binding HasTime}">
+                                                                        <mi:MaterialIcon Kind="TimerOutline" Width="13" Height="13" Foreground="{DynamicResource Ab.Muted}" />
+                                                                        <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="12" />
+                                                                    </StackPanel>
+                                                                    <Button Grid.Column="6" Classes="quiet" Padding="6,2" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                                                            AutomationProperties.Name="More actions for this step" ToolTip.Tip="Rename, add a step after, delete" Click="OnMoreClick">
+                                                                        <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
+                                                                    </Button>
+                                                                    <Border Grid.Column="7" Classes="stepHandle" IsVisible="{Binding CanDrag}" ToolTip.Tip="Drag to reorder (Alt+↑/↓)"
+                                                                            AutomationProperties.Name="Drag to reorder" PointerPressed="OnStepHandlePressed" PointerMoved="OnStepHandleMoved"
+                                                                            PointerReleased="OnStepHandleReleased" PointerCaptureLost="OnStepHandleCaptureLost">
+                                                                        <mi:MaterialIcon Kind="DragHorizontalVariant" Width="16" Height="16" VerticalAlignment="Center"
+                                                                                         HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
+                                                                    </Border>
+                                                                </Grid>
+                                                                <Border Height="2" CornerRadius="1" Background="{DynamicResource Ab.Accent}" IsVisible="{Binding ShowsLineBelow}" IsHitTestVisible="False" />
+                                                                <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsAddingAfter}" Margin="30,0,0,0">
+                                                                    <mi:MaterialIcon Kind="Plus" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                    <TextBox Grid.Column="1" Classes="inlineEntry" Text="{Binding NewAfterText}" PlaceholderText="A step after this one"
+                                                                             PropertyChanged="OnInlineBoxPropertyChanged" AutomationProperties.Name="New step after this one">
+                                                                        <TextBox.KeyBindings>
+                                                                            <KeyBinding Gesture="Enter" Command="{Binding SaveAddAfterCommand}" />
+                                                                            <KeyBinding Gesture="Escape" Command="{Binding CancelAddAfterCommand}" />
+                                                                        </TextBox.KeyBindings>
+                                                                    </TextBox>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBox Classes="editorField" Name="DetailStepBox" Text="{Binding NewStepText}" PlaceholderText="Add a step"
+                                                         IsVisible="{Binding CanAddStep}" AutomationProperties.Name="Add a step">
+                                                    <TextBox.KeyBindings>
+                                                        <KeyBinding Gesture="Enter" Command="{Binding AddStepCommand}" />
+                                                    </TextBox.KeyBindings>
+                                                </TextBox>
+                                                <!-- The time limit pill's "Custom…": minutes and Set. -->
+                                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsCustomEstimateOpen}">
+                                                    <TextBox Classes="editorField" Width="110" Text="{Binding CustomEstimateText}" PlaceholderText="minutes"
+                                                             AutomationProperties.Name="Time limit in minutes" PropertyChanged="OnInlineBoxPropertyChanged">
+                                                        <TextBox.KeyBindings>
+                                                            <KeyBinding Gesture="Enter" Command="{Binding ApplyCustomEstimateCommand}" />
+                                                            <KeyBinding Gesture="Escape" Command="{Binding CancelCustomEstimateCommand}" />
+                                                        </TextBox.KeyBindings>
+                                                    </TextBox>
+                                                    <Button Classes="editorAction outline" Content="Set" Command="{Binding ApplyCustomEstimateCommand}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- Notes (5.15): private text, kept on blur or a moment after typing. -->
+                                            <StackPanel Spacing="6" IsVisible="{Binding ShowsFields}">
+                                                <TextBlock Classes="editorCaption" Text="Notes" />
+                                                <TextBox Classes="editorArea" Text="{Binding Note}" IsReadOnly="{Binding !CanEdit}" PlaceholderText="Add a private note"
+                                                         AutomationProperties.Name="Notes" LostFocus="OnDetailNoteLostFocus" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Spacing="16">
+                                            <!-- Due: the Later list's tasks only (Next and Later), as before (5.17). -->
+                                            <StackPanel Spacing="6" IsVisible="{Binding IsLater}">
+                                                <TextBlock Classes="editorCaption" Text="Due" />
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                                    <CalendarDatePicker Classes="editorField" SelectedDate="{Binding DueDate}" AutomationProperties.Name="Due date" />
+                                                    <Button Grid.Column="1" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                                            Command="{Binding ClearDueCommand}" IsVisible="{Binding DueDate, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                            ToolTip.Tip="No due date" AutomationProperties.Name="Clear the due date">
+                                                        <mi:MaterialIcon Kind="Close" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
+                                                    </Button>
+                                                </Grid>
+                                            </StackPanel>
+                                            <!-- Reminders: the Reminders & due date menu. -->
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Classes="editorCaption" Text="Reminders" />
+                                                <Button Classes="editorFieldButton" Classes.set="{Binding HasReminders}" IsEnabled="{Binding CanEditReminders}"
+                                                        Click="OnRemindersClick" ToolTip.Tip="Reminders and the due date" AutomationProperties.Name="Reminders and due date">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <mi:MaterialIcon Kind="BellOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding ReminderButtonText}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,8" />
+                                                    </Grid>
+                                                </Button>
+                                            </StackPanel>
+                                            <!-- Plan: Put in plan (the picker), and Not in the plan beside it while it is in one (5.30). -->
+                                            <StackPanel Spacing="6" IsVisible="{Binding ShowsPlanSection}">
+                                                <TextBlock Classes="editorCaption" Text="Plan" />
+                                                <Button Classes="editorFieldButton" Classes.set="{Binding HasPlan}" IsEnabled="{Binding ShowsPlan}" AutomationProperties.Name="Put in plan">
+                                                    <TextBlock Text="{Binding PlanButtonText}" TextWrapping="Wrap" Margin="0,8" />
+                                                    <Button.Flyout>
+                                                        <Flyout Placement="BottomEdgeAlignedRight">
+                                                            <ScrollViewer MaxHeight="360" Width="300">
+                                                                <StackPanel Spacing="10">
+                                                                    <TextBlock Classes="section" Text="Put it in the plan for…" />
+                                                                    <TextBlock Classes="muted" Text="Nothing in the plan for the coming week." FontSize="13"
+                                                                               IsVisible="{Binding !HasPlanDays}" />
+                                                                    <ItemsControl ItemsSource="{Binding PlanDays}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:PlanDayChoiceViewModel">
+                                                                                <StackPanel Spacing="2" Margin="0,0,0,8">
+                                                                                    <TextBlock Classes="muted" Text="{Binding Label}" FontSize="13" />
+                                                                                    <ItemsControl ItemsSource="{Binding Parts}">
+                                                                                        <ItemsControl.ItemTemplate>
+                                                                                            <DataTemplate x:DataType="vm:PlanPartChoiceViewModel">
+                                                                                                <Button Classes="quiet" Command="{Binding PickCommand}" HorizontalAlignment="Stretch"
+                                                                                                        HorizontalContentAlignment="Left" Padding="10,6">
+                                                                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                                                        <TextBlock Text="{Binding Text}" FontSize="14" />
+                                                                                                        <mi:MaterialIcon Kind="Check" Width="14" Height="14" IsVisible="{Binding IsSelected}" />
+                                                                                                    </StackPanel>
+                                                                                                </Button>
+                                                                                            </DataTemplate>
+                                                                                        </ItemsControl.ItemTemplate>
+                                                                                    </ItemsControl>
+                                                                                </StackPanel>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <Button Classes="quiet" Content="Not in the plan" Command="{Binding ClearPlanCommand}" IsVisible="{Binding HasPlan}"
+                                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,6" />
+                                                                </StackPanel>
+                                                            </ScrollViewer>
+                                                        </Flyout>
+                                                    </Button.Flyout>
+                                                </Button>
+                                                <Button Classes="editorAction plain" Height="30" Padding="10,0" HorizontalAlignment="Left" Content="Not in the plan"
+                                                        Command="{Binding ClearPlanCommand}" IsVisible="{Binding HasPlan}" AutomationProperties.Name="Not in the plan" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </DataTemplate>
+
+                        <!-- ================= A new task (board 08) ================= -->
+                        <DataTemplate x:DataType="vm:TaskDraftViewModel">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Margin="20,18,20,14" Spacing="10">
+                                    <TextBox Classes="titleEntry" Name="DraftTitleBox" Margin="0,0,36,0" Text="{Binding Title}" PlaceholderText="Task name"
+                                             AutomationProperties.Name="Title" />
+                                    <WrapPanel ItemSpacing="6" LineSpacing="6">
+                                        <!-- The bin pill picks where it goes ("Add to"; To sort is the default): the add box's own bin. -->
+                                        <controls:BinPill Bin="{Binding Bin}" IsNewTask="True" PickCommand="{Binding PickBinCommand}" />
+                                        <Button Classes="editorPill" Click="OnDraftLabelPillClick" ToolTip.Tip="Label"
+                                                AutomationProperties.Name="{Binding LabelName, StringFormat='Label: {0}'}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Panel Width="8" Height="8" VerticalAlignment="Center">
+                                                    <Ellipse Fill="{Binding LabelBrush}" />
+                                                    <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.5" IsVisible="{Binding LabelId, Converter={x:Static ObjectConverters.IsNull}}" />
+                                                </Panel>
+                                                <TextBlock Text="{Binding LabelName}" VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Classes="editorPill" Click="OnDraftTagPillClick" ToolTip.Tip="Tags" AutomationProperties.Name="{Binding TagText, StringFormat='Tags: {0}'}">
+                                            <TextBlock Text="{Binding TagText}" VerticalAlignment="Center" MaxWidth="260" TextTrimming="CharacterEllipsis" />
+                                        </Button>
+                                        <Button Classes="editorPill" Click="OnDraftTimeLimitPillClick" ToolTip.Tip="Time limit"
+                                                AutomationProperties.Name="{Binding TimeLimitText, StringFormat='Time limit: {0}'}">
+                                            <TextBlock Text="{Binding TimeLimitText}" VerticalAlignment="Center" />
+                                        </Button>
+                                        <Button Classes="editorPill" Classes.lit="{Binding IsHighlighted}" Command="{Binding ToggleHighlightCommand}" ToolTip.Tip="Highlight"
+                                                AutomationProperties.Name="Highlight">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <mi:MaterialIcon Kind="Star" Width="13" Height="13" Foreground="{DynamicResource Ab.AmberInk}" VerticalAlignment="Center"
+                                                                 IsVisible="{Binding IsHighlighted}" />
+                                                <TextBlock Text="Highlight" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                </StackPanel>
+
+                                <!-- Footer (5.20): the keys hint takes the room · Cancel · Add to [bin]. -->
+                                <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Ab.Line2}" BorderThickness="0,1,0,0" Padding="20,12,20,16">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                        <TextBlock Text="Ctrl+Enter adds · Esc goes back to the box" FontSize="12" Foreground="{DynamicResource Ab.Muted}" MinWidth="160"
+                                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                                        <Button Grid.Column="1" Classes="editorAction plain" Content="Cancel" Command="{Binding CancelCommand}" AutomationProperties.Name="Cancel" />
+                                        <Button Grid.Column="2" Classes="editorAction primary" Content="{Binding AddText}" Command="{Binding AddCommand}"
+                                                ToolTip.Tip="Ctrl+Enter" AutomationProperties.Name="{Binding AddText}" />
+                                    </Grid>
+                                </Border>
+
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                    <Grid Margin="20,4,20,18" ColumnDefinitions="*,22,200">
+                                        <StackPanel Spacing="16">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Classes="editorCaption" Text="{Binding StepsCaption}" />
+                                                <ItemsControl ItemsSource="{Binding Steps}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:TaskDraftStepViewModel">
+                                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,2">
+                                                                <Border Classes="letterChip">
+                                                                    <TextBlock Classes="muted" Text="{Binding Letter}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="11.5" />
+                                                                </Border>
+                                                                <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="13.5" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                                <Button Grid.Column="2" Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                                                        Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this step" AutomationProperties.Name="Remove this step">
+                                                                    <mi:MaterialIcon Kind="Close" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
+                                                                </Button>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBox Classes="editorField" Text="{Binding NewStepText}" PlaceholderText="Add a step" AutomationProperties.Name="Add a step">
+                                                    <TextBox.KeyBindings>
+                                                        <KeyBinding Gesture="Enter" Command="{Binding AddStepCommand}" />
+                                                    </TextBox.KeyBindings>
+                                                </TextBox>
+                                                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsCustomEstimateOpen}">
+                                                    <TextBox Classes="editorField" Width="110" Text="{Binding CustomEstimateText}" PlaceholderText="minutes"
+                                                             AutomationProperties.Name="Time limit in minutes" PropertyChanged="OnInlineBoxPropertyChanged">
+                                                        <TextBox.KeyBindings>
+                                                            <KeyBinding Gesture="Enter" Command="{Binding ApplyCustomEstimateCommand}" />
+                                                            <KeyBinding Gesture="Escape" Command="{Binding CancelCustomEstimateCommand}" />
+                                                        </TextBox.KeyBindings>
+                                                    </TextBox>
+                                                    <Button Classes="editorAction outline" Content="Set" Command="{Binding ApplyCustomEstimateCommand}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Classes="editorCaption" Text="Notes" />
+                                                <TextBox Classes="editorArea" Text="{Binding Note}" PlaceholderText="Add a private note" AutomationProperties.Name="Notes" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" Spacing="16">
+                                            <StackPanel Spacing="6" IsVisible="{Binding ShowsDue}">
+                                                <TextBlock Classes="editorCaption" Text="Due" />
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="4">
+                                                    <CalendarDatePicker Classes="editorField" SelectedDate="{Binding DueDate}" AutomationProperties.Name="Due date" />
+                                                    <Button Grid.Column="1" Classes="quiet" Padding="6" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
+                                                            Command="{Binding ClearDueCommand}" IsVisible="{Binding HasDue}" ToolTip.Tip="No due date"
+                                                            AutomationProperties.Name="Clear the due date">
+                                                        <mi:MaterialIcon Kind="Close" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
+                                                    </Button>
+                                                </Grid>
+                                            </StackPanel>
+                                            <!-- Reminders and the plan need the task: they open once it is added. -->
+                                            <StackPanel Spacing="6" ToolTip.Tip="Reminders can be set once the task is added">
+                                                <TextBlock Classes="editorCaption" Text="Reminders" />
+                                                <Button Classes="editorFieldButton" IsEnabled="False" AutomationProperties.Name="Add a reminder (once the task is added)">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <mi:MaterialIcon Kind="BellOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Text="Add a reminder" VerticalAlignment="Center" />
+                                                    </Grid>
+                                                </Button>
+                                            </StackPanel>
+                                            <StackPanel Spacing="6" ToolTip.Tip="It can be put in the plan once it is added">
+                                                <TextBlock Classes="editorCaption" Text="Plan" />
+                                                <Button Classes="editorFieldButton" IsEnabled="False" Content="Put in plan"
+                                                        AutomationProperties.Name="Put in plan (once the task is added)" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ContentControl.DataTemplates>
+                </ContentControl>
+
+                <!-- Close × (5.05): Esc does the same. -->
+                <Button Classes="editorClose" Command="{Binding CloseEditorCommand}" AutomationProperties.Name="Close details" ToolTip.Tip="Close (Esc)">
+                    <mi:MaterialIcon Kind="Close" Width="18" Height="18" />
+                </Button>
+            </Panel>
+        </Border>
+    </Panel>
+</UserControl>

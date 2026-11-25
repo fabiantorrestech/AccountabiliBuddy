@@ -3,22 +3,23 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              xmlns:views="using:AccountabiliBuddy.App.Views"
+             xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.AddBoxView"
              x:DataType="vm:AddBoxViewModel">
-    <!-- The add box (spec 03 §B; Tasks redesign 4a): a "+ Add a task" pill that fills the add row; in use it shows the send button and
-         Send to ("Add to To sort" ▾); the picked label and tags show as chips above the text. Text left in it after leaving greys out. The hint line floats under
-         the box (it never pushes the rows): the counter from 50 characters, "Move … to notes", "Part of a project?" with the marker's
-         label and tag, or the offer to learn a marker style. The "@" / "#" list opens under the box. The page gives
-         this control a ZIndex so the floating line draws over the rows below it. -->
+    <!-- The add box (spec 03 §B; Tasks redesign 4a and item 5, boards 01, 07, 08): a "+ Add a task" pill that fills the add row. Inside it,
+         in one line: the "@" label and "#" tags picked, as chips before the text (Backspace at the start takes the last one off); the text;
+         the hint area (while adding: "@ label · # tag · Ctrl+Enter details", or the title help in its place: the counter from 50
+         characters, "Move … to notes", "Part of a project?" with the marker's label and tag, the offer to learn a marker style), which is
+         the first thing to go when the box is narrow; then Details (the task editor popup for a new task; Ctrl+Enter while typing) and
+         "Add to [bin] ˅" (Enter adds there; ˅ picks another bin, the same value as the popup's bin pill), always there. Text left in it
+         after leaving greys out. The "@" / "#" list drops below the box and floats over the label row. -->
     <UserControl.Styles>
-        <!-- Tasks redesign 4a.35-4a.36: the box fills the add row at rest and in use (the Today pill sits to its right), 44 high, a
-             Surface2 pill, padding 0 6 0 16; a 1 px border, transparent at rest and Faint while adding. What sits inside the box (chips,
-             Details, "Add to [bin]") is item 5's. -->
+        <!-- 4a.36 / 5.34: 44 high, a Surface2 pill, padding 0 6 0 16; a 1 px border, transparent at rest and Faint while adding. -->
         <Style Selector="Border.addPill">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="Height" Value="44" />
             <Setter Property="CornerRadius" Value="22" />
-            <Setter Property="Padding" Value="16,3,6,3" />
+            <Setter Property="Padding" Value="16,0,6,0" />
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="1" />
@@ -28,9 +29,9 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
         </Style>
 
-        <!-- The entry: no box of its own inside the pill. -->
+        <!-- The entry: no box of its own inside the pill; 15 px Ink, one line that scrolls inside the box when long (5.39). -->
         <Style Selector="TextBox.addEntry">
-            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="MinHeight" Value="36" />
             <Setter Property="Padding" Value="0,8" />
@@ -56,79 +57,17 @@
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
 
-        <!-- The send button and its ▾: halves of one Surface pill; they never take the keyboard from the box. -->
-        <Style Selector="Button.send">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="FontSize" Value="12.5" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="ClickMode" Value="Press" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.send /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-        </Style>
-        <Style Selector="Button.send:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-
-        <!-- The hint line's small pills. -->
-        <Style Selector="Button.hintChip">
-            <Setter Property="Height" Value="22" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="Padding" Value="9,0" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="ClickMode" Value="Press" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.hintChip /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line}" />
-            <Setter Property="BorderThickness" Value="1" />
+        <!-- A chip in the box (5.36-5.37): 26 high, padding 0 6 0 10, Surface, 12.5 px Ink; dot 8 · name · remove × 18 (× 11 Muted). -->
+        <Style Selector="Border.boxChip">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="10,0,6,0" />
             <Setter Property="CornerRadius" Value="999" />
-        </Style>
-        <Style Selector="Button.hintChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-        <Style Selector="Button.hintChip.apply /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="Button.hintText">
-            <Setter Property="Height" Value="22" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="Padding" Value="4,0" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="ClickMode" Value="Press" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.hintText /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="Button.hintText:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-        </Style>
-        <Style Selector="TextBlock.counter">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Faint}" />
-        </Style>
-        <Style Selector="TextBlock.counter.over">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.chipRemove">
-            <Setter Property="Width" Value="16" />
-            <Setter Property="Height" Value="16" />
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="Padding" Value="0" />
@@ -143,35 +82,128 @@
             <Setter Property="CornerRadius" Value="999" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
+        <Style Selector="Button.chipRemove:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+
+        <!-- Details (4a.38, 5.44): 32 high, padding 0 10, radius 999, icon 15 + 12.5 px; faded at rest; lit (Line2) while its popup is open.
+             "Add to [bin] ˅" (4a.39): 32 high, padding 0 12, Surface, 12.5 px, chevron 13; two hit areas (the text adds, ˅ picks a bin) in
+             one pill. None of them takes the keyboard from the box. -->
+        <Style Selector="Button.boxAction">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ClickMode" Value="Press" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.boxAction /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.boxAction.details">
+            <Setter Property="Padding" Value="10,0" />
+        </Style>
+        <Style Selector="Button.boxAction.details:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.boxAction.details.on /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line2}" />
+        </Style>
+        <Style Selector="Border.addToPill">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface}" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.boxAction.addTo">
+            <Setter Property="Padding" Value="12,0,3,0" />
+        </Style>
+        <Style Selector="Button.boxAction.addToMenu">
+            <Setter Property="Padding" Value="3,0,10,0" />
+        </Style>
+        <Style Selector="Button.boxAction.addTo:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.boxAction.addToMenu:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+
+        <!-- The hint area's small pills. -->
+        <Style Selector="Button.hintChip">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ClickMode" Value="Press" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.hintChip /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+        </Style>
+        <Style Selector="Button.hintChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
+        </Style>
+        <Style Selector="Button.hintChip.apply /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Accent}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.OnAccent}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.hintText">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ClickMode" Value="Press" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.hintText /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.hintText:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="TextBlock.counter">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted2}" />
+        </Style>
+        <Style Selector="TextBlock.counter.over">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
     </UserControl.Styles>
 
     <Panel>
         <Border x:Name="Pill" Classes="addPill" Classes.resting="{Binding IsResting}" Classes.expanded="{Binding IsExpanded}"
                 PointerPressed="OnPillPressed">
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                 <mi:MaterialIcon Kind="Plus" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <!-- The picked label (its colour dot) and tags as pills with ×, above the text while the box is in use (owner,
-                         AB-Improvements #36); Backspace at the start of the box takes the last one off too. -->
-                    <ItemsControl ItemsSource="{Binding Chips}" Margin="0,6,0,0">
-                        <ItemsControl.IsVisible>
-                            <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Path="HasChips" />
-                                <Binding Path="IsExpanded" />
-                            </MultiBinding>
-                        </ItemsControl.IsVisible>
+
+                <!-- The chips, the text, the hint area: the hint area goes first when the box is narrow (InlineHintPanel). -->
+                <controls:InlineHintPanel Grid.Column="1" Spacing="8" MinFillWidth="120">
+                    <ItemsControl ItemsSource="{Binding Chips}" IsVisible="{Binding HasChips}" VerticalAlignment="Center" AutomationProperties.Name="Picked label and tags">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel ItemSpacing="6" LineSpacing="4" />
+                                <StackPanel Orientation="Horizontal" Spacing="6" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:AddBoxChipViewModel">
-                                <Border CornerRadius="999" Padding="8,1,3,1" Background="{DynamicResource Ab.Surface}">
-                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                <Border Classes="boxChip">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Ellipse Width="8" Height="8" Fill="{Binding Dot}" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
-                                        <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" />
-                                        <Button Classes="chipRemove" Command="{Binding RemoveCommand}" AutomationProperties.Name="{Binding RemoveName}">
+                                        <TextBlock Text="{Binding Text}" FontSize="12.5" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center"
+                                                   MaxWidth="180" TextTrimming="CharacterEllipsis" />
+                                        <Button Classes="chipRemove" Command="{Binding RemoveCommand}" AutomationProperties.Name="{Binding RemoveName}"
+                                                ToolTip.Tip="{Binding RemoveName}">
                                             <mi:MaterialIcon Kind="Close" Width="11" Height="11" />
                                         </Button>
                                     </StackPanel>
@@ -181,75 +213,82 @@
                     </ItemsControl>
                     <TextBox x:Name="Box" Classes="addEntry" Classes.leftover="{Binding IsLeftover}" Text="{Binding Text}"
                              PlaceholderText="Add a task" AutomationProperties.Name="Add a task" />
-                </StackPanel>
-                <Border Grid.Column="2" IsVisible="{Binding IsExpanded}" Height="32" CornerRadius="999" Background="{DynamicResource Ab.Surface}"
-                        ClipToBounds="True" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Classes="send" Command="{Binding SubmitCommand}" AutomationProperties.Name="{Binding DestinationText}"
-                                ToolTip.Tip="Enter">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <mi:MaterialIcon Kind="Send" Width="14" Height="14" />
-                                <TextBlock Text="{Binding DestinationText}" VerticalAlignment="Center" />
+                    <Panel VerticalAlignment="Center">
+                        <!-- The keys hint, right-aligned before Details, only while adding (5.40). -->
+                        <TextBlock Text="@ label · # tag · Ctrl+Enter details" FontSize="12" Foreground="{DynamicResource Ab.Muted2}"
+                                   VerticalAlignment="Center" HorizontalAlignment="Right" IsVisible="{Binding ShowsKeysHint}" />
+                        <!-- The title help in its place (K11). -->
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsHint}" HorizontalAlignment="Right">
+                            <TextBlock Classes="counter" Classes.over="{Binding IsOverLimit}" Text="{Binding CounterText}" FontSize="12"
+                                       FontFamily="{DynamicResource Ab.NumeralFont}" VerticalAlignment="Center" IsVisible="{Binding ShowsCounter}" />
+
+                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSplit}">
+                                <TextBlock Text="Cut off in Compact rows" FontSize="12" Foreground="{DynamicResource Ab.Muted2}" VerticalAlignment="Center" />
+                                <Button Classes="hintChip" Command="{Binding AcceptSplitCommand}" ToolTip.Tip="{Binding SplitTip}"
+                                        AutomationProperties.Name="{Binding SplitButtonText}">
+                                    <TextBlock Text="{Binding SplitButtonText}" />
+                                </Button>
                             </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsMarker}">
+                                <TextBlock Text="Part of a project?" FontSize="12" Foreground="{DynamicResource Ab.Muted2}" VerticalAlignment="Center" />
+                                <Button x:Name="MarkerLabelButton" Classes="hintChip" Padding="9,0,6,0" Click="OnMarkerLabelClick"
+                                        AutomationProperties.Name="{Binding MarkerLabelText}">
+                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                        <Ellipse Width="8" Height="8" Fill="{Binding MarkerLabelDot}" VerticalAlignment="Center" IsVisible="{Binding HasMarkerLabel}" />
+                                        <TextBlock Text="{Binding MarkerLabelText}" VerticalAlignment="Center" />
+                                        <mi:MaterialIcon Kind="ChevronDown" Width="13" Height="13" Foreground="{DynamicResource Ab.Muted}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="MarkerTagButton" Classes="hintChip" Padding="9,0,6,0" Click="OnMarkerTagClick"
+                                        AutomationProperties.Name="{Binding MarkerTagText}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{Binding MarkerTagText}" VerticalAlignment="Center" />
+                                        <mi:MaterialIcon Kind="ChevronDown" Width="13" Height="13" Foreground="{DynamicResource Ab.Muted}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Classes="hintChip apply" Content="Apply" Command="{Binding ApplyMarkerCommand}" />
+                                <Button Classes="hintText" Content="Keep as typed" Command="{Binding KeepTypedCommand}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsOffer}">
+                                <TextBlock Text="{Binding OfferText}" FontSize="12" Foreground="{DynamicResource Ab.Muted2}" VerticalAlignment="Center" />
+                                <Button Classes="hintChip" Content="Yes" Command="{Binding LearnOfferCommand}" />
+                                <Button Classes="hintText" Content="No" Command="{Binding DeclineOfferCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Panel>
+                </controls:InlineHintPanel>
+
+                <!-- Details: the task editor popup for a new task with what is typed (Ctrl+Enter while typing does the same). -->
+                <Button Grid.Column="2" Classes="boxAction details idleFade" Classes.on="{Binding IsDetailsOpen}" Command="{Binding OpenDetailsCommand}"
+                        IsVisible="{Binding HasDetails}" ToolTip.Tip="Details (Ctrl+Enter)" AutomationProperties.Name="Details">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <mi:MaterialIcon Kind="TextLong" Width="15" Height="15" VerticalAlignment="Center" />
+                        <TextBlock Text="Details" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <!-- "Add to [bin] ˅": Enter (or the text) adds there; ˅ opens the bins (adding there at once) and From your lists. -->
+                <Border Grid.Column="3" Classes="addToPill">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Classes="boxAction addTo" Command="{Binding SubmitCommand}" AutomationProperties.Name="{Binding DestinationText}"
+                                ToolTip.Tip="Enter">
+                            <TextBlock Text="{Binding DestinationText}" VerticalAlignment="Center" />
                         </Button>
-                        <Border Width="1" Background="{DynamicResource Ab.Line}" />
-                        <Button x:Name="DestinationButton" Classes="send" Padding="6,0" Click="OnDestinationClick"
+                        <Button x:Name="DestinationButton" Classes="boxAction addToMenu" Click="OnDestinationClick"
                                 AutomationProperties.Name="Choose where it goes" ToolTip.Tip="Choose where it goes">
-                            <mi:MaterialIcon Kind="ChevronDown" Width="16" Height="16" />
+                            <mi:MaterialIcon Kind="ChevronDown" Width="13" Height="13" />
                         </Button>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- The "@" / "#" list, under the box. -->
-        <Popup PlacementTarget="{Binding #Box}" Placement="BottomEdgeAlignedLeft" VerticalOffset="6" IsLightDismissEnabled="False"
+        <!-- The "@" / "#" list, under the box: it floats over the label row and never pushes the rows down. -->
+        <Popup PlacementTarget="{Binding #Pill}" Placement="BottomEdgeAlignedLeft" HorizontalOffset="34" VerticalOffset="6" IsLightDismissEnabled="False"
                IsOpen="{Binding HasSuggestions, Mode=OneWay}">
             <views:AddBoxSuggestionsView />
         </Popup>
-
-        <!-- The hint line: 4 DIP under the box, outside its height (the negative margin), so nothing below it moves. -->
-        <Grid VerticalAlignment="Bottom" Height="22" Margin="18,0,8,-26" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowsHint}"
-              ClipToBounds="True">
-            <StackPanel Orientation="Horizontal" Spacing="6" Margin="26,0,0,0">
-                <TextBlock Classes="counter" Classes.over="{Binding IsOverLimit}" Text="{Binding CounterText}" FontSize="12"
-                           FontFamily="{DynamicResource Ab.NumeralFont}" VerticalAlignment="Center" IsVisible="{Binding ShowsCounter}" />
-
-                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsSplit}">
-                    <TextBlock Classes="muted" Text="Cut off in Compact rows" FontSize="12" VerticalAlignment="Center" />
-                    <Button Classes="hintChip" Command="{Binding AcceptSplitCommand}" ToolTip.Tip="{Binding SplitTip}"
-                            AutomationProperties.Name="{Binding SplitButtonText}">
-                        <TextBlock Text="{Binding SplitButtonText}" />
-                    </Button>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsMarker}">
-                    <TextBlock Classes="muted" Text="Part of a project?" FontSize="12" VerticalAlignment="Center" />
-                    <Button x:Name="MarkerLabelButton" Classes="hintChip" Padding="9,0,6,0" Click="OnMarkerLabelClick"
-                            AutomationProperties.Name="{Binding MarkerLabelText}">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Ellipse Width="8" Height="8" Fill="{Binding MarkerLabelDot}" VerticalAlignment="Center" IsVisible="{Binding HasMarkerLabel}" />
-                            <TextBlock Text="{Binding MarkerLabelText}" VerticalAlignment="Center" />
-                            <mi:MaterialIcon Kind="ChevronDown" Width="13" Height="13" Foreground="{DynamicResource Ab.Muted}" />
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="MarkerTagButton" Classes="hintChip" Padding="9,0,6,0" Click="OnMarkerTagClick"
-                            AutomationProperties.Name="{Binding MarkerTagText}">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="{Binding MarkerTagText}" VerticalAlignment="Center" />
-                            <mi:MaterialIcon Kind="ChevronDown" Width="13" Height="13" Foreground="{DynamicResource Ab.Muted}" />
-                        </StackPanel>
-                    </Button>
-                    <Button Classes="hintChip apply" Content="Apply" Command="{Binding ApplyMarkerCommand}" />
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsOffer}">
-                    <TextBlock Classes="muted" Text="{Binding OfferText}" FontSize="12" VerticalAlignment="Center" />
-                    <Button Classes="hintChip" Content="Yes" Command="{Binding LearnOfferCommand}" />
-                    <Button Classes="hintText" Content="No" Command="{Binding DeclineOfferCommand}" />
-                </StackPanel>
-            </StackPanel>
-            <Button Grid.Column="1" Classes="hintText" Content="Keep as typed" Command="{Binding KeepTypedCommand}" IsVisible="{Binding ShowsMarker}" />
-        </Grid>
     </Panel>
 </UserControl>

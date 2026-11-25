@@ -249,6 +249,8 @@
     <BoxShadows x:Key="Ab.ReminderBehindShadow">0 6 16 0 #1F000000</BoxShadows>
     <BoxShadows x:Key="Ab.AlarmShadow">0 24 60 0 #59000000</BoxShadows>
     <SolidColorBrush x:Key="Ab.Scrim" Color="#8C0A0E14" />
+    <!-- Tasks redesign 3.26: the page dim behind the task editor and Move and label, rgba(10,9,8,0.55), the same in every theme and mode. -->
+    <SolidColorBrush x:Key="Ab.PageScrim" Color="#8C0A0908" />
     <!-- The time-left ring beside the timer digits: nudged so it sits on the digits' middle, which depends on the numeral font. -->
     <Thickness x:Key="Ab.TimeRingMargin">0,32,0,0</Thickness>
     <Thickness x:Key="Ab.CardBorderThickness">0</Thickness>

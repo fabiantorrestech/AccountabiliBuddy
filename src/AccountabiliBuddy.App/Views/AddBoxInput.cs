@@ -168,6 +168,11 @@ internal sealed class AddBoxInput
             case Key.Tab when e.KeyModifiers == KeyModifiers.None:
                 e.Handled = model.PickSelectedSuggestion();
                 break;
+            case Key.Enter when e.KeyModifiers == KeyModifiers.Control && model.HasDetails:
+                // Ctrl+Enter while typing: the task editor popup for a new task with what was typed (Tasks redesign 5.43).
+                model.OpenDetailsCommand.Execute(null);
+                e.Handled = true;
+                break;
             case Key.Enter when e.KeyModifiers == KeyModifiers.None:
                 if (!model.PickSelectedSuggestion())
                 {

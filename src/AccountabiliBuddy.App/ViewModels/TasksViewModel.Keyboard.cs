@@ -35,7 +35,7 @@ public sealed partial class TasksViewModel
             return focused.BuildContextMenu();
         }
 
-        return onTasksPage && IsDetailOpen && _selectedKey is TaskRowKey open ? MenuFor(open) : [];
+        return IsDetailOpen && onTasksPage != IsEditorOnToday && _selectedKey is TaskRowKey open ? MenuFor(open) : [];
     }
 
     /// <summary>Ctrl+Z: the toast's Undo, else the newest of the last 10 task actions. False when there was nothing to undo.</summary>
@@ -52,7 +52,13 @@ public sealed partial class TasksViewModel
             return true;
         }
 
-        if (onTasksPage && IsDetailOpen)
+        if (onTasksPage && _draft is not null)
+        {
+            CancelDraft();
+            return true;
+        }
+
+        if (IsDetailOpen && onTasksPage != IsEditorOnToday)
         {
             CloseDetailCommand.Execute(null);
             return true;
@@ -121,8 +127,8 @@ public sealed partial class TasksViewModel
                     SelectRow(row);
                 }
 
-                // From another page the window switches to Tasks first; the row takes the keyboard once the page shows it.
-                OpenRequested?.Invoke(this, EventArgs.Empty);
+                // From another page the window switches to Tasks first (the popup opens there); the row takes the keyboard once the page shows it.
+                ShowEditorOn(onTasks: true);
                 FocusRowRequested?.Invoke(this, row.Key);
                 return null;
             }

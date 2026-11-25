@@ -470,7 +470,7 @@ public sealed partial class TasksViewModel
 
         IsDetailOpen = true;
         Select(owner);
-        OpenRequested?.Invoke(this, EventArgs.Empty);
+        ShowEditorWhereOpened();
     }
 
     // ---- The step list popover (P3) ----

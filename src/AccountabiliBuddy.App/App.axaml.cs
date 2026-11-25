@@ -2216,7 +2216,8 @@ public partial class App : Application
         };
         if (mainViewModel.Tasks is { } tasksPage)
         {
-            // Today shows the same task sections; a row opened there opens on the Tasks page (it has the detail card).
+            // Today shows the same task sections; a row opened there opens the task editor popup on Today itself (Tasks redesign item 5);
+            // a task opened anywhere else (Ctrl+G on the Shelf, Back / Forward) shows the Tasks page.
             sessionViewModel.TaskPage = tasksPage;
             tasksPage.OpenRequested += (_, _) => mainViewModel.SelectedTab = (int)MainTab.Tasks;
             // The Tasks page's Today strip (round 2 R3): Open Today shows the Today tab.

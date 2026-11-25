@@ -251,6 +251,41 @@ public sealed class TaskActionsService
         return RunAsync(TaskActionKind.Add, 1, (lists, self, now) => TaskActions.Add(lists, id, title, bin, labelId, tags, note, origin, now, self, estimateMinutes, _store.Removed));
     }
 
+    /// <summary>
+    /// A new task from the task editor's new-task popup (Tasks redesign item 5): <see cref="AddAsync"/> with its steps, highlight and due
+    /// date applied in the same change, so it is one action on the undo stack (undo deletes it) with the add's toast. This session is
+    /// refused as in <see cref="AddAsync"/>.
+    /// </summary>
+    public Task<bool> AddWithDetailsAsync(Guid id, string title, TaskBin bin, Guid? labelId, IReadOnlyList<string>? tags, string? note, TaskAddDetails details)
+    {
+        return RunAsync(TaskActionKind.Add, 1, (lists, self, now) =>
+        {
+            TaskActionResult added = TaskActions.Add(lists, id, title, bin, labelId, tags, note, null, now, self, details.EstimateMinutes, _store.Removed);
+            if (added.Affected.Count == 0)
+            {
+                return added;
+            }
+
+            TaskLists after = added.Lists;
+            foreach (string step in details.Steps.Where(step => step.Trim().Length > 0))
+            {
+                after = TaskActions.AddStep(after, id, step, null, now, self).Lists;
+            }
+
+            if (details.Highlight)
+            {
+                after = TaskActions.SetHighlight(after, [id], true, now, self).Lists;
+            }
+
+            if (details.DueOn is DateOnly due)
+            {
+                after = TaskActions.SetDue(after, [id], due, null, details.Destination, now, self).Lists;
+            }
+
+            return added with { Lists = after };
+        });
+    }
+
     // ---- removing ----
 
     public Task<bool> DeleteAsync(IReadOnlyList<Guid> ids)

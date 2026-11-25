@@ -13,7 +13,8 @@
          tidy-up…), the label row, then the Shelf's columns (ShelfView: each scrolling on its own; the page never scrolls), and the
          Archive row at the bottom. During a session (Hide the Shelf on) the columns hide behind "Show the Shelf" (Ctrl+\) with a quiet
          count; adding, searching and the pill still work. Menus and pop-ups float over the page: nothing above the bottom row moves when
-         they open. Right of the card: the detail card of the task the user opened. Cards take the theme's Tasks radius. -->
+         they open. A task the user opens (or a new task from the add box's Details) shows in the task editor popup, centred over the dimmed
+         page (TaskEditorView). Cards take the theme's Tasks radius. -->
     <UserControl.Resources>
         <!-- Check boxes, expanders and switches read in ink, not accent. -->
         <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{DynamicResource Ab.Surface2Color}" />
@@ -130,6 +131,14 @@
                 <Setter Property="Grid.Row" Value="1" />
                 <Setter Property="Width" Value="NaN" />
                 <Setter Property="Margin" Value="0,10,0,0" />
+            </Style>
+        </ContainerQuery>
+        <!-- Tasks redesign 5.55: while adding on a page narrower than 984, the box spans the whole add row, over the Today pill (which keeps
+             its place), so two chips, the text, Details and "Add to [bin]" fit; nothing moves. Back to its width when it is left. -->
+        <ContainerQuery Name="TasksPage" Query="max-width:983">
+            <Style Selector="views|AddBoxView.addRowBox.expanded">
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+                <Setter Property="ZIndex" Value="1" />
             </Style>
         </ContainerQuery>
         <Style Selector="Border.todayStrip.lit">
@@ -394,100 +403,6 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Ab.Faint}" />
         </Style>
 
-        <!-- The detail card's title: a TextBox that looks like the display text until it is clicked. -->
-        <Style Selector="TextBox.titleEntry">
-            <Setter Property="FontFamily" Value="{DynamicResource Ab.DisplayFont}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontSize" Value="26" />
-            <Setter Property="LineHeight" Value="34" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="AcceptsReturn" Value="False" />
-        </Style>
-        <Style Selector="TextBox.titleEntry /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="BoxShadow" Value="none" />
-        </Style>
-        <Style Selector="TextBox.titleEntry:pointerover /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="TextBox.titleEntry:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="BoxShadow" Value="none" />
-        </Style>
-        <!-- The notes box: Surface2, no border of its own. -->
-        <Style Selector="TextBox.noteEntry">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="AcceptsReturn" Value="True" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="MinHeight" Value="96" />
-        </Style>
-        <Style Selector="TextBox.noteEntry /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="BoxShadow" Value="none" />
-        </Style>
-        <Style Selector="TextBox.noteEntry:pointerover /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style Selector="TextBox.noteEntry:focus /template/ Border#PART_BorderElement">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="BoxShadow" Value="none" />
-        </Style>
-        <!-- The open task's chips (label, tags, + Tag, time limit, highlight): 28 high Surface2 pills, 12 text. -->
-        <Style Selector="Button.openChip">
-            <Setter Property="Height" Value="28" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Button.openChip /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="999" />
-        </Style>
-        <Style Selector="Button.openChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource Ab.Line}" />
-        </Style>
-        <Style Selector="Border.letterChip">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="5,1" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style Selector="Border.stepHandle">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Cursor" Value="SizeNorthSouth" />
-            <Setter Property="Width" Value="20" />
-            <Setter Property="Opacity" Value="0" />
-        </Style>
-        <Style Selector="Grid.stepRow:pointerover Border.stepHandle">
-            <Setter Property="Opacity" Value="0.7" />
-        </Style>
-        <Style Selector="Grid.stepRow.focused">
-            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
-        </Style>
-        <Style Selector="TextBlock.focusedStep">
-            <Setter Property="FontWeight" Value="SemiBold" />
-        </Style>
-        <Style Selector="TextBlock.syncProblem">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Drift}" />
-        </Style>
-        <Style Selector="TextBlock.stepDone">
-            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
-            <Setter Property="TextDecorations" Value="Strikethrough" />
-        </Style>
-
-        <Style Selector="Border.detailCard">
-            <Setter Property="Width" Value="340" />
-        </Style>
         <!-- The session ended strip (P4): accent tint 12 %, a 1 px accent line at 35 %; "Switch now" a Surface pill. -->
         <Style Selector="Border.endedStrip">
             <Setter Property="CornerRadius" Value="{DynamicResource Ab.PopoverRadius}" />
@@ -520,12 +435,9 @@
                 </Transitions>
             </Setter>
         </Style>
-        <Style Selector="StackPanel.detailBody">
-            <Setter Property="Margin" Value="0,0,14,0" />
-        </Style>
     </UserControl.Styles>
 
-    <Grid x:Name="Page" ColumnDefinitions="*,Auto">
+    <Grid x:Name="Page">
         <Border x:Name="TasksCard" Grid.Column="0" Classes="card tasksCard" Padding="0" ClipToBounds="True"
                 Container.Name="TasksPage" Container.Sizing="Width">
             <!-- Tasks redesign (4a.01): the card's rows 22 px in from its sides, 18 px from its top, 12 px apart: the header, the add row,
@@ -612,7 +524,8 @@
                      when the row is narrower than 750 (the TasksPage container query). The add box's hint line and "@" / "#" list float
                      over what is below (ZIndex). -->
                 <Grid x:Name="AddRow" DockPanel.Dock="Top" Margin="22,12,22,0" ZIndex="2" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                    <views:AddBoxView DataContext="{Binding AddBox}" VerticalAlignment="Top" />
+                    <views:AddBoxView DataContext="{Binding AddBox}" x:DataType="vm:AddBoxViewModel" VerticalAlignment="Top" Classes="addRowBox"
+                                      Classes.expanded="{Binding IsExpanded}" />
                     <!-- The Today pill: what Today holds ("Nothing queued · drop a task here"), a drop target into Today › Queued (Undo in
                          the toast; never This session), Open Today. A click anywhere on it opens Today as well. -->
                     <Border x:Name="TodayStripBar" Classes="todayStrip todayPill" Classes.lit="{Binding TodayStrip.IsLit}"
@@ -893,303 +806,9 @@
             </DockPanel>
         </Border>
 
-        <!-- The detail card for the selected task, Later item or come-back. -->
-        <Border x:Name="DetailCard" Grid.Column="1" Classes="card detailCard" IsVisible="{Binding IsDetailOpen}" Margin="14,0,0,0" Padding="28,26">
-            <Panel>
-                <TextBlock Classes="muted" Text="Pick a task to see its steps, estimate and notes." TextWrapping="Wrap" FontSize="14"
-                           IsVisible="{Binding !HasDetail}" />
-                <ContentControl Content="{Binding Detail}" IsVisible="{Binding HasDetail}">
-                    <ContentControl.DataTemplates>
-                        <DataTemplate x:DataType="vm:TaskDetailViewModel">
-                            <DockPanel LastChildFill="True">
-                                <!-- The footer: the running bar or "Start with this", the quiet moves, and what was refused. -->
-                                <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="0,14,0,0">
-                                    <TextBlock Classes="muted" Text="{Binding Message}" FontSize="13" TextWrapping="Wrap" IsVisible="{Binding HasMessage}" />
-                                    <Border IsVisible="{Binding ShowsRunningBar}" Background="{DynamicResource Ab.Surface2}" CornerRadius="26" Padding="16,14">
-                                        <TextBlock Classes="muted" Text="{Binding RunningText}" FontSize="16" HorizontalAlignment="Center" />
-                                    </Border>
-                                    <Button Classes="primary pill" Content="Start with this" Command="{Binding StartWithThisCommand}" IsEnabled="{Binding CanStart}"
-                                            IsVisible="{Binding ShowsStart}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                                            Padding="24,14" AutomationProperties.Name="Start with this" />
-                                    <WrapPanel ItemSpacing="4" LineSpacing="4" HorizontalAlignment="Center">
-                                        <Button Classes="quiet" Padding="14,8" Content="Add to Today" Command="{Binding AddToTodayCommand}"
-                                                IsVisible="{Binding ShowsMoveToSession}" FontSize="15" AutomationProperties.Name="Add to Today"
-                                                ToolTip.Tip="Put it on today's list (a done one comes back open, as a copy)" />
-                                        <Button Classes="quiet" Padding="14,8" Content="Move to Later" Command="{Binding MoveToLaterCommand}" IsVisible="{Binding ShowsMoveToLater}"
-                                                FontSize="15" />
-                                        <Button Classes="quiet" Padding="14,8" Content="Put in plan" IsVisible="{Binding ShowsPlan}" FontSize="15"
-                                                AutomationProperties.Name="Put in plan">
-                                            <Button.Flyout>
-                                                <Flyout Placement="TopEdgeAlignedRight">
-                                                    <ScrollViewer MaxHeight="360" Width="300">
-                                                        <StackPanel Spacing="10">
-                                                            <TextBlock Classes="section" Text="Put it in the plan for…" />
-                                                            <TextBlock Classes="muted" Text="Nothing in the plan for the coming week." FontSize="13"
-                                                                       IsVisible="{Binding !HasPlanDays}" />
-                                                            <ItemsControl ItemsSource="{Binding PlanDays}">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate x:DataType="vm:PlanDayChoiceViewModel">
-                                                                        <StackPanel Spacing="2" Margin="0,0,0,8">
-                                                                            <TextBlock Classes="muted" Text="{Binding Label}" FontSize="13" />
-                                                                            <ItemsControl ItemsSource="{Binding Parts}">
-                                                                                <ItemsControl.ItemTemplate>
-                                                                                    <DataTemplate x:DataType="vm:PlanPartChoiceViewModel">
-                                                                                        <Button Classes="quiet" Command="{Binding PickCommand}" HorizontalAlignment="Stretch"
-                                                                                                HorizontalContentAlignment="Left" Padding="10,6">
-                                                                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                                                                <TextBlock Text="{Binding Text}" FontSize="14" />
-                                                                                                <mi:MaterialIcon Kind="Check" Width="14" Height="14" IsVisible="{Binding IsSelected}" />
-                                                                                            </StackPanel>
-                                                                                        </Button>
-                                                                                    </DataTemplate>
-                                                                                </ItemsControl.ItemTemplate>
-                                                                            </ItemsControl>
-                                                                        </StackPanel>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                            <Button Classes="quiet" Content="Not in the plan" Command="{Binding ClearPlanCommand}" IsVisible="{Binding HasPlan}"
-                                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,6" />
-                                                        </StackPanel>
-                                                    </ScrollViewer>
-                                                </Flyout>
-                                            </Button.Flyout>
-                                        </Button>
-                                        <Button Classes="quiet" Padding="14,8" Content="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding ShowsDelete}" FontSize="15"
-                                                ToolTip.Tip="Delete it (it goes from your other devices too; Undo and Archive > Recently deleted bring it back)" />
-                                    </WrapPanel>
-                                    <!-- The sync line, the task's menu and its ID chip ("142", copies "142 · title"). -->
-                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" ToolTip.Tip="{Binding SyncText}"
-                                                    IsVisible="{Binding !HasConflict}">
-                                            <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center"
-                                                             Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !IsSyncProblem}" />
-                                            <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center"
-                                                             Foreground="{DynamicResource Ab.Drift}" IsVisible="{Binding IsSyncProblem}" />
-                                            <TextBlock Classes="muted" Classes.syncProblem="{Binding IsSyncProblem}" Text="{Binding SyncText}" FontSize="12"
-                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                        <!-- Changed on both devices: the line opens the dialog. -->
-                                        <Button Classes="quiet" Padding="4,2" MinHeight="0" HorizontalAlignment="Left" VerticalAlignment="Center"
-                                                IsVisible="{Binding HasConflict}" Command="{Binding OpenConflictCommand}"
-                                                ToolTip.Tip="Pick the version to keep" AutomationProperties.Name="Changed on both devices: pick a version">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <mi:MaterialIcon Kind="{Binding SyncIcon}" Width="15" Height="15" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Drift}" />
-                                                <TextBlock Classes="muted syncProblem" Text="{Binding SyncText}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" TextDecorations="Underline" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Grid.Column="1" Classes="quiet" Padding="6,4" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                                                AutomationProperties.Name="More actions" ToolTip.Tip="More (or right-click the row)" Click="OnMoreClick">
-                                            <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
-                                        </Button>
-                                        <Button Grid.Column="2" Classes="openChip" IsVisible="{Binding HasNumber}" Click="OnCopyIdClick"
-                                                ToolTip.Tip="Copy task ID" AutomationProperties.Name="Copy task ID">
-                                            <StackPanel Orientation="Horizontal" Spacing="5">
-                                                <TextBlock Text="{Binding NumberText}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="11.5" VerticalAlignment="Center" />
-                                                <mi:MaterialIcon Kind="ContentCopy" Width="13" Height="13" VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </Button>
-                                    </Grid>
-                                </StackPanel>
-
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <StackPanel Classes="detailBody" Spacing="14">
-                                        <TextBlock Classes="muted" Text="{Binding KindText}" FontSize="13" />
-                                        <TextBox Classes="titleEntry" Name="DetailTitleBox" Text="{Binding Title}" IsReadOnly="{Binding !CanEditTitle}" AutomationProperties.Name="Title"
-                                                 LostFocus="OnDetailTitleLostFocus">
-                                            <TextBox.KeyBindings>
-                                                <KeyBinding Gesture="Enter" Command="{Binding CommitTitleCommand}" />
-                                            </TextBox.KeyBindings>
-                                        </TextBox>
-                                        <!-- The chips row: label, tags, + Tag, time limit, highlight (the full menus are 3.5). -->
-                                        <WrapPanel ItemSpacing="6" LineSpacing="6">
-                                            <Button Classes="openChip" IsVisible="{Binding CanLabel}" Click="OnLabelChipClick" ToolTip.Tip="Label"
-                                                    AutomationProperties.Name="Label">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <Panel Width="9" Height="9" VerticalAlignment="Center">
-                                                        <Ellipse Fill="{Binding LabelBrush}" />
-                                                        <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.5" />
-                                                    </Panel>
-                                                    <TextBlock Text="{Binding LabelName}" VerticalAlignment="Center" MaxWidth="140" TextTrimming="CharacterEllipsis" />
-                                                </StackPanel>
-                                            </Button>
-                                            <ItemsControl ItemsSource="{Binding TagChips}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel ItemSpacing="6" LineSpacing="6" />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="x:String">
-                                                        <Button Classes="openChip" Content="{Binding}" Click="OnTagChipClick" ToolTip.Tip="Tags" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <Button Classes="openChip" IsVisible="{Binding CanTag}" Click="OnTagChipClick" ToolTip.Tip="Add a tag"
-                                                    AutomationProperties.Name="Add a tag">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <mi:MaterialIcon Kind="Pound" Width="13" Height="13" VerticalAlignment="Center" />
-                                                    <TextBlock Text="+ Tag" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Classes="openChip" IsVisible="{Binding ShowsEditableFields}" Click="OnTimeLimitChipClick" ToolTip.Tip="Time limit"
-                                                    AutomationProperties.Name="Time limit">
-                                                <StackPanel Orientation="Horizontal" Spacing="5">
-                                                    <mi:MaterialIcon Kind="TimerOutline" Width="14" Height="14" VerticalAlignment="Center" />
-                                                    <TextBlock Text="{Binding TimeLimitText}" VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Classes="openChip" IsVisible="{Binding CanHighlight}" Command="{Binding ToggleHighlightCommand}"
-                                                    ToolTip.Tip="{Binding HighlightTip}" AutomationProperties.Name="{Binding HighlightTip}">
-                                                <mi:MaterialIcon Kind="{Binding HighlightIcon}" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" />
-                                            </Button>
-                                        </WrapPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsComeBack}">
-                                            <CheckBox IsChecked="{Binding IsDone, Mode=OneWay}" Command="{Binding TickComeBackCommand}" MinWidth="0" Padding="0"
-                                                      Content="Done" IsEnabled="{Binding CanEdit}" />
-                                            <TextBlock Classes="muted" Text="{Binding ParkedText}" FontSize="13" VerticalAlignment="Center" IsVisible="{Binding HasParkedText}" />
-                                        </StackPanel>
-
-                                        <!-- Steps. -->
-                                        <StackPanel Spacing="2" IsVisible="{Binding ShowsFields}">
-                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,4">
-                                                <TextBlock Text="{Binding StepsHead}" FontSize="12" FontWeight="SemiBold" />
-                                                <TextBlock Classes="muted" Text="{Binding StepsSub}" FontSize="12" />
-                                            </StackPanel>
-                                            <ItemsControl ItemsSource="{Binding Steps}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:TaskStepViewModel">
-                                                        <StackPanel Spacing="2" Margin="0,1">
-                                                            <Border Height="2" CornerRadius="1" Background="{DynamicResource Ab.Accent}" IsVisible="{Binding ShowsLineAbove}" IsHitTestVisible="False" />
-                                                            <Grid Classes="stepRow stepItem" Classes.focused="{Binding IsFocused}" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6" KeyDown="OnStepKeyDown"
-                                                                  Background="Transparent">
-                                                                <CheckBox IsChecked="{Binding IsDone, Mode=OneWay}" Command="{Binding ToggleCommand}" IsEnabled="{Binding CanEdit}"
-                                                                          MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding Title}"
-                                                                          ToolTip.Tip="Tick step" />
-                                                                <Border Grid.Column="1" Classes="letterChip" IsVisible="{Binding HasLetter}" ToolTip.Tip="{Binding LetterTip}">
-                                                                    <TextBlock Classes="muted" Text="{Binding Letter}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="11.5" />
-                                                                </Border>
-                                                                <TextBlock Grid.Column="2" Text="{Binding Title}" FontSize="14" TextWrapping="Wrap" VerticalAlignment="Center"
-                                                                           Classes.stepDone="{Binding IsDone}" Classes.focusedStep="{Binding IsFocused}"
-                                                                           IsVisible="{Binding IsNotEditing}" />
-                                                                <TextBox Grid.Column="2" Classes="rowEntry" Text="{Binding EditText}" IsVisible="{Binding IsEditing}" FontSize="14"
-                                                                         PropertyChanged="OnInlineBoxPropertyChanged" AutomationProperties.Name="Step name">
-                                                                    <TextBox.KeyBindings>
-                                                                        <KeyBinding Gesture="Enter" Command="{Binding SaveEditCommand}" />
-                                                                        <KeyBinding Gesture="Escape" Command="{Binding CancelEditCommand}" />
-                                                                    </TextBox.KeyBindings>
-                                                                </TextBox>
-                                                                <TextBlock Grid.Column="3" Classes="muted" Text="in focus" FontSize="11.5" VerticalAlignment="Center" IsVisible="{Binding IsFocused}" />
-                                                                <Button Grid.Column="4" Classes="quiet" Padding="4" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                                                                        IsVisible="{Binding CanFocus}" Command="{Binding FocusCommand}" ToolTip.Tip="Bring into focus"
-                                                                        AutomationProperties.Name="Bring into focus">
-                                                                    <mi:MaterialIcon Kind="Target" Width="15" Height="15" Foreground="{DynamicResource Ab.Faint}" />
-                                                                </Button>
-                                                                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center" IsVisible="{Binding HasTime}">
-                                                                    <mi:MaterialIcon Kind="TimerOutline" Width="13" Height="13" Foreground="{DynamicResource Ab.Muted}" />
-                                                                    <TextBlock Classes="muted" Text="{Binding TimeText}" FontSize="12" />
-                                                                </StackPanel>
-                                                                <Button Grid.Column="6" Classes="quiet" Padding="6,2" MinHeight="0" MinWidth="0" VerticalAlignment="Center"
-                                                                        AutomationProperties.Name="More actions for this step" ToolTip.Tip="Rename, add a step after, delete" Click="OnMoreClick">
-                                                                    <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" />
-                                                                </Button>
-                                                                <Border Grid.Column="7" Classes="stepHandle" IsVisible="{Binding CanDrag}" ToolTip.Tip="Drag to reorder (Alt+↑/↓)"
-                                                                        AutomationProperties.Name="Drag to reorder" PointerPressed="OnStepHandlePressed" PointerMoved="OnStepHandleMoved"
-                                                                        PointerReleased="OnStepHandleReleased" PointerCaptureLost="OnStepHandleCaptureLost">
-                                                                    <mi:MaterialIcon Kind="DragHorizontalVariant" Width="16" Height="16" VerticalAlignment="Center"
-                                                                                     HorizontalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" />
-                                                                </Border>
-                                                            </Grid>
-                                                            <Border Height="2" CornerRadius="1" Background="{DynamicResource Ab.Accent}" IsVisible="{Binding ShowsLineBelow}" IsHitTestVisible="False" />
-                                                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsAddingAfter}" Margin="30,0,0,0">
-                                                                <mi:MaterialIcon Kind="Plus" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                                                <TextBox Grid.Column="1" Classes="rowEntry" FontSize="15" Text="{Binding NewAfterText}" PlaceholderText="A step after this one"
-                                                                         PropertyChanged="OnInlineBoxPropertyChanged" AutomationProperties.Name="New step after this one">
-                                                                    <TextBox.KeyBindings>
-                                                                        <KeyBinding Gesture="Enter" Command="{Binding SaveAddAfterCommand}" />
-                                                                        <KeyBinding Gesture="Escape" Command="{Binding CancelAddAfterCommand}" />
-                                                                    </TextBox.KeyBindings>
-                                                                </TextBox>
-                                                            </Grid>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding CanAddStep}" Margin="4,2,0,0">
-                                                <mi:MaterialIcon Kind="Plus" Width="16" Height="16" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                                <TextBox Grid.Column="1" Name="DetailStepBox" Classes="rowEntry" FontSize="15" Text="{Binding NewStepText}" PlaceholderText="Add a step"
-                                                         AutomationProperties.Name="Add a step">
-                                                    <TextBox.KeyBindings>
-                                                        <KeyBinding Gesture="Enter" Command="{Binding AddStepCommand}" />
-                                                    </TextBox.KeyBindings>
-                                                </TextBox>
-                                            </Grid>
-                                        </StackPanel>
-
-                                        <!-- A custom time limit (the time limit chip's "Custom…"). -->
-                                        <StackPanel Spacing="8" IsVisible="{Binding ShowsEditableFields}">
-                                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsCustomEstimateOpen}">
-                                                <TextBox Width="90" Text="{Binding CustomEstimateText}" PlaceholderText="minutes" AutomationProperties.Name="Estimate in minutes">
-                                                    <TextBox.KeyBindings>
-                                                        <KeyBinding Gesture="Enter" Command="{Binding ApplyCustomEstimateCommand}" />
-                                                        <KeyBinding Gesture="Escape" Command="{Binding CancelCustomEstimateCommand}" />
-                                                    </TextBox.KeyBindings>
-                                                </TextBox>
-                                                <Button Classes="quiet" Content="Set" Command="{Binding ApplyCustomEstimateCommand}" />
-                                            </StackPanel>
-                                        </StackPanel>
-
-                                        <!-- Later: when it is due. -->
-                                        <StackPanel Spacing="8" IsVisible="{Binding IsLater}">
-                                            <TextBlock Classes="muted" Text="Due" FontSize="13" />
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <CalendarDatePicker SelectedDate="{Binding DueDate}" AutomationProperties.Name="Due date" />
-                                                <Button Classes="quiet" Content="Clear" Command="{Binding ClearDueCommand}" IsVisible="{Binding DueDate, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                            </StackPanel>
-                                        </StackPanel>
-
-                                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasPlan}">
-                                            <TextBlock Classes="muted" Text="{Binding PlanText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                        </StackPanel>
-
-                                        <!-- Notes: private text, kept on blur or a moment after typing; sealed here and on your other devices. -->
-                                        <StackPanel Spacing="8" IsVisible="{Binding ShowsFields}">
-                                            <TextBlock Classes="muted" Text="Notes" FontSize="13" />
-                                            <Border Background="{DynamicResource Ab.Surface2}" CornerRadius="16" Padding="12,8">
-                                                <TextBox Classes="noteEntry" Text="{Binding Note}" IsReadOnly="{Binding !CanEdit}" PlaceholderText="Add a private note"
-                                                         AutomationProperties.Name="Notes" LostFocus="OnDetailNoteLostFocus" />
-                                            </Border>
-                                        </StackPanel>
-
-                                        <!-- The reminders line (a click opens Reminders & due date where the task list holds the task) and Effort (coming soon). -->
-                                        <WrapPanel ItemSpacing="14" LineSpacing="6">
-                                            <Button Classes="quiet" Padding="4,2" MinHeight="0" Margin="-4,0,0,0" IsEnabled="{Binding CanEditReminders}"
-                                                    Click="OnRemindersClick" ToolTip.Tip="Reminders and the due date" AutomationProperties.Name="Reminders and due date">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <mi:MaterialIcon Kind="BellOutline" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                                    <TextBlock Classes="muted" Classes.faint="{Binding !HasReminders}" Text="{Binding ReminderText}" FontSize="12.5"
-                                                               VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                </StackPanel>
-                                            </Button>
-                                            <StackPanel Orientation="Horizontal" Spacing="6" Opacity="0.5" ToolTip.Tip="Effort is coming soon">
-                                                <mi:MaterialIcon Kind="WeightLifter" Width="15" Height="15" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" />
-                                                <TextBlock Classes="muted" Text="Effort · soon" FontSize="12.5" VerticalAlignment="Center" />
-                                            </StackPanel>
-                                        </WrapPanel>
-                                    </StackPanel>
-                                </ScrollViewer>
-                            </DockPanel>
-                        </DataTemplate>
-                    </ContentControl.DataTemplates>
-                </ContentControl>
-                <!-- The card shows only for a task the user opened: this (or Esc) closes it. -->
-                <Button Classes="quiet closeDetail" Padding="6" MinHeight="0" MinWidth="0" Margin="0,-12,-12,0" HorizontalAlignment="Right" VerticalAlignment="Top"
-                        Command="{Binding CloseDetailCommand}" AutomationProperties.Name="Close details" ToolTip.Tip="Close (Esc)">
-                    <mi:MaterialIcon Kind="Close" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" />
-                </Button>
-            </Panel>
-        </Border>
+        <!-- The task editor popup (Tasks redesign item 5): centred over the page, which dims behind it; nothing under it moves. It replaces the
+             right-hand detail card: the columns use the full width. -->
+        <views:TaskEditorView x:Name="Editor" ZIndex="15" IsVisible="{Binding ShowsEditorOnTasks}" />
 
         <!-- The toast (spec 03 §F; 4c.63): 22 px from the card's left, its bottom 60 px above the card's bottom (above the 44 px bottom row). Only the toast takes clicks: the panel around it
              has no background. -->

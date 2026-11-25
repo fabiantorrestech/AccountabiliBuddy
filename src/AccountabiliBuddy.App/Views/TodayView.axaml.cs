@@ -67,6 +67,35 @@ public partial class TodayView : UserControl
         if (_tasksPage is not null)
         {
             _tasksPage.FocusTodayRowRequested += OnFocusTodayRowRequested;
+            _tasksPage.IsTodayOnScreen = IsVisible && VisualRoot is not null;
+        }
+    }
+
+    // Tasks redesign item 5: a row opened here opens the task editor popup here (not on Tasks) while this page shows; leaving it closes it.
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsVisibleProperty && _tasksPage is not null)
+        {
+            _tasksPage.IsTodayOnScreen = IsVisible && VisualRoot is not null;
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_tasksPage is not null)
+        {
+            _tasksPage.IsTodayOnScreen = IsVisible;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (_tasksPage is not null)
+        {
+            _tasksPage.IsTodayOnScreen = false;
         }
     }
 

@@ -36,8 +36,18 @@ public sealed partial class AddBoxSuggestionViewModel : ObservableObject
 
     public bool HasGroupHead => GroupHead is not null;
 
-    /// <summary>The group heading's icon: Devices for Shared, Laptop for This device (ADR 32; the same meanings as "Keep on…").</summary>
-    public Material.Icons.MaterialIconKind GroupIcon => OnlyHere || GroupHead == "This device" ? Material.Icons.MaterialIconKind.Laptop : Material.Icons.MaterialIconKind.Devices;
+    /// <summary>
+    /// The group heading's icon: the label category's own (Tasks redesign 5.53), else Devices for Shared, Laptop for This device (ADR 32;
+    /// the same meanings as "Keep on…").
+    /// </summary>
+    public Material.Icons.MaterialIconKind GroupIcon => CategoryIcon
+        ?? (OnlyHere || GroupHead == "This device" ? Material.Icons.MaterialIconKind.Laptop : Material.Icons.MaterialIconKind.Devices);
+
+    /// <summary>The label category's icon on the first label of each category; null for the other headings.</summary>
+    public Material.Icons.MaterialIconKind? CategoryIcon { get; init; }
+
+    /// <summary>A label listed under its category heading: drawn indented.</summary>
+    public bool IsIndented { get; init; }
 
     /// <summary>Picking it makes the label or tag device-only (it is created that way).</summary>
     public bool OnlyHere { get; init; }

@@ -57,4 +57,15 @@ public interface IAddBoxHost
 
     /// <summary>A session is planning or running: the page's add box sends to This session by default (owner, AB-Improvements #23).</summary>
     bool IsSessionOn => false;
+
+    /// <summary>The live label categories (ADR 93), in their order: the "@" list groups the labels under them.</summary>
+    IReadOnlyList<TaskLabelGroup> LabelGroups => [];
+
+    /// <summary>
+    /// Details (or Ctrl+Enter while typing) in the Tasks page's box (Tasks redesign item 5): the task editor popup opens for a new task
+    /// with what <paramref name="box"/> holds. Nothing where there is no editor.
+    /// </summary>
+    void OpenDetails(AddBoxViewModel box)
+    {
+    }
 }

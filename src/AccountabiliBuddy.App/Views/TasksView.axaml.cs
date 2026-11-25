@@ -11,10 +11,9 @@ using Avalonia.VisualTree;
 namespace AccountabiliBuddy.App.Views;
 
 /// <summary>
-/// The Tasks page. Code-behind: a click on the Today pill opens Today (round 2 R3), Esc in the header's search clears it, keeping a title
-/// or note typed in the detail card when the box loses the keyboard, the ⋯ menus of the detail card's steps, putting the keyboard in
-/// the detail card's title or step box when a menu asks for it, and the dialogs the rows and menus ask for (Rename one by one, Delete
-/// N, Changed on both devices).
+/// The Tasks page. Code-behind: a click on the Today pill opens Today (round 2 R3), Esc in the header's search clears it, the naming
+/// row's box taking the keyboard when a picker asks for it, and the dialogs the rows and menus ask for (Rename one by one, Delete N,
+/// Changed on both devices). The open task's editor is the popup (<see cref="TaskEditorView"/>), with its own code-behind.
 /// </summary>
 public partial class TasksView : UserControl
 {
@@ -254,29 +253,15 @@ public partial class TasksView : UserControl
         }
     }
 
-    // A row's menu said Rename or Add subtask: the detail card shows that task, and its title or step box takes the keyboard. A picker's "New category…": its name box does.
+    // A picker's "New category…" or "New tag…": the naming row's box takes the keyboard (the editor popup's boxes are its own).
     private void OnFocusRequested(object? sender, string target)
     {
-        Dispatcher.UIThread.Post(() =>
+        if (target != "newCategory")
         {
-            string name = target switch
-            {
-                "step" => "DetailStepBox",
-                "newCategory" => "NewCategoryBox",
-                _ => "DetailTitleBox",
-            };
-            TextBox? box = this.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(candidate => candidate.Name == name);
-            if (box is null)
-            {
-                return;
-            }
+            return;
+        }
 
-            box.Focus();
-            if (target == "title")
-            {
-                box.SelectAll();
-            }
-        }, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() => NewCategoryBox.Focus(), DispatcherPriority.Background);
     }
 
     // ---- The label row's +N menu (Tasks redesign 4b) ----
@@ -317,204 +302,7 @@ public partial class TasksView : UserControl
         _labelsMenuClosedAt = Environment.TickCount64;
     }
 
-    // ---- The open task's chips and footer ----
-
-    private void OnLabelChipClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: TaskDetailViewModel detail } button)
-        {
-            TaskMenus.ShowEntries(button, detail.LabelMenu(), PlacementMode.BottomEdgeAlignedLeft);
-            e.Handled = true;
-        }
-    }
-
-    private void OnTagChipClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: TaskDetailViewModel detail } button)
-        {
-            TaskMenus.ShowEntries(button, detail.TagMenu(), PlacementMode.BottomEdgeAlignedLeft);
-            e.Handled = true;
-        }
-    }
-
-    private void OnTimeLimitChipClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: TaskDetailViewModel detail } button)
-        {
-            TaskMenus.ShowEntries(button, detail.TimeLimitMenu(), PlacementMode.BottomEdgeAlignedLeft);
-            e.Handled = true;
-        }
-    }
-
-    // The ID chip: "142 · title" on the clipboard (the title is the user's own text, copied only where they asked); the toast says so.
-    private async void OnCopyIdClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: TaskDetailViewModel detail })
-        {
-            return;
-        }
-
-        e.Handled = true;
-        await TaskMenus.CopyAsync(this, detail.CopyText);
-    }
-
-    // ---- Dragging a step by its handle among its task's steps (the letters follow on the rebuild); Alt+↑/↓ on a step too ----
-
-    private TaskStepViewModel? _dragStep;
-    private TaskStepViewModel? _stepTarget;
-    private bool _stepAfter;
-    private Point _stepStart;
-    private bool _isDraggingStep;
-
-    private void OnStepHandlePressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is Control { DataContext: TaskStepViewModel step } handle && step.CanDrag && e.GetCurrentPoint(handle).Properties.IsLeftButtonPressed)
-        {
-            _dragStep = step;
-            _stepStart = e.GetPosition(this);
-            _isDraggingStep = false;
-            e.Pointer.Capture(handle);
-            e.Handled = true;
-        }
-    }
-
-    private void OnStepHandleMoved(object? sender, PointerEventArgs e)
-    {
-        if (_dragStep is null)
-        {
-            return;
-        }
-
-        Point at = e.GetPosition(this);
-        if (!_isDraggingStep)
-        {
-            Point moved = at - _stepStart;
-            if (Math.Abs(moved.X) < 4 && Math.Abs(moved.Y) < 4)
-            {
-                return;
-            }
-
-            _isDraggingStep = true;
-        }
-
-        ShowStepTarget(null, false);
-        if (this.InputHitTest(at) is Visual hit)
-        {
-            foreach (Visual visual in hit.GetSelfAndVisualAncestors())
-            {
-                if (visual is Control { DataContext: TaskStepViewModel step } item && item.Classes.Contains("stepItem"))
-                {
-                    if (step != _dragStep && this.TranslatePoint(at, item) is Point local)
-                    {
-                        ShowStepTarget(step, local.Y > item.Bounds.Height / 2);
-                    }
-
-                    break;
-                }
-            }
-        }
-
-        e.Handled = true;
-    }
-
-    private void OnStepHandleReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (_dragStep is not null && _isDraggingStep && _stepTarget is not null && DataContext is TasksViewModel { Detail: { } detail })
-        {
-            _ = detail.MoveStepAsync(_dragStep.Id, _stepTarget.Id, _stepAfter);
-        }
-
-        EndStepDrag();
-        e.Pointer.Capture(null);
-        e.Handled = true;
-    }
-
-    private void OnStepHandleCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        EndStepDrag();
-    }
-
-    private void EndStepDrag()
-    {
-        ShowStepTarget(null, false);
-        _dragStep = null;
-        _isDraggingStep = false;
-    }
-
-    private void ShowStepTarget(TaskStepViewModel? step, bool after)
-    {
-        if (_stepTarget is not null)
-        {
-            _stepTarget.DropMark = 0;
-        }
-
-        _stepTarget = step;
-        _stepAfter = after;
-        if (step is not null)
-        {
-            step.DropMark = after ? 1 : -1;
-        }
-    }
-
-    // Alt+↑/↓ on a step (its check box or a button of its row): one place up or down.
-    private void OnStepKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.KeyModifiers != KeyModifiers.Alt || e.Key is not (Key.Up or Key.Down) || sender is not Control { DataContext: TaskStepViewModel step }
-            || !step.CanDrag || DataContext is not TasksViewModel { Detail: { } detail })
-        {
-            return;
-        }
-
-        int index = detail.Steps.IndexOf(step);
-        int to = index + (e.Key == Key.Up ? -1 : 1);
-        if (index >= 0 && to >= 0 && to < detail.Steps.Count)
-        {
-            _ = detail.MoveStepAsync(step.Id, detail.Steps[to].Id, e.Key == Key.Down);
-        }
-
-        e.Handled = true;
-    }
-
-    // The detail card's ⋯ and a step's ⋯: the menu is built from what it belongs to each time it opens. The open task's menu can ask
-    // for Copy ID and Reminders & due date, which only the view can do.
-    private void OnMoreClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button button)
-        {
-            TaskMenus.Show(button, entry => OnDetailMenuViewAction(button, entry));
-            e.Handled = true;
-        }
-    }
-
-    private void OnDetailMenuViewAction(Button button, TaskMenuEntry entry)
-    {
-        if (button.DataContext is not TaskDetailViewModel detail)
-        {
-            return;
-        }
-
-        switch (entry.ViewAction)
-        {
-            case "copyId":
-                _ = TaskMenus.CopyAsync(this, detail.CopyText);
-                break;
-            case "reminders" when detail.ReminderMenu() is { } menu:
-                ReminderMenu.ShowAt(button, menu, PlacementMode.BottomEdgeAlignedRight);
-                break;
-        }
-    }
-
-    // The open task's reminders line: its Reminders & due date menu.
-    private void OnRemindersClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: TaskDetailViewModel detail } button && detail.ReminderMenu() is { } menu)
-        {
-            ReminderMenu.ShowAt(button, menu, PlacementMode.BottomEdgeAlignedLeft);
-            e.Handled = true;
-        }
-    }
-
-    // Esc clears the selection; otherwise it closes the open task, unless a text box has the focus: Esc there is left to the edit.
+    // Esc clears the selection; otherwise it closes the editor popup, unless a text box has the focus: Esc there is left to the edit.
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
@@ -544,39 +332,10 @@ public partial class TasksView : UserControl
         }
 
         bool editing = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is TextBox;
-        if (!editing && page.IsDetailOpen)
+        if (!editing && page.ShowsEditorOnTasks)
         {
-            page.CloseDetailCommand.Execute(null);
+            page.CloseEditorCommand.Execute(null);
             e.Handled = true;
-        }
-    }
-
-    // A step's inline box (rename, a step after it) takes the keyboard as it opens.
-    private void OnInlineBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-    {
-        if (e.Property == IsVisibleProperty && sender is TextBox { IsVisible: true } box)
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                box.Focus();
-                box.SelectAll();
-            });
-        }
-    }
-
-    private void OnDetailTitleLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control { DataContext: TaskDetailViewModel detail })
-        {
-            detail.CommitTitleCommand.Execute(null);
-        }
-    }
-
-    private void OnDetailNoteLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Control { DataContext: TaskDetailViewModel detail })
-        {
-            detail.CommitNoteCommand.Execute(null);
         }
     }
 

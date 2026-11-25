@@ -50,6 +50,8 @@ public sealed partial class TasksViewModel : IAddBoxHost
 
     bool IAddBoxHost.IsSessionOn => _session.IsSessionActive;
 
+    IReadOnlyList<TaskLabelGroup> IAddBoxHost.LabelGroups => _store is { IsActive: true } store ? TaskLabelGroupBook.Live(store.Lists.LabelGroups) : [];
+
     /// <summary>Ctrl+J: the jot opens and takes the keyboard (the caller shows a page that has it first).</summary>
     public void OpenJot() => Jot.Open();
 

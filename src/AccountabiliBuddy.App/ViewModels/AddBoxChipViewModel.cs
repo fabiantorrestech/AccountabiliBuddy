@@ -22,7 +22,8 @@ public sealed partial class AddBoxChipViewModel
 
     public bool HasDot => Dot is not null;
 
-    public string RemoveName => "Remove " + Text;
+    /// <summary>"Remove label" or "Remove tag".</summary>
+    public string RemoveName => HasDot ? "Remove label" : "Remove tag";
 
     [RelayCommand]
     private void Remove() => _remove();

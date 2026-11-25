@@ -704,5 +704,9 @@
                 <views:TaskToastView DataContext="{Binding Toasts}" Canvas.Left="18" Canvas.Bottom="6" />
             </Canvas>
         </Panel>
+
+        <!-- The task editor popup (Tasks redesign item 5) for a row opened here: the same popup as on Tasks, over this page, dimmed behind. -->
+        <views:TaskEditorView Grid.RowSpan="3" ZIndex="15" DataContext="{Binding TaskPage}" x:DataType="vm:TasksViewModel"
+                              IsVisible="{Binding ShowsEditorOnToday, FallbackValue=False}" />
     </Grid>
 </UserControl>

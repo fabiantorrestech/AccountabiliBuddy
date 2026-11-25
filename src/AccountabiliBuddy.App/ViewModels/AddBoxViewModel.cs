@@ -17,10 +17,16 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// "Move … to notes" split, the project marker at the start ("Part of a project?" with label and tag choices, Apply, Keep as typed)
 /// and the one-time offer to learn a marker style. Rule-based and local; nothing here blocks adding. One class for the Tasks page's
 /// box, a Shelf bin's "+" box and Jot it down (<see cref="AddBoxKind"/>); the page adds the task (<see cref="IAddBoxHost"/>).
+/// Tasks redesign item 5: the chips sit inside the box before the text; the help and the keys hint ("@ label · # tag · Ctrl+Enter
+/// details") share one hint area inside it; Details (or Ctrl+Enter) opens the task editor popup for a new task with what was typed, and
+/// the popup's bin pill and the box's "Add to [bin]" are the same <see cref="Destination"/>.
 /// </summary>
 public sealed partial class AddBoxViewModel : ObservableObject
 {
     private const int SplitTailShown = 18;
+
+    // The "@" list's longest length (it floats under the box and never pushes the rows).
+    private const int MaxLabelSuggestions = 10;
 
     private static readonly Regex Typing = new(@"(^|\s)([@#])([\w-]*)$", RegexOptions.Compiled);
     private static readonly Regex Finished = new(@"(^|\s)([@#])([\w-]+)\s$", RegexOptions.Compiled);
@@ -106,13 +112,27 @@ public sealed partial class AddBoxViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsFocused { get; set; }
 
-    public bool IsExpanded => IsFocused;
+    /// <summary>The task editor popup is open for what this box holds (Details): the box stays in use under the dim, Details lit.</summary>
+    [ObservableProperty]
+    public partial bool IsDetailsOpen { get; set; }
+
+    /// <summary>Adding: the keyboard is in the box, or its Details popup is open.</summary>
+    public bool IsExpanded => IsFocused || IsDetailsOpen;
 
     /// <summary>A short "+ Add a task" pill: not in use and nothing typed.</summary>
-    public bool IsResting => !IsFocused && Text.Length == 0;
+    public bool IsResting => !IsExpanded && Text.Length == 0;
 
     /// <summary>Text left in the box after leaving it: greyed, the box shrunk to fit it.</summary>
-    public bool IsLeftover => !IsFocused && Text.Length > 0;
+    public bool IsLeftover => !IsExpanded && Text.Length > 0;
+
+    /// <summary>The label picked as a chip; null for none.</summary>
+    public Guid? LabelId => _labelId;
+
+    /// <summary>The tags picked as chips, in the order picked.</summary>
+    public IReadOnlyList<string> Tags => _tags;
+
+    /// <summary>The Tasks page's box has Details (a Shelf bin's "+" and the jot don't).</summary>
+    public bool HasDetails => Kind == AddBoxKind.Main;
 
     /// <summary>Where the task goes (This session through the session's cap).</summary>
     [ObservableProperty]
@@ -193,8 +213,11 @@ public sealed partial class AddBoxViewModel : ObservableObject
     /// <summary>"Treat “⟦Name⟧” as a project marker?".</summary>
     public string OfferText => _offer is { } offer ? "Treat “" + offer.Pattern.Open + "Name" + offer.Pattern.Close + "” as a project marker?" : string.Empty;
 
-    /// <summary>The hint line shows (it floats under the box, so nothing moves when it does).</summary>
-    public bool ShowsHint => IsFocused && (ShowsCounter || ShowsMarker || ShowsSplit || ShowsOffer);
+    /// <summary>The help shows in the box's hint area (the counter, the split, "Part of a project?", the offer).</summary>
+    public bool ShowsHint => IsExpanded && (ShowsCounter || ShowsMarker || ShowsSplit || ShowsOffer);
+
+    /// <summary>"@ label · # tag · Ctrl+Enter details" in the hint area: the page's box while adding, when no help shows there.</summary>
+    public bool ShowsKeysHint => IsExpanded && HasDetails && !ShowsHint;
 
     private TaskTitleSplit? CurrentSplit
     {
@@ -365,6 +388,26 @@ public sealed partial class AddBoxViewModel : ObservableObject
         {
             Close();
         }
+    }
+
+    /// <summary>Details, or Ctrl+Enter while typing: the task editor popup opens for a new task with what the box holds.</summary>
+    [RelayCommand]
+    private void OpenDetails()
+    {
+        if (!HasDetails || IsDetailsOpen)
+        {
+            return;
+        }
+
+        DismissSuggestions();
+        _host.OpenDetails(this);
+    }
+
+    /// <summary>The Details popup added the task: the box empties and takes the keyboard for the next one.</summary>
+    public void ClearAfterDetails()
+    {
+        Reset();
+        FocusRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Opens the box and gives it the keyboard (Ctrl+J, the jot's pill, a Shelf bin's "+").</summary>
@@ -587,12 +630,17 @@ public sealed partial class AddBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLeftover));
     }
 
-    partial void OnIsFocusedChanged(bool value)
+    partial void OnIsFocusedChanged(bool value) => RaiseExpanded();
+
+    partial void OnIsDetailsOpenChanged(bool value) => RaiseExpanded();
+
+    private void RaiseExpanded()
     {
         OnPropertyChanged(nameof(IsExpanded));
         OnPropertyChanged(nameof(IsResting));
         OnPropertyChanged(nameof(IsLeftover));
         OnPropertyChanged(nameof(ShowsHint));
+        OnPropertyChanged(nameof(ShowsKeysHint));
     }
 
     partial void OnDestinationChanged(TaskBin value)
@@ -641,6 +689,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsOffer));
         OnPropertyChanged(nameof(OfferText));
         OnPropertyChanged(nameof(ShowsHint));
+        OnPropertyChanged(nameof(ShowsKeysHint));
     }
 
     private void ChooseMarkerLabel(Guid? id)
@@ -664,20 +713,7 @@ public sealed partial class AddBoxViewModel : ObservableObject
         if (kind == '@')
         {
             SuggestionHead = "Labels";
-            // ADR 89: "Shared" first, then "This device" (the device-only labels this device shows; other devices' are never listed).
-            List<TaskLabel> matching = _host.Labels
-                .Where(label => label.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(label => !_host.IsLabelShared(label))
-                .ThenBy(label => label.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase))
-                .Take(6).ToList();
-            bool? previous = null;
-            foreach (TaskLabel label in matching)
-            {
-                bool shared = _host.IsLabelShared(label);
-                string? head = groups && previous != shared ? (shared ? "Shared" : "This device") : null;
-                previous = shared;
-                Suggestions.Add(new AddBoxSuggestionViewModel(label.Name, label.Name, string.Empty, BrushOf(label), isTag: false, creates: false, Pick) { GroupHead = head });
-            }
+            FillLabelSuggestions(query, groups);
 
             if (query.Length > 0 && !_host.Labels.Any(label => string.Equals(label.Name, query, StringComparison.OrdinalIgnoreCase)))
             {
@@ -720,6 +756,46 @@ public sealed partial class AddBoxViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasSuggestions));
+    }
+
+    // The "@" list (Tasks redesign 5.53): the matching labels under their categories (the category's icon and name, the labels indented),
+    // in the label row's order, "Other labels" last; at most MaxLabelSuggestions. ADR 89: a device-only label says "this device".
+    private void FillLabelSuggestions(string query, bool scoped)
+    {
+        IReadOnlyList<TaskLabelGroup> categories = _host.LabelGroups;
+        IReadOnlyDictionary<Guid, TaskLabelGroup> byId = TaskLabelGroupBook.LiveById(categories);
+        List<(TaskLabelGroup? Group, TaskLabel Label)> matching = _host.Labels
+            .Where(label => label.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Select(label => (Group: TaskLabelGroupBook.GroupOf(label, byId), Label: label))
+            .ToList();
+        var ordered = new List<(TaskLabelGroup? Group, TaskLabel Label)>();
+        foreach (TaskLabelGroup group in categories)
+        {
+            ordered.AddRange(matching.Where(item => item.Group?.Id == group.Id));
+        }
+
+        ordered.AddRange(matching.Where(item => item.Group is null));
+        bool grouped = categories.Count > 0;
+        Guid? previous = Guid.Empty;
+        foreach ((TaskLabelGroup? group, TaskLabel label) in ordered.Take(MaxLabelSuggestions))
+        {
+            string? head = null;
+            MaterialIconKind? icon = null;
+            if (grouped && group?.Id != previous)
+            {
+                head = group?.Name ?? "Other labels";
+                icon = group is null ? MaterialIconKind.CircleSlice8 : Services.Tasks.LabelGroupIconKinds.Of(group.Icon);
+            }
+
+            previous = group?.Id;
+            string detail = scoped && !_host.IsLabelShared(label) ? "this device" : string.Empty;
+            Suggestions.Add(new AddBoxSuggestionViewModel(label.Name, label.Name, detail, BrushOf(label), isTag: false, creates: false, Pick)
+            {
+                GroupHead = head,
+                CategoryIcon = icon,
+                IsIndented = grouped,
+            });
+        }
     }
 
     // A picked entry: a chip, and the "@word" / "#word" leaves the text (the caret goes where it was).

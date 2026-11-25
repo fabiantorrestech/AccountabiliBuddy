@@ -165,7 +165,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>A row was opened (also from Today, which has no detail card): the window shows the Tasks page.</summary>
+    /// <summary>A task was opened for the Tasks page's editor popup (not a Today row opened on Today, which has its own): the window shows Tasks.</summary>
     public event EventHandler? OpenRequested;
 
     /// <summary>Tasks was opened again (another tab before): header clicks are forgotten, the pins and Expand / Collapse all decide.</summary>
@@ -219,7 +219,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsArchiveOpen { get; set; }
 
-    /// <summary>The detail card's item; null shows its empty note.</summary>
+    /// <summary>The open task (shown in the editor popup while <see cref="IsDetailOpen"/>); null when there is none.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDetail))]
     public partial TaskDetailViewModel? Detail { get; set; }
@@ -247,10 +247,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     public bool HasDetail => Detail is not null;
 
-    /// <summary>
-    /// The user opened the detail card (a row click, Rename, Add subtask). Only a page under 980 wide hides the card while this
-    /// is false; a wide page always shows it.
-    /// </summary>
+    /// <summary>The user opened a task (a row click, Enter, Rename, Add subtask, Ctrl+G): the editor popup shows it (Tasks redesign item 5).</summary>
     [ObservableProperty]
     public partial bool IsDetailOpen { get; set; }
 
@@ -263,11 +260,13 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     /// <summary>Back / forward: opens the task in the open-task card, as a click on its row does (nothing else changes).</summary>
     public void OpenTask(TaskRowKey key)
     {
+        _editorOnToday = false;
         IsDetailOpen = true;
         Select(key);
+        RaiseEditor();
     }
 
-    /// <summary>The detail card's close button and Esc (narrow pages): saves what is being edited, then hides the card and deselects.</summary>
+    /// <summary>The editor popup's ×, a click on its dim and Esc: saves what is being edited, then closes the popup and deselects.</summary>
     [RelayCommand]
     private void CloseDetail()
     {
@@ -399,12 +398,12 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         ShowSelected();
     }
 
-    // Opens a row's task in the open-task card (a plain click on a closed row, Enter, a row opened on Today).
+    // Opens a row's task in the editor popup (a plain click on a closed row, Enter, a row opened on Today: the popup opens there).
     private void SelectRow(TaskListRowViewModel row)
     {
         IsDetailOpen = true;
         Select(row.Key);
-        OpenRequested?.Invoke(this, EventArgs.Empty);
+        ShowEditorWhereOpened();
     }
 
     /// <summary>A This-session row dropped by its handle: before or after another task (taking that task's category, as on Today).</summary>
@@ -852,8 +851,10 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
     private void BeginDetailEdit(TaskRowKey key, string target)
     {
+        _editorOnToday = IsTodayOnScreen && !IsOnScreen;
         IsDetailOpen = true;
         Select(key);
+        RaiseEditor();
         FocusRequested?.Invoke(this, target);
     }
 
@@ -1717,6 +1718,20 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     private void ShowSelected()
     {
         TaskSnapshot? snapshot = _selectedKey is TaskRowKey key ? Enrich(Read(key)) : null;
+        if (snapshot is null && IsDetailOpen && _selectedKey is TaskRowKey moved
+            && AllRows().FirstOrDefault(row => row.Id == moved.Id && row.OwnerKey is null && row.Key != moved) is { } follow)
+        {
+            // The open task moved to another list (the editor's bin pill, Add to Today): the popup follows it there.
+            _selectedKey = follow.Key;
+            snapshot = Enrich(Read(follow.Key));
+        }
+
+        if (snapshot is null && IsDetailOpen && _selectedKey is not null)
+        {
+            // The open task is gone (deleted, finished elsewhere): the popup closes rather than show another task.
+            IsDetailOpen = false;
+        }
+
         if (snapshot is null && _sessionRows.Count > 0)
         {
             _selectedKey = _sessionRows[0].Key;

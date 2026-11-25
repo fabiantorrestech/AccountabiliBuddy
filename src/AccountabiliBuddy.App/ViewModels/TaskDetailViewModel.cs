@@ -9,11 +9,12 @@ using Material.Icons;
 namespace AccountabiliBuddy.App.ViewModels;
 
 /// <summary>
-/// The open task (spec 03 §B, 05 §3), in the Tasks page's right card: its kind line, the title (edited in place on a click), the
-/// chips row (label, tags and "+ Tag", time limit, reminders and due date, highlight), Steps · n/m with each step's letter chip,
-/// focus tag, time and drag handle, the add-a-step box, the notes box (saved on blur or after a short pause), the reminders line,
-/// the moves, and the footer (sync line, ⋯, the ID chip that copies "142 · title"). It reads its item again when a store changes,
-/// but never overwrites a title or a note that is being typed. Notes are private text: nothing here logs them.
+/// The open task (spec 03 §B, 05 §3), in the task editor popup (Tasks redesign item 5, board 06): the title (edited in place on a click),
+/// the pill row (the bin pill that moves it, label, tags or "# + Tag", time limit, highlight), "Steps · 25 min" with each step's letter
+/// chip, focus tag, time and drag handle, the add-a-step box, the notes box (saved on blur or after a short pause), Due (the Later
+/// list's tasks), Reminders, Plan, and the footer (Start with this, Add to Today, the sync line, the ID chip that copies "142 · title",
+/// ⋯, Delete). Its kind line is the bin pill's tooltip. It reads its item again when a store changes, but never overwrites a title or a
+/// note that is being typed. Notes are private text: nothing here logs them.
 /// </summary>
 public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable, ITaskMenuSource
 {
@@ -110,12 +111,36 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
     [ObservableProperty]
     public partial IBrush LabelBrush { get; set; }
 
+    /// <summary>The task has a label (the label pill's dot is its colour; without one, an empty ring).</summary>
+    [ObservableProperty]
+    public partial bool HasLabel { get; set; }
+
     /// <summary>The label chip opens the label picker (every kind but Auto-saved).</summary>
     public bool CanLabel => Kind != TaskRowKind.AutoSaved;
 
     /// <summary>The task's tags as chips, "#errands".</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TagText))]
     public partial IReadOnlyList<string> TagChips { get; set; } = [];
+
+    /// <summary>The tags pill: "# + Tag" with none, else "#phone #home".</summary>
+    public string TagText => TagChips.Count == 0 ? "# + Tag" : string.Join(" ", TagChips);
+
+    /// <summary>The bin pill: where the task is now.</summary>
+    public TaskBin Bin => _owner.BinOf(Key, _snapshot.Item);
+
+    /// <summary>The bin pill moves it: the task list holds it (a running session's own tasks leave only as the session allows).</summary>
+    public bool CanMoveBin => _owner.CanMoveBin(Key);
+
+    /// <summary>A bin picked on the bin pill: the task moves at once (This session through the session's cap).</summary>
+    [RelayCommand]
+    private Task PickBinAsync(TaskBin bin) => _owner.MoveToBinAsync(Key, bin);
+
+    /// <summary>The label pill's picker (categories, search, No label); null where the task list doesn't hold the task (the older menu then).</summary>
+    public LabelPickerViewModel? LabelPicker() => _owner.LabelPickerFor(Key);
+
+    /// <summary>A label or "No label" picked in the label pill's picker.</summary>
+    public Task ApplyLabelPickAsync(LabelPick pick) => _owner.ApplyLabelPickAsync(Key, pick);
 
     /// <summary>"+ Tag" (ADR 72's labels menu; the full Tags menu is 3.5); not on a task another PC's record holds.</summary>
     [ObservableProperty]
@@ -127,10 +152,13 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
 
     /// <summary>The reminders line: "Today 3:00 PM · 10 min before", "2 reminders · due Fri 11/13", or "Reminders & due date".</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasReminders))]
+    [NotifyPropertyChangedFor(nameof(HasReminders), nameof(ReminderButtonText))]
     public partial string ReminderText { get; set; }
 
     public bool HasReminders => ReminderText != NoReminders;
+
+    /// <summary>The Reminders field: "Add a reminder" with none, else the reminders line.</summary>
+    public string ReminderButtonText => HasReminders ? ReminderText : "Add a reminder";
 
     /// <summary>The task is highlighted (star and tint).</summary>
     [ObservableProperty]
@@ -149,9 +177,13 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
     [ObservableProperty]
     public partial string StepsHead { get; set; }
 
-    /// <summary>"add up to 35 min of 50 min", "within 50 min", "no time limit".</summary>
+    /// <summary>"add up to 35 min of 50 min", "within 50 min", "no time limit" (the steps caption's tooltip).</summary>
     [ObservableProperty]
     public partial string StepsSub { get; set; }
+
+    /// <summary>The Steps caption: "Steps · no time limit", "Steps · 25 min"; with steps also how many are done ("· 1/3 done").</summary>
+    [ObservableProperty]
+    public partial string StepsCaption { get; set; } = "Steps · no time limit";
 
     /// <summary>The footer's sync line: "Synced · Pixel 8, Home desktop", "Changed on both devices", "Kept on this PC only".</summary>
     [ObservableProperty]
@@ -245,6 +277,12 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
 
     public bool HasPlan => PlanText.Length > 0;
 
+    /// <summary>The Plan field shows: the task can be put in the plan, or it is in one.</summary>
+    public bool ShowsPlanSection => ShowsPlan || HasPlan;
+
+    /// <summary>The Plan field's text: "Put in plan", or where it is planned.</summary>
+    public string PlanButtonText => HasPlan ? PlanText : "Put in plan";
+
     public bool HasPlanDays => PlanDays.Count > 0;
 
     public bool HasMessage => Message.Length > 0;
@@ -258,7 +296,12 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
 
     partial void OnMessageChanged(string value) => OnPropertyChanged(nameof(HasMessage));
 
-    partial void OnPlanTextChanged(string value) => OnPropertyChanged(nameof(HasPlan));
+    partial void OnPlanTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasPlan));
+        OnPropertyChanged(nameof(ShowsPlanSection));
+        OnPropertyChanged(nameof(PlanButtonText));
+    }
 
     partial void OnNoteChanged(string value)
     {
@@ -471,6 +514,9 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
             OnPropertyChanged(nameof(ShowsStart));
             OnPropertyChanged(nameof(ShowsMoveToLater));
             OnPropertyChanged(nameof(ShowsPlan));
+            OnPropertyChanged(nameof(ShowsPlanSection));
+            OnPropertyChanged(nameof(Bin));
+            OnPropertyChanged(nameof(CanMoveBin));
             OnPropertyChanged(nameof(ParkedText));
             OnPropertyChanged(nameof(HasParkedText));
             OnPropertyChanged(nameof(CopyText));
@@ -485,6 +531,7 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
         (string? labelName, string? labelColor) = _owner.LabelOf(Key, item);
         LabelName = labelName ?? "No label";
         LabelBrush = labelName is null ? Brushes.Transparent : TaskCategoryBrushes.Of(labelColor);
+        HasLabel = labelName is not null;
         TagChips = _owner.ShownTagsOf(item?.Tags ?? _owner.TagsOf(Key)).Select(tag => "#" + tag).ToList();
         CanTag = _owner.CanTag(Key);
         TimeLimitText = snapshot.EstimateMinutes is int minutes ? EstimateText.Of(minutes) : "Time limit";
@@ -499,6 +546,8 @@ public sealed partial class TaskDetailViewModel : ObservableObject, IDisposable,
         StepsSub = snapshot.EstimateMinutes is int limit
             ? stepMinutes > 0 ? $"add up to {Math.Max(0, limit - stepMinutes)} min of {limit} min" : $"within {limit} min"
             : "no time limit";
+        string limitText = snapshot.EstimateMinutes is int minutesLimit ? EstimateText.Of(minutesLimit) : "no time limit";
+        StepsCaption = snapshot.Steps.Count > 0 ? $"Steps · {limitText} · {done}/{snapshot.Steps.Count} done" : "Steps · " + limitText;
 
         (string syncText, MaterialIconKind syncIcon, bool problem) = _owner.SyncLineOf(item);
         SyncText = syncText;

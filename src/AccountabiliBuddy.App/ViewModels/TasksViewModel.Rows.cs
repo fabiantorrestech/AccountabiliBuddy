@@ -276,6 +276,7 @@ public sealed partial class TasksViewModel
 
     partial void OnIsDetailOpenChanged(bool value)
     {
+        RaiseEditor();
         MarkOpenRow();
         NotifySessionViewChanged();
     }
