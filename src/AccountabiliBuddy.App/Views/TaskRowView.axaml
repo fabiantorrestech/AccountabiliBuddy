@@ -31,10 +31,16 @@
                 <Border Classes="bit" Classes.chip="{Binding IsChip}" Classes.ink="{Binding IsInk}" Classes.faint="{Binding IsFaint}"
                         Classes.drift="{Binding IsDrift}" Classes.abPill="{Binding IsAmber}" Classes.amber="{Binding IsAmber}" ToolTip.Tip="{Binding Tip}" VerticalAlignment="Center" IsVisible="{Binding IsPlain}">
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <mi:MaterialIcon Kind="{Binding IconKind}" Width="13" Height="13" VerticalAlignment="Center" IsVisible="{Binding HasIcon}" />
+                        <Ellipse Width="7" Height="7" Fill="{Binding Dot}" Margin="0,0,2,0" VerticalAlignment="Center" IsVisible="{Binding HasDot}" />
+                        <mi:MaterialIcon Kind="{Binding IconKind}" Width="{Binding IconSize}" Height="{Binding IconSize}" VerticalAlignment="Center"
+                                         IsVisible="{Binding HasIcon}" Classes.accentIcon="{Binding AccentIcon}" />
                         <TextBlock Text="{Binding Text}" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding HasText}" />
                     </StackPanel>
                 </Border>
+                <!-- A tag (Tasks redesign 4c.32-4c.33): "#waiting" in the accent colour; a click searches it and doesn't open the task. -->
+                <Button Classes="tagLink" IsVisible="{Binding IsTag}" Click="OnTagClick" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Tip}">
+                    <TextBlock Text="{Binding Text}" FontSize="12" />
+                </Button>
                 <!-- The sync-problem cloud: "Changed on both devices". -->
                 <Button Classes="rowTool conflictBit" IsVisible="{Binding OpensConflict}" Click="OnConflictClick" Width="20" Height="20"
                         ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="Changed on both devices: pick a version">
@@ -218,7 +224,7 @@
         </Style>
         <Style Selector="Border.taskColumn Border.rowTools">
             <Setter Property="Grid.Column" Value="1" />
-            <Setter Property="Grid.ColumnSpan" Value="4" />
+            <Setter Property="Grid.ColumnSpan" Value="1" />
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Top" />
             <Setter Property="Margin" Value="0,4,0,0" />
@@ -379,6 +385,70 @@
         <Style Selector="Border.bit.drift">
             <Setter Property="TextElement.Foreground" Value="{DynamicResource Ab.Drift}" />
         </Style>
+        <!-- Tasks redesign 4c: the bin's icon on a Labels / None row's sub-line is in the accent; a tag is an accent link. -->
+        <Style Selector="mi|MaterialIcon.accentIcon">
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.tagLink">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.tagLink /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.tagLink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
+        </Style>
+        <Style Selector="Button.tagLink:pointerover TextBlock">
+            <Setter Property="TextDecorations" Value="Underline" />
+        </Style>
+        <!-- "Add to Today →" on a Next row (4c.35): 30 high, padding 0 12, radius 999, a 1 px Line2 edge, 12.5 px, arrow 13. -->
+        <Style Selector="Button.addToToday">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.addToToday /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <Style Selector="Button.addToToday:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Line2}" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
+        </Style>
+        <!-- The Overdue pill in a Shelf column (4c.31): padding 1 8, a 1 px AmberLine edge, no fill. -->
+        <Style Selector="Border.taskColumn Border.bit.abPill">
+            <Setter Property="Padding" Value="8,1" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <!-- A highlighted row in a Shelf column (4c.26): AmberInk at 9% over the whole row, radius 10. -->
+        <Style Selector="Border.taskColumn Border.starTint">
+            <Setter Property="Background" Value="{DynamicResource Ab.AmberTint9}" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <!-- The check box in a Shelf column (4c.24): radius 6, a 1.5 px Muted2 edge. -->
+        <Style Selector="Border.taskColumn CheckBox /template/ Border#NormalRectangle">
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1.5" />
+        </Style>
+        <Style Selector="Border.taskColumn CheckBox:unchecked /template/ Border#NormalRectangle">
+            <Setter Property="BorderBrush" Value="{DynamicResource Ab.Muted2}" />
+        </Style>
         <!-- Overdue: the shared amber pill (Themes/AbStyles.axaml Border.abPill.amber), with the pill's own padding. -->
         <Style Selector="Border.bit.abPill">
             <Setter Property="Padding" Value="7,0" />
@@ -463,6 +533,19 @@
             <Setter Property="IsVisible" Value="False" />
         </Style>
 
+        <!-- "Add to Today →": at the row's right in a wide column, under the sub-line in a narrow one (container query below). -->
+        <Style Selector="Panel.narrowAddSlot">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <ContainerQuery Name="TaskColumn" Query="max-width:340">
+            <Style Selector="Panel.wideAddSlot">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+            <Style Selector="Panel.narrowAddSlot">
+                <Setter Property="IsVisible" Value="True" />
+            </Style>
+        </ContainerQuery>
+
         <!-- A narrow column: the label slot goes and the gaps shrink, so the title keeps its room. -->
         <ContainerQuery Name="TaskColumn" Query="max-width:520">
             <Style Selector="Grid.rowGrid">
@@ -519,7 +602,7 @@
                         <TextBlock Classes="muted rowNumber" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
                                    MinWidth="12" IsVisible="{Binding IsNumbered}" />
                         <CheckBox IsChecked="{Binding ShowsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
-                                  MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="Finish"
+                                  MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding MarkDoneName}"
                                   ToolTip.Tip="Finish (untick to open it again)" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Classes="rowText" Spacing="2" VerticalAlignment="Center">
@@ -584,12 +667,43 @@
                         </Panel>
                         <!-- The Tasks page's details line, after the same ↳ icon as Today's (owner 2026-11-23); it sits on the first line when
                              the text wraps. -->
+                        <!-- Tasks redesign 4c (SPEC "Task rows"): in a Shelf column, one line after the ↳ that wraps: the label (Bins, None), the bin
+                             (Labels, None), the row bits in the app's order with the tags as accent links, or the plain line. -->
                         <Panel Classes="tasksOnly">
+                        <Grid Classes="rowSub" ColumnDefinitions="Auto,*" Margin="0,1,0,0">
+                            <Grid.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="HasShelfLine" />
+                                    <Binding Path="$self.(views:TaskColumnScope.IsColumn)" />
+                                </MultiBinding>
+                            </Grid.IsVisible>
+                            <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="13" Height="13" Margin="0,1,5,0" Foreground="{DynamicResource Ab.Muted}"
+                                             VerticalAlignment="Top" />
+                            <ItemsControl Grid.Column="1" ItemsSource="{Binding ShelfLineBits}" ItemTemplate="{StaticResource RowBitTemplate}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel ItemSpacing="10" LineSpacing="4" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </Grid>
+                        </Panel>
+                        <Panel Classes="tasksOnly" IsVisible="{Binding !$self.(views:TaskColumnScope.IsColumn)}">
                         <Grid Classes="rowSub" ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsSubText}">
                             <mi:MaterialIcon Kind="SubdirectoryArrowRight" Width="12" Height="12" Margin="0,2,4,0" Foreground="{DynamicResource Ab.Muted}"
                                              VerticalAlignment="Top" />
                             <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SubText}" FontSize="12" TextWrapping="Wrap" />
                         </Grid>
+                        </Panel>
+                        <!-- A narrow column (under 340 px): "Add to Today →" goes under the sub-line, so the title keeps its room. -->
+                        <Panel Classes="narrowAddSlot">
+                            <Button Classes="addToToday" HorizontalAlignment="Left" Margin="0,4,0,0" IsVisible="{Binding HasAddToToday}"
+                                    Command="{Binding AddToToday.Command}" ToolTip.Tip="Queue it for today (Today › Queued)" AutomationProperties.Name="Add to Today">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Add to Today" FontSize="12.5" VerticalAlignment="Center" />
+                                    <mi:MaterialIcon Kind="ArrowRight" Width="13" Height="13" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                         </Panel>
                         <!-- A focused step (Quiet view): "↳ task · ● label · 142b ▾", also in Compact; ▾ opens the live step list. -->
                         <Panel Classes="tasksOnly">
@@ -661,7 +775,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <Panel Classes="tasksOnly">
+                        <Panel Classes="tasksOnly" IsVisible="{Binding !$self.(views:TaskColumnScope.IsColumn)}">
                         <DockPanel Classes="rowSub">
                             <DockPanel.IsVisible>
                                 <MultiBinding Converter="{x:Static views:TaskRowView.DetailLineShown}">
@@ -708,6 +822,16 @@
                         <Button Classes="catChip onHover" IsVisible="{Binding ShowsAddCategory}" Click="OnCategoryClick"
                                 AutomationProperties.Name="Add label" ToolTip.Tip="Add a label">
                             <TextBlock Classes="faint" Text="+ label" FontSize="12" VerticalAlignment="Center" />
+                        </Button>
+                    </Panel>
+                    <!-- A Next row's "Add to Today →" (Group by Bins, 4c.35): queues it for today (Today › Queued, with Undo). -->
+                    <Panel Grid.Column="2" Classes="wideAddSlot">
+                        <Button Classes="addToToday" Margin="0,7,6,0" IsVisible="{Binding HasAddToToday}" Command="{Binding AddToToday.Command}"
+                                ToolTip.Tip="Queue it for today (Today › Queued)" AutomationProperties.Name="Add to Today">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="Add to Today" FontSize="12.5" VerticalAlignment="Center" />
+                                <mi:MaterialIcon Kind="ArrowRight" Width="13" Height="13" VerticalAlignment="Center" />
+                            </StackPanel>
                         </Button>
                     </Panel>
                     <!-- This session's time (number font), or "Now" on the running task; on Today the running task has a Now badge and keeps its time. -->

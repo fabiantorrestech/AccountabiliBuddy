@@ -58,9 +58,16 @@ public partial class TaskColumnView : UserControl
             .FirstOrDefault(candidate => candidate.DataContext is TaskSectionViewModel section && section.Key == key);
         if (view is not null)
         {
-            view.HeaderButton.Focus(NavigationMethod.Directional);
-            view.HeaderButton.BringIntoView();
+            view.FocusHeader();
         }
+    }
+
+    /// <summary>The keyboard goes to the column's header (a label column's own header in Group by Labels).</summary>
+    public void FocusHeader()
+    {
+        Button header = DataContext is TaskSectionViewModel { IsLabelColumn: true } ? LabelHeaderButton : HeaderButton;
+        header.Focus(NavigationMethod.Directional);
+        header.BringIntoView();
     }
 
     private void OnHeaderContextRequested(object? sender, ContextRequestedEventArgs e)

@@ -4,11 +4,14 @@
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
              x:Class="AccountabiliBuddy.App.Views.TaskToastView"
              x:DataType="vm:TaskToastViewModel">
-    <!-- The Tasks toast (spec 03 §F, 05 §14): Surface, 1 px line, radius pr, 13 DIP text, Undo (accent text) with its Ctrl+Z hint, ×,
+    <!-- The Tasks toast (spec 03 §F, 05 §14; Tasks redesign 4c.64-4c.65): Line fill, 1 px Line3 edge, radius 12, the menus' shadow,
+         padding 8 8 8 16, 13.5 px text, Undo (30 high, 13 px bold accent) with its Ctrl+Z hint, a 30 × 30 dismiss ×,
          and a 3 px accent timer bar along the bottom edge that shrinks over the toast's life. The pointer on it holds the timer. -->
     <UserControl.Styles>
         <Style Selector="Button.toastUndo">
-            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="FontSize" Value="13" />
@@ -27,8 +30,8 @@
             <Setter Property="Foreground" Value="{DynamicResource Ab.Accent}" />
         </Style>
         <Style Selector="Button.toastClose">
-            <Setter Property="Width" Value="28" />
-            <Setter Property="Height" Value="28" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="MinWidth" Value="0" />
@@ -49,11 +52,11 @@
     </UserControl.Styles>
 
     <Border x:Name="Card" IsVisible="{Binding IsVisible}" HorizontalAlignment="Left" VerticalAlignment="Bottom" MinWidth="260" MaxWidth="420"
-            Background="{DynamicResource Ab.Surface}" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
-            CornerRadius="{DynamicResource Ab.PopoverRadius}" BoxShadow="{DynamicResource Ab.PopoverShadow}" ClipToBounds="True">
+            Background="{DynamicResource Ab.Line}" BorderBrush="{DynamicResource Ab.Line3}" BorderThickness="1"
+            CornerRadius="12" BoxShadow="{DynamicResource Ab.Shadow}" ClipToBounds="True">
         <Panel>
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" Margin="14,10,10,12">
-                <TextBlock Text="{Binding Text}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" TextWrapping="Wrap" VerticalAlignment="Center"
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" Margin="16,8,8,8">
+                <TextBlock Text="{Binding Text}" FontSize="13.5" Foreground="{DynamicResource Ab.Ink}" TextWrapping="Wrap" VerticalAlignment="Center"
                            AutomationProperties.LiveSetting="Polite" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" IsVisible="{Binding HasUndo}">
                     <Button Classes="toastUndo" Content="Undo" Command="{Binding UndoCommand}" AutomationProperties.Name="Undo" ToolTip.Tip="Undo (Ctrl+Z)" />
@@ -61,7 +64,7 @@
                                VerticalAlignment="Center" />
                 </StackPanel>
                 <Button Grid.Column="2" Classes="toastClose" Command="{Binding DismissCommand}" AutomationProperties.Name="Dismiss" ToolTip.Tip="Dismiss">
-                    <mi:MaterialIcon Kind="Close" Width="16" Height="16" />
+                    <mi:MaterialIcon Kind="Close" Width="14" Height="14" Foreground="{DynamicResource Ab.Muted}" />
                 </Button>
             </Grid>
             <!-- The timer bar: full width when the toast appears, nothing when it goes (scaled from the left). -->

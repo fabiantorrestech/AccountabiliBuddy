@@ -11,10 +11,21 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <param name="Tip">The tooltip, e.g. "Time limit"; empty for none.</param>
 /// <param name="IsChip">Drawn as a small Surface2 pill (tags).</param>
 /// <param name="OpensConflict">The sync-problem cloud: a click opens "Changed on both devices".</param>
+/// <param name="Tag">A tag on the Tasks page (Tasks redesign 4c): drawn in the accent colour; a click searches it. Null for other bits.</param>
+/// <param name="Dot">A label's 7 px dot before the words (a Shelf row's sub-line); null for none.</param>
+/// <param name="AccentIcon">The icon in the accent colour, 12 px (the bin on a Group by Labels / None row's sub-line).</param>
 public sealed record TaskRowBit(
-    string Text, MaterialIconKind? Icon = null, string Tip = "", bool IsChip = false, TaskRowBitTone Tone = TaskRowBitTone.Muted, bool OpensConflict = false)
+    string Text, MaterialIconKind? Icon = null, string Tip = "", bool IsChip = false, TaskRowBitTone Tone = TaskRowBitTone.Muted, bool OpensConflict = false,
+    string? Tag = null, Avalonia.Media.IBrush? Dot = null, bool AccentIcon = false)
 {
-    public bool IsPlain => !OpensConflict;
+    public bool HasDot => Dot is not null;
+
+    /// <summary>The icon's size: 12 for the accent bin icon, else 13.</summary>
+    public double IconSize => AccentIcon ? 12 : 13;
+
+    public bool IsPlain => !OpensConflict && !IsTag;
+
+    public bool IsTag => Tag is not null;
 
     public bool HasIcon => Icon is not null;
 

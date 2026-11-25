@@ -194,6 +194,17 @@ public partial class TaskRowView : UserControl
         e.Handled = true;
     }
 
+    // Tasks redesign 4c.33: a tag under the task puts "#tag" in the page's search; the task doesn't open.
+    private void OnTagClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: TaskRowBit { Tag: { } tag } } && DataContext is TaskListRowViewModel { SearchTag: { } search })
+        {
+            search(tag);
+        }
+
+        e.Handled = true;
+    }
+
     private void OnRowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         _pressModifiers = e.KeyModifiers;

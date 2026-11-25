@@ -161,6 +161,10 @@ public sealed partial class NotebookViewModel : ObservableObject
     [ObservableProperty]
     public partial string SummaryText { get; set; } = string.Empty;
 
+    /// <summary>The Tasks page's Archive row (Tasks redesign 4c.61): "8 unfinished · 38 done" (come-backs and notes leave the Archive, D11).</summary>
+    [ObservableProperty]
+    public partial string TaskCountsText { get; set; } = string.Empty;
+
     public bool IsEmpty => Items.Count == 0;
 
     partial void OnFilterChanged(string value) => Refresh();
@@ -174,7 +178,10 @@ public sealed partial class NotebookViewModel : ObservableObject
         ArchiveRows archive = ArchiveBuilder.Build(ArchiveInputNow());
         List<NotebookItemViewModel> all = [.. Comebacks(), .. Notes(archive), .. Tasks(archive)];
         int open = _comebacks.All.Count(comeback => comeback.DoneAt is null);
-        SummaryText = $"{open} open come-backs · {archive.Notes.Count} notes · {all.Count(item => item.Kind == UnfinishedKind)} unfinished · {all.Count(item => item.Kind == DoneKind)} done";
+        int unfinished = all.Count(item => item.Kind == UnfinishedKind);
+        int done = all.Count(item => item.Kind == DoneKind);
+        SummaryText = $"{open} open come-backs · {archive.Notes.Count} notes · {unfinished} unfinished · {done} done";
+        TaskCountsText = $"{unfinished} unfinished · {done} done";
 
         string search = Search.Trim();
         IEnumerable<NotebookItemViewModel> shown = all

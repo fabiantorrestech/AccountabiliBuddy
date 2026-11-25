@@ -151,9 +151,10 @@ public sealed partial class TasksViewModel
             bits.Add(new TaskRowBit(text, MaterialIconKind.BellOutline, reminders.Count == 1 ? "1 reminder" : $"{reminders.Count} reminders"));
         }
 
+        // Tasks redesign 4c.32: a tag reads "#waiting" in the accent colour; a click searches it.
         foreach (string tag in ShownTagsOf(item.Tags))
         {
-            bits.Add(new TaskRowBit("#" + tag, IsChip: true, Tone: TaskRowBitTone.Ink));
+            bits.Add(new TaskRowBit("#" + tag, Tip: "Search #" + tag, Tone: TaskRowBitTone.Ink, Tag: tag));
         }
 
         if (item.IsDone && item.DoneAt is DateTimeOffset doneAt)

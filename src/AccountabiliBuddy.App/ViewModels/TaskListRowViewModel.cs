@@ -388,6 +388,66 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>The sync-problem cloud's click: "Changed on both devices" for this task; null when it has no conflict.</summary>
     public Action? OpenConflict { get; init; }
 
+    // ---- Tasks redesign 4c: a Shelf row's sub-line and its "Add to Today →" ----
+
+    /// <summary>A click on one of its tags: the page searches that tag ("#waiting"); null where tags don't search (Today).</summary>
+    public Action<string>? SearchTag { get; init; }
+
+    /// <summary>Group by Labels and None: the bin's name on the sub-line ("To sort"), after its icon; empty for none.</summary>
+    public string BinLineName { get; init; } = string.Empty;
+
+    /// <summary>The bin's icon before <see cref="BinLineName"/> (the redesigned bin icons).</summary>
+    public MaterialIconKind BinLineIcon { get; init; } = MaterialIconKind.Tray;
+
+    public bool ShowsBinOnLine => BinLineName.Length > 0;
+
+    /// <summary>Group by Labels: the column is the label, so the sub-line shows the bin instead of the label.</summary>
+    public bool HidesLabelOnLine { get; init; }
+
+    /// <summary>The label's dot and name on a Shelf row's sub-line (Under the task or By the check box; not in Group by Labels).</summary>
+    public bool ShowsLabelOnLine => ShowsLabelChip && !HidesLabelOnLine;
+
+    /// <summary>A Next row's "Add to Today →" (Group by Bins): queues it for today; null for none.</summary>
+    public TaskRowAction? AddToToday { get; init; }
+
+    public bool HasAddToToday => AddToToday is not null;
+
+    /// <summary>The check box's accessible name: "Mark done: {title}".</summary>
+    public string MarkDoneName => "Mark done: " + Title;
+
+    /// <summary>A Shelf row's sub-line has something to show: its label or bin, its bits or its plain line.</summary>
+    public bool HasShelfLine => ShowsLabelOnLine || ShowsBinOnLine || HasBits || HasSubText;
+
+    /// <summary>
+    /// A Shelf row's sub-line after the ↳, as one wrapping line (SPEC "Task rows"): the label's dot and name (not in Group by Labels), the
+    /// bin's icon and name (Group by Labels and None), then the row bits in the app's order (time limit, steps, due or Overdue, reminders,
+    /// #tags, origin, untouched, only on this PC, the sync-problem cloud), or the plain line of a row without bits.
+    /// </summary>
+    public IReadOnlyList<TaskRowBit> ShelfLineBits
+    {
+        get
+        {
+            var bits = new List<TaskRowBit>();
+            if (ShowsLabelOnLine)
+            {
+                bits.Add(new TaskRowBit(CategoryName ?? string.Empty, Tip: "Label", Dot: ShowsSubLineDot ? CategoryBrush : null));
+            }
+
+            if (ShowsBinOnLine)
+            {
+                bits.Add(new TaskRowBit(BinLineName, BinLineIcon, "Bin", AccentIcon: true));
+            }
+
+            bits.AddRange(Bits);
+            if (ShowsSubText)
+            {
+                bits.Add(new TaskRowBit(SubText));
+            }
+
+            return bits;
+        }
+    }
+
     /// <summary>
     /// Whether <paramref name="other"/> (the same row built again) would draw the same: then the page keeps this row's object and its
     /// control instead of drawing a new one. Its commands act on the same item, so they may be kept too.
@@ -403,7 +463,9 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             && StepLetter == other.StepLetter && StepSourceTitle == other.StepSourceTitle && StepSourceLabel == other.StepSourceLabel
             && StepSourceId == other.StepSourceId && StepLinesSignature == other.StepLinesSignature
             && NowStepsSignature == other.NowStepsSignature
-            && TaskRowAction.SameAs(LeftAction, other.LeftAction) && TaskRowAction.SameAs(RightAction, other.RightAction);
+            && TaskRowAction.SameAs(LeftAction, other.LeftAction) && TaskRowAction.SameAs(RightAction, other.RightAction)
+            && BinLineName == other.BinLineName && HidesLabelOnLine == other.HidesLabelOnLine
+            && TaskRowAction.SameAs(AddToToday, other.AddToToday) && (SearchTag is null) == (other.SearchTag is null);
     }
 
     /// <summary>The same row (same item, commands and menus) with another plain detail line and no number, for a second list (Reminders due today).</summary>
@@ -427,6 +489,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
             SelectionMenu = SelectionMenu,
             ReminderMenu = ReminderMenu,
             OpenConflict = OpenConflict,
+            SearchTag = SearchTag,
         };
     }
 

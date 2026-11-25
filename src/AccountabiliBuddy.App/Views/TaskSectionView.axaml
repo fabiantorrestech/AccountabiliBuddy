@@ -110,7 +110,23 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock Classes="faint" Text="{Binding EmptyText}" FontSize="13" Margin="30,2,0,6" IsVisible="{Binding ShowsEmpty}" />
+        <TextBlock Classes="faint" Text="{Binding EmptyText}" FontSize="13" Margin="30,2,0,6">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="ShowsEmpty" />
+                    <Binding Path="!$self.(views:TaskColumnScope.IsColumn)" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
+        <!-- In a Shelf column (Tasks redesign 4c.21, 4b.15, 4c.51): styled by the column (TaskColumnView's TextBlock.sectionEmpty). -->
+        <TextBlock Classes="sectionEmpty" Text="{Binding EmptyText}">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="ShowsEmpty" />
+                    <Binding Path="$self.(views:TaskColumnScope.IsColumn)" />
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
         <!-- A row dragged over the section's header or empty space: it would go at the end of this section. -->
         <Border Height="2" CornerRadius="1" Margin="8,0" Background="{DynamicResource Ab.Accent}" IsHitTestVisible="False"
                 IsVisible="{Binding IsDropTarget}" />

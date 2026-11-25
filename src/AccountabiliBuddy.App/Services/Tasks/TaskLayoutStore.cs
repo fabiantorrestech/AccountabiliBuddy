@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace AccountabiliBuddy.App.Services.Tasks;
 
 /// <summary>
-/// Keeps <see cref="TaskLayoutPreferences"/> in the local document "tasks.layout" (this PC only, never synced; a device setting in
+/// Keeps <see cref="TaskLayoutPreferences"/> (densities, folds, column order, the Shelf's split and folded columns) in the local document "tasks.layout" (this PC only, never synced; a device setting in
 /// backups). Read once at start; every change is saved and announced at once (it only changes how the pages look).
 /// </summary>
 public sealed class TaskLayoutStore
@@ -86,6 +86,35 @@ public sealed class TaskLayoutStore
             [grouping] = order.ToList(),
         };
         return current with { ColumnOrder = orders };
+    });
+
+    /// <summary>Tasks redesign 4c: Next's share of the Next and To sort width, in percent (clamped 30–75; this PC only).</summary>
+    public Task SetShelfSplitAsync(int percent) => UpdateAsync(current => current with
+    {
+        ShelfSplit = Math.Clamp(percent, TaskLayoutPreferences.MinShelfSplit, TaskLayoutPreferences.MaxShelfSplit),
+    });
+
+    /// <summary>Tasks redesign 4c: the Shelf columns <paramref name="keys"/> folded to a rail (true) or open (false); this PC only.</summary>
+    public Task SetColumnsFoldedAsync(IReadOnlyCollection<string> keys, bool folded) => UpdateAsync(current =>
+    {
+        List<string> list = (current.FoldedColumns ?? []).ToList();
+        bool changed = false;
+        foreach (string key in keys)
+        {
+            bool has = list.Contains(key, StringComparer.Ordinal);
+            if (folded && !has)
+            {
+                list.Add(key);
+                changed = true;
+            }
+            else if (!folded && has)
+            {
+                list.RemoveAll(item => string.Equals(item, key, StringComparison.Ordinal));
+                changed = true;
+            }
+        }
+
+        return changed ? current with { FoldedColumns = list } : current;
     });
 
     public Task TogglePinAsync(string section) => UpdateAsync(current =>

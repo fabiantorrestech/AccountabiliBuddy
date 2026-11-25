@@ -42,6 +42,10 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
         set => SetPerPage(value);
     }
 
+    /// <summary>The width of one column slot as the panel last laid them out (Tasks redesign 4c: the Labels view's bands span their columns).</summary>
+    [ObservableProperty]
+    public partial double ColumnWidth { get; set; }
+
     public int PageCount => TaskColumnPaging.PageCount(_keys.Count, _perPage);
 
     /// <summary>The page showing now, 0-based.</summary>

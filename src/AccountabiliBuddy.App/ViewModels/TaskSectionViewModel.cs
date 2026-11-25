@@ -151,6 +151,77 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     /// <summary>The column is folded: its body shows <see cref="FoldedText"/> instead of its rows.</summary>
     public bool ShowsFolded => !IsOpen;
 
+    // ---- Tasks redesign 4c: the Shelf's columns (Group by Bins folds and rails, Group by Labels and None headers) ----
+
+    /// <summary>A header click folds it (Group by Bins); false keeps it open (a label column, None's list).</summary>
+    [ObservableProperty]
+    public partial bool CanFold { get; set; } = true;
+
+    /// <summary>Its fold is this PC's own and kept (<see cref="Services.Tasks.TaskLayoutPreferences.FoldedColumns"/>), not forgotten when Tasks is opened again.</summary>
+    [ObservableProperty]
+    public partial bool StoresFold { get; set; }
+
+    /// <summary>Later while empty in Group by Bins: a 62 px drop rail ("Empty · drop a task here") instead of a full column.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRail), nameof(ShowsColumn), nameof(IsFoldedRail))]
+    public partial bool IsEmptyRail { get; set; }
+
+    /// <summary>Drawn as a 62 px rail: folded, or the empty Later rail.</summary>
+    public bool IsRail => IsEmptyRail || (CanFold && !IsOpen);
+
+    /// <summary>A folded column's rail (a click unfolds it; "Folded" as its tooltip).</summary>
+    public bool IsFoldedRail => IsRail && !IsEmptyRail;
+
+    /// <summary>Drawn as a full column (its header and rows).</summary>
+    public bool ShowsColumn => !IsRail;
+
+    /// <summary>The rail's line under its name: "Empty · drop a task here" on the empty Later rail; none on a folded one (O3: "Folded" is its tooltip).</summary>
+    public string RailNote => IsEmptyRail ? "Empty · drop a task here" : string.Empty;
+
+    public bool HasRailNote => RailNote.Length > 0;
+
+    /// <summary>The header's tooltip: what a click and Ctrl+Alt+← / → do here.</summary>
+    public string HeaderTip => IsLabelColumn
+        ? "Ctrl+Alt+← / Ctrl+Alt+→ moves the label within its category"
+        : CanFold ? "Click to fold · Ctrl+Alt+← / Ctrl+Alt+→ moves the column · right-click for Expand all and Collapse all" : Title;
+
+    /// <summary>"Fold Next" / "Unfold Next": the header's and the rail's accessible name.</summary>
+    public string FoldName => (IsOpen ? "Fold " : "Unfold ") + Title;
+
+    /// <summary>Its share of the width among the open columns (Later 0.8 against the 1.0 Next and To sort share; a label column 1).</summary>
+    [ObservableProperty]
+    public partial double ColumnWeight { get; set; } = 1;
+
+    /// <summary>Next ("lead") or To sort ("trail"): their widths follow the Shelf's split (the resize handle between them); empty for the others.</summary>
+    [ObservableProperty]
+    public partial string SplitRole { get; set; } = string.Empty;
+
+    /// <summary>A label column of Group by Labels: a 10 px dot, the label's short name and its count at the right.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsBinHeader), nameof(HeaderTip))]
+    public partial bool IsLabelColumn { get; set; }
+
+    /// <summary>The usual Shelf header (icon, title, count, stars, "+"): Group by Bins and None.</summary>
+    public bool ShowsBinHeader => !IsLabelColumn;
+
+    /// <summary>A label column's title: the label's name without its category ("AI" under Work).</summary>
+    [ObservableProperty]
+    public partial string ShortTitle { get; set; } = string.Empty;
+
+    /// <summary>A quiet note at the header's right ("Newest first" on Group by None's list); empty for none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHeaderNote))]
+    public partial string HeaderNote { get; set; } = string.Empty;
+
+    public bool HasHeaderNote => HeaderNote.Length > 0;
+
+    /// <summary>The count in the header's pill: the tasks listed after filters and search ("0" too, on a rail or a label column).</summary>
+    public string CountText => Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The header's grip drags the column onto another (Group by Bins); false in Group by Labels, whose order is the categories'.</summary>
+    [ObservableProperty]
+    public partial bool CanDragColumn { get; set; }
+
     /// <summary>The columns can be reordered (Group by Bins, Label or Tag with two or more columns; not None's single list).</summary>
     [ObservableProperty]
     public partial bool CanMoveColumn { get; set; }
@@ -269,11 +340,30 @@ public sealed partial class TaskSectionViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsRows));
         OnPropertyChanged(nameof(ShowsEmpty));
         OnPropertyChanged(nameof(ShowsFolded));
+        OnRailChanged();
+    }
+
+    partial void OnCanFoldChanged(bool value)
+    {
+        OnRailChanged();
+        OnPropertyChanged(nameof(HeaderTip));
+    }
+
+    partial void OnIsEmptyRailChanged(bool value) => OnPropertyChanged(nameof(RailNote));
+
+    private void OnRailChanged()
+    {
+        OnPropertyChanged(nameof(IsRail));
+        OnPropertyChanged(nameof(IsFoldedRail));
+        OnPropertyChanged(nameof(ShowsColumn));
+        OnPropertyChanged(nameof(FoldName));
+        OnPropertyChanged(nameof(HasRailNote));
     }
 
     partial void OnTitleChanged(string value)
     {
         OnPropertyChanged(nameof(ColumnName));
+        OnPropertyChanged(nameof(FoldName));
     }
 
     partial void OnStarCountChanged(int value)
@@ -288,5 +378,6 @@ public sealed partial class TaskSectionViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsEmpty));
         OnPropertyChanged(nameof(FoldedText));
         OnPropertyChanged(nameof(ColumnName));
+        OnPropertyChanged(nameof(CountText));
     }
 }

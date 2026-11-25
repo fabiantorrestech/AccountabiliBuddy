@@ -79,6 +79,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         Shelf.Panel.MoveColumn = MoveColumnAsync;
         Shelf.Panel.MoveColumnOnto = MoveColumnOntoAsync;
         Shelf.FollowFade(layout);
+        Shelf.FollowLayout(layout);
         // The +N menu's "New label": the naming row in the notice slot; Enter makes the label (nothing else to apply it to).
         Shelf.NewLabelRequested = () => AskNewCategory(_ => Task.CompletedTask);
         _columnOrder = layout.Current.ColumnOrder;
@@ -1350,7 +1351,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             Guid id = comeback.Id;
             rows.TryAdd(id, (MakeRow(
                 new TaskRowKey(TaskRowKind.ComeBack, id), comeback.Text, $"Parked {When(comeback.CreatedAt, today)}", comeback.Category,
-                LocalColor(comeback.Category, comeback.CategoryColor), toggle: () => _comebacks.TickAsync(id), sortTime: comeback.CreatedAt), TaskBin.Sort));
+                LocalColor(comeback.Category, comeback.CategoryColor), toggle: () => _comebacks.TickAsync(id), sortTime: comeback.CreatedAt, shelfBin: TaskBin.Sort), TaskBin.Sort));
         }
 
         foreach (AutoSavedTask item in _autoSaved.Items)
@@ -1359,7 +1360,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             string title = item.Title;
             rows.TryAdd(id, (MakeRow(
                 new TaskRowKey(TaskRowKind.AutoSaved, id), title, $"Saved {When(item.SavedAt, today)}", null, null,
-                menu: () => AutoSavedMenu(id, title), selectable: false, sortTime: item.SavedAt), TaskBin.Sort));
+                menu: () => AutoSavedMenu(id, title), selectable: false, sortTime: item.SavedAt, shelfBin: TaskBin.Sort), TaskBin.Sort));
         }
 
         foreach (SyncLaterItem item in _later.Items)
@@ -1369,27 +1370,42 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             TaskBin bin = item.Bin == SyncLaterItem.NextBin ? TaskBin.Next : TaskBin.Later;
             rows.TryAdd(id, (MakeRow(
                 new TaskRowKey(TaskRowKind.Later, id), item.Title, line, item.Category, LocalColor(item.Category, item.CategoryColor),
-                toggle: () => _tasks.CompleteLaterAsync(id), sortTime: item.EditedAt, dueOn: item.DueOn), bin));
+                toggle: () => _tasks.CompleteLaterAsync(id), sortTime: item.EditedAt, dueOn: item.DueOn, shelfBin: bin), bin));
         }
 
         var groups = new List<(string Key, string Title, TaskBin? Bin, Guid? LabelId, List<TaskListRowViewModel> Rows)>();
         TaskViewResult? queried = Shelf.Query();
         ViewFallbackNote = Shelf.FallbackNote ?? string.Empty;
+        IReadOnlyList<LabelColumnSpec> labelColumns = [];
         if (queried is TaskViewResult result)
         {
             foreach (TaskViewGroup group in result.Groups)
             {
-                List<TaskListRowViewModel> groupRows = group.Tasks
+                // Tasks redesign 4c.53: Group by None lists every task newest first, whatever the view's sort.
+                IEnumerable<TaskItem> tasks = Shelf.IsGroupedByNone ? group.Tasks.OrderByDescending(task => task.CreatedAt) : group.Tasks;
+                List<TaskListRowViewModel> groupRows = tasks
                     .Select(task => rows.TryGetValue(task.Id, out var found) ? found.Row : null)
                     .OfType<TaskListRowViewModel>()
                     .ToList();
                 groups.Add((group.Key, group.Title, group.Bin, group.LabelId, groupRows));
             }
+
+            if (Shelf.IsGroupedByLabels)
+            {
+                // Tasks redesign 4c.40: one column per label in category order (empty ones too), then No label; the per-PC order is not used.
+                labelColumns = Shelf.LabelColumns();
+                groups = LabelGroups(labelColumns, groups);
+            }
+            else if (Shelf.IsGroupedByBins)
+            {
+                // Tasks redesign 4c.02: Next first, To sort beside it, Later last (this PC's own order, if any, still applies after).
+                groups = groups.OrderBy(group => BinPlace(group.Bin)).ToList();
+            }
         }
         else
         {
             string search = Shelf.Search;
-            foreach (TaskBin bin in ShelfViewModel.Bins)
+            foreach (TaskBin bin in ShelfViewModel.Bins.OrderBy(shelfBin => BinPlace(shelfBin)))
             {
                 List<TaskListRowViewModel> groupRows = rows.Values
                     .Where(entry => entry.Bin == bin && (search.Length == 0 || entry.Row.Title.Contains(search, StringComparison.OrdinalIgnoreCase)))
@@ -1399,14 +1415,17 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             }
         }
 
-        // Round 2 R3: the columns in this PC's order for the grouping (Group by None is one list: nothing to order).
+        // Round 2 R3: the columns in this PC's order for the grouping (Group by None is one list: nothing to order; Group by Labels follows
+        // the categories, plan #6).
         string? grouping = Shelf.HasViews ? TaskColumnOrder.GroupingOf(Shelf.Grouping) : TaskViewConfig.GroupBins;
-        if (grouping is not null)
+        if (grouping is not null && grouping != TaskViewConfig.GroupLabel)
         {
             groups = TaskColumnOrder.Apply(groups, group => group.Key, _layout.Current.ColumnOrderOf(grouping));
         }
 
         bool canMoveColumns = grouping is not null && groups.Count > 1;
+        _laterTotal = rows.Values.Count(entry => entry.Bin == TaskBin.Later);
+        Dictionary<string, LabelColumnSpec> labelSpecs = labelColumns.ToDictionary(column => column.Key, StringComparer.Ordinal);
         var sections = new List<TaskSectionViewModel>();
         foreach ((string key, string title, TaskBin? bin, Guid? labelId, List<TaskListRowViewModel> groupRows) in groups)
         {
@@ -1422,14 +1441,16 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             section.Bin = bin;
             section.Hint = CountText(groupRows.Count);
             section.StarCount = groupRows.Count(row => row.IsHighlighted);
-            section.EmptyText = !Shelf.FiltersByLabel ? TaskSectionViewModel.DefaultEmptyText : "Nothing with these labels here.";
-            section.CanMoveColumn = canMoveColumns;
+            section.EmptyText = EmptyTextOf(key, labelSpecs);
+            section.CanMoveColumn = canMoveColumns && (grouping != TaskViewConfig.GroupLabel || key != "label:none");
+            section.CanDragColumn = canMoveColumns && grouping != TaskViewConfig.GroupLabel;
             TaskLabel? label = LabelOf(labelId);
             section.Dot = label is null ? null : TaskCategoryBrushes.Of(TaskLabelColors.Opaque(label.Color));
-            section.Icon = bin is TaskBin binIcon ? TaskBinIcons.Of(binIcon) : null;
+            section.Icon = bin is TaskBin binIcon ? TaskBinIcons.Redesigned(binIcon) : null;
+            ShapeColumn(section, bin, groupRows.Count, labelSpecs.GetValueOrDefault(key));
             if (bin is TaskBin shelfBin)
             {
-                section.UseAdd(this, shelfBin, $"Add to {title}");
+                section.UseAdd(this, shelfBin, $"Add a task to {title}");
             }
             else
             {
@@ -1449,6 +1470,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         Shelf.Panel.Show(sections);
         Shelf.Pager.Use(grouping ?? "none", sections.Select(section => section.Key).ToList());
+        Shelf.UseLabelBands(labelColumns);
         Shelf.CountText = rows.Count == 1 ? "1 task" : $"{rows.Count} tasks";
         Shelf.Refresh();
         ShelfHiddenText = HiddenShelfText(rows.Count, sections.Select(section => section.Title).ToList());
@@ -1581,7 +1603,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         bool isTicked = false, Guid? categoryId = null, Func<Task>? toggle = null, string statusTag = "",
         Func<IReadOnlyList<TaskMenuEntry>>? menu = null, bool selectable = true, DateTimeOffset sortTime = default, DateOnly? dueOn = null,
         bool isQueued = false, IReadOnlyList<SessionStepLineViewModel>? stepLines = null, IReadOnlyList<TodayNowStepViewModel>? nowSteps = null,
-        int? checklistMinutes = null)
+        int? checklistMinutes = null, TaskBin? shelfBin = null)
     {
         Action<TaskListRowViewModel, TaskRowClick> select = selectable ? OnRowClick : (_, _) => { };
         // Every kind of row but Auto-saved can have a category: its chip, or the quiet "+ category" spot, opens the picker.
@@ -1602,8 +1624,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             await original();
         };
         toggle = timedToggle;
+        ShelfLine shelfLine = ShelfLineOf(shelfBin, extras.Left);
         return new TaskListRowViewModel(key, title, subText, select, number, isNow, toggle, isTicked, menu ?? (() => MenuFor(key)), labelMenu)
         {
+            SearchTag = shelfBin is null ? null : SearchForTag,
+            BinLineName = shelfLine.BinName,
+            BinLineIcon = shelfLine.BinIcon,
+            HidesLabelOnLine = shelfLine.HidesLabel,
+            AddToToday = shelfLine.AddToToday,
             IsPicked = _picked.Contains(key),
             Finishes = _finishes,
             SelectionMenu = selectable ? SelectionMenu : null,
@@ -1615,7 +1643,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
             Bits = extras.Bits,
             IsHighlighted = extras.IsHighlighted,
             TimeText = extras.TimeText,
-            LeftAction = extras.Left,
+            LeftAction = shelfLine.AddToToday is null ? extras.Left : null,
             RightAction = extras.Right,
             CanDrag = extras.CanDrag,
             CategoryId = categoryId,

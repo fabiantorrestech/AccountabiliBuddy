@@ -26,8 +26,13 @@ public sealed record TaskLayoutPreferences(
     IReadOnlyDictionary<string, bool>? ExpandAll = null,
     IReadOnlyList<string>? Pinned = null,
     IReadOnlyDictionary<string, IReadOnlyList<string>>? ColumnOrder = null,
-    bool FadeIdleControls = true)
+    bool FadeIdleControls = true,
+    int ShelfSplit = TaskLayoutPreferences.DefaultShelfSplit,
+    IReadOnlyList<string>? FoldedColumns = null)
 {
+    public const int DefaultShelfSplit = 58;
+    public const int MinShelfSplit = 30;
+    public const int MaxShelfSplit = 75;
     public const int DefaultSplit = 46;
     public const int MinSplit = 30;
     public const int MaxSplit = 70;
@@ -38,6 +43,12 @@ public sealed record TaskLayoutPreferences(
     public IReadOnlyList<string> PinnedNow => Pinned ?? ["session"];
 
     public int SplitNow => Math.Clamp(TodaySplit, MinSplit, MaxSplit);
+
+    /// <summary>Next's share of the Next and To sort width, 0.30 to 0.75 (a stored value out of range reads clamped).</summary>
+    public double ShelfSplitNow => Math.Clamp(ShelfSplit <= 0 ? DefaultShelfSplit : ShelfSplit, MinShelfSplit, MaxShelfSplit) / 100.0;
+
+    /// <summary>The Shelf column with this key is folded to a rail.</summary>
+    public bool IsColumnFolded(string key) => FoldedColumns is not null && FoldedColumns.Contains(key, StringComparer.Ordinal);
 
     /// <summary>The panel's last Expand all (true) or Collapse all (false); null when neither was used.</summary>
     public bool? ExpandAllOf(string panel) => ExpandAll is not null && ExpandAll.TryGetValue(panel, out bool expanded) ? expanded : null;

@@ -61,16 +61,20 @@
             <Setter Property="Opacity" Value="0.92" />
         </Style>
 
-        <!-- The Archive row at the bottom of the page: a flat button with a chevron. -->
+        <!-- The Archive row at the bottom of the page (4c.61): one full-width button, radius 10, padding 0 12, Muted. -->
         <Style Selector="Button.archiveRow">
-            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Padding" Value="12,0" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
         <Style Selector="Button.archiveRow /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="CornerRadius" Value="{DynamicResource Ab.PanelRadius}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource Ab.Muted}" />
         </Style>
         <Style Selector="Button.archiveRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
@@ -826,17 +830,23 @@
                     </Popup>
                 </Grid>
 
-                <!-- The Archive: one row at the bottom that opens the Notebook (come-backs, session notes, unfinished and done tasks) in
-                     place of the columns, with its filters and search; a second click goes back to the columns. -->
-                <Button DockPanel.Dock="Bottom" Classes="archiveRow" Margin="10,4,10,10" Command="{Binding ToggleArchiveCommand}" AutomationProperties.Name="Archive">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                        <TextBlock Classes="muted" Text="Archive" FontSize="13.5" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Archive.SummaryText}" FontSize="12" VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis" />
-                        <mi:MaterialIcon Grid.Column="2" Kind="ChevronUp" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding !ShowsArchive}" />
-                        <mi:MaterialIcon Grid.Column="2" Kind="ChevronDown" Width="18" Height="18" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding ShowsArchive}" />
-                    </Grid>
-                </Button>
+                <!-- The bottom row (Tasks redesign 4c.59-4c.62): 44 px at the card's foot, 10 px wider than the content on each side. It is a
+                     slot: it shows exactly one of the Archive row, the select bar (item 8a) or the drag bar (item 8b), all in this same place,
+                     so swapping them moves nothing above. Today only the Archive row is built: it opens the Archive (the Notebook) in place
+                     of the columns until the Archive sheet (item 6) replaces it; faint until used, lit while the Archive is open. -->
+                <Panel x:Name="BottomRowSlot" DockPanel.Dock="Bottom" Height="44" Margin="12,12,12,2">
+                    <Button x:Name="ArchiveRowButton" Classes="archiveRow idleFade" Classes.on="{Binding ShowsArchive}" Command="{Binding ToggleArchiveCommand}"
+                            AutomationProperties.Name="Archive" ToolTip.Tip="{Binding Archive.TaskCountsText}">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
+                            <mi:MaterialIcon Kind="ArchiveOutline" Width="18" Height="18" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="Archive" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="{Binding Archive.TaskCountsText}" FontSize="12" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <mi:MaterialIcon Grid.Column="3" Kind="ChevronUp" Width="18" Height="18" VerticalAlignment="Center" IsVisible="{Binding !ShowsArchive}" />
+                            <mi:MaterialIcon Grid.Column="3" Kind="ChevronDown" Width="18" Height="18" VerticalAlignment="Center" IsVisible="{Binding ShowsArchive}" />
+                        </Grid>
+                    </Button>
+                </Panel>
 
                 <!-- The Shelf's columns; the hidden Shelf's note during a session; or the Archive. -->
                 <Panel Margin="22,12,22,0">
@@ -1181,9 +1191,9 @@
             </Panel>
         </Border>
 
-        <!-- The toast (spec 03 §F): bottom-left of the Tasks card, above the Archive row. Only the toast takes clicks: the panel around it
+        <!-- The toast (spec 03 §F; 4c.63): 22 px from the card's left, its bottom 60 px above the card's bottom (above the 44 px bottom row). Only the toast takes clicks: the panel around it
              has no background. -->
-        <Panel Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="20" Margin="26,0,0,56">
+        <Panel Grid.Column="0" HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="20" Margin="22,0,0,60">
             <views:TaskToastView DataContext="{Binding Toasts}" />
         </Panel>
     </Grid>

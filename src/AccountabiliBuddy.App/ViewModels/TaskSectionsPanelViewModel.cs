@@ -165,9 +165,26 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
         Apply();
     }
 
-    /// <summary>A header click: folds or unfolds it until Tasks is next opened.</summary>
+    /// <summary>
+    /// A header click: folds or unfolds it until Tasks is next opened; a Shelf bin (Tasks redesign 4c) keeps its fold on this PC
+    /// (<see cref="TaskLayoutStore.SetColumnsFoldedAsync"/>). A section that can't fold (a label column, None's list) stays open.
+    /// </summary>
     public void Toggle(TaskSectionViewModel section)
     {
+        if (!section.CanFold)
+        {
+            return;
+        }
+
+        if (section.StoresFold)
+        {
+            // Shown at once; the store's change (and its Changed) follows.
+            bool fold = section.IsOpen;
+            section.IsOpen = !fold;
+            _ = _layout.SetColumnsFoldedAsync([section.Key], fold);
+            return;
+        }
+
         _folds[section.Key] = !section.IsOpen;
         Apply();
         FoldsChanged?.Invoke(this, EventArgs.Empty);
@@ -189,17 +206,26 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
     [RelayCommand]
     private Task ToggleExpandAsync() => IsExpanded ? CollapseAllAsync() : ExpandAllAsync();
 
-    private Task ExpandAllAsync()
+    private async Task ExpandAllAsync()
     {
         _folds.Clear();
-        return _layout.SetExpandAllAsync(Key, true);
+        await SetStoredFoldsAsync(false);
+        await _layout.SetExpandAllAsync(Key, true);
     }
 
     // Pinned sections stay open.
-    private Task CollapseAllAsync()
+    private async Task CollapseAllAsync()
     {
         _folds.Clear();
-        return _layout.SetExpandAllAsync(Key, false);
+        await SetStoredFoldsAsync(true);
+        await _layout.SetExpandAllAsync(Key, false);
+    }
+
+    // Tasks redesign 4c: Expand all / Collapse all unfold or fold the Shelf's bins whose folds are kept (this PC only).
+    private Task SetStoredFoldsAsync(bool folded)
+    {
+        List<string> keys = Sections.Where(section => section.StoresFold && section.CanFold).Select(section => section.Key).ToList();
+        return keys.Count == 0 ? Task.CompletedTask : _layout.SetColumnsFoldedAsync(keys, folded);
     }
 
     /// <summary>A header's right-click: Expand all, Collapse all, then "Pinned open" with a switch per section that can be pinned.</summary>
@@ -235,7 +261,9 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
         foreach (TaskSectionViewModel section in Sections)
         {
             section.IsPinned = section.CanPin && layout.PinnedNow.Contains(section.Key);
-            section.IsOpen = _folds.TryGetValue(section.Key, out bool open) ? open : section.IsPinned || (expandAll ?? section.OpensByDefault);
+            section.IsOpen = !section.CanFold ? true
+                : section.StoresFold ? !layout.IsColumnFolded(section.Key)
+                : _folds.TryGetValue(section.Key, out bool open) ? open : section.IsPinned || (expandAll ?? section.OpensByDefault);
             section.Fade = section.IsQuiet ? (InSession ? 0.40 : 0.66) : 1;
             section.IsCompact = CompactOverride ?? layout.Compact;
         }
