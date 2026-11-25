@@ -2,6 +2,18 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Instrument (the default): neutral grey ground, teal accent, hairline borders, IBM Plex Mono numerals. Same keys in all three theme files (ADR 49). Colours are Ab.<Name>Color, brushes Ab.<Name>. -->
     <ResourceDictionary.ThemeDictionaries>
+        <!-- FluentTheme's own brushes (SystemControlHighlightAccentBrush, TextBox focus border, CheckBox/RadioButton checked fill) sit in its
+             "Default" (light) dictionary and resolve SystemAccentColor* against the Default variant, which never reads the "Light" one above:
+             without this the light variants show Windows blue. Same colours as Light. -->
+        <ResourceDictionary x:Key="Default">
+            <Color x:Key="SystemAccentColor">#0F766E</Color>
+            <Color x:Key="SystemAccentColorLight1">#0F766E</Color>
+            <Color x:Key="SystemAccentColorLight2">#0F766E</Color>
+            <Color x:Key="SystemAccentColorLight3">#0F766E</Color>
+            <Color x:Key="SystemAccentColorDark1">#0F766E</Color>
+            <Color x:Key="SystemAccentColorDark2">#0F766E</Color>
+            <Color x:Key="SystemAccentColorDark3">#0F766E</Color>
+        </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
             <Color x:Key="Ab.BgColor">#F3F4F5</Color>
             <Color x:Key="Ab.SurfaceColor">#FFFFFF</Color>

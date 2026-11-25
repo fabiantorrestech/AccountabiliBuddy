@@ -2,6 +2,18 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Night Desk - Calm: blue-black ground, sand accent, no card borders, Manrope display. Same keys in all three theme files (ADR 49). Colours are Ab.<Name>Color, brushes Ab.<Name>. -->
     <ResourceDictionary.ThemeDictionaries>
+        <!-- FluentTheme's own brushes (SystemControlHighlightAccentBrush, TextBox focus border, CheckBox/RadioButton checked fill) sit in its
+             "Default" (light) dictionary and resolve SystemAccentColor* against the Default variant, which never reads the "Light" one above:
+             without this the light variants show Windows blue. Same colours as Light. -->
+        <ResourceDictionary x:Key="Default">
+            <Color x:Key="SystemAccentColor">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorLight1">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorLight2">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorLight3">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorDark1">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorDark2">#8C6D45</Color>
+            <Color x:Key="SystemAccentColorDark3">#8C6D45</Color>
+        </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
             <Color x:Key="Ab.BgColor">#EEF1F5</Color>
             <Color x:Key="Ab.SurfaceColor">#FFFFFF</Color>
