@@ -57,14 +57,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         settings.PropertyChanged += OnGuardLockChanged;
         _sessionActive = session.IsSessionActive;
         RefreshFocusMode();
-        // The title bar's PB pill (round 2, brief §3.2): only in ProductaBuddy mode (ADR 68), which also renames the app.
-        IsProductaBuddy = AppBrand.Name == AppBrand.CompanionName;
-        AppBrand.Changed += (_, _) => IsProductaBuddy = AppBrand.Name == AppBrand.CompanionName;
+        // The title bar's mode badge (owner 2026-11-27): AB or PB after the app's name, which stays "AccountabiliBuddy" in both modes (ADR 68).
+        IsProductaBuddy = AppBrand.IsCompanion;
+        AppBrand.Changed += (_, _) => IsProductaBuddy = AppBrand.IsCompanion;
     }
 
-    /// <summary>The app runs as ProductaBuddy (ADR 68): the title bar shows the PB pill.</summary>
+    /// <summary>The app runs as ProductaBuddy (ADR 68): the title bar's mode badge says PB.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ModeBadgeText), nameof(ModeBadgeTip))]
     public partial bool IsProductaBuddy { get; set; }
+
+    /// <summary>The title bar's mode badge: "AB" (AccountabiliBuddy mode) or "PB" (ProductaBuddy mode).</summary>
+    public string ModeBadgeText => IsProductaBuddy ? "PB" : "AB";
+
+    /// <summary>The badge's tooltip and accessible name: the mode's full name.</summary>
+    public string ModeBadgeTip => $"{(IsProductaBuddy ? AppBrand.CompanionName : AppBrand.ProductName)} mode";
 
     private readonly ThemeToggleViewModel? _themeToggle;
 

@@ -131,10 +131,12 @@
         </Button>
 
         <!-- Running, paused or away: [extras] ring  32 min left. -->
+        <!-- A dock row, not a stack: in a slot narrower than the pill (a narrow window, a long "1 h 05 min left · planning") the extras give
+             way first (the view caps them) and then the muted words trim; the ring, the time and the ⋯ never do. -->
         <Border x:Name="Pill" IsVisible="{Binding IsRunningOrAway, FallbackValue=False}" Height="34" CornerRadius="17" Padding="4,0,4,0"
                 Background="{DynamicResource Ab.Surface2}" BorderThickness="1">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Border x:Name="Extras" ClipToBounds="True" VerticalAlignment="Center">
+            <DockPanel>
+                <Border x:Name="Extras" DockPanel.Dock="Left" ClipToBounds="True" VerticalAlignment="Center">
                     <Border.Transitions>
                         <Transitions>
                             <DoubleTransition Property="MaxWidth" Duration="0:0:0.28" Easing="CubicEaseOut" />
@@ -142,22 +144,22 @@
                         </Transitions>
                     </Border.Transitions>
                     <!-- Compact (owner 2026-11-14, smaller reserve): Step away (or I'm back / Resume) as an icon with its name in the
-                         tooltip, and the short end time ("ends 11:20"; the full one in its tooltip). The end time is what gives way
-                         (trims) when the window is too narrow for both after the left group gave way. -->
+                         tooltip, and the short end time ("ends 11:20"; the full one in its tooltip). In a slot too narrow for both, the end
+                         time is left out (never trimmed), then Step away too (owner 2026-11-27); the ⋯ menu has both. -->
                     <controls:GiveWayPanel x:Name="ExtrasRow">
-                        <Border Height="28" CornerRadius="14" Background="{DynamicResource Ab.Surface}" ClipToBounds="True">
+                        <Border x:Name="StepAwayPill" Height="28" CornerRadius="14" Background="{DynamicResource Ab.Surface}" ClipToBounds="True">
                             <Button x:Name="MainActionButton" Classes="sessionHalf" Width="30" Padding="0" HorizontalContentAlignment="Center"
                                     Command="{Binding MainActionCommand}" ToolTip.Tip="{Binding MainActionText}"
                                     AutomationProperties.Name="{Binding MainActionText}">
                                 <mi:MaterialIcon Kind="{Binding MainActionIcon}" Width="15" Height="15" VerticalAlignment="Center" />
                             </Button>
                         </Border>
-                        <TextBlock x:Name="EndsShort" controls:GiveWayPanel.Order="1" Text="{Binding EndsShortText}" ToolTip.Tip="{Binding EndsText}"
+                        <TextBlock x:Name="EndsShort" controls:GiveWayPanel.Order="1" controls:GiveWayPanel.HideBelow="100000" Text="{Binding EndsShortText}" ToolTip.Tip="{Binding EndsText}"
                                    Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium" Margin="8,0,0,0" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis" />
                     </controls:GiveWayPanel>
                 </Border>
-                <Panel Width="20" Height="20" VerticalAlignment="Center">
+                <Panel DockPanel.Dock="Left" Width="20" Height="20" Margin="8,0,8,0" VerticalAlignment="Center">
                     <controls:ProgressRing Classes="titleRing" Classes.break="{Binding IsBreak}" Value="{Binding RingValue}"
                                            IsVisible="{Binding HasRing}" Opacity="{Binding RingOpacity}"
                                            AutomationProperties.Name="Share of this phase left" />
@@ -166,18 +168,16 @@
                     <mi:MaterialIcon Kind="Pause" Width="10" Height="10" Foreground="{DynamicResource Ab.Muted}" IsVisible="{Binding IsPaused}"
                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Panel>
-                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <TextBlock Classes="numeral" Text="{Binding PrimaryText}" FontSize="13" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding SecondaryText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium"
-                               VerticalAlignment="Center" />
-                </StackPanel>
+                <TextBlock DockPanel.Dock="Left" Classes="numeral" Text="{Binding PrimaryText}" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
                 <!-- Round 2 (brief §4.2): "32 min left ⋯": the Session menu, anchored under the ⋯ and aligned to its right edge. -->
-                <Button x:Name="MoreButton" Classes="sessionHalf" Width="26" Height="26" Padding="0" CornerRadius="13" HorizontalContentAlignment="Center"
-                        VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" AutomationProperties.Name="Session menu"
+                <Button x:Name="MoreButton" DockPanel.Dock="Right" Classes="sessionHalf" Width="26" Height="26" Margin="8,0,0,0" Padding="0" CornerRadius="13"
+                        HorizontalContentAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Ab.Muted}" AutomationProperties.Name="Session menu"
                         ToolTip.Tip="Session menu: step away, pause, add time, end" Click="OnMoreClick">
                     <mi:MaterialIcon Kind="DotsHorizontal" Width="16" Height="16" />
                 </Button>
-            </StackPanel>
+                <TextBlock x:Name="RunningWords" Text="{Binding SecondaryText}" ToolTip.Tip="{Binding SecondaryText}" Foreground="{DynamicResource Ab.Muted}"
+                           FontSize="13" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
         </Border>
 
         <!-- Another device runs a session (ADR 85, R1/R2): "[device] Session on Pixel · 32 min left", in Start's place. Not clickable (only that
@@ -202,13 +202,15 @@
         <!-- Ended: "◌ Ended · switches next time"; a click switches Tasks back now. -->
         <Button x:Name="EndedButton" Classes="sessionEnded" IsVisible="{Binding IsEnded, FallbackValue=False}" Command="{Binding ClearEndedCommand}"
                 ToolTip.Tip="{Binding EndedTip}" AutomationProperties.Name="Session ended. Switch Tasks back now">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <mi:MaterialIcon x:Name="EndedTarget" Classes="endedTarget" Kind="Target" Width="19" Height="19"
+            <!-- A dock row: in a narrow slot "switches next time" trims; the target and "Ended" never do. -->
+            <DockPanel>
+                <mi:MaterialIcon x:Name="EndedTarget" DockPanel.Dock="Left" Classes="endedTarget" Kind="Target" Width="19" Height="19" Margin="0,0,8,0"
                                  Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
-                <TextBlock Classes="numeral" Text="{Binding PrimaryText}" FontSize="13" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding SecondaryText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium"
+                <TextBlock DockPanel.Dock="Left" Classes="numeral" Text="{Binding PrimaryText}" FontSize="13" Margin="0,0,8,0" Foreground="{DynamicResource Ab.Ink}"
                            VerticalAlignment="Center" />
-            </StackPanel>
+                <TextBlock Text="{Binding SecondaryText}" Foreground="{DynamicResource Ab.Muted}" FontSize="13" FontWeight="Medium"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
         </Button>
     </Panel>
 </UserControl>

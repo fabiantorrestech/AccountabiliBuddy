@@ -4,17 +4,18 @@ using Avalonia;
 namespace AccountabiliBuddy.App.Services;
 
 /// <summary>
-/// The name the app shows for itself (ADR 68): AccountabiliBuddy while guarding, ProductaBuddy in companion mode. Read
-/// <see cref="Name"/> in code; XAML uses the <see cref="ResourceKey"/> app resource, which follows the mode live. The About tab and
-/// names that must match something outside the app (the browser extension, the Start menu shortcut, the Google project, backup and
-/// sync file types, the releases page) keep <see cref="ProductName"/>. App-wide by nature, so static. Use from the UI thread only.
+/// The name the app shows for itself and the mode it runs in (ADR 68). Owner 2026-11-27: the app's name is always
+/// <see cref="ProductName"/> ("AccountabiliBuddy": the window title, the title bar, the tray, notifications, every sentence that names
+/// the app), in both modes; only text about the mode says <see cref="CompanionName"/> (Settings › App mode, the title bar's "PB" badge
+/// and its "ProductaBuddy mode" tooltip, mode explanations). Read <see cref="Name"/> in code; XAML uses the <see cref="ResourceKey"/>
+/// app resource. <see cref="IsCompanion"/> follows the mode live. App-wide by nature, so static. Use from the UI thread only.
 /// </summary>
 public static class AppBrand
 {
-    /// <summary>The product's name, and the name while guarding.</summary>
+    /// <summary>The product's name: the app's name in both modes.</summary>
     public const string ProductName = "AccountabiliBuddy";
 
-    /// <summary>The name in companion mode.</summary>
+    /// <summary>The companion mode's name, for text about the mode only ("Switch to ProductaBuddy", "ProductaBuddy mode").</summary>
     public const string CompanionName = "ProductaBuddy";
 
     /// <summary>The app resource holding <see cref="Name"/>, for <c>{DynamicResource Ab.BrandName}</c>.</summary>
@@ -22,27 +23,28 @@ public static class AppBrand
 
     private static bool _applied;
 
-    public static string Name { get; private set; } = ProductName;
+    /// <summary>The app's name: always <see cref="ProductName"/>.</summary>
+    public static string Name => ProductName;
 
-    /// <summary>Raised when <see cref="Name"/> changes (text built in code, such as the tray menu, is redone).</summary>
+    /// <summary>The app runs in ProductaBuddy (companion) mode.</summary>
+    public static bool IsCompanion { get; private set; }
+
+    /// <summary>Raised when the mode changes (<see cref="IsCompanion"/>; the title bar's badge, Today's layout).</summary>
     public static event EventHandler? Changed;
-
-    /// <summary>The name for a mode.</summary>
-    public static string For(GuidanceMode mode) => mode == GuidanceMode.Companion ? CompanionName : ProductName;
 
     public static void Set(GuidanceMode mode)
     {
-        string name = For(mode);
-        if (_applied && name == Name)
+        bool companion = mode == GuidanceMode.Companion;
+        if (_applied && companion == IsCompanion)
         {
             return;
         }
 
         _applied = true;
-        Name = name;
+        IsCompanion = companion;
         if (Application.Current is Application app)
         {
-            app.Resources[ResourceKey] = name;
+            app.Resources[ResourceKey] = ProductName;
         }
 
         Changed?.Invoke(null, EventArgs.Empty);

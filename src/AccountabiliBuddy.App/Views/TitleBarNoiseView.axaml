@@ -4,8 +4,10 @@
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="AccountabiliBuddy.App.Views.TitleBarNoiseView"
              x:DataType="vm:NoisePlayerViewModel">
-    <!-- The noise control in the title bar (round 2, brief §3.2, §4.2): the sound's name, previous, next, the volume popover and
-         play/pause, in one pill after the app name. The same NoisePlayerViewModel as Today's card and the on-screen window. -->
+    <!-- The noise control in the title bar (round 2, brief §3.2, §4.2; owner 2026-11-27): the sound's name, previous, next, the volume
+         popover and play/pause, in one pill between the session control and the title-bar menu. The pill fills its title-bar slot (a
+         fixed width from the window's width, TitleBarLayout), so a long name or "No sound files in the folder…" trims and never widens
+         it. The same NoisePlayerViewModel as Today's card and the on-screen window. -->
     <UserControl.Styles>
         <Style Selector="Border#NoisePill">
             <Setter Property="Height" Value="32" />
@@ -175,13 +177,13 @@
     </UserControl.Styles>
 
     <Border x:Name="NoisePill" VerticalAlignment="Center">
-        <!-- The name's column is the one that gives way in a narrow window (it trims); the buttons keep their size. -->
+        <!-- The name's column takes what the slot leaves (it trims); the buttons keep their size. -->
         <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
             <mi:MaterialIcon Kind="MusicNote" Width="15" Height="15" Foreground="{DynamicResource Ab.Accent}" VerticalAlignment="Center" />
-            <!-- The name box (owner 2026-11-14): its width is the name's; a notice ("Locked to headphones · connect headphones") is drawn
+            <!-- The name box (owner 2026-11-14, 2026-11-27): the slot's width less the buttons; a notice ("Locked to headphones · connect headphones") is drawn
                  over it on a Canvas, which asks for no width, scrolls through the box once and gives the name back (code-behind). -->
             <Panel x:Name="NameBox" Grid.Column="1" Margin="6,0,8,0" ClipToBounds="True" VerticalAlignment="Center" Background="Transparent">
-                <TextBlock x:Name="SoundName" Text="{Binding NameText}" ToolTip.Tip="{Binding NameText}" FontSize="12.5" MaxWidth="160"
+                <TextBlock x:Name="SoundName" Text="{Binding NameText}" ToolTip.Tip="{Binding NameText}" FontSize="12.5"
                            TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Ab.Ink}" VerticalAlignment="Center" />
                 <Canvas x:Name="NoticeCanvas" IsHitTestVisible="False">
                     <TextBlock x:Name="NoticeText" Opacity="0" FontSize="12.5" Foreground="{DynamicResource Ab.Ink}"

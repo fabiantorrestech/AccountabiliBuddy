@@ -2019,7 +2019,7 @@ public partial class App : Application
         AccountabiliBuddy.App.Services.Tasks.IdleFade.Follow(taskLayout);
         // Round 2: the Today page's layout (sidebar parts, Panel / Chip / Off, in and out of a session). Outside ProductaBuddy the lunch
         // part can't be off.
-        var todayLayout = new AccountabiliBuddy.App.Services.Today.TodayLayoutService(documents, () => AppBrand.Name == AppBrand.CompanionName);
+        var todayLayout = new AccountabiliBuddy.App.Services.Today.TodayLayoutService(documents, () => AppBrand.IsCompanion);
         todayLayout.LoadBlocking();
         _todayLayout = todayLayout;
         // The app's name follows the mode (ADR 68): its change also redraws the Today layout (the lunch rule reads it).

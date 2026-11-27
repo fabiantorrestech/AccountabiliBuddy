@@ -9,7 +9,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="avares://AccountabiliBuddy.App/Themes/FluentOverrides.axaml" />
             </ResourceDictionary.MergedDictionaries>
-            <!-- ADR 68: the name the app shows for itself; AppBrand sets ProductaBuddy in companion mode. -->
+            <!-- ADR 68: the name the app shows for itself, "AccountabiliBuddy" in both modes (owner 2026-11-27; AppBrand). -->
             <sys:String x:Key="Ab.BrandName">AccountabiliBuddy</sys:String>
             <!-- Tasks redesign: the idleFade styles' resting opacity (icons 22%, label row chips 30%); IdleFade sets 1 when "Fade controls you're
                  not using" is off. -->

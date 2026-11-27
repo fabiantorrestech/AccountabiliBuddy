@@ -3,6 +3,7 @@
         xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
         xmlns:views="using:AccountabiliBuddy.App.Views"
         xmlns:controls="using:AccountabiliBuddy.App.Controls"
+        xmlns:services="using:AccountabiliBuddy.App.Services"
         xmlns:chrome="using:Avalonia.Controls.Chrome"
         xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
         x:Class="AccountabiliBuddy.App.MainWindow"
@@ -236,17 +237,17 @@
     </Window.Styles>
     <Panel x:Name="Root">
         <Grid RowDefinitions="40,Auto,*">
-            <!-- Title bar, 40 tall (round 2, brief §3.2; owner 2026-11-14): at the left back / forward │ the app name, the PB pill
-                 (ProductaBuddy mode only) │ the noise control; at the right the session control (it keeps room on its left where its
-                 extras open, so nothing moves), then the title-bar menu's button with the sync dot (Tasks redesign 9: search, sync and
-                 appearance; it replaced the sync light, Sync now, light/dark and Search), then the window's own minimize / maximize / close
-                 (snap layouts and all). The empty part drags the window and a double click maximizes it. Only one title-bar pop-up is open
-                 at a time (MainWindow.axaml.cs). -->
+            <!-- Title bar, 40 tall (round 2, brief §3.2; owner 2026-11-14, 2026-11-27): at the left back / forward │ "AccountabiliBuddy" and
+                 the mode badge (AB or PB); at the right, right to left: the window's own minimize / maximize / close (snap layouts and all),
+                 the title-bar menu's button with the sync dot (Tasks redesign 9: search, sync and appearance), the noise control, the session
+                 control. The noise control and the session control are cemented slots (TitleBarLayout): their width depends on the window's
+                 width only, their content is right-aligned inside and trims, so Start session / a timer / Ended or a long sound name never
+                 moves another button. The empty part (the room an idle slot keeps free too) drags the window and a double click maximizes it.
+                 Only one title-bar pop-up is open at a time (MainWindow.axaml.cs). -->
             <controls:TitleBarLayout x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource Ab.Bg}"
                                      chrome:WindowDecorationProperties.ElementRole="TitleBar">
-                <!-- In a narrow window the sound name gives way first, down to a short name (204 = the pill without its name + a 48 wide
-                     name box, enough for the headphones notice), then the app name, and last the rest of the sound name (156 = the pill
-                     without its name); back / forward and the noise buttons keep their size (owner 2026-11-14). -->
+                <!-- The left group never moves: back / forward, then the app's name, always "AccountabiliBuddy", and the mode badge. Only below
+                     the narrowest window (900) the name would give way. -->
                 <controls:GiveWayPanel x:Name="TitleBarStart" controls:TitleBarLayout.Slot="Start" Margin="8,0,10,0" VerticalAlignment="Center">
                     <!-- Back / forward (owner 2026-11-14): always here, greyed while there is nowhere to go (Alt+← / Alt+→, the mouse's
                          back / forward buttons, a touchpad's two-finger swipe). ‹ › chevrons like a browser's (NAV2). -->
@@ -261,20 +262,16 @@
                         </Button>
                     </StackPanel>
                     <Border Classes="titleDivider" Height="18" Margin="8,0,10,0" controls:GiveWayPanel.IsDivider="True" />
-                    <TextBlock controls:GiveWayPanel.Order="2" controls:GiveWayPanel.HideBelow="44" Text="{DynamicResource Ab.BrandName}" FontSize="12" Foreground="{DynamicResource Ab.Muted}"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False" />
-                    <!-- Not hit-testable, so it drags the window like the name; its name is read out instead of a tooltip. -->
-                    <Border x:Name="ModePill" IsVisible="{Binding IsProductaBuddy}" IsHitTestVisible="False" CornerRadius="999"
-                            Padding="8,1" Margin="8,0,0,0" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1" Background="{DynamicResource Ab.Surface}"
-                            VerticalAlignment="Center" AutomationProperties.Name="ProductaBuddy mode">
-                        <TextBlock Text="PB" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" />
+                    <!-- The product's name in both modes (owner 2026-11-27); only the badge after it says the mode. -->
+                    <TextBlock x:Name="BrandName" controls:GiveWayPanel.Order="1" controls:GiveWayPanel.HideBelow="44" Text="{x:Static services:AppBrand.ProductName}"
+                               FontSize="12" Foreground="{DynamicResource Ab.Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False" />
+                    <!-- The mode badge: "AB" (AccountabiliBuddy mode) or "PB" (ProductaBuddy mode), 28 wide whichever it says so nothing moves when
+                         the mode changes; the tooltip names the mode (a User element for that, so these 28 don't drag the window). -->
+                    <Border x:Name="ModeBadge" Width="28" CornerRadius="999" Padding="0,1" Margin="8,0,0,0" BorderBrush="{DynamicResource Ab.Line}" BorderThickness="1"
+                            Background="{DynamicResource Ab.Surface}" VerticalAlignment="Center" chrome:WindowDecorationProperties.ElementRole="User"
+                            ToolTip.Tip="{Binding ModeBadgeTip}" AutomationProperties.Name="{Binding ModeBadgeTip}">
+                        <TextBlock Text="{Binding ModeBadgeText}" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource Ab.Accent}" HorizontalAlignment="Center" />
                     </Border>
-                    <Border Classes="titleDivider" Height="18" Margin="10,0" IsVisible="{Binding HasNoisePlayer}" controls:GiveWayPanel.IsDivider="True" />
-                    <Panel controls:GiveWayPanel.Order="1" MinWidth="156" controls:GiveWayPanel.FirstMinWidth="204" IsVisible="{Binding HasNoisePlayer}"
-                           VerticalAlignment="Center">
-                        <views:TitleBarNoiseView x:Name="NoiseControl" DataContext="{Binding Session.NoisePlayer}"
-                                                 chrome:WindowDecorationProperties.ElementRole="User" />
-                    </Panel>
                 </controls:GiveWayPanel>
 
                 <!-- The lunch chip (LU1b, ADR 88): only while lunch runs, left of the session control: "Lunch · 42 min left" and a ✕ that opens
@@ -298,15 +295,28 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Start session / ring timer / Away / Ended (Ctrl+Shift+S starts): right, next to the title-bar menu (owner 2026-11-14; Tasks redesign 9). -->
-                <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="End" DataContext="{Binding SessionControl}"
-                                          chrome:WindowDecorationProperties.ElementRole="User" />
+                <!-- Start session / ring timer / Away / Ended / another device's session (Ctrl+Shift+S starts), left of the noise control (owner
+                     2026-11-27). A cemented slot: 330 wide (enough for the running pill with its extras open and "1 h 05 min left · planning"), down to
+                     212 in a narrow window (after the noise control gave way); its content is right-aligned, its extras open leftwards inside it. -->
+                <views:SessionControlView x:Name="SessionControl" controls:TitleBarLayout.Slot="End" controls:TitleBarLayout.CementedWidth="330"
+                                          controls:TitleBarLayout.CementedMinWidth="212" controls:TitleBarLayout.GiveWayOrder="2"
+                                          DataContext="{Binding SessionControl}" chrome:WindowDecorationProperties.ElementRole="User" />
+
+                <!-- The noise control (round 2, brief §3.2; owner 2026-11-27: right of the session control, left of the menu): a cemented slot,
+                     8 + a 296 pill (a 140 wide name box) when there is room; in a narrow window it gives way first, down to 8 + 204 (a 48 wide
+                     name box, enough for the headphones notice). The name trims; it never widens the pill. -->
+                <Panel x:Name="NoiseSlot" controls:TitleBarLayout.Slot="End" controls:TitleBarLayout.CementedWidth="304" controls:TitleBarLayout.CementedMinWidth="212"
+                       controls:TitleBarLayout.GiveWayOrder="1" Margin="8,0,0,0" IsVisible="{Binding HasNoisePlayer}" VerticalAlignment="Center">
+                    <views:TitleBarNoiseView x:Name="NoiseControl" DataContext="{Binding Session.NoisePlayer}" HorizontalAlignment="Stretch"
+                                             chrome:WindowDecorationProperties.ElementRole="User" />
+                </Panel>
 
                 <StackPanel x:Name="TitleBarEnd" controls:TitleBarLayout.Slot="End" Orientation="Horizontal">
                     <!-- The title-bar menu (Tasks redesign 9): a click (or Ctrl+F off the Tasks page) opens the dropdown with the caret in its
                          search. The sync dot sits on its top-right, 5 from the top and 6 from the right, with a 2 px ring of the title bar's ground;
-                         a hollow ring while a sync runs. It shows as the sync light did (another device linked; Settings › Devices & sync › Sync light). -->
-                    <Button x:Name="TitleMenuButton" Classes="titleMenu" Margin="12,0,8,0" x:DataType="vm:TitleMenuViewModel"
+                         a hollow ring while a sync runs (drawn over the button: it never changes the button's width). It shows as the sync light did
+                         (another device linked; Settings › Devices & sync › Sync light). -->
+                    <Button x:Name="TitleMenuButton" Classes="titleMenu" Margin="8,0,8,0" x:DataType="vm:TitleMenuViewModel"
                             chrome:WindowDecorationProperties.ElementRole="User" ToolTip.Tip="{Binding ButtonTip}"
                             AutomationProperties.Name="{x:Static vm:TitleMenuViewModel.AccessibleName}">
                         <Panel>
