@@ -56,11 +56,22 @@ public sealed partial class TasksViewModel
         return StoreColumnOrder(key, stored => TaskColumnOrder.MovedOnto(ShownColumnKeys(), stored, key, targetKey));
     }
 
-    // Group by Bins: the column is drawn as a rail (folded on this PC, or Later while it has no task at all).
-    private bool IsBinRail(string key, TaskBin? bin, int rowCount)
+    // Where each Shelf column is drawn (TaskSectionViewModel.ColumnSlot): Group by Bins draws its open columns first and its rails
+    // (folded on this PC, or Later while it has no task at all) at the right, each in the stored order; the other groupings draw the
+    // sections in their own order (Group by Labels puts each page's rails at its right in TaskColumnsPanel). A fold calls this alone.
+    private void SlotShelfColumns()
     {
-        return _layout.Current.IsColumnFolded(key) || (bin == TaskBin.Later && _laterTotal == 0 && rowCount == 0);
+        IReadOnlyList<TaskSectionViewModel> sections = Shelf.Panel.Sections;
+        bool byBins = !Shelf.HasViews || Shelf.IsGroupedByBins;
+        List<TaskSectionViewModel> drawn = byBins ? TaskColumnOrder.OpenFirst(sections, section => section.IsRail) : sections.ToList();
+        for (int slot = 0; slot < drawn.Count; slot++)
+        {
+            drawn[slot].ColumnSlot = slot;
+        }
     }
+
+    /// <summary>The Shelf's columns in the order drawn (<see cref="TaskSectionViewModel.ColumnSlot"/>).</summary>
+    private IEnumerable<TaskSectionViewModel> ShelfColumnsAsDrawn() => Shelf.Panel.Sections.OrderBy(section => section.ColumnSlot);
 
     // ---- Tasks redesign 4c: the Shelf's columns as each grouping draws them ----
 

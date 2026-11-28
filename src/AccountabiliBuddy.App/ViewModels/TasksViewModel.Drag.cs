@@ -102,7 +102,7 @@ public sealed partial class TasksViewModel
             ShowPicked();
         }
 
-        List<TaskListRowViewModel> order = Shelf.Panel.Sections.SelectMany(section => section.Rows).ToList();
+        List<TaskListRowViewModel> order = ShelfColumnsAsDrawn().SelectMany(section => section.Rows).ToList();
         var rank = new Dictionary<TaskRowKey, int>();
         for (int index = 0; index < order.Count; index++)
         {
@@ -277,8 +277,10 @@ public sealed partial class TasksViewModel
 
     /// <summary>
     /// The stack was let go over <paramref name="target"/> (null: empty space). The drag ends first (the selection stays); then the drop
-    /// applies at once as one task action with a counted toast and Undo, and the selection clears (8b.31-8b.37). Cancel, a page arrow or
-    /// empty space change nothing (8b.17, 8b.44); "choose a bin and label" opens Move and label with the stack (8b.16).
+    /// applies at once as one task action with a counted toast and Undo, and the selection clears (8b.31-8b.37). The red Cancel zone
+    /// changes nothing and keeps the selection (8b.17, as Esc does); "choose a bin and label" opens Move and label with the stack (8b.16).
+    /// Owner 2026-11-27: a stack put back down without changing anything (let go over nothing or a page arrow, back on its own column with
+    /// no reorder, on a place none of it would change for) clears the selection, as a drop does.
     /// </summary>
     internal async Task DropStackAsync(StackDropTarget? target)
     {
@@ -286,8 +288,14 @@ public sealed partial class TasksViewModel
         List<TaskItem> tasks = StackTasks();
         bool takes = target is { Kind: StackDropKind.Column, Column: { } column } && TakesStack(column);
         EndStackDrag();
-        if (target is null || ids.Count == 0 || _actions is null)
+        if (target is { Kind: StackDropKind.Cancel } || ids.Count == 0 || _actions is null)
         {
+            return;
+        }
+
+        if (target is null)
+        {
+            ClearSelection();
             return;
         }
 
@@ -324,6 +332,10 @@ public sealed partial class TasksViewModel
             case StackDropKind.Choose:
                 RequestMoveAndLabel(ids);
                 break;
+            default:
+                // A page arrow, +N, a column none of the stack would change for: put back down, nothing changes.
+                ClearSelection();
+                break;
         }
     }
 
@@ -353,9 +365,14 @@ public sealed partial class TasksViewModel
         }
 
         IReadOnlyList<Guid> movable = TodayStripDrop.Movable(store.Lists, ids);
-        return movable.Count == 0
-            ? Task.CompletedTask
-            : BulkAsync(actions => actions.MoveAsync(movable, TaskBin.Queued, TaskToasts.MovedCount(movable.Count, "Today")));
+        if (movable.Count == 0)
+        {
+            // Nothing of it can go to Today: put back down, the selection clears (owner 2026-11-27).
+            ClearSelection();
+            return Task.CompletedTask;
+        }
+
+        return BulkAsync(actions => actions.MoveAsync(movable, TaskBin.Queued, TaskToasts.MovedCount(movable.Count, "Today")));
     }
 
     // A stack let go on its own column (8b.35): it goes before the first task under the drop line that isn't in the stack (the end when
@@ -364,6 +381,7 @@ public sealed partial class TasksViewModel
     {
         if (!CanReorderIn(column))
         {
+            ClearSelection();
             return Task.CompletedTask;
         }
 

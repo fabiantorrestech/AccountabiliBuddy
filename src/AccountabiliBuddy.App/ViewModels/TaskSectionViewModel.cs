@@ -19,6 +19,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     public TaskSectionViewModel(TaskSectionsPanelViewModel panel, string key, ObservableCollection<TaskListRowViewModel> rows)
     {
+        Services.TickDiag.Count("section vm made");
         _panel = panel;
         Key = key;
         Rows = rows;
@@ -222,6 +223,14 @@ public sealed partial class TaskSectionViewModel : ObservableObject
     /// <summary>Next ("lead") or To sort ("trail"): their widths follow the Shelf's split (the resize handle between them); empty for the others.</summary>
     [ObservableProperty]
     public partial string SplitRole { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Where the column is drawn among the Shelf's columns (and its place for Tab): Group by Bins draws the open bins first and the rails
+    /// at the right, each in the stored order, while the sections themselves stay in the stored order, so a fold only moves the column
+    /// on screen and never makes its view (and every row in it) again (perf, 2026-11-27). Elsewhere it is the section's own place.
+    /// </summary>
+    [ObservableProperty]
+    public partial int ColumnSlot { get; set; }
 
     /// <summary>A label column of Group by Labels: a 10 px dot, the label's short name and its count at the right.</summary>
     [ObservableProperty]

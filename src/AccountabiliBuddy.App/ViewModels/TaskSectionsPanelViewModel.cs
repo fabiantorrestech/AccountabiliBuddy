@@ -274,6 +274,7 @@ public sealed partial class TaskSectionsPanelViewModel : ObservableObject
     // Every section's fold, pin, fade and density from the current state.
     private void Apply()
     {
+        Services.TickDiag.Count("panel apply");
         TaskLayoutPreferences layout = _layout.Current;
         bool? expandAll = layout.ExpandAllOf(Key);
         foreach (TaskSectionViewModel section in Sections)

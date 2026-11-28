@@ -264,7 +264,8 @@
 
         <Border x:Name="Card" Classes="taskColumn" Classes.columnDrop="{Binding IsColumnDropTarget}" Classes.labelColumn="{Binding IsLabelColumn}"
                 Classes.stackLit="{Binding IsStackLit}" Classes.stackHot="{Binding IsStackHot}"
-                IsVisible="{Binding ShowsColumn}" ClipToBounds="True" Container.Name="TaskColumn" Container.Sizing="Width">
+                IsVisible="{Binding ShowsColumn}" ClipToBounds="True" Container.Name="TaskColumn" Container.Sizing="Width"
+                views:TaskColumnWidth.Tracks="True">
             <DockPanel>
                 <!-- The pinned header. -->
                 <Panel DockPanel.Dock="Top" Margin="14,12,10,6">

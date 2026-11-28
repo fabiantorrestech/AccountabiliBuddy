@@ -253,6 +253,7 @@ public sealed partial class ColumnPagerViewModel : ObservableObject
 
     private void Refresh()
     {
+        Services.TickDiag.Count("pager refresh");
         OnPropertyChanged(nameof(ColumnCount));
         OnPropertyChanged(nameof(PerPage));
         OnPropertyChanged(nameof(PageCount));

@@ -193,16 +193,10 @@
             <Setter Property="Background" Value="{DynamicResource Ab.Surface2}" />
             <Setter Property="Foreground" Value="{DynamicResource Ab.Ink}" />
         </Style>
-        <!-- A narrow page: Hold to reset keeps its icon only. -->
-        <ContainerQuery Name="TasksPage" Query="max-width:620">
-            <Style Selector="TextBlock.segmentText">
-                <Setter Property="IsVisible" Value="False" />
-            </Style>
-        </ContainerQuery>
 
         <!-- The Today drop pill (4a.40-4a.44; was the round 2 Today strip): 44 high, a 1 px dashed Line3 outline, no fill; lit (accent)
              while a row is dragged, stronger over it. 320 wide right of the add box; under it, full width, when the row is narrower than
-             750 (the card narrower than 794). Set by style, not in place, so the container query can move it. -->
+             750 (the card narrower than 794). Set by style, not in place, so the container query (in AddRow's styles) can move it. -->
         <Style Selector="Border.todayStrip">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="CornerRadius" Value="22" />
@@ -216,23 +210,6 @@
             <Setter Property="Margin" Value="10,0,0,0" />
             <Setter Property="VerticalAlignment" Value="Top" />
         </Style>
-        <ContainerQuery Name="TasksPage" Query="max-width:793">
-            <Style Selector="Border.todayPill">
-                <Setter Property="Grid.Column" Value="0" />
-                <Setter Property="Grid.ColumnSpan" Value="2" />
-                <Setter Property="Grid.Row" Value="1" />
-                <Setter Property="Width" Value="NaN" />
-                <Setter Property="Margin" Value="0,10,0,0" />
-            </Style>
-        </ContainerQuery>
-        <!-- Tasks redesign 5.55: while adding on a page narrower than 984, the box spans the whole add row, over the Today pill (which keeps
-             its place), so two chips, the text, Details and "Add to [bin]" fit; nothing moves. Back to its width when it is left. -->
-        <ContainerQuery Name="TasksPage" Query="max-width:983">
-            <Style Selector="views|AddBoxView.addRowBox.expanded">
-                <Setter Property="Grid.ColumnSpan" Value="2" />
-                <Setter Property="ZIndex" Value="1" />
-            </Style>
-        </ContainerQuery>
         <!-- Tasks redesign 8b.20-8b.23: while a stack is dragged the pill is a lit target (dashed AccentRing, Accent 5%), under the stack an
              Accent edge with a 1 px line inside it (the 2 px solid stroke) and Accent 16%; its line reads what a drop does, in Ink. -->
         <Style Selector="Border.todayStrip">
@@ -719,6 +696,27 @@
                      when the row is narrower than 750 (the TasksPage container query). The add box's hint line and "@" / "#" list float
                      over what is below (ZIndex). -->
                 <Grid x:Name="AddRow" DockPanel.Dock="Top" Margin="22,12,22,0" ZIndex="2" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <!-- The page's container queries live on the few controls they style (perf, 2026-11-27): in the page's own styles every
+                         control of the page, every task row too, registered with the "TasksPage" container. -->
+                    <Grid.Styles>
+                        <ContainerQuery Name="TasksPage" Query="max-width:793">
+                            <Style Selector="Border.todayPill">
+                                <Setter Property="Grid.Column" Value="0" />
+                                <Setter Property="Grid.ColumnSpan" Value="2" />
+                                <Setter Property="Grid.Row" Value="1" />
+                                <Setter Property="Width" Value="NaN" />
+                                <Setter Property="Margin" Value="0,10,0,0" />
+                            </Style>
+                        </ContainerQuery>
+                        <!-- Tasks redesign 5.55: while adding on a page narrower than 984, the box spans the whole add row, over the Today pill (which keeps
+                             its place), so two chips, the text, Details and "Add to [bin]" fit; nothing moves. Back to its width when it is left. -->
+                        <ContainerQuery Name="TasksPage" Query="max-width:983">
+                            <Style Selector="views|AddBoxView.addRowBox.expanded">
+                                <Setter Property="Grid.ColumnSpan" Value="2" />
+                                <Setter Property="ZIndex" Value="1" />
+                            </Style>
+                        </ContainerQuery>
+                    </Grid.Styles>
                     <views:AddBoxView DataContext="{Binding AddBox}" x:DataType="vm:AddBoxViewModel" VerticalAlignment="Top" Classes="addRowBox"
                                       Classes.expanded="{Binding IsExpanded}" />
                     <!-- The Today pill: what Today holds ("Nothing queued · drop a task here"), a drop target into Today › Queued (Undo in
@@ -748,6 +746,14 @@
                 <!-- The notice slot (4a.45-4a.52): every notice of the page, between the add row and the label row, in today's order; none
                      shows anywhere else. Empty, it takes no height; two at once stack (each 12 px below the one above). -->
                 <StackPanel x:Name="NoticeSlot" DockPanel.Dock="Top" Margin="22,0,22,0">
+                    <StackPanel.Styles>
+                        <!-- A narrow page: Hold to reset keeps its icon only. -->
+                        <ContainerQuery Name="TasksPage" Query="max-width:620">
+                            <Style Selector="TextBlock.segmentText">
+                                <Setter Property="IsVisible" Value="False" />
+                            </Style>
+                        </ContainerQuery>
+                    </StackPanel.Styles>
                     <!-- Hold to reset (1.5 s): the session view back the way it started; shown while it changed. A click that isn't a hold
                          shows the hint; a narrow page keeps the icon only. -->
                     <Button x:Name="ResetButton" Margin="0,12,0,0" HorizontalAlignment="Left" Classes="quiet resetHold" Padding="0" MinHeight="0" MinWidth="0"

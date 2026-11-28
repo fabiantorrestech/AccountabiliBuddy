@@ -14,6 +14,10 @@ public sealed class TaskLayoutStore
 
     private readonly SqliteJsonDocumentStore _documents;
 
+    // One save at a time, off the UI thread (SQLite's "async" calls run on the caller's thread): each writes the newest layout, so two
+    // quick changes never land out of order.
+    private readonly SemaphoreSlim _saveGate = new(1, 1);
+
     public TaskLayoutStore(SqliteJsonDocumentStore documents)
     {
         _documents = documents;
@@ -47,13 +51,24 @@ public sealed class TaskLayoutStore
 
         Current = next;
         Changed?.Invoke(this, EventArgs.Empty);
+        // Perf (2026-11-27): the write goes to the thread pool, so a fold, Expand all or a column move never waits on the disk.
+        await Task.Run(SaveNewestAsync);
+    }
+
+    private async Task SaveNewestAsync()
+    {
+        await _saveGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await _documents.SaveAsync(DocumentKey, next);
+            await _documents.SaveAsync(DocumentKey, Current).ConfigureAwait(false);
         }
         catch (SqliteException)
         {
             // Not remembered this time; the page keeps it until the app closes.
+        }
+        finally
+        {
+            _saveGate.Release();
         }
     }
 

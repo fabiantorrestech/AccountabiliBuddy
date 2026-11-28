@@ -28,6 +28,28 @@ public static class TickDiag
 #endif
     }
 
+    // Debug builds: how often each counted step ran (the render harness's tasks-perf-check reads it; a Release build counts nothing).
+    private static readonly Dictionary<string, int> Counted = new(StringComparer.Ordinal);
+
+    /// <summary>Counts one run of <paramref name="what"/> (Debug builds only; no file write, so it costs nothing that shows).</summary>
+    [Conditional("DEBUG")]
+    public static void Count(string what)
+    {
+        lock (Counted)
+        {
+            Counted[what] = Counted.GetValueOrDefault(what) + 1;
+        }
+    }
+
+    /// <summary>A copy of the counts so far (empty in a Release build).</summary>
+    public static IReadOnlyDictionary<string, int> Counts()
+    {
+        lock (Counted)
+        {
+            return new Dictionary<string, int>(Counted, StringComparer.Ordinal);
+        }
+    }
+
     /// <summary>A marker line (e.g. "tick start"), so the steps of one tick can be read together.</summary>
     [Conditional("DEBUG")]
     public static void Mark(string what)

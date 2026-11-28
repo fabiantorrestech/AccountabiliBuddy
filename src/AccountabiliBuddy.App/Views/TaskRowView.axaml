@@ -179,19 +179,19 @@
         </Style>
 
         <!-- Shown only while the pointer is on the row (or it is open): the "+ label" spot, the quick actions, the drag handle. -->
-        <Style Selector="Panel.listItem :is(Control).onHover">
+        <Style Selector="Panel.listItem :is(Button).onHover, Panel.listItem Border.onHover, Panel.listItem StackPanel.onHover">
             <Setter Property="Opacity" Value="0" />
             <Setter Property="IsHitTestVisible" Value="False" />
         </Style>
-        <Style Selector="Panel.listItem:pointerover :is(Control).onHover">
+        <Style Selector="Panel.listItem:pointerover :is(Button).onHover, Panel.listItem:pointerover Border.onHover, Panel.listItem:pointerover StackPanel.onHover">
             <Setter Property="Opacity" Value="1" />
             <Setter Property="IsHitTestVisible" Value="True" />
         </Style>
-        <Style Selector="Panel.listItem:focus-within :is(Control).onHover">
+        <Style Selector="Panel.listItem:focus-within :is(Button).onHover, Panel.listItem:focus-within Border.onHover, Panel.listItem:focus-within StackPanel.onHover">
             <Setter Property="Opacity" Value="1" />
             <Setter Property="IsHitTestVisible" Value="True" />
         </Style>
-        <Style Selector="Button.listRow.selected :is(Control).onHover">
+        <Style Selector="Button.listRow.selected :is(Button).onHover, Button.listRow.selected Border.onHover, Button.listRow.selected StackPanel.onHover">
             <Setter Property="Opacity" Value="1" />
             <Setter Property="IsHitTestVisible" Value="True" />
         </Style>
@@ -255,7 +255,7 @@
             <Setter Property="VerticalAlignment" Value="Top" />
             <Setter Property="Margin" Value="10,7,4,0" />
         </Style>
-        <Style Selector="Border.taskColumn :is(Control).compact StackPanel.leadCell">
+        <Style Selector="Border.taskColumn StackPanel.compact StackPanel.leadCell">
             <Setter Property="Margin" Value="10,4,4,0" />
         </Style>
         <!-- The leading label dot (a click opens the label picker): filled in the label's colour, hollow and faint without one. -->
@@ -530,50 +530,49 @@
             <Setter Property="Margin" Value="0,7" />
         </Style>
 
-        <!-- Compact rows (the section's "compact" class): 32 DIP, the title on one line, no detail line, no quick actions. -->
-        <Style Selector=":is(Control).compact Button.listRow">
+        <!-- Compact rows (the section's "compact" class, on its StackPanel): 32 DIP, the title on one line, no detail line, no quick actions.
+             The selectors name the types (perf, 2026-11-27): :is(Control) matched every control of every row against them. -->
+        <Style Selector="StackPanel.compact Button.listRow">
             <Setter Property="MinHeight" Value="32" />
         </Style>
-        <Style Selector=":is(Control).compact StackPanel.rowText">
+        <Style Selector="StackPanel.compact StackPanel.rowText">
             <Setter Property="Margin" Value="0,3" />
         </Style>
-        <Style Selector=":is(Control).compact TextBlock.rowTitle">
+        <Style Selector="StackPanel.compact TextBlock.rowTitle">
             <Setter Property="TextWrapping" Value="NoWrap" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="FontSize" Value="14" />
         </Style>
-        <Style Selector=":is(Control).compact :is(Control).rowSub">
+        <Style Selector="StackPanel.compact :is(Panel).rowSub">
             <Setter Property="IsVisible" Value="False" />
         </Style>
-        <Style Selector=":is(Control).compact StackPanel.quickActions">
+        <Style Selector="StackPanel.compact StackPanel.quickActions">
             <Setter Property="IsVisible" Value="False" />
         </Style>
 
-        <!-- "Add to Today →": at the row's right in a wide column, under the sub-line in a narrow one (container query below). -->
+        <!-- "Add to Today →": at the row's right in a wide column, under the sub-line in a slim one (340 DIP or less). The column's width
+             classes come from TaskColumnWidth on the Shelf column's card (Border) and Today's task list (StackPanel): plain descendant
+             selectors, not container queries, which made every control of every row register with its column (perf, 2026-11-27). -->
         <Style Selector="Panel.narrowAddSlot">
             <Setter Property="IsVisible" Value="False" />
         </Style>
-        <ContainerQuery Name="TaskColumn" Query="max-width:340">
-            <Style Selector="Panel.wideAddSlot">
-                <Setter Property="IsVisible" Value="False" />
-            </Style>
-            <Style Selector="Panel.narrowAddSlot">
-                <Setter Property="IsVisible" Value="True" />
-            </Style>
-        </ContainerQuery>
+        <Style Selector="Border.columnSlim Panel.wideAddSlot, StackPanel.columnSlim Panel.wideAddSlot">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="Border.columnSlim Panel.narrowAddSlot, StackPanel.columnSlim Panel.narrowAddSlot">
+            <Setter Property="IsVisible" Value="True" />
+        </Style>
 
-        <!-- A narrow column: the label slot goes and the gaps shrink, so the title keeps its room. -->
-        <ContainerQuery Name="TaskColumn" Query="max-width:520">
-            <Style Selector="Grid.rowGrid">
-                <Setter Property="ColumnSpacing" Value="3" />
-            </Style>
-            <Style Selector="StackPanel.rowToolsList">
-                <Setter Property="Spacing" Value="3" />
-            </Style>
-            <Style Selector="Panel.categorySlot">
-                <Setter Property="IsVisible" Value="False" />
-            </Style>
-        </ContainerQuery>
+        <!-- A narrow column (520 DIP or less): the label slot goes and the gaps shrink, so the title keeps its room. -->
+        <Style Selector="Border.columnNarrow Grid.rowGrid, StackPanel.columnNarrow Grid.rowGrid">
+            <Setter Property="ColumnSpacing" Value="3" />
+        </Style>
+        <Style Selector="Border.columnNarrow StackPanel.rowToolsList, StackPanel.columnNarrow StackPanel.rowToolsList">
+            <Setter Property="Spacing" Value="3" />
+        </Style>
+        <Style Selector="Border.columnNarrow Panel.categorySlot, StackPanel.columnNarrow Panel.categorySlot">
+            <Setter Property="IsVisible" Value="False" />
+        </Style>
     </UserControl.Styles>
 
     <StackPanel x:Name="RowRoot" Spacing="0">

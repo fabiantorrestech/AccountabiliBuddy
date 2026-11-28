@@ -255,6 +255,7 @@ public sealed partial class ShelfViewModel : ObservableObject
     /// <summary>The header, chips and card from the task list as it is now (the page calls this as it rebuilds).</summary>
     public void Refresh()
     {
+        Services.TickDiag.Count("shelf refresh");
         // A view opened with its own search words: the pill shows them.
         if (_views is not null && _views.Search != SearchText)
         {

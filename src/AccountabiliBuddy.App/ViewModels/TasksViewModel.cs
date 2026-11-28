@@ -186,13 +186,20 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
     {
         ApplyDensity();
         OnPropertyChanged(nameof(IsCompact));
-        if (!ReferenceEquals(_columnOrder, _layout.Current.ColumnOrder) || !ReferenceEquals(_foldedColumns, _layout.Current.FoldedColumns))
+        if (!ReferenceEquals(_columnOrder, _layout.Current.ColumnOrder))
         {
-            // A column moved (Ctrl+Alt+←/→, the grip, Options › Layout) or folded (0.1.154: Bins draws its rails at the right): the Shelf's
-            // columns follow at the next rebuild.
+            // A column moved (Ctrl+Alt+←/→, the grip, Options › Layout): the Shelf's columns follow at the next rebuild.
             _columnOrder = _layout.Current.ColumnOrder;
             _foldedColumns = _layout.Current.FoldedColumns;
             QueueRefresh();
+        }
+        else if (!ReferenceEquals(_foldedColumns, _layout.Current.FoldedColumns))
+        {
+            // A fold (a header or rail click, Expand / Collapse all, Options › Layout): the panel has already folded or opened the columns
+            // (TaskSectionsPanelViewModel follows the layout first); Bins draws its rails at the right by their slots. Nothing to rebuild
+            // (perf, 2026-11-27: the rebuild and its reorder made the moved columns' views again).
+            _foldedColumns = _layout.Current.FoldedColumns;
+            SlotShelfColumns();
         }
     }
 
@@ -1117,6 +1124,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         _refreshQueued = true;
+        TickDiag.Count("queue refresh");
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             _refreshQueued = false;
@@ -1162,6 +1170,7 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         _refreshing = true;
+        TickDiag.Count("tasks refresh");
         try
         {
             using IDisposable timing = TickDiag.Measure("tasks page rebuild");
@@ -1447,17 +1456,14 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
 
         // Round 2 R3: the columns in this PC's order for the grouping (Group by None is one list: nothing to order). 0.1.154: Group by
         // Labels uses this PC's order too; Group by Bins draws its open columns first and its rails (folded, the empty Later) at the right,
-        // each in the stored order (Group by Labels does that within each page: TaskColumnsPanel).
+        // each in the stored order (Group by Labels does that within each page: TaskColumnsPanel). Perf (2026-11-27): the sections stay in
+        // the stored order and the rails' places are their slots (SlotShelfColumns), so a fold never reorders the ItemsControl's items: a
+        // reorder makes the moved columns' views and all their rows again, which took seconds with a big Shelf.
         string? grouping = Shelf.HasViews ? TaskColumnOrder.GroupingOf(Shelf.Grouping) : TaskViewConfig.GroupBins;
         _laterTotal = rows.Values.Count(entry => entry.Bin == TaskBin.Later);
         if (grouping is not null)
         {
             groups = TaskColumnOrder.Apply(groups, group => group.Key, _layout.Current.ColumnOrderOf(grouping));
-        }
-
-        if (grouping == TaskViewConfig.GroupBins)
-        {
-            groups = TaskColumnOrder.OpenFirst(groups, group => IsBinRail(group.Key, group.Bin, group.Rows.Count));
         }
 
         bool canMoveColumns = grouping is not null && groups.Count > 1;
@@ -1505,6 +1511,8 @@ public sealed partial class TasksViewModel : ObservableObject, IDisposable
         }
 
         Shelf.Panel.Show(sections);
+        SlotShelfColumns();
+
         // A refresh mid-drag (a sync) may bring a new column: it lights like the others (nothing while no stack is dragged).
         LightStackColumns(sections);
         OfferArchiveSearch(sections);

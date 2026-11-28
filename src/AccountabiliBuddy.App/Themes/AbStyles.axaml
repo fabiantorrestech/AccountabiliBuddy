@@ -489,15 +489,18 @@
 
     <!-- Hover-only secondary actions (§3.4 edit / grip / +, §3.5 row actions, §3.12): hidden until the pointer is over the host OR the
          keyboard is inside it, so Tab reaches them and they appear. Every hover rule here has its focus-within twin (AppChecks r1b). -->
-    <Style Selector=":is(Control).abHoverHost :is(Control).abHoverOnly">
+    <!-- Perf (2026-11-27): the selectors name the types that carry these classes (hosts: Border, Grid, Panel; hover-only: Button, Border).
+         With :is(Control) on both sides every control of the window was matched against them and watched the classes of all its
+         ancestors, so any :pointerover or :focus-within change high up re-ran tens of thousands of them (about a second in Debug). -->
+    <Style Selector=":is(Panel).abHoverHost :is(Button).abHoverOnly, :is(Panel).abHoverHost Border.abHoverOnly, Border.abHoverHost :is(Button).abHoverOnly, Border.abHoverHost Border.abHoverOnly">
         <Setter Property="Opacity" Value="0" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
-    <Style Selector=":is(Control).abHoverHost:pointerover :is(Control).abHoverOnly">
+    <Style Selector=":is(Panel).abHoverHost:pointerover :is(Button).abHoverOnly, :is(Panel).abHoverHost:pointerover Border.abHoverOnly, Border.abHoverHost:pointerover :is(Button).abHoverOnly, Border.abHoverHost:pointerover Border.abHoverOnly">
         <Setter Property="Opacity" Value="1" />
         <Setter Property="IsHitTestVisible" Value="True" />
     </Style>
-    <Style Selector=":is(Control).abHoverHost:focus-within :is(Control).abHoverOnly">
+    <Style Selector=":is(Panel).abHoverHost:focus-within :is(Button).abHoverOnly, :is(Panel).abHoverHost:focus-within Border.abHoverOnly, Border.abHoverHost:focus-within :is(Button).abHoverOnly, Border.abHoverHost:focus-within Border.abHoverOnly">
         <Setter Property="Opacity" Value="1" />
         <Setter Property="IsHitTestVisible" Value="True" />
     </Style>
@@ -755,7 +758,9 @@
          :flyout-open; :checked; :selected). Icons rest at Ab.IdleFadeIcon (22%); label row chips at Ab.IdleFadeChip (30%): "fadeChip" for
          All and +N (0.15 s), "fadeLabel" for the label chips (0.28 s). A host marked idleFadeHost lights all its chips while the pointer
          or the keyboard is in it (the label row lights as one). "Fade controls you're not using" off: both resources are 1 (IdleFade). -->
-    <Style Selector=":is(Control).idleFade">
+    <!-- Perf (2026-11-27): idleFade is only ever on buttons (ToggleButton too) and idleFadeHost on a panel (the label row's Grid): the
+         selectors say so, so not every control of the window is matched against them (see abHoverHost above). -->
+    <Style Selector=":is(Button).idleFade">
         <Setter Property="Opacity" Value="{DynamicResource Ab.IdleFadeIcon}" />
         <Setter Property="Transitions">
             <Transitions>
@@ -763,10 +768,10 @@
             </Transitions>
         </Setter>
     </Style>
-    <Style Selector=":is(Control).idleFade.fadeChip">
+    <Style Selector=":is(Button).idleFade.fadeChip">
         <Setter Property="Opacity" Value="{DynamicResource Ab.IdleFadeChip}" />
     </Style>
-    <Style Selector=":is(Control).idleFade.fadeLabel">
+    <Style Selector=":is(Button).idleFade.fadeLabel">
         <Setter Property="Opacity" Value="{DynamicResource Ab.IdleFadeChip}" />
         <Setter Property="Transitions">
             <Transitions>
@@ -774,11 +779,11 @@
             </Transitions>
         </Setter>
     </Style>
-    <Style Selector=":is(Control).idleFade:pointerover, :is(Control).idleFade:pressed, :is(Control).idleFade:focus-within, :is(Control).idleFade.on, :is(Control).idleFade:flyout-open, :is(Control).idleFade:checked, :is(Control).idleFade:selected">
+    <Style Selector=":is(Button).idleFade:pointerover, :is(Button).idleFade:pressed, :is(Button).idleFade:focus-within, :is(Button).idleFade.on, :is(Button).idleFade:flyout-open, :is(Button).idleFade:checked, :is(Button).idleFade:selected">
         <Setter Property="Opacity" Value="1" />
     </Style>
     <!-- A host with class "lit" (the label row while its +N menu is open) keeps all its chips lit. -->
-    <Style Selector=":is(Control).idleFadeHost:pointerover :is(Control).idleFade, :is(Control).idleFadeHost:focus-within :is(Control).idleFade, :is(Control).idleFadeHost.lit :is(Control).idleFade">
+    <Style Selector=":is(Panel).idleFadeHost:pointerover :is(Button).idleFade, :is(Panel).idleFadeHost:focus-within :is(Button).idleFade, :is(Panel).idleFadeHost.lit :is(Button).idleFade">
         <Setter Property="Opacity" Value="1" />
     </Style>
 </Styles>

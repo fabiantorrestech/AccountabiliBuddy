@@ -63,6 +63,13 @@ public sealed class TaskColumnsPanel : Panel
     public static readonly AttachedProperty<bool> IsRailProperty =
         AvaloniaProperty.RegisterAttached<TaskColumnsPanel, Control, bool>("IsRail");
 
+    /// <summary>
+    /// The column's place among the page's columns as drawn (lowest first; ties keep the children's order). Group by Bins gives its rails the
+    /// last places, so a fold moves a column on screen without the columns being reordered (perf, 2026-11-27).
+    /// </summary>
+    public static readonly AttachedProperty<int> SlotProperty =
+        AvaloniaProperty.RegisterAttached<TaskColumnsPanel, Control, int>("Slot");
+
     /// <summary>"lead" (Next), "trail" (To sort) or empty: the two whose widths follow <see cref="Split"/>.</summary>
     public static readonly AttachedProperty<string> SplitRoleProperty =
         AvaloniaProperty.RegisterAttached<TaskColumnsPanel, Control, string>("SplitRole", string.Empty);
@@ -91,7 +98,7 @@ public sealed class TaskColumnsPanel : Panel
         AffectsMeasure<TaskColumnsPanel>(
             ViewportWidthProperty, MinColumnWidthProperty, SmallestColumnWidthProperty, SpacingProperty, FirstIndexProperty, MaxPerPageProperty,
             SplitProperty, RailWidthProperty);
-        AffectsParentMeasure<TaskColumnsPanel>(WeightProperty, IsRailProperty, SplitRoleProperty);
+        AffectsParentMeasure<TaskColumnsPanel>(WeightProperty, IsRailProperty, SplitRoleProperty, SlotProperty);
     }
 
     public static double GetWeight(Control control) => control.GetValue(WeightProperty);
@@ -101,6 +108,10 @@ public sealed class TaskColumnsPanel : Panel
     public static bool GetIsRail(Control control) => control.GetValue(IsRailProperty);
 
     public static void SetIsRail(Control control, bool value) => control.SetValue(IsRailProperty, value);
+
+    public static int GetSlot(Control control) => control.GetValue(SlotProperty);
+
+    public static void SetSlot(Control control, int value) => control.SetValue(SlotProperty, value);
 
     public static string GetSplitRole(Control control) => control.GetValue(SplitRoleProperty);
 
@@ -314,7 +325,10 @@ public sealed class TaskColumnsPanel : Panel
         int n = Math.Min(per, count - first);
         double min = count <= TaskColumnPaging.ShrinkUpTo ? Math.Min(MinColumnWidth, SmallestColumnWidth) : MinColumnWidth;
         double[] widths = WeightedWidths(room, first, n, min);
-        return new PagePlan(per, first, Enumerable.Range(first, n).ToArray(), widths, widths.Length > 0 ? widths.Max() : 0, null);
+        // Drawn by slot (Group by Bins: its rails at the right); each column keeps the width worked out for it.
+        int[] order = Enumerable.Range(first, n).OrderBy(index => GetSlot(Children[index])).ThenBy(index => index).ToArray();
+        double[] drawnWidths = order.Select(index => widths[index - first]).ToArray();
+        return new PagePlan(per, first, order, drawnWidths, widths.Length > 0 ? widths.Max() : 0, null);
     }
 
     // Group by Labels (0.1.154): pages of up to MaxPerPage open columns of at least the minimum plus the rails that still fit beside them

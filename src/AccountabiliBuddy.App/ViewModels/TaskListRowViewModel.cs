@@ -31,6 +31,7 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
         Func<Task>? toggle = null, bool isTicked = false, Func<IReadOnlyList<TaskMenuEntry>>? menu = null,
         Func<IReadOnlyList<TaskMenuEntry>>? labelMenu = null)
     {
+        Services.TickDiag.Count("row vm made");
         Key = key;
         Title = title;
         SubText = subText;

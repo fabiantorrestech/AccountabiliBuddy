@@ -215,14 +215,19 @@
         </Grid>
 
         <Panel Grid.Row="1">
-            <ItemsControl x:Name="Columns" ItemsSource="{Binding Panel.Sections}"
+            <!-- Tab walks the columns in the order drawn (their slots), as a group of its own within the page. -->
+            <ItemsControl x:Name="Columns" ItemsSource="{Binding Panel.Sections}" KeyboardNavigation.TabNavigation="Local"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
                 <ItemsControl.Styles>
-                    <!-- Each column tells the panel its weight, whether it is a rail, and whether it is Next or To sort (the split). -->
+                    <!-- Each column tells the panel its weight, whether it is a rail, whether it is Next or To sort (the split), and its drawn place. -->
                     <Style Selector="ItemsControl#Columns > ContentPresenter" x:DataType="vm:TaskSectionViewModel">
                         <Setter Property="controls:TaskColumnsPanel.Weight" Value="{Binding ColumnWeight}" />
                         <Setter Property="controls:TaskColumnsPanel.IsRail" Value="{Binding IsRail}" />
                         <Setter Property="controls:TaskColumnsPanel.SplitRole" Value="{Binding SplitRole}" />
+                        <!-- Where it is drawn (Group by Bins: rails at the right), so a fold never reorders the columns (and makes their views again). -->
+                        <Setter Property="controls:TaskColumnsPanel.Slot" Value="{Binding ColumnSlot}" />
+                        <Setter Property="KeyboardNavigation.TabNavigation" Value="Local" />
+                        <Setter Property="KeyboardNavigation.TabIndex" Value="{Binding ColumnSlot}" />
                     </Style>
                 </ItemsControl.Styles>
                 <ItemsControl.ItemsPanel>

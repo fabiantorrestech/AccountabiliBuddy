@@ -659,7 +659,7 @@
                         <!-- TodayPageScope: only here does the running row get its tint, Now badge and open steps. -->
                         <!-- todayRows: the rows' Today look (TaskRowView, TaskSectionView): the indented sub-line, actions on hover, the board's headers. -->
                         <StackPanel x:Name="TaskList" Classes="todayRows" views:TodayPageScope.IsToday="True"
-                                    Container.Name="TaskColumn" Container.Sizing="Width">
+                                    Container.Name="TaskColumn" Container.Sizing="Width" views:TaskColumnWidth.Tracks="True">
                             <StackPanel.IsVisible>
                                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                                     <Binding Path="!ShowsShutdown" />

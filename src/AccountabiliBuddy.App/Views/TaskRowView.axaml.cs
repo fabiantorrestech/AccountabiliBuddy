@@ -56,6 +56,7 @@ public partial class TaskRowView : UserControl
 
     public TaskRowView()
     {
+        Services.TickDiag.Count("row view made");
         InitializeComponent();
         // The row button handles its own presses; the modifiers are read on the way down, before it does.
         RowButton.AddHandler(PointerPressedEvent, OnRowPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
