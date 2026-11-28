@@ -6,11 +6,12 @@
              x:Class="AccountabiliBuddy.App.Views.SessionControlView"
              x:DataType="vm:SessionControlViewModel">
     <UserControl.Styles>
-        <!-- Idle: the accent "Start session" pill, 34 tall; its shortcut shows only in the tooltip (owner 2026-11-14). -->
+        <!-- Idle: the accent "Start session" pill, 32 tall like the noise player beside it, so their edges line up (owner 2026-11-28; was 34);
+             its shortcut shows only in the tooltip (owner 2026-11-14). -->
         <Style Selector="Button.sessionStart">
-            <Setter Property="Height" Value="34" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="12,0,8,0" />
-            <Setter Property="CornerRadius" Value="17" />
+            <Setter Property="CornerRadius" Value="16" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -101,9 +102,9 @@
             </Style.Animations>
         </Style>
         <Style Selector="Button.sessionEnded">
-            <Setter Property="Height" Value="34" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="10,0,13,0" />
-            <Setter Property="CornerRadius" Value="17" />
+            <Setter Property="CornerRadius" Value="16" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.sessionEnded /template/ ContentPresenter#PART_ContentPresenter">
@@ -133,7 +134,7 @@
         <!-- Running, paused or away: [extras] ring  32 min left. -->
         <!-- A dock row, not a stack: in a slot narrower than the pill (a narrow window, a long "1 h 05 min left · planning") the extras give
              way first (the view caps them) and then the muted words trim; the ring, the time and the ⋯ never do. -->
-        <Border x:Name="Pill" IsVisible="{Binding IsRunningOrAway, FallbackValue=False}" Height="34" CornerRadius="17" Padding="4,0,4,0"
+        <Border x:Name="Pill" IsVisible="{Binding IsRunningOrAway, FallbackValue=False}" Height="32" CornerRadius="16" Padding="4,0,4,0"
                 Background="{DynamicResource Ab.Surface2}" BorderThickness="1">
             <DockPanel>
                 <Border x:Name="Extras" DockPanel.Dock="Left" ClipToBounds="True" VerticalAlignment="Center">
@@ -183,7 +184,7 @@
         <!-- Another device runs a session (ADR 85, R1/R2): "[device] Session on Pixel · 32 min left", in Start's place. Not clickable (only that
              device can end it, R6); the tooltip says so. The name trims when long; the time never does. No board: the pill look of the running
              control (same height, Surface2), without the ring or the menu. -->
-        <Border x:Name="ElsewherePill" IsVisible="{Binding IsElsewhere, FallbackValue=False}" Height="34" CornerRadius="17" Padding="11,0,13,0"
+        <Border x:Name="ElsewherePill" IsVisible="{Binding IsElsewhere, FallbackValue=False}" Height="32" CornerRadius="16" Padding="11,0,13,0"
                 Background="{DynamicResource Ab.Surface2}" ToolTip.Tip="{Binding ElsewhereTip}" AutomationProperties.Name="{Binding ElsewhereLabel}" Focusable="True" IsTabStop="True">
             <!-- The pill shows the device icon, the name and the time (the "Session on" words are in the accessible name and the tooltip): the
                  name gives way (trims; the time and status are measured first) when the title bar has less room; the time and "paused" never do. Focusable, so the

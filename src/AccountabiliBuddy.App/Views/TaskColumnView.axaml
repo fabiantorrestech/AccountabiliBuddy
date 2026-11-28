@@ -245,7 +245,7 @@
                        IsVisible="{Binding IsEmptyRail}" />
             <Button x:Name="RailButton" Classes="foldRail" Classes.dropHot="{Binding IsDropTarget}" Classes.stackLit="{Binding IsStackLit}"
                     Classes.stackHot="{Binding IsStackHot}" IsVisible="{Binding IsFoldedRail}"
-                    Command="{Binding ToggleCommand}" ToolTip.Tip="Folded" AutomationProperties.Name="{Binding FoldName}">
+                    Command="{Binding ToggleCommand}" ToolTip.Tip="{Binding RailTip}" AutomationProperties.Name="{Binding FoldName}">
                 <ContentControl Content="{Binding}" ContentTemplate="{StaticResource RailContent}" />
             </Button>
             <!-- O7: a folded rail takes the stack like its open column, lit like the Later rail (dashed while lit, solid under the stack). -->

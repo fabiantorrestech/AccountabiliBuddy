@@ -10,7 +10,8 @@ namespace AccountabiliBuddy.App.Services;
 /// <summary>
 /// The Tasks keyboard map's window part (spec 03 §E): Ctrl+G go to a task by its ID (any page), and on Tasks and Today: Ctrl+Z undo
 /// (the toast's, else the last 10 task actions), Del delete, F2 rename, H highlight, and Esc's last steps (selection, then the open
-/// task); on Tasks also Ctrl+U clear the selection and Ctrl+E edit it (Tasks redesign 8a.08-8a.10). Del, F2 and H act on the selection,
+/// task); on Tasks also Ctrl+U clear the selection and Ctrl+E edit it (Tasks redesign 8a.08-8a.10), and Ctrl+1 to Ctrl+9 fold or unfold
+/// the page's 1st to 9th column in its own order (owner 2026-11-28; also while typing, as a text box has no use for them). Del, F2 and H act on the selection,
 /// else the row with the keyboard, else the open task, by running the entry its menu shows, found by its id (so "Delete (3)" still
 /// answers Del, 8a.51; the same rules as the menus: a running session's tasks included, nothing around the session's cap). Nothing fires
 /// while a text box has the keyboard or a popover is open; while a panel is over the page (the title-bar menu, the right-click menu, and on
@@ -64,6 +65,11 @@ public sealed class TaskShortcuts
             return true;
         }
 
+        if (onTasks && e.KeyModifiers == KeyModifiers.Control && ColumnNumberOf(e.Key) is int column)
+        {
+            return tasks.ToggleColumnOnPage(column);
+        }
+
         if (typing || !onTaskPage)
         {
             return false;
@@ -115,6 +121,14 @@ public sealed class TaskShortcuts
             _ => false,
         };
     }
+
+    // 1 to 9 for the digit keys above the letters and on the number pad; null for any other key.
+    private static int? ColumnNumberOf(Key key) => key switch
+    {
+        >= Key.D1 and <= Key.D9 => key - Key.D1 + 1,
+        >= Key.NumPad1 and <= Key.NumPad9 => key - Key.NumPad1 + 1,
+        _ => null,
+    };
 
     /// <summary>A key went up (anywhere in the window, handled or not): Del can act again.</summary>
     public void KeyReleased(Key key)

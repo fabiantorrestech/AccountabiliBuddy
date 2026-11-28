@@ -124,9 +124,9 @@ public partial class PageHeader : UserControl
         TitleText.Text = Title;
         DateText.Text = Date;
         DateText.IsVisible = Date.Length > 0;
-        // "Tuesday · Nov 24" shortens to "Tuesday · …" before the search narrows.
-        int dot = Date.IndexOf(" · ", StringComparison.Ordinal);
-        Row.DateMinText = dot > 0 ? Date[..dot] + " · …" : Date;
+        // "Saturday, Nov 28th" shortens to "Saturday, …" before the search narrows.
+        int comma = Date.IndexOf(ViewModels.PageDateText.Separator, StringComparison.Ordinal);
+        Row.DateMinText = comma > 0 ? Date[..comma] + ViewModels.PageDateText.Separator + "…" : Date;
         Row.InvalidateMeasure();
         string name = Title.Length > 0 ? Title + " options" : "Options";
         AutomationProperties.SetName(OptionsButton, name);

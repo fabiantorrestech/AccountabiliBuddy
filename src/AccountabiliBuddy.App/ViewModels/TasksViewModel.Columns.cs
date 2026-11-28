@@ -84,6 +84,39 @@ public sealed partial class TasksViewModel
         return section.IsEmptyRail ? 2 : 0;
     }
 
+    /// <summary>
+    /// Ctrl+1 to Ctrl+9 (owner 2026-11-28): folds or unfolds the <paramref name="number"/>th column of the Shelf page in view, counted in the
+    /// page's own column order (Options › Layout's order, the order before any fold), so the same key folds a column and unfolds it again
+    /// although a folded column is drawn at the right. False when there is no such column, it can't fold (None's one list) or the Shelf is
+    /// hidden.
+    /// </summary>
+    public bool ToggleColumnOnPage(int number)
+    {
+        if (!ShowsShelfColumns || number < 1)
+        {
+            return false;
+        }
+
+        List<TaskSectionViewModel> onPage = ShelfColumnsOnPage();
+        if (number > onPage.Count || onPage[number - 1] is not { CanFold: true } section)
+        {
+            return false;
+        }
+
+        Shelf.Panel.Toggle(section);
+        return true;
+    }
+
+    // The columns of the page showing, in the stored order (folds don't move them here; the panel draws the rails at the right).
+    private List<TaskSectionViewModel> ShelfColumnsOnPage()
+    {
+        List<TaskSectionViewModel> onPage = Shelf.Pager.KeysOnPage
+            .Select(key => Shelf.Panel.Sections.FirstOrDefault(section => section.Key == key))
+            .OfType<TaskSectionViewModel>()
+            .ToList();
+        return onPage.Count > 0 ? onPage : Shelf.Panel.Sections.ToList();
+    }
+
     /// <summary>The Shelf's columns in the order drawn (<see cref="TaskSectionViewModel.ColumnSlot"/>).</summary>
     private IEnumerable<TaskSectionViewModel> ShelfColumnsAsDrawn() => Shelf.Panel.Sections.OrderBy(section => section.ColumnSlot);
 

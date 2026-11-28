@@ -207,10 +207,23 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     public bool HasRailNote => RailNote.Length > 0;
 
-    /// <summary>The header's tooltip: what a click and Ctrl+Alt+← / → do here.</summary>
+    /// <summary>The header's tooltip: what a click, its Ctrl+digit and Ctrl+Alt+← / → do here.</summary>
     public string HeaderTip => IsLabelColumn
-        ? "Click to fold · Ctrl+Alt+← / Ctrl+Alt+→ moves the column (this PC only)"
-        : CanFold ? "Click to fold · Ctrl+Alt+← / Ctrl+Alt+→ moves the column · right-click for Expand all and Collapse all" : Title;
+        ? FoldText + " · Ctrl+Alt+← / Ctrl+Alt+→ moves the column (this PC only)"
+        : CanFold ? FoldText + " · Ctrl+Alt+← / Ctrl+Alt+→ moves the column · right-click for Expand all and Collapse all" : Title;
+
+    /// <summary>
+    /// Owner 2026-11-28: its place among the columns of the page in view (1 to 9), the digit that with Ctrl folds or unfolds it
+    /// (TasksViewModel.ToggleColumnOnPage); 0 when it has none (another page, or past 9). Set by the Shelf with the page.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HeaderTip), nameof(RailTip))]
+    public partial int FoldKey { get; set; }
+
+    /// <summary>A folded rail's tooltip: "Folded · Ctrl+2 or a click unfolds it".</summary>
+    public string RailTip => FoldKey > 0 ? $"Folded · Ctrl+{FoldKey} or a click unfolds it" : "Folded";
+
+    private string FoldText => FoldKey > 0 ? $"Click or Ctrl+{FoldKey} to fold" : "Click to fold";
 
     /// <summary>The name a rail shows: a label column's short name, else the title.</summary>
     public string RailTitle => IsLabelColumn && ShortTitle.Length > 0 ? ShortTitle : Title;

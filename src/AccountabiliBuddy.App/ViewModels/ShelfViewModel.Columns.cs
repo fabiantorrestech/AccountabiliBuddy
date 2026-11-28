@@ -153,10 +153,32 @@ public sealed partial class ShelfViewModel
         RebuildBands();
     }
 
+    // Owner 2026-11-28: each column of the page in view gets its Ctrl+digit (its place in the page's own order, 1 to 9) for its tooltips;
+    // a column on another page none. The same count TasksViewModel.ToggleColumnOnPage makes.
+    private void NumberFoldKeys()
+    {
+        IReadOnlyList<string> onPage = Pager.KeysOnPage;
+        var placeOf = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int index = 0; index < onPage.Count; index++)
+        {
+            placeOf.TryAdd(onPage[index], index + 1);
+        }
+
+        for (int index = 0; index < Panel.Sections.Count; index++)
+        {
+            TaskSectionViewModel section = Panel.Sections[index];
+            int place = onPage.Count > 0 ? placeOf.GetValueOrDefault(section.Key) : index + 1;
+            section.FoldKey = place <= 9 ? place : 0;
+        }
+    }
+
     // The bands of the page showing: one per run of a category in the order drawn (the page's open columns, then its rails), spanning its
     // columns; "4 of 7 on this page" when not all its labels are here.
     private void RebuildBands()
     {
+        // Runs with every rebuild and page turn, as the Ctrl+digit keys do.
+        NumberFoldKeys();
+
         var bands = new List<LabelBandViewModel>();
         var onPage = new Dictionary<string, int>(StringComparer.Ordinal);
         if (IsGroupedByLabels)
