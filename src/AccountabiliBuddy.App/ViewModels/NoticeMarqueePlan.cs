@@ -23,16 +23,24 @@ public sealed class NoticeMarqueePlan
     /// <summary>Reduced motion: how long the trimmed notice holds between its fades.</summary>
     public const double ReducedHold = 3.0;
 
-    public NoticeMarqueePlan(double boxWidth, double textWidth, bool reducedMotion)
+    /// <summary>The slower speed of the hover scroll through a sound's name (owner 2026-11-27: "slowly").</summary>
+    public const double HoverSpeed = 30;
+
+    /// <param name="speed">DIP per second: <see cref="Speed"/> for a notice, <see cref="HoverSpeed"/> for the hover scroll.</param>
+    public NoticeMarqueePlan(double boxWidth, double textWidth, bool reducedMotion, double speed = Speed)
     {
         BoxWidth = Math.Max(0, boxWidth);
         TextWidth = Math.Max(0, textWidth);
         ReducedMotion = reducedMotion;
+        ScrollSpeed = speed > 0 ? speed : Speed;
         Travel = reducedMotion ? 0 : Math.Max(0, TextWidth - BoxWidth);
         Duration = reducedMotion
             ? Fade + ReducedHold + Fade
-            : Fade + StartPause + Travel / Speed + Linger + Fade;
+            : Fade + StartPause + Travel / ScrollSpeed + Linger + Fade;
     }
+
+    /// <summary>The scroll speed this plan uses, in DIP per second.</summary>
+    public double ScrollSpeed { get; }
 
     public double BoxWidth { get; }
 
@@ -49,7 +57,7 @@ public sealed class NoticeMarqueePlan
     /// <summary>The notice's horizontal offset at <paramref name="seconds"/> (0 or less: it only moves left).</summary>
     public double Offset(double seconds)
     {
-        double scrolled = (seconds - Fade - StartPause) * Speed;
+        double scrolled = (seconds - Fade - StartPause) * ScrollSpeed;
         return -Math.Clamp(scrolled, 0, Travel);
     }
 
