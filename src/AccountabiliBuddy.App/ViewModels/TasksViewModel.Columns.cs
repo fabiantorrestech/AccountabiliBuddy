@@ -56,18 +56,32 @@ public sealed partial class TasksViewModel
         return StoreColumnOrder(key, stored => TaskColumnOrder.MovedOnto(ShownColumnKeys(), stored, key, targetKey));
     }
 
-    // Where each Shelf column is drawn (TaskSectionViewModel.ColumnSlot): Group by Bins draws its open columns first and its rails
-    // (folded on this PC, or Later while it has no task at all) at the right, each in the stored order; the other groupings draw the
-    // sections in their own order (Group by Labels puts each page's rails at its right in TaskColumnsPanel). A fold calls this alone.
+    // Where each Shelf column is drawn (TaskSectionViewModel.ColumnSlot): Group by Bins draws its open columns first, then the columns
+    // the user folded, then the empty Later rail (owner, 2026-11-27: folded before empty), each group in the stored left-to-right order;
+    // the other groupings draw the sections in their own order (Group by Labels puts each page's rails at its right in
+    // TaskColumnsPanel). A fold calls this alone.
     private void SlotShelfColumns()
     {
         IReadOnlyList<TaskSectionViewModel> sections = Shelf.Panel.Sections;
         bool byBins = !Shelf.HasViews || Shelf.IsGroupedByBins;
-        List<TaskSectionViewModel> drawn = byBins ? TaskColumnOrder.OpenFirst(sections, section => section.IsRail) : sections.ToList();
+        List<TaskSectionViewModel> drawn = byBins
+            ? sections.OrderBy(DrawGroupOf).ToList() // OrderBy is stable: each group keeps the stored order
+            : sections.ToList();
         for (int slot = 0; slot < drawn.Count; slot++)
         {
             drawn[slot].ColumnSlot = slot;
         }
+    }
+
+    /// <summary>Group by Bins' draw groups, left to right: open columns (0), columns folded by the user (1), the empty Later rail (2).</summary>
+    private static int DrawGroupOf(TaskSectionViewModel section)
+    {
+        if (section.IsFoldedRail)
+        {
+            return 1;
+        }
+
+        return section.IsEmptyRail ? 2 : 0;
     }
 
     /// <summary>The Shelf's columns in the order drawn (<see cref="TaskSectionViewModel.ColumnSlot"/>).</summary>

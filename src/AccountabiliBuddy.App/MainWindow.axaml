@@ -305,7 +305,7 @@
                 <!-- The noise control (round 2, brief §3.2; owner 2026-11-27: right of the session control, left of the menu): a cemented slot,
                      8 + a 296 pill (a 140 wide name box) when there is room; in a narrow window it gives way first, down to 8 + 204 (a 48 wide
                      name box, enough for the headphones notice). The name trims; it never widens the pill. -->
-                <Panel x:Name="NoiseSlot" controls:TitleBarLayout.Slot="End" controls:TitleBarLayout.CementedWidth="304" controls:TitleBarLayout.CementedMinWidth="212"
+                <Panel x:Name="NoiseSlot" controls:TitleBarLayout.Slot="End" controls:TitleBarLayout.CementedWidth="228" controls:TitleBarLayout.CementedMinWidth="212"
                        controls:TitleBarLayout.GiveWayOrder="1" Margin="8,0,0,0" IsVisible="{Binding HasNoisePlayer}" VerticalAlignment="Center">
                     <views:TitleBarNoiseView x:Name="NoiseControl" DataContext="{Binding Session.NoisePlayer}" HorizontalAlignment="Stretch"
                                              chrome:WindowDecorationProperties.ElementRole="User" />

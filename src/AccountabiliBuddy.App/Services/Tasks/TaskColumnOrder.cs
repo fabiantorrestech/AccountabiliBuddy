@@ -48,8 +48,8 @@ public static class TaskColumnOrder
     }
 
     /// <summary>
-    /// 0.1.154: the open columns first, then the rails (folded columns, the empty Later), each part in the order it came (a stable
-    /// partition). Group by Bins draws its columns this way; Group by Labels does it within each page.
+    /// The open columns first, then the rails, each part in the order it came (a stable partition). Group by Labels draws each page
+    /// this way; Group by Bins uses its own three groups (open, folded, the empty Later; TasksViewModel.SlotShelfColumns).
     /// </summary>
     public static List<T> OpenFirst<T>(IEnumerable<T> items, Func<T, bool> isRail)
     {
