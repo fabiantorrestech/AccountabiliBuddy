@@ -64,7 +64,22 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// <summary>1, 2, 3 on This session's rows; 0 elsewhere.</summary>
     public int Number { get; }
 
-    public bool IsNumbered => Number > 0;
+    /// <summary>
+    /// Owner 2026-11-27: the row's place in the list that shows it (1, 2, 3 … top to bottom), set by that list
+    /// (<see cref="TaskSectionViewModel"/>); 0 until it is in one.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownNumber), nameof(IsNumbered))]
+    public partial int Position { get; set; }
+
+    /// <summary>The number left of the check box: This session's own number, else the row's place in its list.</summary>
+    public int ShownNumber => Number > 0 ? Number : Position;
+
+    public bool IsNumbered => ShownNumber > 0;
+
+    /// <summary>The number's width, the same on every row of a list (wide enough for its longest number), so the check boxes line up.</summary>
+    [ObservableProperty]
+    public partial double NumberWidth { get; set; } = 12;
 
     /// <summary>The running task: "Now" at its right.</summary>
     public bool IsNow { get; }

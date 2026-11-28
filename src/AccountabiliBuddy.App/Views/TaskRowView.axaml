@@ -614,8 +614,8 @@
                                 <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.2" IsVisible="{Binding !HasCategory}" />
                             </Panel>
                         </Button>
-                        <TextBlock Classes="muted rowNumber" Text="{Binding Number}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
-                                   MinWidth="12" IsVisible="{Binding IsNumbered}" />
+                        <TextBlock Classes="muted rowNumber" Text="{Binding ShownNumber}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
+                                   FontFeatures="+tnum" TextAlignment="Right" MinWidth="{Binding NumberWidth}" IsVisible="{Binding IsNumbered}" />
                         <CheckBox IsChecked="{Binding ShowsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
                                   MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding MarkDoneName}"
                                   ToolTip.Tip="Finish (untick to open it again)" />

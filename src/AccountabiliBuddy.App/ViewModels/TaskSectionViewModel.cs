@@ -25,6 +25,8 @@ public sealed partial class TaskSectionViewModel : ObservableObject
         Rows = rows;
         Title = Hint = AddTip = string.Empty;
         Rows.CollectionChanged += OnRowsChanged;
+        // A list handed over already filled raises no change: number it now.
+        NumberRows();
     }
 
     /// <summary>Its identity in the panel: "session", "queued", "reminders", "done", or a Shelf group's key ("bin:later", "label:…").</summary>
@@ -420,6 +422,7 @@ public sealed partial class TaskSectionViewModel : ObservableObject
 
     private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        NumberRows();
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(ShowsRows));
         OnPropertyChanged(nameof(ShowsEmpty));
@@ -428,5 +431,17 @@ public sealed partial class TaskSectionViewModel : ObservableObject
         OnPropertyChanged(nameof(FoldedText));
         OnPropertyChanged(nameof(ColumnName));
         OnPropertyChanged(nameof(CountText));
+    }
+
+    // Owner 2026-11-27: every row shows its place in this list (1, 2, 3 … in the order drawn), its number as wide as the longest one's.
+    private void NumberRows()
+    {
+        int digits = Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture).Length;
+        double width = Math.Max(12, digits * 8);
+        for (int index = 0; index < Rows.Count; index++)
+        {
+            Rows[index].Position = index + 1;
+            Rows[index].NumberWidth = width;
+        }
     }
 }
