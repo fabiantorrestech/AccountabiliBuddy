@@ -222,6 +222,10 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
 
     public bool CanFadeIdleControls => _layout is not null;
 
+    /// <summary>"Number the tasks" (owner 2026-11-27; this PC, both modes, on by default); hidden with the Fade row.</summary>
+    [ObservableProperty]
+    public partial bool NumberRows { get; set; }
+
     // ---- During a session ----
 
     [ObservableProperty]
@@ -461,6 +465,7 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
 
             LabelStyleIndex = Math.Max(0, TaskLabelStyles.SettingsChoices.ToList().IndexOf(TaskLabelStyles.Migrated(settings.LabelStyle)));
             FadeIdleControls = _layout?.Current.FadeIdleControls ?? true;
+            NumberRows = _layout?.Current.NumberRows ?? true;
 
             CompactInSession = settings.CompactInSession;
             CompactPending = PendingText(settings.PendingCompactInSession == false, settings.PendingCompactFrom, "Compact rows off");
@@ -762,6 +767,14 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
         }
     }
 
+    partial void OnNumberRowsChanged(bool value)
+    {
+        if (!_loading && _layout is not null)
+        {
+            _ = _layout.SetNumberRowsAsync(value);
+        }
+    }
+
     // ---- saving: During a session ----
 
     partial void OnCompactInSessionChanged(bool value)
@@ -1012,10 +1025,11 @@ public sealed partial class TaskSettingsViewModel : ObservableObject
             DateOnlyEvent = defaults.DateOnlyEvent,
             NewReminderRule = defaults.NewReminderRule,
         });
-        // "Fade controls you're not using" is this PC's (tasks.layout, both modes): back to on.
+        // "Fade controls you're not using" and "Number the tasks" are this PC's (tasks.layout, both modes): back to on.
         if (_layout is not null)
         {
             await _layout.SetFadeIdleControlsAsync(true);
+            await _layout.SetNumberRowsAsync(true);
         }
 
         ResetNote = note ?? "Tasks settings are back to their defaults.";

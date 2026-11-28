@@ -477,6 +477,17 @@
                                 <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding FadeIdleControls}" VerticalAlignment="Top" AutomationProperties.Name="Fade controls you're not using" />
                             </Grid>
                         </Border>
+                        <!-- Owner 2026-11-27: this PC, the same in both modes (Tasks › Options gets it too). -->
+                        <Border Classes="sRow" search:SearchArea.Name="Number the tasks" IsVisible="{Binding CanFadeIdleControls}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                                <mi:MaterialIcon Classes="rowIcon" Kind="FormatListNumbered" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="sTitle" Text="Number the tasks" />
+                                    <TextBlock Classes="sHint" Text="1, 2, 3 left of the check boxes in every task list and the Archive" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="2" Classes="sw" IsChecked="{Binding NumberRows}" VerticalAlignment="Top" AutomationProperties.Name="Number the tasks" />
+                            </Grid>
+                        </Border>
                         <Border Classes="sRow" search:SearchArea.Name="Weekly tidy-up">
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
                                 <mi:MaterialIcon Classes="rowIcon" Kind="Broom" />

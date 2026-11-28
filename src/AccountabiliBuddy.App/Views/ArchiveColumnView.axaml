@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:tasks="using:AccountabiliBuddy.App.Services.Tasks"
              x:Class="AccountabiliBuddy.App.Views.ArchiveColumnView"
              x:DataType="vm:ArchiveColumnViewModel">
     <!-- One Archive column (Tasks redesign 6.13-6.26; board 04): 1 px Line2 border, radius 14, its header pinned (padding 12 14 6: icon 18
@@ -81,6 +82,15 @@
         <Style Selector="Border.archiveRow.step">
             <Setter Property="Margin" Value="30,-4,0,0" />
             <Setter Property="Padding" Value="10,6" />
+        </Style>
+        <!-- Owner 2026-11-27: a task's place in its column, right-aligned in line with the title's first line. -->
+        <Style Selector="TextBlock.archiveNumber">
+            <Setter Property="FontFamily" Value="{DynamicResource Ab.NumeralFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontFeatures" Value="+tnum" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
         <Style Selector="TextBlock.archiveTitle">
             <Setter Property="FontSize" Value="14.5" />
@@ -188,6 +198,8 @@
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
                         <!-- The lead cell: the label dot "By the check box" (4c.39: 8 px, left of the box) and the box, or a 20 px gap. -->
                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                            <TextBlock Classes="muted archiveNumber" Text="{Binding RowNumber}" MinWidth="{Binding NumberWidth}"
+                                       IsVisible="{Binding IsOn, Source={x:Static tasks:TaskRowNumbers.Shared}}" />
                             <Panel Width="8" Height="8" Margin="0,7,0,0" VerticalAlignment="Top" IsVisible="{Binding ShowsLeadDot}">
                                 <Ellipse Fill="{Binding CategoryBrush}" IsVisible="{Binding HasCategory}" />
                                 <Ellipse Stroke="{DynamicResource Ab.Faint}" StrokeThickness="1.2" IsVisible="{Binding !HasCategory}" />
@@ -248,7 +260,11 @@
         <DataTemplate DataType="vm:RecentlyDeletedRowViewModel">
             <Border Classes="archiveRow abHoverHost">
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-                    <Border Width="20" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+                        <TextBlock Classes="muted archiveNumber" Text="{Binding RowNumber}" MinWidth="{Binding NumberWidth}"
+                                   IsVisible="{Binding IsOn, Source={x:Static tasks:TaskRowNumbers.Shared}}" />
+                        <Border Width="20" />
+                    </StackPanel>
                     <StackPanel Grid.Column="1" Spacing="3">
                         <TextBlock Classes="archiveTitle" Text="{Binding Title}" ToolTip.Tip="{Binding Title}" />
                         <Grid ColumnDefinitions="Auto,*">

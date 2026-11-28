@@ -20,6 +20,10 @@ namespace AccountabiliBuddy.App.Services.Tasks;
 /// Tasks redesign (checklist 3.47, resolution O9): "Fade controls you're not using". On (the default), controls marked <c>idleFade</c> rest faint
 /// and light up on hover, press, keyboard focus or while in use; off, they sit at full strength. One value for both modes, this PC only.
 /// </param>
+/// <param name="NumberRows">
+/// Owner 2026-11-27: "Number the tasks". On (the default), task rows show their place in their list (1, 2, 3 …) left of the check box,
+/// in the Shelf's columns, Today's lists and the Archive sheet (<see cref="TaskRowNumbers"/>). One value for both modes, this PC only.
+/// </param>
 public sealed record TaskLayoutPreferences(
     bool Compact = false,
     int TodaySplit = TaskLayoutPreferences.DefaultSplit,
@@ -28,7 +32,8 @@ public sealed record TaskLayoutPreferences(
     IReadOnlyDictionary<string, IReadOnlyList<string>>? ColumnOrder = null,
     bool FadeIdleControls = true,
     int ShelfSplit = TaskLayoutPreferences.DefaultShelfSplit,
-    IReadOnlyList<string>? FoldedColumns = null)
+    IReadOnlyList<string>? FoldedColumns = null,
+    bool NumberRows = true)
 {
     public const int DefaultShelfSplit = 58;
     public const int MinShelfSplit = 30;

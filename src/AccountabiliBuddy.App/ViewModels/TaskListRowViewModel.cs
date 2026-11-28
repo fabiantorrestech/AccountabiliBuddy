@@ -69,8 +69,14 @@ public sealed partial class TaskListRowViewModel : ObservableObject, ITaskMenuSo
     /// (<see cref="TaskSectionViewModel"/>); 0 until it is in one.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShownNumber), nameof(IsNumbered))]
+    [NotifyPropertyChangedFor(nameof(ShownNumber), nameof(IsNumbered), nameof(HasPosition))]
     public partial int Position { get; set; }
+
+    /// <summary>This session's own number (shown whatever "Number the tasks" says).</summary>
+    public bool HasOwnNumber => Number > 0;
+
+    /// <summary>A place in a list (shown while "Number the tasks" is on).</summary>
+    public bool HasPosition => Position > 0;
 
     /// <summary>The number left of the check box: This session's own number, else the row's place in its list.</summary>
     public int ShownNumber => Number > 0 ? Number : Position;

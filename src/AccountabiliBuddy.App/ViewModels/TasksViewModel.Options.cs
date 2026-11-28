@@ -30,7 +30,8 @@ public sealed partial class TasksViewModel
             today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowFinishedTodayAsync(!ShowsFinishedOnToday)),
             today?.Current.ShowMoreToday ?? false,
             today is null ? null : new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => today.SetShowMoreTodayAsync(!today.Current.ShowMoreToday)),
-            LayoutMenu.IsAvailable ? LayoutMenu.GroupName : null);
+            LayoutMenu.IsAvailable ? LayoutMenu.GroupName : null,
+            _layout.Current.NumberRows, () => _layout.SetNumberRowsAsync(!_layout.Current.NumberRows));
         return PageOptionsMenus.Tasks(state, OpenSettingsAt);
     }
 

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vm="using:AccountabiliBuddy.App.ViewModels"
+             xmlns:tasks="using:AccountabiliBuddy.App.Services.Tasks"
              xmlns:views="using:AccountabiliBuddy.App.Views"
              xmlns:controls="using:AccountabiliBuddy.App.Controls"
              x:Class="AccountabiliBuddy.App.Views.TaskRowView"
@@ -615,7 +616,15 @@
                             </Panel>
                         </Button>
                         <TextBlock Classes="muted rowNumber" Text="{Binding ShownNumber}" FontFamily="{DynamicResource Ab.NumeralFont}" FontSize="13" VerticalAlignment="Center"
-                                   FontFeatures="+tnum" TextAlignment="Right" MinWidth="{Binding NumberWidth}" IsVisible="{Binding IsNumbered}" />
+                                   FontFeatures="+tnum" TextAlignment="Right" MinWidth="{Binding NumberWidth}">
+                            <TextBlock.IsVisible>
+                                <MultiBinding Converter="{x:Static views:TaskRowView.NumberShown}">
+                                    <Binding Path="HasOwnNumber" />
+                                    <Binding Path="HasPosition" />
+                                    <Binding Path="IsOn" Source="{x:Static tasks:TaskRowNumbers.Shared}" />
+                                </MultiBinding>
+                            </TextBlock.IsVisible>
+                        </TextBlock>
                         <CheckBox IsChecked="{Binding ShowsTicked, Mode=OneWay}" Command="{Binding ToggleCommand}" IsVisible="{Binding ShowsDoneTick}"
                                   MinWidth="0" Padding="0" VerticalAlignment="Center" AutomationProperties.Name="{Binding MarkDoneName}"
                                   ToolTip.Tip="Finish (untick to open it again)" />

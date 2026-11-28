@@ -77,6 +77,9 @@ public sealed class TaskLayoutStore
     /// <summary>"Fade controls you're not using" (Settings › Tasks, Tasks › Options): at once, the same in both modes.</summary>
     public Task SetFadeIdleControlsAsync(bool on) => UpdateAsync(current => current with { FadeIdleControls = on });
 
+    /// <summary>"Number the tasks" (Settings › Tasks, Tasks › Options): at once, the same in both modes.</summary>
+    public Task SetNumberRowsAsync(bool on) => UpdateAsync(current => current with { NumberRows = on });
+
     public Task SetSplitAsync(int percent) => UpdateAsync(current => current with
     {
         TodaySplit = Math.Clamp(percent, TaskLayoutPreferences.MinSplit, TaskLayoutPreferences.MaxSplit),

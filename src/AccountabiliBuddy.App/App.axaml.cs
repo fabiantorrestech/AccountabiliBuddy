@@ -2017,6 +2017,8 @@ public partial class App : Application
         taskLayout.LoadBlocking();
         // Tasks redesign: "Fade controls you're not using" sets the idleFade styles' resting opacity app-wide.
         AccountabiliBuddy.App.Services.Tasks.IdleFade.Follow(taskLayout);
+        // "Number the tasks": the row templates show or hide each row's place in its list.
+        AccountabiliBuddy.App.Services.Tasks.TaskRowNumbers.Follow(taskLayout);
         // Round 2: the Today page's layout (sidebar parts, Panel / Chip / Off, in and out of a session). Outside ProductaBuddy the lunch
         // part can't be off.
         var todayLayout = new AccountabiliBuddy.App.Services.Today.TodayLayoutService(documents, () => AppBrand.IsCompanion);

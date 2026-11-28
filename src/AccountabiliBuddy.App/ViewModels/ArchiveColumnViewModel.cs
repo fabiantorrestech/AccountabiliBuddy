@@ -71,8 +71,33 @@ public sealed partial class ArchiveColumnViewModel : ObservableObject
             Rows.Add(row);
         }
 
+        NumberRows();
+
         Count = count;
         EmptyText = searching ? "No matches." : _emptyText;
         OnPropertyChanged(nameof(IsEmpty));
+    }
+
+    // Owner 2026-11-27: each task (not its steps) and each Recently deleted line shows its place in the column, 1 at the top; the
+    // numbers are as wide as the longest one, so the boxes line up.
+    private void NumberRows()
+    {
+        int tasks = Rows.Count(row => row is RecentlyDeletedRowViewModel || row is NotebookItemViewModel { IsSubtask: false });
+        double width = Math.Max(12, tasks.ToString(CultureInfo.InvariantCulture).Length * 8);
+        int place = 0;
+        foreach (object row in Rows)
+        {
+            switch (row)
+            {
+                case NotebookItemViewModel item:
+                    item.RowNumber = item.IsSubtask ? string.Empty : (++place).ToString(CultureInfo.CurrentCulture);
+                    item.NumberWidth = width;
+                    break;
+                case RecentlyDeletedRowViewModel deleted:
+                    deleted.RowNumber = (++place).ToString(CultureInfo.CurrentCulture);
+                    deleted.NumberWidth = width;
+                    break;
+            }
+        }
     }
 }

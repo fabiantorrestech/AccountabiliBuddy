@@ -8,6 +8,14 @@ namespace AccountabiliBuddy.App.ViewModels;
 /// <summary>One line of Archive › Recently deleted: what it was, when it was deleted, and Restore (or delete it for good).</summary>
 public sealed partial class RecentlyDeletedRowViewModel : ObservableObject
 {
+    /// <summary>Owner 2026-11-27: the line's place in Recently deleted ("1", "2" …), set by the column.</summary>
+    [ObservableProperty]
+    public partial string RowNumber { get; set; } = string.Empty;
+
+    /// <summary>The number's width, the same on every line of the column.</summary>
+    [ObservableProperty]
+    public partial double NumberWidth { get; set; } = 12;
+
     private readonly Guid _entryId;
     private readonly SessionTasksService? _tasks;
     private readonly Func<Task<bool>>? _restore;

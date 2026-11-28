@@ -44,6 +44,17 @@ public partial class TaskRowView : UserControl
             return flags.Length == 4 && (flags[0] && flags[1] || flags[2] && flags[3]);
         });
 
+    /// <summary>
+    /// The number left of the check box shows for This session's own number, or for the row's place in its list while "Number the tasks"
+    /// is on: [HasOwnNumber, HasPosition, TaskRowNumbers.IsOn].
+    /// </summary>
+    public static readonly Avalonia.Data.Converters.IMultiValueConverter NumberShown =
+        new Avalonia.Data.Converters.FuncMultiValueConverter<bool, bool>(values =>
+        {
+            bool[] flags = values.ToArray();
+            return flags.Length == 3 && (flags[0] || flags[1] && flags[2]);
+        });
+
     private static readonly TimeSpan FoldTime = TimeSpan.FromMilliseconds(300);
 
     private KeyModifiers _pressModifiers;

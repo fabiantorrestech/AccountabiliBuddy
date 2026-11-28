@@ -79,6 +79,18 @@ public static class PageOptionsMenus
                 Note: "Labels and icons light up on hover", IsSwitch: true));
         }
 
+        if (state.ToggleNumberRows is { } toggleNumberRows)
+        {
+            if (state.ToggleFadeIdle is null)
+            {
+                entries.Add(TaskMenuEntry.Separator);
+            }
+
+            entries.Add(new TaskMenuEntry(
+                "Number the tasks", new AsyncRelayCommand(toggleNumberRows), IsChecked: state.NumberRows,
+                Note: "1, 2, 3 left of the check boxes", IsSwitch: true));
+        }
+
         // O2: today's rows after a divider, in today's order.
         entries.Add(TaskMenuEntry.Separator);
         if (state.ViewMenu.Count > 0)

@@ -141,6 +141,17 @@ public sealed partial class NotebookItemViewModel : ObservableObject, ITaskMenuS
     /// <summary>Drawn set in under its task.</summary>
     public bool IsSubtask { get; }
 
+    /// <summary>
+    /// Owner 2026-11-27: the task's place in its Archive column ("1", "2" …), set by the column; empty for a step (it keeps the
+    /// number's width, so its title stays in line).
+    /// </summary>
+    [ObservableProperty]
+    public partial string RowNumber { get; set; } = string.Empty;
+
+    /// <summary>The number's width, the same on every row of the column, so the boxes line up.</summary>
+    [ObservableProperty]
+    public partial double NumberWidth { get; set; } = 12;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNotEditing))]
     [NotifyPropertyChangedFor(nameof(ShowsEditWarning))]
