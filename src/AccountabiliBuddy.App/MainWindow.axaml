@@ -15,7 +15,7 @@
         Background="{DynamicResource Ab.Bg}"
         WindowDecorations="BorderOnly"
         ExtendClientAreaToDecorationsHint="True"
-        ExtendClientAreaTitleBarHeightHint="40"
+        ExtendClientAreaTitleBarHeightHint="50"
         DragDrop.AllowDrop="True">
     <Window.Styles>
         <!-- The rail's items (Tasks redesign 03 §A): 60 wide, a Material icon on a 44 x 30 pill over an 11.5 label. Muted; the
@@ -236,8 +236,9 @@
         </Style>
     </Window.Styles>
     <Panel x:Name="Root">
-        <Grid RowDefinitions="40,Auto,*">
-            <!-- Title bar, 40 tall (round 2, brief §3.2; owner 2026-11-14, 2026-11-27): at the left back / forward │ "AccountabiliBuddy" and
+        <Grid RowDefinitions="50,Auto,*">
+            <!-- Title bar, 50 tall (round 2, brief §3.2; owner 2026-11-14, 2026-11-27; 2026-11-28: was 40 over a 10 gap, now the gap is
+                 part of it, so every control has the same room above it, to the window's top, as below it, to the page and the rail): at the left back / forward │ "AccountabiliBuddy" and
                  the mode badge (AB or PB); at the right, right to left: the window's own minimize / maximize / close (snap layouts and all),
                  the title-bar menu's button with the sync dot (Tasks redesign 9: search, sync and appearance), the noise control, the session
                  control. The noise control and the session control are cemented slots (TitleBarLayout): their width depends on the window's
@@ -366,7 +367,7 @@
             <Grid Grid.Row="2" ColumnDefinitions="72,*">
                 <!-- The rail, 72 wide (60-wide items): Today, Tasks, Plan, Stats, Goals at the top; "N resting" (while a session runs) and Settings at the
                      bottom. Every item shows in a session too: the locks stay where they were. -->
-                <Grid Background="{DynamicResource Ab.Bg}" RowDefinitions="Auto,*,Auto" Margin="0,10,0,20">
+                <Grid Background="{DynamicResource Ab.Bg}" RowDefinitions="Auto,*,Auto" Margin="0,0,0,20">
                     <StackPanel Spacing="6">
                         <controls:RailButton Label="Today" Icon="CalendarToday" IsSelected="{Binding IsTodaySelected}" AutomationProperties.Name="Today"
                                              Command="{Binding SelectTabCommand}" CommandParameter="{x:Static vm:MainTab.Today}" />
@@ -394,7 +395,7 @@
                     <!-- The pages sit side by side; switching only shows or hides them. A TabControl takes a page out of the window
                          and puts it back on every switch, which rebuilds every control on it (hundreds of ms on Profiles or Settings);
                          a hidden page costs nothing. Same order as MainTab. -->
-                    <Grid Margin="0,10,20,20">
+                    <Grid Margin="0,0,20,20">
                         <Panel x:Name="Pages">
                             <views:TodayView DataContext="{Binding Session}" />
                             <views:TasksView DataContext="{Binding Tasks}" IsVisible="False" />
@@ -425,7 +426,7 @@
 
         <!-- The title-bar menu's dropdown (Tasks redesign 9.04): 8 under its button, right-aligned to it (the right margin is set from the
              button's place), over the page without dimming it; it fits the window's height and scrolls inside. A click outside or Esc closes it. -->
-        <views:TitleMenuView x:Name="TitleMenu" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,44,146,12" ZIndex="20"
+        <views:TitleMenuView x:Name="TitleMenu" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,54,146,12" ZIndex="20"
                              RenderTransform="translateY(0px)" />
 
         <!-- Leaving Settings (or closing the window) with unsaved changes. -->
